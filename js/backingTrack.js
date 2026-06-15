@@ -2,6 +2,7 @@ import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio
 import { parseNote, spellNote, NOTE_NAMES_SHARP, ROOTS } from './theory.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { SCALES, getScaleNotes } from './scales.js';
+import { getSetting, saveSetting, saveSettings } from './persistence.js';
 
 const MAJOR_TRIAD_Q = ['','m','m','','','m','dim'];
 const MINOR_TRIAD_Q = ['m','dim','','m','m','',''];
@@ -20,6 +21,12 @@ const backing = {
   _timer: null, _nextTime: 0, _chordIdx: 0,
   _activeOscs: [],
 };
+
+function numberSetting(id, fallback, allowedValues) {
+  const value = Number(getSetting(id, fallback));
+  if (!Number.isFinite(value)) return fallback;
+  return allowedValues && !allowedValues.includes(value) ? fallback : value;
+}
 
 function getDiatonicTriad(rootStr, scaleName, degree) {
   const scaleKey = scaleName === 'major' ? 'Major (Ionian)' : 'Natural Minor (Aeolian)';
@@ -128,6 +135,7 @@ function renderBackingProg() {
       const options = [2,3,4,5,6];
       const cur = options.indexOf(cn.oct);
       cn.oct = options[(cur + 1) % options.length];
+      saveSetting('backing.chordOctaves', backing.chordNotes.map(chord => chord.oct));
       revoiceChord(cn, i);
       octBadge.textContent = 'Oct ' + cn.oct;
     };
@@ -141,6 +149,7 @@ function renderBackingProg() {
       const options = [1,2,3,4,6,8];
       const cur = options.indexOf(cn.beats);
       cn.beats = options[(cur + 1) % options.length];
+      saveSetting('backing.chordBeats', backing.chordNotes.map(chord => chord.beats));
       beatBadge.textContent = cn.beats + ' beats';
     };
     badges.appendChild(beatBadge);
@@ -238,6 +247,7 @@ function toggleBacking() {
   if (backing.playing) stopBacking(); else {
     backing.bpm = parseInt(document.getElementById('backing-bpm').value) || 100;
     backing.ts = parseInt(document.getElementById('backing-ts').value) || 4;
+    saveSettings({ 'backing.bpm': backing.bpm, 'backing.ts': backing.ts });
     startBacking();
   }
 }
@@ -245,6 +255,18 @@ function toggleBacking() {
 function initBacking() {
   const keyScroll = document.getElementById('sl-backing-key');
   const scaleScroll = document.getElementById('sl-backing-scale');
+  const savedProgression = getSetting('backing.progression', null);
+  const savedChordBeats = getSetting('backing.chordBeats', null);
+  const savedChordOctaves = getSetting('backing.chordOctaves', null);
+  backing.key = getSetting('backing.key', backing.key, ROOTS);
+  backing.scale = getSetting('backing.scale', backing.scale, ['major','minor']);
+  backing.bpm = numberSetting('backing.bpm', backing.bpm);
+  backing.ts = numberSetting('backing.ts', backing.ts, [2,3,4,5,6,7]);
+  backing.defaultBpc = numberSetting('backing.defaultBpc', backing.defaultBpc, [2,4,8]);
+  document.getElementById('backing-bpm').value = backing.bpm;
+  document.getElementById('backing-ts').value = backing.ts;
+  document.getElementById('backing-bpc').value = backing.defaultBpc;
+
   if (keyScroll.children.length) return;
 
   ROOTS.forEach(r => {
@@ -255,6 +277,7 @@ function initBacking() {
       keyScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       backing.key = r;
+      saveSetting('backing.key', backing.key);
       buildBackingProgression();
     };
     keyScroll.appendChild(div);
@@ -268,6 +291,7 @@ function initBacking() {
       scaleScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       backing.scale = s;
+      saveSetting('backing.scale', backing.scale);
       buildBackingProgression();
     };
     scaleScroll.appendChild(div);
@@ -286,6 +310,7 @@ function initBacking() {
         el.classList.toggle('active', el.dataset.val === p.quality);
       });
       backing.scale = p.quality;
+      saveSettings({ 'backing.scale': backing.scale, 'backing.progression': backing.progression });
       buildBackingProgression();
     };
     presetC.appendChild(btn);
@@ -293,12 +318,36 @@ function initBacking() {
 
   document.getElementById('backing-bpc').onchange = (e) => {
     backing.defaultBpc = parseInt(e.target.value) || 4;
+    saveSetting('backing.defaultBpc', backing.defaultBpc);
+  };
+  document.getElementById('backing-bpm').oninput = (e) => {
+    backing.bpm = parseInt(e.target.value) || 100;
+    saveSetting('backing.bpm', backing.bpm);
+  };
+  document.getElementById('backing-ts').onchange = (e) => {
+    backing.ts = parseInt(e.target.value) || 4;
+    saveSetting('backing.ts', backing.ts);
   };
 
   const defaultPreset = PROG_PRESETS['Pop (I-V-vi-IV)'];
-  backing.progression = [...defaultPreset.degrees];
-  backing.scale = defaultPreset.quality;
+  backing.progression = Array.isArray(savedProgression) && savedProgression.length
+    ? [...savedProgression]
+    : [...defaultPreset.degrees];
   buildBackingProgression();
+  if (Array.isArray(savedChordBeats)) {
+    backing.chordNotes.forEach((chord, i) => {
+      if (Number.isFinite(Number(savedChordBeats[i]))) chord.beats = Number(savedChordBeats[i]);
+    });
+  }
+  if (Array.isArray(savedChordOctaves)) {
+    backing.chordNotes.forEach((chord, i) => {
+      if (Number.isFinite(Number(savedChordOctaves[i]))) {
+        chord.oct = Number(savedChordOctaves[i]);
+        revoiceChord(chord, i);
+      }
+    });
+  }
+  renderBackingProg();
 }
 
 window.toggleBacking = toggleBacking;

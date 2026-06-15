@@ -13,12 +13,13 @@ import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 // Riff Generator feature is intentionally disabled in the UI for now.
 // import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
+import { initRecorder, stopRecorder, recorder } from './recorder.js';
 import { initScaleRef } from './scaleReference.js';
-import { initCurriculum } from './curriculum.js';
 import { ROOTS } from './theory.js';
 import { groupedScaleEntries } from './scales.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const ICONS = {
   scales:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
@@ -34,7 +35,7 @@ const ICONS = {
   ear:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
   // backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
   // riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
-  curriculum:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>',
+  recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
 };
 
 const TABS = [
@@ -51,17 +52,16 @@ const TABS = [
   {id:'ear',       label:'Ear',        group:'Train'},
   // {id:'backing',   label:'Backing',    group:'Create'},
   // {id:'riff',      label:'Riff',       group:'Create'},
-  {id:'curriculum',label:'Learn',      group:'Learn'},
+  {id:'recorder',  label:'Record',     group:'Create'},
 ];
 
-const GROUPS = ['Quiz','Reference','Tools','Train','Learn'];
+const GROUPS = ['Quiz','Reference','Tools','Train','Create'];
 const GROUP_ICONS = {
   Quiz:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   Reference: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
   Tools:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
   Train:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
-  // Create:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
-  Learn:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>',
+  Create:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
 };
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
@@ -93,10 +93,10 @@ function showSection(id, skipHash) {
   // if (id !== 'backing' && backing.playing) stopBacking();
   // if (id !== 'riff' && riffState.playing) stopRiff();
   // if (id !== 'riff' && composer.playing) stopComposer();
+  if (id !== 'recorder' && (recorder.recording || recorder.playing)) stopRecorder();
   if (id === 'circle') drawCoF();
   if (id === 'keyboard') buildKeyboard();
   if (id === 'metronome') initMetronome();
-  if (id === 'curriculum') initCurriculum();
   if (id === 'scaleref') initScaleRef();
   if (id === 'chords') initChordBuilder();
   if (id === 'fretboard') initFretboard();
@@ -105,6 +105,7 @@ function showSection(id, skipHash) {
   if (id === 'sightreading') initSightReading();
   // if (id === 'backing') initBacking();
   // if (id === 'riff') { initRiff(); initComposerNotes(); }
+  if (id === 'recorder') initRecorder();
 }
 window.showSection = showSection;
 
@@ -226,6 +227,8 @@ function init() {
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
+    const validValues = items.filter(item => item.type !== 'label').map(item => item.val);
+    const activeVal = getSetting(containerId, defaultVal, validValues);
     items.forEach(({type, val, label}) => {
       if (type === 'label') {
         const group = document.createElement('div');
@@ -236,7 +239,7 @@ function init() {
       }
 
       const div = document.createElement('div');
-      div.className = 'sl-item' + (val === defaultVal ? ' active' : '');
+      div.className = 'sl-item' + (val === activeVal ? ' active' : '');
       div.dataset.val = val;
       div.textContent = label;
       div.onclick = () => selectItem(containerId, val);
@@ -317,15 +320,25 @@ function init() {
   });
 
   document.querySelectorAll('.wave-btn').forEach(btn => {
+    S.kb.wave = getSetting('kb.wave', S.kb.wave, ['sine','triangle','sawtooth','square']);
+    btn.classList.toggle('active', btn.dataset.w === S.kb.wave);
     btn.onclick = () => {
       document.querySelectorAll('.wave-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       S.kb.wave = btn.dataset.w;
+      saveSetting('kb.wave', S.kb.wave);
     };
   });
 
-  document.getElementById('kb-vol').oninput = (e) => {
+  const kbVol = document.getElementById('kb-vol');
+  const savedKbVol = Number(getSetting('kb.vol', Number(kbVol.value) / 100));
+  if (!Number.isNaN(savedKbVol)) {
+    S.kb.vol = Math.max(0, Math.min(1, savedKbVol));
+    kbVol.value = Math.round(S.kb.vol * 100);
+  }
+  kbVol.oninput = (e) => {
     S.kb.vol = e.target.value / 100;
+    saveSetting('kb.vol', S.kb.vol);
     Object.values(S.kb.drones).forEach(dr => {
       if (typeof audioCtx !== 'undefined' && audioCtx) {
         dr.gain.gain.setValueAtTime(S.kb.vol, audioCtx.currentTime);

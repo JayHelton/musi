@@ -2,6 +2,7 @@ import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio
 import { parseNote, ROOTS, TUNINGS } from './theory.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { SCALES } from './scales.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const riffState = {
   key: 'C', scale: 'Major (Ionian)', tuning: 'Standard',
@@ -94,7 +95,7 @@ function generateRiff() {
 }
 
 function riffToTab() {
-  const tuningName = document.getElementById('riff-tuning').value || 'Standard';
+  const tuningName = riffState.tuning || document.getElementById('riff-tuning').value || 'Standard';
   const strings = TUNINGS[tuningName];
   const openMidis = strings.map(s => {
     const p = parseNote(s.note);
@@ -240,6 +241,35 @@ function initRiff() {
   const keyScroll = document.getElementById('sl-riff-key');
   const scaleScroll = document.getElementById('sl-riff-scale');
   const tuningSel = document.getElementById('riff-tuning');
+  const lengthSel = document.getElementById('riff-length');
+  const densitySel = document.getElementById('riff-density');
+  const bpmInput = document.getElementById('riff-bpm');
+  const scaleNames = Object.keys(SCALES);
+  const tuningNames = Object.keys(TUNINGS);
+
+  riffState.key = getSetting('riff.key', riffState.key, ROOTS);
+  riffState.scale = getSetting('riff.scale', riffState.scale, scaleNames);
+  riffState.tuning = getSetting('riff.tuning', riffState.tuning, tuningNames);
+  lengthSel.value = getSetting('riff.length', lengthSel.value, ['1','2','4']);
+  densitySel.value = getSetting('riff.density', densitySel.value, ['quarter','eighth','sixteenth']);
+  bpmInput.value = getSetting('riff.bpm', bpmInput.value);
+  lengthSel.onchange = () => saveSetting('riff.length', lengthSel.value);
+  densitySel.onchange = () => saveSetting('riff.density', densitySel.value);
+  bpmInput.oninput = () => saveSetting('riff.bpm', bpmInput.value);
+
+  if (!tuningSel.children.length) {
+    tuningNames.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      tuningSel.appendChild(opt);
+    });
+  }
+  tuningSel.value = riffState.tuning;
+  tuningSel.onchange = () => {
+    riffState.tuning = tuningSel.value;
+    saveSetting('riff.tuning', riffState.tuning);
+    renderRiffTab();
+  };
 
   if (keyScroll.children.length) return;
 
@@ -251,11 +281,12 @@ function initRiff() {
       keyScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       riffState.key = r;
+      saveSetting('riff.key', riffState.key);
     };
     keyScroll.appendChild(div);
   });
 
-  Object.keys(SCALES).forEach(name => {
+  scaleNames.forEach(name => {
     const div = document.createElement('div');
     div.className = 'sl-item' + (name === riffState.scale ? ' active' : '');
     div.dataset.val = name; div.textContent = name;
@@ -263,14 +294,9 @@ function initRiff() {
       scaleScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       riffState.scale = name;
+      saveSetting('riff.scale', riffState.scale);
     };
     scaleScroll.appendChild(div);
-  });
-
-  Object.keys(TUNINGS).forEach(name => {
-    const opt = document.createElement('option');
-    opt.value = name; opt.textContent = name;
-    tuningSel.appendChild(opt);
   });
 }
 
@@ -285,12 +311,25 @@ const LENGTH_LABELS = {'0.25':'16th','0.5':'8th','1':'♩','1.5':'♩.','2':'�
 
 function initComposerNotes() {
   const sel = document.getElementById('comp-note');
-  if (!sel || sel.children.length) return;
-  NOTE_LABELS.forEach(n => {
-    const opt = document.createElement('option');
-    opt.value = n; opt.textContent = n;
-    sel.appendChild(opt);
-  });
+  const octSel = document.getElementById('comp-oct');
+  const lenSel = document.getElementById('comp-len');
+  const bpmInput = document.getElementById('comp-bpm');
+  if (!sel) return;
+  if (!sel.children.length) {
+    NOTE_LABELS.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n; opt.textContent = n;
+      sel.appendChild(opt);
+    });
+  }
+  sel.value = getSetting('composer.note', sel.value, NOTE_LABELS);
+  octSel.value = getSetting('composer.oct', octSel.value, ['2','3','4','5']);
+  lenSel.value = getSetting('composer.len', lenSel.value, ['0.25','0.5','1','1.5','2','3','4']);
+  bpmInput.value = getSetting('composer.bpm', bpmInput.value);
+  sel.onchange = () => saveSetting('composer.note', sel.value);
+  octSel.onchange = () => saveSetting('composer.oct', octSel.value);
+  lenSel.onchange = () => saveSetting('composer.len', lenSel.value);
+  bpmInput.oninput = () => saveSetting('composer.bpm', bpmInput.value);
 }
 
 function composerAddNote() {

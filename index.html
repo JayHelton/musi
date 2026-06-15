@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Musi</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="apple-touch-icon" href="favicon.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Musi">
+<meta name="application-name" content="Musi">
 <meta property="og:title" content="Musi">
 <meta property="og:description" content="Music theory tools, quizzes, and training">
 <meta property="og:image" content="favicon.png">
@@ -19,6 +25,7 @@
 <link rel="stylesheet" href="css/trainers.css">
 <link rel="stylesheet" href="css/generators.css">
 <link rel="stylesheet" href="css/visualizer.css">
+<link rel="stylesheet" href="css/recorder.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -619,18 +626,70 @@
   </section>
   -->
 
-  <!-- CURRICULUM -->
-  <section id="sec-curriculum" class="section">
+  <!-- VOICE RECORDER -->
+  <section id="sec-recorder" class="section">
     <div class="section-head">
-      <div class="section-kicker">Learn</div>
-      <h2>Learning Plan</h2>
-      <p>Follow guided sessions and jump into related practice tools.</p>
+      <div class="section-kicker">Create</div>
+      <h2>Recorder</h2>
+      <p>Record your voice, replay it, and review detected notes.</p>
     </div>
-    <div class="cur-tabs" id="cur-tabs"></div>
-    <div id="cur-content"></div>
+    <div class="recorder-center">
+      <div class="quiz-card">
+        <div class="rec-live">
+          <div class="rec-live-label" id="rec-live-label">Press Record and start singing</div>
+          <div class="rec-note" id="rec-note">--</div>
+          <div class="rec-cents off" id="rec-cents">0 cents</div>
+          <div class="rec-freq" id="rec-freq">-- Hz</div>
+        </div>
+        <div class="rec-meter-wrap"><div class="rec-meter" id="rec-meter"></div></div>
+        <div class="rec-timer" id="rec-timer">0:00</div>
+        <div class="rec-controls">
+          <button class="btn primary" id="rec-toggle" onclick="toggleRecording()">&#9679; Record</button>
+        </div>
+        <div class="rec-status" id="rec-status"></div>
+        <div id="rec-live-seq-wrap" style="display:none">
+          <div class="rec-section-label">Notes detected</div>
+          <div class="rec-note-seq" id="rec-live-seq"></div>
+        </div>
+      </div>
+
+      <div class="quiz-card" id="rec-playback-card" style="display:none">
+        <div class="rec-card-title">Playback</div>
+        <div class="rec-playnote-row">
+          <span class="rec-section-label" style="margin:0">Now sounding</span>
+          <span class="rec-playnote" id="rec-playnote">--</span>
+        </div>
+        <div class="rec-controls">
+          <button class="btn primary" id="rec-play" onclick="togglePlayback()">&#9654; Play</button>
+          <button class="btn" id="rec-download" onclick="downloadRecording()">Download</button>
+          <button class="btn sm" onclick="clearRecording()">Discard</button>
+        </div>
+      </div>
+
+      <div class="quiz-card" id="rec-analysis-card" style="display:none">
+        <div class="rec-card-title">Analysis</div>
+        <div class="rec-key-block">
+          <span class="rec-section-label" style="margin:0">Detected Key</span>
+          <div class="rec-key" id="rec-key">--</div>
+          <div class="rec-key-alt" id="rec-key-alt"></div>
+        </div>
+        <div class="rec-section-label">Notes detected</div>
+        <div class="rec-note-seq" id="rec-note-seq"></div>
+      </div>
+    </div>
   </section>
+
 </main>
 
 <script type="module" src="js/main.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("service-worker.js").catch((err) => {
+        console.warn("Service worker registration failed:", err);
+      });
+    });
+  }
+</script>
 </body>
 </html>

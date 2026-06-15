@@ -1,5 +1,6 @@
 import { normNote, pick, ROOTS_RAND } from './theory.js';
 import { SCALES, getScaleNotes, scaleStepPattern } from './scales.js';
+import { saveSetting } from './persistence.js';
 
 export const S = {
   sq: {score:0,total:0,streak:0,ans:null,name:'',hint:''},
@@ -93,6 +94,7 @@ export function selectItem(containerId, val) {
   document.querySelectorAll(`#${containerId} .sl-item`).forEach(el => {
     el.classList.toggle('active', el.dataset.val === val);
   });
+  saveSetting(containerId, val);
 }
 
 export function clearIntQTimers() { clearQuizTimers(iqTimers); }

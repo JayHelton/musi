@@ -1,5 +1,6 @@
 import { parseNote, ROOTS, INTERVAL_LABELS } from './theory.js';
 import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './scales.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
 const TRIAD_SUFFIX = ['','m','m','','','m','dim'];
@@ -15,6 +16,8 @@ let refScale = 'Major (Ionian)';
 
 function initScaleRef() {
   const rootScroll = document.getElementById('sl-ref-root');
+  refRoot = getSetting('ref.root', refRoot, ROOTS);
+  refScale = getSetting('ref.scale', refScale, Object.keys(SCALES));
   rootScroll.innerHTML = '';
   ROOTS.forEach(r => {
     const div = document.createElement('div');
@@ -25,6 +28,7 @@ function initScaleRef() {
       rootScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       refRoot = r;
+      saveSetting('ref.root', refRoot);
       renderScaleRef();
     };
     rootScroll.appendChild(div);
@@ -53,6 +57,7 @@ function buildScaleList() {
       container.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       refScale = val;
+      saveSetting('ref.scale', refScale);
       renderScaleRef();
     };
     container.appendChild(div);

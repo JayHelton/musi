@@ -1,5 +1,6 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
+import { getSetting, saveSetting, saveSettings } from './persistence.js';
 
 const NV_BEATS = {whole:4, half:2, quarter:1, eighth:0.5, sixteenth:0.25};
 
@@ -22,6 +23,56 @@ const metro = {
   _tapTimes: [],
 };
 
+let metroSettingsLoaded = false;
+
+function numberSetting(id, fallback, min, max) {
+  const value = Number(getSetting(id, fallback));
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, value));
+}
+
+function validMeasureSlot(slot) {
+  return slot && (slot.simple || NV_BEATS[slot.value] !== undefined);
+}
+
+function normalizedMeasureSlot(slot) {
+  return {
+    value: slot.value,
+    dotted: !!slot.dotted,
+    triplet: !!slot.triplet,
+    rest: !!slot.rest,
+    simple: !!slot.simple,
+  };
+}
+
+function saveMetroMeasure() {
+  saveSetting('metro.measure', metro.measure.map(normalizedMeasureSlot));
+}
+
+function restoreMetronomeSettings() {
+  if (metroSettingsLoaded) return;
+  metroSettingsLoaded = true;
+
+  metro.bpm = numberSetting('metro.bpm', metro.bpm, 30, 300);
+  metro.tsNum = numberSetting('metro.tsNum', metro.tsNum, 1, 12);
+  metro.tsDen = numberSetting('metro.tsDen', metro.tsDen, 2, 16);
+  metro.looping = !!getSetting('metro.looping', metro.looping);
+  metro.countIn = !!getSetting('metro.countIn', metro.countIn);
+  metro.dotted = !!getSetting('metro.dotted', metro.dotted);
+  metro.triplet = !!getSetting('metro.triplet', metro.triplet);
+  metro.restMode = !!getSetting('metro.restMode', metro.restMode);
+
+  const savedMeasure = getSetting('metro.measure', null);
+  if (Array.isArray(savedMeasure)) {
+    metro.measure = savedMeasure.filter(validMeasureSlot).map(normalizedMeasureSlot);
+  }
+
+  const savedAccents = getSetting('metro.accents', null);
+  if (Array.isArray(savedAccents)) {
+    metro.accents = savedAccents.map(Boolean);
+  }
+}
+
 function slotDuration(slot) {
   if (slot.simple) return 1;
   let d = NV_BEATS[slot.value] || 1;
@@ -30,7 +81,7 @@ function slotDuration(slot) {
   return d;
 }
 
-function setSimpleMeasure() {
+function setSimpleMeasure(save = false) {
   metro.measure = Array.from({ length: metro.tsNum }, () => ({
     value: 'quarter',
     dotted: false,
@@ -40,6 +91,14 @@ function setSimpleMeasure() {
   }));
   metro.accents = Array.from({ length: metro.tsNum }, (_, i) => i === 0);
   renderBeatIndicator();
+  if (save) {
+    saveSettings({
+      'metro.tsNum': metro.tsNum,
+      'metro.tsDen': metro.tsDen,
+      'metro.measure': metro.measure.map(normalizedMeasureSlot),
+      'metro.accents': metro.accents,
+    });
+  }
 }
 
 function setBpm(value) {
@@ -48,6 +107,7 @@ function setBpm(value) {
   const bpmSlider = document.getElementById('m-bpm-slider');
   if (bpmInput) bpmInput.value = metro.bpm;
   if (bpmSlider) bpmSlider.value = metro.bpm;
+  saveSetting('metro.bpm', metro.bpm);
 }
 
 function measureCapacity() {
@@ -71,12 +131,14 @@ function addNoteToMeasure(value) {
   });
   renderMeasure();
   updateBeatsFilled();
+  saveMetroMeasure();
 }
 
 function clearMeasure() {
   metro.measure = [];
   renderMeasure();
   updateBeatsFilled();
+  saveMetroMeasure();
 }
 
 function renderMeasure() {
@@ -105,6 +167,7 @@ function renderMeasure() {
       metro.measure.splice(i, 1);
       renderMeasure();
       updateBeatsFilled();
+      saveMetroMeasure();
     };
     bar.appendChild(div);
   });
@@ -157,6 +220,12 @@ function loadPreset(name) {
   updateAccentButtons();
   renderMeasure();
   updateBeatsFilled();
+  saveSettings({
+    'metro.tsNum': metro.tsNum,
+    'metro.tsDen': metro.tsDen,
+    'metro.measure': metro.measure.map(normalizedMeasureSlot),
+    'metro.accents': metro.accents,
+  });
 }
 
 function updateAccentButtons() {
@@ -173,6 +242,7 @@ function updateAccentButtons() {
     btn.onclick = () => {
       metro.accents[i] = !metro.accents[i];
       btn.classList.toggle('active', metro.accents[i]);
+      saveSetting('metro.accents', metro.accents);
     };
     container.appendChild(btn);
   }
@@ -314,12 +384,35 @@ function tapTempo() {
 }
 
 function initMetronome() {
+  restoreMetronomeSettings();
   const bpmInput = document.getElementById('m-bpm');
   const bpmSlider = document.getElementById('m-bpm-slider');
   if (!bpmInput || !bpmSlider) return;
 
   setBpm(metro.bpm);
   if (!metro.measure.length || metro.measure.some(slot => !slot.simple)) setSimpleMeasure();
+
+  const tsNum = document.getElementById('m-ts-num');
+  const tsDen = document.getElementById('m-ts-den');
+  if (tsNum) tsNum.value = metro.tsNum;
+  if (tsDen) tsDen.value = metro.tsDen;
+
+  const dotBtn = document.getElementById('m-dot');
+  if (dotBtn) dotBtn.classList.toggle('active', metro.dotted);
+  const tripBtn = document.getElementById('m-trip');
+  if (tripBtn) tripBtn.classList.toggle('active', metro.triplet);
+  const restBtn = document.getElementById('m-rest');
+  if (restBtn) restBtn.classList.toggle('active', metro.restMode);
+  const loopBtn = document.getElementById('m-loop');
+  if (loopBtn) {
+    loopBtn.textContent = 'Loop: ' + (metro.looping ? 'On' : 'Off');
+    loopBtn.classList.toggle('active', metro.looping);
+  }
+  const countInBtn = document.getElementById('m-countin');
+  if (countInBtn) {
+    countInBtn.textContent = 'Count-in: ' + (metro.countIn ? 'On' : 'Off');
+    countInBtn.classList.toggle('active', metro.countIn);
+  }
 
   bpmInput.oninput = () => {
     setBpm(bpmInput.value);
@@ -334,6 +427,38 @@ function initMetronome() {
   document.querySelectorAll('.metro-bpm-preset').forEach(btn => {
     btn.onclick = () => setBpm(btn.dataset.bpm);
   });
+  if (tsNum) {
+    tsNum.onchange = (e) => {
+      metro.tsNum = parseInt(e.target.value);
+      setSimpleMeasure(true);
+      updateBeatsFilled();
+    };
+  }
+  if (tsDen) {
+    tsDen.onchange = (e) => {
+      metro.tsDen = parseInt(e.target.value);
+      setSimpleMeasure(true);
+      updateBeatsFilled();
+    };
+  }
+  document.querySelectorAll('.nv-btn').forEach(btn => {
+    btn.onclick = () => addNoteToMeasure(btn.dataset.nv);
+  });
+  if (dotBtn) dotBtn.onclick = () => {
+    metro.dotted = !metro.dotted;
+    dotBtn.classList.toggle('active', metro.dotted);
+    saveSetting('metro.dotted', metro.dotted);
+  };
+  if (tripBtn) tripBtn.onclick = () => {
+    metro.triplet = !metro.triplet;
+    tripBtn.classList.toggle('active', metro.triplet);
+    saveSetting('metro.triplet', metro.triplet);
+  };
+  if (restBtn) restBtn.onclick = () => {
+    metro.restMode = !metro.restMode;
+    restBtn.classList.toggle('active', metro.restMode);
+    saveSetting('metro.restMode', metro.restMode);
+  };
   const tapBtn = document.getElementById('m-tap');
   if (tapBtn) tapBtn.onclick = tapTempo;
   const playBtn = document.getElementById('m-play');
@@ -342,50 +467,17 @@ function initMetronome() {
       if (metro.playing) stopMetronome(); else startMetronome();
     };
   }
-  const tsNum = document.getElementById('m-ts-num');
-  if (tsNum) {
-    tsNum.onchange = (e) => {
-      metro.tsNum = parseInt(e.target.value);
-      setSimpleMeasure();
-      updateBeatsFilled();
-    };
-  }
-  const tsDen = document.getElementById('m-ts-den');
-  if (tsDen) {
-    tsDen.onchange = (e) => {
-      metro.tsDen = parseInt(e.target.value);
-      updateBeatsFilled();
-    };
-  };
-  document.querySelectorAll('.nv-btn').forEach(btn => {
-    btn.onclick = () => addNoteToMeasure(btn.dataset.nv);
-  });
-  const dotBtn = document.getElementById('m-dot');
-  if (dotBtn) dotBtn.onclick = () => {
-    metro.dotted = !metro.dotted;
-    dotBtn.classList.toggle('active', metro.dotted);
-  };
-  const tripBtn = document.getElementById('m-trip');
-  if (tripBtn) tripBtn.onclick = () => {
-    metro.triplet = !metro.triplet;
-    tripBtn.classList.toggle('active', metro.triplet);
-  };
-  const restBtn = document.getElementById('m-rest');
-  if (restBtn) restBtn.onclick = () => {
-    metro.restMode = !metro.restMode;
-    restBtn.classList.toggle('active', metro.restMode);
-  };
-  const loopBtn = document.getElementById('m-loop');
   if (loopBtn) loopBtn.onclick = () => {
     metro.looping = !metro.looping;
     loopBtn.textContent = 'Loop: ' + (metro.looping ? 'On' : 'Off');
     loopBtn.classList.toggle('active', metro.looping);
+    saveSetting('metro.looping', metro.looping);
   };
-  const countInBtn = document.getElementById('m-countin');
   if (countInBtn) countInBtn.onclick = () => {
     metro.countIn = !metro.countIn;
     countInBtn.textContent = 'Count-in: ' + (metro.countIn ? 'On' : 'Off');
     countInBtn.classList.toggle('active', metro.countIn);
+    saveSetting('metro.countIn', metro.countIn);
   };
   updateAccentButtons();
   renderMeasure();

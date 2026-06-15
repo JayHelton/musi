@@ -1,5 +1,6 @@
 import { parseNote, NOTE_NAMES_SHARP, ROOTS, TUNINGS } from './theory.js';
 import { SCALES } from './scales.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const FB_FRETS = 15;
 const FB_DOTS = [3,5,7,9,12,15];
@@ -213,6 +214,10 @@ function checkFbAnswer() {
 function initFretboard() {
   const keyScroll = document.getElementById('sl-fb-key');
   const tuningScroll = document.getElementById('sl-fb-tuning');
+  const tuningNames = Object.keys(TUNINGS);
+
+  fb.key = getSetting('fb.key', fb.key, ROOTS);
+  fb.tuning = getSetting('fb.tuning', fb.tuning, tuningNames);
 
   if (keyScroll.children.length) {
     buildFretboard();
@@ -228,6 +233,7 @@ function initFretboard() {
       keyScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       fb.key = r;
+      saveSetting('fb.key', fb.key);
       fb.right = 0; fb.total = 0; fb.streak = 0;
       document.getElementById('fb-right').textContent = 0;
       document.getElementById('fb-total').textContent = 0;
@@ -237,7 +243,7 @@ function initFretboard() {
     keyScroll.appendChild(div);
   });
 
-  Object.keys(TUNINGS).forEach(name => {
+  tuningNames.forEach(name => {
     const div = document.createElement('div');
     div.className = 'sl-item' + (name === fb.tuning ? ' active' : '');
     div.dataset.val = name; div.textContent = name;
@@ -245,6 +251,7 @@ function initFretboard() {
       tuningScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       fb.tuning = name;
+      saveSetting('fb.tuning', fb.tuning);
       buildFretboard();
       if (fb.targetNote) newFbQuestion();
     };

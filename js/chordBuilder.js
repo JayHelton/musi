@@ -2,6 +2,7 @@ import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio
 import { parseNote, NOTE_NAMES_SHARP, ROOTS_RAND, INTERVAL_LABELS } from './theory.js';
 import { SCALES } from './scales.js';
 import { MODS, MOD_LABELS, LETTERS_UI } from './scaleQuiz.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const CHORD_TYPES = [
   {semis:[0,4,7],      name:'Major',   sym:''},
@@ -214,6 +215,8 @@ function initChordBuilder() {
   const modC = document.getElementById('cb-mods');
   const letC = document.getElementById('cb-letters');
   const octC = document.getElementById('cb-octaves');
+  chordBuilder.mod = Number(getSetting('chord.mod', chordBuilder.mod, [0,1,2,3,4]));
+  chordBuilder.octave = Number(getSetting('chord.octave', chordBuilder.octave, [2,3,4,5,6]));
   modC.innerHTML = ''; letC.innerHTML = ''; octC.innerHTML = '';
 
   MODS.forEach((m, i) => {
@@ -224,6 +227,7 @@ function initChordBuilder() {
       modC.querySelectorAll('.mod-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       chordBuilder.mod = i;
+      saveSetting('chord.mod', chordBuilder.mod);
     };
     modC.appendChild(btn);
   });
@@ -244,6 +248,7 @@ function initChordBuilder() {
       octC.querySelectorAll('.oct-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       chordBuilder.octave = o;
+      saveSetting('chord.octave', chordBuilder.octave);
     };
     octC.appendChild(btn);
   }
