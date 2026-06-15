@@ -40,12 +40,33 @@ const ear = {
   targetInterval: null,
   answered: false,
   right: 0, total: 0, streak: 0,
+  lastSequence: null,
   _osc: null, _osc2: null, _gain: null, _stopTimer: null,
   _fadeTimer: null,
+  _seqTimers: [],
 };
 
 function earClearTimers() {
   if (ear._fadeTimer) { clearTimeout(ear._fadeTimer); ear._fadeTimer = null; }
+}
+
+function clearSeqTimers() {
+  if (ear._seqTimers) ear._seqTimers.forEach(t => clearTimeout(t));
+  ear._seqTimers = [];
+}
+
+// Plays a recorded sequence of tones. Each entry is { semi, oct, dur, delay }.
+// The exact sequence is stored so a replay reproduces the same pitches and
+// octaves rather than re-randomizing them.
+function playEarSequence(seq) {
+  clearSeqTimers();
+  seq.forEach(({ semi, oct, dur, delay }) => {
+    if (delay) {
+      ear._seqTimers.push(setTimeout(() => playEarTone(semi, oct, dur), delay));
+    } else {
+      playEarTone(semi, oct, dur);
+    }
+  });
 }
 
 function shortScaleName(name) {
@@ -139,8 +160,11 @@ function playEarQuestion() {
     ear.targetNote = second.note;
     ear.targetDegree = second.degree;
     ear.targetInterval = (second.semi - first.semi + 12) % 12;
-    playEarTone(first.semi, oct, toneDur);
-    setTimeout(() => playEarTone(second.semi, oct, toneDur), 900);
+    ear.lastSequence = [
+      { semi: first.semi, oct, dur: toneDur, delay: 0 },
+      { semi: second.semi, oct, dur: toneDur, delay: 900 },
+    ];
+    playEarSequence(ear.lastSequence);
     setQuestionStatus('melodic interval');
     return;
   }
@@ -152,28 +176,23 @@ function playEarQuestion() {
   ear.targetInterval = target.interval;
 
   if (ear.context === 'root') {
-    playEarTone(tonic.semi, oct, toneDur);
-    setTimeout(() => playEarTone(target.semi, oct, toneDur), 900);
+    ear.lastSequence = [
+      { semi: tonic.semi, oct, dur: toneDur, delay: 0 },
+      { semi: target.semi, oct, dur: toneDur, delay: 900 },
+    ];
     setQuestionStatus('root first');
   } else {
-    playEarTone(target.semi, oct, toneDur);
+    ear.lastSequence = [{ semi: target.semi, oct, dur: toneDur, delay: 0 }];
     setQuestionStatus('single tone');
   }
+  playEarSequence(ear.lastSequence);
 }
 
 function replayEarNote() {
-  if (ear.targetSemi === null) return;
-  const toneDur = 1.25;
-  const oct = octaveForTone();
-  const rootP = parseNote(ear.activeKey);
-  if (!rootP) return;
-
-  if (ear.context === 'root') {
-    playEarTone(rootP.semi, 4, toneDur);
-    setTimeout(() => playEarTone(ear.targetSemi, oct, toneDur), 900);
-  } else {
-    playEarTone(ear.targetSemi, oct, toneDur);
-  }
+  if (!ear.lastSequence || !ear.lastSequence.length) return;
+  // Replay the exact tones that were played for the current question so the
+  // octave (and the leading root/first tone) match what the user first heard.
+  playEarSequence(ear.lastSequence);
 }
 
 function triggerPulse() {
@@ -227,6 +246,7 @@ function playEarTone(semi, oct, duration) {
 
 function stopEarTone() {
   earClearTimers();
+  clearSeqTimers();
   if (ear._stopTimer) { clearTimeout(ear._stopTimer); ear._stopTimer = null; }
   if (ear._osc) {
     try {
