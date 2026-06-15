@@ -1,6 +1,7 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting, saveSettings } from './persistence.js';
+import { getContext, setContext, subscribeContext } from './musicalContext.js';
 
 const NV_BEATS = {whole:4, half:2, quarter:1, eighth:0.5, sixteenth:0.25};
 
@@ -101,14 +102,17 @@ function setSimpleMeasure(save = false) {
   }
 }
 
-function setBpm(value) {
+function setBpm(value, fromContext) {
   metro.bpm = Math.max(30, Math.min(300, parseInt(value) || 120));
   const bpmInput = document.getElementById('m-bpm');
   const bpmSlider = document.getElementById('m-bpm-slider');
   if (bpmInput) bpmInput.value = metro.bpm;
   if (bpmSlider) bpmSlider.value = metro.bpm;
   saveSetting('metro.bpm', metro.bpm);
+  if (!fromContext) setContext({ tempo: metro.bpm }, 'metro');
 }
+
+let metroContextSubscribed = false;
 
 function measureCapacity() {
   return metro.tsNum * (4 / metro.tsDen);
@@ -389,7 +393,15 @@ function initMetronome() {
   const bpmSlider = document.getElementById('m-bpm-slider');
   if (!bpmInput || !bpmSlider) return;
 
-  setBpm(metro.bpm);
+  // Tempo lives in the shared musical context so it follows the player across
+  // compatible tools.
+  setBpm(getContext().tempo, true);
+  if (!metroContextSubscribed) {
+    metroContextSubscribed = true;
+    subscribeContext(c => {
+      if (c.tempo !== metro.bpm) setBpm(c.tempo, true);
+    });
+  }
   if (!metro.measure.length || metro.measure.some(slot => !slot.simple)) setSimpleMeasure();
 
   const tsNum = document.getElementById('m-ts-num');

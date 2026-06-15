@@ -26,11 +26,20 @@
 <link rel="stylesheet" href="css/generators.css">
 <link rel="stylesheet" href="css/visualizer.css">
 <link rel="stylesheet" href="css/recorder.css">
+<link rel="stylesheet" href="css/mobile-ux.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
 <header>
   <h1 class="wordmark">musi</h1>
+  <div class="header-actions">
+    <button id="context-pill" class="context-pill" type="button" aria-label="Edit musical context" aria-haspopup="dialog">
+      <span class="context-pill-text" id="context-pill-text">C &bull; Major &bull; 120 BPM</span>
+    </button>
+    <button id="command-trigger" class="command-trigger" type="button" aria-label="Search tools and theory" title="Search (Ctrl+K)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    </button>
+  </div>
 </header>
 
 <div id="now-playing" class="now-playing">

@@ -1,6 +1,7 @@
 import { parseNote, ROOTS, INTERVAL_LABELS } from './theory.js';
 import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { getContext, setContext, subscribeContext } from './musicalContext.js';
 
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
 const TRIAD_SUFFIX = ['','m','m','','','m','dim'];
@@ -13,11 +14,15 @@ const KEY_SIGS = {
 
 let refRoot = 'C';
 let refScale = 'Major (Ionian)';
+let refContextSubscribed = false;
 
 function initScaleRef() {
   const rootScroll = document.getElementById('sl-ref-root');
-  refRoot = getSetting('ref.root', refRoot, ROOTS);
-  refScale = getSetting('ref.scale', refScale, Object.keys(SCALES));
+  // The shared musical context is the source of truth so the reference opens in
+  // whatever key/mode the player picked elsewhere.
+  const ctx = getContext();
+  refRoot = ctx.root;
+  refScale = ctx.scale;
   rootScroll.innerHTML = '';
   ROOTS.forEach(r => {
     const div = document.createElement('div');
@@ -29,12 +34,31 @@ function initScaleRef() {
       div.classList.add('active');
       refRoot = r;
       saveSetting('ref.root', refRoot);
+      setContext({ root: refRoot }, 'scaleref');
       renderScaleRef();
     };
     rootScroll.appendChild(div);
   });
   buildScaleList();
   renderScaleRef();
+
+  if (!refContextSubscribed) {
+    refContextSubscribed = true;
+    subscribeContext(c => {
+      if (c.root === refRoot && c.scale === refScale) return;
+      refRoot = c.root;
+      refScale = c.scale;
+      syncRefSelection();
+      renderScaleRef();
+    });
+  }
+}
+
+function syncRefSelection() {
+  document.querySelectorAll('#sl-ref-root .sl-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.val === refRoot));
+  document.querySelectorAll('#sl-ref-scale .sl-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.val === refScale));
 }
 
 function buildScaleList() {
@@ -58,6 +82,7 @@ function buildScaleList() {
       div.classList.add('active');
       refScale = val;
       saveSetting('ref.scale', refScale);
+      setContext({ scale: refScale }, 'scaleref');
       renderScaleRef();
     };
     container.appendChild(div);
