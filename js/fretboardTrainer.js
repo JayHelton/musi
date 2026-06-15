@@ -1,6 +1,7 @@
-import { parseNote, NOTE_NAMES_SHARP, ROOTS, TUNINGS, INTERVAL_LABELS } from './theory.js';
-import { SCALES, groupedScaleEntries } from './scales.js';
+import { parseNote, NOTE_NAMES_SHARP, TUNINGS, INTERVAL_LABELS } from './theory.js';
+import { SCALES } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { getContext, subscribeContext } from './musicalContext.js';
 
 const FB_DOTS = [3,5,7,9,12,15];
 
@@ -28,6 +29,9 @@ const fb = {
   answered: false, right: 0, total: 0, streak: 0,
   _advTimer: null, _fadeTimer: null,
 };
+
+let fbBuilt = false;
+let fbContextSubscribed = false;
 
 function fbClearTimers() {
   if (fb._advTimer) { clearTimeout(fb._advTimer); fb._advTimer = null; }
@@ -342,15 +346,17 @@ function wireWorkbenchControls() {
 }
 
 function initFretboard() {
-  const keyScroll = document.getElementById('sl-fb-key');
   const tuningScroll = document.getElementById('sl-fb-tuning');
-  const scaleScroll = document.getElementById('sl-fb-scale');
   const modeScroll = document.getElementById('sl-fb-mode');
   const tuningNames = Object.keys(TUNINGS);
 
-  fb.key = getSetting('fb.key', fb.key, ROOTS);
+  // Key and scale are inherited from the shared musical context instead of
+  // per-drill selectors, so the fretboard always quizzes the player's current
+  // key and mode.
+  const ctx = getContext();
+  fb.key = ctx.root;
+  fb.scale = ctx.scale;
   fb.tuning = getSetting('fb.tuning', fb.tuning, tuningNames);
-  fb.scale = getSetting('fb.scale', fb.scale, Object.keys(SCALES));
   fb.mode = getSetting('fb.mode', fb.mode, FB_MODES.map(o => o.val));
   fb.fretStart = Number(getSetting('fb.fretStart', fb.fretStart));
   fb.fretEnd = Number(getSetting('fb.fretEnd', fb.fretEnd));
@@ -358,29 +364,29 @@ function initFretboard() {
   fb.showIntervals = getSetting('fb.showIntervals', fb.showIntervals, [true, false]);
   wireWorkbenchControls();
 
-  if (keyScroll.children.length) {
-    buildFretboard();
-    buildIntervalButtons();
-    return;
-  }
-
-  ROOTS.forEach(r => {
-    const div = document.createElement('div');
-    div.className = 'sl-item' + (r === fb.key ? ' active' : '');
-    div.dataset.val = r; div.textContent = r;
-    div.onclick = () => {
-      keyScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
-      div.classList.add('active');
-      fb.key = r;
-      saveSetting('fb.key', fb.key);
+  if (!fbContextSubscribed) {
+    fbContextSubscribed = true;
+    subscribeContext(c => {
+      if (c.root === fb.key && c.scale === fb.scale) return;
+      fb.key = c.root;
+      fb.scale = c.scale;
+      if (!fbBuilt) return;
       fb.right = 0; fb.total = 0; fb.streak = 0;
       updateFbScore();
       buildFretboard();
       buildIntervalButtons();
-      newFbQuestion();
-    };
-    keyScroll.appendChild(div);
-  });
+      if (document.getElementById('sec-fretboard')?.classList.contains('active')) {
+        newFbQuestion();
+      }
+    });
+  }
+
+  if (tuningScroll.children.length) {
+    buildFretboard();
+    buildIntervalButtons();
+    return;
+  }
+  fbBuilt = true;
 
   tuningNames.forEach(name => {
     const div = document.createElement('div');
@@ -395,14 +401,6 @@ function initFretboard() {
       if (fb.targetNote) newFbQuestion();
     };
     tuningScroll.appendChild(div);
-  });
-
-  buildChoiceList(scaleScroll, groupedScaleEntries(false), fb.scale, val => {
-    fb.scale = val;
-    saveSetting('fb.scale', val);
-    buildFretboard();
-    buildIntervalButtons();
-    if (fb.targetNote) newFbQuestion();
   });
 
   buildChoiceList(modeScroll, FB_MODES, fb.mode, val => {
