@@ -1,4 +1,5 @@
 import { pick } from './theory.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const LETTER_INDEX = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
@@ -175,17 +176,21 @@ function buildAnswerButtons() {
 function initSightReading() {
   const clefScroll = document.getElementById('sl-sr-clef');
   const diffScroll = document.getElementById('sl-sr-diff');
+  const clefOptions = ['Treble', 'Bass', 'both'];
+  const diffOptions = ['easy', 'medium', 'hard'];
+
+  sr.clef = getSetting('sr.clef', sr.clef, clefOptions);
+  sr.diff = getSetting('sr.diff', sr.diff, diffOptions);
 
   if (clefScroll.children.length) {
     if (!sr.answer) newSightQ();
     return;
   }
 
-  [
-    { val: 'Treble', label: 'Treble' },
-    { val: 'Bass', label: 'Bass' },
-    { val: 'both', label: 'Both (random)' },
-  ].forEach(({ val, label }) => {
+  clefOptions.map(val => ({
+    val,
+    label: val === 'both' ? 'Both (random)' : val,
+  })).forEach(({ val, label }) => {
     const div = document.createElement('div');
     div.className = 'sl-item' + (val === sr.clef ? ' active' : '');
     div.dataset.val = val;
@@ -194,6 +199,7 @@ function initSightReading() {
       clefScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       sr.clef = val;
+      saveSetting('sr.clef', sr.clef);
       resetSightScore();
       newSightQ();
     };
@@ -213,6 +219,7 @@ function initSightReading() {
       diffScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       sr.diff = val;
+      saveSetting('sr.diff', sr.diff);
       newSightQ();
     };
     diffScroll.appendChild(div);

@@ -1,5 +1,6 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
+import { getSetting, saveSetting, saveSettings } from './persistence.js';
 
 const NV_BEATS = {whole:4, half:2, quarter:1, eighth:0.5, sixteenth:0.25};
 
@@ -21,6 +22,55 @@ const metro = {
   _countInLeft: 0,
   _tapTimes: [],
 };
+
+let metroSettingsLoaded = false;
+
+function numberSetting(id, fallback, min, max) {
+  const value = Number(getSetting(id, fallback));
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, value));
+}
+
+function validMeasureSlot(slot) {
+  return slot && NV_BEATS[slot.value] !== undefined;
+}
+
+function normalizedMeasureSlot(slot) {
+  return {
+    value: slot.value,
+    dotted: !!slot.dotted,
+    triplet: !!slot.triplet,
+    rest: !!slot.rest,
+  };
+}
+
+function saveMetroMeasure() {
+  saveSetting('metro.measure', metro.measure.map(normalizedMeasureSlot));
+}
+
+function restoreMetronomeSettings() {
+  if (metroSettingsLoaded) return;
+  metroSettingsLoaded = true;
+
+  metro.bpm = numberSetting('metro.bpm', metro.bpm, 30, 300);
+  metro.tsNum = numberSetting('metro.tsNum', metro.tsNum, 1, 12);
+  metro.tsDen = numberSetting('metro.tsDen', metro.tsDen, 2, 16);
+  metro.looping = !!getSetting('metro.looping', metro.looping);
+  metro.countIn = !!getSetting('metro.countIn', metro.countIn);
+  metro.dotted = !!getSetting('metro.dotted', metro.dotted);
+  metro.triplet = !!getSetting('metro.triplet', metro.triplet);
+  metro.restMode = !!getSetting('metro.restMode', metro.restMode);
+
+  const savedMeasure = getSetting('metro.measure', null);
+  if (Array.isArray(savedMeasure)) {
+    metro.measure = savedMeasure.filter(validMeasureSlot).map(normalizedMeasureSlot);
+  }
+
+  const savedAccents = getSetting('metro.accents', null);
+  if (Array.isArray(savedAccents)) {
+    metro.accents = savedAccents.map(Boolean);
+  }
+}
 
 function slotDuration(slot) {
   let d = NV_BEATS[slot.value] || 1;
@@ -50,12 +100,14 @@ function addNoteToMeasure(value) {
   });
   renderMeasure();
   updateBeatsFilled();
+  saveMetroMeasure();
 }
 
 function clearMeasure() {
   metro.measure = [];
   renderMeasure();
   updateBeatsFilled();
+  saveMetroMeasure();
 }
 
 function renderMeasure() {
@@ -83,6 +135,7 @@ function renderMeasure() {
       metro.measure.splice(i, 1);
       renderMeasure();
       updateBeatsFilled();
+      saveMetroMeasure();
     };
     bar.appendChild(div);
   });
@@ -132,6 +185,12 @@ function loadPreset(name) {
   updateAccentButtons();
   renderMeasure();
   updateBeatsFilled();
+  saveSettings({
+    'metro.tsNum': metro.tsNum,
+    'metro.tsDen': metro.tsDen,
+    'metro.measure': metro.measure.map(normalizedMeasureSlot),
+    'metro.accents': metro.accents,
+  });
 }
 
 function updateAccentButtons() {
@@ -147,6 +206,7 @@ function updateAccentButtons() {
     btn.onclick = () => {
       metro.accents[i] = !metro.accents[i];
       btn.classList.toggle('active', metro.accents[i]);
+      saveSetting('metro.accents', metro.accents);
     };
     container.appendChild(btn);
   }
@@ -282,28 +342,45 @@ function tapTempo() {
     metro.bpm = Math.max(30, Math.min(300, Math.round(60000 / avg)));
     document.getElementById('m-bpm').value = metro.bpm;
     document.getElementById('m-bpm-slider').value = metro.bpm;
+    saveSetting('metro.bpm', metro.bpm);
   }
 }
 
 function initMetronome() {
+  restoreMetronomeSettings();
   const bpmInput = document.getElementById('m-bpm');
   const bpmSlider = document.getElementById('m-bpm-slider');
+  bpmInput.value = metro.bpm;
+  bpmSlider.value = metro.bpm;
+  document.getElementById('m-ts-num').value = metro.tsNum;
+  document.getElementById('m-ts-den').value = metro.tsDen;
+  document.getElementById('m-dot').classList.toggle('active', metro.dotted);
+  document.getElementById('m-trip').classList.toggle('active', metro.triplet);
+  document.getElementById('m-rest').classList.toggle('active', metro.restMode);
+  document.getElementById('m-loop').textContent = 'Loop: ' + (metro.looping ? 'On' : 'Off');
+  document.getElementById('m-loop').classList.toggle('active', metro.looping);
+  document.getElementById('m-countin').textContent = 'Count-in: ' + (metro.countIn ? 'On' : 'Off');
+  document.getElementById('m-countin').classList.toggle('active', metro.countIn);
   bpmInput.oninput = () => {
     metro.bpm = Math.max(30, Math.min(300, parseInt(bpmInput.value) || 120));
     bpmSlider.value = metro.bpm;
+    saveSetting('metro.bpm', metro.bpm);
   };
   bpmSlider.oninput = () => {
     metro.bpm = parseInt(bpmSlider.value);
     bpmInput.value = metro.bpm;
+    saveSetting('metro.bpm', metro.bpm);
   };
   document.getElementById('m-ts-num').onchange = (e) => {
     metro.tsNum = parseInt(e.target.value);
     updateAccentButtons();
     updateBeatsFilled();
+    saveSettings({ 'metro.tsNum': metro.tsNum, 'metro.accents': metro.accents });
   };
   document.getElementById('m-ts-den').onchange = (e) => {
     metro.tsDen = parseInt(e.target.value);
     updateBeatsFilled();
+    saveSetting('metro.tsDen', metro.tsDen);
   };
   document.querySelectorAll('.nv-btn').forEach(btn => {
     btn.onclick = () => addNoteToMeasure(btn.dataset.nv);
@@ -311,14 +388,17 @@ function initMetronome() {
   document.getElementById('m-dot').onclick = () => {
     metro.dotted = !metro.dotted;
     document.getElementById('m-dot').classList.toggle('active', metro.dotted);
+    saveSetting('metro.dotted', metro.dotted);
   };
   document.getElementById('m-trip').onclick = () => {
     metro.triplet = !metro.triplet;
     document.getElementById('m-trip').classList.toggle('active', metro.triplet);
+    saveSetting('metro.triplet', metro.triplet);
   };
   document.getElementById('m-rest').onclick = () => {
     metro.restMode = !metro.restMode;
     document.getElementById('m-rest').classList.toggle('active', metro.restMode);
+    saveSetting('metro.restMode', metro.restMode);
   };
   document.getElementById('m-tap').onclick = tapTempo;
   document.getElementById('m-play').onclick = () => {
@@ -328,11 +408,13 @@ function initMetronome() {
     metro.looping = !metro.looping;
     document.getElementById('m-loop').textContent = 'Loop: ' + (metro.looping ? 'On' : 'Off');
     document.getElementById('m-loop').classList.toggle('active', metro.looping);
+    saveSetting('metro.looping', metro.looping);
   };
   document.getElementById('m-countin').onclick = () => {
     metro.countIn = !metro.countIn;
     document.getElementById('m-countin').textContent = 'Count-in: ' + (metro.countIn ? 'On' : 'Off');
     document.getElementById('m-countin').classList.toggle('active', metro.countIn);
+    saveSetting('metro.countIn', metro.countIn);
   };
   updateAccentButtons();
   renderMeasure();

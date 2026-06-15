@@ -1,5 +1,6 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const tuner = {
   running: false,
@@ -168,6 +169,7 @@ let vtOctave = 4;
 function initTuner() {
   const octC = document.getElementById('vt-octaves');
   const notesC = document.getElementById('vt-notes');
+  vtOctave = Number(getSetting('tuner.octave', vtOctave, [2,3,4,5,6]));
   if (octC.children.length) return;
 
   for (let o = 2; o <= 6; o++) {
@@ -178,6 +180,7 @@ function initTuner() {
       octC.querySelectorAll('.oct-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       vtOctave = o;
+      saveSetting('tuner.octave', vtOctave);
     };
     octC.appendChild(btn);
   }

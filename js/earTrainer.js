@@ -1,6 +1,7 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, NOTE_NAMES_SHARP, ROOTS } from './theory.js';
 import { SCALES } from './scales.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const EAR_ADVANCE_MS = 1600;
 const EAR_FADE_START_MS = 1100;
@@ -180,6 +181,10 @@ function initEarTrainer() {
   const keyScroll = document.getElementById('sl-ear-key');
   const modeScroll = document.getElementById('sl-ear-mode');
   const answersC = document.getElementById('ear-answers');
+  const modes = ['easy', 'hard'];
+
+  ear.key = getSetting('ear.key', ear.key, ROOTS);
+  ear.mode = getSetting('ear.mode', ear.mode, modes);
 
   if (keyScroll.children.length) return;
 
@@ -191,12 +196,13 @@ function initEarTrainer() {
       keyScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       ear.key = r;
+      saveSetting('ear.key', ear.key);
       buildEarAnswerButtons();
     };
     keyScroll.appendChild(div);
   });
 
-  ['easy','hard'].forEach(m => {
+  modes.forEach(m => {
     const div = document.createElement('div');
     div.className = 'sl-item' + (m === ear.mode ? ' active' : '');
     div.dataset.val = m;
@@ -205,6 +211,7 @@ function initEarTrainer() {
       modeScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       ear.mode = m;
+      saveSetting('ear.mode', ear.mode);
     };
     modeScroll.appendChild(div);
   });

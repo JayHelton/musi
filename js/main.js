@@ -17,6 +17,7 @@ import { ROOTS } from './theory.js';
 import { SCALES } from './scales.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const ICONS = {
   scales:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
@@ -193,9 +194,10 @@ function init() {
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
+    const activeVal = getSetting(containerId, defaultVal, items.map(item => item.val));
     items.forEach(({val, label}) => {
       const div = document.createElement('div');
-      div.className = 'sl-item' + (val === defaultVal ? ' active' : '');
+      div.className = 'sl-item' + (val === activeVal ? ' active' : '');
       div.dataset.val = val;
       div.textContent = label;
       div.onclick = () => selectItem(containerId, val);
@@ -232,15 +234,25 @@ function init() {
   });
 
   document.querySelectorAll('.wave-btn').forEach(btn => {
+    S.kb.wave = getSetting('kb.wave', S.kb.wave, ['sine','triangle','sawtooth','square']);
+    btn.classList.toggle('active', btn.dataset.w === S.kb.wave);
     btn.onclick = () => {
       document.querySelectorAll('.wave-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       S.kb.wave = btn.dataset.w;
+      saveSetting('kb.wave', S.kb.wave);
     };
   });
 
-  document.getElementById('kb-vol').oninput = (e) => {
+  const kbVol = document.getElementById('kb-vol');
+  const savedKbVol = Number(getSetting('kb.vol', Number(kbVol.value) / 100));
+  if (!Number.isNaN(savedKbVol)) {
+    S.kb.vol = Math.max(0, Math.min(1, savedKbVol));
+    kbVol.value = Math.round(S.kb.vol * 100);
+  }
+  kbVol.oninput = (e) => {
     S.kb.vol = e.target.value / 100;
+    saveSetting('kb.vol', S.kb.vol);
     Object.values(S.kb.drones).forEach(dr => {
       if (typeof audioCtx !== 'undefined' && audioCtx) {
         dr.gain.gain.setValueAtTime(S.kb.vol, audioCtx.currentTime);
