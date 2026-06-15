@@ -1,4 +1,4 @@
-import { audioCtx, ensureAudio, midiFreq } from './audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
 
 const tuner = {
@@ -124,7 +124,7 @@ function playRefTone(noteStr, oct) {
   osc.frequency.value = midiFreq(midi);
   gain.gain.value = 0.25;
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(getAnalyserDestination());
   osc.start();
   tuner.refOsc = osc;
   tuner.refGain = gain;

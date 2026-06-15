@@ -1,4 +1,4 @@
-import { audioCtx, ensureAudio, midiFreq } from './audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, NOTE_NAMES_SHARP, ROOTS_RAND, INTERVAL_LABELS } from './theory.js';
 import { SCALES } from './scales.js';
 import { MODS, MOD_LABELS, LETTERS_UI } from './scaleQuiz.js';
@@ -174,7 +174,7 @@ function playChord() {
     gain.gain.linearRampToValueAtTime(0.25 / chordBuilder.notes.length, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 2);
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(getAnalyserDestination());
     osc.start(now);
     osc.stop(now + 2);
     chordBuilder.oscillators.push({ osc, gain });

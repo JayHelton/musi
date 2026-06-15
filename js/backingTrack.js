@@ -1,5 +1,6 @@
-import { audioCtx, ensureAudio, midiFreq } from './audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, spellNote, NOTE_NAMES_SHARP, ROOTS } from './theory.js';
+import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { SCALES, getScaleNotes } from './scales.js';
 
 const MAJOR_TRIAD_Q = ['','m','m','','','m','dim'];
@@ -136,7 +137,7 @@ function playBackingChord(time, voicing, beats) {
     gain.gain.linearRampToValueAtTime(vol, time + 0.03);
     gain.gain.setValueAtTime(vol, time + chordDur * 0.85);
     gain.gain.exponentialRampToValueAtTime(0.001, time + chordDur);
-    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.connect(gain); gain.connect(getAnalyserDestination());
     osc.start(time); osc.stop(time + chordDur + 0.05);
     backing._activeOscs.push({ osc, gain });
   });
@@ -172,6 +173,7 @@ function startBacking() {
   backing._nextTime = audioCtx.currentTime + 0.05;
   backing._activeOscs = [];
   document.getElementById('backing-play').textContent = 'Stop';
+  showNowPlaying(`Backing Track \u2014 ${backing.key} ${backing.scale}`, stopBacking);
   backingScheduler();
 }
 
@@ -187,6 +189,7 @@ function stopBacking() {
   backing._activeOscs = [];
   document.getElementById('backing-play').textContent = 'Play';
   document.querySelectorAll('.backing-chord').forEach(el => el.classList.remove('playing'));
+  hideNowPlaying();
 }
 
 function toggleBacking() {

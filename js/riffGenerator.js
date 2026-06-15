@@ -1,5 +1,6 @@
-import { audioCtx, ensureAudio, midiFreq } from './audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, ROOTS, TUNINGS } from './theory.js';
+import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { SCALES } from './scales.js';
 
 const riffState = {
@@ -153,6 +154,7 @@ function playRiff() {
   riffState._nextTime = audioCtx.currentTime + 0.05;
   riffState._activeOscs = [];
   document.getElementById('riff-play').textContent = 'Stop';
+  showNowPlaying(`Riff \u2014 ${riffState.key} ${riffState.scale}`, stopRiff);
   riffScheduler();
 }
 
@@ -183,7 +185,7 @@ function riffScheduler() {
     gain.gain.setValueAtTime(0.001, riffState._nextTime);
     gain.gain.linearRampToValueAtTime(0.2, riffState._nextTime + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, riffState._nextTime + noteDur * 0.9);
-    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.connect(gain); gain.connect(getAnalyserDestination());
     osc.start(riffState._nextTime); osc.stop(riffState._nextTime + noteDur);
     riffState._activeOscs.push({ osc, gain });
 
@@ -209,6 +211,7 @@ function stopRiff() {
   riffState._activeOscs = [];
   document.getElementById('riff-play').textContent = 'Play';
   document.querySelectorAll('.rn.playing').forEach(el => el.classList.remove('playing'));
+  hideNowPlaying();
 }
 
 function toggleRiffPlay() {

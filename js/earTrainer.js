@@ -1,4 +1,4 @@
-import { audioCtx, ensureAudio, midiFreq } from './audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, NOTE_NAMES_SHARP, ROOTS } from './theory.js';
 import { SCALES } from './scales.js';
 
@@ -55,9 +55,23 @@ function replayEarNote() {
   }
 }
 
+function triggerRipple() {
+  const wrap = document.getElementById('ear-ripple-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const ring = document.createElement('div');
+    ring.className = 'ear-ripple';
+    ring.style.animationDelay = (i * 0.15) + 's';
+    wrap.appendChild(ring);
+  }
+  setTimeout(() => { wrap.innerHTML = ''; }, 1500);
+}
+
 function playEarTone(semi, oct) {
   stopEarTone();
   ensureAudio();
+  triggerRipple();
   const midi = 12 * (oct + 1) + semi;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -65,7 +79,7 @@ function playEarTone(semi, oct) {
   osc.frequency.value = midiFreq(midi);
   gain.gain.value = 0.3;
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(getAnalyserDestination());
   osc.start();
   ear._osc = osc;
   ear._gain = gain;

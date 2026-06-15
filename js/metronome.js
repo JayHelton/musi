@@ -1,4 +1,5 @@
-import { audioCtx, ensureAudio } from './audio.js';
+import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
+import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 
 const NV_BEATS = {whole:4, half:2, quarter:1, eighth:0.5, sixteenth:0.25};
 
@@ -151,16 +152,27 @@ function updateAccentButtons() {
   }
 }
 
+function triggerBeatPulse(accented) {
+  const ring = document.getElementById('beat-pulse-ring');
+  if (!ring) return;
+  ring.classList.remove('pulse', 'accent');
+  void ring.offsetWidth;
+  ring.classList.add('pulse');
+  if (accented) ring.classList.add('accent');
+}
+
 function scheduleClick(time, accented) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(getAnalyserDestination());
   osc.frequency.value = accented ? 880 : 440;
   gain.gain.setValueAtTime(accented ? 0.6 : 0.3, time);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
   osc.start(time);
   osc.stop(time + 0.03);
+  const delay = Math.max(0, (time - audioCtx.currentTime) * 1000);
+  setTimeout(() => triggerBeatPulse(accented), delay);
 }
 
 function getAccentForSlot(slotIndex) {
@@ -196,6 +208,7 @@ function startMetronome() {
   metro._currentSlot = 0;
   document.getElementById('m-play').textContent = '\u25A0 Stop';
   document.getElementById('m-play').classList.add('playing');
+  showNowPlaying(`Metronome \u2014 ${metro.bpm} BPM`, stopMetronome);
   renderBeatIndicator();
   metro._countInLeft = metro.countIn ? metro.tsNum : 0;
   metro._nextNoteTime = audioCtx.currentTime + 0.05;
@@ -208,6 +221,7 @@ function stopMetronome() {
   document.getElementById('m-play').textContent = '\u25B6 Play';
   document.getElementById('m-play').classList.remove('playing');
   highlightSlot(-1);
+  hideNowPlaying();
 }
 
 function metroScheduler() {
