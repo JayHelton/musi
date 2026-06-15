@@ -2,7 +2,8 @@ import { audioCtx } from './audio.js';
 import { S, buildNoteButtons, selectItem, getSelected, MODS, MOD_LABELS, LETTERS_UI, CHROMATIC_NOTES } from './scaleQuiz.js';
 import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
-import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
+// Virtual Keyboard feature is disabled in the UI for now. Keep the module for future reactivation.
+// import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
 import { initMetronome, stopMetronome, metro } from './metronome.js';
 import { initFretboard } from './fretboardTrainer.js';
 import { initTuner, stopTuner, tuner } from './vocalTrainer.js';
@@ -13,7 +14,7 @@ import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 // Riff Generator feature is intentionally disabled in the UI for now.
 // import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
-import { initRecorder, stopRecorder, recorder } from './recorder.js';
+import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initScaleRef } from './scaleReference.js';
 import { ROOTS } from './theory.js';
 import { groupedScaleEntries } from './scales.js';
@@ -28,7 +29,7 @@ const ICONS = {
   scaleref:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
   chords:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg>',
   circle:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>',
-  keyboard:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
+  // keyboard:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
   metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L6 22h12L12 2z"/><path d="M12 8v6"/><circle cx="12" cy="16" r="1.5"/></svg>',
   fretboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M4 6h16M4 10h16M4 14h16M4 18h16M9 2v20M15 2v20"/></svg>',
   tuner:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
@@ -39,29 +40,29 @@ const ICONS = {
 };
 
 const TABS = [
-  {id:'scales',    label:'Scales',     group:'Quiz'},
-  {id:'intervals', label:'Intervals',  group:'Quiz'},
-  {id:'sightreading', label:'Sight Read', group:'Quiz'},
+  {id:'scales',    label:'Scales',     group:'Drill'},
+  {id:'intervals', label:'Intervals',  group:'Drill'},
+  {id:'sightreading', label:'Sight Read', group:'Drill'},
   {id:'scaleref',  label:'Reference',  group:'Reference'},
   {id:'chords',    label:'Chords',     group:'Reference'},
   {id:'circle',    label:'Circle',     group:'Reference'},
-  {id:'keyboard',  label:'Keys',       group:'Tools'},
+  // {id:'keyboard',  label:'Keys',       group:'Tools'},
   {id:'metronome', label:'Tempo',      group:'Tools'},
-  {id:'fretboard', label:'Fretboard',  group:'Train'},
-  {id:'tuner',     label:'Vocal',      group:'Train'},
-  {id:'ear',       label:'Ear',        group:'Train'},
+  {id:'fretboard', label:'Fretboard',  group:'Workbench'},
+  {id:'tuner',     label:'Pitch',      group:'Workbench'},
+  {id:'ear',       label:'Ear',        group:'Workbench'},
   // {id:'backing',   label:'Backing',    group:'Create'},
   // {id:'riff',      label:'Riff',       group:'Create'},
-  {id:'recorder',  label:'Record',     group:'Create'},
+  {id:'recorder',  label:'Record',     group:'Capture'},
 ];
 
-const GROUPS = ['Quiz','Reference','Tools','Train','Create'];
+const GROUPS = ['Drill','Reference','Tools','Workbench','Capture'];
 const GROUP_ICONS = {
-  Quiz:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  Drill:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   Reference: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
   Tools:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
-  Train:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
-  Create:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
+  Workbench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
+  Capture:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
 };
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
@@ -84,7 +85,7 @@ function showSection(id, skipHash) {
 
   if (!skipHash) history.replaceState(null, '', '#' + id);
 
-  if (id !== 'keyboard' && Object.keys(S.kb.drones).length) stopAll();
+  // if (id !== 'keyboard' && Object.keys(S.kb.drones).length) stopAll();
   if (id !== 'metronome' && metro.playing) stopMetronome();
   if (id !== 'chords' && chordBuilder.oscillators.length) stopChord();
   if (id !== 'tuner' && tuner.running) stopTuner();
@@ -93,9 +94,9 @@ function showSection(id, skipHash) {
   // if (id !== 'backing' && backing.playing) stopBacking();
   // if (id !== 'riff' && riffState.playing) stopRiff();
   // if (id !== 'riff' && composer.playing) stopComposer();
-  if (id !== 'recorder' && (recorder.recording || recorder.playing)) stopRecorder();
+  if (id !== 'recorder' && recorder.playing) stopRecorder();
   if (id === 'circle') drawCoF();
-  if (id === 'keyboard') buildKeyboard();
+  // if (id === 'keyboard') buildKeyboard();
   if (id === 'metronome') initMetronome();
   if (id === 'scaleref') initScaleRef();
   if (id === 'chords') initChordBuilder();
@@ -130,6 +131,12 @@ function isSwipeBlockedTarget(target) {
     '[contenteditable="true"]',
     '.dock',
     '.dock-group-menu',
+    '#hold-rec-btn',
+    '.hold-rec-overlay',
+    '.note-btn-row',
+    '.note-action-row',
+    '.int-picker',
+    '.rec-controls',
     '.sl-scroll',
     '.piano-wrap',
     '.fb-wrap',
@@ -254,7 +261,7 @@ function init() {
     [{val:'random',label:'Random'}].concat(ROOTS.map(r => ({val:r,label:r}))),
     'random');
   buildList('sl-int-diff',
-    [{val:'easy',label:'Easy'},{val:'medium',label:'Medium'},{val:'hard',label:'Hard'}],
+    [{val:'easy',label:'Diatonic'},{val:'medium',label:'Extended'},{val:'hard',label:'Chromatic'}],
     'easy');
   buildList('sl-int-root',
     [{val:'random',label:'Random'}].concat(ROOTS.map(r => ({val:r,label:r}))),
@@ -305,6 +312,7 @@ function init() {
 
   document.addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
 
+  /*
   document.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
@@ -345,6 +353,7 @@ function init() {
       }
     });
   };
+  */
 
   buildNoteButtons('sq-notes','scale');
   buildNoteButtons('iq-notes','interval');
@@ -352,6 +361,7 @@ function init() {
   initMetronome();
   initVisualizer();
   initNowPlaying();
+  initHoldRecordButton();
 
   const hashTab = location.hash.replace('#', '');
   if (hashTab && TABS.some(t => t.id === hashTab)) {

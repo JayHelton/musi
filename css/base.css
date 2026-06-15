@@ -4,6 +4,8 @@
   --accent:#ff6b35;--accent-dim:#ff6b3518;--accent-glow:#ff6b3540;--accent2:#ff8c5a;
   --text:#e8e8e8;--muted:#6a6a6a;--border:rgba(255,255,255,0.06);
   --ok:#2ecc71;--err:#e74c3c;--warn:#f39c12;
+  --dock-h:calc(62px + env(safe-area-inset-bottom,0px));
+  --tap-min:44px;
 }
 body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
@@ -22,7 +24,7 @@ header{background:transparent;padding:14px 24px;display:flex;align-items:center;
 .tab{display:none}
 
 /* Bottom Dock Navigation */
-.dock{position:fixed;bottom:0;left:0;right:0;z-index:100;display:flex;justify-content:space-around;align-items:center;padding:8px 0 env(safe-area-inset-bottom,4px);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(20,20,20,0.85);border-top:1px solid rgba(255,255,255,0.06);scrollbar-width:none}
+.dock{position:fixed;bottom:0;left:0;right:0;z-index:100;display:flex;justify-content:space-around;align-items:center;min-height:var(--dock-h);padding:8px 0 max(8px,env(safe-area-inset-bottom,4px));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(20,20,20,0.85);border-top:1px solid rgba(255,255,255,0.06);scrollbar-width:none}
 .dock::-webkit-scrollbar{display:none}
 .dock-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 10px;cursor:pointer;color:var(--muted);font-size:.65rem;transition:color 0.2s ease;position:relative;background:none;border:none;flex-shrink:0}
 .dock-item svg,.dock-item .dock-icon{font-size:1.2rem;width:22px;height:22px;transition:color 0.2s ease}
@@ -30,12 +32,14 @@ header{background:transparent;padding:14px 24px;display:flex;align-items:center;
 .dock-item.active{color:var(--accent)}
 .dock-item.active::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent)}
 
-main{max-width:1100px;margin:0 auto;padding:24px 24px 80px;position:relative;z-index:1}
+main{max-width:1100px;margin:0 auto;padding:24px 24px calc(var(--dock-h) + 18px);position:relative;z-index:1}
 
 .section-head{margin:0 0 18px}
 .section-kicker{font-size:.7rem;color:var(--accent);text-transform:uppercase;letter-spacing:1.4px;font-weight:700;margin-bottom:4px}
 .section-head h2{font-size:1.45rem;font-weight:650;margin-bottom:5px;color:var(--text)}
 .section-head p{font-size:.92rem;color:var(--muted);line-height:1.45;max-width:620px}
+.field-label{font-size:.82rem;color:var(--muted);margin-bottom:8px}
+.btn--spaced{margin-top:10px}
 
 /* Section transitions */
 .section{display:none;opacity:0;transform:translateY(8px)}
@@ -58,7 +62,7 @@ main{max-width:1100px;margin:0 auto;padding:24px 24px 80px;position:relative;z-i
 select,input[type=text]{padding:8px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.95rem;font-family:inherit;transition:all 0.2s ease}
 select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
 
-.btn{padding:8px 20px;border:none;border-radius:24px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;font-family:inherit;transition:all 0.2s ease}
+.btn{min-height:40px;padding:8px 20px;border:none;border-radius:24px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;font-family:inherit;transition:all 0.2s ease}
 .btn:hover{background:var(--hover);transform:scale(1.02)}
 .btn:active{transform:scale(0.98)}
 .btn.primary{background:var(--accent);color:#0a0a0a;font-weight:600;box-shadow:0 0 16px var(--accent-dim)}
@@ -111,41 +115,49 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-
 }
 @media(max-width:768px){
   .quiz-layout{flex-direction:column}
-  .section-head{margin-bottom:12px}
+  header{padding:8px 14px}
+  .quiz-main{order:1}
+  .sidebar{order:2}
+  .section-head{margin-bottom:8px}
+  .section-head p{display:none}
   .section-head h2{font-size:1.25rem}
-  .section-head p{font-size:.86rem}
   .sidebar{width:100%;flex-direction:column;gap:8px}
   .sidebar-list{flex:1;min-width:0}
   .sidebar-list .sl-head{padding:9px 12px}
-  .sidebar-list .sl-scroll{display:flex;gap:8px;max-height:none;overflow-x:auto;overflow-y:hidden;padding:8px;-webkit-overflow-scrolling:touch}
-  .sl-item{flex:0 0 auto;border:1px solid var(--border);border-radius:999px;background:var(--bg2);padding:8px 12px;white-space:nowrap}
+  .sidebar-list .sl-scroll{display:flex;gap:10px;max-height:none;overflow-x:auto;overflow-y:hidden;padding:10px 12px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+  .sl-item{flex:0 0 auto;min-height:40px;display:flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--bg2);padding:8px 14px;white-space:nowrap;scroll-snap-align:start}
   .sl-item.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
   .sl-group-label{flex:0 0 auto;display:flex;align-items:center;padding:0 2px 0 4px;font-size:.58rem;white-space:nowrap}
   .dock-desktop{display:none!important}
   .dock-mobile{display:flex;width:100%;justify-content:space-around;align-items:center}
   .dock{justify-content:center;overflow:visible}
+  .dock-group-trigger{min-width:52px;min-height:50px}
+  .dock-group-menu{padding:8px;min-width:170px}
+  .dock-group-menu.open{gap:6px}
+  .dock-menu-item{min-height:48px;padding:12px 16px}
   .score-bar{flex-wrap:wrap;gap:10px;font-size:.85rem}
   .note-action-row{flex-wrap:wrap}
-  .quiz-card{padding:20px}
+  .quiz-card{padding:16px;margin-bottom:10px;border-radius:14px}
   .quiz-card:hover{transform:none}
-  .question{font-size:1.1rem}
+  .question{font-size:1.05rem;min-height:auto;margin-bottom:12px;line-height:1.35}
+  .btn{min-height:var(--tap-min)}
 }
 @media(max-width:480px){
   header{padding:8px 12px}
   .wordmark{font-size:1rem;letter-spacing:3px}
-  main{padding:12px 10px 80px}
+  main{padding:10px 10px calc(var(--dock-h) + 14px)}
   .section-head{padding:0 2px}
   .section-kicker{font-size:.62rem}
   .section-head h2{font-size:1.15rem}
-  .quiz-card{padding:16px}
+  .quiz-card{padding:14px 12px}
   .question{font-size:1rem}
   .dock-group-trigger{padding:6px 8px;font-size:.55rem}
   .dock-group-trigger .dock-icon{width:20px;height:20px}
   .sidebar{flex-direction:column}
   .sidebar-list{width:100%}
   .sidebar-list .sl-scroll{max-height:none}
-  .btn{padding:7px 14px;font-size:.85rem}
-  .btn.sm{padding:5px 10px;font-size:.75rem}
+  .btn{padding:8px 14px;font-size:.85rem}
+  .btn.sm{padding:7px 10px;font-size:.75rem}
   .score-bar{padding:10px 14px;gap:8px;font-size:.8rem}
   .score-bar .val{font-size:1rem}
   .sl-item{padding:6px 10px;font-size:.8rem}

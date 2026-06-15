@@ -26,6 +26,8 @@ const recorder = {
   pendingMidi: null,
   pendingSince: 0,
   committedMidi: null,
+  holdActive: false,
+  holdPressed: false,
 };
 
 // Autocorrelation pitch detection (time-domain), same approach as the vocal trainer.
@@ -120,22 +122,27 @@ function resetAnalysis() {
 }
 
 function setLiveNote(info) {
-  const noteEl = document.getElementById('rec-note');
-  const centsEl = document.getElementById('rec-cents');
-  const freqEl = document.getElementById('rec-freq');
-  if (!noteEl) return;
-  if (info) {
-    noteEl.textContent = info.name + info.oct;
-    centsEl.textContent = (info.cents >= 0 ? '+' : '') + info.cents + ' cents';
-    const absCents = Math.abs(info.cents);
-    centsEl.className = 'rec-cents ' + (absCents <= 5 ? 'in-tune' : absCents <= 15 ? 'close' : 'off');
-    freqEl.textContent = info.freq.toFixed(1) + ' Hz';
-  } else {
-    noteEl.textContent = '--';
-    centsEl.textContent = '0 cents';
-    centsEl.className = 'rec-cents off';
-    freqEl.textContent = '-- Hz';
-  }
+  [
+    { note: 'rec-note', cents: 'rec-cents', freq: 'rec-freq', centsClass: 'rec-cents' },
+    { note: 'hold-rec-note', cents: 'hold-rec-cents', freq: 'hold-rec-freq', centsClass: 'hold-rec-cents' },
+  ].forEach(target => {
+    const noteEl = document.getElementById(target.note);
+    const centsEl = document.getElementById(target.cents);
+    const freqEl = document.getElementById(target.freq);
+    if (!noteEl || !centsEl || !freqEl) return;
+    if (info) {
+      noteEl.textContent = info.name + info.oct;
+      centsEl.textContent = (info.cents >= 0 ? '+' : '') + info.cents + ' cents';
+      const absCents = Math.abs(info.cents);
+      centsEl.className = target.centsClass + ' ' + (absCents <= 5 ? 'in-tune' : absCents <= 15 ? 'close' : 'off');
+      freqEl.textContent = info.freq.toFixed(1) + ' Hz';
+    } else {
+      noteEl.textContent = '--';
+      centsEl.textContent = '0 cents';
+      centsEl.className = target.centsClass + ' off';
+      freqEl.textContent = '-- Hz';
+    }
+  });
 }
 
 function renderSequence(containerId) {
@@ -167,7 +174,15 @@ function commitPitch(info, now) {
     recorder.committedMidi = midi;
     recorder.sequence.push({ name: info.name, oct: info.oct, midi });
     renderSequence('rec-live-seq');
+    renderSequence('hold-rec-live-seq');
   }
+}
+
+function updateMeter(level) {
+  ['rec-meter', 'hold-rec-meter'].forEach(id => {
+    const meter = document.getElementById(id);
+    if (meter) meter.style.transform = `scaleX(${level})`;
+  });
 }
 
 function recordLoop() {
@@ -178,8 +193,7 @@ function recordLoop() {
   recorder.lastFrameTime = now;
 
   const level = Math.min(1, rmsOf(recorder.recBuf) * 6);
-  const meter = document.getElementById('rec-meter');
-  if (meter) meter.style.transform = `scaleX(${level})`;
+  updateMeter(level);
 
   const freq = autoCorrelate(recorder.recBuf, audioCtx.sampleRate);
   if (freq > 0 && freq < 2000) {
@@ -203,8 +217,11 @@ function fmtTime(sec) {
 }
 
 function tickTimer() {
-  const el = document.getElementById('rec-timer');
-  if (el) el.textContent = fmtTime((performance.now() - recorder.startTime) / 1000);
+  const text = fmtTime((performance.now() - recorder.startTime) / 1000);
+  ['rec-timer', 'hold-rec-timer'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  });
 }
 
 function pickMimeType() {
@@ -216,9 +233,20 @@ function pickMimeType() {
   return '';
 }
 
-async function startRecording() {
+function syncHoldRecordUi(active) {
+  const overlay = document.getElementById('hold-rec-overlay');
+  const btn = document.getElementById('hold-rec-btn');
+  if (overlay) {
+    overlay.classList.toggle('visible', active);
+    overlay.setAttribute('aria-hidden', active ? 'false' : 'true');
+  }
+  if (btn) btn.classList.toggle('recording', active);
+}
+
+async function startRecording(trigger = 'panel') {
   ensureAudio();
   clearRecording(true);
+  recorder.holdActive = trigger === 'hold';
   const statusEl = document.getElementById('rec-status');
   if (typeof MediaRecorder === 'undefined') {
     if (statusEl) statusEl.textContent = 'Recording is not supported in this browser';
@@ -228,14 +256,23 @@ async function startRecording() {
     recorder.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) {
     if (statusEl) statusEl.textContent = 'Mic access denied or unavailable';
+    syncHoldRecordUi(false);
     return;
   }
 
-  const source = audioCtx.createMediaStreamSource(recorder.stream);
+  if (recorder.holdActive && !recorder.holdPressed) {
+    recorder.stream.getTracks().forEach(t => t.stop());
+    recorder.stream = null;
+    syncHoldRecordUi(false);
+    recorder.holdActive = false;
+    return;
+  }
+
+  const micSource = audioCtx.createMediaStreamSource(recorder.stream);
   recorder.recAnalyser = audioCtx.createAnalyser();
   recorder.recAnalyser.fftSize = 2048;
   recorder.recBuf = new Float32Array(recorder.recAnalyser.fftSize);
-  source.connect(recorder.recAnalyser);
+  micSource.connect(recorder.recAnalyser);
 
   recorder.mimeType = pickMimeType();
   recorder.chunks = [];
@@ -249,13 +286,16 @@ async function startRecording() {
 
   resetAnalysis();
   renderSequence('rec-live-seq');
+  renderSequence('hold-rec-live-seq');
   recorder.recording = true;
   recorder.startTime = performance.now();
   recorder.lastFrameTime = 0;
 
   const toggle = document.getElementById('rec-toggle');
   if (toggle) { toggle.classList.add('recording'); toggle.innerHTML = '&#9632; Stop'; }
-  document.getElementById('rec-live-label').textContent = 'Recording — sing or play a note';
+  syncHoldRecordUi(true);
+  document.getElementById('rec-live-label').textContent = 'Recording';
+  document.getElementById('hold-rec-live-label').textContent = 'Recording';
   if (statusEl) statusEl.textContent = '';
   document.getElementById('rec-live-seq-wrap').style.display = 'block';
   document.getElementById('rec-playback-card').style.display = 'none';
@@ -271,11 +311,14 @@ function stopRecording() {
   if (recorder.recRafId) { cancelAnimationFrame(recorder.recRafId); recorder.recRafId = null; }
   if (recorder.timerId) { clearInterval(recorder.timerId); recorder.timerId = null; }
   setLiveNote(null);
-  const meter = document.getElementById('rec-meter');
-  if (meter) meter.style.transform = 'scaleX(0)';
+  updateMeter(0);
   const toggle = document.getElementById('rec-toggle');
   if (toggle) { toggle.classList.remove('recording'); toggle.innerHTML = '&#9679; Record'; }
-  document.getElementById('rec-live-label').textContent = 'Press Record and start singing';
+  syncHoldRecordUi(false);
+  document.getElementById('rec-live-label').textContent = 'Ready to record';
+  document.getElementById('hold-rec-live-label').textContent = 'Hold to record';
+  recorder.holdActive = false;
+  recorder.holdPressed = false;
   try { recorder.mediaRecorder.stop(); } catch (e) { /* noop */ }
 }
 
@@ -422,7 +465,11 @@ function clearRecording(skipUi) {
     if (seqWrap) seqWrap.style.display = 'none';
     const timer = document.getElementById('rec-timer');
     if (timer) timer.textContent = '0:00';
+    const holdTimer = document.getElementById('hold-rec-timer');
+    if (holdTimer) holdTimer.textContent = '0:00';
     setLiveNote(null);
+    renderSequence('hold-rec-live-seq');
+    updateMeter(0);
   }
 }
 
@@ -430,10 +477,42 @@ function stopRecorder() {
   if (recorder.recording) stopRecording();
   if (recorder.playing) stopPlayback();
   if (recorder.stream) { recorder.stream.getTracks().forEach(t => t.stop()); recorder.stream = null; }
+  syncHoldRecordUi(false);
+  recorder.holdActive = false;
+  recorder.holdPressed = false;
 }
 
 function initRecorder() {
   setLiveNote(null);
+}
+
+function initHoldRecordButton() {
+  const btn = document.getElementById('hold-rec-btn');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+
+  const begin = (e) => {
+    e.preventDefault();
+    if (recorder.recording) return;
+    recorder.holdPressed = true;
+    btn.setPointerCapture?.(e.pointerId);
+    startRecording('hold');
+  };
+  const end = (e) => {
+    e.preventDefault();
+    recorder.holdPressed = false;
+    if (btn.hasPointerCapture?.(e.pointerId)) btn.releasePointerCapture(e.pointerId);
+    if (recorder.recording && recorder.holdActive) stopRecording();
+  };
+
+  btn.addEventListener('pointerdown', begin);
+  btn.addEventListener('pointerup', end);
+  btn.addEventListener('pointercancel', end);
+  btn.addEventListener('lostpointercapture', () => {
+    recorder.holdPressed = false;
+    if (recorder.recording && recorder.holdActive) stopRecording();
+  });
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 window.toggleRecording = toggleRecording;
@@ -441,4 +520,4 @@ window.togglePlayback = togglePlayback;
 window.downloadRecording = downloadRecording;
 window.clearRecording = clearRecording;
 
-export { initRecorder, stopRecorder, recorder };
+export { initRecorder, initHoldRecordButton, stopRecorder, recorder };

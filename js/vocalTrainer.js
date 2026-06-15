@@ -92,8 +92,8 @@ async function startTuner() {
     tuner.buf = new Float32Array(tuner.analyser.fftSize);
     source.connect(tuner.analyser);
     tuner.running = true;
-    document.getElementById('tuner-toggle').textContent = 'Stop';
-    document.getElementById('tuner-status').textContent = 'Sing a note...';
+    document.getElementById('tuner-toggle').textContent = 'Mic off';
+    document.getElementById('tuner-status').textContent = 'Listening...';
     tunerLoop();
   } catch (e) {
     document.getElementById('tuner-status').textContent = 'Mic access denied or unavailable';
@@ -105,8 +105,8 @@ function stopTuner() {
   if (tuner.rafId) { cancelAnimationFrame(tuner.rafId); tuner.rafId = null; }
   if (tuner.stream) { tuner.stream.getTracks().forEach(t => t.stop()); tuner.stream = null; }
   stopRefTone();
-  document.getElementById('tuner-toggle').textContent = 'Start Listening';
-  document.getElementById('tuner-status').textContent = 'Press Start to begin singing';
+  document.getElementById('tuner-toggle').textContent = 'Mic on';
+  document.getElementById('tuner-status').textContent = 'Mic off';
 }
 
 function toggleTuner() {

@@ -1,14 +1,14 @@
 {
-  "name": "Musi — Music Theory Tools",
+  "name": "Musi — Music Tools",
   "short_name": "Musi",
-  "description": "Music theory tools, quizzes, and training.",
+  "description": "Theory reference, drills, and browser-native audio tools.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
-  "categories": ["music", "education"],
+  "categories": ["music", "productivity"],
   "icons": [
     {
       "src": "icons/icon-192.png",

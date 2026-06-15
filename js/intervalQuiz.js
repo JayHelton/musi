@@ -22,7 +22,7 @@ export function newIntQ() {
   S.iq.name = `${interval[0]} above ${root}`;
 
   document.getElementById('iq-question').textContent =
-    `What note is a ${interval[0]} above ${root}?`;
+    `${interval[0]} above ${root}`;
   document.getElementById('iq-feedback').className = 'feedback';
   document.getElementById('iq-feedback').textContent = '';
 }

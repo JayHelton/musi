@@ -1,93 +1,192 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
-import { parseNote, NOTE_NAMES_SHARP, ROOTS } from './theory.js';
-import { SCALES } from './scales.js';
+import { parseNote, NOTE_NAMES_SHARP, ROOTS, ROOTS_RAND, pick, INTERVAL_LABELS } from './theory.js';
+import { SCALES, getScaleNotes, groupedScaleEntries } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 
-const EAR_ADVANCE_MS = 1600;
 const EAR_FADE_START_MS = 1100;
+const CONTEXTS = [
+  { val: 'root', label: 'Root first' },
+  { val: 'single', label: 'Single tone' },
+  { val: 'melodic', label: 'Melodic interval' },
+];
+const POOLS = [
+  { val: 'diatonic', label: 'Diatonic' },
+  { val: 'chromatic', label: 'Chromatic' },
+];
+const ANSWERS = [
+  { val: 'note', label: 'Note' },
+  { val: 'degree', label: 'Degree' },
+  { val: 'interval', label: 'Interval' },
+];
+const OCTAVES = [
+  { val: '3', label: '3' },
+  { val: '4', label: '4' },
+  { val: '5', label: '5' },
+  { val: 'random', label: 'Random' },
+];
 
 const ear = {
-  key: 'C', mode: 'easy',
-  targetNote: null, targetSemi: null, answered: false,
+  key: 'C',
+  activeKey: 'C',
+  scale: 'Major (Ionian)',
+  context: 'root',
+  pool: 'diatonic',
+  answerAs: 'note',
+  octave: 'random',
+  targetNote: null,
+  targetSemi: null,
+  targetDegree: null,
+  targetInterval: null,
+  answered: false,
   right: 0, total: 0, streak: 0,
   _osc: null, _osc2: null, _gain: null, _stopTimer: null,
-  _advTimer: null, _fadeTimer: null,
+  _fadeTimer: null,
 };
 
 function earClearTimers() {
-  if (ear._advTimer) { clearTimeout(ear._advTimer); ear._advTimer = null; }
   if (ear._fadeTimer) { clearTimeout(ear._fadeTimer); ear._fadeTimer = null; }
+}
+
+function shortScaleName(name) {
+  return name.replace('Major (Ionian)', 'Major').replace('Natural Minor (Aeolian)', 'Minor');
+}
+
+function octaveForTone() {
+  if (ear.octave !== 'random') return Number(ear.octave);
+  return 3 + Math.floor(Math.random() * 3);
+}
+
+function labelForPc(pc) {
+  const rootP = parseNote(ear.activeKey);
+  const notes = getScaleNotes(ear.activeKey, ear.scale) || [];
+  const def = SCALES[ear.scale] || SCALES['Major (Ionian)'];
+  if (rootP) {
+    const match = def.find(([, semi]) => (rootP.semi + semi) % 12 === pc);
+    if (match) {
+      const idx = def.indexOf(match);
+      if (notes[idx]) return notes[idx];
+    }
+  }
+  const flatKeys = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
+  const flatNames = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+  return flatKeys.includes(ear.activeKey) ? flatNames[pc] : NOTE_NAMES_SHARP[pc];
+}
+
+function scalePool(rootP) {
+  const def = SCALES[ear.scale] || SCALES['Major (Ionian)'];
+  const notes = getScaleNotes(ear.activeKey, ear.scale) || [];
+  return def.map(([letterOffset, semi], i) => ({
+    semi: (rootP.semi + semi) % 12,
+    degree: i + 1,
+    interval: semi,
+    note: notes[i] || labelForPc((rootP.semi + semi) % 12),
+    letterOffset,
+  }));
+}
+
+function targetPool(rootP) {
+  if (ear.pool === 'chromatic' && ear.answerAs !== 'degree') {
+    return Array.from({ length: 12 }, (_, semi) => ({
+      semi,
+      degree: null,
+      interval: (semi - rootP.semi + 12) % 12,
+      note: labelForPc(semi),
+    }));
+  }
+  return scalePool(rootP);
+}
+
+function setQuestionStatus(contextLabel) {
+  document.getElementById('ear-question').innerHTML =
+    `<span class="highlight">${ear.activeKey}</span> · ${shortScaleName(ear.scale)} · ${contextLabel}`;
+}
+
+function clearAnswerState() {
+  const answers = document.getElementById('ear-answers');
+  answers.querySelectorAll('.letter-btn,.int-btn').forEach(b => {
+    b.classList.remove('correct', 'wrong', 'selected');
+  });
 }
 
 function playEarQuestion() {
   earClearTimers();
   ear.answered = false;
+  ear.targetNote = null;
+  ear.targetSemi = null;
+  ear.targetDegree = null;
+  ear.targetInterval = null;
   const feedback = document.getElementById('ear-feedback');
   feedback.className = 'fb-feedback';
-  document.getElementById('ear-answers').querySelectorAll('.letter-btn').forEach(b => {
-    b.classList.remove('correct','wrong');
-  });
+  feedback.textContent = '';
+  clearAnswerState();
 
+  ear.activeKey = ear.key === 'random' ? pick(ROOTS_RAND) : ear.key;
   const rootP = parseNote(ear.key);
-  if (!rootP) return;
+  const activeRoot = parseNote(ear.activeKey);
+  if (!rootP && !activeRoot) return;
+  const tonic = activeRoot || rootP;
+  const pool = targetPool(tonic);
+  const toneDur = 1.25;
+  const oct = octaveForTone();
 
-  const majorDef = SCALES['Major (Ionian)'];
-  const scaleIntervals = majorDef.map(d => d[1]);
-  const scalePCs = scaleIntervals.map(s => (rootP.semi + s) % 12);
+  if (ear.context === 'melodic') {
+    const first = pick(pool);
+    let second = pick(pool);
+    let guard = 0;
+    while (second.semi === first.semi && guard++ < 20) second = pick(pool);
+    ear.targetSemi = second.semi;
+    ear.targetNote = second.note;
+    ear.targetDegree = second.degree;
+    ear.targetInterval = (second.semi - first.semi + 12) % 12;
+    playEarTone(first.semi, oct, toneDur);
+    setTimeout(() => playEarTone(second.semi, oct, toneDur), 900);
+    setQuestionStatus('melodic interval');
+    return;
+  }
 
-  const toneDur = 1.5;
-  if (ear.mode === 'easy') {
-    playEarTone(rootP.semi, 4, toneDur);
-    const gap = (toneDur * 0.95 + 0.2) * 1000;
-    setTimeout(() => {
-      const pick = scalePCs[Math.floor(Math.random() * scalePCs.length)];
-      ear.targetSemi = pick;
-      ear.targetNote = NOTE_NAMES_SHARP[pick];
-      playEarTone(pick, 4, toneDur);
-      document.getElementById('ear-question').innerHTML =
-        `Key: <span class="highlight">${ear.key}</span> — Root played first, then the mystery note. What is it?`;
-    }, gap);
+  const target = pick(pool);
+  ear.targetSemi = target.semi;
+  ear.targetNote = target.note;
+  ear.targetDegree = target.degree;
+  ear.targetInterval = target.interval;
+
+  if (ear.context === 'root') {
+    playEarTone(tonic.semi, oct, toneDur);
+    setTimeout(() => playEarTone(target.semi, oct, toneDur), 900);
+    setQuestionStatus('root first');
   } else {
-    const pick = scalePCs[Math.floor(Math.random() * scalePCs.length)];
-    ear.targetSemi = pick;
-    ear.targetNote = NOTE_NAMES_SHARP[pick];
-    playEarTone(pick, 4);
-    document.getElementById('ear-question').innerHTML =
-      `Key: <span class="highlight">${ear.key}</span> — What note was played?`;
+    playEarTone(target.semi, oct, toneDur);
+    setQuestionStatus('single tone');
   }
 }
 
 function replayEarNote() {
   if (ear.targetSemi === null) return;
-  const toneDur = 1.5;
-  if (ear.mode === 'easy') {
-    const rootP = parseNote(ear.key);
-    if (rootP) playEarTone(rootP.semi, 4, toneDur);
-    const gap = (toneDur * 0.95 + 0.2) * 1000;
-    setTimeout(() => playEarTone(ear.targetSemi, 4, toneDur), gap);
+  const toneDur = 1.25;
+  const oct = octaveForTone();
+  const rootP = parseNote(ear.activeKey);
+  if (!rootP) return;
+
+  if (ear.context === 'root') {
+    playEarTone(rootP.semi, 4, toneDur);
+    setTimeout(() => playEarTone(ear.targetSemi, oct, toneDur), 900);
   } else {
-    playEarTone(ear.targetSemi, 4, toneDur);
+    playEarTone(ear.targetSemi, oct, toneDur);
   }
 }
 
-function triggerRipple() {
+function triggerPulse() {
   const wrap = document.getElementById('ear-ripple-wrap');
   if (!wrap) return;
-  wrap.innerHTML = '';
-  for (let i = 0; i < 3; i++) {
-    const ring = document.createElement('div');
-    ring.className = 'ear-ripple';
-    ring.style.animationDelay = (i * 0.15) + 's';
-    wrap.appendChild(ring);
-  }
-  setTimeout(() => { wrap.innerHTML = ''; }, 1500);
+  wrap.innerHTML = '<div class="ear-pulse"></div>';
+  setTimeout(() => { wrap.innerHTML = ''; }, 650);
 }
 
 function playEarTone(semi, oct, duration) {
   if (ear._stopTimer) clearTimeout(ear._stopTimer);
   stopEarTone();
   ensureAudio();
-  triggerRipple();
+  triggerPulse();
   const dur = duration || 1.2;
   const midi = 12 * (oct + 1) + semi;
   const freq = midiFreq(midi);
@@ -140,19 +239,31 @@ function stopEarTone() {
   }
 }
 
-function checkEarAnswer(semi, btn) {
+function expectedAnswer() {
+  if (ear.answerAs === 'degree') return String(ear.targetDegree);
+  if (ear.answerAs === 'interval') return INTERVAL_LABELS[ear.targetInterval] || `${ear.targetInterval} st`;
+  return ear.targetNote;
+}
+
+function answerCorrect(answer) {
+  if (ear.answerAs === 'degree') return Number(answer) === ear.targetDegree;
+  if (ear.answerAs === 'interval') return Number(answer) === ear.targetInterval;
+  return Number(answer) === ear.targetSemi;
+}
+
+function checkEarAnswer(answer, btn) {
   if (ear.answered || ear.targetSemi === null) return;
   ear.answered = true;
   ear.total++;
 
-  const correct = semi === ear.targetSemi;
+  const correct = answerCorrect(answer);
   const feedback = document.getElementById('ear-feedback');
 
   btn.classList.add(correct ? 'correct' : 'wrong');
 
   if (!correct) {
-    document.getElementById('ear-answers').querySelectorAll('.letter-btn').forEach(b => {
-      if (parseInt(b.dataset.semi) === ear.targetSemi) b.classList.add('correct');
+    document.getElementById('ear-answers').querySelectorAll('.letter-btn,.int-btn').forEach(b => {
+      if (answerCorrect(b.dataset.answer)) b.classList.add('correct');
     });
   }
 
@@ -160,87 +271,145 @@ function checkEarAnswer(semi, btn) {
     ear.right++;
     ear.streak++;
     feedback.className = 'fb-feedback show correct';
-    feedback.textContent = 'Correct!';
+    feedback.textContent = '✓';
   } else {
     ear.streak = 0;
     feedback.className = 'fb-feedback show wrong';
-    feedback.textContent = `Incorrect. The note was ${ear.targetNote}.`;
+    feedback.textContent = `Expected: ${expectedAnswer()}`;
   }
 
   document.getElementById('ear-right').textContent = ear.right;
   document.getElementById('ear-total').textContent = ear.total;
   document.getElementById('ear-streak').textContent = ear.streak;
-
   ear._fadeTimer = setTimeout(() => feedback.classList.add('fade-out'), EAR_FADE_START_MS);
-  ear._advTimer = setTimeout(() => {
-    if (document.getElementById('sec-ear').classList.contains('active')) playEarQuestion();
-  }, EAR_ADVANCE_MS);
 }
 
 function initEarTrainer() {
   const keyScroll = document.getElementById('sl-ear-key');
-  const modeScroll = document.getElementById('sl-ear-mode');
-  const answersC = document.getElementById('ear-answers');
-  const modes = ['easy', 'hard'];
+  const scaleScroll = document.getElementById('sl-ear-scale');
 
-  ear.key = getSetting('ear.key', ear.key, ROOTS);
-  ear.mode = getSetting('ear.mode', ear.mode, modes);
+  ear.key = getSetting('ear.key', ear.key, ['random'].concat(ROOTS));
+  ear.scale = getSetting('ear.scale', ear.scale, Object.keys(SCALES));
+  ear.context = getSetting('ear.context', ear.context, CONTEXTS.map(o => o.val));
+  ear.pool = getSetting('ear.pool', ear.pool, POOLS.map(o => o.val));
+  ear.answerAs = getSetting('ear.answerAs', ear.answerAs, ANSWERS.map(o => o.val));
+  ear.octave = getSetting('ear.octave', ear.octave, OCTAVES.map(o => o.val));
 
-  if (keyScroll.children.length) return;
-
-  ROOTS.forEach(r => {
-    const div = document.createElement('div');
-    div.className = 'sl-item' + (r === ear.key ? ' active' : '');
-    div.dataset.val = r; div.textContent = r;
-    div.onclick = () => {
-      keyScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
-      div.classList.add('active');
-      ear.key = r;
-      saveSetting('ear.key', ear.key);
+  if (!keyScroll.children.length) {
+    buildChoiceList('sl-ear-key', [{ val: 'random', label: 'Random' }].concat(ROOTS.map(r => ({ val: r, label: r }))), ear.key, val => {
+      ear.key = val;
+      saveSetting('ear.key', val);
       buildEarAnswerButtons();
-    };
-    keyScroll.appendChild(div);
-  });
-
-  modes.forEach(m => {
-    const div = document.createElement('div');
-    div.className = 'sl-item' + (m === ear.mode ? ' active' : '');
-    div.dataset.val = m;
-    div.textContent = m === 'easy' ? 'Easy (root first)' : 'Hard (no root)';
-    div.onclick = () => {
-      modeScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
-      div.classList.add('active');
-      ear.mode = m;
-      saveSetting('ear.mode', ear.mode);
-    };
-    modeScroll.appendChild(div);
-  });
+    });
+    buildChoiceList('sl-ear-scale', groupedScaleEntries(false), ear.scale, val => {
+      ear.scale = val;
+      saveSetting('ear.scale', val);
+      buildEarAnswerButtons();
+    });
+    buildChoiceList('sl-ear-context', CONTEXTS, ear.context, val => {
+      ear.context = val;
+      saveSetting('ear.context', val);
+      buildEarAnswerButtons();
+    });
+    buildChoiceList('sl-ear-pool', POOLS, ear.pool, val => {
+      ear.pool = val;
+      saveSetting('ear.pool', val);
+      buildEarAnswerButtons();
+    });
+    buildChoiceList('sl-ear-answer', ANSWERS, ear.answerAs, val => {
+      ear.answerAs = val;
+      saveSetting('ear.answerAs', val);
+      buildEarAnswerButtons();
+    });
+    buildChoiceList('sl-ear-octave', OCTAVES, ear.octave, val => {
+      ear.octave = val;
+      saveSetting('ear.octave', val);
+    });
+  }
 
   buildEarAnswerButtons();
 }
 
+function buildChoiceList(containerId, items, active, onPick) {
+  const container = document.getElementById(containerId);
+  items.forEach(({ type, val, label }) => {
+    if (type === 'label') {
+      const group = document.createElement('div');
+      group.className = 'sl-group-label';
+      group.textContent = label;
+      container.appendChild(group);
+      return;
+    }
+    const div = document.createElement('div');
+    div.className = 'sl-item' + (val === active ? ' active' : '');
+    div.dataset.val = val;
+    div.textContent = label;
+    div.onclick = () => {
+      container.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
+      div.classList.add('active');
+      onPick(val);
+    };
+    container.appendChild(div);
+  });
+}
+
 function buildEarAnswerButtons() {
   const answersC = document.getElementById('ear-answers');
+  const label = document.getElementById('ear-answer-label');
   answersC.innerHTML = '';
-  const rootP = parseNote(ear.key);
+  answersC.className = ear.answerAs === 'interval' ? 'int-picker' : 'note-btn-row';
+  label.textContent = ear.answerAs === 'degree' ? 'Degree' : ear.answerAs === 'interval' ? 'Interval' : 'Pitch';
+
+  ear.activeKey = ear.key === 'random' ? 'C' : ear.key;
+  const rootP = parseNote(ear.activeKey);
   if (!rootP) return;
 
-  const majorDef = SCALES['Major (Ionian)'];
-  const scaleIntervals = majorDef.map(d => d[1]);
+  if (ear.answerAs === 'degree') {
+    scalePool(rootP).forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'letter-btn';
+      btn.textContent = String(item.degree);
+      btn.dataset.answer = item.degree;
+      btn.onclick = () => checkEarAnswer(item.degree, btn);
+      answersC.appendChild(btn);
+    });
+    return;
+  }
 
-  scaleIntervals.forEach(s => {
-    const pc = (rootP.semi + s) % 12;
-    const name = NOTE_NAMES_SHARP[pc];
+  if (ear.answerAs === 'interval') {
+    const intervals = ear.pool === 'chromatic'
+      ? Array.from({ length: 12 }, (_, semi) => semi)
+      : Array.from(new Set(scalePool(rootP).map(item => item.interval)));
+    intervals.forEach(semi => {
+      const btn = document.createElement('button');
+      btn.className = 'int-btn';
+      btn.textContent = INTERVAL_LABELS[semi] || `${semi} st`;
+      btn.dataset.answer = semi;
+      btn.onclick = () => checkEarAnswer(semi, btn);
+      answersC.appendChild(btn);
+    });
+    return;
+  }
+
+  targetPool(rootP).forEach(item => {
     const btn = document.createElement('button');
-    btn.className = 'letter-btn';
-    btn.textContent = name;
-    btn.dataset.semi = pc;
-    btn.onclick = () => checkEarAnswer(pc, btn);
+    btn.className = 'letter-btn' + (item.note.length > 1 ? ' accidental' : '');
+    btn.textContent = item.note;
+    btn.dataset.answer = item.semi;
+    btn.onclick = () => checkEarAnswer(item.semi, btn);
     answersC.appendChild(btn);
   });
 }
 
+function resetEarScore() {
+  ear.right = 0; ear.total = 0; ear.streak = 0;
+  document.getElementById('ear-right').textContent = 0;
+  document.getElementById('ear-total').textContent = 0;
+  document.getElementById('ear-streak').textContent = 0;
+}
+
 window.playEarQuestion = playEarQuestion;
 window.replayEarNote = replayEarNote;
+window.resetEarScore = resetEarScore;
 
 export { initEarTrainer, stopEarTone, ear };

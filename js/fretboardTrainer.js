@@ -1,18 +1,29 @@
-import { parseNote, NOTE_NAMES_SHARP, ROOTS, TUNINGS } from './theory.js';
-import { SCALES } from './scales.js';
+import { parseNote, NOTE_NAMES_SHARP, ROOTS, TUNINGS, INTERVAL_LABELS } from './theory.js';
+import { SCALES, groupedScaleEntries } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 
-const FB_FRETS = 15;
 const FB_DOTS = [3,5,7,9,12,15];
-const FB_DOUBLE_DOT = [12];
-const FB_INT_NAMES = ['P1','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'];
 
 const FB_ADVANCE_MS = 1600;
 const FB_FADE_START_MS = 1100;
+const FB_MODES = [
+  { val: 'interval', label: 'Interval' },
+  { val: 'note', label: 'Note' },
+  { val: 'chordTone', label: 'Chord tones' },
+];
+const CHORD_ROLE_LABELS = ['R', '3', '5', '7'];
 
 const fb = {
-  key: 'C', tuning: 'Standard',
+  key: 'C',
+  tuning: 'Standard',
+  scale: 'Major (Ionian)',
+  mode: 'interval',
+  fretStart: 0,
+  fretEnd: 15,
+  showLabels: false,
+  showIntervals: false,
   targetNote: null, targetMidi: null, targetInterval: null,
+  targetRole: null,
   selectedFret: null, selectedInterval: null,
   answered: false, right: 0, total: 0, streak: 0,
   _advTimer: null, _fadeTimer: null,
@@ -31,47 +42,77 @@ function fbOpenMidis() {
   });
 }
 
+function activeFretRange() {
+  const start = Math.max(0, Math.min(24, Number(fb.fretStart) || 0));
+  const end = Math.max(start + 1, Math.min(24, Number(fb.fretEnd) || 15));
+  fb.fretStart = start;
+  fb.fretEnd = end;
+  return { start, end, count: end - start + 1 };
+}
+
+function scaleIntervals() {
+  const def = SCALES[fb.scale] || SCALES['Major (Ionian)'];
+  return def.map(d => d[1]);
+}
+
+function chordToneIntervals() {
+  const ints = scaleIntervals();
+  const roles = [0, 2, 4, 6].filter(i => ints[i] !== undefined);
+  return roles.map((scaleIdx, i) => ({
+    semi: ints[scaleIdx] % 12,
+    role: CHORD_ROLE_LABELS[i],
+  }));
+}
+
+function intervalLabel(semi) {
+  return INTERVAL_LABELS[((semi % 12) + 12) % 12] || `${semi} st`;
+}
+
 function buildFretboard() {
   const board = document.getElementById('fb-board');
   const strings = TUNINGS[fb.tuning];
   const openMidis = fbOpenMidis();
-  const cols = FB_FRETS + 2;
-  board.style.gridTemplateColumns = `30px 40px repeat(${FB_FRETS}, 1fr)`;
-  board.style.gridTemplateRows = `28px repeat(6, 36px)`;
+  const rootP = parseNote(fb.key);
+  const rootSemi = rootP ? rootP.semi : 0;
+  const scaleSemis = new Set(scaleIntervals().map(semi => (rootSemi + semi) % 12));
+  const { start, end, count } = activeFretRange();
+  board.style.gridTemplateColumns = `34px repeat(${count}, minmax(38px, 1fr))`;
+  board.style.gridTemplateRows = `24px repeat(${strings.length}, 32px)`;
   board.innerHTML = '';
 
   const hdr0 = document.createElement('div');
   hdr0.className = 'fb-header';
   board.appendChild(hdr0);
-  const hdrNut = document.createElement('div');
-  hdrNut.className = 'fb-header';
-  hdrNut.textContent = '0';
-  board.appendChild(hdrNut);
-  for (let f = 1; f <= FB_FRETS; f++) {
+  for (let f = start; f <= end; f++) {
     const hdr = document.createElement('div');
     hdr.className = 'fb-header';
     hdr.textContent = f;
     board.appendChild(hdr);
   }
 
-  for (let s = 5; s >= 0; s--) {
+  const middleString = Math.floor(strings.length / 2);
+  for (let s = strings.length - 1; s >= 0; s--) {
     const label = document.createElement('div');
     label.className = 'fb-string-label';
     label.textContent = strings[s].note + strings[s].oct;
     board.appendChild(label);
 
-    for (let f = 0; f <= FB_FRETS; f++) {
+    for (let f = start; f <= end; f++) {
       const cell = document.createElement('div');
       const midi = openMidis[s] + f;
       const noteName = NOTE_NAMES_SHARP[midi % 12];
       const oct = Math.floor(midi / 12) - 1;
       cell.className = 'fb-cell' + (f === 0 ? ' nut' : '');
-      if (f > 0 && FB_DOTS.includes(f) && s === 2) cell.classList.add('dot');
+      const interval = (midi % 12 - rootSemi + 12) % 12;
+      if (scaleSemis.has(midi % 12)) cell.classList.add('in-scale');
+      if (fb.showLabels || fb.showIntervals) cell.classList.add('show-label');
+      if (f > 0 && FB_DOTS.includes(f) && s === middleString) cell.classList.add('dot');
       cell.dataset.midi = midi;
       cell.dataset.string = s;
       cell.dataset.fret = f;
       cell.dataset.note = noteName + oct;
-      cell.textContent = noteName + oct;
+      cell.dataset.interval = interval;
+      cell.textContent = fb.showIntervals ? intervalLabel(interval) : noteName + oct;
 
       cell.onclick = () => {
         if (fb.answered) return;
@@ -87,13 +128,22 @@ function buildFretboard() {
 
 function buildIntervalButtons() {
   const container = document.getElementById('fb-intervals');
+  const label = document.getElementById('fb-answer-label');
   container.innerHTML = '';
-  const majorDef = SCALES['Major (Ionian)'];
-  const scaleIntervals = majorDef.map(d => d[1]);
-  scaleIntervals.forEach(semi => {
+  if (fb.mode === 'note') {
+    container.hidden = true;
+    label.textContent = 'Find the target note';
+    return;
+  }
+  container.hidden = false;
+  const intervals = fb.mode === 'chordTone'
+    ? chordToneIntervals()
+    : scaleIntervals().map(semi => ({ semi, role: intervalLabel(semi) }));
+  label.textContent = fb.mode === 'chordTone' ? 'Chord tone role' : 'Interval from root';
+  intervals.forEach(({ semi, role }) => {
     const btn = document.createElement('button');
     btn.className = 'int-btn';
-    btn.textContent = FB_INT_NAMES[semi];
+    btn.textContent = role || intervalLabel(semi);
     btn.dataset.semi = semi;
     btn.onclick = () => {
       if (fb.answered) return;
@@ -126,40 +176,46 @@ function newFbQuestion() {
   if (!rootP) return;
   const rootSemi = rootP.semi;
 
-  const majorDef = SCALES['Major (Ionian)'];
-  const scaleIntervals = majorDef.map(d => d[1]);
-
-  const pick_i = Math.floor(Math.random() * scaleIntervals.length);
-  const interval = scaleIntervals[pick_i];
+  const choices = fb.mode === 'chordTone'
+    ? chordToneIntervals()
+    : scaleIntervals().map(semi => ({ semi, role: intervalLabel(semi) }));
+  const choice = choices[Math.floor(Math.random() * choices.length)];
+  const interval = choice.semi;
   const targetSemi = (rootSemi + interval) % 12;
   const targetName = NOTE_NAMES_SHARP[targetSemi];
 
   const openMidis = fbOpenMidis();
   const possibleMidis = [];
-  for (let s = 0; s < 6; s++) {
-    for (let f = 0; f <= FB_FRETS; f++) {
+  const strings = TUNINGS[fb.tuning];
+  const { start, end } = activeFretRange();
+  for (let s = 0; s < strings.length; s++) {
+    for (let f = start; f <= end; f++) {
       const midi = openMidis[s] + f;
       if (midi % 12 === targetSemi) possibleMidis.push(midi);
     }
   }
+  if (!possibleMidis.length) return;
   const chosenMidi = possibleMidis[Math.floor(Math.random() * possibleMidis.length)];
 
   fb.targetNote = targetName;
   fb.targetMidi = chosenMidi;
   fb.targetInterval = interval;
+  fb.targetRole = choice.role || intervalLabel(interval);
 
   const oct = Math.floor(chosenMidi / 12) - 1;
+  const modeLabel = fb.mode === 'note' ? 'locate' : fb.mode === 'chordTone' ? `find ${fb.targetRole}` : 'locate + name';
   document.getElementById('fb-question').innerHTML =
-    `Key: <span class="highlight">${fb.key}</span> — Find <span class="highlight">${targetName}${oct}</span> on the fretboard and name its interval`;
+    `<span class="highlight">${fb.key}</span> · ${fb.scale} · ${modeLabel} <span class="highlight">${targetName}${oct}</span>`;
 }
 
 function checkFbAnswer() {
-  if (!fb.selectedFret || fb.selectedInterval === null || fb.answered) return;
+  if (!fb.selectedFret || fb.answered) return;
+  if (fb.mode !== 'note' && fb.selectedInterval === null) return;
   fb.answered = true;
   fb.total++;
 
   const fretCorrect = fb.selectedFret.midi === fb.targetMidi;
-  const intCorrect = fb.selectedInterval === fb.targetInterval;
+  const intCorrect = fb.mode === 'note' || fb.selectedInterval === fb.targetInterval;
   const bothCorrect = fretCorrect && intCorrect;
 
   const board = document.getElementById('fb-board');
@@ -176,13 +232,15 @@ function checkFbAnswer() {
   }
 
   const intContainer = document.getElementById('fb-intervals');
-  const selectedBtn = intContainer.querySelector(`.int-btn[data-semi="${fb.selectedInterval}"]`);
-  if (selectedBtn) {
-    selectedBtn.classList.add(intCorrect ? 'correct' : 'wrong');
-  }
-  if (!intCorrect) {
-    const correctBtn = intContainer.querySelector(`.int-btn[data-semi="${fb.targetInterval}"]`);
-    if (correctBtn) correctBtn.classList.add('correct');
+  if (fb.mode !== 'note') {
+    const selectedBtn = intContainer.querySelector(`.int-btn[data-semi="${fb.selectedInterval}"]`);
+    if (selectedBtn) {
+      selectedBtn.classList.add(intCorrect ? 'correct' : 'wrong');
+    }
+    if (!intCorrect) {
+      const correctBtn = intContainer.querySelector(`.int-btn[data-semi="${fb.targetInterval}"]`);
+      if (correctBtn) correctBtn.classList.add('correct');
+    }
   }
 
   const feedback = document.getElementById('fb-feedback');
@@ -190,13 +248,13 @@ function checkFbAnswer() {
     fb.right++;
     fb.streak++;
     feedback.className = 'fb-feedback show correct';
-    feedback.textContent = 'Correct!';
+    feedback.textContent = '✓';
   } else {
     fb.streak = 0;
-    const correctInt = FB_INT_NAMES[fb.targetInterval];
-    let msg = 'Incorrect. ';
-    if (!fretCorrect) msg += `The note was at a different position. `;
-    if (!intCorrect) msg += `The interval is ${correctInt}.`;
+    const correctInt = fb.mode === 'chordTone' ? fb.targetRole : intervalLabel(fb.targetInterval);
+    let msg = '';
+    if (!fretCorrect) msg += 'Wrong position. ';
+    if (!intCorrect) msg += `Expected: ${correctInt}.`;
     feedback.className = 'fb-feedback show wrong';
     feedback.textContent = msg;
   }
@@ -211,13 +269,94 @@ function checkFbAnswer() {
   }, FB_ADVANCE_MS);
 }
 
+function updateFbScore() {
+  document.getElementById('fb-right').textContent = fb.right;
+  document.getElementById('fb-total').textContent = fb.total;
+  document.getElementById('fb-streak').textContent = fb.streak;
+}
+
+function resetFbScore() {
+  fb.right = 0;
+  fb.total = 0;
+  fb.streak = 0;
+  updateFbScore();
+}
+
+function buildChoiceList(container, items, active, onPick) {
+  items.forEach(({ type, val, label }) => {
+    if (type === 'label') {
+      const group = document.createElement('div');
+      group.className = 'sl-group-label';
+      group.textContent = label;
+      container.appendChild(group);
+      return;
+    }
+    const div = document.createElement('div');
+    div.className = 'sl-item' + (val === active ? ' active' : '');
+    div.dataset.val = val;
+    div.textContent = label;
+    div.onclick = () => {
+      container.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
+      div.classList.add('active');
+      onPick(val);
+    };
+    container.appendChild(div);
+  });
+}
+
+function wireWorkbenchControls() {
+  const start = document.getElementById('fb-fret-start');
+  const end = document.getElementById('fb-fret-end');
+  const labels = document.getElementById('fb-show-labels');
+  const intervals = document.getElementById('fb-show-intervals');
+  if (!start || start.dataset.wired) return;
+  start.dataset.wired = '1';
+  start.value = fb.fretStart;
+  end.value = fb.fretEnd;
+  labels.checked = fb.showLabels;
+  intervals.checked = fb.showIntervals;
+
+  const updateRange = () => {
+    fb.fretStart = Number(start.value);
+    fb.fretEnd = Number(end.value);
+    activeFretRange();
+    start.value = fb.fretStart;
+    end.value = fb.fretEnd;
+    saveSetting('fb.fretStart', fb.fretStart);
+    saveSetting('fb.fretEnd', fb.fretEnd);
+    buildFretboard();
+    if (fb.targetNote) newFbQuestion();
+  };
+  start.onchange = updateRange;
+  end.onchange = updateRange;
+  labels.onchange = () => {
+    fb.showLabels = labels.checked;
+    saveSetting('fb.showLabels', fb.showLabels);
+    buildFretboard();
+  };
+  intervals.onchange = () => {
+    fb.showIntervals = intervals.checked;
+    saveSetting('fb.showIntervals', fb.showIntervals);
+    buildFretboard();
+  };
+}
+
 function initFretboard() {
   const keyScroll = document.getElementById('sl-fb-key');
   const tuningScroll = document.getElementById('sl-fb-tuning');
+  const scaleScroll = document.getElementById('sl-fb-scale');
+  const modeScroll = document.getElementById('sl-fb-mode');
   const tuningNames = Object.keys(TUNINGS);
 
   fb.key = getSetting('fb.key', fb.key, ROOTS);
   fb.tuning = getSetting('fb.tuning', fb.tuning, tuningNames);
+  fb.scale = getSetting('fb.scale', fb.scale, Object.keys(SCALES));
+  fb.mode = getSetting('fb.mode', fb.mode, FB_MODES.map(o => o.val));
+  fb.fretStart = Number(getSetting('fb.fretStart', fb.fretStart));
+  fb.fretEnd = Number(getSetting('fb.fretEnd', fb.fretEnd));
+  fb.showLabels = getSetting('fb.showLabels', fb.showLabels, [true, false]);
+  fb.showIntervals = getSetting('fb.showIntervals', fb.showIntervals, [true, false]);
+  wireWorkbenchControls();
 
   if (keyScroll.children.length) {
     buildFretboard();
@@ -235,9 +374,9 @@ function initFretboard() {
       fb.key = r;
       saveSetting('fb.key', fb.key);
       fb.right = 0; fb.total = 0; fb.streak = 0;
-      document.getElementById('fb-right').textContent = 0;
-      document.getElementById('fb-total').textContent = 0;
-      document.getElementById('fb-streak').textContent = 0;
+      updateFbScore();
+      buildFretboard();
+      buildIntervalButtons();
       newFbQuestion();
     };
     keyScroll.appendChild(div);
@@ -258,10 +397,26 @@ function initFretboard() {
     tuningScroll.appendChild(div);
   });
 
+  buildChoiceList(scaleScroll, groupedScaleEntries(false), fb.scale, val => {
+    fb.scale = val;
+    saveSetting('fb.scale', val);
+    buildFretboard();
+    buildIntervalButtons();
+    if (fb.targetNote) newFbQuestion();
+  });
+
+  buildChoiceList(modeScroll, FB_MODES, fb.mode, val => {
+    fb.mode = val;
+    saveSetting('fb.mode', val);
+    buildIntervalButtons();
+    if (fb.targetNote) newFbQuestion();
+  });
+
   buildFretboard();
   buildIntervalButtons();
 }
 
 window.newFbQuestion = newFbQuestion;
+window.resetFbScore = resetFbScore;
 
 export { initFretboard, fb };
