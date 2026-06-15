@@ -106,6 +106,37 @@
     </div>
   </section>
 
+  <!-- SIGHT READING QUIZ -->
+  <section id="sec-sightreading" class="section">
+    <div class="quiz-layout">
+      <div class="sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Clef</div>
+          <div class="sl-scroll" id="sl-sr-clef"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Difficulty</div>
+          <div class="sl-scroll" id="sl-sr-diff"></div>
+        </div>
+      </div>
+      <div class="quiz-main">
+        <div class="score-bar" style="margin-bottom:12px">
+          <span>Score: <span class="val" id="sr-right">0</span> / <span class="val" id="sr-total">0</span></span>
+          <span>Streak: <span class="val" id="sr-streak">0</span></span>
+          <button class="btn sm" onclick="resetSightScore()">Reset</button>
+        </div>
+        <div class="quiz-card">
+          <div class="question sr-question" id="sr-question">Press New Question to start</div>
+          <div class="sr-staff-wrap" id="sr-staff-wrap"></div>
+          <div style="font-size:.85rem;color:var(--muted);margin-bottom:6px">Which note is shown?</div>
+          <div class="note-btn-row" id="sr-answers" style="justify-content:center"></div>
+          <div class="fb-feedback" id="sr-feedback"></div>
+          <button class="btn primary" onclick="newSightQ()" style="margin-top:8px">New Question</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- SCALE REFERENCE -->
   <section id="sec-scaleref" class="section">
     <div class="quiz-layout">

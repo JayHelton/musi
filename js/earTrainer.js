@@ -2,14 +2,24 @@ import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio
 import { parseNote, NOTE_NAMES_SHARP, ROOTS } from './theory.js';
 import { SCALES } from './scales.js';
 
+const EAR_ADVANCE_MS = 1600;
+const EAR_FADE_START_MS = 1100;
+
 const ear = {
   key: 'C', mode: 'easy',
   targetNote: null, targetSemi: null, answered: false,
   right: 0, total: 0, streak: 0,
   _osc: null, _osc2: null, _gain: null, _stopTimer: null,
+  _advTimer: null, _fadeTimer: null,
 };
 
+function earClearTimers() {
+  if (ear._advTimer) { clearTimeout(ear._advTimer); ear._advTimer = null; }
+  if (ear._fadeTimer) { clearTimeout(ear._fadeTimer); ear._fadeTimer = null; }
+}
+
 function playEarQuestion() {
+  earClearTimers();
   ear.answered = false;
   const feedback = document.getElementById('ear-feedback');
   feedback.className = 'fb-feedback';
@@ -115,6 +125,7 @@ function playEarTone(semi, oct, duration) {
 }
 
 function stopEarTone() {
+  earClearTimers();
   if (ear._stopTimer) { clearTimeout(ear._stopTimer); ear._stopTimer = null; }
   if (ear._osc) {
     try {
@@ -158,6 +169,11 @@ function checkEarAnswer(semi, btn) {
   document.getElementById('ear-right').textContent = ear.right;
   document.getElementById('ear-total').textContent = ear.total;
   document.getElementById('ear-streak').textContent = ear.streak;
+
+  ear._fadeTimer = setTimeout(() => feedback.classList.add('fade-out'), EAR_FADE_START_MS);
+  ear._advTimer = setTimeout(() => {
+    if (document.getElementById('sec-ear').classList.contains('active')) playEarQuestion();
+  }, EAR_ADVANCE_MS);
 }
 
 function initEarTrainer() {

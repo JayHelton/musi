@@ -1,9 +1,10 @@
-import { getSelected } from './scaleQuiz.js';
+import { getSelected, clearIntQTimers } from './scaleQuiz.js';
 import { pick, ROOTS_RAND, normNote } from './theory.js';
 import { getIntervalPool, computeInterval } from './intervals.js';
 import { S } from './scaleQuiz.js';
 
 export function newIntQ() {
+  clearIntQTimers();
   const selRoot = getSelected('sl-int-root');
   const selDiff = getSelected('sl-int-diff');
   S.iq.diff = selDiff === 'random' ? 'easy' : selDiff;
