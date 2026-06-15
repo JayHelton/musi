@@ -8,7 +8,7 @@ import { initFretboard } from './fretboardTrainer.js';
 import { initTuner, stopTuner, tuner } from './vocalTrainer.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
 import { initBacking, stopBacking, backing } from './backingTrack.js';
-import { initRiff, stopRiff, riffState } from './riffGenerator.js';
+import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initScaleRef } from './scaleReference.js';
 import { initCurriculum } from './curriculum.js';
@@ -59,7 +59,7 @@ const GROUP_ICONS = {
   Learn:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>',
 };
 
-function showSection(id) {
+function showSection(id, skipHash) {
   const prev = document.querySelector('.section.active');
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
@@ -73,6 +73,8 @@ function showSection(id) {
     if (groupTrigger) groupTrigger.classList.add('active');
   }
 
+  if (!skipHash) history.replaceState(null, '', '#' + id);
+
   if (id !== 'keyboard' && Object.keys(S.kb.drones).length) stopAll();
   if (id !== 'metronome' && metro.playing) stopMetronome();
   if (id !== 'chords' && chordBuilder.oscillators.length) stopChord();
@@ -80,6 +82,7 @@ function showSection(id) {
   if (id !== 'ear' && ear._osc) stopEarTone();
   if (id !== 'backing' && backing.playing) stopBacking();
   if (id !== 'riff' && riffState.playing) stopRiff();
+  if (id !== 'riff' && composer.playing) stopComposer();
   if (id === 'circle') drawCoF();
   if (id === 'keyboard') buildKeyboard();
   if (id === 'metronome') initMetronome();
@@ -90,7 +93,7 @@ function showSection(id) {
   if (id === 'tuner') initTuner();
   if (id === 'ear') initEarTrainer();
   if (id === 'backing') initBacking();
-  if (id === 'riff') initRiff();
+  if (id === 'riff') { initRiff(); initComposerNotes(); }
 }
 window.showSection = showSection;
 
@@ -238,6 +241,18 @@ function init() {
   initMetronome();
   initVisualizer();
   initNowPlaying();
+
+  const hashTab = location.hash.replace('#', '');
+  if (hashTab && TABS.some(t => t.id === hashTab)) {
+    showSection(hashTab, true);
+  }
+
+  window.addEventListener('hashchange', () => {
+    const id = location.hash.replace('#', '');
+    if (id && TABS.some(t => t.id === id)) {
+      showSection(id, true);
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -1,7 +1,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#0a0a0a;--bg2:#141414;--card:#1a1a1a;--hover:#1f1f1f;
-  --accent:#b491ff;--accent-dim:#b491ff18;--accent-glow:#b491ff40;--accent2:#d4b8ff;
+  --accent:#ff6b35;--accent-dim:#ff6b3518;--accent-glow:#ff6b3540;--accent2:#ff8c5a;
   --text:#e8e8e8;--muted:#6a6a6a;--border:rgba(255,255,255,0.06);
   --ok:#2ecc71;--err:#e74c3c;--warn:#f39c12;
 }

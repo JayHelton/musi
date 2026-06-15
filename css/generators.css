@@ -38,9 +38,10 @@
 .backing-progression:empty::after{content:'Select a preset or build custom...';color:var(--muted);font-size:.85rem}
 .backing-chord{padding:12px 20px;border:none;border-radius:12px;background:var(--card);color:var(--text);font-size:1rem;font-weight:600;min-width:60px;text-align:center;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
 .backing-chord.playing{background:var(--accent);color:#000;box-shadow:0 0 20px var(--accent-dim);transform:scale(1.05)}
-.backing-chord .bpc-badge{display:block;font-size:.65rem;color:var(--muted);margin-top:2px;cursor:pointer;transition:color 0.15s ease}
-.backing-chord .bpc-badge:hover{color:var(--accent)}
-.backing-chord.playing .bpc-badge{color:#000}
+.backing-badges{display:flex;gap:6px;justify-content:center;margin-top:4px}
+.backing-chord .bpc-badge{font-size:.65rem;color:var(--muted);cursor:pointer;transition:color 0.15s ease;padding:2px 6px;border-radius:8px;background:var(--bg2)}
+.backing-chord .bpc-badge:hover{color:var(--accent);background:var(--accent-dim)}
+.backing-chord.playing .bpc-badge{color:#000;background:rgba(0,0,0,0.15)}
 .backing-transport{display:flex;gap:8px;align-items:center;margin-bottom:12px}
 
 /* Riff Generator */
@@ -55,6 +56,22 @@
   100%{background-position:-100% 0}
 }
 .riff-transport{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+
+/* Riff Composer */
+.composer-controls{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+.composer-note-pick{display:flex;flex-direction:column;gap:2px}
+.composer-note-pick select{padding:6px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text);font-size:.85rem;font-family:inherit}
+.composer-timeline{display:flex;gap:6px;flex-wrap:wrap;min-height:48px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:14px;align-items:center;align-content:flex-start}
+.comp-chip{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 12px;border-radius:10px;background:var(--card);border:1px solid var(--border);position:relative;transition:all 0.2s ease;min-width:48px;cursor:default}
+.comp-chip.rest{opacity:0.6;border-style:dashed}
+.comp-chip.playing{background:var(--accent);border-color:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+.comp-chip.playing .comp-chip-label{color:#000}
+.comp-chip.playing .comp-chip-len{color:rgba(0,0,0,0.6)}
+.comp-chip-label{font-size:.9rem;font-weight:600;color:var(--text);font-family:monospace}
+.comp-chip-len{font-size:.65rem;color:var(--muted);cursor:pointer;padding:1px 6px;border-radius:6px;background:var(--bg2);transition:color 0.15s ease}
+.comp-chip-len:hover{color:var(--accent);background:var(--accent-dim)}
+.comp-chip-del{position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--err);color:#fff;font-size:.7rem;line-height:16px;text-align:center;cursor:pointer;opacity:0;transition:opacity 0.15s ease}
+.comp-chip:hover .comp-chip-del{opacity:1}
 
 /* Curriculum */
 .cur-tabs{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap}
