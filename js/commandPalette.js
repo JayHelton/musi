@@ -101,7 +101,7 @@ function buildEntries(tabs) {
   CHORD_SHORTCUTS.forEach(c => {
     out.push({
       kind: 'Chord',
-      title: c.title || c.label,
+      title: c.label,
       sub: 'Open Chord Builder',
       haystack: `${c.label} ${c.keywords} chord`.toLowerCase(),
       run: () => showSectionFn('chords'),
