@@ -728,6 +728,26 @@
         </div>
         <div class="rec-meter-wrap"><div class="rec-meter" id="rec-meter"></div></div>
         <div class="rec-timer" id="rec-timer">0:00</div>
+        <div class="rec-options">
+          <label class="rec-opt">
+            <span class="rec-opt-label">Quality</span>
+            <select id="rec-format">
+              <option value="wav">Lossless (WAV)</option>
+              <option value="opus">Compressed (Opus)</option>
+            </select>
+          </label>
+          <label class="rec-opt" id="rec-depth-opt">
+            <span class="rec-opt-label">Bit depth</span>
+            <select id="rec-depth">
+              <option value="24">24-bit</option>
+              <option value="16">16-bit</option>
+            </select>
+          </label>
+          <label class="rec-opt rec-opt-check">
+            <input type="checkbox" id="rec-normalize" checked>
+            <span class="rec-opt-label">Normalize</span>
+          </label>
+        </div>
         <div class="rec-controls">
           <button class="btn primary" id="rec-toggle" onclick="toggleRecording()">&#9679; Record</button>
         </div>

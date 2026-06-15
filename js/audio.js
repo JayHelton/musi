@@ -5,7 +5,15 @@ let masterGain = null;
 
 export function ensureAudio() {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    // Prefer a 48 kHz context so mic capture and lossless WAV export run at a
+    // consistent, high-quality rate. Fall back to the default rate if the
+    // browser/hardware rejects the hint.
+    try {
+      audioCtx = new Ctx({ sampleRate: 48000 });
+    } catch (e) {
+      audioCtx = new Ctx();
+    }
 
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0.75;
