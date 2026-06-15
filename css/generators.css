@@ -1,0 +1,82 @@
+/* Scale Reference */
+.ref-table{width:100%;border-collapse:collapse;margin:12px 0}
+.ref-table th,.ref-table td{padding:8px 12px;border:1px solid var(--border);text-align:left;font-size:.9rem}
+.ref-table th{background:var(--bg2);color:var(--muted);font-size:.8rem;text-transform:uppercase}
+.ref-info{font-size:.9rem;color:var(--muted);margin:8px 0}
+.chord-row{margin:8px 0;font-size:.9rem;color:var(--muted)}
+.chord-row span{color:var(--accent);font-family:monospace;letter-spacing:1px}
+.guitar-tab-wrap{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin:12px 0;overflow-x:auto}
+.guitar-tab-wrap pre{font-family:'Courier New',monospace;font-size:.95rem;color:var(--accent);line-height:1.8;margin:0;letter-spacing:1px}
+.guitar-tab-wrap .tab-title{font-size:.9rem;color:var(--muted);margin-bottom:8px;font-weight:600}
+
+/* Chord Builder */
+.chord-picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.chord-chips{display:flex;gap:6px;flex-wrap:wrap;min-height:44px;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;align-items:center}
+.chord-chips:empty::after{content:'Add notes to build a chord...';color:var(--muted);font-size:.9rem}
+.chord-chip{padding:5px 12px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:6px;font-family:monospace;font-size:1rem;color:var(--accent);cursor:pointer;transition:.15s;font-weight:600}
+.chord-chip:hover{background:var(--err);border-color:var(--err);color:#fff}
+.chord-chip:hover::after{content:' ×'}
+.chord-actions{display:flex;gap:8px;margin-bottom:20px}
+.chord-analysis{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.chord-name{font-size:1.6rem;font-weight:700;color:var(--accent);margin-bottom:8px}
+.chord-intervals{font-size:.9rem;color:var(--muted);margin-bottom:8px;font-family:monospace}
+.chord-keys{font-size:.9rem;color:var(--text);line-height:1.6}
+.chord-keys strong{color:var(--muted);display:block;margin-bottom:4px}
+.key-tag{display:inline-block;padding:3px 10px;border-radius:4px;font-size:.8rem;margin:2px;background:var(--bg2);border:1px solid var(--border)}
+.key-tag.major{border-color:var(--accent);color:var(--accent)}
+.key-tag.minor{border-color:var(--accent2);color:var(--accent2)}
+
+/* Backing Track */
+.backing-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.backing-controls label{color:var(--muted);font-size:.85rem;display:flex;align-items:center;gap:6px}
+.preset-list{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.backing-progression{display:flex;gap:6px;flex-wrap:wrap;min-height:56px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;align-items:center}
+.backing-progression:empty::after{content:'Select a preset or build custom...';color:var(--muted);font-size:.85rem}
+.backing-chord{padding:10px 18px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:1rem;font-weight:600;min-width:60px;text-align:center;transition:.15s}
+.backing-chord.playing{background:var(--accent);color:#000;border-color:var(--accent)}
+.backing-chord .bpc-badge{display:block;font-size:.65rem;color:var(--muted);margin-top:2px;cursor:pointer}
+.backing-chord .bpc-badge:hover{color:var(--accent)}
+.backing-chord.playing .bpc-badge{color:#000}
+.backing-transport{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+
+/* Riff Generator */
+.riff-options{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.riff-options label{color:var(--muted);font-size:.85rem;display:flex;align-items:center;gap:6px}
+.riff-options select{padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:.85rem}
+.riff-tab-wrap{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin:12px 0;overflow-x:auto}
+.riff-tab-wrap pre{font-family:'Courier New',monospace;font-size:.9rem;color:var(--accent);line-height:1.8;margin:0;letter-spacing:0}
+.rn.playing{background:var(--accent);color:#000;border-radius:2px}
+.riff-transport{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+
+/* Curriculum */
+.cur-tabs{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap}
+.cur-tab{padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:.88rem;transition:.2s}
+.cur-tab:hover{color:var(--text);background:var(--hover)}
+.cur-tab.active{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
+.session-block{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:.15s}
+.session-block:hover{border-color:var(--accent);background:var(--hover)}
+.session-block.active{border-color:var(--accent);background:var(--accent-dim);box-shadow:0 0 8px var(--accent-dim)}
+.session-block.done{opacity:.5;border-color:var(--ok)}
+.session-block.done::after{content:'✓';color:var(--ok);font-weight:700;margin-left:auto}
+.session-block .block-name{flex:1;font-size:.92rem}
+.dur-badge{padding:3px 8px;border-radius:12px;background:var(--accent-dim);color:var(--accent);font-size:.75rem;font-weight:600;white-space:nowrap}
+.timer-display{text-align:center;padding:20px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin:16px 0}
+.timer-display .timer-time{font-size:2.8rem;font-weight:700;font-family:'Courier New',monospace;color:var(--accent);letter-spacing:2px}
+.timer-display .timer-label{font-size:.9rem;color:var(--muted);margin-top:4px}
+.timer-controls{display:flex;gap:10px;justify-content:center;margin-bottom:20px}
+.schedule-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}
+.schedule-table th,.schedule-table td{padding:8px 12px;border:1px solid var(--border);text-align:left}
+.schedule-table th{background:var(--bg2);color:var(--accent);font-weight:600}
+.schedule-table td{background:var(--card);color:var(--text)}
+.collapsible{border:1px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden}
+.collapsible-head{padding:10px 14px;background:var(--bg2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:.9rem;color:var(--text);transition:.15s;user-select:none}
+.collapsible-head:hover{background:var(--hover)}
+.collapsible-head::after{content:'▸';transition:transform .2s;font-size:.8rem;color:var(--muted)}
+.collapsible.open .collapsible-head::after{transform:rotate(90deg)}
+.collapsible-body{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 14px}
+.collapsible.open .collapsible-body{max-height:800px;padding:10px 14px}
+.collapsible-body p,.collapsible-body li{font-size:.86rem;color:var(--muted);line-height:1.5}
+.collapsible-body ul{padding-left:16px;margin:4px 0}
+.cur-crosslink{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;font-size:.82rem;transition:.15s;margin:4px 4px 4px 0}
+.cur-crosslink:hover{background:var(--accent-dim)}
+.cur-section-title{font-size:1rem;font-weight:600;color:var(--text);margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}

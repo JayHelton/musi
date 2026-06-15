@@ -1,0 +1,65 @@
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--card:#1c2333;--hover:#252d3a;
+  --accent:#00d4aa;--accent-dim:#00d4aa22;--accent2:#7c5bf5;
+  --text:#e6edf3;--muted:#8b949e;--border:#30363d;
+  --ok:#3fb950;--err:#f85149;--warn:#d29922;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+header h1{font-size:1.4rem;white-space:nowrap}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+.tab{padding:8px 18px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:.9rem;transition:.2s}
+.tab:hover{color:var(--text);background:var(--hover)}
+.tab.active{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
+main{max-width:1100px;margin:0 auto;padding:24px}
+.section{display:none}.section.active{display:block}
+.quiz-layout{display:flex;gap:20px}
+.sidebar{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
+.sidebar-list{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.sidebar-list .sl-head{padding:8px 12px;font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);font-weight:600}
+.sidebar-list .sl-scroll{max-height:260px;overflow-y:auto}
+.sl-item{padding:6px 12px;cursor:pointer;font-size:.84rem;color:var(--text);transition:.1s;border-left:3px solid transparent}
+.sl-item:hover{background:var(--hover)}
+.sl-item.active{background:var(--accent-dim);color:var(--accent);border-left-color:var(--accent)}
+.quiz-main{flex:1;min-width:0}
+.quiz-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+select,input[type=text]{padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:.95rem}
+select:focus,input[type=text]:focus{outline:none;border-color:var(--accent)}
+.btn{padding:8px 18px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;transition:.15s}
+.btn:hover{background:var(--hover);border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.btn.primary:hover{opacity:.85}
+.btn.sm{padding:5px 12px;font-size:.8rem}
+.diff-group{display:flex;gap:0}
+.diff-btn{padding:8px 16px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);cursor:pointer;font-size:.85rem;transition:.15s}
+.diff-btn:first-child{border-radius:6px 0 0 6px}
+.diff-btn:last-child{border-radius:0 6px 6px 0}
+.diff-btn:not(:last-child){border-right:none}
+.diff-btn:hover{color:var(--text)}
+.diff-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.quiz-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:16px}
+.question{font-size:1.3rem;margin-bottom:20px;font-weight:500;min-height:2em}
+.oct-group{display:flex;gap:0}
+.oct-btn{padding:6px 10px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);cursor:pointer;font-size:.85rem;transition:.15s}
+.oct-btn:first-child{border-radius:6px 0 0 6px}
+.oct-btn:last-child{border-radius:0 6px 6px 0}
+.oct-btn:not(:last-child){border-right:none}
+.oct-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+
+@media(max-width:768px){
+  .quiz-layout{flex-direction:column}
+  .sidebar{width:100%;flex-direction:row;gap:8px}
+  .sidebar-list{flex:1}
+  .sidebar-list .sl-scroll{max-height:150px}
+}
+@media(max-width:600px){
+  header{padding:12px 16px;gap:12px}
+  header h1{font-size:1.1rem}
+  .tab{padding:6px 12px;font-size:.8rem}
+  main{padding:16px}
+  .quiz-card{padding:20px}
+  .question{font-size:1.1rem}
+  .white-key{width:36px;height:160px}
+  .black-key{width:24px;height:100px}
+}

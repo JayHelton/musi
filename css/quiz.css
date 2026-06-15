@@ -1,0 +1,22 @@
+.input-row{display:flex;gap:10px}
+.input-row input{flex:1;font-family:'Courier New',monospace;font-size:1.05rem;letter-spacing:1px}
+.feedback{margin-top:16px;padding:12px 16px;border-radius:8px;font-size:.95rem;display:none}
+.feedback.correct{display:block;background:#3fb95018;border:1px solid var(--ok);color:var(--ok)}
+.feedback.wrong{display:block;background:#f8514918;border:1px solid var(--err);color:var(--err)}
+.score-bar{display:flex;gap:20px;align-items:center;padding:12px 16px;background:var(--bg2);border-radius:8px;font-size:.9rem;color:var(--muted)}
+.score-bar .val{color:var(--text);font-weight:600}
+.hint-bar{margin-top:12px;font-size:.85rem;color:var(--muted)}
+.hint-bar button{background:none;border:none;color:var(--accent);cursor:pointer;font-size:.85rem;text-decoration:underline}
+.hint-text{margin-top:6px;color:var(--accent);font-family:monospace;font-size:.95rem}
+.note-input-display{min-height:44px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.note-input-display.empty::after{content:'Click notes below...';color:var(--muted);font-size:.9rem}
+.note-chip{padding:4px 10px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:4px;font-family:monospace;font-size:1rem;color:var(--accent)}
+.note-btn-row{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+.mod-btn,.letter-btn{padding:8px 0;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;text-align:center;transition:.12s;min-width:42px}
+.letter-btn{min-width:44px;font-weight:600;font-size:.9rem}
+.letter-btn.accidental{background:var(--bg);border-color:var(--border);font-size:.8rem;min-width:38px}
+.letter-btn.correct{background:var(--ok);color:#fff;border-color:var(--ok)}
+.letter-btn.wrong{background:var(--err);color:#fff;border-color:var(--err)}
+.mod-btn:hover,.letter-btn:hover{background:var(--hover);border-color:var(--accent)}
+.mod-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.note-action-row{display:flex;gap:6px;margin-top:6px}
