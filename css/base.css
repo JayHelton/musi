@@ -1,7 +1,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#0a0a0a;--bg2:#141414;--card:#1a1a1a;--hover:#1f1f1f;
-  --accent:#1DB954;--accent-dim:#1DB95418;--accent-glow:#1DB95440;--accent2:#7c5bf5;
+  --accent:#b491ff;--accent-dim:#b491ff18;--accent-glow:#b491ff40;--accent2:#d4b8ff;
   --text:#e8e8e8;--muted:#6a6a6a;--border:rgba(255,255,255,0.06);
   --ok:#2ecc71;--err:#e74c3c;--warn:#f39c12;
 }
@@ -55,7 +55,7 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-
 .btn{padding:8px 20px;border:none;border-radius:24px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;font-family:inherit;transition:all 0.2s ease}
 .btn:hover{background:var(--hover);transform:scale(1.02)}
 .btn:active{transform:scale(0.98)}
-.btn.primary{background:var(--accent);color:#000;font-weight:600;box-shadow:0 0 16px var(--accent-dim)}
+.btn.primary{background:var(--accent);color:#0a0a0a;font-weight:600;box-shadow:0 0 16px var(--accent-dim)}
 .btn.primary:hover{box-shadow:0 0 24px var(--accent-glow);transform:scale(1.02)}
 .btn.primary:active{transform:scale(0.98)}
 .btn.sm{padding:5px 14px;font-size:.8rem}
@@ -82,19 +82,40 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-
 /* Glassmorphism utility */
 .glass{backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(20,20,20,0.85);border:1px solid var(--border)}
 
+/* Mobile dock group menus */
+.dock-mobile{display:none}
+.dock-group{position:relative}
+.dock-group-trigger{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 14px;cursor:pointer;color:var(--muted);font-size:.65rem;background:none;border:none;flex-shrink:0;transition:color 0.2s ease;position:relative;font-family:inherit}
+.dock-group-trigger .dock-icon{width:22px;height:22px}
+.dock-group-trigger:hover{color:var(--text)}
+.dock-group-trigger.active{color:var(--accent)}
+.dock-group-trigger.active::after{content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent)}
+.dock-group-menu{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;background:rgba(20,20,20,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:6px;min-width:140px;box-shadow:0 -4px 24px rgba(0,0,0,0.6)}
+.dock-group.open .dock-group-menu{display:flex;flex-direction:column;gap:2px;animation:menuSlideUp 0.15s ease}
+@keyframes menuSlideUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.dock-menu-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border:none;background:none;color:var(--text);cursor:pointer;font-size:.85rem;border-radius:10px;transition:all 0.15s ease;font-family:inherit;white-space:nowrap}
+.dock-menu-item .dock-icon{width:18px;height:18px;flex-shrink:0}
+.dock-menu-item:hover{background:var(--hover)}
+.dock-menu-item.active{color:var(--accent);background:var(--accent-dim)}
+.dock-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99}
+.dock-overlay.visible{display:block}
+
 @media(max-width:768px){
   .quiz-layout{flex-direction:column}
   .sidebar{width:100%;flex-direction:row;gap:8px}
   .sidebar-list{flex:1}
   .sidebar-list .sl-scroll{max-height:150px}
+  .dock-desktop{display:none!important}
+  .dock-mobile{display:flex;width:100%;justify-content:space-around;align-items:center}
+  .dock{justify-content:center}
 }
 @media(max-width:600px){
   header{padding:8px 16px}
-  header h1{font-size:1rem}
+  .wordmark{font-size:1rem;letter-spacing:3px}
   main{padding:16px 16px 80px}
   .quiz-card{padding:20px}
   .question{font-size:1.1rem}
   .white-key{width:36px;height:160px}
   .black-key{width:24px;height:100px}
-  .dock-item{font-size:.6rem;padding:4px 6px}
+  .dock-group-trigger{padding:6px 10px;font-size:.6rem}
 }
