@@ -6,7 +6,7 @@ const ear = {
   key: 'C', mode: 'easy',
   targetNote: null, targetSemi: null, answered: false,
   right: 0, total: 0, streak: 0,
-  _osc: null, _gain: null,
+  _osc: null, _osc2: null, _gain: null, _stopTimer: null,
 };
 
 function playEarQuestion() {
@@ -24,16 +24,18 @@ function playEarQuestion() {
   const scaleIntervals = majorDef.map(d => d[1]);
   const scalePCs = scaleIntervals.map(s => (rootP.semi + s) % 12);
 
+  const toneDur = 1.5;
   if (ear.mode === 'easy') {
-    playEarTone(rootP.semi, 4);
+    playEarTone(rootP.semi, 4, toneDur);
+    const gap = (toneDur * 0.95 + 0.2) * 1000;
     setTimeout(() => {
       const pick = scalePCs[Math.floor(Math.random() * scalePCs.length)];
       ear.targetSemi = pick;
       ear.targetNote = NOTE_NAMES_SHARP[pick];
-      playEarTone(pick, 4);
+      playEarTone(pick, 4, toneDur);
       document.getElementById('ear-question').innerHTML =
         `Key: <span class="highlight">${ear.key}</span> — Root played first, then the mystery note. What is it?`;
-    }, 1200);
+    }, gap);
   } else {
     const pick = scalePCs[Math.floor(Math.random() * scalePCs.length)];
     ear.targetSemi = pick;
@@ -46,12 +48,14 @@ function playEarQuestion() {
 
 function replayEarNote() {
   if (ear.targetSemi === null) return;
+  const toneDur = 1.5;
   if (ear.mode === 'easy') {
     const rootP = parseNote(ear.key);
-    if (rootP) playEarTone(rootP.semi, 4);
-    setTimeout(() => playEarTone(ear.targetSemi, 4), 1200);
+    if (rootP) playEarTone(rootP.semi, 4, toneDur);
+    const gap = (toneDur * 0.95 + 0.2) * 1000;
+    setTimeout(() => playEarTone(ear.targetSemi, 4, toneDur), gap);
   } else {
-    playEarTone(ear.targetSemi, 4);
+    playEarTone(ear.targetSemi, 4, toneDur);
   }
 }
 
@@ -68,31 +72,59 @@ function triggerRipple() {
   setTimeout(() => { wrap.innerHTML = ''; }, 1500);
 }
 
-function playEarTone(semi, oct) {
+function playEarTone(semi, oct, duration) {
+  if (ear._stopTimer) clearTimeout(ear._stopTimer);
   stopEarTone();
   ensureAudio();
   triggerRipple();
+  const dur = duration || 1.2;
   const midi = 12 * (oct + 1) + semi;
+  const freq = midiFreq(midi);
   const osc = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
+  const t = audioCtx.currentTime;
+
   osc.type = 'sine';
-  osc.frequency.value = midiFreq(midi);
-  gain.gain.value = 0.3;
-  osc.connect(gain);
+  osc2.type = 'triangle';
+  osc.frequency.value = freq;
+  osc2.frequency.value = freq;
+
+  filter.type = 'lowpass';
+  filter.frequency.value = Math.min(freq * 4, 5000);
+  filter.Q.value = 0.5;
+
+  const sustain = dur * 0.6;
+  const release = dur * 0.35;
+  gain.gain.setValueAtTime(0.001, t);
+  gain.gain.linearRampToValueAtTime(0.18, t + 0.04);
+  gain.gain.setValueAtTime(0.15, t + sustain);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + sustain + release);
+
+  osc.connect(filter);
+  osc2.connect(filter);
+  filter.connect(gain);
   gain.connect(getAnalyserDestination());
-  osc.start();
+  osc.start(t);
+  osc2.start(t);
   ear._osc = osc;
+  ear._osc2 = osc2;
   ear._gain = gain;
-  setTimeout(() => stopEarTone(), 1000);
+  ear._stopTimer = setTimeout(() => stopEarTone(), (sustain + release + 0.1) * 1000);
 }
 
 function stopEarTone() {
+  if (ear._stopTimer) { clearTimeout(ear._stopTimer); ear._stopTimer = null; }
   if (ear._osc) {
     try {
-      ear._gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-      setTimeout(() => { try { ear._osc.stop(); } catch(e) {} }, 60);
+      const t = audioCtx.currentTime;
+      ear._gain.gain.setValueAtTime(ear._gain.gain.value, t);
+      ear._gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      const o1 = ear._osc, o2 = ear._osc2;
+      setTimeout(() => { try { o1.stop(); o2.stop(); } catch(e) {} }, 150);
     } catch(e) {}
-    ear._osc = null; ear._gain = null;
+    ear._osc = null; ear._osc2 = null; ear._gain = null;
   }
 }
 

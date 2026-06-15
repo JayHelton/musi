@@ -15,7 +15,7 @@ const PROG_PRESETS = {
 };
 
 const backing = {
-  key: 'C', scale: 'major', bpm: 100, defaultBpc: 4, ts: 4,
+  key: 'C', scale: 'major', bpm: 100, defaultBpc: 4, defaultOct: 4, ts: 4,
   progression: [], chordNotes: [], playing: false,
   _timer: null, _nextTime: 0, _chordIdx: 0,
   _activeOscs: [],
@@ -75,6 +75,7 @@ function buildBackingProgression() {
 
   prog.forEach(deg => {
     let chord;
+    const baseOct = backing.defaultOct;
     if (typeof deg === 'string' && deg === 'b7') {
       const r = parseNote(backing.key);
       if (r) {
@@ -84,21 +85,26 @@ function buildBackingProgression() {
         const third = ((p.semi + 4) % 12 + 12) % 12;
         const fifth = ((p.semi + 7) % 12 + 12) % 12;
         const pcs = [flatSeven, NOTE_NAMES_SHARP[third], NOTE_NAMES_SHARP[fifth]];
-        const voicing = voiceLeadChord(pcs, prevVoicing, 4);
+        const voicing = voiceLeadChord(pcs, prevVoicing, baseOct);
         prevVoicing = voicing;
-        backing.chordNotes.push({ chord, voicing, beats: backing.defaultBpc });
+        backing.chordNotes.push({ chord, voicing, beats: backing.defaultBpc, oct: baseOct, pcs });
         return;
       }
     }
     chord = getDiatonicTriad(backing.key, backing.scale, deg);
     if (!chord) return;
     const pcs = [chord.root, chord.third, chord.fifth];
-    const voicing = voiceLeadChord(pcs, prevVoicing, 4);
+    const voicing = voiceLeadChord(pcs, prevVoicing, baseOct);
     prevVoicing = voicing;
-    backing.chordNotes.push({ chord, voicing, beats: backing.defaultBpc });
+    backing.chordNotes.push({ chord, voicing, beats: backing.defaultBpc, oct: baseOct, pcs });
   });
 
   renderBackingProg();
+}
+
+function revoiceChord(cn, idx) {
+  const prev = idx > 0 ? backing.chordNotes[idx - 1].voicing : null;
+  cn.voicing = voiceLeadChord(cn.pcs, prev, cn.oct);
 }
 
 function renderBackingProg() {
@@ -110,36 +116,72 @@ function renderBackingProg() {
     const nameSpan = document.createElement('span');
     nameSpan.textContent = cn.chord.name;
     div.appendChild(nameSpan);
-    const badge = document.createElement('span');
-    badge.className = 'bpc-badge';
-    badge.textContent = cn.beats + ' beats';
-    badge.onclick = (e) => {
+
+    const badges = document.createElement('span');
+    badges.className = 'backing-badges';
+
+    const octBadge = document.createElement('span');
+    octBadge.className = 'bpc-badge oct-badge';
+    octBadge.textContent = 'Oct ' + cn.oct;
+    octBadge.onclick = (e) => {
+      e.stopPropagation();
+      const options = [2,3,4,5,6];
+      const cur = options.indexOf(cn.oct);
+      cn.oct = options[(cur + 1) % options.length];
+      revoiceChord(cn, i);
+      octBadge.textContent = 'Oct ' + cn.oct;
+    };
+    badges.appendChild(octBadge);
+
+    const beatBadge = document.createElement('span');
+    beatBadge.className = 'bpc-badge';
+    beatBadge.textContent = cn.beats + ' beats';
+    beatBadge.onclick = (e) => {
       e.stopPropagation();
       const options = [1,2,3,4,6,8];
       const cur = options.indexOf(cn.beats);
       cn.beats = options[(cur + 1) % options.length];
-      badge.textContent = cn.beats + ' beats';
+      beatBadge.textContent = cn.beats + ' beats';
     };
-    div.appendChild(badge);
+    badges.appendChild(beatBadge);
+
+    div.appendChild(badges);
     container.appendChild(div);
   });
 }
 
 function playBackingChord(time, voicing, beats) {
   const chordDur = (60 / backing.bpm) * beats;
-  const vol = 0.2;
+  const vol = 0.12 / Math.max(voicing.length, 1);
   voicing.forEach(midi => {
-    const osc = audioCtx.createOscillator();
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const filter = audioCtx.createBiquadFilter();
     const gain = audioCtx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.value = midiFreq(midi);
+
+    const freq = midiFreq(midi);
+    osc1.type = 'sine';
+    osc2.type = 'triangle';
+    osc1.frequency.value = freq;
+    osc2.frequency.value = freq;
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(Math.min(freq * 3, 4000), time);
+    filter.frequency.exponentialRampToValueAtTime(Math.min(freq * 1.5, 2000), time + chordDur * 0.5);
+    filter.Q.value = 0.5;
+
     gain.gain.setValueAtTime(0.001, time);
-    gain.gain.linearRampToValueAtTime(vol, time + 0.03);
-    gain.gain.setValueAtTime(vol, time + chordDur * 0.85);
+    gain.gain.linearRampToValueAtTime(vol, time + 0.05);
+    gain.gain.setValueAtTime(vol, time + chordDur * 0.7);
     gain.gain.exponentialRampToValueAtTime(0.001, time + chordDur);
-    osc.connect(gain); gain.connect(getAnalyserDestination());
-    osc.start(time); osc.stop(time + chordDur + 0.05);
-    backing._activeOscs.push({ osc, gain });
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+    gain.connect(getAnalyserDestination());
+    osc1.start(time); osc1.stop(time + chordDur + 0.05);
+    osc2.start(time); osc2.stop(time + chordDur + 0.05);
+    backing._activeOscs.push({ osc: osc1, gain }, { osc: osc2, gain });
   });
 }
 

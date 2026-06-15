@@ -165,19 +165,37 @@ function playChord() {
   if (!chordBuilder.notes.length) return;
   ensureAudio();
   const now = audioCtx.currentTime;
+  const noteCount = chordBuilder.notes.length;
   chordBuilder.notes.forEach(n => {
     const osc = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const filter = audioCtx.createBiquadFilter();
     const gain = audioCtx.createGain();
+    const freq = midiFreq(n.midi);
+    const vol = 0.15 / noteCount;
+
     osc.type = 'sine';
-    osc.frequency.value = midiFreq(n.midi);
+    osc2.type = 'triangle';
+    osc.frequency.value = freq;
+    osc2.frequency.value = freq;
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(Math.min(freq * 5, 5000), now);
+    filter.frequency.exponentialRampToValueAtTime(Math.min(freq * 2, 2500), now + 1);
+    filter.Q.value = 0.5;
+
     gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.25 / chordBuilder.notes.length, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 2);
-    osc.connect(gain);
+    gain.gain.linearRampToValueAtTime(vol, now + 0.04);
+    gain.gain.setValueAtTime(vol * 0.8, now + 1.5);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+
+    osc.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
     gain.connect(getAnalyserDestination());
-    osc.start(now);
-    osc.stop(now + 2);
-    chordBuilder.oscillators.push({ osc, gain });
+    osc.start(now); osc.stop(now + 2.5);
+    osc2.start(now); osc2.stop(now + 2.5);
+    chordBuilder.oscillators.push({ osc, gain }, { osc: osc2, gain });
   });
 }
 

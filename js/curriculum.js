@@ -299,14 +299,26 @@ function markBlockDone(idx) {
 
 function playBeep() {
   ensureAudio();
+  const t = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
+  const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
+
   osc.type = 'sine';
-  osc.frequency.value = 660;
-  gain.gain.value = 0.3;
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
-  osc.connect(gain);
+  osc.frequency.setValueAtTime(880, t);
+  osc.frequency.exponentialRampToValueAtTime(660, t + 0.08);
+
+  filter.type = 'lowpass';
+  filter.frequency.value = 3000;
+  filter.Q.value = 0.7;
+
+  gain.gain.setValueAtTime(0.001, t);
+  gain.gain.linearRampToValueAtTime(0.18, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+
+  osc.connect(filter);
+  filter.connect(gain);
   gain.connect(getAnalyserDestination());
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.2);
+  osc.start(t);
+  osc.stop(t + 0.3);
 }

@@ -64,25 +64,43 @@ export function toggleDrone(midi) {
   ensureAudio();
   if (S.kb.drones[midi]) {
     const dr = S.kb.drones[midi];
-    dr.gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.08);
-    setTimeout(() => { dr.osc1.stop(); dr.osc2.stop(); }, 100);
+    const t = audioCtx.currentTime;
+    dr.gain.gain.setValueAtTime(dr.gain.gain.value, t);
+    dr.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    setTimeout(() => { try { dr.osc1.stop(); dr.osc2.stop(); dr.osc3.stop(); } catch(e){} }, 200);
     delete S.kb.drones[midi];
   } else {
     const freq = midiFreq(midi);
     const osc1 = audioCtx.createOscillator();
     const osc2 = audioCtx.createOscillator();
+    const osc3 = audioCtx.createOscillator();
+    const filter = audioCtx.createBiquadFilter();
     const gain = audioCtx.createGain();
-    osc1.type = S.kb.wave;
-    osc2.type = S.kb.wave;
+
+    osc1.type = S.kb.wave === 'sine' ? 'sine' : S.kb.wave;
+    osc2.type = S.kb.wave === 'sine' ? 'sine' : S.kb.wave;
+    osc3.type = 'sine';
     osc1.frequency.value = freq;
-    osc2.frequency.value = freq * 1.003;
-    gain.gain.value = S.kb.vol;
-    osc1.connect(gain);
-    osc2.connect(gain);
+    osc2.frequency.value = freq * 1.002;
+    osc3.frequency.value = freq * 0.999;
+
+    filter.type = 'lowpass';
+    filter.frequency.value = Math.min(freq * 4, 6000);
+    filter.Q.value = 0.7;
+
+    const t = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.linearRampToValueAtTime(S.kb.vol * 0.5, t + 0.06);
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    osc3.connect(filter);
+    filter.connect(gain);
     gain.connect(getAnalyserDestination());
     osc1.start();
     osc2.start();
-    S.kb.drones[midi] = { osc1, osc2, gain };
+    osc3.start();
+    S.kb.drones[midi] = { osc1, osc2, osc3, gain, filter };
   }
   document.querySelectorAll(`[data-midi="${midi}"]`).forEach(el => {
     el.classList.toggle('active', !!S.kb.drones[midi]);
@@ -91,10 +109,12 @@ export function toggleDrone(midi) {
 }
 
 export function stopAll() {
+  const t = audioCtx.currentTime;
   Object.keys(S.kb.drones).forEach(midi => {
     const dr = S.kb.drones[midi];
-    dr.gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.05);
-    setTimeout(() => { dr.osc1.stop(); dr.osc2.stop(); }, 60);
+    dr.gain.gain.setValueAtTime(dr.gain.gain.value, t);
+    dr.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    setTimeout(() => { try { dr.osc1.stop(); dr.osc2.stop(); dr.osc3.stop(); } catch(e){} }, 200);
   });
   S.kb.drones = {};
   document.querySelectorAll('.white-key,.black-key').forEach(el => el.classList.remove('active'));

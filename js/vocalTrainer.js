@@ -118,26 +118,48 @@ function playRefTone(noteStr, oct) {
   const p = parseNote(noteStr);
   if (!p) return;
   const midi = 12 * (oct + 1) + p.semi;
+  const freq = midiFreq(midi);
   const osc = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
+  const t = audioCtx.currentTime;
+
   osc.type = 'sine';
-  osc.frequency.value = midiFreq(midi);
-  gain.gain.value = 0.25;
-  osc.connect(gain);
+  osc2.type = 'triangle';
+  osc.frequency.value = freq;
+  osc2.frequency.value = freq;
+
+  filter.type = 'lowpass';
+  filter.frequency.value = Math.min(freq * 3.5, 4500);
+  filter.Q.value = 0.5;
+
+  gain.gain.setValueAtTime(0.001, t);
+  gain.gain.linearRampToValueAtTime(0.15, t + 0.06);
+  gain.gain.setValueAtTime(0.12, t + 1.6);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
+
+  osc.connect(filter);
+  osc2.connect(filter);
+  filter.connect(gain);
   gain.connect(getAnalyserDestination());
-  osc.start();
+  osc.start(t);
+  osc2.start(t);
   tuner.refOsc = osc;
+  tuner.refOsc2 = osc2;
   tuner.refGain = gain;
-  setTimeout(() => stopRefTone(), 2000);
+  setTimeout(() => stopRefTone(), 2300);
 }
 
 function stopRefTone() {
   if (tuner.refOsc) {
     try {
-      tuner.refGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-      setTimeout(() => { try { tuner.refOsc.stop(); } catch(e) {} }, 60);
+      const t = audioCtx.currentTime;
+      tuner.refGain.gain.setValueAtTime(tuner.refGain.gain.value, t);
+      tuner.refGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      setTimeout(() => { try { tuner.refOsc.stop(); if (tuner.refOsc2) tuner.refOsc2.stop(); } catch(e) {} }, 150);
     } catch(e) {}
-    tuner.refOsc = null; tuner.refGain = null;
+    tuner.refOsc = null; tuner.refOsc2 = null; tuner.refGain = null;
   }
 }
 

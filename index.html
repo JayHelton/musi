@@ -47,7 +47,6 @@
         </div>
       </div>
       <div class="quiz-main">
-        <div style="margin-bottom:12px"><button class="btn primary" onclick="newScaleQ()">New Question</button></div>
         <div class="quiz-card">
           <div class="question" id="sq-question">Select a scale and root, then press "New Question"</div>
           <div class="note-input-display empty" id="sq-display"></div>
@@ -56,6 +55,7 @@
             <button class="btn sm" onclick="noteUndo()">Backspace</button>
             <button class="btn sm" onclick="noteClear()">Clear</button>
             <button class="btn primary" onclick="checkScaleA()">Submit</button>
+            <button class="btn primary new-q-btn" onclick="newScaleQ()">New Question</button>
           </div>
           <div class="feedback" id="sq-feedback"></div>
           <div class="hint-bar" id="sq-hint-bar"></div>
@@ -83,10 +83,12 @@
         </div>
       </div>
       <div class="quiz-main">
-        <div style="margin-bottom:12px"><button class="btn primary" onclick="newIntQ()">New Question</button></div>
         <div class="quiz-card">
           <div class="question" id="iq-question">Select a difficulty and root, then press "New Question"</div>
           <div class="note-btn-row" id="iq-notes"></div>
+          <div class="note-action-row">
+            <button class="btn primary new-q-btn" onclick="newIntQ()">New Question</button>
+          </div>
           <div class="feedback" id="iq-feedback"></div>
         </div>
         <div class="score-bar">
@@ -386,7 +388,6 @@
           </div>
           <div class="backing-transport">
             <button class="btn primary" id="backing-play" onclick="toggleBacking()">Play</button>
-            <button class="btn sm" onclick="stopBacking()">Stop</button>
           </div>
         </div>
       </div>
@@ -425,11 +426,51 @@
           <div class="riff-transport">
             <button class="btn primary" onclick="generateRiff()">Generate</button>
             <button class="btn" id="riff-play" onclick="toggleRiffPlay()">Play</button>
-            <button class="btn sm" onclick="stopRiff()">Stop</button>
           </div>
         </div>
         <div class="riff-tab-wrap" id="riff-output">
           <p style="color:var(--muted);font-size:.9rem">Press Generate to create a riff</p>
+        </div>
+
+        <div class="quiz-card" style="margin-top:16px">
+          <h3 style="margin:0 0 12px;font-size:1rem;color:var(--text)">Riff Composer</h3>
+          <div class="composer-controls">
+            <div class="composer-note-pick">
+              <label style="font-size:.85rem;color:var(--muted)">Note</label>
+              <select id="comp-note"></select>
+            </div>
+            <div class="composer-note-pick">
+              <label style="font-size:.85rem;color:var(--muted)">Octave</label>
+              <select id="comp-oct">
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+              </select>
+            </div>
+            <div class="composer-note-pick">
+              <label style="font-size:.85rem;color:var(--muted)">Length</label>
+              <select id="comp-len">
+                <option value="0.25">Sixteenth</option>
+                <option value="0.5">Eighth</option>
+                <option value="1" selected>Quarter</option>
+                <option value="1.5">Dotted Quarter</option>
+                <option value="2">Half</option>
+                <option value="3">Dotted Half</option>
+                <option value="4">Whole</option>
+              </select>
+            </div>
+            <button class="btn primary" onclick="composerAddNote()">Add Note</button>
+            <button class="btn sm" onclick="composerAddRest()">Add Rest</button>
+          </div>
+          <div class="composer-timeline" id="comp-timeline">
+            <p style="color:var(--muted);font-size:.85rem;margin:0">Add notes to compose a riff</p>
+          </div>
+          <div class="riff-transport" style="margin-top:10px">
+            <button class="btn primary" id="comp-play" onclick="toggleComposerPlay()">Play</button>
+            <button class="btn sm" onclick="composerClear()">Clear</button>
+            <label style="font-size:.85rem;color:var(--muted);display:flex;align-items:center;gap:6px">BPM <input type="number" id="comp-bpm" min="40" max="220" value="110" style="width:70px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);text-align:center"></label>
+          </div>
         </div>
       </div>
     </div>

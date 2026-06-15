@@ -163,14 +163,25 @@ function triggerBeatPulse(accented) {
 
 function scheduleClick(time, accented) {
   const osc = audioCtx.createOscillator();
+  const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
-  osc.connect(gain);
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(accented ? 1200 : 800, time);
+  osc.frequency.exponentialRampToValueAtTime(accented ? 600 : 400, time + 0.04);
+
+  filter.type = 'bandpass';
+  filter.frequency.value = accented ? 1000 : 700;
+  filter.Q.value = 2;
+
+  gain.gain.setValueAtTime(accented ? 0.35 : 0.2, time);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.06);
+
+  osc.connect(filter);
+  filter.connect(gain);
   gain.connect(getAnalyserDestination());
-  osc.frequency.value = accented ? 880 : 440;
-  gain.gain.setValueAtTime(accented ? 0.6 : 0.3, time);
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
   osc.start(time);
-  osc.stop(time + 0.03);
+  osc.stop(time + 0.08);
   const delay = Math.max(0, (time - audioCtx.currentTime) * 1000);
   setTimeout(() => triggerBeatPulse(accented), delay);
 }

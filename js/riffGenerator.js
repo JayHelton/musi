@@ -179,15 +179,33 @@ function riffScheduler() {
     }
     const n = riffState.notes[riffState._noteIdx];
     const osc = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const filter = audioCtx.createBiquadFilter();
     const gain = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = midiFreq(n.midi);
+    const freq = midiFreq(n.midi);
+
+    osc.type = 'sawtooth';
+    osc2.type = 'sine';
+    osc.frequency.value = freq;
+    osc2.frequency.value = freq;
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(Math.min(freq * 4, 5000), riffState._nextTime);
+    filter.frequency.exponentialRampToValueAtTime(Math.min(freq * 1.5, 2000), riffState._nextTime + noteDur * 0.6);
+    filter.Q.value = 1;
+
     gain.gain.setValueAtTime(0.001, riffState._nextTime);
-    gain.gain.linearRampToValueAtTime(0.2, riffState._nextTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.001, riffState._nextTime + noteDur * 0.9);
-    osc.connect(gain); gain.connect(getAnalyserDestination());
-    osc.start(riffState._nextTime); osc.stop(riffState._nextTime + noteDur);
-    riffState._activeOscs.push({ osc, gain });
+    gain.gain.linearRampToValueAtTime(0.12, riffState._nextTime + 0.008);
+    gain.gain.setValueAtTime(0.1, riffState._nextTime + noteDur * 0.5);
+    gain.gain.exponentialRampToValueAtTime(0.001, riffState._nextTime + noteDur * 0.95);
+
+    osc.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+    gain.connect(getAnalyserDestination());
+    osc.start(riffState._nextTime); osc.stop(riffState._nextTime + noteDur + 0.02);
+    osc2.start(riffState._nextTime); osc2.stop(riffState._nextTime + noteDur + 0.02);
+    riffState._activeOscs.push({ osc, gain }, { osc: osc2, gain });
 
     const visualIdx = riffState._noteIdx;
     const delay = Math.max(0, (riffState._nextTime - audioCtx.currentTime) * 1000);
@@ -256,8 +274,195 @@ function initRiff() {
   });
 }
 
+const composer = {
+  notes: [],
+  playing: false,
+  _timer: null, _nextTime: 0, _noteIdx: 0, _activeOscs: [],
+};
+
+const NOTE_LABELS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const LENGTH_LABELS = {'0.25':'16th','0.5':'8th','1':'♩','1.5':'♩.','2':'𝅗𝅥','3':'𝅗𝅥.','4':'𝅝'};
+
+function initComposerNotes() {
+  const sel = document.getElementById('comp-note');
+  if (!sel || sel.children.length) return;
+  NOTE_LABELS.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = n; opt.textContent = n;
+    sel.appendChild(opt);
+  });
+}
+
+function composerAddNote() {
+  const note = document.getElementById('comp-note').value;
+  const oct = parseInt(document.getElementById('comp-oct').value);
+  const len = parseFloat(document.getElementById('comp-len').value);
+  const semi = NOTE_LABELS.indexOf(note);
+  const midi = 12 * (oct + 1) + semi;
+  composer.notes.push({ note, oct, semi, midi, beats: len, rest: false });
+  renderComposerTimeline();
+}
+
+function composerAddRest() {
+  const len = parseFloat(document.getElementById('comp-len').value);
+  composer.notes.push({ note: 'Rest', oct: 0, semi: -1, midi: -1, beats: len, rest: true });
+  renderComposerTimeline();
+}
+
+function composerRemoveNote(idx) {
+  composer.notes.splice(idx, 1);
+  renderComposerTimeline();
+}
+
+function composerCycleLength(idx) {
+  const options = [0.25, 0.5, 1, 1.5, 2, 3, 4];
+  const cur = options.indexOf(composer.notes[idx].beats);
+  composer.notes[idx].beats = options[(cur + 1) % options.length];
+  renderComposerTimeline();
+}
+
+function composerClear() {
+  stopComposer();
+  composer.notes = [];
+  renderComposerTimeline();
+}
+
+function renderComposerTimeline() {
+  const container = document.getElementById('comp-timeline');
+  if (!composer.notes.length) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:.85rem;margin:0">Add notes to compose a riff</p>';
+    return;
+  }
+  container.innerHTML = '';
+  composer.notes.forEach((n, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'comp-chip' + (n.rest ? ' rest' : '') + (composer.playing && i === composer._noteIdx ? ' playing' : '');
+    chip.dataset.ci = i;
+
+    const label = document.createElement('span');
+    label.className = 'comp-chip-label';
+    label.textContent = n.rest ? 'Rest' : n.note + n.oct;
+    chip.appendChild(label);
+
+    const lenBadge = document.createElement('span');
+    lenBadge.className = 'comp-chip-len';
+    lenBadge.textContent = LENGTH_LABELS[String(n.beats)] || n.beats + 'b';
+    lenBadge.title = 'Click to cycle note length';
+    lenBadge.onclick = (e) => { e.stopPropagation(); composerCycleLength(i); };
+    chip.appendChild(lenBadge);
+
+    const del = document.createElement('span');
+    del.className = 'comp-chip-del';
+    del.textContent = '×';
+    del.onclick = (e) => { e.stopPropagation(); composerRemoveNote(i); };
+    chip.appendChild(del);
+
+    container.appendChild(chip);
+  });
+}
+
+function playComposer() {
+  if (!composer.notes.length) return;
+  stopComposer();
+  ensureAudio();
+  composer.playing = true;
+  composer._noteIdx = 0;
+  composer._nextTime = audioCtx.currentTime + 0.05;
+  composer._activeOscs = [];
+  document.getElementById('comp-play').textContent = 'Stop';
+  showNowPlaying('Composer Riff', stopComposer);
+  composerScheduler();
+}
+
+function composerScheduler() {
+  if (!composer.playing) return;
+  const bpm = parseInt(document.getElementById('comp-bpm').value) || 110;
+  const scheduleAhead = 0.12;
+
+  while (composer._nextTime < audioCtx.currentTime + scheduleAhead) {
+    if (composer._noteIdx >= composer.notes.length) {
+      const stopDelay = Math.max(0, (composer._nextTime - audioCtx.currentTime) * 1000);
+      setTimeout(() => stopComposer(), stopDelay);
+      return;
+    }
+    const n = composer.notes[composer._noteIdx];
+    const noteDur = (60 / bpm) * n.beats;
+
+    if (!n.rest) {
+      const freq = midiFreq(n.midi);
+      const osc = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const filter = audioCtx.createBiquadFilter();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'sawtooth';
+      osc2.type = 'sine';
+      osc.frequency.value = freq;
+      osc2.frequency.value = freq;
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(Math.min(freq * 4, 5000), composer._nextTime);
+      filter.frequency.exponentialRampToValueAtTime(Math.min(freq * 1.5, 2000), composer._nextTime + noteDur * 0.6);
+      filter.Q.value = 1;
+
+      gain.gain.setValueAtTime(0.001, composer._nextTime);
+      gain.gain.linearRampToValueAtTime(0.12, composer._nextTime + 0.008);
+      gain.gain.setValueAtTime(0.1, composer._nextTime + noteDur * 0.5);
+      gain.gain.exponentialRampToValueAtTime(0.001, composer._nextTime + noteDur * 0.95);
+
+      osc.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gain);
+      gain.connect(getAnalyserDestination());
+      osc.start(composer._nextTime); osc.stop(composer._nextTime + noteDur + 0.02);
+      osc2.start(composer._nextTime); osc2.stop(composer._nextTime + noteDur + 0.02);
+      composer._activeOscs.push({ osc, gain }, { osc: osc2, gain });
+    }
+
+    const visualIdx = composer._noteIdx;
+    const delay = Math.max(0, (composer._nextTime - audioCtx.currentTime) * 1000);
+    setTimeout(() => {
+      if (composer.playing) highlightComposerNote(visualIdx);
+    }, delay);
+
+    composer._nextTime += noteDur;
+    composer._noteIdx++;
+  }
+  composer._timer = setTimeout(composerScheduler, 25);
+}
+
+function highlightComposerNote(idx) {
+  document.querySelectorAll('.comp-chip.playing').forEach(el => el.classList.remove('playing'));
+  const chip = document.querySelector(`.comp-chip[data-ci="${idx}"]`);
+  if (chip) chip.classList.add('playing');
+}
+
+function stopComposer() {
+  composer.playing = false;
+  if (composer._timer) { clearTimeout(composer._timer); composer._timer = null; }
+  composer._activeOscs.forEach(o => {
+    try {
+      o.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+      o.gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+      setTimeout(() => { try { o.osc.stop(); } catch(e) {} }, 40);
+    } catch(e) {}
+  });
+  composer._activeOscs = [];
+  document.getElementById('comp-play').textContent = 'Play';
+  document.querySelectorAll('.comp-chip.playing').forEach(el => el.classList.remove('playing'));
+  hideNowPlaying();
+}
+
+function toggleComposerPlay() {
+  if (composer.playing) stopComposer(); else playComposer();
+}
+
 window.generateRiff = generateRiff;
 window.toggleRiffPlay = toggleRiffPlay;
 window.stopRiff = stopRiff;
+window.composerAddNote = composerAddNote;
+window.composerAddRest = composerAddRest;
+window.composerClear = composerClear;
+window.toggleComposerPlay = toggleComposerPlay;
 
-export { initRiff, stopRiff, riffState };
+export { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer };
