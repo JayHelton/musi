@@ -41,5 +41,18 @@
 .mod-btn:active,.letter-btn:active{transform:scale(0.98)}
 .mod-btn.active{background:var(--accent);color:#000;font-weight:600}
 
-.note-action-row{display:flex;gap:6px;margin-top:6px;align-items:center}
+.note-action-row{display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap}
 .note-action-row .new-q-btn{margin-left:auto}
+
+@media(max-width:480px){
+  .note-btn-row{gap:4px}
+  .mod-btn,.letter-btn{padding:8px 2px;min-width:38px;font-size:.8rem}
+  .letter-btn{min-width:40px;font-size:.82rem}
+  .letter-btn.accidental{min-width:36px;font-size:.75rem}
+  .note-chip{padding:3px 8px;font-size:.85rem}
+  .note-input-display{padding:8px 10px;min-height:38px}
+  .score-bar{flex-wrap:wrap}
+  .feedback{padding:10px 14px;font-size:.88rem}
+  .note-action-row .new-q-btn{margin-left:0;flex:1}
+  .note-action-row .btn{flex:1;text-align:center}
+}

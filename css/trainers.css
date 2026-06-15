@@ -63,3 +63,25 @@
   0%{transform:scale(0.5);opacity:0.8}
   100%{transform:scale(2.5);opacity:0}
 }
+
+@media(max-width:768px){
+  .fb-wrap{-webkit-overflow-scrolling:touch}
+  .tuner-center{max-width:100%}
+}
+@media(max-width:480px){
+  .fb-cell{height:30px;font-size:.6rem}
+  .fb-header{height:22px;font-size:.6rem}
+  .fb-string-label{height:30px;font-size:.7rem;min-width:24px}
+  .fb-question{font-size:1rem}
+  .int-picker{gap:4px}
+  .int-btn{padding:6px 10px;font-size:.75rem}
+  .fb-score{padding:10px 14px;font-size:.8rem;flex-wrap:wrap;gap:8px}
+  .fb-feedback{padding:10px 14px;font-size:.88rem}
+  .tuner-gauge{height:80px;margin:12px 0}
+  .tuner-note{font-size:1.4rem}
+  .tuner-cents{font-size:1.8rem}
+  .tuner-freq{font-size:.8rem}
+  .tuner-status{font-size:.8rem}
+  .string-btn{padding:6px 10px;font-size:.8rem;min-width:42px}
+  .ear-ripple{width:60px;height:60px}
+}

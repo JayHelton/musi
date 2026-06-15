@@ -106,3 +106,52 @@
 .cur-crosslink{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border:none;border-radius:20px;background:var(--accent-dim);color:var(--accent);cursor:pointer;font-size:.82rem;transition:all 0.15s ease;margin:4px 4px 4px 0;font-family:inherit}
 .cur-crosslink:hover{background:var(--accent-glow);transform:scale(1.02)}
 .cur-section-title{font-size:1rem;font-weight:600;color:var(--text);margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+
+@media(max-width:768px){
+  .ref-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .ref-table th,.ref-table td{white-space:nowrap;padding:8px 10px;font-size:.82rem}
+  .guitar-tab-wrap{padding:12px;-webkit-overflow-scrolling:touch}
+  .guitar-tab-wrap pre{font-size:.75rem;line-height:1.6}
+  .chord-picker{gap:6px}
+  .chord-actions{flex-wrap:wrap}
+  .backing-controls{flex-direction:column;align-items:stretch;gap:8px}
+  .backing-controls label{justify-content:space-between}
+  .backing-progression{gap:6px;padding:10px}
+  .backing-chord{padding:10px 14px;font-size:.9rem;min-width:50px}
+  .riff-options{flex-direction:column;align-items:stretch;gap:6px}
+  .riff-options label{justify-content:space-between}
+  .riff-tab-wrap{padding:12px;-webkit-overflow-scrolling:touch}
+  .riff-tab-wrap pre{font-size:.7rem;line-height:1.5}
+  .composer-controls{flex-direction:column;align-items:stretch;gap:8px}
+  .composer-controls .btn{width:100%}
+  .composer-note-pick{flex-direction:row;align-items:center;gap:8px;justify-content:space-between}
+  .schedule-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .schedule-table th,.schedule-table td{white-space:nowrap;padding:8px 10px;font-size:.82rem}
+  .cur-tabs{gap:3px}
+  .cur-tab{padding:6px 12px;font-size:.82rem}
+  .session-block{padding:10px 12px;gap:8px}
+  .session-block .block-name{font-size:.85rem}
+  .timer-display .timer-time{font-size:2rem}
+}
+@media(max-width:480px){
+  .ref-table th,.ref-table td{padding:6px 8px;font-size:.75rem}
+  .guitar-tab-wrap pre{font-size:.65rem;line-height:1.5;letter-spacing:0}
+  .chord-name{font-size:1.2rem}
+  .chord-intervals{font-size:.8rem}
+  .chord-keys{font-size:.82rem}
+  .key-tag{padding:3px 8px;font-size:.7rem}
+  .backing-chord{padding:8px 10px;font-size:.82rem;min-width:44px}
+  .backing-badges{gap:4px}
+  .backing-chord .bpc-badge{font-size:.6rem;padding:1px 4px}
+  .riff-tab-wrap pre{font-size:.6rem;line-height:1.4}
+  .comp-chip{padding:6px 8px;min-width:40px}
+  .comp-chip-label{font-size:.8rem}
+  .comp-chip-len{font-size:.6rem}
+  .collapsible-head{padding:10px 12px;font-size:.85rem}
+  .collapsible.open .collapsible-body{padding:10px 12px}
+  .collapsible-body p,.collapsible-body li{font-size:.8rem}
+  .dur-badge{padding:3px 8px;font-size:.7rem}
+  .timer-display{padding:16px}
+  .timer-display .timer-time{font-size:1.8rem}
+  .timer-controls{gap:6px}
+}

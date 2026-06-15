@@ -77,3 +77,27 @@ input[type=range]{accent-color:var(--accent)}
   0%{transform:translate(-50%,-50%) scale(0.8);opacity:0.8}
   100%{transform:translate(-50%,-50%) scale(2);opacity:0}
 }
+
+@media(max-width:768px){
+  .kb-controls{flex-wrap:wrap;gap:10px;padding:12px 14px}
+  .piano-wrap{-webkit-overflow-scrolling:touch}
+}
+@media(max-width:480px){
+  .kb-controls{gap:8px;padding:10px 12px}
+  .kb-controls label{font-size:.8rem}
+  .wave-btn{padding:4px 8px;font-size:.75rem}
+  .white-key{width:36px;height:160px}
+  .white-key .klabel{font-size:8px}
+  .white-key .klabel b{font-size:11px}
+  .black-key{width:24px;height:100px}
+  .metro-grid{gap:12px}
+  .metro-row{gap:6px}
+  .metro-row label{min-width:45px;font-size:.8rem}
+  #m-bpm{width:60px;font-size:.85rem}
+  #m-bpm-slider{min-width:80px}
+  .nv-btn{padding:6px 10px;font-size:.8rem}
+  .m-slot{font-size:.65rem;padding:3px 1px}
+  .acc-btn{width:30px;height:30px;font-size:.75rem}
+  #m-beat-ind{gap:4px}
+  .bi-dot{width:10px;height:10px}
+}
