@@ -99,6 +99,7 @@ window.showSection = showSection;
 
 function closeAllGroupMenus() {
   document.querySelectorAll('.dock-group').forEach(g => g.classList.remove('open'));
+  document.querySelectorAll('.dock-group-menu').forEach(m => m.classList.remove('open'));
   const overlay = document.getElementById('dock-overlay');
   if (overlay) overlay.classList.remove('visible');
 }
@@ -118,6 +119,12 @@ function init() {
   const mobileWrap = document.createElement('div');
   mobileWrap.className = 'dock-mobile';
 
+  const overlay = document.createElement('div');
+  overlay.id = 'dock-overlay';
+  overlay.className = 'dock-overlay';
+  overlay.onclick = closeAllGroupMenus;
+  document.body.appendChild(overlay);
+
   GROUPS.forEach(groupName => {
     const groupTabs = TABS.filter(t => t.group === groupName);
     const group = document.createElement('div');
@@ -129,24 +136,10 @@ function init() {
     if (hasActive) trigger.classList.add('active');
     trigger.dataset.group = groupName;
     trigger.innerHTML = `<span class="dock-icon">${GROUP_ICONS[groupName]}</span><span class="dock-label">${groupName}</span>`;
-    trigger.onclick = (e) => {
-      e.stopPropagation();
-      if (groupTabs.length === 1) {
-        showSection(groupTabs[0].id);
-        closeAllGroupMenus();
-        return;
-      }
-      const isOpen = group.classList.contains('open');
-      closeAllGroupMenus();
-      if (!isOpen) {
-        group.classList.add('open');
-        document.getElementById('dock-overlay').classList.add('visible');
-      }
-    };
-    group.appendChild(trigger);
 
+    let menu = null;
     if (groupTabs.length > 1) {
-      const menu = document.createElement('div');
+      menu = document.createElement('div');
       menu.className = 'dock-group-menu';
       groupTabs.forEach(t => {
         const btn = document.createElement('button');
@@ -164,19 +157,34 @@ function init() {
         };
         menu.appendChild(btn);
       });
-      group.appendChild(menu);
+      document.body.appendChild(menu);
     }
 
+    trigger.onclick = (e) => {
+      e.stopPropagation();
+      if (groupTabs.length === 1) {
+        showSection(groupTabs[0].id);
+        closeAllGroupMenus();
+        return;
+      }
+      const isOpen = group.classList.contains('open');
+      closeAllGroupMenus();
+      if (!isOpen) {
+        group.classList.add('open');
+        overlay.classList.add('visible');
+        if (menu) {
+          const rect = trigger.getBoundingClientRect();
+          menu.style.left = (rect.left + rect.width / 2) + 'px';
+          menu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+          menu.classList.add('open');
+        }
+      }
+    };
+    group.appendChild(trigger);
     mobileWrap.appendChild(group);
   });
 
   nav.appendChild(mobileWrap);
-
-  const overlay = document.createElement('div');
-  overlay.id = 'dock-overlay';
-  overlay.className = 'dock-overlay';
-  overlay.onclick = closeAllGroupMenus;
-  document.body.appendChild(overlay);
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
