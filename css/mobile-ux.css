@@ -47,6 +47,68 @@ header{justify-content:space-between}
 .seg-btn.active{background:var(--accent);border-color:var(--accent);color:#0a0a0a;font-weight:700}
 .seg-row.compact .seg-btn{flex:1 1 auto;text-align:center}
 
+/* ---- Persistent progress header ---- */
+.progress-header{display:flex;align-items:center;gap:18px;padding:14px 18px;margin-bottom:14px;background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;position:sticky;top:8px;z-index:40}
+.ph-streak{display:flex;align-items:baseline;gap:6px;flex-shrink:0}
+.ph-flame{font-size:1.1rem;filter:grayscale(.2)}
+.ph-streak.hot .ph-flame{filter:none;animation:phFlame 1.1s ease-in-out infinite}
+@keyframes phFlame{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.ph-streak-val{font-size:1.25rem;font-weight:700;color:var(--accent)}
+.ph-streak-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.ph-bar{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.ph-bar-track{height:8px;border-radius:6px;background:var(--bg2);overflow:hidden}
+.ph-bar-fill{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.ph-bar-count{font-size:.78rem;color:var(--muted);font-weight:600}
+.ph-bar-count b{color:var(--text)}
+.ph-accuracy{display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0}
+.ph-acc-val{font-size:1.15rem;font-weight:700;color:var(--text)}
+.ph-acc-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.ph-reset{margin-top:4px}
+
+/* ---- Sticky bottom action bar ---- */
+.action-dock{position:sticky;bottom:calc(var(--dock-h) + 6px);z-index:45;margin-top:14px;padding:10px 12px;border-radius:18px;background:rgba(20,20,20,0.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border);box-shadow:0 6px 28px rgba(0,0,0,0.5)}
+.action-dock .note-action-row,.action-dock .ear-transport,.action-dock .chord-actions{margin:0}
+.action-dock .btn{min-height:48px}
+
+/* ---- Collapsible advanced options ---- */
+.adv-options{margin-bottom:14px;border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden}
+.adv-options>summary{list-style:none;cursor:pointer;padding:12px 16px;font-size:.85rem;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:8px;min-height:var(--tap-min);user-select:none}
+.adv-options>summary::-webkit-details-marker{display:none}
+.adv-options>summary:hover{color:var(--text)}
+.adv-options .adv-gear{font-size:1rem;transition:transform .25s ease}
+.adv-options[open] .adv-gear{transform:rotate(90deg)}
+.adv-options>summary::after{content:'▸';margin-left:auto;color:var(--muted);transition:transform .2s ease}
+.adv-options[open]>summary::after{transform:rotate(90deg)}
+.adv-options>*:not(summary){padding:0 16px 16px}
+.adv-options .fb-workbench-controls{background:none;box-shadow:none;padding:0 16px 16px;margin:0}
+.adv-options .sidebar-list{margin-bottom:10px}
+
+/* ---- Larger touch targets ---- */
+.letter-btn,.mod-btn,.int-btn,.oct-btn,.nv-btn{min-height:46px}
+.note-btn-row{gap:10px}
+@media(max-width:768px){
+  .sl-item{min-height:46px;padding:10px 16px}
+  .btn{min-height:46px}
+  .btn.sm{min-height:40px}
+  .action-dock{padding-right:72px}
+  .progress-header{gap:12px;padding:12px 14px;top:4px}
+}
+@media(max-width:480px){
+  .letter-btn,.mod-btn,.int-btn{min-height:48px}
+  .ph-streak-val{font-size:1.1rem}
+  .ph-acc-val{font-size:1rem}
+}
+
+/* ---- Metronome segmented beat controls ---- */
+.metro-seg-controls{display:flex;flex-direction:column;gap:16px;margin-bottom:18px}
+.metro-seg-field{display:flex;flex-direction:column;gap:8px}
+.metro-seg-label{font-size:.78rem;color:var(--muted);font-weight:500}
+.metro-seg{justify-content:flex-start}
+.metro-seg .seg-btn{padding:8px 0;min-width:46px;text-align:center}
+#m-ts-num-seg{flex-wrap:wrap}
+#m-ts-num-seg .seg-btn{flex:0 0 auto;min-width:42px}
+#m-ts-den-seg .seg-btn{flex:1 1 auto}
+
 /* ---- Command palette ---- */
 .cmd-overlay{position:fixed;inset:0;z-index:400;display:flex;justify-content:center;align-items:flex-start;padding:12vh 16px 16px;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .16s ease}
 .cmd-overlay.visible{opacity:1;pointer-events:auto}

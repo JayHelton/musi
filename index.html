@@ -92,23 +92,26 @@
         </div>
       </div>
       <div class="quiz-main">
+        <div class="progress-header" data-score="#sq-score" data-streak="#sq-streak">
+          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="sq-streak">0</span><span class="ph-streak-label">Streak</span></div>
+          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count" id="sq-score">0 / 0</span></div>
+          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
+          <button class="btn sm ph-reset" onclick="resetScore('scale')">Reset</button>
+        </div>
         <div class="quiz-card">
           <div class="question" id="sq-question">Set root &amp; scale, then Next.</div>
           <div class="note-input-display empty" id="sq-display"></div>
           <div class="note-btn-row" id="sq-notes"></div>
+          <div class="feedback" id="sq-feedback"></div>
+          <div class="hint-bar" id="sq-hint-bar"></div>
+        </div>
+        <div class="action-dock">
           <div class="note-action-row">
             <button class="btn sm" onclick="noteUndo()">Backspace</button>
             <button class="btn sm" onclick="noteClear()">Clear</button>
             <button class="btn primary" onclick="checkScaleA()">Submit</button>
             <button class="btn new-q-btn" onclick="newScaleQ()">Next</button>
           </div>
-          <div class="feedback" id="sq-feedback"></div>
-          <div class="hint-bar" id="sq-hint-bar"></div>
-        </div>
-        <div class="score-bar">
-          <span>Hits: <span class="val" id="sq-score">0 / 0</span></span>
-          <span>Run: <span class="val" id="sq-streak">0</span></span>
-          <button class="btn sm" onclick="resetScore('scale')">Reset</button>
         </div>
       </div>
     </div>
@@ -133,18 +136,21 @@
         </div>
       </div>
       <div class="quiz-main">
+        <div class="progress-header" data-score="#iq-score" data-streak="#iq-streak">
+          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="iq-streak">0</span><span class="ph-streak-label">Streak</span></div>
+          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count" id="iq-score">0 / 0</span></div>
+          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
+          <button class="btn sm ph-reset" onclick="resetScore('interval')">Reset</button>
+        </div>
         <div class="quiz-card">
           <div class="question" id="iq-question">Set difficulty &amp; root, then Next.</div>
           <div class="note-btn-row" id="iq-notes"></div>
+          <div class="feedback" id="iq-feedback"></div>
+        </div>
+        <div class="action-dock">
           <div class="note-action-row">
             <button class="btn primary new-q-btn" onclick="newIntQ()">Next</button>
           </div>
-          <div class="feedback" id="iq-feedback"></div>
-        </div>
-        <div class="score-bar">
-          <span>Hits: <span class="val" id="iq-score">0 / 0</span></span>
-          <span>Run: <span class="val" id="iq-streak">0</span></span>
-          <button class="btn sm" onclick="resetScore('interval')">Reset</button>
         </div>
       </div>
     </div>
@@ -169,10 +175,11 @@
         </div>
       </div>
       <div class="quiz-main">
-        <div class="score-bar" style="margin-bottom:12px">
-          <span>Hits: <span class="val" id="sr-right">0</span> / <span class="val" id="sr-total">0</span></span>
-          <span>Run: <span class="val" id="sr-streak">0</span></span>
-          <button class="btn sm" onclick="resetSightScore()">Reset</button>
+        <div class="progress-header" data-right="#sr-right" data-total="#sr-total" data-streak="#sr-streak">
+          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="sr-streak">0</span><span class="ph-streak-label">Streak</span></div>
+          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count"><b id="sr-right">0</b> / <span id="sr-total">0</span></span></div>
+          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
+          <button class="btn sm ph-reset" onclick="resetSightScore()">Reset</button>
         </div>
         <div class="quiz-card">
           <div class="question sr-question" id="sr-question">Next for a note.</div>
@@ -180,7 +187,9 @@
           <div class="field-label">Pitch</div>
           <div class="note-btn-row" id="sr-answers" style="justify-content:center"></div>
           <div class="fb-feedback" id="sr-feedback"></div>
-          <button class="btn primary btn--spaced" onclick="newSightQ()">Next</button>
+        </div>
+        <div class="action-dock">
+          <button class="btn primary" style="width:100%" onclick="newSightQ()">Next</button>
         </div>
       </div>
     </div>
@@ -229,14 +238,16 @@
         <div class="oct-group" id="cb-octaves"></div>
       </div>
       <div class="chord-chips" id="cb-chips"></div>
+    </div>
+    <div class="chord-analysis" id="cb-analysis">
+      <p style="color:var(--muted)">2+ notes to analyze</p>
+    </div>
+    <div class="action-dock">
       <div class="chord-actions">
         <button class="btn primary" onclick="playChord()">Play Chord</button>
         <button class="btn" onclick="stopChord()">Stop</button>
         <button class="btn sm" onclick="clearChord()">Clear</button>
       </div>
-    </div>
-    <div class="chord-analysis" id="cb-analysis">
-      <p style="color:var(--muted)">2+ notes to analyze</p>
     </div>
   </section>
 
@@ -305,21 +316,15 @@
       </div>
       <div class="quiz-card metro-settings-card">
         <div class="metro-card-title">Beat</div>
-        <div class="metro-simple-controls">
-          <label>Beats
-            <select id="m-ts-num">
-              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-              <option value="4" selected>4</option><option value="5">5</option><option value="6">6</option>
-              <option value="7">7</option><option value="8">8</option><option value="9">9</option>
-              <option value="10">10</option><option value="11">11</option><option value="12">12</option>
-            </select>
-          </label>
-          <label>Note
-            <select id="m-ts-den">
-              <option value="2">Half</option><option value="4" selected>Quarter</option>
-              <option value="8">Eighth</option><option value="16">Sixteenth</option>
-            </select>
-          </label>
+        <div class="metro-seg-controls">
+          <div class="metro-seg-field">
+            <span class="metro-seg-label">Beats</span>
+            <div class="seg-row metro-seg" id="m-ts-num-seg"></div>
+          </div>
+          <div class="metro-seg-field">
+            <span class="metro-seg-label">Note value</span>
+            <div class="seg-row metro-seg" id="m-ts-den-seg"></div>
+          </div>
         </div>
         <div class="metro-card-title">Quick Tempos</div>
         <div class="metro-preset-row">
@@ -430,16 +435,20 @@
         </div>
       </div>
       <div class="quiz-main">
-        <div class="fb-score" id="fb-score">
-          Hits: <span class="val" id="fb-right">0</span> / <span class="val" id="fb-total">0</span>
-          <span style="margin-left:auto">Run: <span class="val" id="fb-streak">0</span></span>
+        <div class="progress-header" data-right="#fb-right" data-total="#fb-total" data-streak="#fb-streak">
+          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="fb-streak">0</span><span class="ph-streak-label">Streak</span></div>
+          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count"><b id="fb-right">0</b> / <span id="fb-total">0</span></span></div>
+          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
+          <button class="btn sm ph-reset" id="fb-reset-score" onclick="resetFbScore()">Reset</button>
         </div>
-        <div class="fb-workbench-controls">
-          <label>Frets <input type="number" id="fb-fret-start" min="0" max="24" value="0" inputmode="numeric"> - <input type="number" id="fb-fret-end" min="1" max="24" value="15" inputmode="numeric"></label>
-          <label><input type="checkbox" id="fb-show-labels"> Labels</label>
-          <label><input type="checkbox" id="fb-show-intervals"> Intervals</label>
-          <button class="btn sm" id="fb-reset-score" onclick="resetFbScore()">Reset</button>
-        </div>
+        <details class="adv-options">
+          <summary><span class="adv-gear">&#9881;</span> Options</summary>
+          <div class="fb-workbench-controls">
+            <label>Frets <input type="number" id="fb-fret-start" min="0" max="24" value="0" inputmode="numeric"> - <input type="number" id="fb-fret-end" min="1" max="24" value="15" inputmode="numeric"></label>
+            <label><input type="checkbox" id="fb-show-labels"> Labels</label>
+            <label><input type="checkbox" id="fb-show-intervals"> Intervals</label>
+          </div>
+        </details>
         <div class="quiz-card fb-card-compact">
           <div class="fb-question" id="fb-question">Next to start.</div>
           <div class="fb-wrap">
@@ -448,7 +457,9 @@
           <div class="field-label" id="fb-answer-label">Interval from root</div>
           <div class="int-picker" id="fb-intervals"></div>
           <div class="fb-feedback" id="fb-feedback"></div>
-          <button class="btn primary" onclick="newFbQuestion()">Next</button>
+        </div>
+        <div class="action-dock">
+          <button class="btn primary" style="width:100%" onclick="newFbQuestion()">Next</button>
         </div>
       </div>
     </div>
@@ -513,40 +524,45 @@
           <div class="sl-head">Scale</div>
           <div class="sl-scroll" id="sl-ear-scale" style="max-height:200px"></div>
         </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Context</div>
-          <div class="sl-scroll" id="sl-ear-context"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Pool</div>
-          <div class="sl-scroll" id="sl-ear-pool"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Answer</div>
-          <div class="sl-scroll" id="sl-ear-answer"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Octave</div>
-          <div class="sl-scroll" id="sl-ear-octave"></div>
-        </div>
+        <details class="adv-options">
+          <summary><span class="adv-gear">&#9881;</span> Options</summary>
+          <div class="sidebar-list">
+            <div class="sl-head">Context</div>
+            <div class="sl-scroll" id="sl-ear-context"></div>
+          </div>
+          <div class="sidebar-list">
+            <div class="sl-head">Pool</div>
+            <div class="sl-scroll" id="sl-ear-pool"></div>
+          </div>
+          <div class="sidebar-list">
+            <div class="sl-head">Answer</div>
+            <div class="sl-scroll" id="sl-ear-answer"></div>
+          </div>
+          <div class="sidebar-list">
+            <div class="sl-head">Octave</div>
+            <div class="sl-scroll" id="sl-ear-octave"></div>
+          </div>
+        </details>
       </div>
       <div class="quiz-main">
-        <div class="score-bar" style="margin-bottom:12px">
-          <span>Hits: <span class="val" id="ear-right">0</span> / <span class="val" id="ear-total">0</span></span>
-          <span>Run: <span class="val" id="ear-streak">0</span></span>
-          <button class="btn sm" onclick="resetEarScore()">Reset</button>
+        <div class="progress-header" data-right="#ear-right" data-total="#ear-total" data-streak="#ear-streak">
+          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="ear-streak">0</span><span class="ph-streak-label">Streak</span></div>
+          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count"><b id="ear-right">0</b> / <span id="ear-total">0</span></span></div>
+          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
+          <button class="btn sm ph-reset" onclick="resetEarScore()">Reset</button>
         </div>
         <div class="quiz-card">
           <div class="question" id="ear-question">Play to start.</div>
           <div class="ear-ripple-wrap" id="ear-ripple-wrap"></div>
-          <div class="ear-transport">
-            <button class="btn primary" onclick="playEarQuestion()">Play</button>
-            <button class="btn sm" onclick="replayEarNote()">Replay</button>
-          </div>
           <div class="field-label" id="ear-answer-label">Pitch</div>
           <div class="note-btn-row" id="ear-answers"></div>
           <div class="fb-feedback" id="ear-feedback"></div>
-          <button class="btn sm btn--spaced" onclick="playEarQuestion()">Next</button>
+        </div>
+        <div class="action-dock">
+          <div class="ear-transport">
+            <button class="btn sm" onclick="replayEarNote()">Replay</button>
+            <button class="btn primary" onclick="playEarQuestion()">Play / Next</button>
+          </div>
         </div>
       </div>
     </div>
