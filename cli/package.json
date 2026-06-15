@@ -1,0 +1,16 @@
+{
+  "name": "musi-cli",
+  "version": "1.0.0",
+  "description": "Terminal version of Musi's quiz and training tools — practice music theory, intervals, sight-reading, fretboard, and ear training right from your terminal.",
+  "type": "module",
+  "bin": {
+    "musi": "bin/musi.js"
+  },
+  "scripts": {
+    "start": "node bin/musi.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
