@@ -44,6 +44,12 @@
 .note-action-row{display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap}
 .note-action-row .new-q-btn{margin-left:auto}
 
+@media(max-width:768px){
+  .note-action-row{flex-wrap:wrap}
+  .note-action-row .btn.primary{order:1;flex:1;min-width:calc(50% - 3px)}
+  .note-action-row .new-q-btn{margin-left:0}
+  .note-action-row .btn.sm{order:0}
+}
 @media(max-width:480px){
   .note-btn-row{gap:4px}
   .mod-btn,.letter-btn{padding:8px 2px;min-width:38px;font-size:.8rem}
@@ -53,6 +59,4 @@
   .note-input-display{padding:8px 10px;min-height:38px}
   .score-bar{flex-wrap:wrap}
   .feedback{padding:10px 14px;font-size:.88rem}
-  .note-action-row .new-q-btn{margin-left:0;flex:1}
-  .note-action-row .btn{flex:1;text-align:center}
 }
