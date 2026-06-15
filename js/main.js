@@ -64,6 +64,10 @@ const GROUP_ICONS = {
   Learn:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>',
 };
 
+const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
+const SWIPE_NAV_THRESHOLD = 70;
+const SWIPE_NAV_VERTICAL_LIMIT = 80;
+
 function showSection(id, skipHash) {
   const prev = document.querySelector('.section.active');
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -109,6 +113,33 @@ function closeAllGroupMenus() {
   document.querySelectorAll('.dock-group-menu').forEach(m => m.classList.remove('open'));
   const overlay = document.getElementById('dock-overlay');
   if (overlay) overlay.classList.remove('visible');
+}
+
+function isMobileSwipeNav() {
+  return window.matchMedia(MOBILE_SWIPE_QUERY).matches;
+}
+
+function isSwipeBlockedTarget(target) {
+  return Boolean(target.closest([
+    'button',
+    'a',
+    'input',
+    'select',
+    'textarea',
+    '[contenteditable="true"]',
+    '.dock',
+    '.dock-group-menu',
+    '.sl-scroll',
+    '.piano-wrap',
+    '.fb-wrap',
+    '.sr-staff-wrap',
+    '.guitar-tab-wrap',
+    '.riff-tab-wrap',
+    '.ref-table',
+    '.m-bar',
+    '.composer-timeline',
+    '.backing-progression',
+  ].join(',')));
 }
 
 function init() {
@@ -227,6 +258,50 @@ function init() {
     'random');
 
   const activeSection = () => document.querySelector('.section.active')?.id;
+  let swipeStart = null;
+
+  function showAdjacentSection(direction) {
+    const currentId = activeSection()?.replace('sec-', '');
+    const currentIndex = TABS.findIndex(t => t.id === currentId);
+    if (currentIndex < 0) return;
+
+    // TABS is the visible feature order: top-to-bottom by group, left-to-right inside each group.
+    const nextIndex = (currentIndex + direction + TABS.length) % TABS.length;
+    closeAllGroupMenus();
+    showSection(TABS[nextIndex].id);
+  }
+
+  document.addEventListener('touchstart', (e) => {
+    if (!isMobileSwipeNav() || e.touches.length !== 1 || isSwipeBlockedTarget(e.target)) {
+      swipeStart = null;
+      return;
+    }
+
+    const touch = e.touches[0];
+    swipeStart = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+    };
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!swipeStart || !isMobileSwipeNav() || !e.changedTouches.length) return;
+
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - swipeStart.x;
+    const dy = touch.clientY - swipeStart.y;
+    swipeStart = null;
+
+    if (Math.abs(dx) < SWIPE_NAV_THRESHOLD) return;
+    if (Math.abs(dy) > SWIPE_NAV_VERTICAL_LIMIT) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.35) return;
+
+    showAdjacentSection(dx < 0 ? 1 : -1);
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
+
   document.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
