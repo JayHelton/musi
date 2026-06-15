@@ -6,8 +6,9 @@ voice recorder with pitch/key detection.
 
 > Full guides live in [`docs/`](docs/README.md):
 > [desktop (Electron)](docs/desktop-electron.md),
-> [mobile install (PWA)](docs/mobile-pwa.md), and
-> [publishing to the Google Play Store](docs/android-play-store.md).
+> [mobile install (PWA)](docs/mobile-pwa.md),
+> [publishing to the Google Play Store](docs/android-play-store.md), and
+> [moving to a Flutter hybrid app](docs/flutter-migration.md).
 
 Musi is a self-contained, client-side web app (vanilla HTML/CSS/JS, ES modules,
 no build step). It can run in three ways:

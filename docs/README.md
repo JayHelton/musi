@@ -10,6 +10,7 @@ no build step). It ships in three forms from the same source:
 | Desktop (Windows / macOS / Linux) | [Electron](https://www.electronjs.org/) + [electron-builder](https://www.electron.build/) | [desktop-electron.md](desktop-electron.md) |
 | Mobile install (Android / iOS, from the browser) | PWA (manifest + service worker) | [mobile-pwa.md](mobile-pwa.md) |
 | Google Play Store (Android) | PWA wrapped as a Trusted Web Activity (TWA) | [android-play-store.md](android-play-store.md) |
+| Flutter hybrid app (keeping `index.html` as source) | WebView shell + JS↔native bridge | [flutter-migration.md](flutter-migration.md) |
 
 ## Quick start
 
