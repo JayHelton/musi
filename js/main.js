@@ -147,6 +147,7 @@ window.showSection = showSection;
 
 function enterSplit(secondaryId) {
   const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
+  if (isMobileSwipeNav()) return;
   if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || secondaryId === 'home') return;
   if (!TABS.some(t => t.id === secondaryId)) return;
   splitSecondaryId = secondaryId;
@@ -197,6 +198,10 @@ function buildSplitMenu() {
 
 function openSplitMenu() {
   if (!splitMenuEl) return;
+  if (isMobileSwipeNav()) {
+    closeSplitMenu();
+    return;
+  }
   buildSplitMenu();
   const trigger = document.getElementById('split-trigger');
   const r = trigger.getBoundingClientRect();
@@ -209,6 +214,20 @@ function closeSplitMenu() { if (splitMenuEl) splitMenuEl.classList.remove('open'
 function updateSplitUI() {
   const trigger = document.getElementById('split-trigger');
   if (!trigger) return;
+  if (isMobileSwipeNav()) {
+    if (splitSecondaryId) {
+      const primaryId = currentPrimaryId();
+      const sec = document.getElementById('sec-' + splitSecondaryId);
+      if (sec) sec.classList.remove('active', 'split-secondary');
+      splitSecondaryId = null;
+      document.body.classList.remove('split-mode');
+      stopOtherTools(primaryId ? [primaryId] : []);
+    }
+    closeSplitMenu();
+    trigger.style.display = 'none';
+    trigger.classList.remove('active');
+    return;
+  }
   trigger.style.display = currentPrimaryId() === 'home' ? 'none' : '';
   trigger.classList.toggle('active', !!splitSecondaryId);
 }
@@ -229,7 +248,10 @@ function initSplitView() {
   document.addEventListener('click', (e) => {
     if (splitMenuEl && !splitMenuEl.contains(e.target) && e.target.id !== 'split-trigger') closeSplitMenu();
   });
-  window.addEventListener('resize', closeSplitMenu);
+  window.addEventListener('resize', () => {
+    closeSplitMenu();
+    updateSplitUI();
+  });
   updateSplitUI();
 }
 
