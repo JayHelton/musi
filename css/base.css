@@ -32,6 +32,11 @@ header{background:transparent;padding:14px 24px;display:flex;align-items:center;
 
 main{max-width:1100px;margin:0 auto;padding:24px 24px 80px;position:relative;z-index:1}
 
+.section-head{margin:0 0 18px}
+.section-kicker{font-size:.7rem;color:var(--accent);text-transform:uppercase;letter-spacing:1.4px;font-weight:700;margin-bottom:4px}
+.section-head h2{font-size:1.45rem;font-weight:650;margin-bottom:5px;color:var(--text)}
+.section-head p{font-size:.92rem;color:var(--muted);line-height:1.45;max-width:620px}
+
 /* Section transitions */
 .section{display:none;opacity:0;transform:translateY(8px)}
 .section.active{display:block;animation:sectionIn 0.2s ease forwards}
@@ -45,6 +50,7 @@ main{max-width:1100px;margin:0 auto;padding:24px 24px 80px;position:relative;z-i
 .sl-item{padding:8px 14px;cursor:pointer;font-size:.84rem;color:var(--text);transition:all 0.15s ease;border-left:3px solid transparent}
 .sl-item:hover{background:var(--hover)}
 .sl-item.active{color:var(--accent);border-left-color:var(--accent);background:linear-gradient(90deg,var(--accent-dim),transparent)}
+.sl-group-label{padding:10px 14px 5px;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700}
 
 .quiz-main{flex:1;min-width:0}
 .quiz-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
@@ -105,28 +111,39 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-
 }
 @media(max-width:768px){
   .quiz-layout{flex-direction:column}
-  .sidebar{width:100%;flex-direction:row;gap:8px}
+  .section-head{margin-bottom:12px}
+  .section-head h2{font-size:1.25rem}
+  .section-head p{font-size:.86rem}
+  .sidebar{width:100%;flex-direction:column;gap:8px}
   .sidebar-list{flex:1;min-width:0}
-  .sidebar-list .sl-scroll{max-height:150px}
+  .sidebar-list .sl-head{padding:9px 12px}
+  .sidebar-list .sl-scroll{display:flex;gap:8px;max-height:none;overflow-x:auto;overflow-y:hidden;padding:8px;-webkit-overflow-scrolling:touch}
+  .sl-item{flex:0 0 auto;border:1px solid var(--border);border-radius:999px;background:var(--bg2);padding:8px 12px;white-space:nowrap}
+  .sl-item.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+  .sl-group-label{flex:0 0 auto;display:flex;align-items:center;padding:0 2px 0 4px;font-size:.58rem;white-space:nowrap}
   .dock-desktop{display:none!important}
   .dock-mobile{display:flex;width:100%;justify-content:space-around;align-items:center}
   .dock{justify-content:center;overflow:visible}
   .score-bar{flex-wrap:wrap;gap:10px;font-size:.85rem}
   .note-action-row{flex-wrap:wrap}
   .quiz-card{padding:20px}
+  .quiz-card:hover{transform:none}
   .question{font-size:1.1rem}
 }
 @media(max-width:480px){
   header{padding:8px 12px}
   .wordmark{font-size:1rem;letter-spacing:3px}
   main{padding:12px 10px 80px}
+  .section-head{padding:0 2px}
+  .section-kicker{font-size:.62rem}
+  .section-head h2{font-size:1.15rem}
   .quiz-card{padding:16px}
   .question{font-size:1rem}
   .dock-group-trigger{padding:6px 8px;font-size:.55rem}
   .dock-group-trigger .dock-icon{width:20px;height:20px}
   .sidebar{flex-direction:column}
   .sidebar-list{width:100%}
-  .sidebar-list .sl-scroll{max-height:120px}
+  .sidebar-list .sl-scroll{max-height:none}
   .btn{padding:7px 14px;font-size:.85rem}
   .btn.sm{padding:5px 10px;font-size:.75rem}
   .score-bar{padding:10px 14px;gap:8px;font-size:.8rem}

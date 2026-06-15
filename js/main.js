@@ -8,13 +8,15 @@ import { initFretboard } from './fretboardTrainer.js';
 import { initTuner, stopTuner, tuner } from './vocalTrainer.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
-import { initBacking, stopBacking, backing } from './backingTrack.js';
-import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
+// Backing Track feature is intentionally disabled in the UI for now.
+// import { initBacking, stopBacking, backing } from './backingTrack.js';
+// Riff Generator feature is intentionally disabled in the UI for now.
+// import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initRecorder, stopRecorder, recorder } from './recorder.js';
 import { initScaleRef } from './scaleReference.js';
 import { ROOTS } from './theory.js';
-import { SCALES } from './scales.js';
+import { groupedScaleEntries } from './scales.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
@@ -31,8 +33,8 @@ const ICONS = {
   fretboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M4 6h16M4 10h16M4 14h16M4 18h16M9 2v20M15 2v20"/></svg>',
   tuner:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
   ear:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
-  backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
-  riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
+  // backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
+  // riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
   recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
 };
 
@@ -48,8 +50,8 @@ const TABS = [
   {id:'fretboard', label:'Fretboard',  group:'Train'},
   {id:'tuner',     label:'Vocal',      group:'Train'},
   {id:'ear',       label:'Ear',        group:'Train'},
-  {id:'backing',   label:'Backing',    group:'Create'},
-  {id:'riff',      label:'Riff',       group:'Create'},
+  // {id:'backing',   label:'Backing',    group:'Create'},
+  // {id:'riff',      label:'Riff',       group:'Create'},
   {id:'recorder',  label:'Record',     group:'Create'},
 ];
 
@@ -61,6 +63,10 @@ const GROUP_ICONS = {
   Train:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
   Create:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
 };
+
+const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
+const SWIPE_NAV_THRESHOLD = 70;
+const SWIPE_NAV_VERTICAL_LIMIT = 80;
 
 function showSection(id, skipHash) {
   const prev = document.querySelector('.section.active');
@@ -84,9 +90,9 @@ function showSection(id, skipHash) {
   if (id !== 'tuner' && tuner.running) stopTuner();
   if (id !== 'ear' && ear._osc) stopEarTone();
   if (id !== 'sightreading') stopSightReading();
-  if (id !== 'backing' && backing.playing) stopBacking();
-  if (id !== 'riff' && riffState.playing) stopRiff();
-  if (id !== 'riff' && composer.playing) stopComposer();
+  // if (id !== 'backing' && backing.playing) stopBacking();
+  // if (id !== 'riff' && riffState.playing) stopRiff();
+  // if (id !== 'riff' && composer.playing) stopComposer();
   if (id !== 'recorder' && (recorder.recording || recorder.playing)) stopRecorder();
   if (id === 'circle') drawCoF();
   if (id === 'keyboard') buildKeyboard();
@@ -97,8 +103,8 @@ function showSection(id, skipHash) {
   if (id === 'tuner') initTuner();
   if (id === 'ear') initEarTrainer();
   if (id === 'sightreading') initSightReading();
-  if (id === 'backing') initBacking();
-  if (id === 'riff') { initRiff(); initComposerNotes(); }
+  // if (id === 'backing') initBacking();
+  // if (id === 'riff') { initRiff(); initComposerNotes(); }
   if (id === 'recorder') initRecorder();
 }
 window.showSection = showSection;
@@ -108,6 +114,33 @@ function closeAllGroupMenus() {
   document.querySelectorAll('.dock-group-menu').forEach(m => m.classList.remove('open'));
   const overlay = document.getElementById('dock-overlay');
   if (overlay) overlay.classList.remove('visible');
+}
+
+function isMobileSwipeNav() {
+  return window.matchMedia(MOBILE_SWIPE_QUERY).matches;
+}
+
+function isSwipeBlockedTarget(target) {
+  return Boolean(target.closest([
+    'button',
+    'a',
+    'input',
+    'select',
+    'textarea',
+    '[contenteditable="true"]',
+    '.dock',
+    '.dock-group-menu',
+    '.sl-scroll',
+    '.piano-wrap',
+    '.fb-wrap',
+    '.sr-staff-wrap',
+    '.guitar-tab-wrap',
+    '.riff-tab-wrap',
+    '.ref-table',
+    '.m-bar',
+    '.composer-timeline',
+    '.backing-progression',
+  ].join(',')));
 }
 
 function init() {
@@ -194,8 +227,17 @@ function init() {
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
-    const activeVal = getSetting(containerId, defaultVal, items.map(item => item.val));
-    items.forEach(({val, label}) => {
+    const validValues = items.filter(item => item.type !== 'label').map(item => item.val);
+    const activeVal = getSetting(containerId, defaultVal, validValues);
+    items.forEach(({type, val, label}) => {
+      if (type === 'label') {
+        const group = document.createElement('div');
+        group.className = 'sl-group-label';
+        group.textContent = label;
+        container.appendChild(group);
+        return;
+      }
+
       const div = document.createElement('div');
       div.className = 'sl-item' + (val === activeVal ? ' active' : '');
       div.dataset.val = val;
@@ -206,7 +248,7 @@ function init() {
   }
 
   buildList('sl-scale-type',
-    [{val:'random',label:'Random'}].concat(Object.keys(SCALES).map(n => ({val:n,label:n}))),
+    groupedScaleEntries(true),
     'random');
   buildList('sl-scale-root',
     [{val:'random',label:'Random'}].concat(ROOTS.map(r => ({val:r,label:r}))),
@@ -219,6 +261,50 @@ function init() {
     'random');
 
   const activeSection = () => document.querySelector('.section.active')?.id;
+  let swipeStart = null;
+
+  function showAdjacentSection(direction) {
+    const currentId = activeSection()?.replace('sec-', '');
+    const currentIndex = TABS.findIndex(t => t.id === currentId);
+    if (currentIndex < 0) return;
+
+    // TABS is the visible feature order: top-to-bottom by group, left-to-right inside each group.
+    const nextIndex = (currentIndex + direction + TABS.length) % TABS.length;
+    closeAllGroupMenus();
+    showSection(TABS[nextIndex].id);
+  }
+
+  document.addEventListener('touchstart', (e) => {
+    if (!isMobileSwipeNav() || e.touches.length !== 1 || isSwipeBlockedTarget(e.target)) {
+      swipeStart = null;
+      return;
+    }
+
+    const touch = e.touches[0];
+    swipeStart = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+    };
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!swipeStart || !isMobileSwipeNav() || !e.changedTouches.length) return;
+
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - swipeStart.x;
+    const dy = touch.clientY - swipeStart.y;
+    swipeStart = null;
+
+    if (Math.abs(dx) < SWIPE_NAV_THRESHOLD) return;
+    if (Math.abs(dy) > SWIPE_NAV_VERTICAL_LIMIT) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.35) return;
+
+    showAdjacentSection(dx < 0 ? 1 : -1);
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
+
   document.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
