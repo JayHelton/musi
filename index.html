@@ -432,6 +432,7 @@
           <div class="riff-transport">
             <button class="btn primary" onclick="generateRiff()">Generate</button>
             <button class="btn" id="riff-play" onclick="toggleRiffPlay()">Play</button>
+            <button class="btn sm" onclick="saveGeneratedRiffTxt()">Save TXT</button>
           </div>
         </div>
         <div class="riff-tab-wrap" id="riff-output">
@@ -475,6 +476,7 @@
           <div class="riff-transport" style="margin-top:10px">
             <button class="btn primary" id="comp-play" onclick="toggleComposerPlay()">Play</button>
             <button class="btn sm" onclick="composerClear()">Clear</button>
+            <button class="btn sm" onclick="saveComposerRiffTxt()">Save TXT</button>
             <label style="font-size:.85rem;color:var(--muted);display:flex;align-items:center;gap:6px">BPM <input type="number" id="comp-bpm" min="40" max="220" value="110" style="width:70px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);text-align:center"></label>
           </div>
         </div>
