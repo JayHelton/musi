@@ -30,6 +30,63 @@ export const SCALES = {
   'In-Sen':               [[0,0],[1,1],[3,5],[4,7],[6,10]],
 };
 
+export const SCALE_LIST_GROUPS = [
+  {
+    label: 'Common',
+    names: [
+      'Major (Ionian)',
+      'Natural Minor (Aeolian)',
+      'Major Pentatonic',
+      'Minor Pentatonic',
+      'Blues',
+    ],
+  },
+  {
+    label: 'Modes',
+    names: [
+      'Dorian',
+      'Phrygian',
+      'Lydian',
+      'Mixolydian',
+      'Locrian',
+    ],
+  },
+  {
+    label: 'Minor colors',
+    names: [
+      'Harmonic Minor',
+      'Melodic Minor (Asc)',
+      'Hungarian Minor',
+      'Phrygian Dominant',
+      'Neapolitan Minor',
+      'Neapolitan Major',
+    ],
+  },
+];
+
+export function groupedScaleEntries(includeRandom = false) {
+  const used = new Set();
+  const entries = includeRandom ? [{ val: 'random', label: 'Random' }] : [];
+
+  SCALE_LIST_GROUPS.forEach(group => {
+    entries.push({ type: 'label', label: group.label });
+    group.names.forEach(name => {
+      if (SCALES[name]) {
+        entries.push({ val: name, label: name });
+        used.add(name);
+      }
+    });
+  });
+
+  const advanced = Object.keys(SCALES).filter(name => !used.has(name));
+  if (advanced.length) {
+    entries.push({ type: 'label', label: 'Advanced' });
+    advanced.forEach(name => entries.push({ val: name, label: name }));
+  }
+
+  return entries;
+}
+
 export function getScaleNotes(rootStr, scaleName) {
   const r = parseNote(rootStr);
   if (!r) return null;

@@ -46,10 +46,11 @@
 .note-action-row .new-q-btn{margin-left:auto}
 
 @media(max-width:768px){
-  .note-action-row{flex-wrap:wrap}
-  .note-action-row .btn.primary{order:1;flex:1;min-width:calc(50% - 3px)}
+  .note-action-row{flex-wrap:wrap;gap:8px}
+  .note-action-row .btn.primary{order:2;flex:1 0 100%;min-width:100%;padding:12px 16px;border-radius:16px}
   .note-action-row .new-q-btn{margin-left:0}
-  .note-action-row .btn.sm{order:0}
+  .note-action-row .btn.sm{order:0;flex:1}
+  .note-action-row .new-q-btn{order:3;flex:1 0 100%;min-width:100%;padding:11px 16px;border-radius:16px}
 }
 @media(max-width:480px){
   .note-btn-row{gap:4px}

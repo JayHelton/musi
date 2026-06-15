@@ -8,13 +8,15 @@ import { initFretboard } from './fretboardTrainer.js';
 import { initTuner, stopTuner, tuner } from './vocalTrainer.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
-import { initBacking, stopBacking, backing } from './backingTrack.js';
-import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
+// Backing Track feature is intentionally disabled in the UI for now.
+// import { initBacking, stopBacking, backing } from './backingTrack.js';
+// Riff Generator feature is intentionally disabled in the UI for now.
+// import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initScaleRef } from './scaleReference.js';
 import { initCurriculum } from './curriculum.js';
 import { ROOTS } from './theory.js';
-import { SCALES } from './scales.js';
+import { groupedScaleEntries } from './scales.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 
@@ -30,8 +32,8 @@ const ICONS = {
   fretboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M4 6h16M4 10h16M4 14h16M4 18h16M9 2v20M15 2v20"/></svg>',
   tuner:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
   ear:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
-  backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
-  riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
+  // backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
+  // riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
   curriculum:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>',
 };
 
@@ -47,18 +49,18 @@ const TABS = [
   {id:'fretboard', label:'Fretboard',  group:'Train'},
   {id:'tuner',     label:'Vocal',      group:'Train'},
   {id:'ear',       label:'Ear',        group:'Train'},
-  {id:'backing',   label:'Backing',    group:'Create'},
-  {id:'riff',      label:'Riff',       group:'Create'},
+  // {id:'backing',   label:'Backing',    group:'Create'},
+  // {id:'riff',      label:'Riff',       group:'Create'},
   {id:'curriculum',label:'Learn',      group:'Learn'},
 ];
 
-const GROUPS = ['Quiz','Reference','Tools','Train','Create','Learn'];
+const GROUPS = ['Quiz','Reference','Tools','Train','Learn'];
 const GROUP_ICONS = {
   Quiz:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   Reference: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
   Tools:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
   Train:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
-  Create:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
+  // Create:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
   Learn:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>',
 };
 
@@ -84,9 +86,9 @@ function showSection(id, skipHash) {
   if (id !== 'tuner' && tuner.running) stopTuner();
   if (id !== 'ear' && ear._osc) stopEarTone();
   if (id !== 'sightreading') stopSightReading();
-  if (id !== 'backing' && backing.playing) stopBacking();
-  if (id !== 'riff' && riffState.playing) stopRiff();
-  if (id !== 'riff' && composer.playing) stopComposer();
+  // if (id !== 'backing' && backing.playing) stopBacking();
+  // if (id !== 'riff' && riffState.playing) stopRiff();
+  // if (id !== 'riff' && composer.playing) stopComposer();
   if (id === 'circle') drawCoF();
   if (id === 'keyboard') buildKeyboard();
   if (id === 'metronome') initMetronome();
@@ -97,8 +99,8 @@ function showSection(id, skipHash) {
   if (id === 'tuner') initTuner();
   if (id === 'ear') initEarTrainer();
   if (id === 'sightreading') initSightReading();
-  if (id === 'backing') initBacking();
-  if (id === 'riff') { initRiff(); initComposerNotes(); }
+  // if (id === 'backing') initBacking();
+  // if (id === 'riff') { initRiff(); initComposerNotes(); }
 }
 window.showSection = showSection;
 
@@ -193,7 +195,15 @@ function init() {
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
-    items.forEach(({val, label}) => {
+    items.forEach(({type, val, label}) => {
+      if (type === 'label') {
+        const group = document.createElement('div');
+        group.className = 'sl-group-label';
+        group.textContent = label;
+        container.appendChild(group);
+        return;
+      }
+
       const div = document.createElement('div');
       div.className = 'sl-item' + (val === defaultVal ? ' active' : '');
       div.dataset.val = val;
@@ -204,7 +214,7 @@ function init() {
   }
 
   buildList('sl-scale-type',
-    [{val:'random',label:'Random'}].concat(Object.keys(SCALES).map(n => ({val:n,label:n}))),
+    groupedScaleEntries(true),
     'random');
   buildList('sl-scale-root',
     [{val:'random',label:'Random'}].concat(ROOTS.map(r => ({val:r,label:r}))),

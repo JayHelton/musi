@@ -41,27 +41,32 @@
 <main>
   <!-- SCALE QUIZ -->
   <section id="sec-scales" class="section active">
+    <div class="section-head">
+      <div class="section-kicker">Practice</div>
+      <h2>Scale Quiz</h2>
+      <p>Choose a root and scale, then build the notes in order.</p>
+    </div>
     <div class="quiz-layout">
       <div class="sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Scale Type</div>
-          <div class="sl-scroll" id="sl-scale-type"></div>
-        </div>
         <div class="sidebar-list">
           <div class="sl-head">Root</div>
           <div class="sl-scroll" id="sl-scale-root"></div>
         </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Scale</div>
+          <div class="sl-scroll" id="sl-scale-type"></div>
+        </div>
       </div>
       <div class="quiz-main">
         <div class="quiz-card">
-          <div class="question" id="sq-question">Select a scale and root, then press "New Question"</div>
+          <div class="question" id="sq-question">Select a root and scale, then press "Start / Next"</div>
           <div class="note-input-display empty" id="sq-display"></div>
           <div class="note-btn-row" id="sq-notes"></div>
           <div class="note-action-row">
             <button class="btn sm" onclick="noteUndo()">Backspace</button>
             <button class="btn sm" onclick="noteClear()">Clear</button>
             <button class="btn primary" onclick="checkScaleA()">Submit</button>
-            <button class="btn primary new-q-btn" onclick="newScaleQ()">New Question</button>
+            <button class="btn new-q-btn" onclick="newScaleQ()">Start / Next</button>
           </div>
           <div class="feedback" id="sq-feedback"></div>
           <div class="hint-bar" id="sq-hint-bar"></div>
@@ -77,6 +82,11 @@
 
   <!-- INTERVAL QUIZ -->
   <section id="sec-intervals" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Practice</div>
+      <h2>Interval Quiz</h2>
+      <p>Pick a difficulty and root, then identify the target note.</p>
+    </div>
     <div class="quiz-layout">
       <div class="sidebar">
         <div class="sidebar-list">
@@ -108,6 +118,11 @@
 
   <!-- SIGHT READING QUIZ -->
   <section id="sec-sightreading" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Practice</div>
+      <h2>Sight Reading</h2>
+      <p>Read the staff note and answer with the matching pitch.</p>
+    </div>
     <div class="quiz-layout">
       <div class="sidebar">
         <div class="sidebar-list">
@@ -139,6 +154,11 @@
 
   <!-- SCALE REFERENCE -->
   <section id="sec-scaleref" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Explore</div>
+      <h2>Scale Reference</h2>
+      <p>Browse notes, intervals, chords, and guitar patterns by key.</p>
+    </div>
     <div class="quiz-layout">
       <div class="sidebar">
         <div class="sidebar-list">
@@ -160,6 +180,11 @@
 
   <!-- CHORD BUILDER -->
   <section id="sec-chords" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Explore</div>
+      <h2>Chord Builder</h2>
+      <p>Add notes, hear the chord, and see how it functions.</p>
+    </div>
     <div class="quiz-card">
       <div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">Select a note, modifier, and octave</div>
       <div class="chord-picker">
@@ -183,6 +208,11 @@
 
   <!-- CIRCLE OF FIFTHS -->
   <section id="sec-circle" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Explore</div>
+      <h2>Circle of Fifths</h2>
+      <p>Tap a key to see its signature, notes, and relative minor.</p>
+    </div>
     <div id="circle-container">
       <svg id="circle-svg" viewBox="0 0 500 500"></svg>
     </div>
@@ -193,6 +223,11 @@
 
   <!-- KEYBOARD -->
   <section id="sec-keyboard" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tool</div>
+      <h2>Keyboard</h2>
+      <p>Play notes, hold drones, and test sounds directly in the browser.</p>
+    </div>
     <div class="kb-controls">
       <label>Wave
         <div class="wave-group" id="wave-group">
@@ -211,6 +246,11 @@
 
   <!-- METRONOME -->
   <section id="sec-metronome" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tool</div>
+      <h2>Metronome</h2>
+      <p>Set tempo first, then explore presets, accents, and rhythms.</p>
+    </div>
     <div class="metro-grid">
       <div class="quiz-card">
         <div class="metro-card-title">Tempo &amp; Time Signature</div>
@@ -282,6 +322,11 @@
 
   <!-- FRETBOARD TRAINER -->
   <section id="sec-fretboard" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Train</div>
+      <h2>Fretboard Trainer</h2>
+      <p>Practice intervals on the guitar neck with key-aware questions.</p>
+    </div>
     <div class="quiz-layout">
       <div class="sidebar">
         <div class="sidebar-list">
@@ -314,6 +359,11 @@
 
   <!-- VOCAL TRAINER -->
   <section id="sec-tuner" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Train</div>
+      <h2>Vocal Trainer</h2>
+      <p>Sing, match reference tones, and see pitch accuracy in real time.</p>
+    </div>
     <div class="tuner-center">
       <div class="quiz-card">
         <div class="tuner-tuning-row">
@@ -351,6 +401,11 @@
 
   <!-- EAR TRAINER -->
   <section id="sec-ear" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Train</div>
+      <h2>Ear Trainer</h2>
+      <p>Listen, replay, and identify notes by key and mode.</p>
+    </div>
     <div class="quiz-layout">
       <div class="sidebar">
         <div class="sidebar-list">
@@ -384,6 +439,7 @@
   </section>
 
   <!-- BACKING TRACK -->
+  <!-- Backing Track feature disabled in the UI for now. Keep this markup for future reactivation.
   <section id="sec-backing" class="section">
     <div class="quiz-layout">
       <div class="sidebar">
@@ -430,8 +486,10 @@
       </div>
     </div>
   </section>
+  -->
 
   <!-- RIFF GENERATOR -->
+  <!-- Riff Generator feature disabled in the UI for now. Keep this markup for future reactivation.
   <section id="sec-riff" class="section">
     <div class="quiz-layout">
       <div class="sidebar">
@@ -512,9 +570,15 @@
       </div>
     </div>
   </section>
+  -->
 
   <!-- CURRICULUM -->
   <section id="sec-curriculum" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Learn</div>
+      <h2>Learning Plan</h2>
+      <p>Follow guided sessions and jump into related practice tools.</p>
+    </div>
     <div class="cur-tabs" id="cur-tabs"></div>
     <div id="cur-content"></div>
   </section>

@@ -1,5 +1,5 @@
 import { parseNote, ROOTS, INTERVAL_LABELS } from './theory.js';
-import { SCALES, getScaleNotes, scaleStepPattern } from './scales.js';
+import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './scales.js';
 
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
 const TRIAD_SUFFIX = ['','m','m','','','m','dim'];
@@ -36,15 +36,23 @@ function initScaleRef() {
 function buildScaleList() {
   const container = document.getElementById('sl-ref-scale');
   container.innerHTML = '';
-  Object.keys(SCALES).forEach(name => {
+  groupedScaleEntries(false).forEach(({ type, val, label }) => {
+    if (type === 'label') {
+      const group = document.createElement('div');
+      group.className = 'sl-group-label';
+      group.textContent = label;
+      container.appendChild(group);
+      return;
+    }
+
     const div = document.createElement('div');
-    div.className = 'sl-item' + (name === refScale ? ' active' : '');
-    div.dataset.val = name;
-    div.textContent = name;
+    div.className = 'sl-item' + (val === refScale ? ' active' : '');
+    div.dataset.val = val;
+    div.textContent = label;
     div.onclick = () => {
       container.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
-      refScale = name;
+      refScale = val;
       renderScaleRef();
     };
     container.appendChild(div);

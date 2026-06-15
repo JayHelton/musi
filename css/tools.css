@@ -81,6 +81,9 @@ input[type=range]{accent-color:var(--accent)}
 @media(max-width:768px){
   .kb-controls{flex-wrap:wrap;gap:10px;padding:12px 14px}
   .piano-wrap{-webkit-overflow-scrolling:touch}
+  .metro-grid .quiz-card:nth-child(5){order:-2}
+  .metro-grid .quiz-card:nth-child(1){order:-1}
+  #m-play{flex:1 0 100%;padding:12px 16px;border-radius:16px}
 }
 @media(max-width:480px){
   .kb-controls{gap:8px;padding:10px 12px}
