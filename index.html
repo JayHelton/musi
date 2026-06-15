@@ -4,17 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Musi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/quiz.css">
 <link rel="stylesheet" href="css/tools.css">
 <link rel="stylesheet" href="css/trainers.css">
 <link rel="stylesheet" href="css/generators.css">
+<link rel="stylesheet" href="css/visualizer.css">
 </head>
 <body>
+<canvas id="visualizer-canvas"></canvas>
 <header>
-  <h1>Musi</h1>
-  <nav id="nav"></nav>
+  <h1 class="wordmark">musi</h1>
 </header>
+
+<div id="now-playing" class="now-playing">
+  <div class="np-eq">
+    <span class="eq-bar"></span>
+    <span class="eq-bar"></span>
+    <span class="eq-bar"></span>
+    <span class="eq-bar"></span>
+  </div>
+  <span class="np-label"></span>
+  <button class="np-stop" id="np-stop" title="Stop">&#9632;</button>
+</div>
+
+<nav id="nav" class="dock"></nav>
 <main>
   <!-- SCALE QUIZ -->
   <section id="sec-scales" class="section active">
@@ -219,6 +236,7 @@
           <button class="btn sm metro-toggle" id="m-countin">Count-in: Off</button>
         </div>
         <div id="m-beat-ind"></div>
+        <div class="beat-pulse-ring" id="beat-pulse-ring"></div>
       </div>
     </div>
   </section>
@@ -312,6 +330,7 @@
         </div>
         <div class="quiz-card">
           <div class="question" id="ear-question">Press Play to hear a note</div>
+          <div class="ear-ripple-wrap" id="ear-ripple-wrap"></div>
           <div style="display:flex;gap:8px;margin-bottom:16px">
             <button class="btn primary" onclick="playEarQuestion()">Play</button>
             <button class="btn sm" onclick="replayEarNote()">Replay</button>

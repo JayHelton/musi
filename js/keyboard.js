@@ -1,4 +1,4 @@
-import { ensureAudio, midiFreq, audioCtx } from './audio.js';
+import { ensureAudio, midiFreq, audioCtx, getAnalyserDestination } from './audio.js';
 import { NOTE_NAMES_SHARP } from './theory.js';
 import { S } from './scaleQuiz.js';
 
@@ -79,7 +79,7 @@ export function toggleDrone(midi) {
     gain.gain.value = S.kb.vol;
     osc1.connect(gain);
     osc2.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(getAnalyserDestination());
     osc1.start();
     osc2.start();
     S.kb.drones[midi] = { osc1, osc2, gain };

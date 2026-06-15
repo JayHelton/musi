@@ -1,4 +1,4 @@
-import { audioCtx, ensureAudio } from './audio.js';
+import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 
 const CURRICULA = {
   guitar: {
@@ -306,7 +306,7 @@ function playBeep() {
   gain.gain.value = 0.3;
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(getAnalyserDestination());
   osc.start();
   osc.stop(audioCtx.currentTime + 0.2);
 }

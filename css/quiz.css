@@ -1,22 +1,44 @@
 .input-row{display:flex;gap:10px}
 .input-row input{flex:1;font-family:'Courier New',monospace;font-size:1.05rem;letter-spacing:1px}
-.feedback{margin-top:16px;padding:12px 16px;border-radius:8px;font-size:.95rem;display:none}
-.feedback.correct{display:block;background:#3fb95018;border:1px solid var(--ok);color:var(--ok)}
-.feedback.wrong{display:block;background:#f8514918;border:1px solid var(--err);color:var(--err)}
-.score-bar{display:flex;gap:20px;align-items:center;padding:12px 16px;background:var(--bg2);border-radius:8px;font-size:.9rem;color:var(--muted)}
-.score-bar .val{color:var(--text);font-weight:600}
+
+.feedback{margin-top:16px;padding:14px 18px;border-radius:16px;font-size:.95rem;display:none;transition:all 0.2s ease}
+.feedback.correct{display:block;background:rgba(46,204,113,0.08);border:none;color:var(--ok);animation:pulseGlow 0.6s ease}
+.feedback.wrong{display:block;background:rgba(231,76,60,0.08);border:none;color:var(--err);animation:shake 0.4s ease}
+
+@keyframes pulseGlow{
+  0%{box-shadow:0 0 0 0 rgba(46,204,113,0.4)}
+  50%{box-shadow:0 0 20px 4px rgba(46,204,113,0.2)}
+  100%{box-shadow:0 0 0 0 transparent}
+}
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-6px)}
+  40%{transform:translateX(6px)}
+  60%{transform:translateX(-4px)}
+  80%{transform:translateX(4px)}
+}
+
+.score-bar{display:flex;gap:20px;align-items:center;padding:14px 20px;background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;font-size:.9rem;color:var(--muted)}
+.score-bar .val{color:var(--accent);font-weight:700;font-size:1.1rem}
+
 .hint-bar{margin-top:12px;font-size:.85rem;color:var(--muted)}
-.hint-bar button{background:none;border:none;color:var(--accent);cursor:pointer;font-size:.85rem;text-decoration:underline}
+.hint-bar button{background:none;border:none;color:var(--accent);cursor:pointer;font-size:.85rem;text-decoration:underline;font-family:inherit}
 .hint-text{margin-top:6px;color:var(--accent);font-family:monospace;font-size:.95rem}
-.note-input-display{min-height:44px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+.note-input-display{min-height:44px;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:16px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;transition:box-shadow 0.2s ease}
+.note-input-display:focus-within{box-shadow:0 0 0 2px var(--accent-dim)}
 .note-input-display.empty::after{content:'Click notes below...';color:var(--muted);font-size:.9rem}
-.note-chip{padding:4px 10px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:4px;font-family:monospace;font-size:1rem;color:var(--accent)}
-.note-btn-row{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
-.mod-btn,.letter-btn{padding:8px 0;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;text-align:center;transition:.12s;min-width:42px}
-.letter-btn{min-width:44px;font-weight:600;font-size:.9rem}
-.letter-btn.accidental{background:var(--bg);border-color:var(--border);font-size:.8rem;min-width:38px}
-.letter-btn.correct{background:var(--ok);color:#fff;border-color:var(--ok)}
-.letter-btn.wrong{background:var(--err);color:#fff;border-color:var(--err)}
-.mod-btn:hover,.letter-btn:hover{background:var(--hover);border-color:var(--accent)}
-.mod-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+
+.note-chip{padding:4px 12px;background:var(--accent-dim);border:none;border-radius:20px;font-family:monospace;font-size:1rem;color:var(--accent);font-weight:600}
+
+.note-btn-row{display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap}
+.mod-btn,.letter-btn{padding:10px 4px;border:none;border-radius:20px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;text-align:center;transition:all 0.15s ease;min-width:44px;font-family:inherit}
+.letter-btn{min-width:46px;font-weight:600;font-size:.9rem}
+.letter-btn.accidental{background:var(--bg);font-size:.8rem;min-width:40px}
+.letter-btn.correct{background:var(--ok);color:#fff;animation:pulseGlow 0.6s ease}
+.letter-btn.wrong{background:var(--err);color:#fff;animation:shake 0.4s ease}
+.mod-btn:hover,.letter-btn:hover{background:var(--hover);transform:scale(1.02)}
+.mod-btn:active,.letter-btn:active{transform:scale(0.98)}
+.mod-btn.active{background:var(--accent);color:#000;font-weight:600}
+
 .note-action-row{display:flex;gap:6px;margin-top:6px}
