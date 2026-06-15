@@ -62,7 +62,8 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent)}
 .note-chip{padding:4px 10px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:4px;font-family:monospace;font-size:1rem;color:var(--accent)}
 .note-btn-row{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
 .mod-btn,.letter-btn{padding:8px 0;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;text-align:center;transition:.12s;min-width:42px}
-.letter-btn{min-width:48px;font-weight:600;font-size:1rem}
+.letter-btn{min-width:44px;font-weight:600;font-size:.9rem}
+.letter-btn.accidental{background:var(--bg);border-color:var(--border);font-size:.8rem;min-width:38px}
 .mod-btn:hover,.letter-btn:hover{background:var(--hover);border-color:var(--accent)}
 .mod-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
 .note-action-row{display:flex;gap:6px;margin-top:6px}
@@ -208,6 +209,7 @@ input[type=range]{accent-color:var(--accent)}
 .riff-options select{padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:.85rem}
 .riff-tab-wrap{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin:12px 0;overflow-x:auto}
 .riff-tab-wrap pre{font-family:'Courier New',monospace;font-size:.9rem;color:var(--accent);line-height:1.8;margin:0;letter-spacing:0}
+.rn.playing{background:var(--accent);color:#000;border-radius:2px}
 .riff-transport{display:flex;gap:8px;align-items:center;margin-bottom:12px}
 
 @media(max-width:768px){
@@ -317,8 +319,7 @@ input[type=range]{accent-color:var(--accent)}
         <div class="quiz-card">
           <div class="question" id="sq-question">Select a scale and root, then press "New Question"</div>
           <div class="note-input-display empty" id="sq-display"></div>
-          <div class="note-btn-row" id="sq-mods"></div>
-          <div class="note-btn-row" id="sq-letters"></div>
+          <div class="note-btn-row" id="sq-notes"></div>
           <div class="note-action-row">
             <button class="btn sm" onclick="noteUndo()">Backspace</button>
             <button class="btn sm" onclick="noteClear()">Clear</button>
@@ -353,8 +354,7 @@ input[type=range]{accent-color:var(--accent)}
         <div style="margin-bottom:12px"><button class="btn primary" onclick="newIntQ()">New Question</button></div>
         <div class="quiz-card">
           <div class="question" id="iq-question">Select a difficulty and root, then press "New Question"</div>
-          <div class="note-btn-row" id="iq-mods"></div>
-          <div class="note-btn-row" id="iq-letters"></div>
+          <div class="note-btn-row" id="iq-notes"></div>
           <div class="feedback" id="iq-feedback"></div>
         </div>
         <div class="score-bar">
@@ -853,40 +853,25 @@ function showSection(id) {
 const MODS = ['bb','b','','#','##'];
 const MOD_LABELS = ['\u266D\u266D','\u266D','\u266E','\u266F','\u266F\u266F'];
 const LETTERS_UI = ['C','D','E','F','G','A','B'];
-const noteInput = { scale: [], scaleMod: 2, intMod: 2 };
+const CHROMATIC_NOTES = ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B'];
+const noteInput = { scale: [] };
 
-function buildNoteButtons(modContainerId, letterContainerId, quiz) {
-  const modC = document.getElementById(modContainerId);
-  const letC = document.getElementById(letterContainerId);
-  modC.innerHTML = ''; letC.innerHTML = '';
-  const modKey = quiz === 'scale' ? 'scaleMod' : 'intMod';
-  MODS.forEach((m, i) => {
+function buildNoteButtons(containerId, quiz) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  CHROMATIC_NOTES.forEach(note => {
     const btn = document.createElement('button');
-    btn.className = 'mod-btn' + (i === 2 ? ' active' : '');
-    btn.textContent = MOD_LABELS[i];
+    btn.className = 'letter-btn' + (note.length > 1 ? ' accidental' : '');
+    btn.textContent = note;
     btn.onclick = () => {
-      noteInput[modKey] = i;
-      modC.querySelectorAll('.mod-btn').forEach((b,j) => b.classList.toggle('active', j===i));
-    };
-    modC.appendChild(btn);
-  });
-  LETTERS_UI.forEach(letter => {
-    const btn = document.createElement('button');
-    btn.className = 'letter-btn';
-    btn.textContent = letter;
-    btn.onclick = () => {
-      const mod = MODS[noteInput[modKey]];
-      const note = letter + mod;
       if (quiz === 'scale') {
         noteInput.scale.push(note);
         renderScaleDisplay();
       } else {
         submitIntervalNote(note);
       }
-      noteInput[modKey] = 2;
-      modC.querySelectorAll('.mod-btn').forEach((b,j) => b.classList.toggle('active', j===2));
     };
-    letC.appendChild(btn);
+    container.appendChild(btn);
   });
 }
 
@@ -1949,7 +1934,8 @@ function generateRiff() {
 
   const chordTones = [0, Math.min(2, numDeg - 1), Math.min(4, numDeg - 1)];
   let curDeg = chordTones[Math.floor(Math.random() * chordTones.length)];
-  let curOct = -1;
+  const startOctOptions = [-1, -1, 0, 0];
+  let curOct = startOctOptions[Math.floor(Math.random() * startOctOptions.length)];
   let lastLeap = 0;
 
   const melody = [];
@@ -1989,8 +1975,10 @@ function generateRiff() {
     while (nextDeg >= numDeg) { nextDeg -= numDeg; nextOct++; }
     while (nextDeg < 0) { nextDeg += numDeg; nextOct--; }
 
-    if (nextOct > 1) { nextOct = 1; nextDeg = Math.min(nextDeg, numDeg - 1); }
-    if (nextOct < -2) { nextOct = -2; nextDeg = Math.max(nextDeg, 0); }
+    if (nextOct > 1) { nextOct = 1; }
+    if (nextOct < -2) { nextOct = -2; }
+    if (nextDeg >= numDeg) { nextDeg = numDeg - 1; }
+    if (nextDeg < 0) { nextDeg = 0; }
 
     const nextMidi = 12 * (4 + 1) + r.semi + semis[nextDeg] + nextOct * 12;
     if (melody.length > 0 && nextMidi === melody[melody.length - 1].midi) {
@@ -2000,7 +1988,7 @@ function generateRiff() {
     if (i === totalNotes - 2) {
       const stableDegrees = [0, Math.min(4, numDeg - 1)];
       nextDeg = stableDegrees[Math.floor(Math.random() * stableDegrees.length)];
-      nextOct = -1;
+      nextOct = curOct;
     }
 
     curDeg = nextDeg;
@@ -2020,35 +2008,35 @@ function riffToTab() {
   });
   const labels = strings.map(s => s.note + s.oct);
 
-  const tabLines = strings.map(() => []);
-  const maxLen = riffState.notes.length;
+  const notePositions = [];
 
-  riffState.notes.forEach(n => {
+  riffState.notes.forEach((n, idx) => {
     let bestStr = -1, bestFret = -1, bestScore = Infinity;
     for (let s = 0; s < 6; s++) {
       const fret = n.midi - openMidis[s];
-      if (fret < 0 || fret > 15) continue;
-      const fretPenalty = fret <= 12 ? fret : fret + 10;
-      const stringPenalty = s * 3;
-      const score = fretPenalty + stringPenalty;
+      if (fret < 0 || fret > 22) continue;
+      const fretPenalty = fret <= 12 ? fret : fret + 5;
+      const lowFretBonus = fret >= 5 ? 0 : (5 - fret) * 2;
+      const stringPenalty = s * 6;
+      const score = fretPenalty + lowFretBonus + stringPenalty;
       if (score < bestScore) { bestScore = score; bestStr = s; bestFret = fret; }
     }
-    if (bestStr === -1) { bestStr = 0; bestFret = Math.max(0, n.midi - openMidis[0]); }
-
-    for (let s = 0; s < 6; s++) {
-      if (s === bestStr) {
-        tabLines[s].push(String(bestFret).padStart(2, '-'));
-      } else {
-        tabLines[s].push('--');
-      }
-    }
+    if (bestStr === -1) { bestStr = 5; bestFret = Math.min(22, Math.max(0, n.midi - openMidis[5])); }
+    notePositions.push({ str: bestStr, fret: bestFret });
   });
 
   const maxLabel = Math.max(...labels.map(l => l.length));
   let tab = '';
   for (let s = strings.length - 1; s >= 0; s--) {
     const lbl = labels[s].padStart(maxLabel);
-    tab += lbl + '|--' + tabLines[s].join('--') + '--|\n';
+    let line = lbl + '|-';
+    riffState.notes.forEach((n, i) => {
+      const pos = notePositions[i];
+      const cell = pos.str === s ? String(pos.fret).padStart(2, '-') : '--';
+      line += `<span class="rn" data-ri="${i}">${cell}--</span>`;
+    });
+    line += '|';
+    tab += line + '\n';
   }
   return tab;
 }
@@ -2073,6 +2061,11 @@ function playRiff() {
   riffState._activeOscs = [];
   document.getElementById('riff-play').textContent = 'Stop';
   riffScheduler();
+}
+
+function highlightRiffNote(idx) {
+  document.querySelectorAll('.rn.playing').forEach(el => el.classList.remove('playing'));
+  document.querySelectorAll(`.rn[data-ri="${idx}"]`).forEach(el => el.classList.add('playing'));
 }
 
 function riffScheduler() {
@@ -2101,6 +2094,10 @@ function riffScheduler() {
     osc.start(riffState._nextTime); osc.stop(riffState._nextTime + noteDur);
     riffState._activeOscs.push({ osc, gain });
 
+    const visualIdx = riffState._noteIdx;
+    const delay = Math.max(0, (riffState._nextTime - audioCtx.currentTime) * 1000);
+    setTimeout(() => { if (riffState.playing) highlightRiffNote(visualIdx); }, delay);
+
     riffState._nextTime += noteDur;
     riffState._noteIdx++;
   }
@@ -2118,6 +2115,7 @@ function stopRiff() {
   });
   riffState._activeOscs = [];
   document.getElementById('riff-play').textContent = 'Play';
+  document.querySelectorAll('.rn.playing').forEach(el => el.classList.remove('playing'));
 }
 
 function toggleRiffPlay() {
@@ -3236,8 +3234,8 @@ function init() {
   };
 
   // Build note input buttons
-  buildNoteButtons('sq-mods','sq-letters','scale');
-  buildNoteButtons('iq-mods','iq-letters','interval');
+  buildNoteButtons('sq-notes','scale');
+  buildNoteButtons('iq-notes','interval');
 
   // Metronome
   initMetronome();
