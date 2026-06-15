@@ -70,7 +70,7 @@ function draw() {
       drawBars(w, h, barW);
     }
     if (blend > 0) {
-      drawIdleBars(w, h, barW, blend);
+      drawIdleWave(w, h, blend);
     }
   }
 }
@@ -88,17 +88,41 @@ function drawBars(w, h, barW) {
   ctx.globalAlpha = 1;
 }
 
-function drawIdleBars(w, h, barW, blend) {
-  idlePhase += 0.012;
-  ctx.fillStyle = '#ff6b35';
-  for (let i = 0; i < BAR_COUNT; i++) {
-    const wave = Math.sin(idlePhase + i * 0.2) * 0.5 + 0.5;
-    const wave2 = Math.sin(idlePhase * 0.7 + i * 0.15) * 0.3 + 0.3;
-    const val = (wave * 0.08 + wave2 * 0.05) * blend;
-    const barH = val * h;
-    const x = i * barW;
-    ctx.globalAlpha = (0.15 + val * 0.5) * blend;
-    ctx.fillRect(x + 1, h - barH, barW - 2, barH);
+// Gentle, smooth flowing sound-wave drawn when no tones are playing.
+const IDLE_WAVE_LAYERS = [
+  { amp: 0.05, freq: 1.4, speed: 0.6, drift: 0.4, alpha: 0.55, width: 2.2 },
+  { amp: 0.035, freq: 2.1, speed: -0.9, drift: 0.7, alpha: 0.4, width: 1.6 },
+  { amp: 0.025, freq: 3.0, speed: 1.3, drift: 1.1, alpha: 0.28, width: 1.2 },
+];
+const IDLE_WAVE_STEP = 6;
+
+function drawIdleWave(w, h, blend) {
+  idlePhase += 0.01;
+  const mid = h * 0.5;
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#ff6b35';
+
+  for (const layer of IDLE_WAVE_LAYERS) {
+    const phase = idlePhase * layer.speed;
+    const amp = layer.amp * h;
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += IDLE_WAVE_STEP) {
+      const t = x / w;
+      // Envelope tapers the wave toward the screen edges so it fades in gently.
+      const envelope = Math.sin(t * Math.PI);
+      const y =
+        mid +
+        envelope *
+          (Math.sin(t * Math.PI * 2 * layer.freq + phase) * amp +
+            Math.sin(t * Math.PI * 2 * layer.drift + phase * 0.5) * amp * 0.4);
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.globalAlpha = layer.alpha * blend;
+    ctx.lineWidth = layer.width;
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
 }
