@@ -3,6 +3,7 @@ import { parseNote, NOTE_NAMES_SHARP, ROOTS_RAND, INTERVAL_LABELS } from './theo
 import { SCALES } from './scales.js';
 import { MODS, MOD_LABELS, LETTERS_UI } from './scaleQuiz.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { getContext, subscribeContext } from './musicalContext.js';
 
 const CHORD_TYPES = [
   {semis:[0,4,7],      name:'Major',   sym:''},
@@ -211,13 +212,40 @@ function stopChord() {
   chordBuilder.oscillators = [];
 }
 
+function accidentalModFromRoot(root) {
+  const p = parseNote(root);
+  if (!p) return null;
+  const idx = MODS.indexOf(p.acc);
+  return idx >= 0 ? idx : null;
+}
+
+function setChordMod(index) {
+  chordBuilder.mod = index;
+  const modC = document.getElementById('cb-mods');
+  if (!modC) return;
+  modC.querySelectorAll('.mod-btn').forEach((b, i) => b.classList.toggle('active', i === index));
+}
+
+let chordContextSubscribed = false;
+
 function initChordBuilder() {
   const modC = document.getElementById('cb-mods');
   const letC = document.getElementById('cb-letters');
   const octC = document.getElementById('cb-octaves');
-  chordBuilder.mod = Number(getSetting('chord.mod', chordBuilder.mod, [0,1,2,3,4]));
+  // Default the accidental to the shared context key so building a chord in the
+  // current key needs fewer taps.
+  const ctxMod = accidentalModFromRoot(getContext().root);
+  chordBuilder.mod = ctxMod !== null ? ctxMod : Number(getSetting('chord.mod', chordBuilder.mod, [0,1,2,3,4]));
   chordBuilder.octave = Number(getSetting('chord.octave', chordBuilder.octave, [2,3,4,5,6]));
   modC.innerHTML = ''; letC.innerHTML = ''; octC.innerHTML = '';
+
+  if (!chordContextSubscribed) {
+    chordContextSubscribed = true;
+    subscribeContext(c => {
+      const m = accidentalModFromRoot(c.root);
+      if (m !== null) setChordMod(m);
+    });
+  }
 
   MODS.forEach((m, i) => {
     const btn = document.createElement('button');

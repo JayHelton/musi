@@ -1,6 +1,7 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting, saveSettings } from './persistence.js';
+import { getContext, setContext, subscribeContext } from './musicalContext.js';
 
 const NV_BEATS = {whole:4, half:2, quarter:1, eighth:0.5, sixteenth:0.25};
 
@@ -101,14 +102,17 @@ function setSimpleMeasure(save = false) {
   }
 }
 
-function setBpm(value) {
+function setBpm(value, fromContext) {
   metro.bpm = Math.max(30, Math.min(300, parseInt(value) || 120));
   const bpmInput = document.getElementById('m-bpm');
   const bpmSlider = document.getElementById('m-bpm-slider');
   if (bpmInput) bpmInput.value = metro.bpm;
   if (bpmSlider) bpmSlider.value = metro.bpm;
   saveSetting('metro.bpm', metro.bpm);
+  if (!fromContext) setContext({ tempo: metro.bpm }, 'metro');
 }
+
+let metroContextSubscribed = false;
 
 function measureCapacity() {
   return metro.tsNum * (4 / metro.tsDen);
@@ -213,10 +217,7 @@ function loadPreset(name) {
       for (let i = 0; i < 16; i++) metro.measure.push(n('sixteenth'));
       break;
   }
-  const tsNum = document.getElementById('m-ts-num');
-  const tsDen = document.getElementById('m-ts-den');
-  if (tsNum) tsNum.value = metro.tsNum;
-  if (tsDen) tsDen.value = metro.tsDen;
+  syncTsSegments();
   updateAccentButtons();
   renderMeasure();
   updateBeatsFilled();
@@ -383,19 +384,61 @@ function tapTempo() {
   }
 }
 
+const BEATS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const DEN_OPTIONS = [{ v: 2, l: 'Half' }, { v: 4, l: 'Quarter' }, { v: 8, l: 'Eighth' }, { v: 16, l: '16th' }];
+
+function buildSeg(container, options, activeVal, onPick) {
+  if (!container) return;
+  container.innerHTML = '';
+  options.forEach(opt => {
+    const val = typeof opt === 'object' ? opt.v : opt;
+    const label = typeof opt === 'object' ? opt.l : String(opt);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'seg-btn' + (val === activeVal ? ' active' : '');
+    btn.dataset.val = val;
+    btn.textContent = label;
+    btn.onclick = () => onPick(val);
+    container.appendChild(btn);
+  });
+}
+
+function syncTsSegments() {
+  const numSeg = document.getElementById('m-ts-num-seg');
+  const denSeg = document.getElementById('m-ts-den-seg');
+  if (numSeg) numSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.val) === metro.tsNum));
+  if (denSeg) denSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.val) === metro.tsDen));
+}
+
 function initMetronome() {
   restoreMetronomeSettings();
   const bpmInput = document.getElementById('m-bpm');
   const bpmSlider = document.getElementById('m-bpm-slider');
   if (!bpmInput || !bpmSlider) return;
 
-  setBpm(metro.bpm);
+  // Tempo lives in the shared musical context so it follows the player across
+  // compatible tools.
+  setBpm(getContext().tempo, true);
+  if (!metroContextSubscribed) {
+    metroContextSubscribed = true;
+    subscribeContext(c => {
+      if (c.tempo !== metro.bpm) setBpm(c.tempo, true);
+    });
+  }
   if (!metro.measure.length || metro.measure.some(slot => !slot.simple)) setSimpleMeasure();
 
-  const tsNum = document.getElementById('m-ts-num');
-  const tsDen = document.getElementById('m-ts-den');
-  if (tsNum) tsNum.value = metro.tsNum;
-  if (tsDen) tsDen.value = metro.tsDen;
+  buildSeg(document.getElementById('m-ts-num-seg'), BEATS_OPTIONS, metro.tsNum, val => {
+    metro.tsNum = val;
+    syncTsSegments();
+    setSimpleMeasure(true);
+    updateBeatsFilled();
+  });
+  buildSeg(document.getElementById('m-ts-den-seg'), DEN_OPTIONS, metro.tsDen, val => {
+    metro.tsDen = val;
+    syncTsSegments();
+    setSimpleMeasure(true);
+    updateBeatsFilled();
+  });
 
   const dotBtn = document.getElementById('m-dot');
   if (dotBtn) dotBtn.classList.toggle('active', metro.dotted);
@@ -427,20 +470,6 @@ function initMetronome() {
   document.querySelectorAll('.metro-bpm-preset').forEach(btn => {
     btn.onclick = () => setBpm(btn.dataset.bpm);
   });
-  if (tsNum) {
-    tsNum.onchange = (e) => {
-      metro.tsNum = parseInt(e.target.value);
-      setSimpleMeasure(true);
-      updateBeatsFilled();
-    };
-  }
-  if (tsDen) {
-    tsDen.onchange = (e) => {
-      metro.tsDen = parseInt(e.target.value);
-      setSimpleMeasure(true);
-      updateBeatsFilled();
-    };
-  }
   document.querySelectorAll('.nv-btn').forEach(btn => {
     btn.onclick = () => addNoteToMeasure(btn.dataset.nv);
   });

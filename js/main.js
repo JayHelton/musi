@@ -21,6 +21,10 @@ import { groupedScaleEntries } from './scales.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { initContextBar } from './contextBar.js';
+import { initCommandPalette } from './commandPalette.js';
+import { initProgressHeaders } from './progressHeader.js';
+import { initHome } from './home.js';
 
 const ICONS = {
   scales:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
@@ -69,8 +73,58 @@ const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
 const SWIPE_NAV_THRESHOLD = 70;
 const SWIPE_NAV_VERTICAL_LIMIT = 80;
 
+// Per-tool audio stoppers and initializers, shared by single-view navigation
+// and split-screen so behaviour stays consistent.
+const TOOL_STOPPERS = {
+  metronome: () => { if (metro.playing) stopMetronome(); },
+  chords: () => { if (chordBuilder.oscillators.length) stopChord(); },
+  tuner: () => { if (tuner.running) stopTuner(); },
+  ear: () => { if (ear._osc) stopEarTone(); },
+  sightreading: () => stopSightReading(),
+  recorder: () => { if (recorder.playing) stopRecorder(); },
+};
+const TOOL_INITS = {
+  circle: drawCoF,
+  metronome: initMetronome,
+  scaleref: initScaleRef,
+  chords: initChordBuilder,
+  fretboard: initFretboard,
+  tuner: initTuner,
+  ear: initEarTrainer,
+  sightreading: initSightReading,
+  recorder: initRecorder,
+};
+
+function stopOtherTools(keepIds) {
+  Object.keys(TOOL_STOPPERS).forEach(toolId => {
+    if (!keepIds.includes(toolId)) TOOL_STOPPERS[toolId]();
+  });
+}
+function initTool(id) {
+  if (TOOL_INITS[id]) TOOL_INITS[id]();
+}
+
+let splitSecondaryId = null;
+
+function clearSplitPane() {
+  if (!splitSecondaryId) return;
+  const sec = document.getElementById('sec-' + splitSecondaryId);
+  if (sec) sec.classList.remove('active', 'split-secondary');
+  splitSecondaryId = null;
+  document.body.classList.remove('split-mode');
+  updateSplitUI();
+}
+
 function showSection(id, skipHash) {
-  const prev = document.querySelector('.section.active');
+  // Leaving the previous view collapses any split pane; audio for it is stopped
+  // by stopOtherTools below.
+  if (splitSecondaryId) {
+    const sec = document.getElementById('sec-' + splitSecondaryId);
+    if (sec) sec.classList.remove('active', 'split-secondary');
+    splitSecondaryId = null;
+    document.body.classList.remove('split-mode');
+  }
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.dock-group-trigger').forEach(t => t.classList.remove('active'));
@@ -85,30 +139,99 @@ function showSection(id, skipHash) {
 
   if (!skipHash) history.replaceState(null, '', '#' + id);
 
-  // if (id !== 'keyboard' && Object.keys(S.kb.drones).length) stopAll();
-  if (id !== 'metronome' && metro.playing) stopMetronome();
-  if (id !== 'chords' && chordBuilder.oscillators.length) stopChord();
-  if (id !== 'tuner' && tuner.running) stopTuner();
-  if (id !== 'ear' && ear._osc) stopEarTone();
-  if (id !== 'sightreading') stopSightReading();
-  // if (id !== 'backing' && backing.playing) stopBacking();
-  // if (id !== 'riff' && riffState.playing) stopRiff();
-  // if (id !== 'riff' && composer.playing) stopComposer();
-  if (id !== 'recorder' && recorder.playing) stopRecorder();
-  if (id === 'circle') drawCoF();
-  // if (id === 'keyboard') buildKeyboard();
-  if (id === 'metronome') initMetronome();
-  if (id === 'scaleref') initScaleRef();
-  if (id === 'chords') initChordBuilder();
-  if (id === 'fretboard') initFretboard();
-  if (id === 'tuner') initTuner();
-  if (id === 'ear') initEarTrainer();
-  if (id === 'sightreading') initSightReading();
-  // if (id === 'backing') initBacking();
-  // if (id === 'riff') { initRiff(); initComposerNotes(); }
-  if (id === 'recorder') initRecorder();
+  stopOtherTools([id]);
+  initTool(id);
+  updateSplitUI();
 }
 window.showSection = showSection;
+
+function enterSplit(secondaryId) {
+  const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
+  if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || secondaryId === 'home') return;
+  if (!TABS.some(t => t.id === secondaryId)) return;
+  splitSecondaryId = secondaryId;
+  document.body.classList.add('split-mode');
+  const sec = document.getElementById('sec-' + secondaryId);
+  if (sec) sec.classList.add('active', 'split-secondary');
+  initTool(secondaryId);
+  updateSplitUI();
+}
+
+function exitSplit() {
+  if (!splitSecondaryId) return;
+  const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
+  stopOtherTools(primaryId ? [primaryId] : []);
+  clearSplitPane();
+}
+
+let splitMenuEl = null;
+
+function currentPrimaryId() {
+  return (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
+}
+
+function buildSplitMenu() {
+  if (!splitMenuEl) return;
+  const primaryId = currentPrimaryId();
+  splitMenuEl.innerHTML = '';
+  const title = document.createElement('div');
+  title.className = 'split-menu-title';
+  title.textContent = splitSecondaryId ? 'Second tool' : 'Add a second tool';
+  splitMenuEl.appendChild(title);
+  TABS.forEach(t => {
+    if (t.id === primaryId) return;
+    const btn = document.createElement('button');
+    btn.className = 'tc-menu-item' + (t.id === splitSecondaryId ? ' active' : '');
+    btn.textContent = t.label;
+    btn.onclick = (e) => { e.stopPropagation(); enterSplit(t.id); closeSplitMenu(); };
+    splitMenuEl.appendChild(btn);
+  });
+  if (splitSecondaryId) {
+    const exit = document.createElement('button');
+    exit.className = 'tc-menu-item split-exit';
+    exit.textContent = '\u2715 Exit split view';
+    exit.onclick = (e) => { e.stopPropagation(); exitSplit(); closeSplitMenu(); };
+    splitMenuEl.appendChild(exit);
+  }
+}
+
+function openSplitMenu() {
+  if (!splitMenuEl) return;
+  buildSplitMenu();
+  const trigger = document.getElementById('split-trigger');
+  const r = trigger.getBoundingClientRect();
+  splitMenuEl.style.top = (r.bottom + 6) + 'px';
+  splitMenuEl.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  splitMenuEl.classList.add('open');
+}
+function closeSplitMenu() { if (splitMenuEl) splitMenuEl.classList.remove('open'); }
+
+function updateSplitUI() {
+  const trigger = document.getElementById('split-trigger');
+  if (!trigger) return;
+  trigger.style.display = currentPrimaryId() === 'home' ? 'none' : '';
+  trigger.classList.toggle('active', !!splitSecondaryId);
+}
+
+function initSplitView() {
+  splitMenuEl = document.createElement('div');
+  splitMenuEl.className = 'tc-menu split-menu';
+  document.body.appendChild(splitMenuEl);
+
+  const trigger = document.getElementById('split-trigger');
+  if (trigger) {
+    trigger.onclick = (e) => {
+      e.stopPropagation();
+      if (splitMenuEl.classList.contains('open')) closeSplitMenu();
+      else openSplitMenu();
+    };
+  }
+  document.addEventListener('click', (e) => {
+    if (splitMenuEl && !splitMenuEl.contains(e.target) && e.target.id !== 'split-trigger') closeSplitMenu();
+  });
+  window.addEventListener('resize', closeSplitMenu);
+  updateSplitUI();
+}
 
 function closeAllGroupMenus() {
   document.querySelectorAll('.dock-group').forEach(g => g.classList.remove('open'));
@@ -155,7 +278,7 @@ function init() {
 
   TABS.forEach(t => {
     const item = document.createElement('button');
-    item.className = 'dock-item dock-desktop' + (t.id === 'scales' ? ' active' : '');
+    item.className = 'dock-item dock-desktop';
     item.dataset.s = t.id;
     item.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span class="dock-label">${t.label}</span>`;
     item.onclick = () => showSection(t.id);
@@ -178,8 +301,6 @@ function init() {
 
     const trigger = document.createElement('button');
     trigger.className = 'dock-group-trigger';
-    const hasActive = groupTabs.some(t => t.id === 'scales');
-    if (hasActive) trigger.classList.add('active');
     trigger.dataset.group = groupName;
     trigger.innerHTML = `<span class="dock-icon">${GROUP_ICONS[groupName]}</span><span class="dock-label">${groupName}</span>`;
 
@@ -189,7 +310,7 @@ function init() {
       menu.className = 'dock-group-menu';
       groupTabs.forEach(t => {
         const btn = document.createElement('button');
-        btn.className = 'dock-menu-item' + (t.id === 'scales' ? ' active' : '');
+        btn.className = 'dock-menu-item';
         btn.dataset.s = t.id;
         btn.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span>${t.label}</span>`;
         btn.onclick = (e) => {
@@ -362,15 +483,28 @@ function init() {
   initVisualizer();
   initNowPlaying();
   initHoldRecordButton();
+  initContextBar();
+  initCommandPalette({ showSection, tabs: TABS, icons: ICONS });
+  initProgressHeaders();
+  initHome({ showSection, tabs: TABS, icons: ICONS });
+  initSplitView();
+
+  const wordmark = document.getElementById('wordmark-home');
+  if (wordmark) {
+    wordmark.onclick = () => showSection('home');
+    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
+  }
+
+  const isValidSection = (id) => id === 'home' || TABS.some(t => t.id === id);
 
   const hashTab = location.hash.replace('#', '');
-  if (hashTab && TABS.some(t => t.id === hashTab)) {
+  if (hashTab && isValidSection(hashTab)) {
     showSection(hashTab, true);
   }
 
   window.addEventListener('hashchange', () => {
     const id = location.hash.replace('#', '');
-    if (id && TABS.some(t => t.id === id)) {
+    if (id && isValidSection(id)) {
       showSection(id, true);
     }
   });

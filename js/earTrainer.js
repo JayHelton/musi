@@ -2,6 +2,7 @@ import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio
 import { parseNote, NOTE_NAMES_SHARP, ROOTS, ROOTS_RAND, pick, INTERVAL_LABELS } from './theory.js';
 import { SCALES, getScaleNotes, groupedScaleEntries } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { getContext, setContext, subscribeContext } from './musicalContext.js';
 
 const EAR_FADE_START_MS = 1100;
 const CONTEXTS = [
@@ -284,26 +285,51 @@ function checkEarAnswer(answer, btn) {
   ear._fadeTimer = setTimeout(() => feedback.classList.add('fade-out'), EAR_FADE_START_MS);
 }
 
+let earContextSubscribed = false;
+
+function syncEarSelection() {
+  document.querySelectorAll('#sl-ear-key .sl-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.val === ear.key));
+  document.querySelectorAll('#sl-ear-scale .sl-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.val === ear.scale));
+}
+
 function initEarTrainer() {
   const keyScroll = document.getElementById('sl-ear-key');
   const scaleScroll = document.getElementById('sl-ear-scale');
 
-  ear.key = getSetting('ear.key', ear.key, ['random'].concat(ROOTS));
-  ear.scale = getSetting('ear.scale', ear.scale, Object.keys(SCALES));
+  // Seed key/scale from the shared musical context so the ear trainer can quiz
+  // material in the player's current key and mode.
+  const ctx = getContext();
+  ear.key = ctx.root;
+  ear.scale = ctx.scale;
   ear.context = getSetting('ear.context', ear.context, CONTEXTS.map(o => o.val));
   ear.pool = getSetting('ear.pool', ear.pool, POOLS.map(o => o.val));
   ear.answerAs = getSetting('ear.answerAs', ear.answerAs, ANSWERS.map(o => o.val));
   ear.octave = getSetting('ear.octave', ear.octave, OCTAVES.map(o => o.val));
 
+  if (!earContextSubscribed) {
+    earContextSubscribed = true;
+    subscribeContext(c => {
+      if (c.root === ear.key && c.scale === ear.scale) return;
+      ear.key = c.root;
+      ear.scale = c.scale;
+      syncEarSelection();
+      buildEarAnswerButtons();
+    });
+  }
+
   if (!keyScroll.children.length) {
     buildChoiceList('sl-ear-key', [{ val: 'random', label: 'Random' }].concat(ROOTS.map(r => ({ val: r, label: r }))), ear.key, val => {
       ear.key = val;
       saveSetting('ear.key', val);
+      if (val !== 'random') setContext({ root: val }, 'ear');
       buildEarAnswerButtons();
     });
     buildChoiceList('sl-ear-scale', groupedScaleEntries(false), ear.scale, val => {
       ear.scale = val;
       saveSetting('ear.scale', val);
+      setContext({ scale: val }, 'ear');
       buildEarAnswerButtons();
     });
     buildChoiceList('sl-ear-context', CONTEXTS, ear.context, val => {
@@ -327,6 +353,7 @@ function initEarTrainer() {
     });
   }
 
+  syncEarSelection();
   buildEarAnswerButtons();
 }
 
