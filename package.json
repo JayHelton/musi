@@ -1,0 +1,66 @@
+{
+  "name": "musi",
+  "productName": "Musi",
+  "version": "1.0.0",
+  "description": "Music theory tools, quizzes, and training — desktop (Electron) and installable mobile (PWA).",
+  "author": "JayHelton",
+  "license": "MIT",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "dist:all": "electron-builder -mwl"
+  },
+  "build": {
+    "appId": "dev.jayhelton.musi",
+    "productName": "Musi",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "css/**/*",
+      "js/**/*",
+      "index.html",
+      "favicon.png",
+      "icons/**/*",
+      "manifest.webmanifest",
+      "service-worker.js"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.education"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Education"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}
