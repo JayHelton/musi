@@ -22,7 +22,7 @@ header{background:transparent;padding:14px 24px;display:flex;align-items:center;
 .tab{display:none}
 
 /* Bottom Dock Navigation */
-.dock{position:fixed;bottom:0;left:0;right:0;z-index:100;display:flex;justify-content:space-around;align-items:center;padding:8px 0 env(safe-area-inset-bottom,4px);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(20,20,20,0.85);border-top:1px solid rgba(255,255,255,0.06);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.dock{position:fixed;bottom:0;left:0;right:0;z-index:100;display:flex;justify-content:space-around;align-items:center;padding:8px 0 env(safe-area-inset-bottom,4px);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(20,20,20,0.85);border-top:1px solid rgba(255,255,255,0.06);scrollbar-width:none}
 .dock::-webkit-scrollbar{display:none}
 .dock-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 10px;cursor:pointer;color:var(--muted);font-size:.65rem;transition:color 0.2s ease;position:relative;background:none;border:none;flex-shrink:0}
 .dock-item svg,.dock-item .dock-icon{font-size:1.2rem;width:22px;height:22px;transition:color 0.2s ease}
@@ -90,7 +90,7 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-
 .dock-group-trigger:hover{color:var(--text)}
 .dock-group-trigger.active{color:var(--accent)}
 .dock-group-trigger.active::after{content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent)}
-.dock-group-menu{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;background:rgba(20,20,20,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:6px;min-width:140px;box-shadow:0 -4px 24px rgba(0,0,0,0.6)}
+.dock-group-menu{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;background:rgba(20,20,20,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:6px;min-width:140px;box-shadow:0 -4px 24px rgba(0,0,0,0.6);z-index:101}
 .dock-group.open .dock-group-menu{display:flex;flex-direction:column;gap:2px;animation:menuSlideUp 0.15s ease}
 @keyframes menuSlideUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 .dock-menu-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border:none;background:none;color:var(--text);cursor:pointer;font-size:.85rem;border-radius:10px;transition:all 0.15s ease;font-family:inherit;white-space:nowrap}
@@ -100,6 +100,9 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-
 .dock-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99}
 .dock-overlay.visible{display:block}
 
+@media(min-width:769px){
+  .dock{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
 @media(max-width:768px){
   .quiz-layout{flex-direction:column}
   .sidebar{width:100%;flex-direction:row;gap:8px}
@@ -107,7 +110,7 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-
   .sidebar-list .sl-scroll{max-height:150px}
   .dock-desktop{display:none!important}
   .dock-mobile{display:flex;width:100%;justify-content:space-around;align-items:center}
-  .dock{justify-content:center}
+  .dock{justify-content:center;overflow:visible}
 }
 @media(max-width:600px){
   header{padding:8px 16px}
