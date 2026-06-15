@@ -93,7 +93,7 @@ function generateRiff() {
   renderRiffTab();
 }
 
-function riffToTab() {
+function riffToTab({ html = false } = {}) {
   const tuningName = document.getElementById('riff-tuning').value || 'Standard';
   const strings = TUNINGS[tuningName];
   const openMidis = strings.map(s => {
@@ -127,7 +127,8 @@ function riffToTab() {
     riffState.notes.forEach((n, i) => {
       const pos = notePositions[i];
       const cell = pos.str === s ? String(pos.fret).padStart(2, '-') : '--';
-      line += `<span class="rn" data-ri="${i}">${cell}--</span>`;
+      const tabCell = `${cell}--`;
+      line += html ? `<span class="rn" data-ri="${i}">${tabCell}</span>` : tabCell;
     });
     line += '|';
     tab += line + '\n';
@@ -141,7 +142,7 @@ function renderRiffTab() {
     output.innerHTML = '<p style="color:var(--muted);font-size:.9rem">Press Generate to create a riff</p>';
     return;
   }
-  const tab = riffToTab();
+  const tab = riffToTab({ html: true });
   output.innerHTML = `<pre id="riff-pre">${tab}</pre>`;
 }
 
@@ -282,6 +283,87 @@ const composer = {
 
 const NOTE_LABELS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const LENGTH_LABELS = {'0.25':'16th','0.5':'8th','1':'♩','1.5':'♩.','2':'𝅗𝅥','3':'𝅗𝅥.','4':'𝅝'};
+const TEXT_LENGTH_LABELS = {'0.25':'Sixteenth','0.5':'Eighth','1':'Quarter','1.5':'Dotted Quarter','2':'Half','3':'Dotted Half','4':'Whole'};
+
+function sanitizeFilePart(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'riff';
+}
+
+function downloadTextFile(filename, text) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function beatLabel(beats) {
+  const label = TEXT_LENGTH_LABELS[String(beats)] || `${beats} beat`;
+  const unit = beats === 1 ? 'beat' : 'beats';
+  return `${label} (${beats} ${unit})`;
+}
+
+function saveGeneratedRiffTxt() {
+  if (!riffState.notes.length) {
+    alert('Generate a riff before saving.');
+    return;
+  }
+
+  const bpm = parseInt(document.getElementById('riff-bpm').value) || 110;
+  const bars = parseInt(document.getElementById('riff-length').value) || 2;
+  const density = document.getElementById('riff-density').value;
+  const tuning = document.getElementById('riff-tuning').value || riffState.tuning;
+  const title = `${riffState.key} ${riffState.scale} generated riff`;
+  const filename = `${sanitizeFilePart(title)}.txt`;
+  const text = [
+    'Musi Generated Riff',
+    `Key: ${riffState.key}`,
+    `Scale: ${riffState.scale}`,
+    `Tuning: ${tuning}`,
+    `Length: ${bars} ${bars === 1 ? 'bar' : 'bars'}`,
+    `Density: ${density}`,
+    `BPM: ${bpm}`,
+    '',
+    'Guitar Tab:',
+    riffToTab().trimEnd(),
+    '',
+  ].join('\n');
+
+  downloadTextFile(filename, text);
+}
+
+function saveComposerRiffTxt() {
+  if (!composer.notes.length) {
+    alert('Add notes to the composer before saving.');
+    return;
+  }
+
+  const bpm = parseInt(document.getElementById('comp-bpm').value) || 110;
+  const totalBeats = composer.notes.reduce((sum, note) => sum + note.beats, 0);
+  const rows = composer.notes.map((note, idx) => {
+    const label = note.rest ? 'Rest' : `${note.note}${note.oct}`;
+    return `${idx + 1}. ${label} - ${beatLabel(note.beats)}`;
+  });
+  const filename = `composer-riff-${new Date().toISOString().slice(0, 10)}.txt`;
+  const text = [
+    'Musi Composer Riff',
+    `BPM: ${bpm}`,
+    `Total Beats: ${totalBeats}`,
+    '',
+    'Sequence:',
+    ...rows,
+    '',
+  ].join('\n');
+
+  downloadTextFile(filename, text);
+}
 
 function initComposerNotes() {
   const sel = document.getElementById('comp-note');
@@ -460,9 +542,11 @@ function toggleComposerPlay() {
 window.generateRiff = generateRiff;
 window.toggleRiffPlay = toggleRiffPlay;
 window.stopRiff = stopRiff;
+window.saveGeneratedRiffTxt = saveGeneratedRiffTxt;
 window.composerAddNote = composerAddNote;
 window.composerAddRest = composerAddRest;
 window.composerClear = composerClear;
 window.toggleComposerPlay = toggleComposerPlay;
+window.saveComposerRiffTxt = saveComposerRiffTxt;
 
 export { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer };
