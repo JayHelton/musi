@@ -24,6 +24,7 @@ import { getSetting, saveSetting } from './persistence.js';
 import { initContextBar } from './contextBar.js';
 import { initCommandPalette } from './commandPalette.js';
 import { initProgressHeaders } from './progressHeader.js';
+import { initHome } from './home.js';
 
 const ICONS = {
   scales:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
@@ -158,7 +159,7 @@ function init() {
 
   TABS.forEach(t => {
     const item = document.createElement('button');
-    item.className = 'dock-item dock-desktop' + (t.id === 'scales' ? ' active' : '');
+    item.className = 'dock-item dock-desktop';
     item.dataset.s = t.id;
     item.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span class="dock-label">${t.label}</span>`;
     item.onclick = () => showSection(t.id);
@@ -181,8 +182,6 @@ function init() {
 
     const trigger = document.createElement('button');
     trigger.className = 'dock-group-trigger';
-    const hasActive = groupTabs.some(t => t.id === 'scales');
-    if (hasActive) trigger.classList.add('active');
     trigger.dataset.group = groupName;
     trigger.innerHTML = `<span class="dock-icon">${GROUP_ICONS[groupName]}</span><span class="dock-label">${groupName}</span>`;
 
@@ -192,7 +191,7 @@ function init() {
       menu.className = 'dock-group-menu';
       groupTabs.forEach(t => {
         const btn = document.createElement('button');
-        btn.className = 'dock-menu-item' + (t.id === 'scales' ? ' active' : '');
+        btn.className = 'dock-menu-item';
         btn.dataset.s = t.id;
         btn.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span>${t.label}</span>`;
         btn.onclick = (e) => {
@@ -368,15 +367,24 @@ function init() {
   initContextBar();
   initCommandPalette({ showSection, tabs: TABS, icons: ICONS });
   initProgressHeaders();
+  initHome({ showSection, tabs: TABS, icons: ICONS });
+
+  const wordmark = document.getElementById('wordmark-home');
+  if (wordmark) {
+    wordmark.onclick = () => showSection('home');
+    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
+  }
+
+  const isValidSection = (id) => id === 'home' || TABS.some(t => t.id === id);
 
   const hashTab = location.hash.replace('#', '');
-  if (hashTab && TABS.some(t => t.id === hashTab)) {
+  if (hashTab && isValidSection(hashTab)) {
     showSection(hashTab, true);
   }
 
   window.addEventListener('hashchange', () => {
     const id = location.hash.replace('#', '');
-    if (id && TABS.some(t => t.id === id)) {
+    if (id && isValidSection(id)) {
       showSection(id, true);
     }
   });

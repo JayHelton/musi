@@ -26,6 +26,8 @@ const PRECACHE_URLS = [
   "js/musicalContext.js",
   "js/contextBar.js",
   "js/commandPalette.js",
+  "js/home.js",
+  "js/progressHeader.js",
   "js/backingTrack.js",
   "js/chordBuilder.js",
   "js/circleOfFifths.js",

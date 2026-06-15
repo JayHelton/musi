@@ -59,6 +59,14 @@ let built = false;
 function buildEntries(tabs) {
   const out = [];
 
+  out.push({
+    kind: 'Tool',
+    title: 'Home',
+    sub: 'All tools',
+    haystack: 'home dashboard tools start menu'.toLowerCase(),
+    run: () => showSectionFn('home'),
+  });
+
   tabs.forEach(t => {
     out.push({
       kind: 'Tool',

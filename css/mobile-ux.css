@@ -99,6 +99,34 @@ header{justify-content:space-between}
   .ph-acc-val{font-size:1rem}
 }
 
+/* ---- Home: tool cards + favorites ---- */
+.wordmark[role="button"]{cursor:pointer}
+.home-section{margin-bottom:22px}
+.home-section-label{font-size:.7rem;text-transform:uppercase;letter-spacing:1.4px;font-weight:700;color:var(--muted);margin-bottom:12px}
+.tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.tool-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:18px;background:var(--card);border:1px solid var(--border);border-radius:18px;box-shadow:0 2px 12px rgba(0,0,0,0.5);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.tool-card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,0.6);border-color:rgba(255,107,53,0.3)}
+.tool-card.pinned{border-color:rgba(255,107,53,0.35);background:linear-gradient(180deg,var(--accent-dim),var(--card))}
+.tool-card-icon{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:var(--accent-dim);color:var(--accent)}
+.tool-card-icon svg{width:24px;height:24px}
+.tool-card-title{font-size:1.05rem;font-weight:650;color:var(--text)}
+.tool-card-desc{font-size:.85rem;color:var(--muted);line-height:1.4;flex:1}
+.tool-card-open{margin-top:6px;min-height:44px;padding:10px 22px}
+.tool-card-menu{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;border:none;background:transparent;color:var(--muted);font-size:1.2rem;line-height:1;cursor:pointer;transition:all .15s ease}
+.tool-card-menu:hover{background:var(--hover);color:var(--text)}
+.home-hidden-note{margin-top:12px;font-size:.8rem;color:var(--muted)}
+.tc-menu{position:fixed;z-index:320;min-width:180px;background:rgba(24,24,24,0.98);border:1px solid var(--border);border-radius:14px;padding:6px;box-shadow:0 12px 36px rgba(0,0,0,0.6);display:none;flex-direction:column;gap:2px}
+.tc-menu.open{display:flex}
+.tc-menu-item{text-align:left;border:none;background:none;color:var(--text);padding:11px 14px;border-radius:10px;cursor:pointer;font-family:inherit;font-size:.88rem;min-height:var(--tap-min)}
+.tc-menu-item:hover{background:var(--hover);color:var(--accent)}
+@media(max-width:480px){
+  .tool-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .tool-card{padding:14px}
+  .tool-card-title{font-size:.95rem}
+  .tool-card-desc{font-size:.78rem}
+  .tool-card-open{width:100%}
+}
+
 /* ---- Metronome segmented beat controls ---- */
 .metro-seg-controls{display:flex;flex-direction:column;gap:16px;margin-bottom:18px}
 .metro-seg-field{display:flex;flex-direction:column;gap:8px}

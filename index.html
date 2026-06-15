@@ -31,7 +31,7 @@
 <body>
 <canvas id="visualizer-canvas"></canvas>
 <header>
-  <h1 class="wordmark">musi</h1>
+  <h1 class="wordmark" id="wordmark-home" role="button" tabindex="0" title="Home">musi</h1>
   <div class="header-actions">
     <button id="context-pill" class="context-pill" type="button" aria-label="Edit musical context" aria-haspopup="dialog">
       <span class="context-pill-text" id="context-pill-text">C &bull; Major &bull; 120 BPM</span>
@@ -73,8 +73,26 @@
 
 <nav id="nav" class="dock"></nav>
 <main>
+  <!-- HOME -->
+  <section id="sec-home" class="section active">
+    <div class="section-head">
+      <div class="section-kicker">Workbench</div>
+      <h2>Your Tools</h2>
+      <p>Jump straight into a utility. Long-press a card (or use its menu) to pin, hide, or reorder.</p>
+    </div>
+    <div id="home-fav-section" class="home-section" style="display:none">
+      <div class="home-section-label">Favorites</div>
+      <div class="tool-grid" id="home-favorites"></div>
+    </div>
+    <div class="home-section">
+      <div class="home-section-label">All tools</div>
+      <div class="tool-grid" id="home-grid"></div>
+      <div class="home-hidden-note" id="home-hidden-note" style="display:none"></div>
+    </div>
+  </section>
+
   <!-- SCALE QUIZ -->
-  <section id="sec-scales" class="section active">
+  <section id="sec-scales" class="section">
     <div class="section-head">
       <div class="section-kicker">Drill</div>
       <h2>Scale Spelling</h2>
