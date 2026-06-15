@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="css/trainers.css">
 <link rel="stylesheet" href="css/generators.css">
 <link rel="stylesheet" href="css/visualizer.css">
+<link rel="stylesheet" href="css/recorder.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -509,6 +510,54 @@
             <label style="font-size:.85rem;color:var(--muted);display:flex;align-items:center;gap:6px">BPM <input type="number" id="comp-bpm" min="40" max="220" value="110" style="width:70px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);text-align:center"></label>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VOICE RECORDER -->
+  <section id="sec-recorder" class="section">
+    <div class="recorder-center">
+      <div class="quiz-card">
+        <div class="rec-live">
+          <div class="rec-live-label" id="rec-live-label">Press Record and start singing</div>
+          <div class="rec-note" id="rec-note">--</div>
+          <div class="rec-cents off" id="rec-cents">0 cents</div>
+          <div class="rec-freq" id="rec-freq">-- Hz</div>
+        </div>
+        <div class="rec-meter-wrap"><div class="rec-meter" id="rec-meter"></div></div>
+        <div class="rec-timer" id="rec-timer">0:00</div>
+        <div class="rec-controls">
+          <button class="btn primary" id="rec-toggle" onclick="toggleRecording()">&#9679; Record</button>
+        </div>
+        <div class="rec-status" id="rec-status"></div>
+        <div id="rec-live-seq-wrap" style="display:none">
+          <div class="rec-section-label">Notes detected</div>
+          <div class="rec-note-seq" id="rec-live-seq"></div>
+        </div>
+      </div>
+
+      <div class="quiz-card" id="rec-playback-card" style="display:none">
+        <div class="rec-card-title">Playback</div>
+        <div class="rec-playnote-row">
+          <span class="rec-section-label" style="margin:0">Now sounding</span>
+          <span class="rec-playnote" id="rec-playnote">--</span>
+        </div>
+        <div class="rec-controls">
+          <button class="btn primary" id="rec-play" onclick="togglePlayback()">&#9654; Play</button>
+          <button class="btn" id="rec-download" onclick="downloadRecording()">Download</button>
+          <button class="btn sm" onclick="clearRecording()">Discard</button>
+        </div>
+      </div>
+
+      <div class="quiz-card" id="rec-analysis-card" style="display:none">
+        <div class="rec-card-title">Analysis</div>
+        <div class="rec-key-block">
+          <span class="rec-section-label" style="margin:0">Detected Key</span>
+          <div class="rec-key" id="rec-key">--</div>
+          <div class="rec-key-alt" id="rec-key-alt"></div>
+        </div>
+        <div class="rec-section-label">Notes detected</div>
+        <div class="rec-note-seq" id="rec-note-seq"></div>
       </div>
     </div>
   </section>

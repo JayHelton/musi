@@ -11,6 +11,7 @@ import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 import { initBacking, stopBacking, backing } from './backingTrack.js';
 import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
+import { initRecorder, stopRecorder, recorder } from './recorder.js';
 import { initScaleRef } from './scaleReference.js';
 import { ROOTS } from './theory.js';
 import { SCALES } from './scales.js';
@@ -31,6 +32,7 @@ const ICONS = {
   ear:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
   backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
   riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
+  recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
 };
 
 const TABS = [
@@ -47,6 +49,7 @@ const TABS = [
   {id:'ear',       label:'Ear',        group:'Train'},
   {id:'backing',   label:'Backing',    group:'Create'},
   {id:'riff',      label:'Riff',       group:'Create'},
+  {id:'recorder',  label:'Record',     group:'Create'},
 ];
 
 const GROUPS = ['Quiz','Reference','Tools','Train','Create'];
@@ -83,6 +86,7 @@ function showSection(id, skipHash) {
   if (id !== 'backing' && backing.playing) stopBacking();
   if (id !== 'riff' && riffState.playing) stopRiff();
   if (id !== 'riff' && composer.playing) stopComposer();
+  if (id !== 'recorder' && (recorder.recording || recorder.playing)) stopRecorder();
   if (id === 'circle') drawCoF();
   if (id === 'keyboard') buildKeyboard();
   if (id === 'metronome') initMetronome();
@@ -94,6 +98,7 @@ function showSection(id, skipHash) {
   if (id === 'sightreading') initSightReading();
   if (id === 'backing') initBacking();
   if (id === 'riff') { initRiff(); initComposerNotes(); }
+  if (id === 'recorder') initRecorder();
 }
 window.showSection = showSection;
 

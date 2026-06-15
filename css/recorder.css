@@ -1,0 +1,44 @@
+/* Voice Recorder */
+.recorder-center{max-width:560px;margin:0 auto}
+.recorder-center .quiz-card{margin-bottom:16px}
+.rec-live{text-align:center}
+.rec-live-label{font-size:.85rem;color:var(--muted);margin-bottom:8px}
+.rec-note{font-size:2.6rem;font-weight:700;color:var(--accent);line-height:1.1;margin:2px 0}
+.rec-cents{font-size:1.1rem;font-weight:600;font-family:'Courier New',monospace}
+.rec-cents.in-tune{color:var(--ok)}
+.rec-cents.close{color:var(--warn)}
+.rec-cents.off{color:var(--muted)}
+.rec-freq{font-size:.85rem;color:var(--muted);margin-top:2px}
+
+.rec-meter-wrap{height:8px;border-radius:6px;background:var(--bg2);overflow:hidden;margin:16px 0 10px}
+.rec-meter{height:100%;width:100%;transform:scaleX(0);transform-origin:left center;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:transform .08s linear}
+
+.rec-timer{text-align:center;font-size:1.1rem;font-family:'Courier New',monospace;color:var(--text);margin-bottom:14px}
+
+.rec-controls{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+#rec-toggle.recording{background:var(--err);color:#fff;box-shadow:0 0 16px rgba(231,76,60,0.4);animation:recPulse 1.2s ease-in-out infinite}
+@keyframes recPulse{0%,100%{box-shadow:0 0 12px rgba(231,76,60,0.35)}50%{box-shadow:0 0 26px rgba(231,76,60,0.65)}}
+
+.rec-status{text-align:center;color:var(--err);font-size:.82rem;margin-top:10px;min-height:1em}
+.rec-card-title{font-size:.95rem;font-weight:600;color:var(--text);margin-bottom:14px}
+.rec-section-label{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px}
+
+.rec-playnote-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:16px}
+.rec-playnote{font-size:1.8rem;font-weight:700;color:var(--accent);font-family:'Courier New',monospace}
+
+.rec-key-block{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px;text-align:center}
+.rec-key{font-size:1.9rem;font-weight:700;color:var(--accent);margin:6px 0 4px}
+.rec-key-alt{font-size:.82rem;color:var(--muted)}
+
+.rec-note-seq{display:flex;gap:6px;flex-wrap:wrap;min-height:40px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:14px;align-items:center;align-content:flex-start}
+.rec-seq-chip{padding:5px 12px;background:var(--card);border:1px solid var(--border);border-radius:18px;font-family:monospace;font-size:.9rem;color:var(--text);font-weight:600;transition:all 0.15s ease}
+.rec-seq-chip.active{background:var(--accent);border-color:var(--accent);color:#000;box-shadow:0 0 12px var(--accent-glow);transform:scale(1.06)}
+.rec-seq-empty{color:var(--muted);font-size:.85rem}
+
+@media(max-width:480px){
+  .recorder-center{max-width:100%}
+  .rec-note{font-size:2rem}
+  .rec-playnote{font-size:1.4rem}
+  .rec-key{font-size:1.5rem}
+  .rec-controls .btn{flex:1 1 auto}
+}
