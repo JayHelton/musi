@@ -1,0 +1,52 @@
+/* Fretboard Trainer */
+.fb-wrap{overflow-x:auto;margin-bottom:16px}
+.fretboard{display:grid;gap:0;border:1px solid var(--border);border-radius:4px;user-select:none}
+.fb-cell{display:flex;align-items:center;justify-content:center;height:36px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;font-size:.7rem;color:transparent;transition:background .12s;position:relative}
+.fb-cell:hover{background:var(--hover)}
+.fb-cell.nut{background:var(--bg2);border-right:3px solid var(--muted)}
+.fb-cell.dot::after{content:'';position:absolute;bottom:2px;width:6px;height:6px;border-radius:50%;background:var(--border)}
+.fb-cell.selected{background:var(--accent);color:#000;font-weight:700;font-size:.8rem}
+.fb-cell.correct{background:var(--ok);color:#fff;font-weight:700;font-size:.8rem}
+.fb-cell.wrong{background:var(--err);color:#fff;font-weight:700;font-size:.8rem}
+.fb-cell.reveal{background:var(--accent-dim);color:var(--accent);font-weight:600;font-size:.8rem}
+.fb-header{display:flex;align-items:center;justify-content:center;height:28px;font-size:.7rem;color:var(--muted);font-weight:600;border-right:1px solid var(--border)}
+.fb-string-label{display:flex;align-items:center;justify-content:center;height:36px;font-size:.8rem;color:var(--muted);font-weight:600;min-width:30px;border-bottom:1px solid var(--border)}
+.fb-question{font-size:1.2rem;font-weight:600;margin-bottom:16px;min-height:1.5em}
+.fb-question .highlight{color:var(--accent);font-weight:700}
+.int-picker{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.int-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.8rem;transition:.15s}
+.int-btn:hover{background:var(--hover);border-color:var(--accent)}
+.int-btn.selected{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.int-btn.correct{background:var(--ok);color:#fff;border-color:var(--ok)}
+.int-btn.wrong{background:var(--err);color:#fff;border-color:var(--err)}
+.fb-feedback{padding:12px 16px;border-radius:8px;font-size:.95rem;margin-bottom:12px;display:none}
+.fb-feedback.show{display:block}
+.fb-feedback.correct{background:#3fb95018;border:1px solid var(--ok);color:var(--ok)}
+.fb-feedback.wrong{background:#f8514918;border:1px solid var(--err);color:var(--err)}
+.fb-score{display:flex;gap:20px;align-items:center;padding:10px 14px;background:var(--bg2);border-radius:8px;font-size:.85rem;color:var(--muted);margin-bottom:12px}
+.fb-score .val{color:var(--text);font-weight:600}
+
+/* Tuner */
+.tuner-center{max-width:500px;margin:0 auto;text-align:center}
+.tuner-tuning-row{display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+.tuner-tuning-row label{color:var(--muted);font-size:.85rem}
+.tuner-tuning-row select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:.9rem}
+.string-row{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
+.string-btn{padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);cursor:pointer;font-size:.9rem;font-weight:600;transition:.15s;min-width:52px}
+.string-btn:hover{border-color:var(--accent);background:var(--hover)}
+.string-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.tuner-gauge{position:relative;height:120px;margin:20px 0;overflow:hidden}
+.tuner-gauge-bg{width:100%;height:100%;position:relative}
+.gauge-bar{position:absolute;bottom:0;left:50%;height:100%;width:2px;background:var(--border);transform:translateX(-50%)}
+.gauge-center{position:absolute;bottom:0;left:50%;width:4px;height:100%;background:var(--accent);transform:translateX(-50%)}
+.tuner-needle{position:absolute;bottom:0;left:50%;width:4px;height:90%;background:var(--err);border-radius:2px;transform-origin:bottom center;transition:transform .1s}
+.tuner-cents{font-size:2.5rem;font-weight:700;font-family:'Courier New',monospace;margin:8px 0}
+.tuner-cents.in-tune{color:var(--ok)}
+.tuner-cents.close{color:var(--warn)}
+.tuner-cents.off{color:var(--err)}
+.tuner-note{font-size:1.8rem;font-weight:700;color:var(--accent);margin:4px 0}
+.tuner-freq{font-size:.9rem;color:var(--muted)}
+.tuner-status{font-size:.85rem;color:var(--muted);margin-top:12px}
+
+/* Ear Trainer */
+#ear-question .highlight{color:var(--accent);font-weight:700}
