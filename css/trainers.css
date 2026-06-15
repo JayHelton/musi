@@ -24,6 +24,7 @@
 .fb-feedback.show{display:block}
 .fb-feedback.correct{background:rgba(46,204,113,0.08);color:var(--ok)}
 .fb-feedback.wrong{background:rgba(231,76,60,0.08);color:var(--err)}
+.fb-feedback.fade-out{opacity:0;transition:opacity 0.5s ease}
 .fb-score{display:flex;gap:20px;align-items:center;padding:14px 18px;background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;font-size:.85rem;color:var(--muted);margin-bottom:12px}
 .fb-score .val{color:var(--accent);font-weight:700;font-size:1.1rem}
 
@@ -50,6 +51,17 @@
 .tuner-note{font-size:1.8rem;font-weight:700;color:var(--accent);margin:4px 0}
 .tuner-freq{font-size:.9rem;color:var(--muted)}
 .tuner-status{font-size:.85rem;color:var(--muted);margin-top:12px}
+
+/* Sight Reading */
+.sr-question{font-size:1.2rem}
+.sr-question .highlight{color:var(--accent);font-weight:700}
+.sr-staff-wrap{display:flex;justify-content:center;align-items:center;margin-bottom:18px;min-height:160px;background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:12px;overflow:hidden}
+.sr-staff{max-width:100%;height:auto}
+.sr-staff .staff-line{stroke:var(--text);stroke-width:1.3;opacity:.8}
+.sr-staff .ledger-line{stroke:var(--text);stroke-width:1.3;opacity:.8}
+.sr-staff .note-head{fill:var(--accent)}
+.sr-staff .note-stem{stroke:var(--accent);stroke-width:2;stroke-linecap:round}
+.sr-staff .clef-glyph{fill:var(--text);font-family:'Bravura','Noto Music',serif;dominant-baseline:auto}
 
 /* Ear Trainer */
 #ear-question .highlight{color:var(--accent);font-weight:700}

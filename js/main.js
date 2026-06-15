@@ -7,6 +7,7 @@ import { initMetronome, stopMetronome, metro } from './metronome.js';
 import { initFretboard } from './fretboardTrainer.js';
 import { initTuner, stopTuner, tuner } from './vocalTrainer.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
+import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 import { initBacking, stopBacking, backing } from './backingTrack.js';
 import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
@@ -19,6 +20,7 @@ import { initNowPlaying } from './nowPlaying.js';
 const ICONS = {
   scales:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   intervals: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M4 20V8m16 12V4M8 20v-6m4 6V6m4 6v8"/></svg>',
+  sightreading: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 10h18M3 14h18M3 18h18"/><circle cx="8" cy="15" r="2.4" fill="currentColor" stroke="none"/><path d="M10.4 15V7"/></svg>',
   scaleref:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
   chords:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg>',
   circle:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>',
@@ -34,6 +36,7 @@ const ICONS = {
 const TABS = [
   {id:'scales',    label:'Scales',     group:'Quiz'},
   {id:'intervals', label:'Intervals',  group:'Quiz'},
+  {id:'sightreading', label:'Sight Read', group:'Quiz'},
   {id:'scaleref',  label:'Reference',  group:'Reference'},
   {id:'chords',    label:'Chords',     group:'Reference'},
   {id:'circle',    label:'Circle',     group:'Reference'},
@@ -76,6 +79,7 @@ function showSection(id, skipHash) {
   if (id !== 'chords' && chordBuilder.oscillators.length) stopChord();
   if (id !== 'tuner' && tuner.running) stopTuner();
   if (id !== 'ear' && ear._osc) stopEarTone();
+  if (id !== 'sightreading') stopSightReading();
   if (id !== 'backing' && backing.playing) stopBacking();
   if (id !== 'riff' && riffState.playing) stopRiff();
   if (id !== 'riff' && composer.playing) stopComposer();
@@ -87,6 +91,7 @@ function showSection(id, skipHash) {
   if (id === 'fretboard') initFretboard();
   if (id === 'tuner') initTuner();
   if (id === 'ear') initEarTrainer();
+  if (id === 'sightreading') initSightReading();
   if (id === 'backing') initBacking();
   if (id === 'riff') { initRiff(); initComposerNotes(); }
 }

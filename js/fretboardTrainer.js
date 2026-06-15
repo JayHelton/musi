@@ -6,12 +6,21 @@ const FB_DOTS = [3,5,7,9,12,15];
 const FB_DOUBLE_DOT = [12];
 const FB_INT_NAMES = ['P1','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'];
 
+const FB_ADVANCE_MS = 1600;
+const FB_FADE_START_MS = 1100;
+
 const fb = {
   key: 'C', tuning: 'Standard',
   targetNote: null, targetMidi: null, targetInterval: null,
   selectedFret: null, selectedInterval: null,
   answered: false, right: 0, total: 0, streak: 0,
+  _advTimer: null, _fadeTimer: null,
 };
+
+function fbClearTimers() {
+  if (fb._advTimer) { clearTimeout(fb._advTimer); fb._advTimer = null; }
+  if (fb._fadeTimer) { clearTimeout(fb._fadeTimer); fb._fadeTimer = null; }
+}
 
 function fbOpenMidis() {
   const strings = TUNINGS[fb.tuning];
@@ -97,6 +106,7 @@ function buildIntervalButtons() {
 }
 
 function newFbQuestion() {
+  fbClearTimers();
   fb.answered = false;
   fb.selectedFret = null;
   fb.selectedInterval = null;
@@ -193,6 +203,11 @@ function checkFbAnswer() {
   document.getElementById('fb-right').textContent = fb.right;
   document.getElementById('fb-total').textContent = fb.total;
   document.getElementById('fb-streak').textContent = fb.streak;
+
+  fb._fadeTimer = setTimeout(() => feedback.classList.add('fade-out'), FB_FADE_START_MS);
+  fb._advTimer = setTimeout(() => {
+    if (document.getElementById('sec-fretboard').classList.contains('active')) newFbQuestion();
+  }, FB_ADVANCE_MS);
 }
 
 function initFretboard() {

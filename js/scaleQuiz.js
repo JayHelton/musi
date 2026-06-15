@@ -7,6 +7,22 @@ export const S = {
   kb: {wave:'sine',vol:0.3,oct:3,span:2,drones:{}},
 };
 
+const ADVANCE_MS = 1400;
+const FADE_START_MS = 900;
+let sqTimers = { adv: null, fade: null };
+let iqTimers = { adv: null, fade: null };
+
+function clearQuizTimers(t) {
+  if (t.adv) { clearTimeout(t.adv); t.adv = null; }
+  if (t.fade) { clearTimeout(t.fade); t.fade = null; }
+}
+
+function scheduleAdvance(t, feedbackEl, nextFn) {
+  clearQuizTimers(t);
+  t.fade = setTimeout(() => feedbackEl.classList.add('fade-out'), FADE_START_MS);
+  t.adv = setTimeout(nextFn, ADVANCE_MS);
+}
+
 export const MODS = ['bb','b','','#','##'];
 export const MOD_LABELS = ['\u266D\u266D','\u266D','\u266E','\u266F','\u266F\u266F'];
 export const LETTERS_UI = ['C','D','E','F','G','A','B'];
@@ -65,6 +81,8 @@ export function submitIntervalNote(note) {
   }
   document.getElementById('iq-score').textContent = `${S.iq.score} / ${S.iq.total}`;
   document.getElementById('iq-streak').textContent = S.iq.streak;
+  S.iq.ans = null;
+  scheduleAdvance(iqTimers, fb, () => { if (window.newIntQ) window.newIntQ(); });
 }
 
 export function getSelected(containerId) {
@@ -77,7 +95,10 @@ export function selectItem(containerId, val) {
   });
 }
 
+export function clearIntQTimers() { clearQuizTimers(iqTimers); }
+
 export function newScaleQ() {
+  clearQuizTimers(sqTimers);
   const selType = getSelected('sl-scale-type');
   const selRoot = getSelected('sl-scale-root');
   const scaleName = selType === 'random' ? pick(Object.keys(SCALES)) : selType;
@@ -127,6 +148,8 @@ export function checkScaleA() {
   }
   document.getElementById('sq-score').textContent = `${S.sq.score} / ${S.sq.total}`;
   document.getElementById('sq-streak').textContent = S.sq.streak;
+  S.sq.ans = null;
+  scheduleAdvance(sqTimers, fb, newScaleQ);
 }
 
 export function resetScore(which) {
