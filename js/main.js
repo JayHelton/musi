@@ -50,20 +50,19 @@ const TABS = [
   {id:'circle',    label:'Circle',     group:'Reference'},
   // {id:'keyboard',  label:'Keys',       group:'Tools'},
   {id:'metronome', label:'Tempo',      group:'Tools'},
-  {id:'fretboard', label:'Fretboard',  group:'Workbench'},
-  {id:'tuner',     label:'Pitch',      group:'Workbench'},
-  {id:'ear',       label:'Ear',        group:'Workbench'},
+  {id:'fretboard', label:'Fretboard',  group:'Drill'},
+  {id:'tuner',     label:'Pitch',      group:'Drill'},
+  {id:'ear',       label:'Ear',        group:'Drill'},
   // {id:'backing',   label:'Backing',    group:'Create'},
   // {id:'riff',      label:'Riff',       group:'Create'},
   {id:'recorder',  label:'Record',     group:'Capture'},
 ];
 
-const GROUPS = ['Drill','Reference','Tools','Workbench','Capture'];
+const GROUPS = ['Drill','Reference','Tools','Capture'];
 const GROUP_ICONS = {
   Drill:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   Reference: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
   Tools:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
-  Workbench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
   Capture:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
 };
 
