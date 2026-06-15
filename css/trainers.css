@@ -1,20 +1,22 @@
 /* Fretboard Trainer */
-.fb-wrap{overflow-x:auto;margin-bottom:16px}
+.fb-wrap{overflow-x:auto;margin-bottom:12px;touch-action:pan-x}
 .fretboard{display:grid;gap:0;border:1px solid var(--border);border-radius:8px;user-select:none}
-.fb-cell{display:flex;align-items:center;justify-content:center;height:36px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;font-size:.7rem;color:transparent;transition:all 0.15s ease;position:relative}
+.fb-cell{display:flex;align-items:center;justify-content:center;height:32px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;font-size:.68rem;color:transparent;transition:all 0.15s ease;position:relative}
 .fb-cell:hover{background:var(--hover)}
+.fb-cell.in-scale{background:rgba(255,255,255,0.018)}
+.fb-cell.show-label{color:var(--muted)}
 .fb-cell.nut{background:var(--bg2);border-right:3px solid var(--muted)}
 .fb-cell.dot::after{content:'';position:absolute;bottom:2px;width:6px;height:6px;border-radius:50%;background:var(--border)}
 .fb-cell.selected{background:var(--accent);color:#000;font-weight:700;font-size:.8rem}
 .fb-cell.correct{background:var(--ok);color:#fff;font-weight:700;font-size:.8rem;animation:pulseGlow 0.6s ease}
 .fb-cell.wrong{background:var(--err);color:#fff;font-weight:700;font-size:.8rem;animation:shake 0.4s ease}
 .fb-cell.reveal{background:var(--accent-dim);color:var(--accent);font-weight:600;font-size:.8rem}
-.fb-header{display:flex;align-items:center;justify-content:center;height:28px;font-size:.7rem;color:var(--muted);font-weight:600;border-right:1px solid var(--border)}
-.fb-string-label{display:flex;align-items:center;justify-content:center;height:36px;font-size:.8rem;color:var(--muted);font-weight:600;min-width:30px;border-bottom:1px solid var(--border)}
-.fb-question{font-size:1.2rem;font-weight:600;margin-bottom:16px;min-height:1.5em}
+.fb-header{display:flex;align-items:center;justify-content:center;height:24px;font-size:.66rem;color:var(--muted);font-weight:600;border-right:1px solid var(--border)}
+.fb-string-label{display:flex;align-items:center;justify-content:center;height:32px;font-size:.72rem;color:var(--muted);font-weight:600;min-width:30px;border-bottom:1px solid var(--border)}
+.fb-question{font-size:1.05rem;font-weight:600;margin-bottom:12px;min-height:1.4em;line-height:1.35}
 .fb-question .highlight{color:var(--accent);font-weight:700}
-.int-picker{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
-.int-btn{padding:8px 14px;border:none;border-radius:20px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.8rem;transition:all 0.15s ease;font-family:inherit}
+.int-picker{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.int-btn{min-height:40px;padding:8px 14px;border:none;border-radius:20px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.8rem;transition:all 0.15s ease;font-family:inherit}
 .int-btn:hover{background:var(--hover);transform:scale(1.02)}
 .int-btn:active{transform:scale(0.98)}
 .int-btn.selected{background:var(--accent);color:#000;font-weight:600}
@@ -27,6 +29,11 @@
 .fb-feedback.fade-out{opacity:0;transition:opacity 0.5s ease}
 .fb-score{display:flex;gap:20px;align-items:center;padding:14px 18px;background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;font-size:.85rem;color:var(--muted);margin-bottom:12px}
 .fb-score .val{color:var(--accent);font-weight:700;font-size:1.1rem}
+.fb-workbench-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.45);font-size:.82rem;color:var(--muted)}
+.fb-workbench-controls label{display:flex;gap:6px;align-items:center}
+.fb-workbench-controls input[type=number]{width:54px;padding:6px 8px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text);font:inherit}
+.fb-workbench-controls input[type=checkbox]{accent-color:var(--accent)}
+.fb-card-compact{padding:20px}
 
 /* Tuner */
 .tuner-center{max-width:500px;margin:0 auto;text-align:center}
@@ -66,28 +73,33 @@
 /* Ear Trainer */
 #ear-question .highlight{color:var(--accent);font-weight:700}
 
-/* Ear Trainer Ripple */
-.ear-ripple{position:relative;display:flex;align-items:center;justify-content:center;width:80px;height:80px;margin:0 auto 16px}
-.ear-ripple::before,.ear-ripple::after{content:'';position:absolute;border-radius:50%;border:2px solid var(--accent);animation:earRipple 1.5s ease-out infinite}
-.ear-ripple::before{width:100%;height:100%;animation-delay:0s}
-.ear-ripple::after{width:100%;height:100%;animation-delay:0.5s}
-@keyframes earRipple{
-  0%{transform:scale(0.5);opacity:0.8}
-  100%{transform:scale(2.5);opacity:0}
+.ear-transport{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ear-transport .btn.primary{flex:1 1 140px}
+.ear-transport .btn.sm{flex:0 1 110px}
+.ear-pulse{width:44px;height:44px;margin:0 auto 12px;border-radius:50%;border:1px solid var(--accent);background:var(--accent-dim);animation:earPulse .65s ease-out}
+@keyframes earPulse{
+  0%{transform:scale(.8);opacity:.9}
+  100%{transform:scale(1.8);opacity:0}
 }
 
 @media(max-width:768px){
   .fb-wrap{-webkit-overflow-scrolling:touch}
   .tuner-center{max-width:100%}
+  .fb-workbench-controls{gap:8px;font-size:.78rem}
+  .fb-workbench-controls .btn{margin-left:auto}
+  .int-btn{min-height:44px}
+  .sr-staff-wrap{min-height:120px;margin-bottom:10px;padding:8px}
 }
 @media(max-width:480px){
   .fb-cell{height:30px;font-size:.6rem}
   .fb-header{height:22px;font-size:.6rem}
   .fb-string-label{height:30px;font-size:.7rem;min-width:24px}
   .fb-question{font-size:1rem}
-  .int-picker{gap:4px}
-  .int-btn{padding:6px 10px;font-size:.75rem}
+  .int-picker{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .int-btn{padding:6px 8px;font-size:.75rem}
   .fb-score{padding:10px 14px;font-size:.8rem;flex-wrap:wrap;gap:8px}
+  .fb-workbench-controls{padding:8px 10px}
+  .fb-workbench-controls input[type=number]{width:48px}
   .fb-feedback{padding:10px 14px;font-size:.88rem}
   .tuner-gauge{height:80px;margin:12px 0}
   .tuner-note{font-size:1.4rem}
@@ -95,5 +107,5 @@
   .tuner-freq{font-size:.8rem}
   .tuner-status{font-size:.8rem}
   .string-btn{padding:6px 10px;font-size:.8rem;min-width:42px}
-  .ear-ripple{width:60px;height:60px}
+  .ear-pulse{width:34px;height:34px;margin-bottom:8px}
 }

@@ -74,11 +74,11 @@ export function submitIntervalNote(note) {
   if (correct) {
     S.iq.score++; S.iq.streak++;
     fb.className = 'feedback correct';
-    fb.textContent = 'Correct!';
+    fb.textContent = '✓';
   } else {
     S.iq.streak = 0;
     fb.className = 'feedback wrong';
-    fb.textContent = `Incorrect. The answer is ${S.iq.ans}`;
+    fb.textContent = `Expected: ${S.iq.ans}`;
   }
   document.getElementById('iq-score').textContent = `${S.iq.score} / ${S.iq.total}`;
   document.getElementById('iq-streak').textContent = S.iq.streak;
@@ -114,13 +114,13 @@ export function newScaleQ() {
   S.sq.hint = scaleStepPattern(scaleName);
 
   document.getElementById('sq-question').textContent =
-    `Enter the notes of ${root} ${scaleName} (${notes.length} notes):`;
+    `${root} ${scaleName} — ${notes.length} notes`;
   noteInput.scale = [];
   renderScaleDisplay();
   document.getElementById('sq-feedback').className = 'feedback';
   document.getElementById('sq-feedback').textContent = '';
   document.getElementById('sq-hint-bar').innerHTML =
-    '<button onclick="showScaleHint()">Show step pattern</button>';
+    '<button onclick="showScaleHint()">Pattern</button>';
 }
 
 export function showScaleHint() {
@@ -142,11 +142,11 @@ export function checkScaleA() {
     S.sq.score++;
     S.sq.streak++;
     fb.className = 'feedback correct';
-    fb.textContent = 'Correct!';
+    fb.textContent = '✓';
   } else {
     S.sq.streak = 0;
     fb.className = 'feedback wrong';
-    fb.textContent = `Incorrect. Answer: ${S.sq.ans.join('  ')}`;
+    fb.textContent = `Expected: ${S.sq.ans.join('  ')}`;
   }
   document.getElementById('sq-score').textContent = `${S.sq.score} / ${S.sq.total}`;
   document.getElementById('sq-streak').textContent = S.sq.streak;

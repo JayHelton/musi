@@ -119,7 +119,7 @@ function newSightQ() {
 
   document.getElementById('sr-staff-wrap').innerHTML = buildStaffSVG(noteDV, clefName);
   document.getElementById('sr-question').innerHTML =
-    `Name this note &mdash; <span class="highlight">${clefName} clef</span>`;
+    `<span class="highlight">${clefName}</span> clef`;
 
   const fb = document.getElementById('sr-feedback');
   fb.className = 'fb-feedback';
@@ -149,11 +149,11 @@ function checkSightAnswer(letter, btn) {
     sr.right++;
     sr.streak++;
     fb.className = 'fb-feedback show correct';
-    fb.textContent = 'Correct!';
+    fb.textContent = '✓';
   } else {
     sr.streak = 0;
     fb.className = 'fb-feedback show wrong';
-    fb.textContent = `Incorrect. The note is ${sr.answer}.`;
+    fb.textContent = `Expected: ${sr.answer}`;
   }
 
   document.getElementById('sr-right').textContent = sr.right;
@@ -197,7 +197,7 @@ function initSightReading() {
 
   clefOptions.map(val => ({
     val,
-    label: val === 'both' ? 'Both (random)' : val,
+    label: val === 'both' ? 'Random clef' : val,
   })).forEach(({ val, label }) => {
     const div = document.createElement('div');
     div.className = 'sl-item' + (val === sr.clef ? ' active' : '');
@@ -215,9 +215,9 @@ function initSightReading() {
   });
 
   [
-    { val: 'easy', label: 'Easy (on staff)' },
-    { val: 'medium', label: 'Medium (1-2 ledger)' },
-    { val: 'hard', label: 'Hard (wide range)' },
+    { val: 'easy', label: 'On staff' },
+    { val: 'medium', label: '±1 ledger' },
+    { val: 'hard', label: 'Wide range' },
   ].forEach(({ val, label }) => {
     const div = document.createElement('div');
     div.className = 'sl-item' + (val === sr.diff ? ' active' : '');

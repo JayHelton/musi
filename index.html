@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Musi</title>
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="Musi">
 <meta name="application-name" content="Musi">
 <meta property="og:title" content="Musi">
-<meta property="og:description" content="Music theory tools, quizzes, and training">
+<meta property="og:description" content="Music theory tools for rehearsal and reference">
 <meta property="og:image" content="favicon.png">
 <meta name="theme-color" content="#0a0a0a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -44,14 +44,32 @@
   <button class="np-stop" id="np-stop" title="Stop">&#9632;</button>
 </div>
 
+<div id="hold-rec-overlay" class="hold-rec-overlay" aria-hidden="true">
+  <div class="hold-rec-panel">
+    <div class="hold-rec-live-label" id="hold-rec-live-label">Recording</div>
+    <div class="hold-rec-note" id="hold-rec-note">--</div>
+    <div class="hold-rec-cents off" id="hold-rec-cents">0 cents</div>
+    <div class="hold-rec-freq" id="hold-rec-freq">-- Hz</div>
+    <div class="hold-rec-meter-wrap"><div class="hold-rec-meter" id="hold-rec-meter"></div></div>
+    <div class="hold-rec-timer" id="hold-rec-timer">0:00</div>
+    <div class="hold-rec-seq-wrap">
+      <div class="rec-section-label">Detected pitches</div>
+      <div class="rec-note-seq" id="hold-rec-live-seq"></div>
+    </div>
+  </div>
+</div>
+<button type="button" id="hold-rec-btn" class="hold-rec-btn" aria-label="Hold to record" title="Hold to record">
+  <span class="hold-rec-btn-icon" aria-hidden="true">&#9679;</span>
+</button>
+
 <nav id="nav" class="dock"></nav>
 <main>
   <!-- SCALE QUIZ -->
   <section id="sec-scales" class="section active">
     <div class="section-head">
-      <div class="section-kicker">Practice</div>
-      <h2>Scale Quiz</h2>
-      <p>Choose a root and scale, then build the notes in order.</p>
+      <div class="section-kicker">Drill</div>
+      <h2>Scale Spelling</h2>
+      <p>Root + scale. Spell in order.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
@@ -66,21 +84,21 @@
       </div>
       <div class="quiz-main">
         <div class="quiz-card">
-          <div class="question" id="sq-question">Select a root and scale, then press "Start / Next"</div>
+          <div class="question" id="sq-question">Set root &amp; scale, then Next.</div>
           <div class="note-input-display empty" id="sq-display"></div>
           <div class="note-btn-row" id="sq-notes"></div>
           <div class="note-action-row">
             <button class="btn sm" onclick="noteUndo()">Backspace</button>
             <button class="btn sm" onclick="noteClear()">Clear</button>
             <button class="btn primary" onclick="checkScaleA()">Submit</button>
-            <button class="btn new-q-btn" onclick="newScaleQ()">Start / Next</button>
+            <button class="btn new-q-btn" onclick="newScaleQ()">Next</button>
           </div>
           <div class="feedback" id="sq-feedback"></div>
           <div class="hint-bar" id="sq-hint-bar"></div>
         </div>
         <div class="score-bar">
-          <span>Score: <span class="val" id="sq-score">0 / 0</span></span>
-          <span>Streak: <span class="val" id="sq-streak">0</span></span>
+          <span>Hits: <span class="val" id="sq-score">0 / 0</span></span>
+          <span>Run: <span class="val" id="sq-streak">0</span></span>
           <button class="btn sm" onclick="resetScore('scale')">Reset</button>
         </div>
       </div>
@@ -90,9 +108,9 @@
   <!-- INTERVAL QUIZ -->
   <section id="sec-intervals" class="section">
     <div class="section-head">
-      <div class="section-kicker">Practice</div>
-      <h2>Interval Quiz</h2>
-      <p>Pick a difficulty and root, then identify the target note.</p>
+      <div class="section-kicker">Drill</div>
+      <h2>Intervals</h2>
+      <p>Root + interval. Name the upper note.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
@@ -107,16 +125,16 @@
       </div>
       <div class="quiz-main">
         <div class="quiz-card">
-          <div class="question" id="iq-question">Select a difficulty and root, then press "New Question"</div>
+          <div class="question" id="iq-question">Set difficulty &amp; root, then Next.</div>
           <div class="note-btn-row" id="iq-notes"></div>
           <div class="note-action-row">
-            <button class="btn primary new-q-btn" onclick="newIntQ()">New Question</button>
+            <button class="btn primary new-q-btn" onclick="newIntQ()">Next</button>
           </div>
           <div class="feedback" id="iq-feedback"></div>
         </div>
         <div class="score-bar">
-          <span>Score: <span class="val" id="iq-score">0 / 0</span></span>
-          <span>Streak: <span class="val" id="iq-streak">0</span></span>
+          <span>Hits: <span class="val" id="iq-score">0 / 0</span></span>
+          <span>Run: <span class="val" id="iq-streak">0</span></span>
           <button class="btn sm" onclick="resetScore('interval')">Reset</button>
         </div>
       </div>
@@ -126,9 +144,9 @@
   <!-- SIGHT READING QUIZ -->
   <section id="sec-sightreading" class="section">
     <div class="section-head">
-      <div class="section-kicker">Practice</div>
+      <div class="section-kicker">Drill</div>
       <h2>Sight Reading</h2>
-      <p>Read the staff note and answer with the matching pitch.</p>
+      <p>Staff to pitch name.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
@@ -143,17 +161,17 @@
       </div>
       <div class="quiz-main">
         <div class="score-bar" style="margin-bottom:12px">
-          <span>Score: <span class="val" id="sr-right">0</span> / <span class="val" id="sr-total">0</span></span>
-          <span>Streak: <span class="val" id="sr-streak">0</span></span>
+          <span>Hits: <span class="val" id="sr-right">0</span> / <span class="val" id="sr-total">0</span></span>
+          <span>Run: <span class="val" id="sr-streak">0</span></span>
           <button class="btn sm" onclick="resetSightScore()">Reset</button>
         </div>
         <div class="quiz-card">
-          <div class="question sr-question" id="sr-question">Press New Question to start</div>
+          <div class="question sr-question" id="sr-question">Next for a note.</div>
           <div class="sr-staff-wrap" id="sr-staff-wrap"></div>
-          <div style="font-size:.85rem;color:var(--muted);margin-bottom:6px">Which note is shown?</div>
+          <div class="field-label">Pitch</div>
           <div class="note-btn-row" id="sr-answers" style="justify-content:center"></div>
           <div class="fb-feedback" id="sr-feedback"></div>
-          <button class="btn primary" onclick="newSightQ()" style="margin-top:8px">New Question</button>
+          <button class="btn primary btn--spaced" onclick="newSightQ()">Next</button>
         </div>
       </div>
     </div>
@@ -162,9 +180,9 @@
   <!-- SCALE REFERENCE -->
   <section id="sec-scaleref" class="section">
     <div class="section-head">
-      <div class="section-kicker">Explore</div>
+      <div class="section-kicker">Reference</div>
       <h2>Scale Reference</h2>
-      <p>Browse notes, intervals, chords, and guitar patterns by key.</p>
+      <p>Notes, intervals, chords, and 3-NPS by key.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
@@ -179,7 +197,7 @@
       </div>
       <div class="quiz-main">
         <div class="quiz-card" id="ref-card">
-          <p style="color:var(--muted)">Select a root and scale type to see details</p>
+          <p style="color:var(--muted)">Pick root &amp; scale.</p>
         </div>
       </div>
     </div>
@@ -188,12 +206,12 @@
   <!-- CHORD BUILDER -->
   <section id="sec-chords" class="section">
     <div class="section-head">
-      <div class="section-kicker">Explore</div>
+      <div class="section-kicker">Reference</div>
       <h2>Chord Builder</h2>
-      <p>Add notes, hear the chord, and see how it functions.</p>
+      <p>Build voicings. Hear and analyze.</p>
     </div>
     <div class="quiz-card">
-      <div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">Select a note, modifier, and octave</div>
+      <div class="field-label">Note, accidental, octave</div>
       <div class="chord-picker">
         <div class="note-btn-row" id="cb-mods"></div>
       </div>
@@ -209,26 +227,27 @@
       </div>
     </div>
     <div class="chord-analysis" id="cb-analysis">
-      <p style="color:var(--muted)">Add at least 2 notes to identify a chord</p>
+      <p style="color:var(--muted)">2+ notes to analyze</p>
     </div>
   </section>
 
   <!-- CIRCLE OF FIFTHS -->
   <section id="sec-circle" class="section">
     <div class="section-head">
-      <div class="section-kicker">Explore</div>
+      <div class="section-kicker">Reference</div>
       <h2>Circle of Fifths</h2>
-      <p>Tap a key to see its signature, notes, and relative minor.</p>
+      <p>Key, signature, relative minor.</p>
     </div>
     <div id="circle-container">
       <svg id="circle-svg" viewBox="0 0 500 500"></svg>
     </div>
     <div class="info-panel" id="cof-info">
-      <p style="color:var(--muted)">Click any key on the circle to see details</p>
+      <p style="color:var(--muted)">Select a key.</p>
     </div>
   </section>
 
   <!-- KEYBOARD -->
+  <!-- Virtual Keyboard feature disabled in the UI for now. Keep this markup for future reactivation.
   <section id="sec-keyboard" class="section">
     <div class="section-head">
       <div class="section-kicker">Tool</div>
@@ -250,13 +269,14 @@
     <div class="drone-display" id="drone-display"></div>
     <div class="piano-wrap"><div class="piano" id="piano"></div></div>
   </section>
+  -->
 
   <!-- METRONOME -->
   <section id="sec-metronome" class="section">
     <div class="section-head">
-      <div class="section-kicker">Tool</div>
+      <div class="section-kicker">Tools</div>
       <h2>Metronome</h2>
-      <p>Set a tempo, choose the beat, and press play.</p>
+      <p>BPM, meter, play.</p>
     </div>
     <div class="metronome-simple">
       <div class="quiz-card metro-simple-card">
@@ -377,9 +397,9 @@
   <!-- FRETBOARD TRAINER -->
   <section id="sec-fretboard" class="section">
     <div class="section-head">
-      <div class="section-kicker">Train</div>
-      <h2>Fretboard Trainer</h2>
-      <p>Practice intervals on the guitar neck with key-aware questions.</p>
+      <div class="section-kicker">Workbench</div>
+      <h2>Fretboard</h2>
+      <p>Notes, intervals, tunings, and position work.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
@@ -391,21 +411,35 @@
           <div class="sl-head">Tuning</div>
           <div class="sl-scroll" id="sl-fb-tuning"></div>
         </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Scale</div>
+          <div class="sl-scroll" id="sl-fb-scale"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Mode</div>
+          <div class="sl-scroll" id="sl-fb-mode"></div>
+        </div>
       </div>
       <div class="quiz-main">
         <div class="fb-score" id="fb-score">
-          Score: <span class="val" id="fb-right">0</span> / <span class="val" id="fb-total">0</span>
-          <span style="margin-left:auto">Streak: <span class="val" id="fb-streak">0</span></span>
+          Hits: <span class="val" id="fb-right">0</span> / <span class="val" id="fb-total">0</span>
+          <span style="margin-left:auto">Run: <span class="val" id="fb-streak">0</span></span>
         </div>
-        <div class="quiz-card">
-          <div class="fb-question" id="fb-question">Press New Question to start</div>
+        <div class="fb-workbench-controls">
+          <label>Frets <input type="number" id="fb-fret-start" min="0" max="24" value="0" inputmode="numeric"> - <input type="number" id="fb-fret-end" min="1" max="24" value="15" inputmode="numeric"></label>
+          <label><input type="checkbox" id="fb-show-labels"> Labels</label>
+          <label><input type="checkbox" id="fb-show-intervals"> Intervals</label>
+          <button class="btn sm" id="fb-reset-score" onclick="resetFbScore()">Reset</button>
+        </div>
+        <div class="quiz-card fb-card-compact">
+          <div class="fb-question" id="fb-question">Next to start.</div>
           <div class="fb-wrap">
             <div class="fretboard" id="fb-board"></div>
           </div>
-          <div style="font-size:.85rem;color:var(--muted);margin-bottom:6px">What interval is this note from the root?</div>
+          <div class="field-label" id="fb-answer-label">Interval from root</div>
           <div class="int-picker" id="fb-intervals"></div>
           <div class="fb-feedback" id="fb-feedback"></div>
-          <button class="btn primary" onclick="newFbQuestion()">New Question</button>
+          <button class="btn primary" onclick="newFbQuestion()">Next</button>
         </div>
       </div>
     </div>
@@ -414,14 +448,14 @@
   <!-- VOCAL TRAINER -->
   <section id="sec-tuner" class="section">
     <div class="section-head">
-      <div class="section-kicker">Train</div>
-      <h2>Vocal Trainer</h2>
-      <p>Sing, match reference tones, and see pitch accuracy in real time.</p>
+      <div class="section-kicker">Workbench</div>
+      <h2>Pitch</h2>
+      <p>Live pitch and reference tones.</p>
     </div>
     <div class="tuner-center">
       <div class="quiz-card">
         <div class="tuner-tuning-row">
-          <button class="btn primary" id="tuner-toggle" onclick="toggleTuner()">Start Listening</button>
+          <button class="btn primary" id="tuner-toggle" onclick="toggleTuner()">Mic on</button>
         </div>
         <div class="tuner-gauge" id="tuner-gauge">
           <div class="tuner-gauge-bg">
@@ -440,10 +474,10 @@
         <div class="tuner-note" id="tuner-note">--</div>
         <div class="tuner-cents off" id="tuner-cents">0 cents</div>
         <div class="tuner-freq" id="tuner-freq">-- Hz</div>
-        <div class="tuner-status" id="tuner-status">Press Start to begin singing</div>
+        <div class="tuner-status" id="tuner-status">Mic off</div>
       </div>
       <div class="quiz-card" style="margin-top:16px">
-        <div style="font-size:.85rem;color:var(--muted);margin-bottom:10px">Play a reference tone to match</div>
+        <div class="field-label">Reference tone</div>
         <div class="tuner-tuning-row">
           <label>Octave</label>
           <div class="oct-group" id="vt-octaves"></div>
@@ -456,9 +490,9 @@
   <!-- EAR TRAINER -->
   <section id="sec-ear" class="section">
     <div class="section-head">
-      <div class="section-kicker">Train</div>
-      <h2>Ear Trainer</h2>
-      <p>Listen, replay, and identify notes by key and mode.</p>
+      <div class="section-kicker">Workbench</div>
+      <h2>Ear</h2>
+      <p>Identify pitch by key, scale, context, and register.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
@@ -467,26 +501,43 @@
           <div class="sl-scroll" id="sl-ear-key"></div>
         </div>
         <div class="sidebar-list">
-          <div class="sl-head">Mode</div>
-          <div class="sl-scroll" id="sl-ear-mode"></div>
+          <div class="sl-head">Scale</div>
+          <div class="sl-scroll" id="sl-ear-scale" style="max-height:200px"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Context</div>
+          <div class="sl-scroll" id="sl-ear-context"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Pool</div>
+          <div class="sl-scroll" id="sl-ear-pool"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Answer</div>
+          <div class="sl-scroll" id="sl-ear-answer"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Octave</div>
+          <div class="sl-scroll" id="sl-ear-octave"></div>
         </div>
       </div>
       <div class="quiz-main">
         <div class="score-bar" style="margin-bottom:12px">
-          <span>Score: <span class="val" id="ear-right">0</span> / <span class="val" id="ear-total">0</span></span>
-          <span>Streak: <span class="val" id="ear-streak">0</span></span>
+          <span>Hits: <span class="val" id="ear-right">0</span> / <span class="val" id="ear-total">0</span></span>
+          <span>Run: <span class="val" id="ear-streak">0</span></span>
+          <button class="btn sm" onclick="resetEarScore()">Reset</button>
         </div>
         <div class="quiz-card">
-          <div class="question" id="ear-question">Press Play to hear a note</div>
+          <div class="question" id="ear-question">Play to start.</div>
           <div class="ear-ripple-wrap" id="ear-ripple-wrap"></div>
-          <div style="display:flex;gap:8px;margin-bottom:16px">
+          <div class="ear-transport">
             <button class="btn primary" onclick="playEarQuestion()">Play</button>
             <button class="btn sm" onclick="replayEarNote()">Replay</button>
           </div>
-          <div style="font-size:.85rem;color:var(--muted);margin-bottom:6px">Which note was played?</div>
+          <div class="field-label" id="ear-answer-label">Pitch</div>
           <div class="note-btn-row" id="ear-answers"></div>
           <div class="fb-feedback" id="ear-feedback"></div>
-          <button class="btn sm" onclick="playEarQuestion()" style="margin-top:8px">Next</button>
+          <button class="btn sm btn--spaced" onclick="playEarQuestion()">Next</button>
         </div>
       </div>
     </div>
@@ -629,14 +680,14 @@
   <!-- VOICE RECORDER -->
   <section id="sec-recorder" class="section">
     <div class="section-head">
-      <div class="section-kicker">Create</div>
+      <div class="section-kicker">Capture</div>
       <h2>Recorder</h2>
-      <p>Record your voice, replay it, and review detected notes.</p>
+      <p>Record, replay, and inspect pitch.</p>
     </div>
     <div class="recorder-center">
       <div class="quiz-card">
         <div class="rec-live">
-          <div class="rec-live-label" id="rec-live-label">Press Record and start singing</div>
+          <div class="rec-live-label" id="rec-live-label">Ready to record</div>
           <div class="rec-note" id="rec-note">--</div>
           <div class="rec-cents off" id="rec-cents">0 cents</div>
           <div class="rec-freq" id="rec-freq">-- Hz</div>
@@ -648,7 +699,7 @@
         </div>
         <div class="rec-status" id="rec-status"></div>
         <div id="rec-live-seq-wrap" style="display:none">
-          <div class="rec-section-label">Notes detected</div>
+          <div class="rec-section-label">Detected pitches</div>
           <div class="rec-note-seq" id="rec-live-seq"></div>
         </div>
       </div>
@@ -656,7 +707,7 @@
       <div class="quiz-card" id="rec-playback-card" style="display:none">
         <div class="rec-card-title">Playback</div>
         <div class="rec-playnote-row">
-          <span class="rec-section-label" style="margin:0">Now sounding</span>
+          <span class="rec-section-label" style="margin:0">Playing</span>
           <span class="rec-playnote" id="rec-playnote">--</span>
         </div>
         <div class="rec-controls">
@@ -673,7 +724,7 @@
           <div class="rec-key" id="rec-key">--</div>
           <div class="rec-key-alt" id="rec-key-alt"></div>
         </div>
-        <div class="rec-section-label">Notes detected</div>
+        <div class="rec-section-label">Detected pitches</div>
         <div class="rec-note-seq" id="rec-note-seq"></div>
       </div>
     </div>

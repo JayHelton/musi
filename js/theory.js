@@ -62,6 +62,10 @@ export const TUNINGS = {
   'Open G':       [{note:'D',oct:2},{note:'G',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'D',oct:4}],
   'Open D':       [{note:'D',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'F#',oct:3},{note:'A',oct:3},{note:'D',oct:4}],
   'DADGAD':       [{note:'D',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'A',oct:3},{note:'D',oct:4}],
+  '7-String Standard': [{note:'B',oct:1},{note:'E',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'E',oct:4}],
+  '8-String Standard': [{note:'F#',oct:1},{note:'B',oct:1},{note:'E',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'E',oct:4}],
+  'Bass 4':       [{note:'E',oct:1},{note:'A',oct:1},{note:'D',oct:2},{note:'G',oct:2}],
+  'Bass 5':       [{note:'B',oct:0},{note:'E',oct:1},{note:'A',oct:1},{note:'D',oct:2},{note:'G',oct:2}],
 };
 
 export const INTERVAL_LABELS = {
