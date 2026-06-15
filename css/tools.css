@@ -30,7 +30,7 @@ input[type=range]{accent-color:var(--accent)}
 .piano{position:relative;display:inline-flex;height:200px;user-select:none}
 .white-key{width:48px;height:200px;background:linear-gradient(to bottom,#f5f5f5,#ddd);border:1px solid #999;border-radius:0 0 8px 8px;cursor:pointer;position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;transition:all 0.1s ease}
 .white-key:hover{background:linear-gradient(to bottom,#fff,#eee)}
-.white-key.active{background:linear-gradient(to bottom,var(--accent),#17a34a)}
+.white-key.active{background:linear-gradient(to bottom,var(--accent),#8b6ce0)}
 .white-key .klabel{font-size:10px;color:#666;pointer-events:none;text-align:center;line-height:1.4}
 .white-key .klabel b{font-size:14px;color:#444}
 .white-key.active .klabel,.white-key.active .klabel b{color:#000}

@@ -47,7 +47,7 @@ function draw() {
 
 function drawBars(w, h, barW, data) {
   const step = Math.floor(data.length / BAR_COUNT);
-  ctx.fillStyle = '#1DB954';
+  ctx.fillStyle = '#b491ff';
   for (let i = 0; i < BAR_COUNT; i++) {
     const val = data[i * step] / 255;
     const barH = val * h * 0.7;
@@ -60,7 +60,7 @@ function drawBars(w, h, barW, data) {
 
 function drawIdleBars(w, h, barW) {
   idlePhase += 0.015;
-  ctx.fillStyle = '#1DB954';
+  ctx.fillStyle = '#b491ff';
   for (let i = 0; i < BAR_COUNT; i++) {
     const wave = Math.sin(idlePhase + i * 0.2) * 0.5 + 0.5;
     const wave2 = Math.sin(idlePhase * 0.7 + i * 0.15) * 0.3 + 0.3;
