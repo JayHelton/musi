@@ -4,6 +4,11 @@ Music theory tools, quizzes, and training — scales, intervals, chords, ear
 training, fretboard, metronome, backing tracks, a riff composer, a tuner, and a
 voice recorder with pitch/key detection.
 
+> Full guides live in [`docs/`](docs/README.md):
+> [desktop (Electron)](docs/desktop-electron.md),
+> [mobile install (PWA)](docs/mobile-pwa.md), and
+> [publishing to the Google Play Store](docs/android-play-store.md).
+
 Musi is a self-contained, client-side web app (vanilla HTML/CSS/JS, ES modules,
 no build step). It can run in three ways:
 
