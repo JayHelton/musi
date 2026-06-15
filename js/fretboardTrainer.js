@@ -9,6 +9,7 @@ const FB_INT_NAMES = ['P1','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7
 
 const FB_ADVANCE_MS = 1600;
 const FB_FADE_START_MS = 1100;
+const FB_SECTION_ID = 'sec-intervals';
 
 const fb = {
   key: 'C', tuning: 'Standard',
@@ -207,7 +208,7 @@ function checkFbAnswer() {
 
   fb._fadeTimer = setTimeout(() => feedback.classList.add('fade-out'), FB_FADE_START_MS);
   fb._advTimer = setTimeout(() => {
-    if (document.getElementById('sec-fretboard').classList.contains('active')) newFbQuestion();
+    if (document.getElementById(FB_SECTION_ID).classList.contains('active')) newFbQuestion();
   }, FB_ADVANCE_MS);
 }
 
