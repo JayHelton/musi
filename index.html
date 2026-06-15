@@ -64,6 +64,8 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent)}
 .mod-btn,.letter-btn{padding:8px 0;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;text-align:center;transition:.12s;min-width:42px}
 .letter-btn{min-width:44px;font-weight:600;font-size:.9rem}
 .letter-btn.accidental{background:var(--bg);border-color:var(--border);font-size:.8rem;min-width:38px}
+.letter-btn.correct{background:var(--ok);color:#fff;border-color:var(--ok)}
+.letter-btn.wrong{background:var(--err);color:#fff;border-color:var(--err)}
 .mod-btn:hover,.letter-btn:hover{background:var(--hover);border-color:var(--accent)}
 .mod-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
 .note-action-row{display:flex;gap:6px;margin-top:6px}
@@ -155,6 +157,7 @@ input[type=range]{accent-color:var(--accent)}
 .fb-string-label{display:flex;align-items:center;justify-content:center;height:36px;font-size:.8rem;color:var(--muted);font-weight:600;min-width:30px;border-bottom:1px solid var(--border)}
 .fb-question{font-size:1.2rem;font-weight:600;margin-bottom:16px;min-height:1.5em}
 .fb-question .highlight{color:var(--accent);font-weight:700}
+#ear-question .highlight{color:var(--accent);font-weight:700}
 .int-picker{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
 .int-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.8rem;transition:.15s}
 .int-btn:hover{background:var(--hover);border-color:var(--accent)}
@@ -544,16 +547,13 @@ input[type=range]{accent-color:var(--accent)}
     </div>
   </section>
 
-  <!-- TUNER -->
+  <!-- VOCAL TRAINER -->
   <section id="sec-tuner" class="section">
     <div class="tuner-center">
       <div class="quiz-card">
         <div class="tuner-tuning-row">
-          <label>Tuning</label>
-          <select id="tuner-tuning"></select>
-          <button class="btn primary" id="tuner-toggle" onclick="toggleTuner()">Start Tuner</button>
+          <button class="btn primary" id="tuner-toggle" onclick="toggleTuner()">Start Listening</button>
         </div>
-        <div class="string-row" id="tuner-strings"></div>
         <div class="tuner-gauge" id="tuner-gauge">
           <div class="tuner-gauge-bg">
             <div class="gauge-bar" style="left:10%"></div>
@@ -571,7 +571,48 @@ input[type=range]{accent-color:var(--accent)}
         <div class="tuner-note" id="tuner-note">--</div>
         <div class="tuner-cents off" id="tuner-cents">0 cents</div>
         <div class="tuner-freq" id="tuner-freq">-- Hz</div>
-        <div class="tuner-status" id="tuner-status">Press Start to begin</div>
+        <div class="tuner-status" id="tuner-status">Press Start to begin singing</div>
+      </div>
+      <div class="quiz-card" style="margin-top:16px">
+        <div style="font-size:.85rem;color:var(--muted);margin-bottom:10px">Play a reference tone to match</div>
+        <div class="tuner-tuning-row">
+          <label>Octave</label>
+          <div class="oct-group" id="vt-octaves"></div>
+        </div>
+        <div class="note-btn-row" id="vt-notes" style="justify-content:center"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EAR TRAINER -->
+  <section id="sec-ear" class="section">
+    <div class="quiz-layout">
+      <div class="sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Key</div>
+          <div class="sl-scroll" id="sl-ear-key"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Mode</div>
+          <div class="sl-scroll" id="sl-ear-mode"></div>
+        </div>
+      </div>
+      <div class="quiz-main">
+        <div class="score-bar" style="margin-bottom:12px">
+          <span>Score: <span class="val" id="ear-right">0</span> / <span class="val" id="ear-total">0</span></span>
+          <span>Streak: <span class="val" id="ear-streak">0</span></span>
+        </div>
+        <div class="quiz-card">
+          <div class="question" id="ear-question">Press Play to hear a note</div>
+          <div style="display:flex;gap:8px;margin-bottom:16px">
+            <button class="btn primary" onclick="playEarQuestion()">Play</button>
+            <button class="btn sm" onclick="replayEarNote()">Replay</button>
+          </div>
+          <div style="font-size:.85rem;color:var(--muted);margin-bottom:6px">Which note was played?</div>
+          <div class="note-btn-row" id="ear-answers"></div>
+          <div class="fb-feedback" id="ear-feedback"></div>
+          <button class="btn sm" onclick="playEarQuestion()" style="margin-top:8px">Next</button>
+        </div>
       </div>
     </div>
   </section>
@@ -820,7 +861,8 @@ const TABS = [
   {id:'keyboard',label:'Keyboard'},
   {id:'metronome',label:'Metronome'},
   {id:'fretboard',label:'Fretboard Trainer'},
-  {id:'tuner',label:'Tuner'},
+  {id:'tuner',label:'Vocal Trainer'},
+  {id:'ear',label:'Ear Trainer'},
   {id:'backing',label:'Backing Track'},
   {id:'riff',label:'Riff Generator'},
   {id:'curriculum',label:'Curriculum'},
@@ -835,6 +877,7 @@ function showSection(id) {
   if (id !== 'metronome' && metro.playing) stopMetronome();
   if (id !== 'chords' && chordBuilder.oscillators.length) stopChord();
   if (id !== 'tuner' && tuner.running) stopTuner();
+  if (id !== 'ear' && ear._osc) stopEarTone();
   if (id !== 'backing' && backing.playing) stopBacking();
   if (id !== 'riff' && riffState.playing) stopRiff();
   if (id === 'circle') drawCoF();
@@ -845,6 +888,7 @@ function showSection(id) {
   if (id === 'chords') initChordBuilder();
   if (id === 'fretboard') initFretboard();
   if (id === 'tuner') initTuner();
+  if (id === 'ear') initEarTrainer();
   if (id === 'backing') initBacking();
   if (id === 'riff') initRiff();
 }
@@ -1571,8 +1615,8 @@ async function startTuner() {
     tuner.buf = new Float32Array(tuner.analyser.fftSize);
     source.connect(tuner.analyser);
     tuner.running = true;
-    document.getElementById('tuner-toggle').textContent = 'Stop Tuner';
-    document.getElementById('tuner-status').textContent = 'Listening...';
+    document.getElementById('tuner-toggle').textContent = 'Stop';
+    document.getElementById('tuner-status').textContent = 'Sing a note...';
     tunerLoop();
   } catch (e) {
     document.getElementById('tuner-status').textContent = 'Mic access denied or unavailable';
@@ -1584,8 +1628,8 @@ function stopTuner() {
   if (tuner.rafId) { cancelAnimationFrame(tuner.rafId); tuner.rafId = null; }
   if (tuner.stream) { tuner.stream.getTracks().forEach(t => t.stop()); tuner.stream = null; }
   stopRefTone();
-  document.getElementById('tuner-toggle').textContent = 'Start Tuner';
-  document.getElementById('tuner-status').textContent = 'Press Start to begin';
+  document.getElementById('tuner-toggle').textContent = 'Start Listening';
+  document.getElementById('tuner-status').textContent = 'Press Start to begin singing';
 }
 
 function toggleTuner() {
@@ -1621,35 +1665,201 @@ function stopRefTone() {
   }
 }
 
+let vtOctave = 4;
+
 function initTuner() {
-  const sel = document.getElementById('tuner-tuning');
-  if (!sel.children.length) {
-    Object.keys(TUNINGS).forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = name; opt.textContent = name;
-      sel.appendChild(opt);
-    });
-    sel.onchange = () => renderTunerStrings();
+  const octC = document.getElementById('vt-octaves');
+  const notesC = document.getElementById('vt-notes');
+  if (octC.children.length) return;
+
+  for (let o = 2; o <= 6; o++) {
+    const btn = document.createElement('button');
+    btn.className = 'oct-btn' + (o === vtOctave ? ' active' : '');
+    btn.textContent = o;
+    btn.onclick = () => {
+      octC.querySelectorAll('.oct-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      vtOctave = o;
+    };
+    octC.appendChild(btn);
   }
-  renderTunerStrings();
+
+  NOTE_NAMES_SHARP.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'letter-btn' + (name.length > 1 ? ' accidental' : '');
+    btn.textContent = name;
+    btn.onclick = () => playRefTone(name, vtOctave);
+    notesC.appendChild(btn);
+  });
 }
 
-function renderTunerStrings() {
-  const name = document.getElementById('tuner-tuning').value;
-  const strings = TUNINGS[name];
-  const container = document.getElementById('tuner-strings');
-  container.innerHTML = '';
-  strings.forEach((s, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'string-btn';
-    btn.textContent = s.note + s.oct;
-    btn.title = 'Click for reference tone';
-    btn.onclick = () => {
-      container.querySelectorAll('.string-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      playRefTone(s.note, s.oct);
+// ======================== EAR TRAINER ========================
+const ear = {
+  key: 'C', mode: 'easy',
+  targetNote: null, targetSemi: null, answered: false,
+  right: 0, total: 0, streak: 0,
+  _osc: null, _gain: null,
+};
+
+function playEarQuestion() {
+  ear.answered = false;
+  const feedback = document.getElementById('ear-feedback');
+  feedback.className = 'fb-feedback';
+  document.getElementById('ear-answers').querySelectorAll('.letter-btn').forEach(b => {
+    b.classList.remove('correct','wrong');
+  });
+
+  const rootP = parseNote(ear.key);
+  if (!rootP) return;
+
+  const majorDef = SCALES['Major (Ionian)'];
+  const scaleIntervals = majorDef.map(d => d[1]);
+  const scalePCs = scaleIntervals.map(s => (rootP.semi + s) % 12);
+
+  if (ear.mode === 'easy') {
+    playEarTone(rootP.semi, 4);
+    setTimeout(() => {
+      const pick = scalePCs[Math.floor(Math.random() * scalePCs.length)];
+      ear.targetSemi = pick;
+      ear.targetNote = NOTE_NAMES_SHARP[pick];
+      playEarTone(pick, 4);
+      document.getElementById('ear-question').innerHTML =
+        `Key: <span class="highlight">${ear.key}</span> — Root played first, then the mystery note. What is it?`;
+    }, 1200);
+  } else {
+    const pick = scalePCs[Math.floor(Math.random() * scalePCs.length)];
+    ear.targetSemi = pick;
+    ear.targetNote = NOTE_NAMES_SHARP[pick];
+    playEarTone(pick, 4);
+    document.getElementById('ear-question').innerHTML =
+      `Key: <span class="highlight">${ear.key}</span> — What note was played?`;
+  }
+}
+
+function replayEarNote() {
+  if (ear.targetSemi === null) return;
+  if (ear.mode === 'easy') {
+    const rootP = parseNote(ear.key);
+    if (rootP) playEarTone(rootP.semi, 4);
+    setTimeout(() => playEarTone(ear.targetSemi, 4), 1200);
+  } else {
+    playEarTone(ear.targetSemi, 4);
+  }
+}
+
+function playEarTone(semi, oct) {
+  stopEarTone();
+  ensureAudio();
+  const midi = 12 * (oct + 1) + semi;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = midiFreq(midi);
+  gain.gain.value = 0.3;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  ear._osc = osc;
+  ear._gain = gain;
+  setTimeout(() => stopEarTone(), 1000);
+}
+
+function stopEarTone() {
+  if (ear._osc) {
+    try {
+      ear._gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+      setTimeout(() => { try { ear._osc.stop(); } catch(e) {} }, 60);
+    } catch(e) {}
+    ear._osc = null; ear._gain = null;
+  }
+}
+
+function checkEarAnswer(semi, btn) {
+  if (ear.answered || ear.targetSemi === null) return;
+  ear.answered = true;
+  ear.total++;
+
+  const correct = semi === ear.targetSemi;
+  const feedback = document.getElementById('ear-feedback');
+
+  btn.classList.add(correct ? 'correct' : 'wrong');
+
+  if (!correct) {
+    document.getElementById('ear-answers').querySelectorAll('.letter-btn').forEach(b => {
+      if (parseInt(b.dataset.semi) === ear.targetSemi) b.classList.add('correct');
+    });
+  }
+
+  if (correct) {
+    ear.right++;
+    ear.streak++;
+    feedback.className = 'fb-feedback show correct';
+    feedback.textContent = 'Correct!';
+  } else {
+    ear.streak = 0;
+    feedback.className = 'fb-feedback show wrong';
+    feedback.textContent = `Incorrect. The note was ${ear.targetNote}.`;
+  }
+
+  document.getElementById('ear-right').textContent = ear.right;
+  document.getElementById('ear-total').textContent = ear.total;
+  document.getElementById('ear-streak').textContent = ear.streak;
+}
+
+function initEarTrainer() {
+  const keyScroll = document.getElementById('sl-ear-key');
+  const modeScroll = document.getElementById('sl-ear-mode');
+  const answersC = document.getElementById('ear-answers');
+
+  if (keyScroll.children.length) return;
+
+  ROOTS.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'sl-item' + (r === ear.key ? ' active' : '');
+    div.dataset.val = r; div.textContent = r;
+    div.onclick = () => {
+      keyScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
+      div.classList.add('active');
+      ear.key = r;
+      buildEarAnswerButtons();
     };
-    container.appendChild(btn);
+    keyScroll.appendChild(div);
+  });
+
+  ['easy','hard'].forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'sl-item' + (m === ear.mode ? ' active' : '');
+    div.dataset.val = m;
+    div.textContent = m === 'easy' ? 'Easy (root first)' : 'Hard (no root)';
+    div.onclick = () => {
+      modeScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
+      div.classList.add('active');
+      ear.mode = m;
+    };
+    modeScroll.appendChild(div);
+  });
+
+  buildEarAnswerButtons();
+}
+
+function buildEarAnswerButtons() {
+  const answersC = document.getElementById('ear-answers');
+  answersC.innerHTML = '';
+  const rootP = parseNote(ear.key);
+  if (!rootP) return;
+
+  const majorDef = SCALES['Major (Ionian)'];
+  const scaleIntervals = majorDef.map(d => d[1]);
+
+  scaleIntervals.forEach(s => {
+    const pc = (rootP.semi + s) % 12;
+    const name = NOTE_NAMES_SHARP[pc];
+    const btn = document.createElement('button');
+    btn.className = 'letter-btn';
+    btn.textContent = name;
+    btn.dataset.semi = pc;
+    btn.onclick = () => checkEarAnswer(pc, btn);
+    answersC.appendChild(btn);
   });
 }
 
