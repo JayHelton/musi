@@ -8,8 +8,8 @@ const ADVANCE_MS = 1400;
 const FADE_START_MS = 900;
 
 const CLEFS = {
-  Treble: { glyph: '\uD834\uDD1E', refDV: 38, glyphSize: 5.4, anchorLine: 3 },
-  Bass:   { glyph: '\uD834\uDD22', refDV: 26, glyphSize: 3.4, anchorLine: 1 },
+  Treble: { glyph: '\uD834\uDD1E', refDV: 38, glyphSize: 5.4, anchorLine: 3, lineToBaseline: 0.3373 },
+  Bass:   { glyph: '\uD834\uDD22', refDV: 26, glyphSize: 3.4, anchorLine: 1, lineToBaseline: 0.5 },
 };
 
 const TOP_Y = 62;
@@ -46,7 +46,8 @@ function yForStaffLine(lineIndex) {
 }
 
 function yForClef(clef) {
-  return yForStaffLine(clef.anchorLine) + clef.glyphSize * LINE_GAP * 0.5;
+  const fontSize = clef.glyphSize * LINE_GAP;
+  return yForStaffLine(clef.anchorLine) + fontSize * clef.lineToBaseline;
 }
 
 function clearTimers() {
