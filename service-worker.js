@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v3-mobile-ux";
+const CACHE_VERSION = "v4-recording-quality";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -40,6 +40,7 @@ const PRECACHE_URLS = [
   "js/nowPlaying.js",
   "js/persistence.js",
   "js/recorder.js",
+  "js/recorderWorklet.js",
   "js/riffGenerator.js",
   "js/scaleQuiz.js",
   "js/scaleReference.js",

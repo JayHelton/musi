@@ -1,5 +1,6 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 const recorder = {
   recording: false,
@@ -15,6 +16,7 @@ const recorder = {
   timerId: null,
   blob: null,
   blobUrl: null,
+  fileExt: 'webm',
   audioEl: null,
   mediaElSource: null,
   playAnalyser: null,
@@ -28,6 +30,21 @@ const recorder = {
   committedMidi: null,
   holdActive: false,
   holdPressed: false,
+  // Capture graph (web-audio processing chain shared by both formats).
+  micSource: null,
+  highpass: null,
+  captureGain: null,
+  captureDest: null,
+  silentSink: null,
+  pcmNode: null,
+  pcmIsWorklet: false,
+  pcmChunks: [],
+  captureSampleRate: 48000,
+  workletReady: false,
+  // User-configurable capture options (persisted).
+  format: 'wav',
+  bitDepth: 24,
+  normalize: true,
 };
 
 // Autocorrelation pitch detection (time-domain), same approach as the vocal trainer.
@@ -233,6 +250,172 @@ function pickMimeType() {
   return '';
 }
 
+// High-quality bitrate for the compressed (Opus/AAC) path. 256 kbps is
+// transparent for music while keeping file sizes reasonable.
+const COMPRESSED_BITRATE = 256000;
+
+// getUserMedia constraints tuned for music capture: disable the speech-oriented
+// DSP (echo cancellation, noise suppression, auto gain) that pumps dynamics and
+// gates sustained notes, and request a high, fixed sample rate.
+function buildMicConstraints() {
+  const supported = (navigator.mediaDevices.getSupportedConstraints &&
+    navigator.mediaDevices.getSupportedConstraints()) || {};
+  const audio = {};
+  if (supported.echoCancellation) audio.echoCancellation = false;
+  if (supported.noiseSuppression) audio.noiseSuppression = false;
+  if (supported.autoGainControl) audio.autoGainControl = false;
+  if (supported.channelCount) audio.channelCount = 1;
+  if (supported.sampleRate) audio.sampleRate = 48000;
+  return Object.keys(audio).length ? { audio } : { audio: true };
+}
+
+function writeWavString(view, offset, str) {
+  for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+}
+
+// Encode mono Float32 samples to a PCM WAV blob (16- or 24-bit).
+function encodeWav(samples, sampleRate, bitDepth) {
+  const bytesPerSample = bitDepth === 24 ? 3 : 2;
+  const dataSize = samples.length * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  writeWavString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeWavString(view, 8, 'WAVE');
+  writeWavString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, bitDepth, true);
+  writeWavString(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  if (bitDepth === 24) {
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      const v = Math.round(s * 8388607);
+      view.setUint8(offset, v & 0xff);
+      view.setUint8(offset + 1, (v >> 8) & 0xff);
+      view.setUint8(offset + 2, (v >> 16) & 0xff);
+      offset += 3;
+    }
+  } else {
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+function mergePcmChunks(chunks) {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Float32Array(total);
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.length; }
+  return out;
+}
+
+// Scale peak amplitude to ~-0.3 dBFS so quiet takes are usable. Skips near-
+// silent buffers to avoid amplifying the noise floor.
+function peakNormalize(samples) {
+  let peak = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const a = Math.abs(samples[i]);
+    if (a > peak) peak = a;
+  }
+  if (peak < 0.0005) return samples;
+  const target = 0.97;
+  const gain = target / peak;
+  for (let i = 0; i < samples.length; i++) samples[i] *= gain;
+  return samples;
+}
+
+// Build the shared mic -> highpass -> gain processing chain. Returns the node
+// whose output should feed the recorder destination / PCM tap.
+function buildCaptureGraph() {
+  recorder.micSource = audioCtx.createMediaStreamSource(recorder.stream);
+
+  // Gentle high-pass removes DC offset and sub-sonic rumble below ~25 Hz.
+  recorder.highpass = audioCtx.createBiquadFilter();
+  recorder.highpass.type = 'highpass';
+  recorder.highpass.frequency.value = 25;
+  recorder.highpass.Q.value = 0.707;
+
+  recorder.captureGain = audioCtx.createGain();
+  recorder.captureGain.gain.value = 1;
+
+  recorder.micSource.connect(recorder.highpass);
+  recorder.highpass.connect(recorder.captureGain);
+
+  recorder.recAnalyser = audioCtx.createAnalyser();
+  recorder.recAnalyser.fftSize = 2048;
+  recorder.recBuf = new Float32Array(recorder.recAnalyser.fftSize);
+  recorder.captureGain.connect(recorder.recAnalyser);
+}
+
+async function startPcmCapture() {
+  recorder.pcmChunks = [];
+  recorder.captureSampleRate = audioCtx.sampleRate;
+
+  // Silent sink keeps the capture node in the rendering graph without monitoring
+  // the input back through the speakers (which would cause feedback).
+  recorder.silentSink = audioCtx.createGain();
+  recorder.silentSink.gain.value = 0;
+  recorder.silentSink.connect(audioCtx.destination);
+
+  if (audioCtx.audioWorklet) {
+    try {
+      if (!recorder.workletReady) {
+        await audioCtx.audioWorklet.addModule('js/recorderWorklet.js');
+        recorder.workletReady = true;
+      }
+      recorder.pcmNode = new AudioWorkletNode(audioCtx, 'recorder-capture', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        channelCount: 1,
+      });
+      recorder.pcmNode.port.onmessage = (e) => { recorder.pcmChunks.push(e.data); };
+      recorder.pcmIsWorklet = true;
+      recorder.captureGain.connect(recorder.pcmNode);
+      recorder.pcmNode.connect(recorder.silentSink);
+      return;
+    } catch (e) {
+      recorder.workletReady = false;
+    }
+  }
+
+  // Fallback: ScriptProcessorNode (deprecated but broadly supported).
+  recorder.pcmNode = audioCtx.createScriptProcessor(4096, 1, 1);
+  recorder.pcmIsWorklet = false;
+  recorder.pcmNode.onaudioprocess = (e) => {
+    recorder.pcmChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  };
+  recorder.captureGain.connect(recorder.pcmNode);
+  recorder.pcmNode.connect(recorder.silentSink);
+}
+
+function teardownCaptureGraph() {
+  if (recorder.pcmNode) {
+    if (recorder.pcmIsWorklet && recorder.pcmNode.port) recorder.pcmNode.port.onmessage = null;
+    else recorder.pcmNode.onaudioprocess = null;
+    try { recorder.pcmNode.disconnect(); } catch (e) { /* noop */ }
+    recorder.pcmNode = null;
+  }
+  if (recorder.silentSink) { try { recorder.silentSink.disconnect(); } catch (e) { /* noop */ } recorder.silentSink = null; }
+  if (recorder.captureDest) { try { recorder.captureDest.disconnect(); } catch (e) { /* noop */ } recorder.captureDest = null; }
+  if (recorder.captureGain) { try { recorder.captureGain.disconnect(); } catch (e) { /* noop */ } recorder.captureGain = null; }
+  if (recorder.highpass) { try { recorder.highpass.disconnect(); } catch (e) { /* noop */ } recorder.highpass = null; }
+  if (recorder.micSource) { try { recorder.micSource.disconnect(); } catch (e) { /* noop */ } recorder.micSource = null; }
+}
+
 function syncHoldRecordUi(active) {
   const overlay = document.getElementById('hold-rec-overlay');
   const btn = document.getElementById('hold-rec-btn');
@@ -253,7 +436,7 @@ async function startRecording(trigger = 'panel') {
     return;
   }
   try {
-    recorder.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recorder.stream = await navigator.mediaDevices.getUserMedia(buildMicConstraints());
   } catch (e) {
     if (statusEl) statusEl.textContent = 'Mic access denied or unavailable';
     syncHoldRecordUi(false);
@@ -268,21 +451,44 @@ async function startRecording(trigger = 'panel') {
     return;
   }
 
-  const micSource = audioCtx.createMediaStreamSource(recorder.stream);
-  recorder.recAnalyser = audioCtx.createAnalyser();
-  recorder.recAnalyser.fftSize = 2048;
-  recorder.recBuf = new Float32Array(recorder.recAnalyser.fftSize);
-  micSource.connect(recorder.recAnalyser);
+  buildCaptureGraph();
 
-  recorder.mimeType = pickMimeType();
-  recorder.chunks = [];
-  recorder.mediaRecorder = new MediaRecorder(
-    recorder.stream,
-    recorder.mimeType ? { mimeType: recorder.mimeType } : undefined
-  );
-  recorder.mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recorder.chunks.push(e.data); };
-  recorder.mediaRecorder.onstop = finalizeRecording;
-  recorder.mediaRecorder.start();
+  const useWav = recorder.format === 'wav';
+  if (useWav) {
+    try {
+      await startPcmCapture();
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Lossless capture unavailable; using compressed';
+      recorder.format = 'opus';
+    }
+  }
+
+  if (recorder.format === 'wav') {
+    recorder.mimeType = 'audio/wav';
+    recorder.fileExt = 'wav';
+    recorder.mediaRecorder = null;
+  } else {
+    // Compressed path records the processed signal via a MediaStream destination
+    // so the high-pass filter is applied to the Opus/AAC output too.
+    recorder.captureDest = audioCtx.createMediaStreamDestination();
+    recorder.captureGain.connect(recorder.captureDest);
+    recorder.mimeType = pickMimeType();
+    recorder.fileExt = recorder.mimeType.includes('ogg') ? 'ogg'
+      : recorder.mimeType.includes('mp4') ? 'm4a' : 'webm';
+    recorder.chunks = [];
+    const opts = recorder.mimeType
+      ? { mimeType: recorder.mimeType, audioBitsPerSecond: COMPRESSED_BITRATE }
+      : { audioBitsPerSecond: COMPRESSED_BITRATE };
+    try {
+      recorder.mediaRecorder = new MediaRecorder(recorder.captureDest.stream, opts);
+    } catch (e) {
+      recorder.mediaRecorder = new MediaRecorder(recorder.captureDest.stream,
+        recorder.mimeType ? { mimeType: recorder.mimeType } : undefined);
+    }
+    recorder.mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recorder.chunks.push(e.data); };
+    recorder.mediaRecorder.onstop = finalizeRecording;
+    recorder.mediaRecorder.start();
+  }
 
   resetAnalysis();
   renderSequence('rec-live-seq');
@@ -319,14 +525,35 @@ function stopRecording() {
   document.getElementById('hold-rec-live-label').textContent = 'Hold to record';
   recorder.holdActive = false;
   recorder.holdPressed = false;
-  try { recorder.mediaRecorder.stop(); } catch (e) { /* noop */ }
+
+  if (recorder.mediaRecorder) {
+    try { recorder.mediaRecorder.stop(); } catch (e) { /* noop */ }
+  } else {
+    // WAV path: flush any buffered samples from the worklet, then finalize.
+    if (recorder.pcmIsWorklet && recorder.pcmNode && recorder.pcmNode.port) {
+      recorder.pcmNode.port.postMessage('flush');
+      setTimeout(finalizeRecording, 60);
+    } else {
+      finalizeRecording();
+    }
+  }
 }
 
 function finalizeRecording() {
   if (recorder.stream) { recorder.stream.getTracks().forEach(t => t.stop()); recorder.stream = null; }
-  if (!recorder.chunks.length) return;
 
-  recorder.blob = new Blob(recorder.chunks, { type: recorder.mimeType || 'audio/webm' });
+  if (recorder.format === 'wav') {
+    let samples = mergePcmChunks(recorder.pcmChunks);
+    teardownCaptureGraph();
+    if (!samples.length) return;
+    if (recorder.normalize) samples = peakNormalize(samples);
+    recorder.blob = encodeWav(samples, recorder.captureSampleRate, recorder.bitDepth);
+  } else {
+    teardownCaptureGraph();
+    if (!recorder.chunks.length) return;
+    recorder.blob = new Blob(recorder.chunks, { type: recorder.mimeType || 'audio/webm' });
+  }
+
   if (recorder.blobUrl) URL.revokeObjectURL(recorder.blobUrl);
   recorder.blobUrl = URL.createObjectURL(recorder.blob);
 
@@ -439,9 +666,7 @@ function toggleRecording() {
 
 function downloadRecording() {
   if (!recorder.blob || !recorder.blobUrl) return;
-  let ext = 'webm';
-  if (recorder.mimeType.includes('ogg')) ext = 'ogg';
-  else if (recorder.mimeType.includes('mp4')) ext = 'm4a';
+  const ext = recorder.fileExt || 'webm';
   const a = document.createElement('a');
   a.href = recorder.blobUrl;
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
@@ -456,6 +681,8 @@ function clearRecording(skipUi) {
   if (recorder.blobUrl) { URL.revokeObjectURL(recorder.blobUrl); recorder.blobUrl = null; }
   recorder.blob = null;
   recorder.chunks = [];
+  recorder.pcmChunks = [];
+  teardownCaptureGraph();
   resetAnalysis();
   if (recorder.audioEl) recorder.audioEl.removeAttribute('src');
   if (!skipUi) {
@@ -482,8 +709,47 @@ function stopRecorder() {
   recorder.holdPressed = false;
 }
 
+function updateDepthVisibility() {
+  const depthOpt = document.getElementById('rec-depth-opt');
+  if (depthOpt) depthOpt.style.display = recorder.format === 'wav' ? '' : 'none';
+}
+
 function initRecorder() {
   setLiveNote(null);
+
+  recorder.format = getSetting('recFormat', 'wav', ['wav', 'opus']);
+  recorder.bitDepth = getSetting('recBitDepth', 24, [16, 24]);
+  recorder.normalize = getSetting('recNormalize', true) !== false;
+
+  const formatEl = document.getElementById('rec-format');
+  if (formatEl && formatEl.dataset.wired) { updateDepthVisibility(); return; }
+
+  if (formatEl) {
+    formatEl.dataset.wired = '1';
+    formatEl.value = recorder.format;
+    formatEl.addEventListener('change', () => {
+      recorder.format = formatEl.value === 'opus' ? 'opus' : 'wav';
+      saveSetting('recFormat', recorder.format);
+      updateDepthVisibility();
+    });
+  }
+  const depthEl = document.getElementById('rec-depth');
+  if (depthEl) {
+    depthEl.value = String(recorder.bitDepth);
+    depthEl.addEventListener('change', () => {
+      recorder.bitDepth = depthEl.value === '16' ? 16 : 24;
+      saveSetting('recBitDepth', recorder.bitDepth);
+    });
+  }
+  const normEl = document.getElementById('rec-normalize');
+  if (normEl) {
+    normEl.checked = recorder.normalize;
+    normEl.addEventListener('change', () => {
+      recorder.normalize = normEl.checked;
+      saveSetting('recNormalize', recorder.normalize);
+    });
+  }
+  updateDepthVisibility();
 }
 
 function initHoldRecordButton() {

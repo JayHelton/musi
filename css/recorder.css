@@ -15,6 +15,14 @@
 
 .rec-timer{text-align:center;font-size:1.1rem;font-family:'Courier New',monospace;color:var(--text);margin-bottom:14px}
 
+.rec-options{display:flex;gap:14px;align-items:flex-end;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+.rec-opt{display:flex;flex-direction:column;gap:5px;font-size:.78rem}
+.rec-opt-label{color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-size:.7rem}
+.rec-opt select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:.85rem;font-family:inherit}
+.rec-opt-check{flex-direction:row;align-items:center;gap:7px}
+.rec-opt-check input{width:16px;height:16px;accent-color:var(--accent)}
+.rec-opt-check .rec-opt-label{font-size:.78rem;text-transform:none;letter-spacing:0}
+
 .rec-controls{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
 #rec-toggle.recording{background:var(--err);color:#fff;box-shadow:0 0 16px rgba(231,76,60,0.4);animation:recPulse 1.2s ease-in-out infinite}
 @keyframes recPulse{0%,100%{box-shadow:0 0 12px rgba(231,76,60,0.35)}50%{box-shadow:0 0 26px rgba(231,76,60,0.65)}}
