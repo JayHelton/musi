@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2-mobile-ui";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -108,7 +108,32 @@ self.addEventListener("fetch", (event) => {
 
   const sameOrigin = url.origin === self.location.origin;
 
-  // Same-origin static assets: cache-first for instant, offline-capable loads.
+  const isAppShellAsset =
+    sameOrigin &&
+    (request.destination === "script" ||
+      request.destination === "style" ||
+      request.destination === "manifest" ||
+      url.pathname.endsWith(".html"));
+
+  // App shell assets must update quickly in installed PWAs; fall back to cache
+  // only when offline so mobile users do not stay pinned to stale UI code.
+  if (isAppShellAsset) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        try {
+          const network = await fetch(new Request(request, { cache: "reload" }));
+          if (network && network.ok) cache.put(request, network.clone()).catch(() => {});
+          return network;
+        } catch (err) {
+          return (await cache.match(request)) || Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
+  // Other same-origin static assets: cache-first for instant, offline-capable loads.
   if (sameOrigin) {
     event.respondWith(
       (async () => {
