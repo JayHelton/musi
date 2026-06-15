@@ -101,19 +101,9 @@
     <div class="section-head">
       <div class="section-kicker">Drill</div>
       <h2>Scale Spelling</h2>
-      <p>Root + scale. Spell in order.</p>
+      <p>Spell the current key &amp; scale in order.</p>
     </div>
     <div class="quiz-layout">
-      <div class="sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Root</div>
-          <div class="sl-scroll" id="sl-scale-root"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Scale</div>
-          <div class="sl-scroll" id="sl-scale-type"></div>
-        </div>
-      </div>
       <div class="quiz-main">
         <div class="progress-header" data-score="#sq-score" data-streak="#sq-streak">
           <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="sq-streak">0</span><span class="ph-streak-label">Streak</span></div>
@@ -122,7 +112,7 @@
           <button class="btn sm ph-reset" onclick="resetScore('scale')">Reset</button>
         </div>
         <div class="quiz-card">
-          <div class="question" id="sq-question">Set root &amp; scale, then Next.</div>
+          <div class="question" id="sq-question">Press Next to spell the current scale.</div>
           <div class="note-input-display empty" id="sq-display"></div>
           <div class="note-btn-row" id="sq-notes"></div>
           <div class="feedback" id="sq-feedback"></div>
@@ -145,17 +135,13 @@
     <div class="section-head">
       <div class="section-kicker">Drill</div>
       <h2>Intervals</h2>
-      <p>Root + interval. Name the upper note.</p>
+      <p>Name the upper note from the current key.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
         <div class="sidebar-list">
           <div class="sl-head">Difficulty</div>
           <div class="sl-scroll" id="sl-int-diff"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Root</div>
-          <div class="sl-scroll" id="sl-int-root"></div>
         </div>
       </div>
       <div class="quiz-main">
@@ -166,7 +152,7 @@
           <button class="btn sm ph-reset" onclick="resetScore('interval')">Reset</button>
         </div>
         <div class="quiz-card">
-          <div class="question" id="iq-question">Set difficulty &amp; root, then Next.</div>
+          <div class="question" id="iq-question">Set difficulty, then Next.</div>
           <div class="note-btn-row" id="iq-notes"></div>
           <div class="feedback" id="iq-feedback"></div>
         </div>
