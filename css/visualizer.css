@@ -151,3 +151,15 @@
   0% { background-position: -100% 0; opacity: 0.5; }
   100% { background-position: 0 0; opacity: 1; }
 }
+
+@media(max-width:480px) {
+  .now-playing {
+    bottom: 64px;
+    padding: 6px 14px;
+    gap: 8px;
+    max-width: calc(100% - 20px);
+  }
+  .np-label { font-size: 0.72rem; }
+  .np-eq { height: 12px; }
+  .eq-bar { width: 2px; }
+}
