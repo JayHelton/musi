@@ -249,8 +249,54 @@
     <div class="section-head">
       <div class="section-kicker">Tool</div>
       <h2>Metronome</h2>
-      <p>Set tempo first, then explore presets, accents, and rhythms.</p>
+      <p>Set a tempo, choose the beat, and press play.</p>
     </div>
+    <div class="metronome-simple">
+      <div class="quiz-card metro-simple-card">
+        <div class="metro-bpm-label">BPM</div>
+        <input type="number" id="m-bpm" class="metro-bpm-input" min="30" max="300" value="120" inputmode="numeric" aria-label="BPM">
+        <input type="range" id="m-bpm-slider" min="30" max="300" value="120" aria-label="BPM slider">
+        <div class="metro-step-row">
+          <button class="metro-round-btn" id="m-bpm-down" aria-label="Decrease BPM">-</button>
+          <button class="metro-round-btn" id="m-bpm-up" aria-label="Increase BPM">+</button>
+        </div>
+        <div class="metro-simple-actions">
+          <button class="btn sm" id="m-tap">Tap Tempo</button>
+          <button class="btn primary" id="m-play">&#9654; Play</button>
+        </div>
+        <div id="m-beat-ind" class="metro-beat-dots"></div>
+        <div class="beat-pulse-ring" id="beat-pulse-ring"></div>
+      </div>
+      <div class="quiz-card metro-settings-card">
+        <div class="metro-card-title">Beat</div>
+        <div class="metro-simple-controls">
+          <label>Beats
+            <select id="m-ts-num">
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+              <option value="4" selected>4</option><option value="5">5</option><option value="6">6</option>
+              <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+              <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            </select>
+          </label>
+          <label>Note
+            <select id="m-ts-den">
+              <option value="2">Half</option><option value="4" selected>Quarter</option>
+              <option value="8">Eighth</option><option value="16">Sixteenth</option>
+            </select>
+          </label>
+        </div>
+        <div class="metro-card-title">Quick Tempos</div>
+        <div class="metro-preset-row">
+          <button class="btn sm metro-bpm-preset" data-bpm="60">60</button>
+          <button class="btn sm metro-bpm-preset" data-bpm="80">80</button>
+          <button class="btn sm metro-bpm-preset" data-bpm="100">100</button>
+          <button class="btn sm metro-bpm-preset" data-bpm="120">120</button>
+          <button class="btn sm metro-bpm-preset" data-bpm="140">140</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Advanced metronome UI disabled for now. Keep this markup for future reactivation.
     <div class="metro-grid">
       <div class="quiz-card">
         <div class="metro-card-title">Tempo &amp; Time Signature</div>
@@ -318,6 +364,7 @@
         <div class="beat-pulse-ring" id="beat-pulse-ring"></div>
       </div>
     </div>
+    -->
   </section>
 
   <!-- FRETBOARD TRAINER -->

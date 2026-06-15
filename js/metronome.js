@@ -23,10 +23,31 @@ const metro = {
 };
 
 function slotDuration(slot) {
+  if (slot.simple) return 1;
   let d = NV_BEATS[slot.value] || 1;
   if (slot.dotted) d *= 1.5;
   if (slot.triplet) d *= 2 / 3;
   return d;
+}
+
+function setSimpleMeasure() {
+  metro.measure = Array.from({ length: metro.tsNum }, () => ({
+    value: 'quarter',
+    dotted: false,
+    triplet: false,
+    rest: false,
+    simple: true,
+  }));
+  metro.accents = Array.from({ length: metro.tsNum }, (_, i) => i === 0);
+  renderBeatIndicator();
+}
+
+function setBpm(value) {
+  metro.bpm = Math.max(30, Math.min(300, parseInt(value) || 120));
+  const bpmInput = document.getElementById('m-bpm');
+  const bpmSlider = document.getElementById('m-bpm-slider');
+  if (bpmInput) bpmInput.value = metro.bpm;
+  if (bpmSlider) bpmSlider.value = metro.bpm;
 }
 
 function measureCapacity() {
@@ -60,6 +81,7 @@ function clearMeasure() {
 
 function renderMeasure() {
   const bar = document.getElementById('m-bar');
+  if (!bar) return;
   const cap = measureCapacity();
   if (metro.measure.length === 0) {
     bar.innerHTML = '<div class="m-slot-empty">Empty \u2014 add notes below</div>';
@@ -89,10 +111,11 @@ function renderMeasure() {
 }
 
 function updateBeatsFilled() {
+  const beatsFilled = document.getElementById('m-beats-filled');
+  if (!beatsFilled) return;
   const cap = measureCapacity();
   const filled = filledBeats();
-  document.getElementById('m-beats-filled').textContent =
-    'Beats filled: ' + +filled.toFixed(2) + ' / ' + +cap.toFixed(2);
+  beatsFilled.textContent = 'Beats filled: ' + +filled.toFixed(2) + ' / ' + +cap.toFixed(2);
 }
 
 function loadPreset(name) {
@@ -127,8 +150,10 @@ function loadPreset(name) {
       for (let i = 0; i < 16; i++) metro.measure.push(n('sixteenth'));
       break;
   }
-  document.getElementById('m-ts-num').value = metro.tsNum;
-  document.getElementById('m-ts-den').value = metro.tsDen;
+  const tsNum = document.getElementById('m-ts-num');
+  const tsDen = document.getElementById('m-ts-den');
+  if (tsNum) tsNum.value = metro.tsNum;
+  if (tsDen) tsDen.value = metro.tsDen;
   updateAccentButtons();
   renderMeasure();
   updateBeatsFilled();
@@ -136,6 +161,7 @@ function loadPreset(name) {
 
 function updateAccentButtons() {
   const container = document.getElementById('m-accents');
+  if (!container) return;
   while (metro.accents.length < metro.tsNum) metro.accents.push(false);
   metro.accents.length = metro.tsNum;
   if (!metro.accents.some(Boolean)) metro.accents[0] = true;
@@ -187,6 +213,9 @@ function scheduleClick(time, accented) {
 }
 
 function getAccentForSlot(slotIndex) {
+  if (metro.measure[slotIndex]?.simple) {
+    return slotIndex === 0;
+  }
   let pos = 0;
   for (let i = 0; i < slotIndex && i < metro.measure.length; i++)
     pos += slotDuration(metro.measure[i]);
@@ -204,6 +233,7 @@ function highlightSlot(index) {
 
 function renderBeatIndicator() {
   const container = document.getElementById('m-beat-ind');
+  if (!container) return;
   container.innerHTML = '';
   metro.measure.forEach(() => {
     const dot = document.createElement('div');
@@ -213,7 +243,7 @@ function renderBeatIndicator() {
 }
 
 function startMetronome() {
-  if (metro.measure.length === 0) return;
+  if (metro.measure.length === 0) setSimpleMeasure();
   ensureAudio();
   metro.playing = true;
   metro._currentSlot = 0;
@@ -279,64 +309,88 @@ function tapTempo() {
       intervals.push(metro._tapTimes[i] - metro._tapTimes[i - 1]);
     const recent = intervals.slice(-4);
     const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
-    metro.bpm = Math.max(30, Math.min(300, Math.round(60000 / avg)));
-    document.getElementById('m-bpm').value = metro.bpm;
-    document.getElementById('m-bpm-slider').value = metro.bpm;
+    setBpm(Math.round(60000 / avg));
   }
 }
 
 function initMetronome() {
   const bpmInput = document.getElementById('m-bpm');
   const bpmSlider = document.getElementById('m-bpm-slider');
+  if (!bpmInput || !bpmSlider) return;
+
+  setBpm(metro.bpm);
+  if (!metro.measure.length || metro.measure.some(slot => !slot.simple)) setSimpleMeasure();
+
   bpmInput.oninput = () => {
-    metro.bpm = Math.max(30, Math.min(300, parseInt(bpmInput.value) || 120));
-    bpmSlider.value = metro.bpm;
+    setBpm(bpmInput.value);
   };
   bpmSlider.oninput = () => {
-    metro.bpm = parseInt(bpmSlider.value);
-    bpmInput.value = metro.bpm;
+    setBpm(bpmSlider.value);
   };
-  document.getElementById('m-ts-num').onchange = (e) => {
-    metro.tsNum = parseInt(e.target.value);
-    updateAccentButtons();
-    updateBeatsFilled();
-  };
-  document.getElementById('m-ts-den').onchange = (e) => {
-    metro.tsDen = parseInt(e.target.value);
-    updateBeatsFilled();
+  const bpmDown = document.getElementById('m-bpm-down');
+  if (bpmDown) bpmDown.onclick = () => setBpm(metro.bpm - 1);
+  const bpmUp = document.getElementById('m-bpm-up');
+  if (bpmUp) bpmUp.onclick = () => setBpm(metro.bpm + 1);
+  document.querySelectorAll('.metro-bpm-preset').forEach(btn => {
+    btn.onclick = () => setBpm(btn.dataset.bpm);
+  });
+  const tapBtn = document.getElementById('m-tap');
+  if (tapBtn) tapBtn.onclick = tapTempo;
+  const playBtn = document.getElementById('m-play');
+  if (playBtn) {
+    playBtn.onclick = () => {
+      if (metro.playing) stopMetronome(); else startMetronome();
+    };
+  }
+  const tsNum = document.getElementById('m-ts-num');
+  if (tsNum) {
+    tsNum.onchange = (e) => {
+      metro.tsNum = parseInt(e.target.value);
+      setSimpleMeasure();
+      updateBeatsFilled();
+    };
+  }
+  const tsDen = document.getElementById('m-ts-den');
+  if (tsDen) {
+    tsDen.onchange = (e) => {
+      metro.tsDen = parseInt(e.target.value);
+      updateBeatsFilled();
+    };
   };
   document.querySelectorAll('.nv-btn').forEach(btn => {
     btn.onclick = () => addNoteToMeasure(btn.dataset.nv);
   });
-  document.getElementById('m-dot').onclick = () => {
+  const dotBtn = document.getElementById('m-dot');
+  if (dotBtn) dotBtn.onclick = () => {
     metro.dotted = !metro.dotted;
-    document.getElementById('m-dot').classList.toggle('active', metro.dotted);
+    dotBtn.classList.toggle('active', metro.dotted);
   };
-  document.getElementById('m-trip').onclick = () => {
+  const tripBtn = document.getElementById('m-trip');
+  if (tripBtn) tripBtn.onclick = () => {
     metro.triplet = !metro.triplet;
-    document.getElementById('m-trip').classList.toggle('active', metro.triplet);
+    tripBtn.classList.toggle('active', metro.triplet);
   };
-  document.getElementById('m-rest').onclick = () => {
+  const restBtn = document.getElementById('m-rest');
+  if (restBtn) restBtn.onclick = () => {
     metro.restMode = !metro.restMode;
-    document.getElementById('m-rest').classList.toggle('active', metro.restMode);
+    restBtn.classList.toggle('active', metro.restMode);
   };
-  document.getElementById('m-tap').onclick = tapTempo;
-  document.getElementById('m-play').onclick = () => {
-    if (metro.playing) stopMetronome(); else startMetronome();
-  };
-  document.getElementById('m-loop').onclick = () => {
+  const loopBtn = document.getElementById('m-loop');
+  if (loopBtn) loopBtn.onclick = () => {
     metro.looping = !metro.looping;
-    document.getElementById('m-loop').textContent = 'Loop: ' + (metro.looping ? 'On' : 'Off');
-    document.getElementById('m-loop').classList.toggle('active', metro.looping);
+    loopBtn.textContent = 'Loop: ' + (metro.looping ? 'On' : 'Off');
+    loopBtn.classList.toggle('active', metro.looping);
   };
-  document.getElementById('m-countin').onclick = () => {
+  const countInBtn = document.getElementById('m-countin');
+  if (countInBtn) countInBtn.onclick = () => {
     metro.countIn = !metro.countIn;
-    document.getElementById('m-countin').textContent = 'Count-in: ' + (metro.countIn ? 'On' : 'Off');
-    document.getElementById('m-countin').classList.toggle('active', metro.countIn);
+    countInBtn.textContent = 'Count-in: ' + (metro.countIn ? 'On' : 'Off');
+    countInBtn.classList.toggle('active', metro.countIn);
   };
   updateAccentButtons();
   renderMeasure();
   updateBeatsFilled();
+  renderBeatIndicator();
 }
 
 window.loadPreset = loadPreset;

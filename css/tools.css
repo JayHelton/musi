@@ -40,6 +40,27 @@ input[type=range]{accent-color:var(--accent)}
 
 /* Metronome */
 .metro-grid{display:flex;flex-direction:column;gap:16px;max-width:720px}
+.metronome-simple{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.metro-simple-card{position:relative;text-align:center;overflow:hidden}
+.metro-bpm-label{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.4px;font-weight:700;margin-bottom:4px}
+.metro-bpm-input#m-bpm{width:min(230px,100%);padding:4px 8px;border:none;background:transparent;color:var(--text);font-size:4.6rem;line-height:1;font-weight:700;text-align:center;font-family:inherit;letter-spacing:-3px;appearance:textfield}
+.metro-bpm-input#m-bpm::-webkit-outer-spin-button,.metro-bpm-input#m-bpm::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.metro-bpm-input#m-bpm:focus{outline:none;box-shadow:none;color:var(--accent)}
+.metro-simple-card #m-bpm-slider{width:100%;margin:18px 0 14px}
+.metro-step-row{display:flex;justify-content:center;gap:18px;margin-bottom:18px}
+.metro-round-btn{width:54px;height:54px;border:none;border-radius:50%;background:var(--bg2);color:var(--text);font-size:1.8rem;line-height:1;cursor:pointer;transition:all .15s ease;font-family:inherit}
+.metro-round-btn:hover{background:var(--hover);transform:scale(1.03)}
+.metro-round-btn:active{transform:scale(.96)}
+.metro-simple-actions{display:flex;gap:10px;justify-content:center;margin-bottom:16px}
+.metro-simple-actions .btn{min-width:120px}
+.metro-simple-actions #m-play{min-width:150px;padding:12px 22px;border-radius:999px}
+.metro-beat-dots{display:flex;gap:9px;justify-content:center;align-items:center;min-height:24px;flex-wrap:wrap;margin-top:10px}
+.metro-settings-card{padding:20px}
+.metro-simple-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.metro-simple-controls label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:.82rem}
+.metro-simple-controls select{width:100%;padding:10px 12px}
+.metro-preset-row{display:flex;gap:8px;flex-wrap:wrap}
+.metro-preset-row .btn{flex:1;min-width:64px}
 .metro-card-title{margin-bottom:12px;font-size:1rem;color:var(--accent);font-weight:600}
 .metro-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .metro-row:last-child{margin-bottom:0}
@@ -81,9 +102,9 @@ input[type=range]{accent-color:var(--accent)}
 @media(max-width:768px){
   .kb-controls{flex-wrap:wrap;gap:10px;padding:12px 14px}
   .piano-wrap{-webkit-overflow-scrolling:touch}
-  .metro-grid .quiz-card:nth-child(5){order:-2}
-  .metro-grid .quiz-card:nth-child(1){order:-1}
-  #m-play{flex:1 0 100%;padding:12px 16px;border-radius:16px}
+  .metro-bpm-input#m-bpm{font-size:4.2rem}
+  .metro-simple-actions{flex-direction:column}
+  .metro-simple-actions .btn{width:100%}
 }
 @media(max-width:480px){
   .kb-controls{gap:8px;padding:10px 12px}
@@ -93,6 +114,10 @@ input[type=range]{accent-color:var(--accent)}
   .white-key .klabel{font-size:8px}
   .white-key .klabel b{font-size:11px}
   .black-key{width:24px;height:100px}
+  .metronome-simple{gap:12px}
+  .metro-bpm-input#m-bpm{font-size:3.7rem}
+  .metro-round-btn{width:48px;height:48px;font-size:1.55rem}
+  .metro-simple-controls{grid-template-columns:1fr}
   .metro-grid{gap:12px}
   .metro-row{gap:6px}
   .metro-row label{min-width:45px;font-size:.8rem}
