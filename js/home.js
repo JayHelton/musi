@@ -37,6 +37,7 @@ let icons = {};
 let tabs = [];
 let longPressTimer = null;
 let menuEl = null;
+let allToolsDefaultApplied = false;
 
 function favorites() {
   const v = getSetting('home.favorites', []);
@@ -144,11 +145,21 @@ function buildCard(id, { pinned } = {}) {
 function render() {
   const favWrap = document.getElementById('home-favorites');
   const favSection = document.getElementById('home-fav-section');
+  const allPanel = document.getElementById('home-all-panel');
   const grid = document.getElementById('home-grid');
   if (!grid) return;
 
   const fav = favorites();
   const hid = hidden();
+
+  if (allPanel) {
+    if (!allToolsDefaultApplied) {
+      allPanel.open = fav.length === 0;
+      allToolsDefaultApplied = true;
+    } else if (fav.length === 0) {
+      allPanel.open = true;
+    }
+  }
 
   if (favSection) favSection.style.display = fav.length ? '' : 'none';
   if (favWrap) {
