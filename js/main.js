@@ -1,5 +1,5 @@
 import { audioCtx } from './audio.js';
-import { S, buildNoteButtons, selectItem, getSelected, MODS, MOD_LABELS, LETTERS_UI, CHROMATIC_NOTES } from './scaleQuiz.js';
+import { S, buildNoteButtons, selectItem, MODS, MOD_LABELS, LETTERS_UI, CHROMATIC_NOTES } from './scaleQuiz.js';
 import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
 // Virtual Keyboard feature is disabled in the UI for now. Keep the module for future reactivation.
@@ -16,8 +16,6 @@ import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initScaleRef } from './scaleReference.js';
-import { ROOTS } from './theory.js';
-import { groupedScaleEntries } from './scales.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
@@ -375,18 +373,11 @@ function init() {
     });
   }
 
-  buildList('sl-scale-type',
-    groupedScaleEntries(true),
-    'random');
-  buildList('sl-scale-root',
-    [{val:'random',label:'Random'}].concat(ROOTS.map(r => ({val:r,label:r}))),
-    'random');
+  // Scale Spelling and Intervals drills inherit their key/scale from the shared
+  // musical context, so only the interval difficulty list is built here.
   buildList('sl-int-diff',
     [{val:'easy',label:'Diatonic'},{val:'medium',label:'Extended'},{val:'hard',label:'Chromatic'}],
     'easy');
-  buildList('sl-int-root',
-    [{val:'random',label:'Random'}].concat(ROOTS.map(r => ({val:r,label:r}))),
-    'random');
 
   const activeSection = () => document.querySelector('.section.active')?.id;
   let swipeStart = null;

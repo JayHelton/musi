@@ -1,17 +1,19 @@
 import { getSelected, clearIntQTimers } from './scaleQuiz.js';
-import { pick, ROOTS_RAND, normNote } from './theory.js';
+import { pick, normNote } from './theory.js';
 import { getIntervalPool, computeInterval } from './intervals.js';
 import { S } from './scaleQuiz.js';
+import { getContext, subscribeContext } from './musicalContext.js';
 
 export function newIntQ() {
   clearIntQTimers();
-  const selRoot = getSelected('sl-int-root');
+  // Root is inherited from the shared musical context; only difficulty is a
+  // per-drill control.
+  const root = getContext().root;
   const selDiff = getSelected('sl-int-diff');
   S.iq.diff = selDiff === 'random' ? 'easy' : selDiff;
   const pool = getIntervalPool(S.iq.diff);
-  let attempts = 0, root, interval, answer;
+  let attempts = 0, interval, answer;
   do {
-    root = selRoot === 'random' ? pick(ROOTS_RAND) : selRoot;
     interval = pick(pool);
     answer = computeInterval(root, interval);
     attempts++;
@@ -26,5 +28,13 @@ export function newIntQ() {
   document.getElementById('iq-feedback').className = 'feedback';
   document.getElementById('iq-feedback').textContent = '';
 }
+
+// Refresh the live question when the shared key changes while the Intervals
+// drill is on screen.
+subscribeContext(() => {
+  if (document.getElementById('sec-intervals')?.classList.contains('active')) {
+    newIntQ();
+  }
+});
 
 window.newIntQ = newIntQ;

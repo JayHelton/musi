@@ -1,6 +1,7 @@
-import { normNote, pick, ROOTS_RAND } from './theory.js';
-import { SCALES, getScaleNotes, scaleStepPattern } from './scales.js';
+import { normNote } from './theory.js';
+import { getScaleNotes, scaleStepPattern } from './scales.js';
 import { saveSetting } from './persistence.js';
+import { getContext, subscribeContext } from './musicalContext.js';
 
 export const S = {
   sq: {score:0,total:0,streak:0,ans:null,name:'',hint:''},
@@ -101,13 +102,17 @@ export function clearIntQTimers() { clearQuizTimers(iqTimers); }
 
 export function newScaleQ() {
   clearQuizTimers(sqTimers);
-  const selType = getSelected('sl-scale-type');
-  const selRoot = getSelected('sl-scale-root');
-  const scaleName = selType === 'random' ? pick(Object.keys(SCALES)) : selType;
-  const root = selRoot === 'random' ? pick(ROOTS_RAND) : selRoot;
+  // Key and scale are inherited from the shared musical context instead of
+  // per-drill selectors.
+  const { root, scale: scaleName } = getContext();
 
   const notes = getScaleNotes(root, scaleName);
-  if (!notes || notes.some(n => n === null)) { newScaleQ(); return; }
+  if (!notes || notes.some(n => n === null)) {
+    document.getElementById('sq-question').textContent =
+      `${root} ${scaleName} can't be spelled here.`;
+    S.sq.ans = null;
+    return;
+  }
 
   S.sq.ans = notes;
   S.sq.name = root + ' ' + scaleName;
@@ -165,6 +170,14 @@ export function resetScore(which) {
     document.getElementById('iq-streak').textContent = '0';
   }
 }
+
+// When the shared key/scale changes, refresh the live question if the Scale
+// Spelling drill is the one on screen.
+subscribeContext(() => {
+  if (document.getElementById('sec-scales')?.classList.contains('active')) {
+    newScaleQ();
+  }
+});
 
 window.newScaleQ = newScaleQ;
 window.showScaleHint = showScaleHint;
