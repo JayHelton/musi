@@ -8,8 +8,8 @@ const ADVANCE_MS = 1400;
 const FADE_START_MS = 900;
 
 const CLEFS = {
-  Treble: { glyph: '\uD834\uDD1E', refDV: 38, glyphSize: 5.4, glyphLine: 3 },
-  Bass:   { glyph: '\uD834\uDD22', refDV: 26, glyphSize: 3.4, glyphLine: 0.4 },
+  Treble: { glyph: '\uD834\uDD1E', refDV: 38, glyphSize: 5.4, anchorLine: 3 },
+  Bass:   { glyph: '\uD834\uDD22', refDV: 26, glyphSize: 3.4, anchorLine: 1 },
 };
 
 const TOP_Y = 62;
@@ -41,6 +41,14 @@ function yForDV(d, refDV) {
   return TOP_Y + (refDV - d) * HALF_GAP;
 }
 
+function yForStaffLine(lineIndex) {
+  return TOP_Y + lineIndex * LINE_GAP;
+}
+
+function yForClef(clef) {
+  return yForStaffLine(clef.anchorLine) + clef.glyphSize * LINE_GAP * 0.5;
+}
+
 function clearTimers() {
   if (sr._advTimer) { clearTimeout(sr._advTimer); sr._advTimer = null; }
   if (sr._fadeTimer) { clearTimeout(sr._fadeTimer); sr._fadeTimer = null; }
@@ -61,7 +69,7 @@ function buildStaffSVG(noteDV, clefName) {
   const lines = [];
 
   for (let i = 0; i < 5; i++) {
-    const y = TOP_Y + i * LINE_GAP;
+    const y = yForStaffLine(i);
     lines.push(`<line class="staff-line" x1="20" y1="${y}" x2="${SVG_W - 20}" y2="${y}"/>`);
   }
 
@@ -85,7 +93,7 @@ function buildStaffSVG(noteDV, clefName) {
   const stem = `<line class="note-stem" x1="${stemX}" y1="${noteY}" x2="${stemX}" y2="${stemY2}"/>`;
   const head = `<g transform="rotate(-20 ${NOTE_X} ${noteY})"><ellipse class="note-head" cx="${NOTE_X}" cy="${noteY}" rx="9" ry="6.6"/></g>`;
 
-  const glyphY = TOP_Y + clef.glyphLine * LINE_GAP + clef.glyphSize * LINE_GAP * 0.5;
+  const glyphY = yForClef(clef);
   const glyph = `<text class="clef-glyph" x="26" y="${glyphY}" font-size="${clef.glyphSize * LINE_GAP}">${clef.glyph}</text>`;
 
   return `<svg class="sr-staff" viewBox="0 0 ${SVG_W} ${SVG_H}" width="${SVG_W}" preserveAspectRatio="xMidYMid meet">
