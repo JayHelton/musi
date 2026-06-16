@@ -78,7 +78,7 @@ const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); },
   tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); },
-  ear: () => { if (ear._osc) stopEarTone(); },
+  ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
   sightreading: () => stopSightReading(),
   recorder: () => { if (recorder.playing) stopRecorder(); },
 };
