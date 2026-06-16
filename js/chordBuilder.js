@@ -1,9 +1,8 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, NOTE_NAMES_SHARP, ROOTS_RAND, INTERVAL_LABELS } from './theory.js';
 import { SCALES } from './scales.js';
-import { MODS, MOD_LABELS, LETTERS_UI } from './scaleQuiz.js';
+import { CHROMATIC_NOTES } from './scaleQuiz.js';
 import { getSetting, saveSetting } from './persistence.js';
-import { getContext, subscribeContext } from './musicalContext.js';
 
 const CHORD_TYPES = [
   {semis:[0,4,7],      name:'Major',   sym:''},
@@ -31,7 +30,6 @@ const CHORD_TYPES = [
 
 const chordBuilder = {
   notes: [],
-  mod: 2,
   octave: 4,
   oscillators: [],
 };
@@ -144,9 +142,7 @@ function renderChordChips() {
   });
 }
 
-function addChordNote(letter) {
-  const mod = MODS[chordBuilder.mod];
-  const noteName = letter + mod;
+function addChordNote(noteName) {
   const p = parseNote(noteName);
   if (!p) return;
   const midi = 12 * (chordBuilder.octave + 1) + p.semi;
@@ -212,60 +208,20 @@ function stopChord() {
   chordBuilder.oscillators = [];
 }
 
-function accidentalModFromRoot(root) {
-  const p = parseNote(root);
-  if (!p) return null;
-  const idx = MODS.indexOf(p.acc);
-  return idx >= 0 ? idx : null;
-}
-
-function setChordMod(index) {
-  chordBuilder.mod = index;
-  const modC = document.getElementById('cb-mods');
-  if (!modC) return;
-  modC.querySelectorAll('.mod-btn').forEach((b, i) => b.classList.toggle('active', i === index));
-}
-
-let chordContextSubscribed = false;
-
 function initChordBuilder() {
-  const modC = document.getElementById('cb-mods');
-  const letC = document.getElementById('cb-letters');
+  const noteC = document.getElementById('cb-notes');
   const octC = document.getElementById('cb-octaves');
-  // Default the accidental to the shared context key so building a chord in the
-  // current key needs fewer taps.
-  const ctxMod = accidentalModFromRoot(getContext().root);
-  chordBuilder.mod = ctxMod !== null ? ctxMod : Number(getSetting('chord.mod', chordBuilder.mod, [0,1,2,3,4]));
   chordBuilder.octave = Number(getSetting('chord.octave', chordBuilder.octave, [2,3,4,5,6]));
-  modC.innerHTML = ''; letC.innerHTML = ''; octC.innerHTML = '';
+  noteC.innerHTML = ''; octC.innerHTML = '';
 
-  if (!chordContextSubscribed) {
-    chordContextSubscribed = true;
-    subscribeContext(c => {
-      const m = accidentalModFromRoot(c.root);
-      if (m !== null) setChordMod(m);
-    });
-  }
-
-  MODS.forEach((m, i) => {
+  // Use the same one-tap chromatic note selection as the drills so any note
+  // (including accidentals) can be added directly.
+  CHROMATIC_NOTES.forEach(note => {
     const btn = document.createElement('button');
-    btn.className = 'mod-btn' + (i === chordBuilder.mod ? ' active' : '');
-    btn.textContent = MOD_LABELS[i];
-    btn.onclick = () => {
-      modC.querySelectorAll('.mod-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      chordBuilder.mod = i;
-      saveSetting('chord.mod', chordBuilder.mod);
-    };
-    modC.appendChild(btn);
-  });
-
-  LETTERS_UI.forEach(letter => {
-    const btn = document.createElement('button');
-    btn.className = 'letter-btn';
-    btn.textContent = letter;
-    btn.onclick = () => addChordNote(letter);
-    letC.appendChild(btn);
+    btn.className = 'letter-btn' + (note.length > 1 ? ' accidental' : '');
+    btn.textContent = note;
+    btn.onclick = () => addChordNote(note);
+    noteC.appendChild(btn);
   });
 
   for (let o = 2; o <= 6; o++) {

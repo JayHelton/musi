@@ -88,17 +88,21 @@ function drawBars(w, h, barW) {
   ctx.globalAlpha = 1;
 }
 
-// Gentle, smooth flowing sound-wave drawn when no tones are playing.
+// Gentle, steady-state sound-wave that runs along the bottom of the UI when
+// no tones are playing. Amplitudes are kept modest so peaks stay within the
+// bottom band of the screen.
 const IDLE_WAVE_LAYERS = [
-  { amp: 0.05, freq: 1.4, speed: 0.6, drift: 0.4, alpha: 0.55, width: 2.2 },
-  { amp: 0.035, freq: 2.1, speed: -0.9, drift: 0.7, alpha: 0.4, width: 1.6 },
-  { amp: 0.025, freq: 3.0, speed: 1.3, drift: 1.1, alpha: 0.28, width: 1.2 },
+  { amp: 0.028, freq: 2.0, speed: 0.6, drift: 0.5, alpha: 0.6, width: 2.0 },
+  { amp: 0.02, freq: 3.2, speed: -0.9, drift: 0.9, alpha: 0.42, width: 1.5 },
+  { amp: 0.014, freq: 4.6, speed: 1.3, drift: 1.4, alpha: 0.3, width: 1.1 },
 ];
 const IDLE_WAVE_STEP = 6;
 
 function drawIdleWave(w, h, blend) {
   idlePhase += 0.01;
-  const mid = h * 0.5;
+  // Anchor the wave near the bottom of the screen, leaving headroom for peaks.
+  const bottomMargin = Math.min(h * 0.14, 120);
+  const baseline = h - bottomMargin;
 
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -110,10 +114,11 @@ function drawIdleWave(w, h, blend) {
     ctx.beginPath();
     for (let x = 0; x <= w; x += IDLE_WAVE_STEP) {
       const t = x / w;
-      // Envelope tapers the wave toward the screen edges so it fades in gently.
-      const envelope = Math.sin(t * Math.PI);
+      // Soft envelope keeps the wave running across the whole bar while easing
+      // the very ends so it doesn't clip hard against the screen edges.
+      const envelope = 0.65 + 0.35 * Math.sin(t * Math.PI);
       const y =
-        mid +
+        baseline +
         envelope *
           (Math.sin(t * Math.PI * 2 * layer.freq + phase) * amp +
             Math.sin(t * Math.PI * 2 * layer.drift + phase * 0.5) * amp * 0.4);
