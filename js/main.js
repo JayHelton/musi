@@ -1,4 +1,4 @@
-import { audioCtx } from './audio.js';
+import { audioCtx, setMasterVolume, getMasterVolume } from './audio.js';
 import { S, buildNoteButtons, selectItem, MODS, MOD_LABELS, LETTERS_UI, CHROMATIC_NOTES } from './scaleQuiz.js';
 import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
@@ -231,6 +231,55 @@ function updateSplitUI() {
   }
   trigger.style.display = currentPrimaryId() === 'home' ? 'none' : '';
   trigger.classList.toggle('active', !!splitSecondaryId);
+}
+
+function initVolumeControl() {
+  const trigger = document.getElementById('volume-trigger');
+  const popover = document.getElementById('volume-popover');
+  const slider = document.getElementById('volume-slider');
+  const valueLabel = document.getElementById('volume-value');
+  if (!trigger || !popover || !slider) return;
+
+  // Stored as a 0..1.5 gain fraction; the slider works in whole percent.
+  const saved = Number(getSetting('global.volume', getMasterVolume()));
+  const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
+  setMasterVolume(initial);
+  const syncUI = (vol) => {
+    slider.value = String(Math.round(vol * 100));
+    if (valueLabel) valueLabel.textContent = Math.round(vol * 100) + '%';
+  };
+  syncUI(getMasterVolume());
+
+  const openPopover = () => {
+    popover.hidden = false;
+    trigger.classList.add('active');
+    trigger.setAttribute('aria-expanded', 'true');
+  };
+  const closePopover = () => {
+    popover.hidden = true;
+    trigger.classList.remove('active');
+    trigger.setAttribute('aria-expanded', 'false');
+  };
+
+  trigger.onclick = (e) => {
+    e.stopPropagation();
+    if (popover.hidden) openPopover();
+    else closePopover();
+  };
+  slider.oninput = (e) => {
+    const vol = Number(e.target.value) / 100;
+    setMasterVolume(vol);
+    saveSetting('global.volume', getMasterVolume());
+    if (valueLabel) valueLabel.textContent = Math.round(getMasterVolume() * 100) + '%';
+  };
+  document.addEventListener('click', (e) => {
+    if (!popover.hidden && !popover.contains(e.target) && e.target !== trigger && !trigger.contains(e.target)) {
+      closePopover();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !popover.hidden) closePopover();
+  });
 }
 
 function initSplitView() {
@@ -505,6 +554,7 @@ function init() {
   buildNoteButtons('sq-notes','scale');
   buildNoteButtons('iq-notes','interval');
 
+  initVolumeControl();
   initMetronome();
   initVisualizer();
   initNowPlaying();

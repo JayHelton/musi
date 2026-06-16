@@ -3,6 +3,30 @@ export let analyserNode = null;
 let compressorNode = null;
 let masterGain = null;
 
+// Global output level applied at the master bus. Defaults louder than the old
+// fixed 0.75 because users found the app too quiet; adjustable up to 1.5 for
+// extra headroom. The value lives here so it survives before the AudioContext
+// is created and is re-applied the moment the master gain node exists.
+const MAX_MASTER_VOLUME = 1.5;
+let masterVolume = 1.0;
+
+export function getMasterVolume() {
+  return masterVolume;
+}
+
+export function setMasterVolume(v) {
+  const vol = Math.max(0, Math.min(MAX_MASTER_VOLUME, Number(v)));
+  if (Number.isNaN(vol)) return masterVolume;
+  masterVolume = vol;
+  if (masterGain && audioCtx) {
+    const now = audioCtx.currentTime;
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+    masterGain.gain.linearRampToValueAtTime(masterVolume, now + 0.05);
+  }
+  return masterVolume;
+}
+
 export function ensureAudio() {
   if (!audioCtx) {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -16,7 +40,7 @@ export function ensureAudio() {
     }
 
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.75;
+    masterGain.gain.value = masterVolume;
 
     compressorNode = audioCtx.createDynamicsCompressor();
     compressorNode.threshold.value = -24;
