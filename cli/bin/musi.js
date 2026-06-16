@@ -13,6 +13,9 @@ const ALIASES = {
   fretboard: 'fretboard',
   fret: 'fretboard',
   ear: 'ear',
+  pitch: 'pitch',
+  play: 'pitch',
+  tuner: 'pitch',
   reference: 'reference',
   ref: 'reference',
   learn: 'reference',
@@ -28,6 +31,11 @@ const FLAG_MAP = {
   '--key': 'key',
   '--tuning': 'tuning',
   '--mode': 'mode',
+  '--octave': 'octave',
+  '--tempo': 'tempo',
+  '--start': 'start',
+  '--count': 'count',
+  '--step': 'step',
 };
 
 function parseArgs(argv) {
@@ -57,11 +65,13 @@ function printHelp() {
   print('  sight       ' + c.gray('Sight reading quiz    (--clef Treble|Bass|both, --diff)'));
   print('  fretboard   ' + c.gray('Fretboard trainer     (--key, --tuning)'));
   print('  ear         ' + c.gray('Ear trainer           (--key, --mode easy|hard)'));
+  print('  pitch       ' + c.gray('Play scales           (--root, --type, --octave, --tempo, --start, --count, --step)'));
   print('  reference   ' + c.gray('Scale reference/learn (--root, --type)'));
   print();
   print(c.bold('Examples:'));
   print('  musi scale --root C --type "Major (Ionian)"');
   print('  musi interval --diff medium');
+  print('  musi pitch --root A --type "Natural Minor (Aeolian)" --tempo 120');
   print('  musi reference --root F --type Dorian');
   print();
   print(c.gray('During a quiz: type your answer, or use q (quit), s (reveal), h (hint), r (replay).'));

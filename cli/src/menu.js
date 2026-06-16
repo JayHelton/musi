@@ -4,6 +4,7 @@ import { runIntervalQuiz } from './quizzes/interval.js';
 import { runSightReading } from './quizzes/sight.js';
 import { runFretboard } from './trainers/fretboard.js';
 import { runEarTrainer } from './trainers/ear.js';
+import { runPitch } from './trainers/pitch.js';
 import { runReference } from './reference.js';
 
 const ACTIVITIES = {
@@ -12,6 +13,7 @@ const ACTIVITIES = {
   sight: runSightReading,
   fretboard: runFretboard,
   ear: runEarTrainer,
+  pitch: runPitch,
   reference: runReference,
 };
 
@@ -36,6 +38,7 @@ export async function runMenu() {
         { label: c.bold('Quiz') + c.gray('  · Sight reading'), value: 'sight' },
         { label: c.bold('Train') + c.gray(' · Fretboard'), value: 'fretboard' },
         { label: c.bold('Train') + c.gray(' · Ear training'), value: 'ear' },
+        { label: c.bold('Pitch') + c.gray(' · Play scales'), value: 'pitch' },
         { label: c.bold('Learn') + c.gray(' · Scale reference'), value: 'reference' },
         { label: c.gray('Quit'), value: '__quit__' },
       ],
