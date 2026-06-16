@@ -364,9 +364,21 @@ function init() {
         overlay.classList.add('visible');
         if (menu) {
           const rect = trigger.getBoundingClientRect();
-          menu.style.left = (rect.left + rect.width / 2) + 'px';
           menu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
           menu.classList.add('open');
+          // Clamp horizontally so the menu (centered via translateX(-50%))
+          // never spills past the viewport edges and clips its contents.
+          const margin = 8;
+          const half = menu.offsetWidth / 2;
+          const minCenter = margin + half;
+          const maxCenter = window.innerWidth - margin - half;
+          let center = rect.left + rect.width / 2;
+          if (minCenter <= maxCenter) {
+            center = Math.min(Math.max(center, minCenter), maxCenter);
+          } else {
+            center = window.innerWidth / 2;
+          }
+          menu.style.left = center + 'px';
         }
       }
     };
