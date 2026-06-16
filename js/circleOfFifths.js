@@ -15,9 +15,12 @@ export const COF = [
   {maj:'F',  min:'Dm',  sig:'1\u266D (B\u266D)'},
 ];
 export const COF_ROOTS = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
+// 12-hue wheel anchored to the app accent (orange, ~16deg) at C, stepping 30deg
+// per fifth. Uniform saturation (58%) and lightness (30%) keep every segment
+// cohesive with the warm palette and legible behind the light text.
 export const COF_COLORS = [
-  '#1a5c4c','#1a5c3a','#2a5c1a','#4c5c1a','#5c4c1a','#5c3a1a',
-  '#5c1a2a','#5c1a4c','#4c1a5c','#2a1a5c','#1a2a5c','#1a4c5c'
+  '#793820','#796420','#617920','#357920','#207938','#207964',
+  '#206179','#203579','#382079','#642079','#792061','#792035'
 ];
 
 export function drawCoF() {
