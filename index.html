@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="css/visualizer.css">
 <link rel="stylesheet" href="css/recorder.css">
 <link rel="stylesheet" href="css/mobile-ux.css">
+<link rel="stylesheet" href="css/sessions.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -82,6 +83,21 @@
       <div class="section-kicker">Workbench</div>
       <h2>Your Tools</h2>
       <p>Jump straight into a utility. Long-press a card (or use its menu) to pin, hide, or reorder.</p>
+    </div>
+    <div id="home-sessions" class="home-section home-sessions">
+      <div class="home-sessions-head">
+        <div class="home-section-label">Sessions</div>
+        <button id="home-sessions-create" class="btn sm" type="button">+ Create Session</button>
+      </div>
+      <div id="home-sessions-grid" class="session-grid"></div>
+      <div id="home-sessions-empty" class="home-sessions-empty" style="display:none">
+        <p>No sessions yet. Build a timed routine of drills to run back-to-back.</p>
+        <button id="home-sessions-empty-create" class="btn primary" type="button">Create your first session</button>
+      </div>
+      <div id="home-sessions-history" class="home-sessions-history" style="display:none">
+        <div class="home-section-label">Recent sessions</div>
+        <div id="home-sessions-history-list" class="session-history-list"></div>
+      </div>
     </div>
     <div id="home-fav-section" class="home-section" style="display:none">
       <div class="home-section-label">Favorites</div>
