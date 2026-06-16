@@ -85,8 +85,8 @@ header{justify-content:space-between}
 .adv-options .fb-workbench-controls{background:none;box-shadow:none;padding:0 16px 16px;margin:0}
 .adv-options .sidebar-list{margin-bottom:10px}
 
-/* ---- Larger touch targets ---- */
-.letter-btn,.mod-btn,.int-btn,.oct-btn,.nv-btn{min-height:46px}
+/* ---- Larger touch targets (answer selections optimized for the thumb) ---- */
+.letter-btn,.mod-btn,.int-btn,.oct-btn,.nv-btn{min-height:48px}
 .note-btn-row{gap:10px}
 @media(max-width:768px){
   .sl-item{min-height:46px;padding:10px 16px}
@@ -94,9 +94,16 @@ header{justify-content:space-between}
   .btn.sm{min-height:40px}
   .action-dock{padding-right:72px}
   .progress-header{gap:12px;padding:12px 14px;top:4px}
+  /* Bigger, better-spaced answer choices for one-handed tapping */
+  .note-btn-row{gap:12px}
+  .letter-btn,.mod-btn{min-height:56px;font-size:1rem}
+  .int-picker{gap:12px}
+  .int-btn{min-height:54px;font-size:.9rem;padding:10px 16px}
+  .ear-transport .btn,.action-dock .btn{min-height:54px}
 }
 @media(max-width:480px){
-  .letter-btn,.mod-btn,.int-btn{min-height:48px}
+  .letter-btn,.mod-btn,.int-btn{min-height:54px}
+  .note-btn-row{gap:10px}
   .ph-streak-val{font-size:1.1rem}
   .ph-acc-val{font-size:1rem}
 }
@@ -154,6 +161,29 @@ body.split-mode .section.split-secondary{border-left:1px solid var(--border);pad
   .tool-card-title{font-size:.95rem}
   .tool-card-desc{font-size:.78rem}
   .tool-card-open{width:100%}
+}
+
+/* ---- Home: simplified statistics ---- */
+.home-stats{margin-bottom:22px}
+.home-stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.stat-tile{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:16px 14px;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.5);min-height:96px}
+.stat-tile.wide{grid-column:span 2}
+.stat-tile.highlight{border-color:rgba(255,107,53,0.45);background:linear-gradient(180deg,var(--accent-dim),var(--card))}
+.stat-tile-value{display:flex;align-items:baseline;gap:6px;font-size:1.7rem;font-weight:750;color:var(--accent);line-height:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stat-tile-icon{font-size:1.2rem}
+.stat-tile-unit{font-size:.8rem;font-weight:600;color:var(--muted)}
+.stat-tile-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.8px;font-weight:600;color:var(--muted)}
+.stat-tile-sub{font-size:.74rem;color:var(--muted)}
+.stat-tile.wide .stat-tile-value{font-size:1.25rem;color:var(--text)}
+@media(max-width:768px){
+  .home-stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat-tile{min-height:84px;padding:14px 12px}
+  .stat-tile.wide{grid-column:span 2}
+  .stat-tile-value{font-size:1.5rem}
+}
+@media(max-width:480px){
+  .stat-tile-value{font-size:1.35rem}
+  .stat-tile.wide .stat-tile-value{font-size:1.15rem}
 }
 
 /* ---- Metronome segmented beat controls ---- */

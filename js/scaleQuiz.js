@@ -2,6 +2,7 @@ import { normNote } from './theory.js';
 import { getScaleNotes, scaleStepPattern } from './scales.js';
 import { saveSetting } from './persistence.js';
 import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
+import { recordAttempt } from './stats.js';
 
 export const S = {
   sq: {score:0,total:0,streak:0,ans:null,name:'',hint:''},
@@ -72,6 +73,7 @@ export function submitIntervalNote(note) {
   const fb = document.getElementById('iq-feedback');
   const correct = user === S.iq.ans;
   S.iq.total++;
+  recordAttempt('interval', correct);
   if (correct) {
     S.iq.score++; S.iq.streak++;
     fb.className = 'feedback correct';
@@ -143,6 +145,7 @@ export function checkScaleA() {
     userNotes.every((n,i) => n === expected[i]);
 
   S.sq.total++;
+  recordAttempt('scale', correct);
   if (correct) {
     S.sq.score++;
     S.sq.streak++;

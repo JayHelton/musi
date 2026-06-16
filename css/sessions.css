@@ -97,10 +97,24 @@ body.session-running .session-runner{display:block;position:fixed;top:0;left:0;r
 .session-runner-controls{display:flex;gap:8px;flex-shrink:0}
 .session-runner-controls .session-end{color:var(--err)}
 .session-runner-controls .session-end:hover{background:rgba(231,76,60,0.14)}
-.session-runner-progress{height:3px;background:rgba(255,255,255,0.06)}
-.session-runner-progress-fill{height:100%;width:0;background:var(--accent);transition:width .3s linear}
+.session-runner-segments{display:flex;gap:4px;padding:0 20px 10px}
+.session-seg{flex:1;height:6px;border-radius:6px;background:rgba(255,255,255,0.08);overflow:hidden}
+.session-seg-fill{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s linear}
 .session-flash{animation:sessionFlash .5s ease}
 @keyframes sessionFlash{0%{background:rgba(255,107,53,0.25)}100%{background:rgba(18,18,18,0.96)}}
+
+/* ---- Full-screen exercise mode (while a session is running) ----
+   Strip away navigation, headings and config so the active exercise owns the
+   screen. Only the prompt, audio/answer controls, progress and the runner bar
+   remain visible. */
+body.session-running header{display:none}
+body.session-running .dock{display:none}
+body.session-running #hold-rec-btn{display:none}
+body.session-running .section.active .section-head{display:none}
+body.session-running .section.active .sidebar{display:none}
+body.session-running .section.active .adv-options{display:none}
+body.session-running main{padding-bottom:24px}
+body.session-running .action-dock{bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}
 
 @media(max-width:768px){
   .session-grid{grid-template-columns:1fr}
@@ -111,6 +125,7 @@ body.session-running .session-runner{display:block;position:fixed;top:0;left:0;r
   .session-runner-drill-name{font-size:1rem}
   .session-dialog{padding:18px;border-radius:16px;max-height:92vh}
   .session-complete-stats{flex-direction:row}
+  .session-runner-segments{padding:0 14px 8px;gap:3px}
 }
 @media(max-width:480px){
   .session-runner-controls .btn{padding:8px 12px;font-size:.8rem}

@@ -3,6 +3,7 @@ import { parseNote, NOTE_NAMES_SHARP, pick, INTERVAL_LABELS } from './theory.js'
 import { SCALES, getScaleNotes } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
+import { recordAttempt } from './stats.js';
 
 const EAR_FADE_START_MS = 1100;
 const CONTEXTS = [
@@ -260,6 +261,7 @@ function checkEarAnswer(answer, btn) {
   ear.total++;
 
   const correct = answerCorrect(answer);
+  recordAttempt('ear', correct);
   const feedback = document.getElementById('ear-feedback');
 
   btn.classList.add(correct ? 'correct' : 'wrong');

@@ -648,12 +648,15 @@ function renderRunner() {
   }));
   inner.appendChild(controls);
 
-  // Progress bar across the whole session
-  const progWrap = el('div', { class: 'session-runner-progress' });
-  const fill = el('div', { class: 'session-runner-progress-fill', id: 'session-progress-fill' });
-  progWrap.appendChild(fill);
+  // Segmented progress across the whole session (one segment per drill) so the
+  // player can read how far they are at a glance. The numeric "Drill X of Y"
+  // above stays as supplemental detail.
+  const segWrap = el('div', { class: 'session-runner-segments', id: 'session-segments', 'aria-hidden': 'true' });
+  for (let i = 0; i < total; i++) {
+    segWrap.appendChild(el('div', { class: 'session-seg' }, [el('div', { class: 'session-seg-fill' })]));
+  }
   runnerBar.appendChild(inner);
-  runnerBar.appendChild(progWrap);
+  runnerBar.appendChild(segWrap);
 
   updateRunnerTimer(liveRemaining());
   syncRunnerOffset();
@@ -666,12 +669,16 @@ function updateRunnerTimer(remaining) {
     timerEl.classList.toggle('paused', !!(rt && rt.isPaused));
     timerEl.classList.toggle('ending', remaining <= 5 && remaining > 0 && rt && !rt.isPaused);
   }
-  const fill = document.getElementById('session-progress-fill');
-  if (fill && rt) {
-    const total = rt.session.drills.length;
+  const segWrap = document.getElementById('session-segments');
+  if (segWrap && rt) {
     const drillFrac = rt.effectiveTotal > 0 ? (rt.effectiveTotal - remaining) / rt.effectiveTotal : 0;
-    const pct = ((rt.currentDrillIndex + Math.min(1, Math.max(0, drillFrac))) / total) * 100;
-    fill.style.width = `${Math.min(100, pct)}%`;
+    const current = rt.currentDrillIndex;
+    segWrap.querySelectorAll('.session-seg-fill').forEach((segFill, i) => {
+      let pct = 0;
+      if (i < current) pct = 100;
+      else if (i === current) pct = Math.min(100, Math.max(0, drillFrac * 100));
+      segFill.style.width = `${pct}%`;
+    });
   }
 }
 
