@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v7-cof-colors";
+const CACHE_VERSION = "v8-confident-pitch";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -40,6 +40,7 @@ const PRECACHE_URLS = [
   "js/metronome.js",
   "js/nowPlaying.js",
   "js/persistence.js",
+  "js/pitch.js",
   "js/recorder.js",
   "js/recorderWorklet.js",
   "js/riffGenerator.js",
