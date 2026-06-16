@@ -44,7 +44,9 @@ Musi is built around five practice modes:
 - **Fretboard trainer** - practice interval recognition across guitar tunings
   including Standard, Drop D, Half Step Down, Drop C, Open G, Open D, and DADGAD.
 - **Vocal trainer** - use microphone pitch detection to see the note, frequency,
-  and cents offset while matching reference tones.
+  and cents offset while matching reference tones, and play the shared musical
+  context's scale ascending in the selected octave, one beat per note at the
+  context tempo.
 - **Ear trainer** - hear notes in the shared musical context's key and scale and
   identify them by ear, with replay and streak tracking.
 

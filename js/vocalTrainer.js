@@ -1,6 +1,8 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { getContext } from './musicalContext.js';
+import { SCALES } from './scales.js';
 
 const tuner = {
   running: false,
@@ -10,6 +12,9 @@ const tuner = {
   rafId: null,
   refOsc: null,
   refGain: null,
+  scalePlaying: false,
+  scaleVoices: [],
+  scaleTimers: [],
 };
 
 function autoCorrelate(buf, sampleRate) {
@@ -105,6 +110,7 @@ function stopTuner() {
   if (tuner.rafId) { cancelAnimationFrame(tuner.rafId); tuner.rafId = null; }
   if (tuner.stream) { tuner.stream.getTracks().forEach(t => t.stop()); tuner.stream = null; }
   stopRefTone();
+  stopContextScale();
   document.getElementById('tuner-toggle').textContent = 'Mic on';
   document.getElementById('tuner-status').textContent = 'Mic off';
 }
@@ -164,6 +170,101 @@ function stopRefTone() {
   }
 }
 
+// Schedule a single scale tone at an absolute AudioContext time. Voices are
+// tracked so an in-progress scale can be stopped cleanly.
+function playScaleTone(midi, startTime, duration) {
+  const freq = midiFreq(midi);
+  const osc = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const filter = audioCtx.createBiquadFilter();
+  const gain = audioCtx.createGain();
+
+  osc.type = 'sine';
+  osc2.type = 'triangle';
+  osc.frequency.value = freq;
+  osc2.frequency.value = freq;
+
+  filter.type = 'lowpass';
+  filter.frequency.value = Math.min(freq * 3.5, 4500);
+  filter.Q.value = 0.5;
+
+  const sustain = duration * 0.55;
+  const release = duration * 0.4;
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.linearRampToValueAtTime(0.16, startTime + 0.02);
+  gain.gain.setValueAtTime(0.13, startTime + sustain);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + sustain + release);
+
+  osc.connect(filter);
+  osc2.connect(filter);
+  filter.connect(gain);
+  gain.connect(getAnalyserDestination());
+
+  const stopAt = startTime + sustain + release + 0.05;
+  osc.start(startTime);
+  osc2.start(startTime);
+  osc.stop(stopAt);
+  osc2.stop(stopAt);
+
+  tuner.scaleVoices.push(osc, osc2);
+  osc.onended = () => {
+    tuner.scaleVoices = tuner.scaleVoices.filter(v => v !== osc && v !== osc2);
+  };
+}
+
+// Play the shared musical context's scale ascending in the selected octave.
+// Each scale degree gets one beat of a 4/4 measure at the context tempo,
+// finishing on the root one octave above so the scale resolves.
+function playContextScale() {
+  ensureAudio();
+  stopContextScale();
+  stopRefTone();
+
+  const { root, scale, tempo } = getContext();
+  const r = parseNote(root);
+  const def = SCALES[scale];
+  const statusEl = document.getElementById('vt-scale-status');
+  if (!r || !def) {
+    if (statusEl) statusEl.textContent = 'Could not play the current scale';
+    return;
+  }
+
+  // Semitone offsets from the root, plus the octave above to complete the run.
+  const offsets = def.map(d => d[1]);
+  offsets.push(12);
+
+  const rootMidi = 12 * (vtOctave + 1) + r.semi;
+  const beatDur = 60 / tempo;
+  const noteDur = beatDur * 0.92;
+  const start = audioCtx.currentTime + 0.08;
+
+  offsets.forEach((semi, i) => {
+    playScaleTone(rootMidi + semi, start + i * beatDur, noteDur);
+  });
+
+  tuner.scalePlaying = true;
+  const btn = document.getElementById('vt-play-scale');
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.textContent = `Playing ${root} ${scale} at ${tempo} BPM`;
+
+  const totalMs = (offsets.length * beatDur + 0.3) * 1000;
+  tuner.scaleTimers.push(setTimeout(() => {
+    tuner.scalePlaying = false;
+    if (btn) btn.disabled = false;
+    if (statusEl) statusEl.textContent = 'Plays the current key & scale, one beat per note';
+  }, totalMs));
+}
+
+function stopContextScale() {
+  tuner.scaleTimers.forEach(id => clearTimeout(id));
+  tuner.scaleTimers = [];
+  tuner.scaleVoices.forEach(v => { try { v.stop(); } catch (e) {} });
+  tuner.scaleVoices = [];
+  tuner.scalePlaying = false;
+  const btn = document.getElementById('vt-play-scale');
+  if (btn) btn.disabled = false;
+}
+
 let vtOctave = 4;
 
 function initTuner() {
@@ -195,5 +296,6 @@ function initTuner() {
 }
 
 window.toggleTuner = toggleTuner;
+window.playContextScale = playContextScale;
 
-export { initTuner, stopTuner, tuner };
+export { initTuner, stopTuner, stopContextScale, tuner };
