@@ -2,6 +2,7 @@ import { parseNote, NOTE_NAMES_SHARP, TUNINGS, INTERVAL_LABELS } from './theory.
 import { SCALES } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
+import { recordAttempt } from './stats.js';
 
 const FB_DOTS = [3,5,7,9,12,15];
 
@@ -221,6 +222,7 @@ function checkFbAnswer() {
   const fretCorrect = fb.selectedFret.midi === fb.targetMidi;
   const intCorrect = fb.mode === 'note' || fb.selectedInterval === fb.targetInterval;
   const bothCorrect = fretCorrect && intCorrect;
+  recordAttempt('fretboard', bothCorrect);
 
   const board = document.getElementById('fb-board');
   const selectedCell = board.querySelector('.fb-cell.selected');

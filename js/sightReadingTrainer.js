@@ -1,5 +1,6 @@
 import { pick } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { recordAttempt } from './stats.js';
 
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const LETTER_INDEX = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
@@ -137,6 +138,7 @@ function checkSightAnswer(letter, btn) {
   sr.total++;
 
   const correct = letter === sr.answer;
+  recordAttempt('sightreading', correct);
   const fb = document.getElementById('sr-feedback');
 
   btn.classList.add(correct ? 'correct' : 'wrong');
