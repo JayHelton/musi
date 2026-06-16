@@ -6,7 +6,7 @@ import { drawCoF } from './circleOfFifths.js';
 // import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
 import { initMetronome, stopMetronome, metro } from './metronome.js';
 import { initFretboard } from './fretboardTrainer.js';
-import { initTuner, stopTuner, tuner } from './vocalTrainer.js';
+import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 // Backing Track feature is intentionally disabled in the UI for now.
@@ -76,7 +76,7 @@ const SWIPE_NAV_VERTICAL_LIMIT = 80;
 const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); },
-  tuner: () => { if (tuner.running) stopTuner(); },
+  tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); },
   ear: () => { if (ear._osc) stopEarTone(); },
   sightreading: () => stopSightReading(),
   recorder: () => { if (recorder.playing) stopRecorder(); },
