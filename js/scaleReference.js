@@ -217,7 +217,7 @@ function renderRefModes() {
 
   let html = `<div class="ref-modes-head">`;
   html += `<h3>Modes of ${refRoot} ${refScale} — 3-Notes-Per-String shapes</h3>`;
-  html += `<p class="ref-modes-sub">All seven modal positions across the neck. Pattern shapes only — the highlighted dot is each mode's root.</p>`;
+  html += `<p class="ref-modes-sub">All seven modes share the same notes, shown in order from the Ionian (major) parent. Pattern shapes only — the highlighted dot is each mode's root.</p>`;
   html += `</div>`;
   html += `<div class="mode-grid">`;
   modes.forEach(m => {
