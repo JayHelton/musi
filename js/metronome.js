@@ -22,6 +22,9 @@ const metro = {
   _currentSlot: 0,
   _countInLeft: 0,
   _tapTimes: [],
+  _sessionElapsedMs: 0,
+  _sessionStart: 0,
+  _sessionTimer: null,
 };
 
 let metroSettingsLoaded = false;
@@ -313,6 +316,51 @@ function renderBeatIndicator() {
   });
 }
 
+function formatSessionTime(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  if (hours > 0) return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+  return `${pad(minutes)}:${pad(seconds)}`;
+}
+
+function currentSessionMs() {
+  let ms = metro._sessionElapsedMs;
+  if (metro.playing && metro._sessionStart) ms += Date.now() - metro._sessionStart;
+  return ms;
+}
+
+function renderSessionTimer() {
+  const el = document.getElementById('m-timer');
+  if (el) el.textContent = formatSessionTime(currentSessionMs());
+}
+
+function startSessionTimer() {
+  metro._sessionStart = Date.now();
+  document.getElementById('m-timer-wrap')?.classList.add('running');
+  renderSessionTimer();
+  if (metro._sessionTimer) clearInterval(metro._sessionTimer);
+  metro._sessionTimer = setInterval(renderSessionTimer, 250);
+}
+
+function pauseSessionTimer() {
+  if (metro._sessionStart) {
+    metro._sessionElapsedMs += Date.now() - metro._sessionStart;
+    metro._sessionStart = 0;
+  }
+  if (metro._sessionTimer) { clearInterval(metro._sessionTimer); metro._sessionTimer = null; }
+  document.getElementById('m-timer-wrap')?.classList.remove('running');
+  renderSessionTimer();
+}
+
+function resetSessionTimer() {
+  metro._sessionElapsedMs = 0;
+  metro._sessionStart = metro.playing ? Date.now() : 0;
+  renderSessionTimer();
+}
+
 function startMetronome() {
   if (metro.measure.length === 0) setSimpleMeasure();
   ensureAudio();
@@ -324,12 +372,14 @@ function startMetronome() {
   renderBeatIndicator();
   metro._countInLeft = metro.countIn ? metro.tsNum : 0;
   metro._nextNoteTime = audioCtx.currentTime + 0.05;
+  startSessionTimer();
   metroScheduler();
 }
 
 function stopMetronome() {
   metro.playing = false;
   if (metro._timer) { clearTimeout(metro._timer); metro._timer = null; }
+  pauseSessionTimer();
   document.getElementById('m-play').textContent = '\u25B6 Play';
   document.getElementById('m-play').classList.remove('playing');
   highlightSlot(-1);
@@ -508,6 +558,9 @@ function initMetronome() {
     countInBtn.classList.toggle('active', metro.countIn);
     saveSetting('metro.countIn', metro.countIn);
   };
+  const timerReset = document.getElementById('m-timer-reset');
+  if (timerReset) timerReset.onclick = resetSessionTimer;
+  renderSessionTimer();
   updateAccentButtons();
   renderMeasure();
   updateBeatsFilled();

@@ -55,6 +55,11 @@ input[type=range]{accent-color:var(--accent)}
 .metro-simple-actions .btn{min-width:120px}
 .metro-simple-actions #m-play{min-width:150px;padding:12px 22px;border-radius:999px}
 .metro-beat-dots{display:flex;gap:9px;justify-content:center;align-items:center;min-height:24px;flex-wrap:wrap;margin-top:10px}
+.metro-timer{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px}
+.metro-timer-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:700}
+.metro-timer-value{font-variant-numeric:tabular-nums;font-size:1.25rem;font-weight:700;color:var(--text);min-width:62px;text-align:center;letter-spacing:.5px}
+.metro-timer.running .metro-timer-value{color:var(--accent)}
+.metro-timer-reset{padding:4px 12px}
 .metro-settings-card{padding:20px}
 .metro-simple-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
 .metro-simple-controls label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:.82rem}
