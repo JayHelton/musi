@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars and fill in. Do NOT commit the real file.
+#
+# Prefer environment variables for secrets:
+#   export SUPABASE_ACCESS_TOKEN=sbp_xxx          # used by the provider
+#   export TF_VAR_database_password='<long-random>'
+
+organization_id = "your-org-slug"
+project_name    = "musi"
+region          = "us-east-1"
+instance_size   = "nano"
+
+site_url = "https://musi.example.com"
+additional_redirect_urls = [
+  "https://musi.example.com",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+]
+
+# Leave secrets out of this file in real usage; set them via env vars instead.
+# database_password     = "set-via-TF_VAR_database_password"
+# supabase_access_token = "set-via-SUPABASE_ACCESS_TOKEN"

@@ -1,0 +1,10 @@
+# Local Terraform state, plans, and provider plugins
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+
+# Real secrets — only the *.example file is committed
+terraform.tfvars
+*.auto.tfvars
