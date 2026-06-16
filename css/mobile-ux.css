@@ -21,6 +21,20 @@ header{justify-content:space-between}
 .command-trigger:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 14px var(--accent-dim)}
 .command-trigger:active{transform:scale(.95)}
 
+/* ---- Global volume control ---- */
+.volume-control{position:relative;display:inline-flex}
+#volume-trigger.active{border-color:var(--accent);color:var(--accent);box-shadow:0 0 14px var(--accent-dim)}
+.volume-popover{position:absolute;top:calc(100% + 10px);right:0;z-index:320;width:220px;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,0.55);display:flex;flex-direction:column;gap:10px}
+.volume-popover[hidden]{display:none}
+.volume-popover-head{display:flex;align-items:center;justify-content:space-between;font-size:.8rem;color:var(--muted);font-weight:600}
+.volume-value{color:var(--accent);font-family:'Courier New',monospace;font-weight:700}
+.volume-popover input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:999px;background:var(--bg2);outline:none;cursor:pointer}
+.volume-popover input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);border:none;box-shadow:0 0 8px var(--accent-dim);cursor:pointer}
+.volume-popover input[type=range]::-moz-range-thumb{width:18px;height:18px;border:none;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent-dim);cursor:pointer}
+@media(max-width:480px){
+  .volume-popover{position:fixed;top:auto;bottom:16px;right:12px;left:12px;width:auto}
+}
+
 /* ---- Context editor bottom sheet ---- */
 .context-sheet-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.5);opacity:0;pointer-events:none;transition:opacity .2s ease}
 .context-sheet-overlay.visible{opacity:1;pointer-events:auto}

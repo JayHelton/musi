@@ -37,6 +37,18 @@
     <button id="context-pill" class="context-pill" type="button" aria-label="Edit musical context" aria-haspopup="dialog">
       <span class="context-pill-text" id="context-pill-text">C &bull; Major &bull; 120 BPM</span>
     </button>
+    <div class="volume-control">
+      <button id="volume-trigger" class="command-trigger" type="button" aria-label="Volume" title="Volume" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+      </button>
+      <div id="volume-popover" class="volume-popover" role="dialog" aria-label="Global volume" hidden>
+        <div class="volume-popover-head">
+          <span>Volume</span>
+          <span id="volume-value" class="volume-value">100%</span>
+        </div>
+        <input id="volume-slider" type="range" min="0" max="150" step="1" value="100" aria-label="Global volume">
+      </div>
+    </div>
     <button id="split-trigger" class="command-trigger split-trigger" type="button" aria-label="Split view" title="Split view">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>
     </button>
