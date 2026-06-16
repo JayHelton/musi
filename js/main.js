@@ -2,8 +2,7 @@ import { audioCtx } from './audio.js';
 import { S, buildNoteButtons, selectItem, MODS, MOD_LABELS, LETTERS_UI, CHROMATIC_NOTES } from './scaleQuiz.js';
 import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
-// Virtual Keyboard feature is disabled in the UI for now. Keep the module for future reactivation.
-// import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
+import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
 import { initMetronome, stopMetronome, metro } from './metronome.js';
 import { initFretboard } from './fretboardTrainer.js';
 import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
@@ -33,7 +32,7 @@ const ICONS = {
   scaleref:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
   chords:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg>',
   circle:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>',
-  // keyboard:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
+  keyboard:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
   metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L6 22h12L12 2z"/><path d="M12 8v6"/><circle cx="12" cy="16" r="1.5"/></svg>',
   fretboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M4 6h16M4 10h16M4 14h16M4 18h16M9 2v20M15 2v20"/></svg>',
   tuner:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
@@ -53,19 +52,18 @@ const TABS = [
   {id:'scaleref',  label:'Scales',     group:'Reference'},
   {id:'chords',    label:'Chords',     group:'Reference'},
   {id:'circle',    label:'Circle',     group:'Reference'},
-  // {id:'keyboard',  label:'Keys',       group:'Tools'},
+  {id:'keyboard',  label:'Keys',       group:'Tools'},
   {id:'metronome', label:'Tempo',      group:'Tools'},
   // {id:'backing',   label:'Backing',    group:'Create'},
   // {id:'riff',      label:'Riff',       group:'Create'},
-  {id:'recorder',  label:'Record',     group:'Capture'},
+  {id:'recorder',  label:'Record',     group:'Tools'},
 ];
 
-const GROUPS = ['Drill','Reference','Tools','Capture'];
+const GROUPS = ['Drill','Reference','Tools'];
 const GROUP_ICONS = {
   Drill:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   Reference: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
   Tools:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
-  Capture:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
 };
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
@@ -76,6 +74,7 @@ const SWIPE_NAV_VERTICAL_LIMIT = 80;
 // and split-screen so behaviour stays consistent.
 const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
+  keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); },
   tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); },
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
@@ -84,6 +83,7 @@ const TOOL_STOPPERS = {
 };
 const TOOL_INITS = {
   circle: drawCoF,
+  keyboard: buildKeyboard,
   metronome: initMetronome,
   scaleref: initScaleRef,
   chords: initChordBuilder,
@@ -461,7 +461,6 @@ function init() {
 
   document.addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
 
-  /*
   document.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
@@ -502,7 +501,6 @@ function init() {
       }
     });
   };
-  */
 
   buildNoteButtons('sq-notes','scale');
   buildNoteButtons('iq-notes','interval');
