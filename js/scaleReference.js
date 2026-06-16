@@ -166,10 +166,18 @@ function scaleModes(rootStr, scaleName) {
       root: notes[i],
       semis: rotated,
       name: findScaleNameBySemis(rotated) || `Mode ${i + 1}`,
-      degree: i + 1,
     });
   }
-  return modes;
+
+  // Display in conventional modal order starting from Ionian (the parent major
+  // scale) when the scale is diatonic; otherwise keep scale-degree order.
+  const MAJOR = '0,2,4,5,7,9,11';
+  const ionianIdx = modes.findIndex(m => m.semis.join(',') === MAJOR);
+  const ordered = ionianIdx > 0
+    ? modes.slice(ionianIdx).concat(modes.slice(0, ionianIdx))
+    : modes;
+  ordered.forEach((m, i) => { m.degree = i + 1; });
+  return ordered;
 }
 
 // Renders a single mode's 3-NPS shape as a dot diagram (no fret numbers). The
