@@ -48,7 +48,7 @@ const TABS = [
   {id:'fretboard', label:'Fretboard',  group:'Drill'},
   {id:'tuner',     label:'Pitch',      group:'Drill'},
   {id:'ear',       label:'Ear',        group:'Drill'},
-  {id:'scaleref',  label:'Reference',  group:'Reference'},
+  {id:'scaleref',  label:'Scales',     group:'Reference'},
   {id:'chords',    label:'Chords',     group:'Reference'},
   {id:'circle',    label:'Circle',     group:'Reference'},
   // {id:'keyboard',  label:'Keys',       group:'Tools'},
