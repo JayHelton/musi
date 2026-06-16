@@ -1,6 +1,7 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { detectPitch } from './pitch.js';
 
 const recorder = {
   recording: false,
@@ -47,42 +48,12 @@ const recorder = {
   normalize: true,
 };
 
-// Autocorrelation pitch detection (time-domain), same approach as the vocal trainer.
+// Confidence-gated pitch detection shared with the vocal trainer. The
+// `clarity` score rejects breath/room noise so spurious notes don't enter the
+// detected-pitch sequence; returns -1 when no confident pitch is found.
 function autoCorrelate(buf, sampleRate) {
-  let size = buf.length;
-  let rms = 0;
-  for (let i = 0; i < size; i++) rms += buf[i] * buf[i];
-  rms = Math.sqrt(rms / size);
-  if (rms < 0.01) return -1;
-
-  let r1 = 0, r2 = size - 1;
-  const thresh = 0.2;
-  for (let i = 0; i < size / 2; i++) { if (Math.abs(buf[i]) < thresh) { r1 = i; break; } }
-  for (let i = 1; i < size / 2; i++) { if (Math.abs(buf[size - i]) < thresh) { r2 = size - i; break; } }
-  buf = buf.slice(r1, r2);
-  size = buf.length;
-
-  const c = new Float32Array(size);
-  for (let i = 0; i < size; i++) {
-    let val = 0;
-    for (let j = 0; j < size - i; j++) val += buf[j] * buf[j + i];
-    c[i] = val;
-  }
-
-  let d1 = 0;
-  while (c[d1] > c[d1 + 1]) d1++;
-  let maxVal = -1, maxPos = -1;
-  for (let i = d1; i < size; i++) {
-    if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
-  }
-
-  const T0 = maxPos;
-  if (T0 === 0 || T0 >= size - 1) return -1;
-  const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
-  const a = (x1 + x3 - 2 * x2) / 2;
-  const b = (x3 - x1) / 2;
-  const betterT0 = a ? T0 - b / (2 * a) : T0;
-  return sampleRate / betterT0;
+  const { freq } = detectPitch(buf, sampleRate, { minClarity: 0.6 });
+  return freq;
 }
 
 function rmsOf(buf) {

@@ -519,10 +519,30 @@
           <div class="oct-group" id="vt-octaves"></div>
         </div>
         <div class="note-btn-row" id="vt-notes" style="justify-content:center"></div>
+        <div class="field-label" style="margin-top:18px">Scale playback</div>
+        <div class="vt-scale-controls">
+          <label class="vt-scale-field">
+            <span>Start on</span>
+            <select id="vt-scale-start"></select>
+          </label>
+          <label class="vt-scale-field">
+            <span>Notes</span>
+            <select id="vt-scale-count"></select>
+          </label>
+          <label class="vt-scale-field">
+            <span>Interval</span>
+            <select id="vt-scale-step">
+              <option value="1">Scale steps (2nds)</option>
+              <option value="2">Thirds (triads)</option>
+              <option value="3">Fourths</option>
+              <option value="4">Fifths</option>
+            </select>
+          </label>
+        </div>
         <div class="tuner-tuning-row" style="margin-top:16px;margin-bottom:0">
           <button class="btn primary" id="vt-play-scale" onclick="playContextScale()">Play scale</button>
         </div>
-        <div class="tuner-status" id="vt-scale-status">Plays the current key &amp; scale, one beat per note</div>
+        <div class="tuner-status" id="vt-scale-status">Plays a segment of the current key &amp; scale, one beat per note</div>
       </div>
     </div>
   </section>

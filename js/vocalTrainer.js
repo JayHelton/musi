@@ -1,8 +1,9 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
-import { parseNote, NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
+import { parseNote, spellNote, NOTE_NAMES_SHARP } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
-import { getContext } from './musicalContext.js';
+import { getContext, subscribeContext } from './musicalContext.js';
 import { SCALES } from './scales.js';
+import { createPitchTracker } from './pitch.js';
 
 const tuner = {
   running: false,
@@ -10,6 +11,7 @@ const tuner = {
   analyser: null,
   buf: null,
   rafId: null,
+  tracker: null,
   refOsc: null,
   refGain: null,
   scalePlaying: false,
@@ -17,58 +19,20 @@ const tuner = {
   scaleTimers: [],
 };
 
-function autoCorrelate(buf, sampleRate) {
-  let size = buf.length;
-  let rms = 0;
-  for (let i = 0; i < size; i++) rms += buf[i] * buf[i];
-  rms = Math.sqrt(rms / size);
-  if (rms < 0.01) return -1;
-
-  let r1 = 0, r2 = size - 1;
-  const thresh = 0.2;
-  for (let i = 0; i < size / 2; i++) { if (Math.abs(buf[i]) < thresh) { r1 = i; break; } }
-  for (let i = 1; i < size / 2; i++) { if (Math.abs(buf[size - i]) < thresh) { r2 = size - i; break; } }
-  buf = buf.slice(r1, r2);
-  size = buf.length;
-
-  const c = new Float32Array(size);
-  for (let i = 0; i < size; i++) {
-    let val = 0;
-    for (let j = 0; j < size - i; j++) val += buf[j] * buf[j + i];
-    c[i] = val;
-  }
-
-  let d1 = 0;
-  while (c[d1] > c[d1 + 1]) d1++;
-  let maxVal = -1, maxPos = -1;
-  for (let i = d1; i < size; i++) {
-    if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
-  }
-
-  const T0 = maxPos;
-  if (T0 === 0 || T0 >= size - 1) return -1;
-  const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
-  const a = (x1 + x3 - 2 * x2) / 2;
-  const b = (x3 - x1) / 2;
-  const betterT0 = a ? T0 - b / (2 * a) : T0;
-  return sampleRate / betterT0;
-}
-
 function tunerLoop() {
   if (!tuner.running) return;
   tuner.analyser.getFloatTimeDomainData(tuner.buf);
-  const freq = autoCorrelate(tuner.buf, audioCtx.sampleRate);
+  const { info } = tuner.tracker.process(tuner.buf);
 
   const noteEl = document.getElementById('tuner-note');
   const centsEl = document.getElementById('tuner-cents');
   const freqEl = document.getElementById('tuner-freq');
   const needle = document.getElementById('tuner-needle');
 
-  if (freq > 0 && freq < 2000) {
-    const info = noteFromFreq(freq);
+  if (info) {
     noteEl.textContent = info.name + info.oct;
     centsEl.textContent = (info.cents >= 0 ? '+' : '') + info.cents + ' cents';
-    freqEl.textContent = freq.toFixed(1) + ' Hz';
+    freqEl.textContent = info.freq.toFixed(1) + ' Hz';
 
     const absCents = Math.abs(info.cents);
     centsEl.className = 'tuner-cents ' + (absCents <= 5 ? 'in-tune' : absCents <= 15 ? 'close' : 'off');
@@ -87,14 +51,39 @@ function tunerLoop() {
   tuner.rafId = requestAnimationFrame(tunerLoop);
 }
 
+// Mic constraints tuned for focusing on a single nearby voice: browser noise
+// suppression and echo cancellation help reject room/background noise and
+// speaker bleed, while a mono channel keeps the pitch analysis clean. The
+// clarity gate in the tracker is level-independent, so auto gain control is
+// harmless and helps quiet singers register.
+function buildTunerConstraints() {
+  return {
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: 1,
+    },
+  };
+}
+
 async function startTuner() {
   ensureAudio();
   try {
-    tuner.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    try {
+      tuner.stream = await navigator.mediaDevices.getUserMedia(buildTunerConstraints());
+    } catch (constraintErr) {
+      // Some devices reject specific constraints; fall back to a plain request.
+      tuner.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
     const source = audioCtx.createMediaStreamSource(tuner.stream);
     tuner.analyser = audioCtx.createAnalyser();
-    tuner.analyser.fftSize = 2048;
+    // A larger window gives the autocorrelation enough periods to lock onto low
+    // voices confidently and keeps the clarity score stable.
+    tuner.analyser.fftSize = 4096;
+    tuner.analyser.smoothingTimeConstant = 0;
     tuner.buf = new Float32Array(tuner.analyser.fftSize);
+    tuner.tracker = createPitchTracker({ sampleRate: audioCtx.sampleRate });
     source.connect(tuner.analyser);
     tuner.running = true;
     document.getElementById('tuner-toggle').textContent = 'Mic off';
@@ -108,6 +97,7 @@ async function startTuner() {
 function stopTuner() {
   tuner.running = false;
   if (tuner.rafId) { cancelAnimationFrame(tuner.rafId); tuner.rafId = null; }
+  if (tuner.tracker) tuner.tracker.reset();
   if (tuner.stream) { tuner.stream.getTracks().forEach(t => t.stop()); tuner.stream = null; }
   stopRefTone();
   stopContextScale();
@@ -212,9 +202,48 @@ function playScaleTone(midi, startTime, duration) {
   };
 }
 
-// Play the shared musical context's scale ascending in the selected octave.
-// Each scale degree gets one beat of a 4/4 measure at the context tempo,
-// finishing on the root one octave above so the scale resolves.
+// Labels for the degree-skip between played notes. A skip of 1 walks the scale
+// step by step; a skip of 2 walks in thirds, which spells triads/arpeggios.
+const STEP_LABELS = { 1: 'scale steps (2nds)', 2: 'thirds (triads)', 3: 'fourths', 4: 'fifths' };
+
+function ordinal(n) {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return n + 'th';
+  switch (n % 10) {
+    case 1: return n + 'st';
+    case 2: return n + 'nd';
+    case 3: return n + 'rd';
+    default: return n + 'th';
+  }
+}
+
+// Build semitone offsets (relative to the root) for the configured segment,
+// wrapping across octaves as scale degrees run past one octave. With a step of
+// 1 this is a contiguous scale run; with a step of 2 it walks in thirds so the
+// sequence spells triads and seventh-chord arpeggios.
+function buildScaleSegment(def, startIdx, count, step) {
+  const base = def.map(d => d[1]);
+  const n = base.length;
+  const seq = [];
+  for (let i = 0; i < count; i++) {
+    const degree = startIdx + i * step;
+    const oct = Math.floor(degree / n);
+    const within = ((degree % n) + n) % n;
+    seq.push(base[within] + 12 * oct);
+  }
+  return seq;
+}
+
+function scaleIdleStatus() {
+  const startDeg = vtScaleStart + 1;
+  const stepLabel = STEP_LABELS[vtScaleStep] || `${ordinal(vtScaleStep + 1)}s`;
+  return `Plays ${vtScaleCount} notes from the ${ordinal(startDeg)} degree in ${stepLabel}`;
+}
+
+// Play a configurable segment of the shared musical context's scale in the
+// selected octave. The starting degree, number of notes, and degree-skip are
+// user-controlled so triads (start on any degree, skip thirds) and other
+// segmented runs can be drilled. Each note gets one beat at the context tempo.
 function playContextScale() {
   ensureAudio();
   stopContextScale();
@@ -229,9 +258,10 @@ function playContextScale() {
     return;
   }
 
-  // Semitone offsets from the root, plus the octave above to complete the run.
-  const offsets = def.map(d => d[1]);
-  offsets.push(12);
+  const startIdx = Math.min(Math.max(0, vtScaleStart), def.length - 1);
+  const count = Math.max(1, vtScaleCount);
+  const step = Math.max(1, vtScaleStep);
+  const offsets = buildScaleSegment(def, startIdx, count, step);
 
   const rootMidi = 12 * (vtOctave + 1) + r.semi;
   const beatDur = 60 / tempo;
@@ -245,13 +275,16 @@ function playContextScale() {
   tuner.scalePlaying = true;
   const btn = document.getElementById('vt-play-scale');
   if (btn) btn.disabled = true;
-  if (statusEl) statusEl.textContent = `Playing ${root} ${scale} at ${tempo} BPM`;
+  const stepLabel = STEP_LABELS[step] || `${ordinal(step + 1)}s`;
+  if (statusEl) {
+    statusEl.textContent = `Playing ${root} ${scale} · ${count} notes from the ${ordinal(startIdx + 1)} in ${stepLabel}`;
+  }
 
   const totalMs = (offsets.length * beatDur + 0.3) * 1000;
   tuner.scaleTimers.push(setTimeout(() => {
     tuner.scalePlaying = false;
     if (btn) btn.disabled = false;
-    if (statusEl) statusEl.textContent = 'Plays the current key & scale, one beat per note';
+    if (statusEl) statusEl.textContent = scaleIdleStatus();
   }, totalMs));
 }
 
@@ -266,11 +299,46 @@ function stopContextScale() {
 }
 
 let vtOctave = 4;
+let vtScaleStart = 0;   // 0-based scale degree the segment starts on
+let vtScaleCount = 8;   // number of notes to play
+let vtScaleStep = 1;    // degree-skip between played notes (1=steps, 2=thirds...)
+
+const SCALE_COUNT_MAX = 16;
+
+// Rebuild the start-degree options for the active scale, spelled in the active
+// key. Called on init and whenever the shared context changes scale/key.
+function refreshScaleControls() {
+  const startSel = document.getElementById('vt-scale-start');
+  const statusEl = document.getElementById('vt-scale-status');
+  if (!startSel) return;
+
+  const { root, scale } = getContext();
+  const def = SCALES[scale];
+  const r = parseNote(root);
+  if (!def || !r) return;
+  const n = def.length;
+  if (vtScaleStart >= n) vtScaleStart = 0;
+
+  startSel.innerHTML = '';
+  def.forEach((d, i) => {
+    const spelled = spellNote(r.li, r.semi, d[0], d[1]) || NOTE_NAMES_SHARP[(r.semi + d[1]) % 12];
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = `${ordinal(i + 1)} · ${spelled}`;
+    startSel.appendChild(opt);
+  });
+  startSel.value = String(vtScaleStart);
+
+  if (statusEl && !tuner.scalePlaying) statusEl.textContent = scaleIdleStatus();
+}
 
 function initTuner() {
   const octC = document.getElementById('vt-octaves');
   const notesC = document.getElementById('vt-notes');
   vtOctave = Number(getSetting('tuner.octave', vtOctave, [2,3,4,5,6]));
+  vtScaleStart = Math.max(0, Number(getSetting('tuner.scaleStart', vtScaleStart)) || 0);
+  vtScaleCount = Math.min(SCALE_COUNT_MAX, Math.max(1, Number(getSetting('tuner.scaleCount', vtScaleCount)) || vtScaleCount));
+  vtScaleStep = Number(getSetting('tuner.scaleStep', vtScaleStep, [1, 2, 3, 4]));
   if (octC.children.length) return;
 
   for (let o = 2; o <= 6; o++) {
@@ -293,6 +361,48 @@ function initTuner() {
     btn.onclick = () => playRefTone(name, vtOctave);
     notesC.appendChild(btn);
   });
+
+  const startSel = document.getElementById('vt-scale-start');
+  const countSel = document.getElementById('vt-scale-count');
+  const stepSel = document.getElementById('vt-scale-step');
+
+  if (countSel && !countSel.children.length) {
+    for (let i = 1; i <= SCALE_COUNT_MAX; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = String(i);
+      countSel.appendChild(opt);
+    }
+  }
+  if (countSel) {
+    countSel.value = String(vtScaleCount);
+    countSel.onchange = () => {
+      vtScaleCount = Math.min(SCALE_COUNT_MAX, Math.max(1, Number(countSel.value) || 1));
+      saveSetting('tuner.scaleCount', vtScaleCount);
+      const statusEl = document.getElementById('vt-scale-status');
+      if (statusEl && !tuner.scalePlaying) statusEl.textContent = scaleIdleStatus();
+    };
+  }
+  if (stepSel) {
+    stepSel.value = String(vtScaleStep);
+    stepSel.onchange = () => {
+      vtScaleStep = Number(stepSel.value) || 1;
+      saveSetting('tuner.scaleStep', vtScaleStep);
+      const statusEl = document.getElementById('vt-scale-status');
+      if (statusEl && !tuner.scalePlaying) statusEl.textContent = scaleIdleStatus();
+    };
+  }
+  if (startSel) {
+    startSel.onchange = () => {
+      vtScaleStart = Math.max(0, Number(startSel.value) || 0);
+      saveSetting('tuner.scaleStart', vtScaleStart);
+      const statusEl = document.getElementById('vt-scale-status');
+      if (statusEl && !tuner.scalePlaying) statusEl.textContent = scaleIdleStatus();
+    };
+  }
+
+  refreshScaleControls();
+  subscribeContext(refreshScaleControls);
 }
 
 window.toggleTuner = toggleTuner;
