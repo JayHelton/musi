@@ -87,6 +87,13 @@ export function groupedScaleEntries(includeRandom = false) {
   return entries;
 }
 
+/** All scale names in grouped display order (Common → Modes → … → Advanced). */
+export function orderedScaleNames() {
+  return groupedScaleEntries(false)
+    .filter(e => e.type !== 'label')
+    .map(e => e.val);
+}
+
 export function getScaleNotes(rootStr, scaleName) {
   const r = parseNote(rootStr);
   if (!r) return null;

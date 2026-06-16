@@ -2,7 +2,7 @@ import { getSelected, clearIntQTimers } from './scaleQuiz.js';
 import { pick, normNote } from './theory.js';
 import { getIntervalPool, computeInterval } from './intervals.js';
 import { S } from './scaleQuiz.js';
-import { getContext, subscribeContext } from './musicalContext.js';
+import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
 
 export function newIntQ() {
   clearIntQTimers();
@@ -29,12 +29,19 @@ export function newIntQ() {
   document.getElementById('iq-feedback').textContent = '';
 }
 
+export function nextIntQ() {
+  advanceContext();
+  newIntQ();
+}
+
 // Refresh the live question when the shared key changes while the Intervals
 // drill is on screen.
-subscribeContext(() => {
+subscribeContext((_, source) => {
+  if (source === 'advance') return;
   if (document.getElementById('sec-intervals')?.classList.contains('active')) {
     newIntQ();
   }
 });
 
 window.newIntQ = newIntQ;
+window.nextIntQ = nextIntQ;

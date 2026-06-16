@@ -2,7 +2,7 @@ import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio
 import { parseNote, NOTE_NAMES_SHARP, pick, INTERVAL_LABELS } from './theory.js';
 import { SCALES, getScaleNotes } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
-import { getContext, subscribeContext } from './musicalContext.js';
+import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
 
 const EAR_FADE_START_MS = 1100;
 const CONTEXTS = [
@@ -111,6 +111,10 @@ function clearAnswerState() {
 
 function playEarQuestion() {
   earClearTimers();
+  if (ear.targetSemi !== null || ear.total > 0) advanceContext();
+  const ctx = getContext();
+  ear.key = ctx.root;
+  ear.scale = ctx.scale;
   ear.answered = false;
   ear.targetNote = null;
   ear.targetSemi = null;
@@ -300,7 +304,12 @@ function initEarTrainer() {
 
   if (!earContextSubscribed) {
     earContextSubscribed = true;
-    subscribeContext(c => {
+    subscribeContext((c, source) => {
+      if (source === 'advance') {
+        ear.key = c.root;
+        ear.scale = c.scale;
+        return;
+      }
       if (c.root === ear.key && c.scale === ear.scale) return;
       ear.key = c.root;
       ear.scale = c.scale;
