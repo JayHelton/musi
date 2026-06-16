@@ -89,16 +89,17 @@ function buildScaleList() {
   });
 }
 
-function compute3NPS(rootStr, scaleName) {
+// Computes a 3-notes-per-string layout from an explicit semitone pattern
+// (semitones from the supplied root). Each fret entry carries the scale-degree
+// index so callers can highlight the root note of the shape.
+function compute3NPSFromSemis(rootStr, semis) {
   const r = parseNote(rootStr);
   if (!r) return null;
-  const def = SCALES[scaleName];
-  if (!def) return null;
+  if (!Array.isArray(semis) || !semis.length) return null;
 
-  const semis = def.map(d => d[1]);
   const allSemis = [];
   for (let oct = 0; oct < 5; oct++)
-    semis.forEach(s => allSemis.push(s + oct * 12));
+    semis.forEach((s, i) => allSemis.push({ semi: s + oct * 12, degree: i }));
 
   const rootFret = ((r.semi - 4) % 12 + 12) % 12;
   const openStrings = [0, 5, 10, 15, 19, 24];
@@ -110,12 +111,20 @@ function compute3NPS(rootStr, scaleName) {
     const frets = [];
     for (let n = 0; n < 3; n++) {
       if (ni >= allSemis.length) break;
-      frets.push(rootFret + allSemis[ni] - openStrings[s]);
+      frets.push({ fret: rootFret + allSemis[ni].semi - openStrings[s], degree: allSemis[ni].degree });
       ni++;
     }
     result.push({ label: labels[s], frets });
   }
   return result;
+}
+
+function compute3NPS(rootStr, scaleName) {
+  const def = SCALES[scaleName];
+  if (!def) return null;
+  const pattern = compute3NPSFromSemis(rootStr, def.map(d => d[1]));
+  if (!pattern) return null;
+  return pattern.map(s => ({ label: s.label, frets: s.frets.map(f => f.fret) }));
 }
 
 function render3NPSTab(rootStr, scaleName) {
@@ -128,6 +137,91 @@ function render3NPSTab(rootStr, scaleName) {
     tab += s.label + '|---' + fretStr + '---|\n';
   });
   return tab;
+}
+
+// Finds a SCALES entry whose semitone pattern matches the given list, so each
+// rotated mode can be labelled with its proper name when one exists.
+function findScaleNameBySemis(semis) {
+  const target = semis.join(',');
+  for (const [name, def] of Object.entries(SCALES)) {
+    if (def.length === semis.length && def.map(d => d[1]).join(',') === target) return name;
+  }
+  return null;
+}
+
+// The 7 diatonic modes of a 7-note scale: each rotation shares the same notes
+// but starts on a different scale degree. Returns null for non-7-note scales.
+function scaleModes(rootStr, scaleName) {
+  const notes = getScaleNotes(rootStr, scaleName);
+  const def = SCALES[scaleName];
+  if (!notes || !def || def.length !== 7) return null;
+
+  const semis = def.map(d => d[1]);
+  const modes = [];
+  for (let i = 0; i < 7; i++) {
+    const rotated = [];
+    for (let k = 0; k < 7; k++)
+      rotated.push(((semis[(i + k) % 7] - semis[i]) % 12 + 12) % 12);
+    modes.push({
+      root: notes[i],
+      semis: rotated,
+      name: findScaleNameBySemis(rotated) || `Mode ${i + 1}`,
+      degree: i + 1,
+    });
+  }
+  return modes;
+}
+
+// Renders a single mode's 3-NPS shape as a dot diagram (no fret numbers). The
+// fret window is derived from the shape itself with one fret of padding.
+function renderModeFretboard(pattern) {
+  let min = Infinity, max = -Infinity;
+  pattern.forEach(s => s.frets.forEach(f => {
+    if (f.fret < min) min = f.fret;
+    if (f.fret > max) max = f.fret;
+  }));
+  if (min === Infinity) return '';
+
+  const startFret = Math.max(0, min - 1);
+  const endFret = max + 1;
+  const count = endFret - startFret + 1;
+  const reversed = [...pattern].reverse();
+
+  let html = `<div class="mode-fretboard" style="grid-template-columns:auto repeat(${count},minmax(14px,1fr))">`;
+  reversed.forEach(s => {
+    html += `<div class="mfb-label">${s.label}</div>`;
+    for (let f = startFret; f <= endFret; f++) {
+      const hit = s.frets.find(x => x.fret === f);
+      let cls = 'mfb-cell';
+      if (hit) cls += hit.degree === 0 ? ' root' : ' note';
+      html += `<div class="${cls}"></div>`;
+    }
+  });
+  html += `</div>`;
+  return html;
+}
+
+function renderRefModes() {
+  const wrap = document.getElementById('ref-modes');
+  if (!wrap) return;
+  const modes = scaleModes(refRoot, refScale);
+  if (!modes) { wrap.innerHTML = ''; return; }
+
+  let html = `<div class="ref-modes-head">`;
+  html += `<h3>Modes of ${refRoot} ${refScale} — 3-Notes-Per-String shapes</h3>`;
+  html += `<p class="ref-modes-sub">All seven modal positions across the neck. Pattern shapes only — the highlighted dot is each mode's root.</p>`;
+  html += `</div>`;
+  html += `<div class="mode-grid">`;
+  modes.forEach(m => {
+    const pattern = compute3NPSFromSemis(m.root, m.semis);
+    if (!pattern) return;
+    html += `<div class="mode-card">`;
+    html += `<div class="mode-card-title"><span class="mode-deg">${m.degree}</span><span>${m.root} ${m.name}</span></div>`;
+    html += renderModeFretboard(pattern);
+    html += `</div>`;
+  });
+  html += `</div>`;
+  wrap.innerHTML = html;
 }
 
 function renderScaleRef() {
@@ -173,6 +267,7 @@ function renderScaleRef() {
   }
 
   card.innerHTML = html;
+  renderRefModes();
 }
 
 export { initScaleRef };

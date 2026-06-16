@@ -16,6 +16,26 @@
   #sec-scaleref .quiz-main{order:2}
 }
 
+/* 3-NPS modes panel — large screens only, shown beneath the main reference */
+#ref-modes{display:none}
+@media(min-width:900px){
+  #ref-modes{display:block;margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
+}
+body.split-mode #ref-modes{display:none}
+.ref-modes-head h3{margin:0 0 4px;color:var(--accent);font-size:1.05rem}
+.ref-modes-sub{margin:0 0 18px;color:var(--muted);font-size:.85rem}
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.mode-card{background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.45)}
+.mode-card-title{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:600;color:var(--text);margin-bottom:12px}
+.mode-deg{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--accent-dim);color:var(--accent);font-size:.72rem;font-weight:700}
+.mode-fretboard{display:grid;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.mfb-label{display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:.62rem;font-weight:600;color:var(--muted);background:var(--bg);border-right:2px solid var(--border);border-bottom:1px solid rgba(255,255,255,0.05)}
+.mfb-cell{position:relative;height:24px;border-right:1px solid rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05)}
+.mode-fretboard>div:last-child{border-right:none}
+.mfb-cell.note::after,.mfb-cell.root::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:13px;height:13px;border-radius:50%}
+.mfb-cell.note::after{background:var(--accent)}
+.mfb-cell.root::after{background:var(--accent2);box-shadow:0 0 0 2px var(--accent-dim)}
+
 /* Chord Builder */
 .chord-picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
 .chord-chips{display:flex;gap:6px;flex-wrap:wrap;min-height:44px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:16px;margin-bottom:12px;align-items:center;transition:box-shadow 0.2s ease}
