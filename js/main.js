@@ -23,6 +23,7 @@ import { initContextBar } from './contextBar.js';
 import { initCommandPalette } from './commandPalette.js';
 import { initProgressHeaders } from './progressHeader.js';
 import { initHome } from './home.js';
+import { initSessions } from './sessionsUI.js';
 
 const ICONS = {
   scales:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
@@ -499,6 +500,7 @@ function init() {
   initCommandPalette({ showSection, tabs: TABS, icons: ICONS });
   initProgressHeaders();
   initHome({ showSection, tabs: TABS, icons: ICONS });
+  initSessions({ showSection, tabs: TABS, icons: ICONS });
   initSplitView();
 
   const wordmark = document.getElementById('wordmark-home');
