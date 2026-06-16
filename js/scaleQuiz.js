@@ -1,7 +1,7 @@
 import { normNote } from './theory.js';
 import { getScaleNotes, scaleStepPattern } from './scales.js';
 import { saveSetting } from './persistence.js';
-import { getContext, subscribeContext } from './musicalContext.js';
+import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
 
 export const S = {
   sq: {score:0,total:0,streak:0,ans:null,name:'',hint:''},
@@ -84,7 +84,7 @@ export function submitIntervalNote(note) {
   document.getElementById('iq-score').textContent = `${S.iq.score} / ${S.iq.total}`;
   document.getElementById('iq-streak').textContent = S.iq.streak;
   S.iq.ans = null;
-  scheduleAdvance(iqTimers, fb, () => { if (window.newIntQ) window.newIntQ(); });
+  scheduleAdvance(iqTimers, fb, () => { if (window.nextIntQ) window.nextIntQ(); });
 }
 
 export function getSelected(containerId) {
@@ -156,7 +156,12 @@ export function checkScaleA() {
   document.getElementById('sq-score').textContent = `${S.sq.score} / ${S.sq.total}`;
   document.getElementById('sq-streak').textContent = S.sq.streak;
   S.sq.ans = null;
-  scheduleAdvance(sqTimers, fb, newScaleQ);
+  scheduleAdvance(sqTimers, fb, nextScaleQ);
+}
+
+function nextScaleQ() {
+  advanceContext();
+  newScaleQ();
 }
 
 export function resetScore(which) {
@@ -173,7 +178,8 @@ export function resetScore(which) {
 
 // When the shared key/scale changes, refresh the live question if the Scale
 // Spelling drill is the one on screen.
-subscribeContext(() => {
+subscribeContext((_, source) => {
+  if (source === 'advance') return;
   if (document.getElementById('sec-scales')?.classList.contains('active')) {
     newScaleQ();
   }

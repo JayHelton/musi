@@ -1,8 +1,9 @@
-import { getContext, setContext, subscribeContext, TEMPO_MIN, TEMPO_MAX } from './musicalContext.js';
+import { getContext, setContext, subscribeContext, TEMPO_MIN, TEMPO_MAX, ITERATION_MODES, getIterationModeLabel } from './musicalContext.js';
 import { ROOTS } from './theory.js';
 import { groupedScaleEntries } from './scales.js';
 
 const SOURCE = 'context-bar';
+const MODE_ITEMS = ITERATION_MODES.map(m => ({ val: m, label: getIterationModeLabel(m) }));
 
 export function shortScaleName(name) {
   if (!name) return '';
@@ -68,11 +69,19 @@ function buildEditor() {
     <div class="context-field">
       <div class="context-field-label">Key</div>
       <div class="seg-row" id="ctx-root"></div>
+      <div class="context-mode-row">
+        <div class="context-field-label context-mode-label">Key progression</div>
+        <div class="seg-row compact" id="ctx-root-mode"></div>
+      </div>
     </div>
     <div class="context-field">
       <div class="context-field-label">Mode / Scale</div>
       <div class="seg-row" id="ctx-scale"></div>
       <select class="context-scale-select" id="ctx-scale-select" aria-label="All scales"></select>
+      <div class="context-mode-row">
+        <div class="context-field-label context-mode-label">Scale progression</div>
+        <div class="seg-row compact" id="ctx-scale-mode"></div>
+      </div>
     </div>
     <div class="context-field">
       <div class="context-field-label">Tempo</div>
@@ -93,12 +102,17 @@ function buildEditor() {
   sheet.querySelector('#ctx-done').onclick = closeEditor;
 
   const rootRow = sheet.querySelector('#ctx-root');
+  const rootModeRow = sheet.querySelector('#ctx-root-mode');
   const scaleRow = sheet.querySelector('#ctx-scale');
+  const scaleModeRow = sheet.querySelector('#ctx-scale-mode');
   const scaleSelect = sheet.querySelector('#ctx-scale-select');
   const tempoInput = sheet.querySelector('#ctx-tempo');
 
   buildSegmented(rootRow, ROOTS.map(r => ({ val: r, label: r })), getContext().root, val => {
     setContext({ root: val }, SOURCE);
+  });
+  buildSegmented(rootModeRow, MODE_ITEMS, getContext().rootMode, val => {
+    setContext({ rootMode: val }, SOURCE);
   });
 
   const allScales = groupedScaleEntries(false);
@@ -108,6 +122,9 @@ function buildEditor() {
     .map(e => ({ val: e.val, label: shortScaleName(e.label) }));
   buildSegmented(scaleRow, commonScales, getContext().scale, val => {
     setContext({ scale: val }, SOURCE);
+  });
+  buildSegmented(scaleModeRow, MODE_ITEMS, getContext().scaleMode, val => {
+    setContext({ scaleMode: val }, SOURCE);
   });
 
   allScales.forEach(({ type, val, label }) => {
@@ -135,7 +152,9 @@ function buildEditor() {
   // Keep the editor controls in sync when context changes from anywhere.
   subscribeContext(c => {
     markActive(rootRow, c.root);
+    markActive(rootModeRow, c.rootMode);
     markActive(scaleRow, c.scale);
+    markActive(scaleModeRow, c.scaleMode);
     if (scaleSelect.value !== c.scale) scaleSelect.value = c.scale;
     if (Number(tempoInput.value) !== c.tempo) tempoInput.value = c.tempo;
   });

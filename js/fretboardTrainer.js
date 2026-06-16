@@ -1,7 +1,7 @@
 import { parseNote, NOTE_NAMES_SHARP, TUNINGS, INTERVAL_LABELS } from './theory.js';
 import { SCALES } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
-import { getContext, subscribeContext } from './musicalContext.js';
+import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
 
 const FB_DOTS = [3,5,7,9,12,15];
 
@@ -269,7 +269,10 @@ function checkFbAnswer() {
 
   fb._fadeTimer = setTimeout(() => feedback.classList.add('fade-out'), FB_FADE_START_MS);
   fb._advTimer = setTimeout(() => {
-    if (document.getElementById('sec-fretboard').classList.contains('active')) newFbQuestion();
+    if (document.getElementById('sec-fretboard').classList.contains('active')) {
+      advanceContext();
+      newFbQuestion();
+    }
   }, FB_ADVANCE_MS);
 }
 
@@ -366,7 +369,12 @@ function initFretboard() {
 
   if (!fbContextSubscribed) {
     fbContextSubscribed = true;
-    subscribeContext(c => {
+    subscribeContext((c, source) => {
+      if (source === 'advance') {
+        fb.key = c.root;
+        fb.scale = c.scale;
+        return;
+      }
       if (c.root === fb.key && c.scale === fb.scale) return;
       fb.key = c.root;
       fb.scale = c.scale;

@@ -30,6 +30,8 @@ header{justify-content:space-between}
 .context-sheet-title{font-size:.72rem;text-transform:uppercase;letter-spacing:1.4px;font-weight:700;color:var(--accent);margin-bottom:16px}
 .context-field{margin-bottom:18px}
 .context-field-label{font-size:.78rem;color:var(--muted);margin-bottom:8px;font-weight:500}
+.context-mode-row{margin-top:10px}
+.context-mode-label{font-size:.7rem;margin-bottom:6px}
 .context-scale-select{margin-top:8px;width:100%}
 .context-tempo-row{display:flex;align-items:center;gap:12px}
 .context-tempo-input{width:90px;text-align:center;font-size:1.2rem;font-weight:700;padding:10px}
