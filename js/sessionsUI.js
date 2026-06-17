@@ -25,7 +25,7 @@ import {
   uid,
   clampDuration,
 } from './sessions.js';
-import { ensureAudio, audioCtx } from './audio.js';
+import { ensureAudio, audioCtx, getAnalyserDestination } from './audio.js';
 
 let showSectionFn = null;
 let icons = {};
@@ -705,7 +705,7 @@ function transitionCue() {
       gain.gain.linearRampToValueAtTime(0.12, start + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
       osc.connect(gain);
-      gain.connect(audioCtx.destination);
+      gain.connect(getAnalyserDestination());
       osc.start(start);
       osc.stop(start + 0.25);
     });
