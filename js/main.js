@@ -282,10 +282,86 @@ function initVolumeControl() {
   });
 }
 
+let splitDividerEl = null;
+
+function applySplitRatio(f) {
+  const main = document.querySelector('main');
+  if (!main) return;
+  const ratio = Math.max(0.2, Math.min(0.8, f));
+  main.style.setProperty('--split-primary', String(ratio));
+  main.style.setProperty('--split-secondary', String(1 - ratio));
+  if (splitDividerEl) splitDividerEl.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+}
+
+function initSplitDivider() {
+  const main = document.querySelector('main');
+  if (!main) return;
+  splitDividerEl = document.createElement('div');
+  splitDividerEl.className = 'split-divider';
+  splitDividerEl.setAttribute('role', 'separator');
+  splitDividerEl.setAttribute('aria-orientation', 'vertical');
+  splitDividerEl.setAttribute('aria-label', 'Resize split panes');
+  splitDividerEl.setAttribute('aria-valuemin', '20');
+  splitDividerEl.setAttribute('aria-valuemax', '80');
+  splitDividerEl.setAttribute('aria-valuenow', '50');
+  splitDividerEl.setAttribute('tabindex', '0');
+  splitDividerEl.title = 'Drag to resize · double-click to reset';
+  main.appendChild(splitDividerEl);
+
+  let dragging = false;
+
+  const ratioFromX = (clientX) => {
+    const rect = main.getBoundingClientRect();
+    const cs = getComputedStyle(main);
+    const padL = parseFloat(cs.paddingLeft) || 0;
+    const padR = parseFloat(cs.paddingRight) || 0;
+    const inner = rect.width - padL - padR;
+    if (inner <= 0) return 0.5;
+    return (clientX - rect.left - padL) / inner;
+  };
+  const currentRatio = () => {
+    const v = parseFloat(getComputedStyle(main).getPropertyValue('--split-primary'));
+    return Number.isNaN(v) ? 0.5 : v;
+  };
+
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    splitDividerEl.classList.remove('dragging');
+    document.body.classList.remove('split-resizing');
+    if (e && e.pointerId != null) { try { splitDividerEl.releasePointerCapture(e.pointerId); } catch (_) {} }
+  };
+
+  splitDividerEl.addEventListener('pointerdown', (e) => {
+    if (!splitSecondaryId) return;
+    dragging = true;
+    splitDividerEl.classList.add('dragging');
+    document.body.classList.add('split-resizing');
+    try { splitDividerEl.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+  splitDividerEl.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    applySplitRatio(ratioFromX(e.clientX));
+  });
+  splitDividerEl.addEventListener('pointerup', endDrag);
+  splitDividerEl.addEventListener('pointercancel', endDrag);
+  splitDividerEl.addEventListener('dblclick', () => applySplitRatio(0.5));
+  splitDividerEl.addEventListener('keydown', (e) => {
+    if (!splitSecondaryId) return;
+    if (e.key === 'ArrowLeft') { applySplitRatio(currentRatio() - 0.05); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { applySplitRatio(currentRatio() + 0.05); e.preventDefault(); }
+    else if (e.key === 'Home' || e.key === 'Enter') { applySplitRatio(0.5); e.preventDefault(); }
+  });
+}
+
 function initSplitView() {
   splitMenuEl = document.createElement('div');
   splitMenuEl.className = 'tc-menu split-menu';
   document.body.appendChild(splitMenuEl);
+
+  initSplitDivider();
 
   const trigger = document.getElementById('split-trigger');
   if (trigger) {
@@ -546,7 +622,12 @@ function init() {
     saveSetting('kb.vol', S.kb.vol);
     Object.values(S.kb.drones).forEach(dr => {
       if (typeof audioCtx !== 'undefined' && audioCtx) {
-        dr.gain.gain.setValueAtTime(S.kb.vol, audioCtx.currentTime);
+        const now = audioCtx.currentTime;
+        // Match the 0.5 scaling used when a drone is first created so live
+        // adjustments stay consistent instead of jumping to double volume.
+        dr.gain.gain.cancelScheduledValues(now);
+        dr.gain.gain.setValueAtTime(dr.gain.gain.value, now);
+        dr.gain.gain.linearRampToValueAtTime(S.kb.vol * 0.5, now + 0.03);
       }
     });
   };
