@@ -299,6 +299,22 @@ export function deleteSession(id) {
   return true;
 }
 
+// Strips a (now-deleted) library attachment id from every saved session so no
+// card is left pointing at audio that no longer exists.
+export function removeAttachmentFromAllSessions(attId) {
+  const sessions = getSessions();
+  let changed = false;
+  sessions.forEach(s => {
+    if (Array.isArray(s.attachments) && s.attachments.some(a => a.id === attId)) {
+      s.attachments = s.attachments.filter(a => a.id !== attId);
+      s.updatedAt = nowISO();
+      changed = true;
+    }
+  });
+  if (changed) persistSessions();
+  return changed;
+}
+
 export function markSessionStarted(id) {
   const session = getSession(id);
   if (!session) return;

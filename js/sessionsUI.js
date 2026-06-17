@@ -14,6 +14,7 @@ import {
   createSession,
   updateSession,
   deleteSession,
+  removeAttachmentFromAllSessions,
   markSessionStarted,
   sessionTotalSeconds,
   sessionTotalMinutes,
@@ -558,6 +559,10 @@ function confirmDeleteLibraryItem(item) {
     async () => {
       await deleteAudio(item.id);
       editorState.attachedIds = editorState.attachedIds.filter(id => id !== item.id);
+      // Purge the dangling reference from every saved session so no card is
+      // left pointing at audio that no longer exists.
+      removeAttachmentFromAllSessions(item.id);
+      renderHome();
       await refreshLibrary();
     },
   );
