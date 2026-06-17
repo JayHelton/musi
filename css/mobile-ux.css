@@ -124,12 +124,12 @@ header{justify-content:space-between}
 
 /* ---- Split-screen tool mode ---- */
 .command-trigger.active{background:var(--accent);color:#0a0a0a;border-color:var(--accent)}
-body.split-mode main{display:flex;gap:16px;align-items:flex-start}
-body.split-mode .section.active{flex:var(--split-primary,1) 1 0;min-width:0;animation:none;transform:none;opacity:1;order:0}
+body.split-mode main{display:flex;gap:8px;align-items:stretch}
+body.split-mode .section.active{flex:var(--split-primary,1) 1 0;min-width:0;overflow-x:clip;animation:none;transform:none;opacity:1;order:0}
 body.split-mode .section.split-secondary{flex:var(--split-secondary,1) 1 0;border-left:none;padding-left:0;order:2}
 /* Draggable divider between split panes; hidden until split-mode is active. */
 .split-divider{display:none}
-body.split-mode .split-divider{display:flex;order:1;flex:0 0 12px;align-self:stretch;align-items:center;justify-content:center;position:relative;cursor:col-resize;margin:0 -8px;touch-action:none;z-index:5}
+body.split-mode .split-divider{display:flex;order:1;flex:0 0 18px;align-self:stretch;align-items:center;justify-content:center;position:relative;cursor:col-resize;touch-action:none;z-index:5}
 .split-divider::before{content:"";width:2px;align-self:stretch;background:var(--border);border-radius:2px;transition:background .15s ease,width .15s ease}
 .split-divider:hover::before,.split-divider:focus-visible::before,.split-divider.dragging::before{background:var(--accent);width:3px}
 .split-divider::after{content:"";position:absolute;width:5px;height:38px;border-radius:3px;background:var(--border);transition:background .15s ease}
