@@ -112,6 +112,16 @@ function clampDuration(value) {
   return n;
 }
 
+const NOTES_LIMIT = 4000;
+
+// Free-form session notes (reminders, curriculum/regimen requirements). Trailing
+// whitespace is trimmed but internal line breaks are preserved; length capped so
+// a runaway paste can't blow the localStorage quota.
+function clampNotes(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+$/, '').slice(0, NOTES_LIMIT);
+}
+
 // --- Normalisation: defends against corrupted / partial saved data. --------
 
 function normalizeDrill(raw) {
@@ -127,17 +137,38 @@ function normalizeDrill(raw) {
   };
 }
 
+// Attachment metadata only. The file Blob itself lives in IndexedDB keyed by
+// this `id` (see attachments.js); here we keep just enough to list and play it.
+function normalizeAttachment(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = typeof raw.id === 'string' && raw.id ? raw.id : uid('att');
+  const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Audio';
+  return {
+    id,
+    name,
+    fileName: typeof raw.fileName === 'string' ? raw.fileName : '',
+    type: typeof raw.type === 'string' ? raw.type : '',
+    size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : 0,
+    addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : nowISO(),
+  };
+}
+
 function normalizeSession(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const drills = Array.isArray(raw.drills)
     ? raw.drills.map(normalizeDrill).filter(Boolean)
+    : [];
+  const attachments = Array.isArray(raw.attachments)
+    ? raw.attachments.map(normalizeAttachment).filter(Boolean)
     : [];
   const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Untitled Session';
   const created = typeof raw.createdAt === 'string' ? raw.createdAt : nowISO();
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('session'),
     name,
+    notes: clampNotes(raw.notes),
     drills,
+    attachments,
     createdAt: created,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : created,
     lastStartedAt: typeof raw.lastStartedAt === 'string' ? raw.lastStartedAt : undefined,
@@ -226,11 +257,16 @@ export function validateSessionInput(input) {
   const drills = rawDrills.map(normalizeDrill).filter(Boolean);
   if (drills.length === 0) errors.push('Add at least one drill.');
 
-  return { ok: errors.length === 0, errors, name, drills };
+  const rawAttachments = Array.isArray(input && input.attachments) ? input.attachments : [];
+  const attachments = rawAttachments.map(normalizeAttachment).filter(Boolean);
+
+  const notes = clampNotes(input && input.notes);
+
+  return { ok: errors.length === 0, errors, name, notes, drills, attachments };
 }
 
 export function createSession(input) {
-  const { ok, errors, name, drills } = validateSessionInput(input);
+  const { ok, errors, name, notes, drills, attachments } = validateSessionInput(input);
   if (!ok) return { ok: false, errors };
 
   const sessions = getSessions();
@@ -238,7 +274,9 @@ export function createSession(input) {
   const session = {
     id: uid(`session-${slug(name)}`),
     name,
+    notes,
     drills,
+    attachments,
     createdAt: t,
     updatedAt: t,
   };
@@ -248,7 +286,7 @@ export function createSession(input) {
 }
 
 export function updateSession(id, input) {
-  const { ok, errors, name, drills } = validateSessionInput(input);
+  const { ok, errors, name, notes, drills, attachments } = validateSessionInput(input);
   if (!ok) return { ok: false, errors };
 
   const sessions = getSessions();
@@ -258,7 +296,9 @@ export function updateSession(id, input) {
   sessions[idx] = {
     ...sessions[idx],
     name,
+    notes,
     drills,
+    attachments,
     updatedAt: nowISO(),
   };
   persistSessions();
@@ -272,6 +312,22 @@ export function deleteSession(id) {
   sessions.splice(idx, 1);
   persistSessions();
   return true;
+}
+
+// Strips a (now-deleted) library attachment id from every saved session so no
+// card is left pointing at audio that no longer exists.
+export function removeAttachmentFromAllSessions(attId) {
+  const sessions = getSessions();
+  let changed = false;
+  sessions.forEach(s => {
+    if (Array.isArray(s.attachments) && s.attachments.some(a => a.id === attId)) {
+      s.attachments = s.attachments.filter(a => a.id !== attId);
+      s.updatedAt = nowISO();
+      changed = true;
+    }
+  });
+  if (changed) persistSessions();
+  return changed;
 }
 
 export function markSessionStarted(id) {

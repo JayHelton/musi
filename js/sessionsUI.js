@@ -14,6 +14,7 @@ import {
   createSession,
   updateSession,
   deleteSession,
+  removeAttachmentFromAllSessions,
   markSessionStarted,
   sessionTotalSeconds,
   sessionTotalMinutes,
@@ -26,6 +27,22 @@ import {
   clampDuration,
 } from './sessions.js';
 import { ensureAudio, audioCtx } from './audio.js';
+import {
+  saveAudio,
+  listAudioMeta,
+  getAudioBlob,
+  renameAudio,
+  deleteAudio,
+  attachmentsSupported,
+  ensurePersistentStorage,
+} from './attachments.js';
+
+// Object URLs created for inline playback, tracked so they can be revoked.
+let activeAudioEl = null;
+let activeAudioURL = null;
+
+// How many library items show per page in the editor's attachment list.
+const LIBRARY_PAGE_SIZE = 5;
 
 let showSectionFn = null;
 let icons = {};
@@ -76,11 +93,22 @@ function fmtRelativeDate(iso) {
 // HOME: sessions rail + recent history
 // =========================================================================
 
+// Stops and releases any attachment audio playing on a card. Card <audio>
+// elements are torn down whenever the grid re-renders; removing them from the
+// DOM does not stop playback, so we must pause + revoke explicitly.
+function stopCardAudio() {
+  if (activeAudioEl) { try { activeAudioEl.pause(); } catch (e) {} }
+  if (activeAudioURL) { try { URL.revokeObjectURL(activeAudioURL); } catch (e) {} }
+  activeAudioEl = null;
+  activeAudioURL = null;
+}
+
 export function renderHome() {
   const grid = document.getElementById('home-sessions-grid');
   const empty = document.getElementById('home-sessions-empty');
   if (!grid) return;
 
+  stopCardAudio();
   const sessions = getSessions();
   grid.innerHTML = '';
 
@@ -107,6 +135,13 @@ function buildSessionCard(session) {
   card.appendChild(el('div', { class: 'session-card-meta', text: meta }));
   card.appendChild(el('div', { class: 'session-card-sub', text: last }));
 
+  if (session.notes && session.notes.trim()) {
+    card.appendChild(el('div', { class: 'session-card-notes', title: session.notes, text: session.notes }));
+  }
+
+  const attachments = Array.isArray(session.attachments) ? session.attachments : [];
+  if (attachments.length) card.appendChild(buildAttachmentPlayer(attachments));
+
   const actions = el('div', { class: 'session-card-actions' });
   actions.appendChild(el('button', {
     class: 'btn primary session-start',
@@ -128,6 +163,63 @@ function buildSessionCard(session) {
   }));
   card.appendChild(actions);
   return card;
+}
+
+// Builds the clickable attachment list shown on a session card. Clicking a
+// named item loads its Blob from IndexedDB and plays it in a shared inline
+// audio player rendered below the list.
+function buildAttachmentPlayer(attachments) {
+  const wrap = el('div', { class: 'session-card-attach' });
+  const player = el('audio', { class: 'session-attach-audio', controls: '', preload: 'none' });
+  player.style.display = 'none';
+
+  const list = el('div', { class: 'session-attach-list' });
+  attachments.forEach(att => {
+    const btn = el('button', {
+      class: 'session-attach-item', type: 'button', title: att.fileName || att.name,
+    }, [
+      el('span', { class: 'session-attach-icon', html: '&#9654;', 'aria-hidden': 'true' }),
+      el('span', { class: 'session-attach-name', text: att.name }),
+    ]);
+    btn.addEventListener('click', () => playAttachment(att, player, list, btn));
+    list.appendChild(btn);
+  });
+
+  // Clear the highlight when playback finishes on its own.
+  player.addEventListener('ended', () => {
+    list.querySelectorAll('.session-attach-item.playing').forEach(b => b.classList.remove('playing'));
+  });
+
+  wrap.appendChild(list);
+  wrap.appendChild(player);
+  return wrap;
+}
+
+async function playAttachment(att, player, list, btn) {
+  // Revoke any URL from a previously played attachment (any card).
+  if (activeAudioURL) { try { URL.revokeObjectURL(activeAudioURL); } catch (e) {} activeAudioURL = null; }
+  if (activeAudioEl && activeAudioEl !== player) {
+    // Pause and hide the other card's player so only one is ever shown.
+    try { activeAudioEl.pause(); } catch (e) {}
+    activeAudioEl.style.display = 'none';
+  }
+
+  // Clear the "playing" highlight on every card, not just this one.
+  document.querySelectorAll('.session-attach-item.playing').forEach(b => b.classList.remove('playing'));
+
+  const blob = await getAudioBlob(att.id);
+  if (!blob) {
+    btn.classList.add('missing');
+    btn.title = 'File missing from storage';
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  activeAudioURL = url;
+  activeAudioEl = player;
+  player.src = url;
+  player.style.display = '';
+  btn.classList.add('playing');
+  player.play().catch(() => { /* autoplay may need a gesture; controls remain */ });
 }
 
 function renderHistory() {
@@ -160,7 +252,8 @@ function confirmDelete(session) {
     'This removes the saved session from this device.',
     'Delete',
     () => {
-      // Ending an active session if it is the one being deleted.
+      // Ending an active session if it is the one being deleted. Saved audio in
+      // the library is intentionally kept — it persists until deleted manually.
       if (rt && rt.session && rt.session.id === session.id) endSession(false);
       deleteSession(session.id);
       renderHome();
@@ -184,6 +277,8 @@ function ensureModalRoot() {
 function closeModal() {
   if (modalRoot) modalRoot.innerHTML = '';
   document.body.classList.remove('session-modal-open');
+  // Stop the editor's library-preview audio if it was playing.
+  if (editorPreviewAudio) { try { editorPreviewAudio.pause(); } catch (e) {} }
 }
 
 function openModal(contentNode, { onClose } = {}) {
@@ -239,9 +334,17 @@ function openEditor(sessionId) {
   editorState = {
     id: existing ? existing.id : null,
     name: existing ? existing.name : '',
+    notes: existing && typeof existing.notes === 'string' ? existing.notes : '',
     drills: existing
       ? existing.drills.map(d => ({ ...d }))
       : [],
+    // Library ids attached to this session, in display order.
+    attachedIds: existing && Array.isArray(existing.attachments)
+      ? existing.attachments.map(a => a.id)
+      : [],
+    // Loaded asynchronously from the IndexedDB library; drives the paginated list.
+    library: [],
+    libraryPage: 0,
   };
 
   const dialog = el('div', { class: 'session-dialog session-editor' });
@@ -257,6 +360,15 @@ function openEditor(sessionId) {
   nameField.addEventListener('input', () => { editorState.name = nameField.value; });
   dialog.appendChild(el('label', { class: 'session-field-label', text: 'Session name' }));
   dialog.appendChild(nameField);
+
+  const notesField = el('textarea', {
+    class: 'session-notes-input', id: 'session-notes-input', rows: '3', maxlength: '4000',
+    placeholder: 'Reminders, curriculum or regimen requirements, goals for this session…',
+  });
+  notesField.value = editorState.notes;
+  notesField.addEventListener('input', () => { editorState.notes = notesField.value; });
+  dialog.appendChild(el('label', { class: 'session-field-label', text: 'Notes' }));
+  dialog.appendChild(notesField);
 
   dialog.appendChild(el('div', { class: 'session-field-label session-drills-label' }, [
     el('span', { text: 'Drills' }),
@@ -292,6 +404,35 @@ function openEditor(sessionId) {
   addRow.appendChild(select);
   dialog.appendChild(addRow);
 
+  // --- Attachments: a paginated, date-sorted library of saved audio (uploads
+  // and recordings). Toggle which items are attached to this session. ---
+  dialog.appendChild(el('div', { class: 'session-field-label session-drills-label' }, [
+    el('span', { text: 'Attachments' }),
+    el('span', { class: 'session-total-pill', id: 'editor-attach-count' }),
+  ]));
+
+  if (attachmentsSupported()) {
+    const fileInput = el('input', {
+      type: 'file', accept: 'audio/*', multiple: '', id: 'editor-attach-file',
+    });
+    fileInput.style.display = 'none';
+    fileInput.addEventListener('change', () => onUploadFiles(fileInput));
+    const addAttachBtn = el('button', {
+      class: 'btn sm session-attach-add', type: 'button', text: '+ Upload audio',
+      onClick: () => fileInput.click(),
+    });
+    dialog.appendChild(addAttachBtn);
+    dialog.appendChild(fileInput);
+
+    dialog.appendChild(el('div', { class: 'session-attach-edit-list', id: 'editor-attach-list' }));
+    dialog.appendChild(el('div', { class: 'session-attach-pager', id: 'editor-attach-pager' }));
+  } else {
+    dialog.appendChild(el('div', {
+      class: 'session-attach-unsupported',
+      text: 'Attachments need browser storage (IndexedDB), which is unavailable here.',
+    }));
+  }
+
   const errors = el('div', { class: 'session-errors', id: 'editor-errors' });
   dialog.appendChild(errors);
 
@@ -302,7 +443,188 @@ function openEditor(sessionId) {
 
   openModal(dialog);
   renderDrillList();
+  if (attachmentsSupported()) refreshLibrary();
   setTimeout(() => nameField.focus(), 50);
+}
+
+// Loads the audio library from IndexedDB (newest first) and re-renders the list.
+async function refreshLibrary() {
+  editorState.library = await listAudioMeta();
+  const pages = Math.max(1, Math.ceil(editorState.library.length / LIBRARY_PAGE_SIZE));
+  if (editorState.libraryPage >= pages) editorState.libraryPage = pages - 1;
+  renderAttachList();
+}
+
+async function onUploadFiles(fileInput) {
+  const files = Array.from(fileInput.files || []);
+  fileInput.value = '';
+  for (const file of files) {
+    const dot = file.name.lastIndexOf('.');
+    const base = dot > 0 ? file.name.slice(0, dot) : file.name;
+    const meta = await saveAudio({
+      blob: file, name: base || 'Audio', type: file.type, fileName: file.name,
+      size: file.size, source: 'upload',
+    });
+    // Newly uploaded audio is auto-attached to the session being edited.
+    if (meta && !editorState.attachedIds.includes(meta.id)) editorState.attachedIds.push(meta.id);
+  }
+  editorState.libraryPage = 0;
+  await refreshLibrary();
+}
+
+function renderAttachList() {
+  const list = document.getElementById('editor-attach-list');
+  const count = document.getElementById('editor-attach-count');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (count) {
+    const n = editorState.attachedIds.length;
+    count.textContent = `${n} attached`;
+  }
+
+  const lib = editorState.library;
+  if (lib.length === 0) {
+    list.appendChild(el('div', {
+      class: 'session-attach-empty',
+      text: 'No saved audio yet. Upload mp3s of warmups / vocal notes, or save a take from the Recorder.',
+    }));
+    renderAttachPager();
+    return;
+  }
+
+  const start = editorState.libraryPage * LIBRARY_PAGE_SIZE;
+  const pageItems = lib.slice(start, start + LIBRARY_PAGE_SIZE);
+
+  pageItems.forEach(item => {
+    const attached = editorState.attachedIds.includes(item.id);
+    const row = el('div', { class: 'session-attach-edit-row' + (attached ? ' attached' : '') });
+
+    const toggle = el('input', {
+      type: 'checkbox', class: 'session-attach-check', 'aria-label': 'Attach to this session',
+    });
+    toggle.checked = attached;
+    toggle.addEventListener('change', () => {
+      if (toggle.checked) {
+        if (!editorState.attachedIds.includes(item.id)) editorState.attachedIds.push(item.id);
+      } else {
+        editorState.attachedIds = editorState.attachedIds.filter(id => id !== item.id);
+      }
+      row.classList.toggle('attached', toggle.checked);
+      renderAttachCount();
+    });
+    row.appendChild(toggle);
+
+    const nameInput = el('input', {
+      type: 'text', class: 'session-attach-name-input', value: item.name,
+      placeholder: 'Name', maxlength: '60', 'aria-label': 'Attachment name',
+    });
+    nameInput.addEventListener('change', async () => {
+      const newName = nameInput.value.trim() || item.name;
+      nameInput.value = newName;
+      item.name = newName;
+      await renameAudio(item.id, newName);
+    });
+
+    const sub = `${item.source === 'recording' ? 'Recording' : 'Upload'} · ${fmtRelativeDate(item.createdAt)}`;
+    const info = el('div', { class: 'session-attach-edit-info' }, [
+      nameInput,
+      el('div', { class: 'session-attach-edit-file', text: sub }),
+    ]);
+    row.appendChild(info);
+
+    row.appendChild(el('button', {
+      class: 'session-icon-btn session-attach-preview', type: 'button',
+      'aria-label': 'Preview', html: '&#9654;',
+      onClick: () => previewLibraryItem(item),
+    }));
+
+    row.appendChild(el('button', {
+      class: 'session-icon-btn session-drill-remove', type: 'button',
+      'aria-label': 'Delete from library', html: '&#10005;',
+      onClick: () => confirmDeleteLibraryItem(item),
+    }));
+
+    list.appendChild(row);
+  });
+
+  renderAttachPager();
+}
+
+function renderAttachCount() {
+  const count = document.getElementById('editor-attach-count');
+  if (count) count.textContent = `${editorState.attachedIds.length} attached`;
+}
+
+function renderAttachPager() {
+  const pager = document.getElementById('editor-attach-pager');
+  if (!pager) return;
+  pager.innerHTML = '';
+  const total = editorState.library.length;
+  const pages = Math.max(1, Math.ceil(total / LIBRARY_PAGE_SIZE));
+  if (pages <= 1) return;
+
+  const page = editorState.libraryPage;
+  pager.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Prev', disabled: page === 0 ? '' : null,
+    onClick: () => { if (editorState.libraryPage > 0) { editorState.libraryPage--; renderAttachList(); } },
+  }));
+  pager.appendChild(el('span', { class: 'session-attach-page-label', text: `Page ${page + 1} of ${pages}` }));
+  pager.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Next', disabled: page >= pages - 1 ? '' : null,
+    onClick: () => { if (editorState.libraryPage < pages - 1) { editorState.libraryPage++; renderAttachList(); } },
+  }));
+}
+
+let editorPreviewAudio = null;
+let editorPreviewURL = null;
+async function previewLibraryItem(item) {
+  const blob = await getAudioBlob(item.id);
+  if (!blob) return;
+  if (!editorPreviewAudio) editorPreviewAudio = new Audio();
+  if (editorPreviewURL) { try { URL.revokeObjectURL(editorPreviewURL); } catch (e) {} }
+  editorPreviewURL = URL.createObjectURL(blob);
+  editorPreviewAudio.src = editorPreviewURL;
+  editorPreviewAudio.play().catch(() => {});
+}
+
+function confirmDeleteLibraryItem(item) {
+  // A nested confirm stacked above the editor so the editor stays intact.
+  openNestedConfirm(
+    `Delete “${item.name}”?`,
+    'This permanently removes the audio from this device and any sessions using it.',
+    'Delete',
+    async () => {
+      await deleteAudio(item.id);
+      editorState.attachedIds = editorState.attachedIds.filter(id => id !== item.id);
+      // Purge the dangling reference from every saved session so no card is
+      // left pointing at audio that no longer exists.
+      removeAttachmentFromAllSessions(item.id);
+      renderHome();
+      await refreshLibrary();
+    },
+  );
+}
+
+// Lightweight confirm rendered in its own overlay (not the shared modal root),
+// so it can appear on top of the editor dialog without replacing it.
+function openNestedConfirm(title, body, confirmLabel, onConfirm) {
+  const overlay = el('div', { class: 'session-overlay session-overlay-nested' });
+  const dialog = el('div', { class: 'session-dialog session-confirm' }, [
+    el('h3', { class: 'session-dialog-title', text: title }),
+    body ? el('p', { class: 'session-dialog-body', text: body }) : null,
+  ]);
+  const close = () => { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+  const actions = el('div', { class: 'session-dialog-actions' });
+  actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: close }));
+  actions.appendChild(el('button', {
+    class: 'btn primary', type: 'button', text: confirmLabel,
+    onClick: () => { close(); onConfirm(); },
+  }));
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.body.appendChild(overlay);
 }
 
 function renderDrillList() {
@@ -380,7 +702,19 @@ function moveDrill(index, dir) {
 
 function saveEditor() {
   const errorsEl = document.getElementById('editor-errors');
-  const input = { name: editorState.name, drills: editorState.drills };
+
+  // Resolve attached library ids to metadata snapshots (name shown on the card).
+  // Blobs already live in IndexedDB; nothing to commit here.
+  const libById = new Map(editorState.library.map(m => [m.id, m]));
+  const attachments = editorState.attachedIds
+    .map(id => {
+      const m = libById.get(id);
+      return m ? { id: m.id, name: m.name, fileName: m.fileName, type: m.type, size: m.size, addedAt: m.createdAt } : null;
+    })
+    .filter(Boolean);
+
+  const input = { name: editorState.name, notes: editorState.notes, drills: editorState.drills, attachments };
+
   const result = editorState.id ? updateSession(editorState.id, input) : createSession(input);
   if (!result.ok) {
     if (errorsEl) errorsEl.textContent = result.errors.join(' ');
@@ -629,6 +963,9 @@ function renderRunner() {
   } else {
     main.appendChild(el('div', { class: 'session-runner-next', text: 'Final drill' }));
   }
+  if (rt.session.notes && rt.session.notes.trim()) {
+    main.appendChild(el('div', { class: 'session-runner-notes', title: rt.session.notes, text: rt.session.notes }));
+  }
   inner.appendChild(main);
 
   // Center: timer
@@ -815,6 +1152,10 @@ export function initSessions(config) {
 
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('beforeunload', () => { if (rt) persistActive(); });
+
+  // Ask the browser to keep saved-audio (IndexedDB) durable across PWA/browser
+  // sessions so it isn't evicted under storage pressure. Best-effort.
+  if (attachmentsSupported()) ensurePersistentStorage();
 
   renderHome();
   maybeResume();
