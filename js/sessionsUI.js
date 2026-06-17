@@ -93,11 +93,22 @@ function fmtRelativeDate(iso) {
 // HOME: sessions rail + recent history
 // =========================================================================
 
+// Stops and releases any attachment audio playing on a card. Card <audio>
+// elements are torn down whenever the grid re-renders; removing them from the
+// DOM does not stop playback, so we must pause + revoke explicitly.
+function stopCardAudio() {
+  if (activeAudioEl) { try { activeAudioEl.pause(); } catch (e) {} }
+  if (activeAudioURL) { try { URL.revokeObjectURL(activeAudioURL); } catch (e) {} }
+  activeAudioEl = null;
+  activeAudioURL = null;
+}
+
 export function renderHome() {
   const grid = document.getElementById('home-sessions-grid');
   const empty = document.getElementById('home-sessions-empty');
   if (!grid) return;
 
+  stopCardAudio();
   const sessions = getSessions();
   grid.innerHTML = '';
 
@@ -174,6 +185,11 @@ function buildAttachmentPlayer(attachments) {
     list.appendChild(btn);
   });
 
+  // Clear the highlight when playback finishes on its own.
+  player.addEventListener('ended', () => {
+    list.querySelectorAll('.session-attach-item.playing').forEach(b => b.classList.remove('playing'));
+  });
+
   wrap.appendChild(list);
   wrap.appendChild(player);
   return wrap;
@@ -184,7 +200,8 @@ async function playAttachment(att, player, list, btn) {
   if (activeAudioURL) { try { URL.revokeObjectURL(activeAudioURL); } catch (e) {} activeAudioURL = null; }
   if (activeAudioEl && activeAudioEl !== player) { try { activeAudioEl.pause(); } catch (e) {} }
 
-  list.querySelectorAll('.session-attach-item').forEach(b => b.classList.remove('playing'));
+  // Clear the "playing" highlight on every card, not just this one.
+  document.querySelectorAll('.session-attach-item.playing').forEach(b => b.classList.remove('playing'));
 
   const blob = await getAudioBlob(att.id);
   if (!blob) {
@@ -256,6 +273,8 @@ function ensureModalRoot() {
 function closeModal() {
   if (modalRoot) modalRoot.innerHTML = '';
   document.body.classList.remove('session-modal-open');
+  // Stop the editor's library-preview audio if it was playing.
+  if (editorPreviewAudio) { try { editorPreviewAudio.pause(); } catch (e) {} }
 }
 
 function openModal(contentNode, { onClose } = {}) {
@@ -554,14 +573,14 @@ function renderAttachPager() {
 }
 
 let editorPreviewAudio = null;
+let editorPreviewURL = null;
 async function previewLibraryItem(item) {
   const blob = await getAudioBlob(item.id);
   if (!blob) return;
   if (!editorPreviewAudio) editorPreviewAudio = new Audio();
-  if (editorPreviewAudio.dataset && editorPreviewAudio.src) {
-    try { URL.revokeObjectURL(editorPreviewAudio.src); } catch (e) {}
-  }
-  editorPreviewAudio.src = URL.createObjectURL(blob);
+  if (editorPreviewURL) { try { URL.revokeObjectURL(editorPreviewURL); } catch (e) {} }
+  editorPreviewURL = URL.createObjectURL(blob);
+  editorPreviewAudio.src = editorPreviewURL;
   editorPreviewAudio.play().catch(() => {});
 }
 
