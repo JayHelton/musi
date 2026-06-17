@@ -459,8 +459,8 @@ function init() {
     });
   }
 
-  // Scale Spelling and Intervals drills inherit their key/scale from the shared
-  // musical context, so only the interval difficulty list is built here.
+  // Intervals inherits key/scale from the shared musical context; Scale
+  // Spelling now manages its own mode/root question sequence.
   buildList('sl-int-diff',
     [{val:'easy',label:'Diatonic'},{val:'medium',label:'Extended'},{val:'hard',label:'Chromatic'}],
     'easy');

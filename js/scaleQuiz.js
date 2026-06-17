@@ -1,7 +1,6 @@
-import { normNote } from './theory.js';
+import { normNote, ROOTS_RAND, pick } from './theory.js';
 import { getScaleNotes, scaleStepPattern } from './scales.js';
 import { saveSetting } from './persistence.js';
-import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
 import { recordAttempt } from './stats.js';
 
 export const S = {
@@ -31,6 +30,35 @@ export const MOD_LABELS = ['\u266D\u266D','\u266D','\u266E','\u266F','\u266F\u26
 export const LETTERS_UI = ['C','D','E','F','G','A','B'];
 export const CHROMATIC_NOTES = ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B'];
 const noteInput = { scale: [] };
+
+export const SCALE_DRILL_MODES = [
+  'Major (Ionian)',
+  'Dorian',
+  'Phrygian',
+  'Lydian',
+  'Mixolydian',
+  'Natural Minor (Aeolian)',
+  'Locrian',
+];
+
+const scaleDrill = {
+  modeIndex: -1,
+  lastRoot: null,
+};
+
+export function pickScaleDrillRoot(previousRoot, roots = ROOTS_RAND) {
+  if (roots.length <= 1) return roots[0] || '';
+  return pick(roots.filter(root => root !== previousRoot));
+}
+
+export function nextScaleDrillPrompt() {
+  scaleDrill.modeIndex = (scaleDrill.modeIndex + 1) % SCALE_DRILL_MODES.length;
+  scaleDrill.lastRoot = pickScaleDrillRoot(scaleDrill.lastRoot);
+  return {
+    root: scaleDrill.lastRoot,
+    scaleName: SCALE_DRILL_MODES[scaleDrill.modeIndex],
+  };
+}
 
 export function buildNoteButtons(containerId, quiz) {
   const container = document.getElementById(containerId);
@@ -104,9 +132,7 @@ export function clearIntQTimers() { clearQuizTimers(iqTimers); }
 
 export function newScaleQ() {
   clearQuizTimers(sqTimers);
-  // Key and scale are inherited from the shared musical context instead of
-  // per-drill selectors.
-  const { root, scale: scaleName } = getContext();
+  const { root, scaleName } = nextScaleDrillPrompt();
 
   const notes = getScaleNotes(root, scaleName);
   if (!notes || notes.some(n => n === null)) {
@@ -163,7 +189,6 @@ export function checkScaleA() {
 }
 
 function nextScaleQ() {
-  advanceContext();
   newScaleQ();
 }
 
@@ -178,15 +203,6 @@ export function resetScore(which) {
     document.getElementById('iq-streak').textContent = '0';
   }
 }
-
-// When the shared key/scale changes, refresh the live question if the Scale
-// Spelling drill is the one on screen.
-subscribeContext((_, source) => {
-  if (source === 'advance') return;
-  if (document.getElementById('sec-scales')?.classList.contains('active')) {
-    newScaleQ();
-  }
-});
 
 window.newScaleQ = newScaleQ;
 window.showScaleHint = showScaleHint;
