@@ -22,6 +22,31 @@ function canUseIDB() {
   }
 }
 
+// IndexedDB is available in every modern browser and inside installed PWAs, but
+// by default a browser MAY evict it under storage pressure. Requesting
+// persistent storage asks the browser not to clear our data unless the user
+// does so explicitly — which is exactly the durability we want for saved audio.
+// Chrome decides automatically (often granted for installed PWAs / engaged
+// sites) and never prompts; Firefox may prompt. Best-effort and idempotent.
+let persistenceRequested = false;
+export async function ensurePersistentStorage() {
+  if (persistenceRequested) return undefined;
+  persistenceRequested = true;
+  try {
+    if (typeof navigator === 'undefined' || !navigator.storage) return undefined;
+    if (typeof navigator.storage.persisted === 'function') {
+      const already = await navigator.storage.persisted();
+      if (already) return true;
+    }
+    if (typeof navigator.storage.persist === 'function') {
+      return await navigator.storage.persist();
+    }
+  } catch (e) {
+    /* storage manager unavailable — IndexedDB still works, just evictable */
+  }
+  return undefined;
+}
+
 function uid() {
   const rand = Math.random().toString(36).slice(2, 8);
   return `att-${Date.now().toString(36)}-${rand}`;
@@ -77,6 +102,8 @@ function metaOf(rec) {
 export async function saveAudio({ blob, name, type, fileName, size, source } = {}) {
   const db = await openDB();
   if (!db || !blob) return null;
+  // First real write is a good moment to lock in persistent storage.
+  ensurePersistentStorage();
   const rec = {
     id: uid(),
     blob,

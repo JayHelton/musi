@@ -34,6 +34,7 @@ import {
   renameAudio,
   deleteAudio,
   attachmentsSupported,
+  ensurePersistentStorage,
 } from './attachments.js';
 
 // Object URLs created for inline playback, tracked so they can be revoked.
@@ -1111,6 +1112,10 @@ export function initSessions(config) {
 
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('beforeunload', () => { if (rt) persistActive(); });
+
+  // Ask the browser to keep saved-audio (IndexedDB) durable across PWA/browser
+  // sessions so it isn't evicted under storage pressure. Best-effort.
+  if (attachmentsSupported()) ensurePersistentStorage();
 
   renderHome();
   maybeResume();
