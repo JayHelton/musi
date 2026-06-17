@@ -198,7 +198,11 @@ function buildAttachmentPlayer(attachments) {
 async function playAttachment(att, player, list, btn) {
   // Revoke any URL from a previously played attachment (any card).
   if (activeAudioURL) { try { URL.revokeObjectURL(activeAudioURL); } catch (e) {} activeAudioURL = null; }
-  if (activeAudioEl && activeAudioEl !== player) { try { activeAudioEl.pause(); } catch (e) {} }
+  if (activeAudioEl && activeAudioEl !== player) {
+    // Pause and hide the other card's player so only one is ever shown.
+    try { activeAudioEl.pause(); } catch (e) {}
+    activeAudioEl.style.display = 'none';
+  }
 
   // Clear the "playing" highlight on every card, not just this one.
   document.querySelectorAll('.session-attach-item.playing').forEach(b => b.classList.remove('playing'));
