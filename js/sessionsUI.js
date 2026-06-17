@@ -27,15 +27,20 @@ import {
 } from './sessions.js';
 import { ensureAudio, audioCtx } from './audio.js';
 import {
-  putAttachment,
-  getAttachmentBlob,
-  deleteAttachments,
+  saveAudio,
+  listAudioMeta,
+  getAudioBlob,
+  renameAudio,
+  deleteAudio,
   attachmentsSupported,
 } from './attachments.js';
 
 // Object URLs created for inline playback, tracked so they can be revoked.
 let activeAudioEl = null;
 let activeAudioURL = null;
+
+// How many library items show per page in the editor's attachment list.
+const LIBRARY_PAGE_SIZE = 5;
 
 let showSectionFn = null;
 let icons = {};
@@ -175,7 +180,7 @@ async function playAttachment(att, player, list, btn) {
 
   list.querySelectorAll('.session-attach-item').forEach(b => b.classList.remove('playing'));
 
-  const blob = await getAttachmentBlob(att.id);
+  const blob = await getAudioBlob(att.id);
   if (!blob) {
     btn.classList.add('missing');
     btn.title = 'File missing from storage';
@@ -220,11 +225,10 @@ function confirmDelete(session) {
     'This removes the saved session from this device.',
     'Delete',
     () => {
-      // Ending an active session if it is the one being deleted.
+      // Ending an active session if it is the one being deleted. Saved audio in
+      // the library is intentionally kept — it persists until deleted manually.
       if (rt && rt.session && rt.session.id === session.id) endSession(false);
-      const attachIds = (session.attachments || []).map(a => a.id);
       deleteSession(session.id);
-      if (attachIds.length) deleteAttachments(attachIds);
       renderHome();
     },
   );
@@ -304,13 +308,13 @@ function openEditor(sessionId) {
     drills: existing
       ? existing.drills.map(d => ({ ...d }))
       : [],
-    attachments: existing && Array.isArray(existing.attachments)
-      ? existing.attachments.map(a => ({ ...a }))
-      : [],
-    // Ids present when the editor opened, used to compute removals on save.
-    originalAttachmentIds: existing && Array.isArray(existing.attachments)
+    // Library ids attached to this session, in display order.
+    attachedIds: existing && Array.isArray(existing.attachments)
       ? existing.attachments.map(a => a.id)
       : [],
+    // Loaded asynchronously from the IndexedDB library; drives the paginated list.
+    library: [],
+    libraryPage: 0,
   };
 
   const dialog = el('div', { class: 'session-dialog session-editor' });
@@ -361,40 +365,28 @@ function openEditor(sessionId) {
   addRow.appendChild(select);
   dialog.appendChild(addRow);
 
-  // --- Attachments (local audio files: warmups, vocal notes, etc.) ---
-  dialog.appendChild(el('div', { class: 'session-field-label', text: 'Attachments' }));
-  const attachList = el('div', { class: 'session-attach-edit-list', id: 'editor-attach-list' });
-  dialog.appendChild(attachList);
+  // --- Attachments: a paginated, date-sorted library of saved audio (uploads
+  // and recordings). Toggle which items are attached to this session. ---
+  dialog.appendChild(el('div', { class: 'session-field-label session-drills-label' }, [
+    el('span', { text: 'Attachments' }),
+    el('span', { class: 'session-total-pill', id: 'editor-attach-count' }),
+  ]));
 
   if (attachmentsSupported()) {
     const fileInput = el('input', {
       type: 'file', accept: 'audio/*', multiple: '', id: 'editor-attach-file',
     });
     fileInput.style.display = 'none';
-    fileInput.addEventListener('change', () => {
-      Array.from(fileInput.files || []).forEach(file => {
-        const dot = file.name.lastIndexOf('.');
-        const base = dot > 0 ? file.name.slice(0, dot) : file.name;
-        editorState.attachments.push({
-          id: uid('att'),
-          name: base || 'Audio',
-          fileName: file.name,
-          type: file.type || '',
-          size: file.size || 0,
-          addedAt: new Date().toISOString(),
-          file,
-          _new: true,
-        });
-      });
-      fileInput.value = '';
-      renderAttachList();
-    });
+    fileInput.addEventListener('change', () => onUploadFiles(fileInput));
     const addAttachBtn = el('button', {
-      class: 'btn sm session-attach-add', type: 'button', text: '+ Attach audio',
+      class: 'btn sm session-attach-add', type: 'button', text: '+ Upload audio',
       onClick: () => fileInput.click(),
     });
     dialog.appendChild(addAttachBtn);
     dialog.appendChild(fileInput);
+
+    dialog.appendChild(el('div', { class: 'session-attach-edit-list', id: 'editor-attach-list' }));
+    dialog.appendChild(el('div', { class: 'session-attach-pager', id: 'editor-attach-pager' }));
   } else {
     dialog.appendChild(el('div', {
       class: 'session-attach-unsupported',
@@ -412,46 +404,184 @@ function openEditor(sessionId) {
 
   openModal(dialog);
   renderDrillList();
-  renderAttachList();
+  if (attachmentsSupported()) refreshLibrary();
   setTimeout(() => nameField.focus(), 50);
+}
+
+// Loads the audio library from IndexedDB (newest first) and re-renders the list.
+async function refreshLibrary() {
+  editorState.library = await listAudioMeta();
+  const pages = Math.max(1, Math.ceil(editorState.library.length / LIBRARY_PAGE_SIZE));
+  if (editorState.libraryPage >= pages) editorState.libraryPage = pages - 1;
+  renderAttachList();
+}
+
+async function onUploadFiles(fileInput) {
+  const files = Array.from(fileInput.files || []);
+  fileInput.value = '';
+  for (const file of files) {
+    const dot = file.name.lastIndexOf('.');
+    const base = dot > 0 ? file.name.slice(0, dot) : file.name;
+    const meta = await saveAudio({
+      blob: file, name: base || 'Audio', type: file.type, fileName: file.name,
+      size: file.size, source: 'upload',
+    });
+    // Newly uploaded audio is auto-attached to the session being edited.
+    if (meta && !editorState.attachedIds.includes(meta.id)) editorState.attachedIds.push(meta.id);
+  }
+  editorState.libraryPage = 0;
+  await refreshLibrary();
 }
 
 function renderAttachList() {
   const list = document.getElementById('editor-attach-list');
+  const count = document.getElementById('editor-attach-count');
   if (!list) return;
   list.innerHTML = '';
 
-  if (editorState.attachments.length === 0) {
+  if (count) {
+    const n = editorState.attachedIds.length;
+    count.textContent = `${n} attached`;
+  }
+
+  const lib = editorState.library;
+  if (lib.length === 0) {
     list.appendChild(el('div', {
       class: 'session-attach-empty',
-      text: 'No audio attached. Add mp3s of warmups or vocal notes to play from the session card.',
+      text: 'No saved audio yet. Upload mp3s of warmups / vocal notes, or save a take from the Recorder.',
     }));
+    renderAttachPager();
     return;
   }
 
-  editorState.attachments.forEach((att, index) => {
-    const row = el('div', { class: 'session-attach-edit-row' });
+  const start = editorState.libraryPage * LIBRARY_PAGE_SIZE;
+  const pageItems = lib.slice(start, start + LIBRARY_PAGE_SIZE);
+
+  pageItems.forEach(item => {
+    const attached = editorState.attachedIds.includes(item.id);
+    const row = el('div', { class: 'session-attach-edit-row' + (attached ? ' attached' : '') });
+
+    const toggle = el('input', {
+      type: 'checkbox', class: 'session-attach-check', 'aria-label': 'Attach to this session',
+    });
+    toggle.checked = attached;
+    toggle.addEventListener('change', () => {
+      if (toggle.checked) {
+        if (!editorState.attachedIds.includes(item.id)) editorState.attachedIds.push(item.id);
+      } else {
+        editorState.attachedIds = editorState.attachedIds.filter(id => id !== item.id);
+      }
+      row.classList.toggle('attached', toggle.checked);
+      renderAttachCount();
+    });
+    row.appendChild(toggle);
 
     const nameInput = el('input', {
-      type: 'text', class: 'session-attach-name-input', value: att.name,
+      type: 'text', class: 'session-attach-name-input', value: item.name,
       placeholder: 'Name', maxlength: '60', 'aria-label': 'Attachment name',
     });
-    nameInput.addEventListener('input', () => { att.name = nameInput.value; });
+    nameInput.addEventListener('change', async () => {
+      const newName = nameInput.value.trim() || item.name;
+      nameInput.value = newName;
+      item.name = newName;
+      await renameAudio(item.id, newName);
+    });
 
+    const sub = `${item.source === 'recording' ? 'Recording' : 'Upload'} · ${fmtRelativeDate(item.createdAt)}`;
     const info = el('div', { class: 'session-attach-edit-info' }, [
       nameInput,
-      el('div', { class: 'session-attach-edit-file', text: att.fileName || '' }),
+      el('div', { class: 'session-attach-edit-file', text: sub }),
     ]);
     row.appendChild(info);
 
     row.appendChild(el('button', {
+      class: 'session-icon-btn session-attach-preview', type: 'button',
+      'aria-label': 'Preview', html: '&#9654;',
+      onClick: () => previewLibraryItem(item),
+    }));
+
+    row.appendChild(el('button', {
       class: 'session-icon-btn session-drill-remove', type: 'button',
-      'aria-label': 'Remove attachment', html: '&#10005;',
-      onClick: () => { editorState.attachments.splice(index, 1); renderAttachList(); },
+      'aria-label': 'Delete from library', html: '&#10005;',
+      onClick: () => confirmDeleteLibraryItem(item),
     }));
 
     list.appendChild(row);
   });
+
+  renderAttachPager();
+}
+
+function renderAttachCount() {
+  const count = document.getElementById('editor-attach-count');
+  if (count) count.textContent = `${editorState.attachedIds.length} attached`;
+}
+
+function renderAttachPager() {
+  const pager = document.getElementById('editor-attach-pager');
+  if (!pager) return;
+  pager.innerHTML = '';
+  const total = editorState.library.length;
+  const pages = Math.max(1, Math.ceil(total / LIBRARY_PAGE_SIZE));
+  if (pages <= 1) return;
+
+  const page = editorState.libraryPage;
+  pager.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Prev', disabled: page === 0 ? '' : null,
+    onClick: () => { if (editorState.libraryPage > 0) { editorState.libraryPage--; renderAttachList(); } },
+  }));
+  pager.appendChild(el('span', { class: 'session-attach-page-label', text: `Page ${page + 1} of ${pages}` }));
+  pager.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Next', disabled: page >= pages - 1 ? '' : null,
+    onClick: () => { if (editorState.libraryPage < pages - 1) { editorState.libraryPage++; renderAttachList(); } },
+  }));
+}
+
+let editorPreviewAudio = null;
+async function previewLibraryItem(item) {
+  const blob = await getAudioBlob(item.id);
+  if (!blob) return;
+  if (!editorPreviewAudio) editorPreviewAudio = new Audio();
+  if (editorPreviewAudio.dataset && editorPreviewAudio.src) {
+    try { URL.revokeObjectURL(editorPreviewAudio.src); } catch (e) {}
+  }
+  editorPreviewAudio.src = URL.createObjectURL(blob);
+  editorPreviewAudio.play().catch(() => {});
+}
+
+function confirmDeleteLibraryItem(item) {
+  // A nested confirm stacked above the editor so the editor stays intact.
+  openNestedConfirm(
+    `Delete “${item.name}”?`,
+    'This permanently removes the audio from this device and any sessions using it.',
+    'Delete',
+    async () => {
+      await deleteAudio(item.id);
+      editorState.attachedIds = editorState.attachedIds.filter(id => id !== item.id);
+      await refreshLibrary();
+    },
+  );
+}
+
+// Lightweight confirm rendered in its own overlay (not the shared modal root),
+// so it can appear on top of the editor dialog without replacing it.
+function openNestedConfirm(title, body, confirmLabel, onConfirm) {
+  const overlay = el('div', { class: 'session-overlay session-overlay-nested' });
+  const dialog = el('div', { class: 'session-dialog session-confirm' }, [
+    el('h3', { class: 'session-dialog-title', text: title }),
+    body ? el('p', { class: 'session-dialog-body', text: body }) : null,
+  ]);
+  const close = () => { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+  const actions = el('div', { class: 'session-dialog-actions' });
+  actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: close }));
+  actions.appendChild(el('button', {
+    class: 'btn primary', type: 'button', text: confirmLabel,
+    onClick: () => { close(); onConfirm(); },
+  }));
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.body.appendChild(overlay);
 }
 
 function renderDrillList() {
@@ -527,33 +657,20 @@ function moveDrill(index, dir) {
   renderDrillList();
 }
 
-async function saveEditor() {
+function saveEditor() {
   const errorsEl = document.getElementById('editor-errors');
 
-  // Validate metadata before touching IndexedDB so a bad form leaves no orphans.
-  const metaAttachments = editorState.attachments.map(a => ({
-    id: a.id, name: a.name, fileName: a.fileName, type: a.type, size: a.size, addedAt: a.addedAt,
-  }));
-  const input = { name: editorState.name, drills: editorState.drills, attachments: metaAttachments };
+  // Resolve attached library ids to metadata snapshots (name shown on the card).
+  // Blobs already live in IndexedDB; nothing to commit here.
+  const libById = new Map(editorState.library.map(m => [m.id, m]));
+  const attachments = editorState.attachedIds
+    .map(id => {
+      const m = libById.get(id);
+      return m ? { id: m.id, name: m.name, fileName: m.fileName, type: m.type, size: m.size, addedAt: m.createdAt } : null;
+    })
+    .filter(Boolean);
 
-  const checkErrors = [];
-  if (!editorState.name.trim()) checkErrors.push('Session needs a name.');
-  if (editorState.drills.length === 0) checkErrors.push('Add at least one drill.');
-  if (checkErrors.length) {
-    if (errorsEl) errorsEl.textContent = checkErrors.join(' ');
-    return;
-  }
-
-  // Commit newly added blobs to IndexedDB.
-  const newOnes = editorState.attachments.filter(a => a._new && a.file);
-  for (const a of newOnes) {
-    await putAttachment(a.id, a.file, { name: a.name, type: a.type });
-  }
-
-  // Remove blobs for attachments deleted during this edit.
-  const keptIds = new Set(editorState.attachments.map(a => a.id));
-  const removed = (editorState.originalAttachmentIds || []).filter(id => !keptIds.has(id));
-  if (removed.length) await deleteAttachments(removed);
+  const input = { name: editorState.name, drills: editorState.drills, attachments };
 
   const result = editorState.id ? updateSession(editorState.id, input) : createSession(input);
   if (!result.ok) {

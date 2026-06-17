@@ -2,6 +2,7 @@ import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { detectPitch } from './pitch.js';
+import { saveAudio, attachmentsSupported } from './attachments.js';
 
 const recorder = {
   recording: false,
@@ -529,6 +530,7 @@ function finalizeRecording() {
   recorder.blobUrl = URL.createObjectURL(recorder.blob);
 
   setupAudioElement();
+  resetSaveButton();
 
   document.getElementById('rec-playback-card').style.display = 'block';
   document.getElementById('rec-analysis-card').style.display = 'block';
@@ -633,6 +635,39 @@ function togglePlayback() {
 
 function toggleRecording() {
   if (recorder.recording) stopRecording(); else startRecording();
+}
+
+// Saves the current take into the IndexedDB audio library so it persists and
+// can be attached to sessions. Library items remain until deleted manually.
+async function saveRecording() {
+  const btn = document.getElementById('rec-save');
+  if (!recorder.blob) return;
+  if (!attachmentsSupported()) {
+    if (btn) btn.textContent = 'Storage unavailable';
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const ext = recorder.fileExt || 'webm';
+  const meta = await saveAudio({
+    blob: recorder.blob,
+    name: `Recording ${stamp}`,
+    type: recorder.blob.type || recorder.mimeType || '',
+    fileName: `musi-recording-${stamp.replace(/[: ]/g, '-')}.${ext}`,
+    size: recorder.blob.size,
+    source: 'recording',
+  });
+  if (btn) {
+    if (meta) { btn.textContent = 'Saved \u2713'; }
+    else { btn.disabled = false; btn.textContent = 'Save failed — retry'; }
+  }
+}
+
+function resetSaveButton() {
+  const btn = document.getElementById('rec-save');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.textContent = 'Save to Library';
 }
 
 function downloadRecording() {
@@ -754,6 +789,7 @@ function initHoldRecordButton() {
 
 window.toggleRecording = toggleRecording;
 window.togglePlayback = togglePlayback;
+window.saveRecording = saveRecording;
 window.downloadRecording = downloadRecording;
 window.clearRecording = clearRecording;
 

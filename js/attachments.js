@@ -1,11 +1,12 @@
-// IndexedDB storage for session attachments (e.g. mp3s of warmups / vocal
-// notes). Session records in localStorage only hold lightweight metadata; the
-// actual file Blob lives here so it persists across reloads and offline use and
-// is only ever removed when the user deletes the attachment or its session.
+// IndexedDB-backed audio library for Musi. Holds saved audio Blobs — both files
+// the user uploads to a session (warmups, vocal notes) and takes saved from the
+// in-app Recorder. Sessions reference library items by id; the Blob lives here
+// so it persists across reloads / offline and is only ever removed when the
+// user deletes it explicitly from the library.
 //
 // All access is defensive: IndexedDB may be unavailable (privacy mode, old
-// browser) in which case every call resolves to a safe no-op / null and the
-// rest of the app keeps working without attachment playback.
+// browser) in which case calls resolve to a safe no-op / null and the rest of
+// the app keeps working without saved-audio features.
 
 const DB_NAME = 'musi-attachments';
 const DB_VERSION = 1;
@@ -19,6 +20,11 @@ function canUseIDB() {
   } catch (e) {
     return false;
   }
+}
+
+function uid() {
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `att-${Date.now().toString(36)}-${rand}`;
 }
 
 function openDB() {
@@ -48,34 +54,89 @@ function openDB() {
   return dbPromise;
 }
 
-function tx(db, mode) {
+function store(db, mode) {
   return db.transaction(STORE, mode).objectStore(STORE);
 }
 
-// Stores (or replaces) a file Blob under the given attachment id.
-// Returns true on success, false if storage was unavailable / failed.
-export async function putAttachment(id, blob, meta = {}) {
+// Drops the heavy Blob so list/metadata callers stay light.
+function metaOf(rec) {
+  if (!rec) return null;
+  return {
+    id: rec.id,
+    name: rec.name,
+    fileName: rec.fileName || '',
+    type: rec.type || '',
+    size: Number.isFinite(rec.size) ? rec.size : 0,
+    createdAt: rec.createdAt || new Date(0).toISOString(),
+    source: rec.source || 'upload',
+  };
+}
+
+// Saves a new audio Blob to the library. Returns its metadata (no Blob) or null
+// when storage is unavailable / the write failed.
+export async function saveAudio({ blob, name, type, fileName, size, source } = {}) {
   const db = await openDB();
-  if (!db) return false;
+  if (!db || !blob) return null;
+  const rec = {
+    id: uid(),
+    blob,
+    name: (name && String(name).trim()) || 'Audio',
+    fileName: fileName || '',
+    type: type || blob.type || '',
+    size: Number.isFinite(size) ? size : (blob.size || 0),
+    createdAt: new Date().toISOString(),
+    source: source || 'upload',
+  };
   return new Promise((resolve) => {
     try {
-      const store = tx(db, 'readwrite');
-      const req = store.put({ id, blob, name: meta.name, type: meta.type });
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => resolve(false);
+      const req = store(db, 'readwrite').put(rec);
+      req.onsuccess = () => resolve(metaOf(rec));
+      req.onerror = () => resolve(null);
     } catch (e) {
-      resolve(false);
+      resolve(null);
     }
   });
 }
 
-// Returns the stored Blob for an attachment id, or null when missing.
-export async function getAttachmentBlob(id) {
+// Returns metadata for every library item, newest first (sorted by createdAt).
+export async function listAudioMeta() {
+  const db = await openDB();
+  if (!db) return [];
+  return new Promise((resolve) => {
+    try {
+      const req = store(db, 'readonly').getAll();
+      req.onsuccess = () => {
+        const all = (req.result || []).map(metaOf).filter(Boolean);
+        all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+        resolve(all);
+      };
+      req.onerror = () => resolve([]);
+    } catch (e) {
+      resolve([]);
+    }
+  });
+}
+
+export async function getAudioMeta(id) {
   const db = await openDB();
   if (!db) return null;
   return new Promise((resolve) => {
     try {
-      const req = tx(db, 'readonly').get(id);
+      const req = store(db, 'readonly').get(id);
+      req.onsuccess = () => resolve(metaOf(req.result));
+      req.onerror = () => resolve(null);
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+export async function getAudioBlob(id) {
+  const db = await openDB();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const req = store(db, 'readonly').get(id);
       req.onsuccess = () => resolve(req.result ? req.result.blob || null : null);
       req.onerror = () => resolve(null);
     } catch (e) {
@@ -84,23 +145,40 @@ export async function getAttachmentBlob(id) {
   });
 }
 
-export async function deleteAttachment(id) {
+export async function renameAudio(id, name) {
   const db = await openDB();
   if (!db) return false;
   return new Promise((resolve) => {
     try {
-      const req = tx(db, 'readwrite').delete(id);
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => resolve(false);
+      const s = store(db, 'readwrite');
+      const getReq = s.get(id);
+      getReq.onsuccess = () => {
+        const rec = getReq.result;
+        if (!rec) { resolve(false); return; }
+        rec.name = (name && String(name).trim()) || rec.name;
+        const putReq = s.put(rec);
+        putReq.onsuccess = () => resolve(true);
+        putReq.onerror = () => resolve(false);
+      };
+      getReq.onerror = () => resolve(false);
     } catch (e) {
       resolve(false);
     }
   });
 }
 
-export async function deleteAttachments(ids) {
-  if (!Array.isArray(ids) || ids.length === 0) return;
-  await Promise.all(ids.map((id) => deleteAttachment(id)));
+export async function deleteAudio(id) {
+  const db = await openDB();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const req = store(db, 'readwrite').delete(id);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(false);
+    } catch (e) {
+      resolve(false);
+    }
+  });
 }
 
 export function attachmentsSupported() {
