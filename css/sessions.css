@@ -11,6 +11,7 @@
 .session-card-name{font-size:1.1rem;font-weight:650;color:var(--text)}
 .session-card-meta{font-size:.9rem;color:var(--accent);font-weight:600}
 .session-card-sub{font-size:.78rem;color:var(--muted);margin-bottom:6px}
+.session-card-notes{font-size:.82rem;color:var(--text);opacity:.85;line-height:1.4;white-space:pre-wrap;margin:0 0 10px;padding:8px 10px;background:rgba(24,24,24,0.5);border-left:2px solid var(--accent);border-radius:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
 .session-card-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto}
 .session-card-actions .session-start{flex:1;min-width:90px}
 .session-delete{color:var(--err)}
@@ -73,6 +74,8 @@
 .session-total-pill{font-size:.72rem;color:var(--accent);background:var(--accent-dim);padding:3px 10px;border-radius:999px;letter-spacing:0;text-transform:none}
 .session-name-input{width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:1rem;font-family:inherit}
 .session-name-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
+.session-notes-input{width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.95rem;font-family:inherit;line-height:1.45;resize:vertical;min-height:64px}
+.session-notes-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
 
 .session-drill-list{display:flex;flex-direction:column;gap:8px}
 .session-drill-empty{padding:16px;text-align:center;color:var(--muted);font-size:.86rem;border:1px dashed var(--border);border-radius:12px}
@@ -118,6 +121,7 @@ body.session-running .session-runner{display:block;position:fixed;top:0;left:0;r
 .session-runner-drill-name{font-size:1.1rem;font-weight:650;color:var(--text)}
 .session-runner-index{font-size:.78rem;color:var(--muted)}
 .session-runner-next{font-size:.78rem;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-runner-notes{font-size:.78rem;color:var(--text);opacity:.8;margin-top:4px;line-height:1.35;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .session-runner-warn{font-size:.76rem;color:var(--warn);margin-top:2px}
 .session-runner-timer{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text);min-width:88px;text-align:center}
 .session-runner-timer.paused{color:var(--muted)}

@@ -124,6 +124,10 @@ function buildSessionCard(session) {
   card.appendChild(el('div', { class: 'session-card-meta', text: meta }));
   card.appendChild(el('div', { class: 'session-card-sub', text: last }));
 
+  if (session.notes && session.notes.trim()) {
+    card.appendChild(el('div', { class: 'session-card-notes', title: session.notes, text: session.notes }));
+  }
+
   const attachments = Array.isArray(session.attachments) ? session.attachments : [];
   if (attachments.length) card.appendChild(buildAttachmentPlayer(attachments));
 
@@ -307,6 +311,7 @@ function openEditor(sessionId) {
   editorState = {
     id: existing ? existing.id : null,
     name: existing ? existing.name : '',
+    notes: existing && typeof existing.notes === 'string' ? existing.notes : '',
     drills: existing
       ? existing.drills.map(d => ({ ...d }))
       : [],
@@ -332,6 +337,15 @@ function openEditor(sessionId) {
   nameField.addEventListener('input', () => { editorState.name = nameField.value; });
   dialog.appendChild(el('label', { class: 'session-field-label', text: 'Session name' }));
   dialog.appendChild(nameField);
+
+  const notesField = el('textarea', {
+    class: 'session-notes-input', id: 'session-notes-input', rows: '3', maxlength: '4000',
+    placeholder: 'Reminders, curriculum or regimen requirements, goals for this session…',
+  });
+  notesField.value = editorState.notes;
+  notesField.addEventListener('input', () => { editorState.notes = notesField.value; });
+  dialog.appendChild(el('label', { class: 'session-field-label', text: 'Notes' }));
+  dialog.appendChild(notesField);
 
   dialog.appendChild(el('div', { class: 'session-field-label session-drills-label' }, [
     el('span', { text: 'Drills' }),
@@ -676,7 +690,7 @@ function saveEditor() {
     })
     .filter(Boolean);
 
-  const input = { name: editorState.name, drills: editorState.drills, attachments };
+  const input = { name: editorState.name, notes: editorState.notes, drills: editorState.drills, attachments };
 
   const result = editorState.id ? updateSession(editorState.id, input) : createSession(input);
   if (!result.ok) {
@@ -925,6 +939,9 @@ function renderRunner() {
     main.appendChild(el('div', { class: 'session-runner-next', text: `Next: ${next.toolName || toolName(next.toolId)}` }));
   } else {
     main.appendChild(el('div', { class: 'session-runner-next', text: 'Final drill' }));
+  }
+  if (rt.session.notes && rt.session.notes.trim()) {
+    main.appendChild(el('div', { class: 'session-runner-notes', title: rt.session.notes, text: rt.session.notes }));
   }
   inner.appendChild(main);
 

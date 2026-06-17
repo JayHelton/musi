@@ -112,6 +112,16 @@ function clampDuration(value) {
   return n;
 }
 
+const NOTES_LIMIT = 4000;
+
+// Free-form session notes (reminders, curriculum/regimen requirements). Trailing
+// whitespace is trimmed but internal line breaks are preserved; length capped so
+// a runaway paste can't blow the localStorage quota.
+function clampNotes(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+$/, '').slice(0, NOTES_LIMIT);
+}
+
 // --- Normalisation: defends against corrupted / partial saved data. --------
 
 function normalizeDrill(raw) {
@@ -156,6 +166,7 @@ function normalizeSession(raw) {
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('session'),
     name,
+    notes: clampNotes(raw.notes),
     drills,
     attachments,
     createdAt: created,
@@ -249,11 +260,13 @@ export function validateSessionInput(input) {
   const rawAttachments = Array.isArray(input && input.attachments) ? input.attachments : [];
   const attachments = rawAttachments.map(normalizeAttachment).filter(Boolean);
 
-  return { ok: errors.length === 0, errors, name, drills, attachments };
+  const notes = clampNotes(input && input.notes);
+
+  return { ok: errors.length === 0, errors, name, notes, drills, attachments };
 }
 
 export function createSession(input) {
-  const { ok, errors, name, drills, attachments } = validateSessionInput(input);
+  const { ok, errors, name, notes, drills, attachments } = validateSessionInput(input);
   if (!ok) return { ok: false, errors };
 
   const sessions = getSessions();
@@ -261,6 +274,7 @@ export function createSession(input) {
   const session = {
     id: uid(`session-${slug(name)}`),
     name,
+    notes,
     drills,
     attachments,
     createdAt: t,
@@ -272,7 +286,7 @@ export function createSession(input) {
 }
 
 export function updateSession(id, input) {
-  const { ok, errors, name, drills, attachments } = validateSessionInput(input);
+  const { ok, errors, name, notes, drills, attachments } = validateSessionInput(input);
   if (!ok) return { ok: false, errors };
 
   const sessions = getSessions();
@@ -282,6 +296,7 @@ export function updateSession(id, input) {
   sessions[idx] = {
     ...sessions[idx],
     name,
+    notes,
     drills,
     attachments,
     updatedAt: nowISO(),
