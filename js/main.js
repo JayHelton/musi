@@ -338,6 +338,9 @@ function initSplitDivider() {
     splitDividerEl.classList.add('dragging');
     document.body.classList.add('split-resizing');
     try { splitDividerEl.setPointerCapture(e.pointerId); } catch (_) {}
+    // preventDefault() below blocks the implicit focus, so focus explicitly to
+    // keep keyboard arrow resizing usable after a click.
+    splitDividerEl.focus();
     e.preventDefault();
   });
   splitDividerEl.addEventListener('pointermove', (e) => {
