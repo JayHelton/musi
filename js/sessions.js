@@ -127,10 +127,29 @@ function normalizeDrill(raw) {
   };
 }
 
+// Attachment metadata only. The file Blob itself lives in IndexedDB keyed by
+// this `id` (see attachments.js); here we keep just enough to list and play it.
+function normalizeAttachment(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = typeof raw.id === 'string' && raw.id ? raw.id : uid('att');
+  const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Audio';
+  return {
+    id,
+    name,
+    fileName: typeof raw.fileName === 'string' ? raw.fileName : '',
+    type: typeof raw.type === 'string' ? raw.type : '',
+    size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : 0,
+    addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : nowISO(),
+  };
+}
+
 function normalizeSession(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const drills = Array.isArray(raw.drills)
     ? raw.drills.map(normalizeDrill).filter(Boolean)
+    : [];
+  const attachments = Array.isArray(raw.attachments)
+    ? raw.attachments.map(normalizeAttachment).filter(Boolean)
     : [];
   const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Untitled Session';
   const created = typeof raw.createdAt === 'string' ? raw.createdAt : nowISO();
@@ -138,6 +157,7 @@ function normalizeSession(raw) {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('session'),
     name,
     drills,
+    attachments,
     createdAt: created,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : created,
     lastStartedAt: typeof raw.lastStartedAt === 'string' ? raw.lastStartedAt : undefined,
@@ -226,11 +246,14 @@ export function validateSessionInput(input) {
   const drills = rawDrills.map(normalizeDrill).filter(Boolean);
   if (drills.length === 0) errors.push('Add at least one drill.');
 
-  return { ok: errors.length === 0, errors, name, drills };
+  const rawAttachments = Array.isArray(input && input.attachments) ? input.attachments : [];
+  const attachments = rawAttachments.map(normalizeAttachment).filter(Boolean);
+
+  return { ok: errors.length === 0, errors, name, drills, attachments };
 }
 
 export function createSession(input) {
-  const { ok, errors, name, drills } = validateSessionInput(input);
+  const { ok, errors, name, drills, attachments } = validateSessionInput(input);
   if (!ok) return { ok: false, errors };
 
   const sessions = getSessions();
@@ -239,6 +262,7 @@ export function createSession(input) {
     id: uid(`session-${slug(name)}`),
     name,
     drills,
+    attachments,
     createdAt: t,
     updatedAt: t,
   };
@@ -248,7 +272,7 @@ export function createSession(input) {
 }
 
 export function updateSession(id, input) {
-  const { ok, errors, name, drills } = validateSessionInput(input);
+  const { ok, errors, name, drills, attachments } = validateSessionInput(input);
   if (!ok) return { ok: false, errors };
 
   const sessions = getSessions();
@@ -259,6 +283,7 @@ export function updateSession(id, input) {
     ...sessions[idx],
     name,
     drills,
+    attachments,
     updatedAt: nowISO(),
   };
   persistSessions();

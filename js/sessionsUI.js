@@ -26,6 +26,16 @@ import {
   clampDuration,
 } from './sessions.js';
 import { ensureAudio, audioCtx } from './audio.js';
+import {
+  putAttachment,
+  getAttachmentBlob,
+  deleteAttachments,
+  attachmentsSupported,
+} from './attachments.js';
+
+// Object URLs created for inline playback, tracked so they can be revoked.
+let activeAudioEl = null;
+let activeAudioURL = null;
 
 let showSectionFn = null;
 let icons = {};
@@ -107,6 +117,9 @@ function buildSessionCard(session) {
   card.appendChild(el('div', { class: 'session-card-meta', text: meta }));
   card.appendChild(el('div', { class: 'session-card-sub', text: last }));
 
+  const attachments = Array.isArray(session.attachments) ? session.attachments : [];
+  if (attachments.length) card.appendChild(buildAttachmentPlayer(attachments));
+
   const actions = el('div', { class: 'session-card-actions' });
   actions.appendChild(el('button', {
     class: 'btn primary session-start',
@@ -128,6 +141,53 @@ function buildSessionCard(session) {
   }));
   card.appendChild(actions);
   return card;
+}
+
+// Builds the clickable attachment list shown on a session card. Clicking a
+// named item loads its Blob from IndexedDB and plays it in a shared inline
+// audio player rendered below the list.
+function buildAttachmentPlayer(attachments) {
+  const wrap = el('div', { class: 'session-card-attach' });
+  const player = el('audio', { class: 'session-attach-audio', controls: '', preload: 'none' });
+  player.style.display = 'none';
+
+  const list = el('div', { class: 'session-attach-list' });
+  attachments.forEach(att => {
+    const btn = el('button', {
+      class: 'session-attach-item', type: 'button', title: att.fileName || att.name,
+    }, [
+      el('span', { class: 'session-attach-icon', html: '&#9654;', 'aria-hidden': 'true' }),
+      el('span', { class: 'session-attach-name', text: att.name }),
+    ]);
+    btn.addEventListener('click', () => playAttachment(att, player, list, btn));
+    list.appendChild(btn);
+  });
+
+  wrap.appendChild(list);
+  wrap.appendChild(player);
+  return wrap;
+}
+
+async function playAttachment(att, player, list, btn) {
+  // Revoke any URL from a previously played attachment (any card).
+  if (activeAudioURL) { try { URL.revokeObjectURL(activeAudioURL); } catch (e) {} activeAudioURL = null; }
+  if (activeAudioEl && activeAudioEl !== player) { try { activeAudioEl.pause(); } catch (e) {} }
+
+  list.querySelectorAll('.session-attach-item').forEach(b => b.classList.remove('playing'));
+
+  const blob = await getAttachmentBlob(att.id);
+  if (!blob) {
+    btn.classList.add('missing');
+    btn.title = 'File missing from storage';
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  activeAudioURL = url;
+  activeAudioEl = player;
+  player.src = url;
+  player.style.display = '';
+  btn.classList.add('playing');
+  player.play().catch(() => { /* autoplay may need a gesture; controls remain */ });
 }
 
 function renderHistory() {
@@ -162,7 +222,9 @@ function confirmDelete(session) {
     () => {
       // Ending an active session if it is the one being deleted.
       if (rt && rt.session && rt.session.id === session.id) endSession(false);
+      const attachIds = (session.attachments || []).map(a => a.id);
       deleteSession(session.id);
+      if (attachIds.length) deleteAttachments(attachIds);
       renderHome();
     },
   );
@@ -242,6 +304,13 @@ function openEditor(sessionId) {
     drills: existing
       ? existing.drills.map(d => ({ ...d }))
       : [],
+    attachments: existing && Array.isArray(existing.attachments)
+      ? existing.attachments.map(a => ({ ...a }))
+      : [],
+    // Ids present when the editor opened, used to compute removals on save.
+    originalAttachmentIds: existing && Array.isArray(existing.attachments)
+      ? existing.attachments.map(a => a.id)
+      : [],
   };
 
   const dialog = el('div', { class: 'session-dialog session-editor' });
@@ -292,6 +361,47 @@ function openEditor(sessionId) {
   addRow.appendChild(select);
   dialog.appendChild(addRow);
 
+  // --- Attachments (local audio files: warmups, vocal notes, etc.) ---
+  dialog.appendChild(el('div', { class: 'session-field-label', text: 'Attachments' }));
+  const attachList = el('div', { class: 'session-attach-edit-list', id: 'editor-attach-list' });
+  dialog.appendChild(attachList);
+
+  if (attachmentsSupported()) {
+    const fileInput = el('input', {
+      type: 'file', accept: 'audio/*', multiple: '', id: 'editor-attach-file',
+    });
+    fileInput.style.display = 'none';
+    fileInput.addEventListener('change', () => {
+      Array.from(fileInput.files || []).forEach(file => {
+        const dot = file.name.lastIndexOf('.');
+        const base = dot > 0 ? file.name.slice(0, dot) : file.name;
+        editorState.attachments.push({
+          id: uid('att'),
+          name: base || 'Audio',
+          fileName: file.name,
+          type: file.type || '',
+          size: file.size || 0,
+          addedAt: new Date().toISOString(),
+          file,
+          _new: true,
+        });
+      });
+      fileInput.value = '';
+      renderAttachList();
+    });
+    const addAttachBtn = el('button', {
+      class: 'btn sm session-attach-add', type: 'button', text: '+ Attach audio',
+      onClick: () => fileInput.click(),
+    });
+    dialog.appendChild(addAttachBtn);
+    dialog.appendChild(fileInput);
+  } else {
+    dialog.appendChild(el('div', {
+      class: 'session-attach-unsupported',
+      text: 'Attachments need browser storage (IndexedDB), which is unavailable here.',
+    }));
+  }
+
   const errors = el('div', { class: 'session-errors', id: 'editor-errors' });
   dialog.appendChild(errors);
 
@@ -302,7 +412,46 @@ function openEditor(sessionId) {
 
   openModal(dialog);
   renderDrillList();
+  renderAttachList();
   setTimeout(() => nameField.focus(), 50);
+}
+
+function renderAttachList() {
+  const list = document.getElementById('editor-attach-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (editorState.attachments.length === 0) {
+    list.appendChild(el('div', {
+      class: 'session-attach-empty',
+      text: 'No audio attached. Add mp3s of warmups or vocal notes to play from the session card.',
+    }));
+    return;
+  }
+
+  editorState.attachments.forEach((att, index) => {
+    const row = el('div', { class: 'session-attach-edit-row' });
+
+    const nameInput = el('input', {
+      type: 'text', class: 'session-attach-name-input', value: att.name,
+      placeholder: 'Name', maxlength: '60', 'aria-label': 'Attachment name',
+    });
+    nameInput.addEventListener('input', () => { att.name = nameInput.value; });
+
+    const info = el('div', { class: 'session-attach-edit-info' }, [
+      nameInput,
+      el('div', { class: 'session-attach-edit-file', text: att.fileName || '' }),
+    ]);
+    row.appendChild(info);
+
+    row.appendChild(el('button', {
+      class: 'session-icon-btn session-drill-remove', type: 'button',
+      'aria-label': 'Remove attachment', html: '&#10005;',
+      onClick: () => { editorState.attachments.splice(index, 1); renderAttachList(); },
+    }));
+
+    list.appendChild(row);
+  });
 }
 
 function renderDrillList() {
@@ -378,9 +527,34 @@ function moveDrill(index, dir) {
   renderDrillList();
 }
 
-function saveEditor() {
+async function saveEditor() {
   const errorsEl = document.getElementById('editor-errors');
-  const input = { name: editorState.name, drills: editorState.drills };
+
+  // Validate metadata before touching IndexedDB so a bad form leaves no orphans.
+  const metaAttachments = editorState.attachments.map(a => ({
+    id: a.id, name: a.name, fileName: a.fileName, type: a.type, size: a.size, addedAt: a.addedAt,
+  }));
+  const input = { name: editorState.name, drills: editorState.drills, attachments: metaAttachments };
+
+  const checkErrors = [];
+  if (!editorState.name.trim()) checkErrors.push('Session needs a name.');
+  if (editorState.drills.length === 0) checkErrors.push('Add at least one drill.');
+  if (checkErrors.length) {
+    if (errorsEl) errorsEl.textContent = checkErrors.join(' ');
+    return;
+  }
+
+  // Commit newly added blobs to IndexedDB.
+  const newOnes = editorState.attachments.filter(a => a._new && a.file);
+  for (const a of newOnes) {
+    await putAttachment(a.id, a.file, { name: a.name, type: a.type });
+  }
+
+  // Remove blobs for attachments deleted during this edit.
+  const keptIds = new Set(editorState.attachments.map(a => a.id));
+  const removed = (editorState.originalAttachmentIds || []).filter(id => !keptIds.has(id));
+  if (removed.length) await deleteAttachments(removed);
+
   const result = editorState.id ? updateSession(editorState.id, input) : createSession(input);
   if (!result.ok) {
     if (errorsEl) errorsEl.textContent = result.errors.join(' ');
