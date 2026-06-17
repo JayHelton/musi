@@ -15,8 +15,8 @@ Musi is built around five practice modes:
 
 ### Quiz
 
-- **Scale quiz** - spell the scale for the shared musical context's key and
-  mode, with scoring, streaks, and hints.
+- **Scale quiz** - spell the seven diatonic modes in order with randomized,
+  non-repeating roots, scoring, streaks, and hints.
 - **Interval quiz** - identify target notes from interval prompts (rooted in the
   shared musical context's key) across easy, medium, and hard difficulties.
 - **Sight-reading trainer** - read treble and bass staff notes with instant
