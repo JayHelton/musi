@@ -1,4 +1,4 @@
-import { normNote, ROOTS_RAND, pick } from './theory.js';
+import { parseNote, ROOTS_RAND, pick } from './theory.js';
 import { getScaleNotes, scaleStepPattern } from './scales.js';
 import { saveSetting } from './persistence.js';
 import { recordAttempt } from './stats.js';
@@ -25,10 +25,23 @@ function scheduleAdvance(t, feedbackEl, nextFn) {
   t.adv = setTimeout(nextFn, ADVANCE_MS);
 }
 
-export const MODS = ['bb','b','','#','##'];
-export const MOD_LABELS = ['\u266D\u266D','\u266D','\u266E','\u266F','\u266F\u266F'];
-export const LETTERS_UI = ['C','D','E','F','G','A','B'];
-export const CHROMATIC_NOTES = ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B'];
+// One button per pitch class. Accidental pitch classes show both enharmonic
+// spellings (e.g. C\u266F/D\u266D) because they are the same note. `value` is a
+// parseable canonical spelling used for pitch-class comparison and audio.
+export const CHROMATIC_BUTTONS = [
+  { label: 'C',           value: 'C'  },
+  { label: 'C\u266F/D\u266D', value: 'C#' },
+  { label: 'D',           value: 'D'  },
+  { label: 'D\u266F/E\u266D', value: 'D#' },
+  { label: 'E',           value: 'E'  },
+  { label: 'F',           value: 'F'  },
+  { label: 'F\u266F/G\u266D', value: 'F#' },
+  { label: 'G',           value: 'G'  },
+  { label: 'G\u266F/A\u266D', value: 'G#' },
+  { label: 'A',           value: 'A'  },
+  { label: 'A\u266F/B\u266D', value: 'A#' },
+  { label: 'B',           value: 'B'  },
+];
 const noteInput = { scale: [] };
 
 export const SCALE_DRILL_MODES = [
@@ -63,16 +76,16 @@ export function nextScaleDrillPrompt() {
 export function buildNoteButtons(containerId, quiz) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
-  CHROMATIC_NOTES.forEach(note => {
+  CHROMATIC_BUTTONS.forEach(({ label, value }) => {
     const btn = document.createElement('button');
-    btn.className = 'letter-btn' + (note.length > 1 ? ' accidental' : '');
-    btn.textContent = note;
+    btn.className = 'letter-btn' + (value.length > 1 ? ' accidental' : '');
+    btn.textContent = label;
     btn.onclick = () => {
       if (quiz === 'scale') {
-        noteInput.scale.push(note);
+        noteInput.scale.push({ value, label });
         renderScaleDisplay();
       } else {
-        submitIntervalNote(note);
+        submitIntervalNote(value);
       }
     };
     container.appendChild(btn);
@@ -87,7 +100,7 @@ export function renderScaleDisplay() {
   } else {
     d.classList.remove('empty');
     d.innerHTML = noteInput.scale.map(n =>
-      `<span class="note-chip">${n}</span>`
+      `<span class="note-chip">${n.label}</span>`
     ).join('');
   }
 }
@@ -97,9 +110,10 @@ export function noteClear() { noteInput.scale = []; renderScaleDisplay(); }
 
 export function submitIntervalNote(note) {
   if (!S.iq.ans) return;
-  const user = normNote(note);
   const fb = document.getElementById('iq-feedback');
-  const correct = user === S.iq.ans;
+  const userPc = parseNote(note)?.semi;
+  const ansPc = parseNote(S.iq.ans)?.semi;
+  const correct = userPc != null && userPc === ansPc;
   S.iq.total++;
   recordAttempt('interval', correct);
   if (correct) {
@@ -163,12 +177,13 @@ export function showScaleHint() {
 
 export function checkScaleA() {
   if (!S.sq.ans) return;
-  const userNotes = noteInput.scale.map(normNote);
-  const expected = S.sq.ans.map(normNote);
+  // Compare by pitch class so enharmonic spellings (C\u266F vs D\u266D) match.
+  const userPcs = noteInput.scale.map(n => parseNote(n.value)?.semi);
+  const expectedPcs = S.sq.ans.map(n => parseNote(n)?.semi);
   const fb = document.getElementById('sq-feedback');
 
-  const correct = userNotes.length === expected.length &&
-    userNotes.every((n,i) => n === expected[i]);
+  const correct = userPcs.length === expectedPcs.length &&
+    userPcs.every((p,i) => p != null && p === expectedPcs[i]);
 
   S.sq.total++;
   recordAttempt('scale', correct);

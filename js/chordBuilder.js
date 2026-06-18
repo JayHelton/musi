@@ -1,7 +1,7 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote, NOTE_NAMES_SHARP, ROOTS_RAND, INTERVAL_LABELS } from './theory.js';
 import { SCALES } from './scales.js';
-import { CHROMATIC_NOTES } from './scaleQuiz.js';
+import { CHROMATIC_BUTTONS } from './scaleQuiz.js';
 import { getSetting, saveSetting } from './persistence.js';
 
 const CHORD_TYPES = [
@@ -131,7 +131,7 @@ function renderChordChips() {
   chordBuilder.notes.forEach((n, i) => {
     const chip = document.createElement('span');
     chip.className = 'chord-chip';
-    chip.textContent = n.name + n.octave;
+    chip.textContent = n.label + n.octave;
     chip.title = 'Click to remove';
     chip.onclick = () => {
       chordBuilder.notes.splice(i, 1);
@@ -142,11 +142,11 @@ function renderChordChips() {
   });
 }
 
-function addChordNote(noteName) {
+function addChordNote(noteName, displayLabel) {
   const p = parseNote(noteName);
   if (!p) return;
   const midi = 12 * (chordBuilder.octave + 1) + p.semi;
-  chordBuilder.notes.push({ name: noteName, octave: chordBuilder.octave, semi: p.semi, midi });
+  chordBuilder.notes.push({ name: noteName, label: displayLabel || noteName, octave: chordBuilder.octave, semi: p.semi, midi });
   renderChordChips();
   renderChordAnalysis();
 }
@@ -216,11 +216,11 @@ function initChordBuilder() {
 
   // Use the same one-tap chromatic note selection as the drills so any note
   // (including accidentals) can be added directly.
-  CHROMATIC_NOTES.forEach(note => {
+  CHROMATIC_BUTTONS.forEach(({ label, value }) => {
     const btn = document.createElement('button');
-    btn.className = 'letter-btn' + (note.length > 1 ? ' accidental' : '');
-    btn.textContent = note;
-    btn.onclick = () => addChordNote(note);
+    btn.className = 'letter-btn' + (value.length > 1 ? ' accidental' : '');
+    btn.textContent = label;
+    btn.onclick = () => addChordNote(value, label);
     noteC.appendChild(btn);
   });
 
