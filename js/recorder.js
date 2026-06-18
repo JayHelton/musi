@@ -1,4 +1,5 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
+import { beginMicSession, endMicSession } from './audioSession.js';
 import { NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { detectPitch } from './pitch.js';
@@ -32,6 +33,7 @@ const recorder = {
   committedMidi: null,
   holdActive: false,
   holdPressed: false,
+  sessionActive: false,
   // Capture graph (web-audio processing chain shared by both formats).
   micSource: null,
   highpass: null,
@@ -388,6 +390,20 @@ function teardownCaptureGraph() {
   if (recorder.micSource) { try { recorder.micSource.disconnect(); } catch (e) { /* noop */ } recorder.micSource = null; }
 }
 
+// Hold the mixable->record audio session exactly once per capture so other
+// apps' audio keeps playing while the mic is live, and resumes afterward.
+function enterMicSession() {
+  if (recorder.sessionActive) return;
+  recorder.sessionActive = true;
+  beginMicSession();
+}
+
+function exitMicSession() {
+  if (!recorder.sessionActive) return;
+  recorder.sessionActive = false;
+  endMicSession();
+}
+
 function syncHoldRecordUi(active) {
   const overlay = document.getElementById('hold-rec-overlay');
   const btn = document.getElementById('hold-rec-btn');
@@ -407,11 +423,13 @@ async function startRecording(trigger = 'panel') {
     if (statusEl) statusEl.textContent = 'Recording is not supported in this browser';
     return;
   }
+  enterMicSession();
   try {
     recorder.stream = await navigator.mediaDevices.getUserMedia(buildMicConstraints());
   } catch (e) {
     if (statusEl) statusEl.textContent = 'Mic access denied or unavailable';
     syncHoldRecordUi(false);
+    exitMicSession();
     return;
   }
 
@@ -420,6 +438,7 @@ async function startRecording(trigger = 'panel') {
     recorder.stream = null;
     syncHoldRecordUi(false);
     recorder.holdActive = false;
+    exitMicSession();
     return;
   }
 
@@ -513,6 +532,8 @@ function stopRecording() {
 
 function finalizeRecording() {
   if (recorder.stream) { recorder.stream.getTracks().forEach(t => t.stop()); recorder.stream = null; }
+  // Mic is done; drop back to the mixable session so playback layers with others.
+  exitMicSession();
 
   if (recorder.format === 'wav') {
     let samples = mergePcmChunks(recorder.pcmChunks);
@@ -710,6 +731,7 @@ function stopRecorder() {
   if (recorder.recording) stopRecording();
   if (recorder.playing) stopPlayback();
   if (recorder.stream) { recorder.stream.getTracks().forEach(t => t.stop()); recorder.stream = null; }
+  exitMicSession();
   syncHoldRecordUi(false);
   recorder.holdActive = false;
   recorder.holdPressed = false;
