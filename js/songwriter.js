@@ -1,11 +1,11 @@
 // Songwriting notepad for Musi. A lightweight place to write song lyrics and
-// attach a single vocal recording to each song, with full CRUD: a list of
-// songs, a New button, per-song delete, and saving (manual + autosave).
+// attach one or more named vocal recordings to each song, with full CRUD: a
+// list of songs, a New button, per-song delete, and saving (manual + autosave).
 //
 // Like Sessions, the split mirrors the rest of the app:
 //   - song text/metadata lives in localStorage (musi.songs)
-//   - the recorded audio Blob lives in IndexedDB (attachments.js), referenced
-//     from the song by `audioId`.
+//   - recorded audio Blobs live in IndexedDB (attachments.js), referenced from
+//     the song by an ordered `recordings` list of { id, name, addedAt }.
 //
 // All storage access is defensive so the feature degrades gracefully when
 // localStorage / IndexedDB / the microphone are unavailable.
@@ -14,6 +14,7 @@ import {
   saveAudio,
   getAudioBlob,
   deleteAudio,
+  renameAudio,
   attachmentsSupported,
   ensurePersistentStorage,
 } from './attachments.js';
@@ -21,6 +22,7 @@ import {
 const STORAGE_KEY = 'musi.songs';
 const TITLE_LIMIT = 120;
 const LYRICS_LIMIT = 20000;
+const NAME_LIMIT = 80;
 const AUTOSAVE_MS = 800;
 
 // --- storage helpers (defensive) -------------------------------------------
@@ -68,15 +70,38 @@ function clampText(value, limit) {
   return value.slice(0, limit);
 }
 
+function normalizeRecording(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = typeof raw.id === 'string' && raw.id ? raw.id : '';
+  if (!id) return null;
+  return {
+    id,
+    name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Recording', NAME_LIMIT),
+    addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : nowISO(),
+  };
+}
+
 function normalizeSong(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const created = typeof raw.createdAt === 'string' ? raw.createdAt : nowISO();
+
+  let recordings = Array.isArray(raw.recordings)
+    ? raw.recordings.map(normalizeRecording).filter(Boolean)
+    : [];
+  // Migrate legacy single-recording shape ({ audioId, audioName }).
+  if (!recordings.length && typeof raw.audioId === 'string' && raw.audioId) {
+    recordings = [{
+      id: raw.audioId,
+      name: clampText(typeof raw.audioName === 'string' && raw.audioName.trim() ? raw.audioName.trim() : 'Recording', NAME_LIMIT),
+      addedAt: created,
+    }];
+  }
+
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid(),
     title: clampText(typeof raw.title === 'string' ? raw.title : '', TITLE_LIMIT),
     lyrics: clampText(typeof raw.lyrics === 'string' ? raw.lyrics : '', LYRICS_LIMIT),
-    audioId: typeof raw.audioId === 'string' && raw.audioId ? raw.audioId : null,
-    audioName: typeof raw.audioName === 'string' ? raw.audioName : '',
+    recordings,
     createdAt: created,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : created,
   };
@@ -110,7 +135,7 @@ function getSong(id) {
 function createSong() {
   const songs = getSongs();
   const t = nowISO();
-  const song = { id: uid(), title: '', lyrics: '', audioId: null, audioName: '', createdAt: t, updatedAt: t };
+  const song = { id: uid(), title: '', lyrics: '', recordings: [], createdAt: t, updatedAt: t };
   songs.unshift(song);
   persistSongs();
   return song;
@@ -165,13 +190,13 @@ let recording = false;
 let recTickTimer = null;
 let recStart = 0;
 
-// Playback object URL (revoked when swapping songs / recordings).
-let currentAudioURL = null;
+// Object URLs created for the recording players; revoked when re-rendering.
+let recURLs = [];
 
 // DOM refs (resolved in init).
 let listEl, emptyEl, editorEmptyEl, editorBodyEl;
 let titleInput, lyricsInput, savedIndicator;
-let recToggleBtn, recStatusEl, audioEl, recDeleteBtn;
+let recToggleBtn, recStatusEl, recListEl;
 
 // --- list rendering ---------------------------------------------------------
 
@@ -208,8 +233,9 @@ function renderList() {
     const metaRow = document.createElement('div');
     metaRow.className = 'sw-list-meta';
     metaRow.appendChild(spanText('sw-list-date', `Edited ${fmtRelativeDate(song.updatedAt)}`));
-    if (song.audioId) {
-      metaRow.appendChild(spanText('sw-list-mic', '\u25CF rec'));
+    const recCount = (song.recordings || []).length;
+    if (recCount) {
+      metaRow.appendChild(spanText('sw-list-mic', `\u25CF ${recCount}`));
     }
     item.appendChild(metaRow);
 
@@ -245,7 +271,7 @@ function selectSong(id) {
   lyricsInput.value = song.lyrics;
   setSavedIndicator('saved');
   showEditorBody(true);
-  loadRecording(song);
+  renderRecordings(song);
   renderList();
 }
 
@@ -258,7 +284,7 @@ function newSong() {
   lyricsInput.value = '';
   setSavedIndicator('saved');
   showEditorBody(true);
-  loadRecording(song);
+  renderRecordings(song);
   renderList();
   setTimeout(() => titleInput.focus(), 30);
 }
@@ -309,17 +335,18 @@ function confirmDeleteSong() {
   if (!song) return;
   openConfirm(
     `Delete \u201C${songTitleOf(song)}\u201D?`,
-    'This removes the song and its recording from this device.',
+    'This removes the song and its recordings from this device.',
     'Delete',
     async () => {
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
       stopRecordingIfActive();
-      if (song.audioId) { try { await deleteAudio(song.audioId); } catch (e) {} }
+      const ids = (song.recordings || []).map(r => r.id);
       deleteSong(song.id);
       currentId = null;
-      revokeAudioURL();
+      revokeRecURLs();
       showEditorBody(false);
       renderList();
+      for (const id of ids) { try { await deleteAudio(id); } catch (e) {} }
     },
   );
 }
@@ -354,6 +381,10 @@ async function startRecording() {
   if (!currentId) return;
   if (!recordingSupported()) {
     setRecStatus('Recording is not supported in this browser.', true);
+    return;
+  }
+  if (!attachmentsSupported()) {
+    setRecStatus('Recording needs browser storage, which is unavailable here.', true);
     return;
   }
   setRecStatus('Requesting microphone\u2026');
@@ -391,7 +422,6 @@ async function startRecording() {
   recStart = Date.now();
   recToggleBtn.classList.add('recording');
   recToggleBtn.innerHTML = '\u25A0 Stop';
-  if (audioEl) audioEl.style.display = 'none';
   startRecTick();
 }
 
@@ -461,77 +491,130 @@ async function finalizeRecording() {
   const song = getSong(songId);
   if (!song) return;
 
-  const name = `${songTitleOf(song)} demo`;
-  const meta = await saveAudio({ blob, name, type, source: 'songwriter' });
+  const takeName = `Take ${(song.recordings || []).length + 1}`;
+  const meta = await saveAudio({ blob, name: takeName, type, source: 'songwriter' });
   if (!meta) {
     setRecStatus('Could not save the recording.', true);
     return;
   }
 
-  // Replace any previous recording for this song.
-  if (song.audioId && song.audioId !== meta.id) {
-    try { await deleteAudio(song.audioId); } catch (e) {}
-  }
-  song.audioId = meta.id;
-  song.audioName = meta.name;
+  if (!Array.isArray(song.recordings)) song.recordings = [];
+  song.recordings.push({ id: meta.id, name: takeName, addedAt: nowISO() });
   song.updatedAt = nowISO();
   persistSongs();
+  setRecStatus(`Added \u201C${takeName}\u201D`);
 
-  // Only refresh the player if the user is still on this song.
-  if (currentId === songId) loadRecording(song);
+  // Only refresh the players if the user is still on this song.
+  if (currentId === songId) renderRecordings(song);
   renderList();
 }
 
-async function deleteRecording() {
+async function deleteRecording(recId) {
   if (!currentId) return;
   const song = getSong(currentId);
-  if (!song || !song.audioId) return;
-  const audioId = song.audioId;
-  song.audioId = null;
-  song.audioName = '';
+  if (!song) return;
+  song.recordings = (song.recordings || []).filter(r => r.id !== recId);
   song.updatedAt = nowISO();
   persistSongs();
-  loadRecording(song);
+  renderRecordings(song);
   renderList();
-  try { await deleteAudio(audioId); } catch (e) {}
+  try { await deleteAudio(recId); } catch (e) {}
 }
 
-function revokeAudioURL() {
-  if (currentAudioURL) { try { URL.revokeObjectURL(currentAudioURL); } catch (e) {} currentAudioURL = null; }
+function renameRecording(recId, name) {
+  if (!currentId) return;
+  const song = getSong(currentId);
+  if (!song) return;
+  const rec = (song.recordings || []).find(r => r.id === recId);
+  if (!rec) return;
+  const clean = clampText((name || '').trim(), NAME_LIMIT) || rec.name;
+  rec.name = clean;
+  song.updatedAt = nowISO();
+  persistSongs();
+  renameAudio(recId, clean).catch(() => {});
+  return clean;
 }
 
-// Loads the song's recording (if any) into the inline audio player.
-async function loadRecording(song) {
-  revokeAudioURL();
-  if (audioEl) { try { audioEl.pause(); } catch (e) {} audioEl.removeAttribute('src'); audioEl.style.display = 'none'; }
-  if (recDeleteBtn) recDeleteBtn.style.display = 'none';
+function revokeRecURLs() {
+  recURLs.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+  recURLs = [];
+}
 
-  if (!attachmentsSupported()) {
+// Builds the list of attached recordings: each row has an editable name, an
+// inline audio player and a delete button.
+async function renderRecordings(song) {
+  if (!recListEl) return;
+  revokeRecURLs();
+  recListEl.innerHTML = '';
+
+  if (!recordingSupported()) {
+    setRecStatus('Recording is not supported in this browser.', true);
+    if (recToggleBtn) recToggleBtn.disabled = true;
+  } else if (!attachmentsSupported()) {
     setRecStatus('Recording needs browser storage, which is unavailable here.', true);
     if (recToggleBtn) recToggleBtn.disabled = true;
-    return;
-  }
-  if (recToggleBtn) recToggleBtn.disabled = !recordingSupported();
-
-  if (!song || !song.audioId) {
-    setRecStatus(recordingSupported() ? 'No recording yet.' : 'Recording is not supported in this browser.', !recordingSupported());
-    return;
+  } else {
+    if (recToggleBtn) recToggleBtn.disabled = false;
   }
 
-  const blob = await getAudioBlob(song.audioId);
-  // The user may have navigated away while the Blob was loading.
-  if (currentId !== song.id) return;
-  if (!blob) {
-    setRecStatus('Recording is missing from storage.', true);
+  const recordings = (song && Array.isArray(song.recordings)) ? song.recordings : [];
+  if (!recordings.length) {
+    if (recordingSupported() && attachmentsSupported()) {
+      setRecStatus('No recordings yet. Press Record to add one.');
+    }
+    const empty = document.createElement('div');
+    empty.className = 'sw-rec-empty';
+    empty.textContent = 'No recordings attached yet.';
+    recListEl.appendChild(empty);
     return;
   }
-  currentAudioURL = URL.createObjectURL(blob);
-  if (audioEl) {
-    audioEl.src = currentAudioURL;
-    audioEl.style.display = '';
+
+  setRecStatus(`${recordings.length} recording${recordings.length === 1 ? '' : 's'} attached`);
+
+  const songId = song.id;
+  for (const rec of recordings) {
+    const row = document.createElement('div');
+    row.className = 'sw-rec-item';
+    row.dataset.id = rec.id;
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'sw-rec-name';
+    nameInput.value = rec.name;
+    nameInput.maxLength = NAME_LIMIT;
+    nameInput.setAttribute('aria-label', 'Recording name');
+    nameInput.addEventListener('change', () => {
+      const clean = renameRecording(rec.id, nameInput.value);
+      if (clean) nameInput.value = clean;
+      renderList();
+    });
+    row.appendChild(nameInput);
+
+    const audio = document.createElement('audio');
+    audio.className = 'sw-rec-audio';
+    audio.controls = true;
+    audio.preload = 'none';
+    row.appendChild(audio);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn sm sw-rec-item-delete';
+    del.textContent = 'Delete';
+    del.setAttribute('aria-label', `Delete recording ${rec.name}`);
+    del.onclick = () => deleteRecording(rec.id);
+    row.appendChild(del);
+
+    recListEl.appendChild(row);
+
+    // Load the Blob lazily into the player; the user may have navigated away.
+    getAudioBlob(rec.id).then(blob => {
+      if (currentId !== songId) return;
+      if (!blob) { row.classList.add('missing'); nameInput.disabled = true; audio.replaceWith(spanText('sw-rec-missing', 'File missing from storage')); return; }
+      const url = URL.createObjectURL(blob);
+      recURLs.push(url);
+      audio.src = url;
+    }).catch(() => {});
   }
-  if (recDeleteBtn) recDeleteBtn.style.display = '';
-  setRecStatus(`Saved recording \u00B7 ${fmtRelativeDate(song.updatedAt)}`);
 }
 
 function setRecStatus(text, isError) {
@@ -606,8 +689,7 @@ export function initSongwriter() {
   savedIndicator = document.getElementById('sw-saved');
   recToggleBtn = document.getElementById('sw-rec-toggle');
   recStatusEl = document.getElementById('sw-rec-status');
-  audioEl = document.getElementById('sw-audio');
-  recDeleteBtn = document.getElementById('sw-rec-delete');
+  recListEl = document.getElementById('sw-rec-list');
 
   if (!listEl) return;
 
@@ -629,7 +711,6 @@ export function initSongwriter() {
     if (deleteBtn) deleteBtn.onclick = confirmDeleteSong;
 
     if (recToggleBtn) recToggleBtn.onclick = toggleRecord;
-    if (recDeleteBtn) recDeleteBtn.onclick = deleteRecording;
 
     if (attachmentsSupported()) ensurePersistentStorage();
   }
@@ -652,5 +733,7 @@ export function initSongwriter() {
 export function stopSongwriter() {
   flushSave();
   stopRecordingIfActive();
-  if (audioEl) { try { audioEl.pause(); } catch (e) {} }
+  if (recListEl) {
+    recListEl.querySelectorAll('audio').forEach(a => { try { a.pause(); } catch (e) {} });
+  }
 }

@@ -39,9 +39,19 @@
 .sw-rec-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .sw-rec-toggle.recording{background:var(--err);color:#fff;box-shadow:0 0 16px rgba(231,76,60,0.45);animation:swRecPulse 1.1s ease infinite}
 @keyframes swRecPulse{0%,100%{box-shadow:0 0 12px rgba(231,76,60,0.35)}50%{box-shadow:0 0 24px rgba(231,76,60,0.7)}}
-.sw-audio{flex:1;min-width:200px;height:38px}
-.sw-rec-delete{color:var(--err)}
-.sw-rec-delete:hover{background:rgba(231,76,60,0.12);color:var(--err)}
+
+/* List of attached recordings (each: name + player + delete) */
+.sw-rec-list{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.sw-rec-empty{font-size:.82rem;color:var(--muted);padding:10px;border:1px dashed var(--border);border-radius:10px;text-align:center}
+.sw-rec-item{display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap}
+.sw-rec-item.missing{border-color:rgba(231,76,60,0.5)}
+.sw-rec-name{flex:0 0 160px;min-width:120px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.9rem;font-family:inherit}
+.sw-rec-name:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
+.sw-rec-name:disabled{opacity:.5}
+.sw-rec-audio{flex:1;min-width:180px;height:36px}
+.sw-rec-missing{flex:1;font-size:.8rem;color:var(--err)}
+.sw-rec-item-delete{flex-shrink:0;color:var(--err)}
+.sw-rec-item-delete:hover{background:rgba(231,76,60,0.12);color:var(--err)}
 
 /* ---- Actions row ---- */
 .sw-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
