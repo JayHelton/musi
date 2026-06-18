@@ -136,6 +136,31 @@ body.session-running .session-runner{display:block;position:fixed;top:0;left:0;r
 .session-flash{animation:sessionFlash .5s ease}
 @keyframes sessionFlash{0%{background:rgba(255,107,53,0.25)}100%{background:rgba(18,18,18,0.96)}}
 
+/* Details trigger in the runner controls */
+.session-details-btn{display:flex;align-items:center;gap:5px}
+.session-details-caret{font-size:.6rem;line-height:1;transition:transform .18s ease}
+.session-details-btn[aria-expanded="true"] .session-details-caret{transform:rotate(180deg)}
+
+/* ---- Session details dropdown (from the sticky runner header) ---- */
+.session-details-panel{position:fixed;top:calc(var(--session-bar-h,56px) + 6px);right:16px;z-index:320;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - var(--session-bar-h,56px) - 24px);overflow-y:auto;background:rgba(24,24,24,0.98);border:1px solid var(--border);border-radius:16px;box-shadow:0 18px 48px rgba(0,0,0,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:16px;display:none}
+.session-details-panel.open{display:block;animation:sessionPop .16s ease}
+.session-details-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.session-details-title{font-size:1.02rem;font-weight:650;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-details-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:14px 0 6px}
+.session-details-drills{display:flex;flex-direction:column;gap:4px}
+.session-details-drill-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);font-size:.85rem}
+.session-details-drill-row.current{border-color:var(--accent);background:var(--accent-dim)}
+.session-details-drill-marker{flex-shrink:0;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.18)}
+.session-details-drill-row.current .session-details-drill-marker{background:var(--accent)}
+.session-details-drill-row.done .session-details-drill-marker{background:var(--accent2,var(--accent))}
+.session-details-drill-name{flex:1;min-width:0;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-details-drill-row.current .session-details-drill-name{color:var(--accent);font-weight:600}
+.session-details-drill-row.done .session-details-drill-name{color:var(--muted);text-decoration:line-through}
+.session-details-drill-dur{flex-shrink:0;font-size:.74rem;color:var(--muted)}
+.session-details-notes{font-size:.84rem;color:var(--text);opacity:.9;line-height:1.45;white-space:pre-wrap;padding:8px 10px;background:rgba(24,24,24,0.5);border-left:2px solid var(--accent);border-radius:6px}
+.session-details-empty{font-size:.82rem;color:var(--muted);padding:10px;border:1px dashed var(--border);border-radius:10px;text-align:center}
+.session-details-panel .session-card-attach{margin:0}
+
 /* ---- Full-screen exercise mode (while a session is running) ----
    Strip away navigation, headings and config so the active exercise owns the
    screen. Only the prompt, audio/answer controls, progress and the runner bar

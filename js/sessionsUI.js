@@ -51,6 +51,12 @@ let icons = {};
 let rt = null;
 let tickTimer = null;
 
+// Session-details dropdown shown from the sticky runner header. Built once per
+// run and reused so attachment playback survives runner re-renders.
+let detailsPanel = null;
+let detailsOpen = false;
+let detailsBuilt = false;
+
 // --- small DOM helpers ------------------------------------------------------
 
 function el(tag, props = {}, children = []) {
@@ -761,6 +767,7 @@ function startSession(sessionId, resumeState) {
 
   ensureRunnerBar();
   document.body.classList.add('session-running');
+  resetDetails();
   closeModal();
 
   if (resumeState) {
@@ -914,6 +921,7 @@ function finishSession(opts = {}) {
 
   rt = null;
   clearActiveSession();
+  resetDetails();
   document.body.classList.remove('session-running');
   if (runnerBar) runnerBar.innerHTML = '';
 
@@ -975,6 +983,14 @@ function renderRunner() {
   // Right: controls
   const controls = el('div', { class: 'session-runner-controls' });
   controls.appendChild(el('button', {
+    class: 'btn sm session-details-btn', type: 'button', id: 'session-details-btn',
+    'aria-haspopup': 'true', 'aria-expanded': detailsOpen ? 'true' : 'false',
+    onClick: toggleDetails,
+  }, [
+    el('span', { text: 'Details' }),
+    el('span', { class: 'session-details-caret', html: '&#9662;', 'aria-hidden': 'true' }),
+  ]));
+  controls.appendChild(el('button', {
     class: 'btn sm', type: 'button', id: 'session-pause',
     text: rt.isPaused ? 'Resume' : 'Pause', onClick: pauseResume,
   }));
@@ -997,6 +1013,7 @@ function renderRunner() {
 
   updateRunnerTimer(liveRemaining());
   syncRunnerOffset();
+  updateDetailsDrills();
 }
 
 function updateRunnerTimer(remaining) {
@@ -1024,6 +1041,125 @@ function syncRunnerOffset() {
   if (!runnerBar) return;
   const h = runnerBar.offsetHeight || 0;
   document.documentElement.style.setProperty('--session-bar-h', `${h}px`);
+}
+
+// --- Session details dropdown ----------------------------------------------
+// A panel anchored under the runner header that exposes the full notes, the
+// complete drill list, and (the gap this fills) playback of attached
+// recordings while a session is running. It is mounted on <body> outside the
+// runner's re-rendered subtree so the audio player keeps playing across
+// pause/resume/skip re-renders.
+
+function ensureDetailsPanel() {
+  if (detailsPanel) return detailsPanel;
+  detailsPanel = el('div', {
+    id: 'session-details-panel', class: 'session-details-panel',
+    role: 'dialog', 'aria-label': 'Session details',
+  });
+  document.body.appendChild(detailsPanel);
+
+  // Close when clicking outside the panel and its trigger.
+  document.addEventListener('click', e => {
+    if (!detailsOpen) return;
+    if (detailsPanel.contains(e.target)) return;
+    const trigger = document.getElementById('session-details-btn');
+    if (trigger && trigger.contains(e.target)) return;
+    closeDetails();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && detailsOpen) closeDetails();
+  });
+  return detailsPanel;
+}
+
+function buildDetails() {
+  ensureDetailsPanel();
+  detailsPanel.innerHTML = '';
+  if (!rt) return;
+
+  detailsPanel.appendChild(el('div', { class: 'session-details-head' }, [
+    el('h3', { class: 'session-details-title', text: rt.session.name }),
+    el('button', {
+      class: 'session-dialog-close', type: 'button', 'aria-label': 'Close details',
+      html: '&#10005;', onClick: closeDetails,
+    }),
+  ]));
+
+  // Drills
+  detailsPanel.appendChild(el('div', { class: 'session-details-label', text: 'Drills' }));
+  const drillList = el('div', { class: 'session-details-drills', id: 'session-details-drills' });
+  rt.session.drills.forEach((drill, i) => {
+    const row = el('div', { class: 'session-details-drill-row', 'data-index': String(i) }, [
+      el('span', { class: 'session-details-drill-marker', 'aria-hidden': 'true' }),
+      el('span', { class: 'session-details-drill-name', text: drill.toolName || toolName(drill.toolId) }),
+      el('span', { class: 'session-details-drill-dur', text: `${clampDuration(drill.durationMinutes)} min` }),
+    ]);
+    drillList.appendChild(row);
+  });
+  detailsPanel.appendChild(drillList);
+
+  // Notes (full, not clamped)
+  if (rt.session.notes && rt.session.notes.trim()) {
+    detailsPanel.appendChild(el('div', { class: 'session-details-label', text: 'Notes' }));
+    detailsPanel.appendChild(el('div', { class: 'session-details-notes', text: rt.session.notes }));
+  }
+
+  // Recordings / attachments with inline playback.
+  detailsPanel.appendChild(el('div', { class: 'session-details-label', text: 'Recordings' }));
+  const attachments = Array.isArray(rt.session.attachments) ? rt.session.attachments : [];
+  if (attachments.length) {
+    detailsPanel.appendChild(buildAttachmentPlayer(attachments));
+  } else {
+    detailsPanel.appendChild(el('div', {
+      class: 'session-details-empty',
+      text: 'No recordings attached. Add audio to this session from the editor.',
+    }));
+  }
+
+  detailsBuilt = true;
+  updateDetailsDrills();
+}
+
+// Reflects the current/completed drill state onto the already-built list.
+function updateDetailsDrills() {
+  if (!detailsBuilt || !detailsPanel || !rt) return;
+  const rows = detailsPanel.querySelectorAll('.session-details-drill-row');
+  rows.forEach(row => {
+    const i = Number(row.getAttribute('data-index'));
+    const drill = rt.session.drills[i];
+    const done = drill && rt.completedDrillIds.includes(drill.id);
+    row.classList.toggle('current', i === rt.currentDrillIndex);
+    row.classList.toggle('done', !!done && i !== rt.currentDrillIndex);
+  });
+}
+
+function openDetails() {
+  ensureDetailsPanel();
+  if (!detailsBuilt) buildDetails();
+  detailsOpen = true;
+  detailsPanel.classList.add('open');
+  const trigger = document.getElementById('session-details-btn');
+  if (trigger) trigger.setAttribute('aria-expanded', 'true');
+}
+
+function closeDetails() {
+  detailsOpen = false;
+  if (detailsPanel) detailsPanel.classList.remove('open');
+  const trigger = document.getElementById('session-details-btn');
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
+}
+
+function toggleDetails() {
+  if (detailsOpen) closeDetails();
+  else openDetails();
+}
+
+// Tear down the panel + any playing attachment audio when a run ends.
+function resetDetails() {
+  closeDetails();
+  detailsBuilt = false;
+  stopCardAudio();
+  if (detailsPanel) detailsPanel.innerHTML = '';
 }
 
 function transitionCue() {
