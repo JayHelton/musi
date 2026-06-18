@@ -20,6 +20,7 @@ const TOOL_TITLES = {
   tuner: 'Pitch / Tuner',
   ear: 'Ear Trainer',
   recorder: 'Recorder',
+  songwriter: 'Songwriting',
 };
 
 const TOOL_KEYWORDS = {
@@ -35,6 +36,7 @@ const TOOL_KEYWORDS = {
   tuner: 'pitch tuner vocal microphone reference tone intonation cents',
   ear: 'ear training aural pitch interval degree',
   recorder: 'recorder record audio capture pitch take voice',
+  songwriter: 'songwriting lyrics notepad write song demo vocal recording compose',
 };
 
 const MODE_NAMES = new Set([

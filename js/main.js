@@ -14,6 +14,7 @@ import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 // import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
+import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initScaleRef } from './scaleReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
@@ -40,6 +41,7 @@ const ICONS = {
   // backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
   // riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
   recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
+  songwriter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
 };
 
 const TABS = [
@@ -57,6 +59,7 @@ const TABS = [
   // {id:'backing',   label:'Backing',    group:'Create'},
   // {id:'riff',      label:'Riff',       group:'Create'},
   {id:'recorder',  label:'Record',     group:'Tools'},
+  {id:'songwriter', label:'Lyrics',    group:'Tools'},
 ];
 
 const GROUPS = ['Drill','Reference','Tools'];
@@ -80,6 +83,7 @@ const TOOL_STOPPERS = {
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
   sightreading: () => stopSightReading(),
   recorder: () => { if (recorder.playing) stopRecorder(); },
+  songwriter: () => stopSongwriter(),
 };
 const TOOL_INITS = {
   circle: drawCoF,
@@ -92,6 +96,7 @@ const TOOL_INITS = {
   ear: initEarTrainer,
   sightreading: initSightReading,
   recorder: initRecorder,
+  songwriter: initSongwriter,
 };
 
 function stopOtherTools(keepIds) {

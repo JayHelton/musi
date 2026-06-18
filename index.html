@@ -28,6 +28,7 @@
 <link rel="stylesheet" href="css/recorder.css">
 <link rel="stylesheet" href="css/mobile-ux.css">
 <link rel="stylesheet" href="css/sessions.css">
+<link rel="stylesheet" href="css/songwriter.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -813,6 +814,50 @@
         </div>
         <div class="rec-section-label">Detected pitches</div>
         <div class="rec-note-seq" id="rec-note-seq"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SONGWRITING NOTEPAD -->
+  <section id="sec-songwriter" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tools</div>
+      <h2>Songwriting</h2>
+      <p>Write lyrics and attach a vocal recording to each song.</p>
+    </div>
+    <div class="sw-layout">
+      <aside class="sw-sidebar">
+        <div class="sw-sidebar-head">
+          <span class="home-section-label">Songs</span>
+          <button class="btn sm primary" id="sw-new" type="button">+ New</button>
+        </div>
+        <div class="sw-list" id="sw-list"></div>
+        <div class="sw-empty" id="sw-empty" style="display:none">No songs yet. Create one to start writing.</div>
+      </aside>
+      <div class="sw-editor">
+        <div class="sw-editor-empty" id="sw-editor-empty">
+          <p>Select a song from the list, or start a new one.</p>
+          <button class="btn primary" id="sw-empty-new" type="button">+ New Song</button>
+        </div>
+        <div class="sw-editor-body" id="sw-editor-body" style="display:none">
+          <input type="text" class="sw-title-input" id="sw-title" placeholder="Song title" maxlength="120" aria-label="Song title">
+          <textarea class="sw-lyrics-input" id="sw-lyrics" placeholder="Write your lyrics here&hellip;" aria-label="Lyrics"></textarea>
+          <div class="sw-rec">
+            <div class="sw-rec-head">
+              <span class="field-label">Recordings</span>
+              <span class="sw-rec-status" id="sw-rec-status"></span>
+            </div>
+            <div class="sw-rec-controls">
+              <button class="btn primary sw-rec-toggle" id="sw-rec-toggle" type="button">&#9679; Record</button>
+            </div>
+            <div class="sw-rec-list" id="sw-rec-list"></div>
+          </div>
+          <div class="sw-actions">
+            <span class="sw-saved" id="sw-saved"></span>
+            <button class="btn" id="sw-save" type="button">Save</button>
+            <button class="btn sm sw-delete" id="sw-delete" type="button">Delete song</button>
+          </div>
+        </div>
       </div>
     </div>
   </section>
