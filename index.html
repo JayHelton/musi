@@ -29,6 +29,7 @@
 <link rel="stylesheet" href="css/mobile-ux.css">
 <link rel="stylesheet" href="css/sessions.css">
 <link rel="stylesheet" href="css/songwriter.css">
+<link rel="stylesheet" href="css/exercises.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -858,6 +859,38 @@
             <button class="btn sm sw-delete" id="sw-delete" type="button">Delete song</button>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXERCISES (PDF LIBRARY) -->
+  <section id="sec-exercises" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tools</div>
+      <h2>Exercises</h2>
+      <p>Upload PDFs of tabs, etudes and sheet music, organize them by category, and read them in a built-in viewer while you practice.</p>
+    </div>
+    <div class="quiz-layout ex-layout">
+      <aside class="sidebar ex-sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Categories</div>
+          <div class="sl-scroll" id="ex-category-list"></div>
+        </div>
+        <form class="ex-add-cat" id="ex-add-cat-form">
+          <input type="text" id="ex-add-cat-input" placeholder="New category" maxlength="40" aria-label="New category name">
+          <button class="btn sm" type="submit">Add</button>
+        </form>
+      </aside>
+      <div class="quiz-main ex-main">
+        <div class="ex-toolbar">
+          <div class="ex-toolbar-title" id="ex-current-title">All Exercises</div>
+          <div class="ex-toolbar-actions">
+            <input type="file" id="ex-file-input" accept="application/pdf,.pdf" multiple hidden>
+            <button class="btn primary" id="ex-upload-btn" type="button">+ Upload PDF</button>
+          </div>
+        </div>
+        <div class="ex-status" id="ex-status" style="display:none"></div>
+        <div class="ex-list" id="ex-list"></div>
       </div>
     </div>
   </section>

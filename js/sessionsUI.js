@@ -36,6 +36,7 @@ import {
   attachmentsSupported,
   ensurePersistentStorage,
 } from './attachments.js';
+import { getExercises, getExercise, openExerciseViewer } from './exercises.js';
 
 // Object URLs created for inline playback, tracked so they can be revoked.
 let activeAudioEl = null;
@@ -455,7 +456,9 @@ function openEditor(sessionId) {
 
 // Loads the audio library from IndexedDB (newest first) and re-renders the list.
 async function refreshLibrary() {
-  editorState.library = await listAudioMeta();
+  // PDF exercises live in the same store but are managed in the Exercises view;
+  // keep them out of the session audio attachment list.
+  editorState.library = (await listAudioMeta()).filter(m => m.source !== 'exercise');
   const pages = Math.max(1, Math.ceil(editorState.library.length / LIBRARY_PAGE_SIZE));
   if (editorState.libraryPage >= pages) editorState.libraryPage = pages - 1;
   renderAttachList();
@@ -664,6 +667,9 @@ function renderDrillList() {
       el('div', { class: 'session-drill-name', text: drill.toolName || toolName(drill.toolId) }),
       el('div', { class: 'session-drill-tool', text: known ? '' : 'Tool unavailable' }),
     ]);
+    // Exercises drills can target a specific uploaded PDF, which the runner opens
+    // automatically when the drill starts.
+    if (drill.toolId === 'exercises') info.appendChild(buildExercisePicker(drill));
     row.appendChild(info);
 
     const durWrap = el('div', { class: 'session-dur' });
@@ -689,6 +695,29 @@ function renderDrillList() {
   });
 
   updateEditorTotal();
+}
+
+// A dropdown of uploaded PDF exercises for an "Exercises" drill. The choice is
+// stored in drill.settings so the runner can auto-open it.
+function buildExercisePicker(drill) {
+  const exercises = getExercises();
+  const wrap = el('div', { class: 'session-drill-exercise' });
+  const select = el('select', { class: 'session-add-select session-exercise-select', 'aria-label': 'Exercise PDF' });
+  select.appendChild(el('option', { value: '', text: exercises.length ? 'Open library (no specific PDF)' : 'No PDFs uploaded yet' }));
+  exercises.forEach(ex => {
+    const opt = el('option', { value: ex.id, text: ex.name });
+    if (drill.settings && drill.settings.exerciseId === ex.id) opt.selected = true;
+    select.appendChild(opt);
+  });
+  select.value = (drill.settings && drill.settings.exerciseId) || '';
+  select.addEventListener('change', () => {
+    const id = select.value;
+    if (!id) { drill.settings = undefined; return; }
+    const ex = getExercise(id);
+    drill.settings = { exerciseId: id, exerciseName: ex ? ex.name : '' };
+  });
+  wrap.appendChild(select);
+  return wrap;
 }
 
 function updateEditorTotal() {
@@ -811,6 +840,12 @@ function navigateToDrill(drill) {
   const sectionId = toolSectionId(drill.toolId);
   if (sectionId && typeof showSectionFn === 'function') {
     showSectionFn(sectionId);
+  }
+  // For an Exercises drill that targets a specific PDF, pop the viewer open so
+  // the player can read the tab/etude right away.
+  if (drill.toolId === 'exercises' && drill.settings && drill.settings.exerciseId) {
+    const exId = drill.settings.exerciseId;
+    setTimeout(() => { try { openExerciseViewer(exId); } catch (e) {} }, 60);
   }
 }
 
@@ -1278,6 +1313,9 @@ function onVisibility() {
 export function initSessions(config) {
   showSectionFn = config.showSection;
   icons = config.icons || {};
+
+  // Allow the Exercises view to refresh session cards after a PDF is deleted.
+  window.musiRefreshSessions = renderHome;
 
   // Wire the home Create button + persist active timer through tab churn.
   const createBtn = document.getElementById('home-sessions-create');
