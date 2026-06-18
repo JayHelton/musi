@@ -1,5 +1,5 @@
 import { audioCtx, setMasterVolume, getMasterVolume } from './audio.js';
-import { S, buildNoteButtons, selectItem, MODS, MOD_LABELS, LETTERS_UI, CHROMATIC_NOTES } from './scaleQuiz.js';
+import { S, buildNoteButtons, selectItem } from './scaleQuiz.js';
 import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
 import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
