@@ -1,8 +1,12 @@
-// IndexedDB-backed audio library for Musi. Holds saved audio Blobs — both files
-// the user uploads to a session (warmups, vocal notes) and takes saved from the
-// in-app Recorder. Sessions reference library items by id; the Blob lives here
-// so it persists across reloads / offline and is only ever removed when the
-// user deletes it explicitly from the library.
+// IndexedDB-backed file library for Musi. Holds saved Blobs — audio the user
+// uploads to a session (warmups, vocal notes), takes saved from the in-app
+// Recorder, and PDF exercises (tabs / etudes) uploaded in the Exercises view.
+// Features reference library items by id; the Blob lives here so it persists
+// across reloads / offline and is only ever removed when the user deletes it
+// explicitly from the library.
+//
+// Items are distinguished by their `source` field (e.g. 'upload', 'recording',
+// 'exercise'), so each feature can list just the items it owns.
 //
 // All access is defensive: IndexedDB may be unavailable (privacy mode, old
 // browser) in which case calls resolve to a safe no-op / null and the rest of
@@ -210,4 +214,21 @@ export async function deleteAudio(id) {
 
 export function attachmentsSupported() {
   return canUseIDB();
+}
+
+// --- Generic file helpers --------------------------------------------------
+// The store is content-agnostic, so PDFs (and any other Blob) reuse the audio
+// primitives above. These aliases give callers a clearer, type-neutral name.
+
+export { saveAudio as saveFile };
+export { getAudioBlob as getFileBlob };
+export { deleteAudio as deleteFile };
+export { renameAudio as renameFile };
+
+// Lists library metadata, optionally filtered to a single `source`. Used so the
+// Exercises view sees only PDFs and the session editor sees only audio.
+export async function listFilesMeta(source) {
+  const all = await listAudioMeta();
+  if (!source) return all;
+  return all.filter((m) => m.source === source);
 }

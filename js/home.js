@@ -18,6 +18,7 @@ const TITLES = {
   ear: 'Ear Trainer',
   recorder: 'Recorder',
   songwriter: 'Songwriting',
+  exercises: 'Exercises',
 };
 
 const DESCRIPTIONS = {
@@ -34,6 +35,7 @@ const DESCRIPTIONS = {
   ear: 'Identify pitches by ear.',
   recorder: 'Capture takes and inspect pitch.',
   songwriter: 'Write lyrics and attach recordings.',
+  exercises: 'Upload PDF tabs and etudes to practice.',
 };
 
 let showSectionFn = null;
