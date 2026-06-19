@@ -69,9 +69,9 @@
 .ex-viewer-missing{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;color:var(--text);font-size:.9rem}
 
 @media(max-width:900px){
-  #sec-exercises .ex-layout{flex-direction:column!important}
-  #sec-exercises .ex-sidebar{width:100%!important;order:1!important}
-  #sec-exercises .ex-main{order:2!important}
+  #sec-exercises .ex-layout{display:grid!important;grid-template-columns:1fr!important}
+  #sec-exercises .ex-sidebar{width:100%!important;max-width:100%;order:1!important;grid-column:1!important;grid-row:1!important}
+  #sec-exercises .ex-main{width:100%;max-width:100%;order:2!important;grid-column:1!important;grid-row:2!important}
   .ex-toolbar{align-items:stretch}
   .ex-toolbar-title{width:100%}
   .ex-toolbar-actions{width:100%;display:grid;grid-template-columns:1fr}
