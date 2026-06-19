@@ -1,5 +1,6 @@
-/* Exercises library: category sidebar + PDF list, plus a full-screen PDF
-   viewer. Reuses Musi's design tokens for a consistent look. */
+/* Exercises library: category sidebar + file list, plus a full-screen
+   viewer for PDFs and images. Reuses Musi's design tokens for a consistent
+   look. */
 
 .ex-layout{align-items:flex-start}
 .ex-sidebar{width:220px}
@@ -55,7 +56,9 @@
 .ex-viewer-actions a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .ex-viewer-close{color:var(--err)}
 .ex-viewer-body{flex:1;min-height:0;background:#525659}
+.ex-viewer-body-image{display:flex;align-items:center;justify-content:center;overflow:auto;padding:16px}
 .ex-viewer-frame{width:100%;height:100%;border:none;display:block}
+.ex-viewer-image{max-width:100%;max-height:100%;object-fit:contain;margin:auto;display:block}
 .ex-viewer-missing{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;color:var(--text);font-size:.9rem}
 
 @media(max-width:768px){
