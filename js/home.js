@@ -35,7 +35,7 @@ const DESCRIPTIONS = {
   ear: 'Identify pitches by ear.',
   recorder: 'Capture takes and inspect pitch.',
   songwriter: 'Write lyrics and attach recordings.',
-  exercises: 'Upload PDF tabs and etudes to practice.',
+  exercises: 'Upload tabs, audio, videos and lesson links.',
 };
 
 let showSectionFn = null;

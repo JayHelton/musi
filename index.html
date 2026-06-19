@@ -869,12 +869,12 @@
     </div>
   </section>
 
-  <!-- EXERCISES (PDF LIBRARY) -->
+  <!-- EXERCISES (MEDIA LIBRARY) -->
   <section id="sec-exercises" class="section">
     <div class="section-head">
       <div class="section-kicker">Tools</div>
       <h2>Exercises</h2>
-      <p>Upload PDFs of tabs, etudes and sheet music, organize them by category, and read them in a built-in viewer while you practice.</p>
+      <p>Upload PDFs, images, audio and video, or add lesson links to read and play while you practice.</p>
     </div>
     <div class="quiz-layout ex-layout">
       <aside class="sidebar ex-sidebar">
@@ -891,8 +891,9 @@
         <div class="ex-toolbar">
           <div class="ex-toolbar-title" id="ex-current-title">All Exercises</div>
           <div class="ex-toolbar-actions">
-            <input type="file" id="ex-file-input" accept="application/pdf,.pdf,image/*" multiple hidden>
+            <input type="file" id="ex-file-input" accept="application/pdf,.pdf,image/*,audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.mov" multiple hidden>
             <button class="btn primary" id="ex-upload-btn" type="button">+ Upload File</button>
+            <button class="btn" id="ex-add-link-btn" type="button">+ Add Link</button>
           </div>
         </div>
         <div class="ex-status" id="ex-status" style="display:none"></div>
