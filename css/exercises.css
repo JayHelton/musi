@@ -75,7 +75,11 @@
   .ex-toolbar{align-items:stretch}
   .ex-toolbar-title{width:100%}
   .ex-toolbar-actions{width:100%;max-width:100%;display:flex;flex-direction:column}
-  .ex-toolbar-actions .btn{width:100%;max-width:100%;padding-left:12px;padding-right:12px;text-align:center;white-space:normal;overflow-wrap:anywhere}
+  .ex-toolbar-actions .btn{display:flex;align-items:center;justify-content:center;width:100%;max-width:100%;padding-left:12px;padding-right:12px;text-align:center;white-space:normal;overflow-wrap:anywhere;color:var(--text);line-height:1.2}
+  #ex-upload-btn{color:#0a0a0a}
+  #ex-upload-btn,#ex-add-link-btn{font-size:0}
+  #ex-upload-btn::before{content:"+ Upload File";font-size:.85rem}
+  #ex-add-link-btn::before{content:"+ Add Link";font-size:.85rem}
   .ex-item{flex-wrap:wrap}
   .ex-item-actions{width:100%;justify-content:flex-start}
   .ex-viewer-overlay{padding:0}
