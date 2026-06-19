@@ -74,13 +74,10 @@
   #sec-exercises .ex-main{order:2!important}
   .ex-toolbar{align-items:stretch}
   .ex-toolbar-title{width:100%}
-  .ex-toolbar-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}
+  .ex-toolbar-actions{width:100%;display:grid;grid-template-columns:1fr}
   .ex-toolbar-actions .btn{width:100%;padding-left:12px;padding-right:12px}
   .ex-item{flex-wrap:wrap}
   .ex-item-actions{width:100%;justify-content:flex-start}
   .ex-viewer-overlay{padding:0}
   .ex-viewer-panel{border-radius:0;max-width:none}
-}
-@media(max-width:480px){
-  .ex-toolbar-actions{grid-template-columns:1fr}
 }
