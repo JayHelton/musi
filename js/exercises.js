@@ -1,10 +1,11 @@
-// Exercises library for Musi. A place to upload practice PDFs — guitar/bass
-// tabs, etudes, sheet music — organize them into categories, read them in a
-// built-in PDF viewer, and reference them from practice sessions.
+// Exercises library for Musi. A place to upload practice files (PDFs and
+// images) — guitar/bass tabs, etudes, sheet music — organize them into
+// categories, view them in a built-in viewer, and reference them from
+// practice sessions.
 //
 // Storage mirrors the rest of the app:
 //   - exercise metadata + categories live in localStorage (musi.exercises)
-//   - the PDF Blob itself lives in IndexedDB (attachments.js) keyed by an
+//   - the file Blob itself lives in IndexedDB (attachments.js) keyed by an
 //     attachment id, with source 'exercise' so it never mixes with audio.
 //
 // All storage access is defensive so the feature degrades gracefully when
@@ -22,7 +23,7 @@ import {
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
 const CAT_LIMIT = 40;
-const MAX_PDF_BYTES = 100 * 1024 * 1024; // 100 MB upload guard.
+const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB upload guard.
 
 // --- storage helpers (defensive) -------------------------------------------
 
@@ -86,6 +87,7 @@ function normalizeItem(raw) {
     categoryId: typeof raw.categoryId === 'string' ? raw.categoryId : '',
     attachmentId,
     fileName: typeof raw.fileName === 'string' ? raw.fileName : '',
+    type: typeof raw.type === 'string' ? raw.type : '',
     size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : 0,
     addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : nowISO(),
   };
@@ -362,7 +364,7 @@ function renderList() {
   const items = visibleItems();
   if (items.length === 0) {
     const msg = getExercises().length === 0
-      ? 'No exercises yet. Upload PDFs of tabs, etudes or sheet music to practice from.'
+      ? 'No exercises yet. Upload PDFs or images of tabs, etudes or sheet music to practice from.'
       : 'No exercises in this category yet.';
     listEl.appendChild(el('div', { class: 'ex-empty', text: msg }));
     return;
@@ -371,7 +373,7 @@ function renderList() {
   items.forEach(item => {
     const row = el('div', { class: 'ex-item', 'data-id': item.id });
 
-    const icon = el('div', { class: 'ex-item-icon', html: pdfIconSvg(), 'aria-hidden': 'true' });
+    const icon = el('div', { class: 'ex-item-icon', html: isImageItem(item) ? imageIconSvg() : pdfIconSvg(), 'aria-hidden': 'true' });
     row.appendChild(icon);
 
     const body = el('div', { class: 'ex-item-body' });
@@ -421,6 +423,17 @@ function pdfIconSvg() {
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>';
 }
 
+function imageIconSvg() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+}
+
+// True when an exercise item is an image (by stored mime type or file extension).
+function isImageItem(item) {
+  if (!item) return false;
+  if (typeof item.type === 'string' && item.type.startsWith('image/')) return true;
+  return typeof item.fileName === 'string' && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(item.fileName);
+}
+
 // --- upload ----------------------------------------------------------------
 
 async function onUploadFiles() {
@@ -440,14 +453,17 @@ async function onUploadFiles() {
   let rejected = 0;
   for (const file of files) {
     const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-    if (!isPdf) { rejected++; continue; }
-    if (file.size > MAX_PDF_BYTES) { rejected++; continue; }
+    const isImage = (typeof file.type === 'string' && file.type.startsWith('image/'))
+      || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name);
+    if (!isPdf && !isImage) { rejected++; continue; }
+    if (file.size > MAX_FILE_BYTES) { rejected++; continue; }
 
     setStatus(`Uploading "${file.name}"\u2026`);
     const dot = file.name.lastIndexOf('.');
     const base = dot > 0 ? file.name.slice(0, dot) : file.name;
+    const fileType = file.type || (isPdf ? 'application/pdf' : '');
     const meta = await saveFile({
-      blob: file, name: base || 'Exercise', type: file.type || 'application/pdf',
+      blob: file, name: base || 'Exercise', type: fileType,
       fileName: file.name, size: file.size, source: 'exercise',
     });
     if (!meta) { rejected++; continue; }
@@ -459,6 +475,7 @@ async function onUploadFiles() {
       categoryId: targetCategory,
       attachmentId: meta.id,
       fileName: file.name,
+      type: fileType,
       size: file.size,
       addedAt: nowISO(),
     });
@@ -467,12 +484,12 @@ async function onUploadFiles() {
   }
 
   render();
-  if (added && rejected) setStatus(`Added ${added} PDF${added === 1 ? '' : 's'}. Skipped ${rejected} non-PDF or oversized file${rejected === 1 ? '' : 's'}.`, true);
-  else if (added) setStatus(`Added ${added} PDF${added === 1 ? '' : 's'}.`);
-  else if (rejected) setStatus('Only PDF files up to 100 MB can be uploaded.', true);
+  if (added && rejected) setStatus(`Added ${added} file${added === 1 ? '' : 's'}. Skipped ${rejected} unsupported or oversized file${rejected === 1 ? '' : 's'}.`, true);
+  else if (added) setStatus(`Added ${added} file${added === 1 ? '' : 's'}.`);
+  else if (rejected) setStatus('Only PDF or image files up to 100 MB can be uploaded.', true);
 }
 
-// --- PDF viewer ------------------------------------------------------------
+// --- file viewer (PDFs + images) -------------------------------------------
 
 let viewerRoot = null;
 let viewerURL = null;
@@ -494,6 +511,7 @@ export async function openExerciseViewer(id) {
   closeExerciseViewer();
 
   const blob = await getFileBlob(item.attachmentId);
+  const isImage = isImageItem(item);
 
   const overlay = el('div', { class: 'ex-viewer-overlay' });
   const panel = el('div', { class: 'ex-viewer-panel', role: 'dialog', 'aria-label': item.name });
@@ -508,8 +526,9 @@ export async function openExerciseViewer(id) {
     headActions.appendChild(el('a', {
       class: 'btn sm', href: viewerURL, target: '_blank', rel: 'noopener', text: 'Open in tab',
     }));
+    const downloadName = item.fileName || (isImage ? item.name : `${item.name}.pdf`);
     headActions.appendChild(el('a', {
-      class: 'btn sm', href: viewerURL, download: item.fileName || `${item.name}.pdf`, text: 'Download',
+      class: 'btn sm', href: viewerURL, download: downloadName, text: 'Download',
     }));
   }
   headActions.appendChild(el('button', {
@@ -519,16 +538,21 @@ export async function openExerciseViewer(id) {
   head.appendChild(headActions);
   panel.appendChild(head);
 
-  const body = el('div', { class: 'ex-viewer-body' });
+  const body = el('div', { class: 'ex-viewer-body' + (isImage ? ' ex-viewer-body-image' : '') });
   if (blob) {
-    const frame = el('iframe', {
-      class: 'ex-viewer-frame', src: viewerURL, title: item.name,
-    });
-    body.appendChild(frame);
+    if (isImage) {
+      body.appendChild(el('img', {
+        class: 'ex-viewer-image', src: viewerURL, alt: item.name,
+      }));
+    } else {
+      body.appendChild(el('iframe', {
+        class: 'ex-viewer-frame', src: viewerURL, title: item.name,
+      }));
+    }
   } else {
     body.appendChild(el('div', {
       class: 'ex-viewer-missing',
-      text: 'This PDF is missing from storage. It may have been cleared by the browser.',
+      text: 'This file is missing from storage. It may have been cleared by the browser.',
     }));
   }
   panel.appendChild(body);

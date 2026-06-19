@@ -78,7 +78,7 @@ function restoreMetronomeSettings() {
 }
 
 function slotDuration(slot) {
-  if (slot.simple) return 1;
+  if (slot.simple) return 4 / metro.tsDen;
   let d = NV_BEATS[slot.value] || 1;
   if (slot.dotted) d *= 1.5;
   if (slot.triplet) d *= 2 / 3;
@@ -397,6 +397,10 @@ function metroScheduler() {
       continue;
     }
     const slot = metro.measure[metro._currentSlot];
+    if (!slot) {
+      metro._currentSlot = 0;
+      continue;
+    }
     if (!slot.rest) {
       scheduleClick(metro._nextNoteTime, getAccentForSlot(metro._currentSlot));
     }

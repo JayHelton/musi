@@ -114,6 +114,8 @@ function clampDuration(value) {
 }
 
 const NOTES_LIMIT = 4000;
+const DRILL_NOTES_LIMIT = 2000;
+const DRILL_LABEL_LIMIT = 80;
 
 // Free-form session notes (reminders, curriculum/regimen requirements). Trailing
 // whitespace is trimmed but internal line breaks are preserved; length capped so
@@ -121,6 +123,13 @@ const NOTES_LIMIT = 4000;
 function clampNotes(value) {
   if (typeof value !== 'string') return '';
   return value.replace(/\s+$/, '').slice(0, NOTES_LIMIT);
+}
+
+// Per-drill notes use the same trim-trailing-whitespace + cap approach as the
+// session notes, just with a smaller limit since they are scoped to one section.
+function clampDrillNotes(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+$/, '').slice(0, DRILL_NOTES_LIMIT);
 }
 
 // --- Normalisation: defends against corrupted / partial saved data. --------
@@ -133,6 +142,10 @@ function normalizeDrill(raw) {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('drill'),
     toolId,
     toolName: typeof raw.toolName === 'string' && raw.toolName ? raw.toolName : toolName(toolId),
+    // Optional custom name for this drill/section. Empty means "use the tool name".
+    label: typeof raw.label === 'string' ? raw.label.trim().slice(0, DRILL_LABEL_LIMIT) : '',
+    // Optional per-drill markdown note, separate from the session-level notes.
+    notes: clampDrillNotes(raw.notes),
     durationMinutes: clampDuration(raw.durationMinutes),
     settings: raw.settings && typeof raw.settings === 'object' ? raw.settings : undefined,
   };
