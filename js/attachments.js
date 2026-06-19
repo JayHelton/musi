@@ -1,6 +1,6 @@
 // IndexedDB-backed file library for Musi. Holds saved Blobs — audio the user
 // uploads to a session (warmups, vocal notes), takes saved from the in-app
-// Recorder, and PDF exercises (tabs / etudes) uploaded in the Exercises view.
+// Recorder, and exercise media uploaded in the Exercises view.
 // Features reference library items by id; the Blob lives here so it persists
 // across reloads / offline and is only ever removed when the user deletes it
 // explicitly from the library.
@@ -226,7 +226,7 @@ export { deleteAudio as deleteFile };
 export { renameAudio as renameFile };
 
 // Lists library metadata, optionally filtered to a single `source`. Used so the
-// Exercises view sees only PDFs and the session editor sees only audio.
+// Exercises view sees only its media and the session editor sees only audio.
 export async function listFilesMeta(source) {
   const all = await listAudioMeta();
   if (!source) return all;

@@ -29,7 +29,7 @@ export const TOOL_REGISTRY = {
   'circle-of-fifths': { name: 'Circle of Fifths',        sectionId: 'circle' },
   'metronome':        { name: 'Metronome',               sectionId: 'metronome' },
   'scale-reference':  { name: 'Scale Reference',         sectionId: 'scaleref' },
-  'exercises':        { name: 'Exercises (PDF)',         sectionId: 'exercises' },
+  'exercises':        { name: 'Exercises',               sectionId: 'exercises' },
 };
 
 // Tools that work as timed drills versus reference-style tools. Reference tools
