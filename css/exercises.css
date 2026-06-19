@@ -81,3 +81,6 @@
   .ex-viewer-overlay{padding:0}
   .ex-viewer-panel{border-radius:0;max-width:none}
 }
+@media(max-width:480px){
+  .ex-toolbar-actions{grid-template-columns:1fr}
+}
