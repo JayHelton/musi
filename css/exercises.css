@@ -70,7 +70,8 @@
 
 @media(max-width:768px){
   .ex-layout{flex-direction:column}
-  .ex-sidebar{width:100%}
+  .ex-sidebar{width:100%;order:1}
+  .ex-main{order:2}
   .ex-item{flex-wrap:wrap}
   .ex-item-actions{width:100%;justify-content:flex-start}
   .ex-viewer-overlay{padding:0}
