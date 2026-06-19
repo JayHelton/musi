@@ -69,17 +69,15 @@
 .ex-viewer-missing{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;color:var(--text);font-size:.9rem}
 
 @media(max-width:900px){
-  #sec-exercises .ex-layout{display:grid!important;grid-template-columns:1fr!important}
-  #sec-exercises .ex-sidebar{width:100%!important;max-width:100%;order:1!important;grid-column:1!important;grid-row:1!important}
-  #sec-exercises .ex-main{width:100%;max-width:100%;order:2!important;grid-column:1!important;grid-row:2!important}
-  .ex-toolbar{align-items:stretch}
+  #sec-exercises{overflow-x:hidden}
+  #sec-exercises .ex-layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important;width:100%!important;max-width:100%!important;min-width:0!important}
+  #sec-exercises .ex-sidebar{width:100%!important;max-width:100%!important;min-width:0!important;order:1!important;grid-column:1!important;grid-row:1!important}
+  #sec-exercises .ex-main{width:100%!important;max-width:100%!important;min-width:0!important;order:2!important;grid-column:1!important;grid-row:2!important}
+  .ex-toolbar{width:100%!important;max-width:100%!important;min-width:0!important;align-items:stretch}
   .ex-toolbar-title{width:100%}
-  .ex-toolbar-actions{width:100%;max-width:100%;display:flex;flex-direction:column}
-  .ex-toolbar-actions .btn{display:flex;align-items:center;justify-content:center;width:100%;max-width:100%;padding-left:12px;padding-right:12px;text-align:center;white-space:normal;overflow-wrap:anywhere;color:var(--text);line-height:1.2}
+  .ex-toolbar-actions{width:100%!important;max-width:100%!important;min-width:0!important;display:flex;flex-direction:column}
+  .ex-toolbar-actions .btn{display:flex;align-items:center;justify-content:center;width:100%!important;max-width:100%!important;min-width:0!important;padding-left:12px;padding-right:12px;text-align:center;white-space:normal;overflow-wrap:anywhere;color:var(--text);line-height:1.2;font-size:.85rem!important}
   #ex-upload-btn{color:#0a0a0a}
-  #ex-upload-btn,#ex-add-link-btn{font-size:0}
-  #ex-upload-btn::before{content:"+ Upload File";font-size:.85rem}
-  #ex-add-link-btn::before{content:"+ Add Link";font-size:.85rem}
   .ex-item{flex-wrap:wrap}
   .ex-item-actions{width:100%;justify-content:flex-start}
   .ex-viewer-overlay{padding:0}
