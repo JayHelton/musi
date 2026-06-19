@@ -37,6 +37,7 @@ import {
   ensurePersistentStorage,
 } from './attachments.js';
 import { getExercises, getExercise, openExerciseViewer } from './exercises.js';
+import { setMarkdown } from './markdown.js';
 
 // Object URLs created for inline playback, tracked so they can be revoked.
 let activeAudioEl = null;
@@ -74,6 +75,13 @@ function el(tag, props = {}, children = []) {
     node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
   });
   return node;
+}
+
+// The name shown for a drill: its custom label if set, else the stored tool
+// name, else the registry name for its toolId.
+function drillDisplayName(drill) {
+  if (drill && typeof drill.label === 'string' && drill.label.trim()) return drill.label.trim();
+  return (drill && drill.toolName) || toolName(drill && drill.toolId);
 }
 
 function fmtClock(totalSeconds) {
@@ -143,7 +151,9 @@ function buildSessionCard(session) {
   card.appendChild(el('div', { class: 'session-card-sub', text: last }));
 
   if (session.notes && session.notes.trim()) {
-    card.appendChild(el('div', { class: 'session-card-notes', title: session.notes, text: session.notes }));
+    const notesEl = el('div', { class: 'session-card-notes', title: session.notes });
+    setMarkdown(notesEl, session.notes);
+    card.appendChild(notesEl);
   }
 
   const attachments = Array.isArray(session.attachments) ? session.attachments : [];
@@ -403,6 +413,8 @@ function openEditor(sessionId) {
       id: uid('drill'),
       toolId,
       toolName: toolName(toolId),
+      label: '',
+      notes: '',
       durationMinutes: 3,
     });
     select.value = '';
@@ -663,10 +675,26 @@ function renderDrillList() {
     }));
     row.appendChild(reorder);
 
-    const info = el('div', { class: 'session-drill-info' }, [
-      el('div', { class: 'session-drill-name', text: drill.toolName || toolName(drill.toolId) }),
-      el('div', { class: 'session-drill-tool', text: known ? '' : 'Tool unavailable' }),
-    ]);
+    const info = el('div', { class: 'session-drill-info' });
+
+    const labelInput = el('input', {
+      type: 'text', class: 'session-drill-label-input', maxlength: '80',
+      value: drill.label || '', placeholder: drill.toolName || toolName(drill.toolId),
+      'aria-label': 'Drill name',
+    });
+    labelInput.addEventListener('input', () => { drill.label = labelInput.value; });
+    info.appendChild(labelInput);
+
+    info.appendChild(el('div', { class: 'session-drill-tool', text: known ? '' : 'Tool unavailable' }));
+
+    const notesInput = el('textarea', {
+      class: 'session-drill-notes-input', rows: '2', maxlength: '2000',
+      placeholder: 'Notes for this section (markdown supported)', 'aria-label': 'Drill notes',
+    });
+    notesInput.value = drill.notes || '';
+    notesInput.addEventListener('input', () => { drill.notes = notesInput.value; });
+    info.appendChild(notesInput);
+
     // Exercises drills can target a specific uploaded PDF, which the runner opens
     // automatically when the drill starts.
     if (drill.toolId === 'exercises') info.appendChild(buildExercisePicker(drill));
@@ -995,19 +1023,21 @@ function renderRunner() {
   const main = el('div', { class: 'session-runner-main' });
   main.appendChild(el('div', { class: 'session-runner-session', text: rt.session.name }));
   main.appendChild(el('div', { class: 'session-runner-drill' }, [
-    el('span', { class: 'session-runner-drill-name', text: drill.toolName || toolName(drill.toolId) }),
+    el('span', { class: 'session-runner-drill-name', text: drillDisplayName(drill) }),
     el('span', { class: 'session-runner-index', text: `Drill ${rt.currentDrillIndex + 1} of ${total}` }),
   ]));
   if (!known) {
     main.appendChild(el('div', { class: 'session-runner-warn', text: 'This tool is unavailable — skip to continue.' }));
   }
   if (next) {
-    main.appendChild(el('div', { class: 'session-runner-next', text: `Next: ${next.toolName || toolName(next.toolId)}` }));
+    main.appendChild(el('div', { class: 'session-runner-next', text: `Next: ${drillDisplayName(next)}` }));
   } else {
     main.appendChild(el('div', { class: 'session-runner-next', text: 'Final drill' }));
   }
   if (rt.session.notes && rt.session.notes.trim()) {
-    main.appendChild(el('div', { class: 'session-runner-notes', title: rt.session.notes, text: rt.session.notes }));
+    const runnerNotes = el('div', { class: 'session-runner-notes', title: rt.session.notes });
+    setMarkdown(runnerNotes, rt.session.notes);
+    main.appendChild(runnerNotes);
   }
   inner.appendChild(main);
 
@@ -1126,17 +1156,26 @@ function buildDetails() {
   rt.session.drills.forEach((drill, i) => {
     const row = el('div', { class: 'session-details-drill-row', 'data-index': String(i) }, [
       el('span', { class: 'session-details-drill-marker', 'aria-hidden': 'true' }),
-      el('span', { class: 'session-details-drill-name', text: drill.toolName || toolName(drill.toolId) }),
+      el('span', { class: 'session-details-drill-name', text: drillDisplayName(drill) }),
       el('span', { class: 'session-details-drill-dur', text: `${clampDuration(drill.durationMinutes)} min` }),
     ]);
     drillList.appendChild(row);
+
+    // Per-drill note (markdown), shown indented under its row.
+    if (drill.notes && drill.notes.trim()) {
+      const note = el('div', { class: 'session-details-drill-note' });
+      setMarkdown(note, drill.notes);
+      drillList.appendChild(note);
+    }
   });
   detailsPanel.appendChild(drillList);
 
   // Notes (full, not clamped)
   if (rt.session.notes && rt.session.notes.trim()) {
     detailsPanel.appendChild(el('div', { class: 'session-details-label', text: 'Notes' }));
-    detailsPanel.appendChild(el('div', { class: 'session-details-notes', text: rt.session.notes }));
+    const detailsNotes = el('div', { class: 'session-details-notes' });
+    setMarkdown(detailsNotes, rt.session.notes);
+    detailsPanel.appendChild(detailsNotes);
   }
 
   // Recordings / attachments with inline playback.
