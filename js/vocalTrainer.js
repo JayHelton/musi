@@ -4,6 +4,7 @@ import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext } from './musicalContext.js';
 import { SCALES } from './scales.js';
 import { createPitchTracker } from './pitch.js';
+import { beginMicSession, endMicSession } from './audioSession.js';
 
 const tuner = {
   running: false,
@@ -17,6 +18,7 @@ const tuner = {
   scalePlaying: false,
   scaleVoices: [],
   scaleTimers: [],
+  sessionActive: false,
 };
 
 function tunerLoop() {
@@ -67,8 +69,22 @@ function buildTunerConstraints() {
   };
 }
 
+function enterMicSession() {
+  if (tuner.sessionActive) return;
+  tuner.sessionActive = true;
+  beginMicSession();
+}
+
+function exitMicSession() {
+  if (!tuner.sessionActive) return;
+  tuner.sessionActive = false;
+  endMicSession();
+}
+
 async function startTuner() {
   ensureAudio();
+  // Mixable -> record session so other apps' audio keeps playing under the mic.
+  enterMicSession();
   try {
     try {
       tuner.stream = await navigator.mediaDevices.getUserMedia(buildTunerConstraints());
@@ -91,6 +107,7 @@ async function startTuner() {
     tunerLoop();
   } catch (e) {
     document.getElementById('tuner-status').textContent = 'Mic access denied or unavailable';
+    exitMicSession();
   }
 }
 
@@ -99,6 +116,7 @@ function stopTuner() {
   if (tuner.rafId) { cancelAnimationFrame(tuner.rafId); tuner.rafId = null; }
   if (tuner.tracker) tuner.tracker.reset();
   if (tuner.stream) { tuner.stream.getTracks().forEach(t => t.stop()); tuner.stream = null; }
+  exitMicSession();
   stopRefTone();
   stopContextScale();
   document.getElementById('tuner-toggle').textContent = 'Mic on';

@@ -1,4 +1,5 @@
 import { audioCtx, setMasterVolume, getMasterVolume } from './audio.js';
+import { initAudioSession } from './audioSession.js';
 import { S, buildNoteButtons, selectItem } from './scaleQuiz.js';
 import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
@@ -356,6 +357,10 @@ function isSwipeBlockedTarget(target) {
 }
 
 function init() {
+  // Opt into a mixable audio session up front so playing/recording in Musi
+  // layers on top of other apps' audio rather than interrupting it.
+  initAudioSession();
+
   const nav = document.getElementById('nav');
 
   TABS.forEach(t => {

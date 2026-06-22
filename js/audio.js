@@ -1,3 +1,5 @@
+import { initAudioSession } from './audioSession.js';
+
 export let audioCtx = null;
 export let analyserNode = null;
 let compressorNode = null;
@@ -28,6 +30,9 @@ export function setMasterVolume(v) {
 }
 
 export function ensureAudio() {
+  // Declare a mixable audio session so Musi plays alongside audio from other
+  // apps instead of pausing it. No-op where the API is unsupported.
+  initAudioSession();
   if (!audioCtx) {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     // Prefer a 48 kHz context so mic capture and lossless WAV export run at a
