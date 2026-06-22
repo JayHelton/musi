@@ -1,4 +1,4 @@
-import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination, requestMicStream, releaseMicStream } from './audio.js';
 import { parseNote, spellNote, NOTE_NAMES_SHARP } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext } from './musicalContext.js';
@@ -71,10 +71,10 @@ async function startTuner() {
   ensureAudio();
   try {
     try {
-      tuner.stream = await navigator.mediaDevices.getUserMedia(buildTunerConstraints());
+      tuner.stream = await requestMicStream(buildTunerConstraints());
     } catch (constraintErr) {
       // Some devices reject specific constraints; fall back to a plain request.
-      tuner.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      tuner.stream = await requestMicStream({ audio: true });
     }
     const source = audioCtx.createMediaStreamSource(tuner.stream);
     tuner.analyser = audioCtx.createAnalyser();
@@ -98,7 +98,7 @@ function stopTuner() {
   tuner.running = false;
   if (tuner.rafId) { cancelAnimationFrame(tuner.rafId); tuner.rafId = null; }
   if (tuner.tracker) tuner.tracker.reset();
-  if (tuner.stream) { tuner.stream.getTracks().forEach(t => t.stop()); tuner.stream = null; }
+  if (tuner.stream) { releaseMicStream(tuner.stream); tuner.stream = null; }
   stopRefTone();
   stopContextScale();
   document.getElementById('tuner-toggle').textContent = 'Mic on';

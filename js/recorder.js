@@ -1,4 +1,4 @@
-import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
+import { audioCtx, ensureAudio, getAnalyserDestination, requestMicStream, releaseMicStream } from './audio.js';
 import { NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { detectPitch } from './pitch.js';
@@ -408,7 +408,7 @@ async function startRecording(trigger = 'panel') {
     return;
   }
   try {
-    recorder.stream = await navigator.mediaDevices.getUserMedia(buildMicConstraints());
+    recorder.stream = await requestMicStream(buildMicConstraints());
   } catch (e) {
     if (statusEl) statusEl.textContent = 'Mic access denied or unavailable';
     syncHoldRecordUi(false);
@@ -416,7 +416,7 @@ async function startRecording(trigger = 'panel') {
   }
 
   if (recorder.holdActive && !recorder.holdPressed) {
-    recorder.stream.getTracks().forEach(t => t.stop());
+    releaseMicStream(recorder.stream);
     recorder.stream = null;
     syncHoldRecordUi(false);
     recorder.holdActive = false;
@@ -512,7 +512,7 @@ function stopRecording() {
 }
 
 function finalizeRecording() {
-  if (recorder.stream) { recorder.stream.getTracks().forEach(t => t.stop()); recorder.stream = null; }
+  if (recorder.stream) { releaseMicStream(recorder.stream); recorder.stream = null; }
 
   if (recorder.format === 'wav') {
     let samples = mergePcmChunks(recorder.pcmChunks);
@@ -709,7 +709,7 @@ function clearRecording(skipUi) {
 function stopRecorder() {
   if (recorder.recording) stopRecording();
   if (recorder.playing) stopPlayback();
-  if (recorder.stream) { recorder.stream.getTracks().forEach(t => t.stop()); recorder.stream = null; }
+  if (recorder.stream) { releaseMicStream(recorder.stream); recorder.stream = null; }
   syncHoldRecordUi(false);
   recorder.holdActive = false;
   recorder.holdPressed = false;

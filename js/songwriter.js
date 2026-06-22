@@ -18,6 +18,7 @@ import {
   attachmentsSupported,
   ensurePersistentStorage,
 } from './attachments.js';
+import { requestMicStream, releaseMicStream } from './audio.js';
 
 const STORAGE_KEY = 'musi.songs';
 const TITLE_LIMIT = 120;
@@ -389,7 +390,7 @@ async function startRecording() {
   }
   setRecStatus('Requesting microphone\u2026');
   try {
-    recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recStream = await requestMicStream({ audio: true });
   } catch (e) {
     setRecStatus('Microphone access was denied.', true);
     return;
@@ -470,7 +471,7 @@ function stopRecordingIfActive() {
 
 function stopStream() {
   if (recStream) {
-    try { recStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    releaseMicStream(recStream);
     recStream = null;
   }
 }
