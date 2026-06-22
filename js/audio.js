@@ -2,6 +2,8 @@ export let audioCtx = null;
 export let analyserNode = null;
 let compressorNode = null;
 let masterGain = null;
+let micSessionDepth = 0;
+let previousAudioSessionType = null;
 
 // Global output level applied at the master bus. Defaults louder than the old
 // fixed 0.75 because users found the app too quiet; adjustable up to 1.5 for
@@ -57,6 +59,70 @@ export function ensureAudio() {
     masterGain.connect(audioCtx.destination);
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function getAudioSession() {
+  if (typeof navigator === 'undefined') return null;
+  const session = navigator.audioSession;
+  return session && typeof session.type === 'string' ? session : null;
+}
+
+function setAudioSessionType(type) {
+  const session = getAudioSession();
+  if (!session) return false;
+  try {
+    session.type = type;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function beginMicAudioSession() {
+  const session = getAudioSession();
+  if (!session) return;
+  if (micSessionDepth === 0) {
+    previousAudioSessionType = session.type || 'auto';
+    // Reset before getUserMedia; iOS is more reliable when the recording
+    // session is asserted after the microphone stream has actually opened.
+    setAudioSessionType('auto');
+  }
+  micSessionDepth += 1;
+}
+
+function activateMicAudioSession() {
+  if (micSessionDepth > 0) setAudioSessionType('play-and-record');
+}
+
+function endMicAudioSession() {
+  if (micSessionDepth <= 0) return;
+  micSessionDepth -= 1;
+  if (micSessionDepth > 0) return;
+  const restoreType = previousAudioSessionType || 'auto';
+  previousAudioSessionType = null;
+  // Kick iOS out of the lower-quality recording route before restoring the
+  // page's prior mode, which keeps Bluetooth and wired output selected.
+  setAudioSessionType('playback');
+  setAudioSessionType(restoreType);
+}
+
+export async function requestMicStream(constraints) {
+  beginMicAudioSession();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    activateMicAudioSession();
+    return stream;
+  } catch (e) {
+    endMicAudioSession();
+    throw e;
+  }
+}
+
+export function releaseMicStream(stream) {
+  if (stream) {
+    try { stream.getTracks().forEach(t => t.stop()); } catch (e) { /* noop */ }
+  }
+  endMicAudioSession();
 }
 
 export function getAnalyserDestination() {
