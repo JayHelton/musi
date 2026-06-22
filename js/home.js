@@ -17,6 +17,8 @@ const TITLES = {
   tuner: 'Pitch / Tuner',
   ear: 'Ear Trainer',
   recorder: 'Recorder',
+  songwriter: 'Songwriting',
+  exercises: 'Exercises',
 };
 
 const DESCRIPTIONS = {
@@ -32,6 +34,8 @@ const DESCRIPTIONS = {
   tuner: 'Live pitch and reference tones.',
   ear: 'Identify pitches by ear.',
   recorder: 'Capture takes and inspect pitch.',
+  songwriter: 'Write lyrics and attach recordings.',
+  exercises: 'Upload tabs, audio, videos and lesson links.',
 };
 
 let showSectionFn = null;

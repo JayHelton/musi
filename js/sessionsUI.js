@@ -36,6 +36,8 @@ import {
   attachmentsSupported,
   ensurePersistentStorage,
 } from './attachments.js';
+import { getExercises, getExercise, openExerciseViewer } from './exercises.js';
+import { setMarkdown } from './markdown.js';
 
 // Object URLs created for inline playback, tracked so they can be revoked.
 let activeAudioEl = null;
@@ -73,6 +75,13 @@ function el(tag, props = {}, children = []) {
     node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
   });
   return node;
+}
+
+// The name shown for a drill: its custom label if set, else the stored tool
+// name, else the registry name for its toolId.
+function drillDisplayName(drill) {
+  if (drill && typeof drill.label === 'string' && drill.label.trim()) return drill.label.trim();
+  return (drill && drill.toolName) || toolName(drill && drill.toolId);
 }
 
 function fmtClock(totalSeconds) {
@@ -142,7 +151,21 @@ function buildSessionCard(session) {
   card.appendChild(el('div', { class: 'session-card-sub', text: last }));
 
   if (session.notes && session.notes.trim()) {
-    card.appendChild(el('div', { class: 'session-card-notes', title: session.notes, text: session.notes }));
+    const notesEl = el('div', { class: 'session-card-notes', title: session.notes });
+    setMarkdown(notesEl, session.notes);
+    card.appendChild(notesEl);
+    card.appendChild(el('button', {
+      class: 'session-notes-toggle',
+      type: 'button',
+      'aria-expanded': 'false',
+      text: 'Read notes',
+      onClick: (e) => {
+        e.stopPropagation();
+        const expanded = card.classList.toggle('notes-expanded');
+        e.currentTarget.textContent = expanded ? 'Collapse notes' : 'Read notes';
+        e.currentTarget.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      },
+    }));
   }
 
   const attachments = Array.isArray(session.attachments) ? session.attachments : [];
@@ -402,6 +425,8 @@ function openEditor(sessionId) {
       id: uid('drill'),
       toolId,
       toolName: toolName(toolId),
+      label: '',
+      notes: '',
       durationMinutes: 3,
     });
     select.value = '';
@@ -455,7 +480,9 @@ function openEditor(sessionId) {
 
 // Loads the audio library from IndexedDB (newest first) and re-renders the list.
 async function refreshLibrary() {
-  editorState.library = await listAudioMeta();
+    // Exercise files live in the same store but are managed in the Exercises view;
+  // keep them out of the session audio attachment list.
+  editorState.library = (await listAudioMeta()).filter(m => m.source !== 'exercise');
   const pages = Math.max(1, Math.ceil(editorState.library.length / LIBRARY_PAGE_SIZE));
   if (editorState.libraryPage >= pages) editorState.libraryPage = pages - 1;
   renderAttachList();
@@ -660,10 +687,29 @@ function renderDrillList() {
     }));
     row.appendChild(reorder);
 
-    const info = el('div', { class: 'session-drill-info' }, [
-      el('div', { class: 'session-drill-name', text: drill.toolName || toolName(drill.toolId) }),
-      el('div', { class: 'session-drill-tool', text: known ? '' : 'Tool unavailable' }),
-    ]);
+    const info = el('div', { class: 'session-drill-info' });
+
+    const labelInput = el('input', {
+      type: 'text', class: 'session-drill-label-input', maxlength: '80',
+      value: drill.label || '', placeholder: drill.toolName || toolName(drill.toolId),
+      'aria-label': 'Drill name',
+    });
+    labelInput.addEventListener('input', () => { drill.label = labelInput.value; });
+    info.appendChild(labelInput);
+
+    info.appendChild(el('div', { class: 'session-drill-tool', text: known ? '' : 'Tool unavailable' }));
+
+    const notesInput = el('textarea', {
+      class: 'session-drill-notes-input', rows: '2', maxlength: '2000',
+      placeholder: 'Notes for this section (markdown supported)', 'aria-label': 'Drill notes',
+    });
+    notesInput.value = drill.notes || '';
+    notesInput.addEventListener('input', () => { drill.notes = notesInput.value; });
+    info.appendChild(notesInput);
+
+    // Exercises drills can target a specific saved exercise, which the runner opens
+    // automatically when the drill starts.
+    if (drill.toolId === 'exercises') info.appendChild(buildExercisePicker(drill));
     row.appendChild(info);
 
     const durWrap = el('div', { class: 'session-dur' });
@@ -689,6 +735,29 @@ function renderDrillList() {
   });
 
   updateEditorTotal();
+}
+
+// A dropdown of uploaded exercises for an "Exercises" drill. The choice is
+// stored in drill.settings so the runner can auto-open it.
+function buildExercisePicker(drill) {
+  const exercises = getExercises();
+  const wrap = el('div', { class: 'session-drill-exercise' });
+  const select = el('select', { class: 'session-add-select session-exercise-select', 'aria-label': 'Exercise media' });
+  select.appendChild(el('option', { value: '', text: exercises.length ? 'Open library (no specific exercise)' : 'No exercises saved yet' }));
+  exercises.forEach(ex => {
+    const opt = el('option', { value: ex.id, text: ex.name });
+    if (drill.settings && drill.settings.exerciseId === ex.id) opt.selected = true;
+    select.appendChild(opt);
+  });
+  select.value = (drill.settings && drill.settings.exerciseId) || '';
+  select.addEventListener('change', () => {
+    const id = select.value;
+    if (!id) { drill.settings = undefined; return; }
+    const ex = getExercise(id);
+    drill.settings = { exerciseId: id, exerciseName: ex ? ex.name : '' };
+  });
+  wrap.appendChild(select);
+  return wrap;
 }
 
 function updateEditorTotal() {
@@ -811,6 +880,12 @@ function navigateToDrill(drill) {
   const sectionId = toolSectionId(drill.toolId);
   if (sectionId && typeof showSectionFn === 'function') {
     showSectionFn(sectionId);
+  }
+  // For an Exercises drill that targets a specific item, pop the viewer open so
+  // the player can read the tab/etude right away.
+  if (drill.toolId === 'exercises' && drill.settings && drill.settings.exerciseId) {
+    const exId = drill.settings.exerciseId;
+    setTimeout(() => { try { openExerciseViewer(exId); } catch (e) {} }, 60);
   }
 }
 
@@ -960,19 +1035,21 @@ function renderRunner() {
   const main = el('div', { class: 'session-runner-main' });
   main.appendChild(el('div', { class: 'session-runner-session', text: rt.session.name }));
   main.appendChild(el('div', { class: 'session-runner-drill' }, [
-    el('span', { class: 'session-runner-drill-name', text: drill.toolName || toolName(drill.toolId) }),
+    el('span', { class: 'session-runner-drill-name', text: drillDisplayName(drill) }),
     el('span', { class: 'session-runner-index', text: `Drill ${rt.currentDrillIndex + 1} of ${total}` }),
   ]));
   if (!known) {
     main.appendChild(el('div', { class: 'session-runner-warn', text: 'This tool is unavailable — skip to continue.' }));
   }
   if (next) {
-    main.appendChild(el('div', { class: 'session-runner-next', text: `Next: ${next.toolName || toolName(next.toolId)}` }));
+    main.appendChild(el('div', { class: 'session-runner-next', text: `Next: ${drillDisplayName(next)}` }));
   } else {
     main.appendChild(el('div', { class: 'session-runner-next', text: 'Final drill' }));
   }
   if (rt.session.notes && rt.session.notes.trim()) {
-    main.appendChild(el('div', { class: 'session-runner-notes', title: rt.session.notes, text: rt.session.notes }));
+    const runnerNotes = el('div', { class: 'session-runner-notes', title: rt.session.notes });
+    setMarkdown(runnerNotes, rt.session.notes);
+    main.appendChild(runnerNotes);
   }
   inner.appendChild(main);
 
@@ -1091,17 +1168,26 @@ function buildDetails() {
   rt.session.drills.forEach((drill, i) => {
     const row = el('div', { class: 'session-details-drill-row', 'data-index': String(i) }, [
       el('span', { class: 'session-details-drill-marker', 'aria-hidden': 'true' }),
-      el('span', { class: 'session-details-drill-name', text: drill.toolName || toolName(drill.toolId) }),
+      el('span', { class: 'session-details-drill-name', text: drillDisplayName(drill) }),
       el('span', { class: 'session-details-drill-dur', text: `${clampDuration(drill.durationMinutes)} min` }),
     ]);
     drillList.appendChild(row);
+
+    // Per-drill note (markdown), shown indented under its row.
+    if (drill.notes && drill.notes.trim()) {
+      const note = el('div', { class: 'session-details-drill-note' });
+      setMarkdown(note, drill.notes);
+      drillList.appendChild(note);
+    }
   });
   detailsPanel.appendChild(drillList);
 
   // Notes (full, not clamped)
   if (rt.session.notes && rt.session.notes.trim()) {
     detailsPanel.appendChild(el('div', { class: 'session-details-label', text: 'Notes' }));
-    detailsPanel.appendChild(el('div', { class: 'session-details-notes', text: rt.session.notes }));
+    const detailsNotes = el('div', { class: 'session-details-notes' });
+    setMarkdown(detailsNotes, rt.session.notes);
+    detailsPanel.appendChild(detailsNotes);
   }
 
   // Recordings / attachments with inline playback.
@@ -1278,6 +1364,9 @@ function onVisibility() {
 export function initSessions(config) {
   showSectionFn = config.showSection;
   icons = config.icons || {};
+
+  // Allow the Exercises view to refresh session cards after an exercise is deleted.
+  window.musiRefreshSessions = renderHome;
 
   // Wire the home Create button + persist active timer through tab churn.
   const createBtn = document.getElementById('home-sessions-create');
