@@ -167,6 +167,10 @@ function normalizeAttachment(raw) {
   };
 }
 
+function normalizeProgramId(raw) {
+  return typeof raw === 'string' && raw.trim() ? raw.trim().slice(0, 120) : undefined;
+}
+
 function normalizeSession(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const drills = Array.isArray(raw.drills)
@@ -183,6 +187,7 @@ function normalizeSession(raw) {
     notes: clampNotes(raw.notes),
     drills,
     attachments,
+    programId: normalizeProgramId(raw.programId),
     createdAt: created,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : created,
     lastStartedAt: typeof raw.lastStartedAt === 'string' ? raw.lastStartedAt : undefined,
@@ -275,12 +280,13 @@ export function validateSessionInput(input) {
   const attachments = rawAttachments.map(normalizeAttachment).filter(Boolean);
 
   const notes = clampNotes(input && input.notes);
+  const programId = normalizeProgramId(input && input.programId);
 
-  return { ok: errors.length === 0, errors, name, notes, drills, attachments };
+  return { ok: errors.length === 0, errors, name, notes, drills, attachments, programId };
 }
 
 export function createSession(input) {
-  const { ok, errors, name, notes, drills, attachments } = validateSessionInput(input);
+  const { ok, errors, name, notes, drills, attachments, programId } = validateSessionInput(input);
   if (!ok) return { ok: false, errors };
 
   const sessions = getSessions();
@@ -291,6 +297,7 @@ export function createSession(input) {
     notes,
     drills,
     attachments,
+    programId,
     createdAt: t,
     updatedAt: t,
   };
@@ -300,7 +307,7 @@ export function createSession(input) {
 }
 
 export function updateSession(id, input) {
-  const { ok, errors, name, notes, drills, attachments } = validateSessionInput(input);
+  const { ok, errors, name, notes, drills, attachments, programId } = validateSessionInput(input);
   if (!ok) return { ok: false, errors };
 
   const sessions = getSessions();
@@ -313,6 +320,7 @@ export function updateSession(id, input) {
     notes,
     drills,
     attachments,
+    programId: programId || sessions[idx].programId,
     updatedAt: nowISO(),
   };
   persistSessions();

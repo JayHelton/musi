@@ -21,6 +21,8 @@ const TOOL_TITLES = {
   ear: 'Ear Trainer',
   recorder: 'Recorder',
   songwriter: 'Songwriting',
+  programs: 'Programs',
+  exercises: 'Exercises',
 };
 
 const TOOL_KEYWORDS = {
@@ -37,6 +39,8 @@ const TOOL_KEYWORDS = {
   ear: 'ear training aural pitch interval degree',
   recorder: 'recorder record audio capture pitch take voice',
   songwriter: 'songwriting lyrics notepad write song demo vocal recording compose',
+  programs: 'programs curriculum markdown practice plan sessions metronome import',
+  exercises: 'exercises media library pdf audio video lesson links',
 };
 
 const MODE_NAMES = new Set([
