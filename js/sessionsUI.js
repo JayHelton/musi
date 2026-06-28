@@ -26,6 +26,7 @@ import {
   uid,
   clampDuration,
 } from './sessions.js';
+import { getProgram } from './programs.js';
 import { ensureAudio, audioCtx } from './audio.js';
 import {
   saveAudio,
@@ -102,6 +103,11 @@ function fmtRelativeDate(iso) {
   if (dayDiff === 1) return 'yesterday';
   if (dayDiff > 1 && dayDiff < 7) return `${dayDiff} days ago`;
   return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function programContext(session) {
+  if (!session || !session.programId) return null;
+  return getProgram(session.programId);
 }
 
 // =========================================================================
@@ -1027,15 +1033,16 @@ function renderRunner() {
   const next = rt.session.drills[rt.currentDrillIndex + 1];
   const total = rt.session.drills.length;
   const known = toolExists(drill.toolId);
+  const program = programContext(rt.session);
 
   runnerBar.innerHTML = '';
   const inner = el('div', { class: 'session-runner-inner' });
 
   // Left: identity + drill
   const main = el('div', { class: 'session-runner-main' });
-  main.appendChild(el('div', { class: 'session-runner-session', text: rt.session.name }));
+  main.appendChild(el('div', { class: 'session-runner-session', text: program ? program.name : rt.session.name }));
   main.appendChild(el('div', { class: 'session-runner-drill' }, [
-    el('span', { class: 'session-runner-drill-name', text: drillDisplayName(drill) }),
+    el('span', { class: 'session-runner-drill-name', text: program ? rt.session.name : drillDisplayName(drill) }),
     el('span', { class: 'session-runner-index', text: `Drill ${rt.currentDrillIndex + 1} of ${total}` }),
   ]));
   if (!known) {
