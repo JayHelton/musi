@@ -124,7 +124,7 @@ export function renderHome() {
   if (!grid) return;
 
   stopCardAudio();
-  const sessions = getSessions();
+  const sessions = getSessions().filter(s => !s.programId);
   grid.innerHTML = '';
 
   if (sessions.length === 0) {
