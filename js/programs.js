@@ -1,9 +1,7 @@
 import {
   createSession,
   deleteSession,
-  getHistory,
   getSession,
-  sessionTotalMinutes,
   toolName,
 } from './sessions.js';
 
@@ -197,22 +195,4 @@ export function deleteProgram(id, { deleteSessions = true } = {}) {
   if (deleteSessions) program.sessionIds.forEach(sessionId => deleteSession(sessionId));
   persistPrograms();
   return true;
-}
-
-export function programProgress(program) {
-  const sessions = getProgramSessions(program);
-  const completedIds = new Set(
-    getHistory()
-      .filter(item => item && item.completed)
-      .map(item => item.sessionId)
-      .filter(Boolean),
-  );
-  const completed = sessions.filter(s => completedIds.has(s.id)).length;
-  const nextSession = sessions.find(s => !completedIds.has(s.id)) || sessions[0] || null;
-  return {
-    total: sessions.length,
-    completed,
-    nextSession,
-    totalMinutes: sessions.reduce((sum, session) => sum + sessionTotalMinutes(session), 0),
-  };
 }

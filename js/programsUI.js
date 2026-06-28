@@ -4,9 +4,9 @@ import {
   getProgramSessions,
   getPrograms,
   parseProgramMarkdown,
-  programProgress,
 } from './programs.js';
 import { openEditor, renderHome as renderSessionsHome, startSession } from './sessionsUI.js';
+import { sessionTotalMinutes } from './sessions.js';
 import { setMarkdown } from './markdown.js';
 
 let showSectionFn = null;
@@ -58,23 +58,16 @@ function openModal(contentNode) {
   document.body.classList.add('program-modal-open');
 }
 
-function createProgressBar(progress) {
-  const pct = progress.total ? Math.round((progress.completed / progress.total) * 100) : 0;
-  return el('div', { class: 'program-progress', 'aria-label': `${pct}% complete` }, [
-    el('div', { class: 'program-progress-fill', style: `width:${pct}%` }),
-  ]);
-}
-
 function buildProgramCard(program, { compact = false } = {}) {
-  const progress = programProgress(program);
+  const sessions = getProgramSessions(program);
+  const firstSession = sessions[0] || null;
+  const totalMinutes = sessions.reduce((sum, session) => sum + sessionTotalMinutes(session), 0);
   const card = el('div', { class: 'program-card' + (compact ? ' compact' : '') });
-  card.appendChild(el('div', { class: 'program-card-kicker', text: `${progress.completed} / ${progress.total} sessions` }));
   card.appendChild(el('div', { class: 'program-card-name', text: program.name }));
   card.appendChild(el('div', {
     class: 'program-card-meta',
-    text: `${fmtHours(progress.totalMinutes)} planned · ${progress.total} metronome block${progress.total === 1 ? '' : 's'}`,
+    text: `${fmtHours(totalMinutes)} planned · Metronome program`,
   }));
-  card.appendChild(createProgressBar(progress));
   if (program.notes) {
     const notes = el('div', { class: 'program-card-notes' });
     setMarkdown(notes, program.notes);
@@ -82,16 +75,16 @@ function buildProgramCard(program, { compact = false } = {}) {
   }
   card.appendChild(el('div', {
     class: 'program-card-next',
-    text: progress.nextSession ? `Next: ${progress.nextSession.name}` : 'No sessions available',
+    text: firstSession ? `Starts with: ${firstSession.name}` : 'No sessions available',
   }));
 
   const actions = el('div', { class: 'program-card-actions' });
   actions.appendChild(el('button', {
     class: 'btn primary',
     type: 'button',
-    text: progress.completed > 0 ? 'Continue' : 'Start',
-    disabled: progress.nextSession ? null : '',
-    onClick: () => { if (progress.nextSession) startSession(progress.nextSession.id); },
+    text: 'Start',
+    disabled: firstSession ? null : '',
+    onClick: () => { if (firstSession) startSession(firstSession.id); },
   }));
   actions.appendChild(el('button', {
     class: 'btn sm',
@@ -159,19 +152,52 @@ function buildProgramDetail(program) {
 
   const list = el('div', { class: 'program-session-list' });
   sessions.forEach((session, index) => {
-    const row = el('div', { class: 'program-session-row' }, [
-      el('div', { class: 'program-session-index', text: String(index + 1) }),
-      el('div', { class: 'program-session-main' }, [
-        el('div', { class: 'program-session-name', text: session.name }),
-        el('div', { class: 'program-session-meta', text: '60 min · Metronome exercise' }),
-      ]),
-      el('button', { class: 'btn sm', type: 'button', text: 'Edit', onClick: () => openEditor(session.id) }),
-      el('button', { class: 'btn primary sm', type: 'button', text: 'Start', onClick: () => startSession(session.id) }),
-    ]);
-    list.appendChild(row);
+    list.appendChild(buildProgramSessionRow(session, index));
   });
   detail.appendChild(list);
   return detail;
+}
+
+function buildProgramSessionRow(session, index) {
+  const item = el('div', { class: 'program-session-item' });
+  const descId = `program-session-desc-${session.id}`;
+  const toggle = el('button', {
+    class: 'program-session-toggle',
+    type: 'button',
+    'aria-expanded': 'false',
+    'aria-controls': descId,
+    'aria-label': `Show description for ${session.name}`,
+    html: '&#9656;',
+  });
+  const desc = el('div', { class: 'program-session-desc', id: descId });
+  if (session.notes && session.notes.trim()) {
+    setMarkdown(desc, session.notes);
+  } else {
+    desc.textContent = 'No description for this session.';
+    desc.classList.add('empty');
+  }
+
+  const setOpen = (open) => {
+    item.classList.toggle('open', open);
+    toggle.innerHTML = open ? '&#9662;' : '&#9656;';
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.setAttribute('aria-label', `${open ? 'Hide' : 'Show'} description for ${session.name}`);
+  };
+  toggle.addEventListener('click', () => setOpen(!item.classList.contains('open')));
+
+  const row = el('div', { class: 'program-session-row' }, [
+    toggle,
+    el('div', { class: 'program-session-index', text: String(index + 1) }),
+    el('div', { class: 'program-session-main' }, [
+      el('div', { class: 'program-session-name', text: session.name }),
+      el('div', { class: 'program-session-meta', text: '60 min · Metronome exercise' }),
+    ]),
+    el('button', { class: 'btn sm', type: 'button', text: 'Edit', onClick: () => openEditor(session.id) }),
+    el('button', { class: 'btn primary sm', type: 'button', text: 'Start', onClick: () => startSession(session.id) }),
+  ]);
+  item.appendChild(row);
+  item.appendChild(desc);
+  return item;
 }
 
 function confirmDelete(program) {
