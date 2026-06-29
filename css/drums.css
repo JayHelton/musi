@@ -1,12 +1,13 @@
 /* Drum practice module: pattern browser, step-sequencer drum machine, fill
    generator and practice mode. Built on the shared Musi design tokens. */
 
-.drums-subnav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+#sec-drums{min-width:0;max-width:100%}
+.drums-subnav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;min-width:0}
 .dr-tab{padding:8px 16px;border:1px solid var(--border);border-radius:24px;background:var(--bg2);color:var(--muted);cursor:pointer;font-size:.85rem;font-family:inherit;transition:all .15s ease}
 .dr-tab:hover{color:var(--text)}
 .dr-tab.active{background:var(--accent);color:#0a0a0a;border-color:var(--accent);font-weight:600}
 
-.drums-view{display:none}
+.drums-view{display:none;min-width:0;max-width:100%}
 .drums-view.active{display:block;animation:sectionIn .2s ease forwards}
 
 .dr-empty{color:var(--muted);font-size:.9rem;padding:24px;text-align:center}
@@ -18,11 +19,11 @@
 .dr-lib-count{font-size:.78rem;color:var(--muted);margin-bottom:10px}
 
 /* ---- Pattern cards ---- */
-.dr-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
-.dr-card{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:10px}
-.dr-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.dr-card-title{font-size:1rem;font-weight:650;color:var(--text);margin-bottom:6px}
-.dr-card-meta{display:flex;gap:5px;flex-wrap:wrap}
+.dr-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:14px;min-width:0;max-width:100%}
+.dr-card{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%}
+.dr-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;min-width:0}
+.dr-card-title{font-size:1rem;font-weight:650;color:var(--text);margin-bottom:6px;overflow-wrap:anywhere;word-break:break-word}
+.dr-card-meta{display:flex;gap:5px;flex-wrap:wrap;min-width:0}
 .dr-badge{font-size:.66rem;padding:2px 8px;border-radius:20px;background:var(--bg2);color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;white-space:nowrap}
 .dr-badge.cat-beat{background:var(--accent-dim);color:var(--accent)}
 .dr-badge.cat-fill{background:rgba(124,91,245,.14);color:#b39bff}
@@ -30,14 +31,15 @@
 .dr-badge.user{background:rgba(243,156,18,.16);color:var(--warn)}
 .dr-fav{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1;padding:2px;transition:color .15s ease}
 .dr-fav:hover,.dr-fav.on{color:var(--accent)}
-.dr-tab-pre{font-family:'Courier New',monospace;font-size:.82rem;line-height:1.5;color:var(--accent);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin:0;overflow-x:auto;white-space:pre}
-.dr-card-notes{font-size:.8rem;color:var(--muted);line-height:1.5;font-style:italic}
-.dr-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+.dr-tab-pre{font-family:'Courier New',monospace;font-size:.82rem;line-height:1.5;color:var(--accent);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin:0;max-width:100%;overflow-x:auto;white-space:pre;-webkit-overflow-scrolling:touch}
+.dr-card-notes{font-size:.8rem;color:var(--muted);line-height:1.5;font-style:italic;overflow-wrap:anywhere;word-break:break-word}
+.dr-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;min-width:0}
+.dr-card-actions .btn{min-width:0}
 
 /* ---- Drum machine ---- */
-.dr-machine-top{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px;display:flex;flex-direction:column;gap:12px}
+.dr-machine-top{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px;display:flex;flex-direction:column;gap:12px;min-width:0;max-width:100%}
 .dr-title-input{font-size:1.05rem;font-weight:600;width:100%;max-width:360px}
-.dr-transport{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.dr-transport{display:flex;gap:12px;align-items:center;flex-wrap:wrap;min-width:0}
 .dr-ctl{display:flex;flex-direction:column;gap:3px;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .dr-ctl input,.dr-ctl select{font-size:.9rem}
 .dr-ctl input[type=number]{width:72px;padding:6px 8px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text);text-align:center}
@@ -48,8 +50,8 @@
 .dr-knob input[type=range]{width:110px}
 .dr-knob span{color:var(--accent);font-weight:600;min-width:38px;text-align:right}
 
-.dr-grid-wrap{overflow-x:auto;background:var(--card);border-radius:14px;padding:12px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px}
-.dr-grid{display:flex;flex-direction:column;gap:6px;min-width:min-content}
+.dr-grid-wrap{overflow-x:auto;max-width:100%;min-width:0;background:var(--card);border-radius:14px;padding:12px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px;-webkit-overflow-scrolling:touch}
+.dr-grid{display:flex;flex-direction:column;gap:6px;min-width:min-content;width:max-content;max-width:none}
 .dr-lane{display:flex;align-items:center;gap:10px}
 .dr-lane-ctl{display:flex;align-items:center;gap:6px;flex:0 0 auto;width:188px}
 .dr-lane-name{font-size:.78rem;font-weight:600;color:var(--text);width:54px;cursor:pointer;flex-shrink:0}
@@ -74,7 +76,7 @@
 .dr-cell.has-prob{outline:1px dashed var(--warn);outline-offset:-3px}
 .dr-cell.playing{box-shadow:0 0 0 2px var(--accent),0 0 10px var(--accent-glow);transform:scale(1.06)}
 
-.dr-machine-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.dr-machine-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;min-width:0}
 .dr-machine-status,.dr-fill-status{font-size:.82rem;color:var(--ok);min-height:20px;opacity:0;transition:opacity .2s ease}
 .dr-machine-status.show,.dr-fill-status.show{opacity:1}
 
@@ -84,13 +86,13 @@
 .dr-vel-title{font-size:.78rem;font-weight:600;color:var(--accent)}
 
 /* ---- Fill generator ---- */
-.dr-fill-panel{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px;display:flex;flex-direction:column;gap:12px}
+.dr-fill-panel{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px;display:flex;flex-direction:column;gap:12px;min-width:0;max-width:100%}
 .dr-fill-form{display:flex;gap:12px;flex-wrap:wrap}
 .dr-fill-form .dr-ctl input[type=text]{width:120px}
 .dr-fill-toggles{display:flex;gap:16px;flex-wrap:wrap}
 .dr-fill-actions{display:flex;gap:8px;flex-wrap:wrap}
-.dr-fill-output{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:10px}
-.dr-fill-mini-grid,.dr-mini-grid{display:flex;flex-direction:column;gap:3px;overflow-x:auto}
+.dr-fill-output{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%}
+.dr-fill-mini-grid,.dr-mini-grid{display:flex;flex-direction:column;gap:3px;overflow-x:auto;max-width:100%;min-width:0;-webkit-overflow-scrolling:touch}
 .dr-mini-lane{display:flex;align-items:center;gap:8px}
 .dr-mini-label{font-size:.7rem;font-weight:600;color:var(--muted);width:24px;flex-shrink:0}
 .dr-mini-cells{display:grid;grid-template-columns:repeat(var(--steps),1fr);gap:2px;flex:1}
@@ -103,7 +105,7 @@
 .dr-mini-cell.beat-start{box-shadow:inset 2px 0 0 var(--accent-glow)}
 
 /* ---- Practice ---- */
-.dr-practice{background:var(--card);border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:16px}
+.dr-practice{background:var(--card);border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%}
 .dr-practice-presets{display:flex;gap:8px;flex-wrap:wrap}
 .dr-practice-form{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
 .dr-practice-loaded{font-size:.85rem;color:var(--muted);width:100%}
@@ -117,10 +119,13 @@
 .btn.playing{background:var(--err);color:#fff}
 
 @media(max-width:768px){
-  .dr-cards{grid-template-columns:1fr}
+  #sec-drums{overflow-x:clip}
+  .dr-cards{grid-template-columns:minmax(0,1fr)}
+  .dr-card-actions .btn{flex:1 1 0}
   .dr-lane-ctl{width:150px}
   .dr-lane-name{width:40px;font-size:.7rem}
   .dr-cell{width:26px;height:26px;font-size:.72rem}
   .dr-lane-vol{width:36px}
   .dr-knob input[type=range]{width:80px}
+  .dr-title-input{max-width:none}
 }
