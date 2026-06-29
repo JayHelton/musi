@@ -349,7 +349,7 @@ function buildPatternCard(p) {
       </div>
       <button class="dr-fav ${fav ? 'on' : ''}" title="Favorite" aria-label="Favorite">${fav ? '★' : '☆'}</button>
     </div>
-    <pre class="dr-tab-pre">${escapeHtml(p.tab)}</pre>
+    <div class="dr-tab-pre-wrap"><pre class="dr-tab-pre">${escapeHtml(p.tab)}</pre></div>
     ${p.notes ? `<div class="dr-card-notes">${escapeHtml(p.notes)}</div>` : ''}
     <div class="dr-card-actions">
       <button class="btn sm primary dr-a-play">▶ Play</button>
@@ -906,7 +906,7 @@ function renderFillOutput(fill) {
       <span class="dr-badge">${fill.template || ''}</span>
       <span class="dr-badge">seed: ${escapeHtml(fill.seed || '')}</span>
     </div>
-    <pre class="dr-tab-pre">${escapeHtml(fill.tab)}</pre>
+    <div class="dr-tab-pre-wrap"><pre class="dr-tab-pre">${escapeHtml(fill.tab)}</pre></div>
     <div class="dr-fill-mini-grid" id="fg-mini"></div>
     ${fill.notes ? `<div class="dr-card-notes">${escapeHtml(fill.notes)}</div>` : ''}
     <div class="dr-fill-status" id="fg-status"></div>`;

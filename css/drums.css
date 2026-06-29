@@ -14,14 +14,15 @@
 
 /* ---- Filters ---- */
 .dr-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.dr-search{flex:1;min-width:160px}
+.dr-search{flex:1;min-width:0}
 .dr-fav-toggle.active{background:var(--accent);color:#0a0a0a;font-weight:600}
 .dr-lib-count{font-size:.78rem;color:var(--muted);margin-bottom:10px}
 
 /* ---- Pattern cards ---- */
 .dr-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:14px;min-width:0;max-width:100%}
-.dr-card{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%}
+.dr-card{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%;overflow:hidden}
 .dr-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;min-width:0}
+.dr-card-head>div{flex:1;min-width:0}
 .dr-card-title{font-size:1rem;font-weight:650;color:var(--text);margin-bottom:6px;overflow-wrap:anywhere;word-break:break-word}
 .dr-card-meta{display:flex;gap:5px;flex-wrap:wrap;min-width:0}
 .dr-badge{font-size:.66rem;padding:2px 8px;border-radius:20px;background:var(--bg2);color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;white-space:nowrap}
@@ -31,7 +32,8 @@
 .dr-badge.user{background:rgba(243,156,18,.16);color:var(--warn)}
 .dr-fav{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1;padding:2px;transition:color .15s ease}
 .dr-fav:hover,.dr-fav.on{color:var(--accent)}
-.dr-tab-pre{font-family:'Courier New',monospace;font-size:.82rem;line-height:1.5;color:var(--accent);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin:0;max-width:100%;overflow-x:auto;white-space:pre;-webkit-overflow-scrolling:touch}
+.dr-tab-pre-wrap{min-width:0;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--bg);border:1px solid var(--border);border-radius:10px}
+.dr-tab-pre{font-family:'Courier New',monospace;font-size:.82rem;line-height:1.5;color:var(--accent);padding:12px;margin:0;display:inline-block;min-width:100%;box-sizing:border-box;white-space:pre}
 .dr-card-notes{font-size:.8rem;color:var(--muted);line-height:1.5;font-style:italic;overflow-wrap:anywhere;word-break:break-word}
 .dr-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;min-width:0}
 .dr-card-actions .btn{min-width:0}
@@ -121,6 +123,8 @@
 @media(max-width:768px){
   #sec-drums{overflow-x:clip}
   .dr-cards{grid-template-columns:minmax(0,1fr)}
+  .dr-filters{align-items:stretch}
+  .dr-search{width:100%}
   .dr-card-actions .btn{flex:1 1 0}
   .dr-lane-ctl{width:150px}
   .dr-lane-name{width:40px;font-size:.7rem}
