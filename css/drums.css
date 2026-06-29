@@ -1,0 +1,126 @@
+/* Drum practice module: pattern browser, step-sequencer drum machine, fill
+   generator and practice mode. Built on the shared Musi design tokens. */
+
+.drums-subnav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.dr-tab{padding:8px 16px;border:1px solid var(--border);border-radius:24px;background:var(--bg2);color:var(--muted);cursor:pointer;font-size:.85rem;font-family:inherit;transition:all .15s ease}
+.dr-tab:hover{color:var(--text)}
+.dr-tab.active{background:var(--accent);color:#0a0a0a;border-color:var(--accent);font-weight:600}
+
+.drums-view{display:none}
+.drums-view.active{display:block;animation:sectionIn .2s ease forwards}
+
+.dr-empty{color:var(--muted);font-size:.9rem;padding:24px;text-align:center}
+
+/* ---- Filters ---- */
+.dr-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.dr-search{flex:1;min-width:160px}
+.dr-fav-toggle.active{background:var(--accent);color:#0a0a0a;font-weight:600}
+.dr-lib-count{font-size:.78rem;color:var(--muted);margin-bottom:10px}
+
+/* ---- Pattern cards ---- */
+.dr-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.dr-card{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:10px}
+.dr-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.dr-card-title{font-size:1rem;font-weight:650;color:var(--text);margin-bottom:6px}
+.dr-card-meta{display:flex;gap:5px;flex-wrap:wrap}
+.dr-badge{font-size:.66rem;padding:2px 8px;border-radius:20px;background:var(--bg2);color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;white-space:nowrap}
+.dr-badge.cat-beat{background:var(--accent-dim);color:var(--accent)}
+.dr-badge.cat-fill{background:rgba(124,91,245,.14);color:#b39bff}
+.dr-badge.cat-exercise{background:rgba(46,204,113,.14);color:var(--ok)}
+.dr-badge.user{background:rgba(243,156,18,.16);color:var(--warn)}
+.dr-fav{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1;padding:2px;transition:color .15s ease}
+.dr-fav:hover,.dr-fav.on{color:var(--accent)}
+.dr-tab-pre{font-family:'Courier New',monospace;font-size:.82rem;line-height:1.5;color:var(--accent);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin:0;overflow-x:auto;white-space:pre}
+.dr-card-notes{font-size:.8rem;color:var(--muted);line-height:1.5;font-style:italic}
+.dr-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+
+/* ---- Drum machine ---- */
+.dr-machine-top{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px;display:flex;flex-direction:column;gap:12px}
+.dr-title-input{font-size:1.05rem;font-weight:600;width:100%;max-width:360px}
+.dr-transport{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.dr-ctl{display:flex;flex-direction:column;gap:3px;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.dr-ctl input,.dr-ctl select{font-size:.9rem}
+.dr-ctl input[type=number]{width:72px;padding:6px 8px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text);text-align:center}
+.dr-bpm-slider{flex:1;min-width:120px;max-width:240px}
+.dr-toggle-row,.dr-knob-row{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.dr-chk{display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--text);cursor:pointer}
+.dr-knob{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.dr-knob input[type=range]{width:110px}
+.dr-knob span{color:var(--accent);font-weight:600;min-width:38px;text-align:right}
+
+.dr-grid-wrap{overflow-x:auto;background:var(--card);border-radius:14px;padding:12px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px}
+.dr-grid{display:flex;flex-direction:column;gap:6px;min-width:min-content}
+.dr-lane{display:flex;align-items:center;gap:10px}
+.dr-lane-ctl{display:flex;align-items:center;gap:6px;flex:0 0 auto;width:188px}
+.dr-lane-name{font-size:.78rem;font-weight:600;color:var(--text);width:54px;cursor:pointer;flex-shrink:0}
+.dr-lane-name:hover{color:var(--accent)}
+.dr-lane-btns{display:flex;gap:3px}
+.dr-mini{width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--muted);font-size:.7rem;cursor:pointer;padding:0;font-family:inherit}
+.dr-mini:hover{color:var(--text)}
+.dr-mini.on{background:var(--err);color:#fff;border-color:var(--err)}
+.dr-mini.on.solo{background:var(--accent);color:#0a0a0a;border-color:var(--accent)}
+.dr-lane-vol{width:52px}
+.dr-cells{display:grid;grid-template-columns:repeat(var(--steps),1fr);gap:4px;flex:1;min-width:0}
+.dr-cell{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:.78rem;font-weight:700;cursor:pointer;padding:0;font-family:'Courier New',monospace;transition:background .1s ease,transform .05s ease}
+.dr-cell:hover{border-color:var(--accent)}
+.dr-cell.beat-start{border-left:2px solid var(--accent-glow)}
+.dr-cell.sym-rest{color:transparent}
+.dr-cell.sym-norm{background:var(--accent-dim);color:var(--accent)}
+.dr-cell.sym-accent{background:var(--accent);color:#0a0a0a}
+.dr-cell.sym-soft{background:rgba(255,107,53,.1);color:var(--accent2)}
+.dr-cell.sym-open{background:rgba(124,91,245,.25);color:#b39bff}
+.dr-cell.sym-ghost{background:rgba(255,255,255,.06);color:var(--muted)}
+.dr-cell.sym-flam{background:rgba(243,156,18,.25);color:var(--warn)}
+.dr-cell.has-prob{outline:1px dashed var(--warn);outline-offset:-3px}
+.dr-cell.playing{box-shadow:0 0 0 2px var(--accent),0 0 10px var(--accent-glow);transform:scale(1.06)}
+
+.dr-machine-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.dr-machine-status,.dr-fill-status{font-size:.82rem;color:var(--ok);min-height:20px;opacity:0;transition:opacity .2s ease}
+.dr-machine-status.show,.dr-fill-status.show{opacity:1}
+
+/* ---- Velocity / probability editor ---- */
+.dr-vel-editor{position:absolute;z-index:300;display:none;flex-direction:column;gap:8px;background:rgba(20,20,20,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.6);width:218px}
+.dr-vel-editor.open{display:flex}
+.dr-vel-title{font-size:.78rem;font-weight:600;color:var(--accent)}
+
+/* ---- Fill generator ---- */
+.dr-fill-panel{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);margin-bottom:14px;display:flex;flex-direction:column;gap:12px}
+.dr-fill-form{display:flex;gap:12px;flex-wrap:wrap}
+.dr-fill-form .dr-ctl input[type=text]{width:120px}
+.dr-fill-toggles{display:flex;gap:16px;flex-wrap:wrap}
+.dr-fill-actions{display:flex;gap:8px;flex-wrap:wrap}
+.dr-fill-output{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:10px}
+.dr-fill-mini-grid,.dr-mini-grid{display:flex;flex-direction:column;gap:3px;overflow-x:auto}
+.dr-mini-lane{display:flex;align-items:center;gap:8px}
+.dr-mini-label{font-size:.7rem;font-weight:600;color:var(--muted);width:24px;flex-shrink:0}
+.dr-mini-cells{display:grid;grid-template-columns:repeat(var(--steps),1fr);gap:2px;flex:1}
+.dr-mini-cell{height:18px;border-radius:3px;background:var(--bg2);font-size:.6rem;display:flex;align-items:center;justify-content:center;color:transparent}
+.dr-mini-cell.sym-norm{background:var(--accent-dim)}
+.dr-mini-cell.sym-accent{background:var(--accent)}
+.dr-mini-cell.sym-open{background:rgba(124,91,245,.4)}
+.dr-mini-cell.sym-ghost{background:rgba(255,255,255,.08)}
+.dr-mini-cell.sym-flam{background:rgba(243,156,18,.4)}
+.dr-mini-cell.beat-start{box-shadow:inset 2px 0 0 var(--accent-glow)}
+
+/* ---- Practice ---- */
+.dr-practice{background:var(--card);border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:16px}
+.dr-practice-presets{display:flex;gap:8px;flex-wrap:wrap}
+.dr-practice-form{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.dr-practice-loaded{font-size:.85rem;color:var(--muted);width:100%}
+.dr-practice-loaded strong{color:var(--text)}
+.dr-practice-readout{display:flex;gap:14px;flex-wrap:wrap}
+.dr-pr-stat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 18px;display:flex;flex-direction:column;align-items:center;min-width:88px}
+.dr-pr-val{font-size:1.6rem;font-weight:700;color:var(--accent)}
+.dr-pr-lbl{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.dr-practice-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.dr-needs-work.on{background:var(--warn);color:#0a0a0a;font-weight:600}
+.btn.playing{background:var(--err);color:#fff}
+
+@media(max-width:768px){
+  .dr-cards{grid-template-columns:1fr}
+  .dr-lane-ctl{width:150px}
+  .dr-lane-name{width:40px;font-size:.7rem}
+  .dr-cell{width:26px;height:26px;font-size:.72rem}
+  .dr-lane-vol{width:36px}
+  .dr-knob input[type=range]{width:80px}
+}

@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v39-program-description-toggle";
+const CACHE_VERSION = "v40-drum-module";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -24,6 +24,7 @@ const PRECACHE_URLS = [
   "css/sessions.css",
   "css/songwriter.css",
   "css/exercises.css",
+  "css/drums.css",
   "js/main.js",
   "js/markdown.js",
   "js/attachments.js",
@@ -62,6 +63,14 @@ const PRECACHE_URLS = [
   "js/theory.js",
   "js/visualizer.js",
   "js/vocalTrainer.js",
+  "js/drums/types.js",
+  "js/drums/tabParser.js",
+  "js/drums/tabRenderer.js",
+  "js/drums/builtinPatterns.js",
+  "js/drums/drumEngine.js",
+  "js/drums/fillGenerator.js",
+  "js/drums/drumPatternDb.js",
+  "js/drums/drumsUI.js",
 ];
 
 self.addEventListener("install", (event) => {

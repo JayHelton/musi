@@ -20,6 +20,7 @@ const TITLES = {
   songwriter: 'Songwriting',
   programs: 'Programs',
   exercises: 'Exercises',
+  drums: 'Drums',
 };
 
 const DESCRIPTIONS = {
@@ -38,6 +39,7 @@ const DESCRIPTIONS = {
   songwriter: 'Write lyrics and attach recordings.',
   programs: 'Build guided practice plans from markdown.',
   exercises: 'Upload tabs, audio, videos and lesson links.',
+  drums: 'Beats, fills, drum machine and fill generator.',
 };
 
 let showSectionFn = null;

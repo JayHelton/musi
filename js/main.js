@@ -16,6 +16,7 @@ import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises } from './exercises.js';
+import { initDrums, stopDrums } from './drums/drumsUI.js';
 import { initScaleRef } from './scaleReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
@@ -46,6 +47,7 @@ const ICONS = {
   songwriter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
   programs:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M4 12h16M4 19h16"/><path d="M8 3v4M8 10v4M8 17v4"/></svg>',
   exercises: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>',
+  drums:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="9" ry="3.5"/><path d="M3 8v5c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V8"/><path d="M7 16.5 4 22M17 16.5 20 22M12 17v5"/></svg>',
 };
 
 const TABS = [
@@ -66,6 +68,7 @@ const TABS = [
   {id:'songwriter', label:'Lyrics',    group:'Tools'},
   {id:'programs', label:'Programs',    group:'Tools'},
   {id:'exercises', label:'Exercises',  group:'Tools'},
+  {id:'drums',     label:'Drums',      group:'Tools'},
 ];
 
 const GROUPS = ['Drill','Reference','Tools'];
@@ -91,6 +94,7 @@ const TOOL_STOPPERS = {
   recorder: () => { if (recorder.playing) stopRecorder(); },
   songwriter: () => stopSongwriter(),
   exercises: () => stopExercises(),
+  drums: () => stopDrums(),
 };
 const TOOL_INITS = {
   circle: drawCoF,
@@ -105,6 +109,7 @@ const TOOL_INITS = {
   recorder: initRecorder,
   songwriter: initSongwriter,
   exercises: initExercises,
+  drums: initDrums,
   programs: () => {},
 };
 

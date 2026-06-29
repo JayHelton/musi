@@ -23,6 +23,7 @@ const TOOL_TITLES = {
   songwriter: 'Songwriting',
   programs: 'Programs',
   exercises: 'Exercises',
+  drums: 'Drums',
 };
 
 const TOOL_KEYWORDS = {
@@ -41,6 +42,7 @@ const TOOL_KEYWORDS = {
   songwriter: 'songwriting lyrics notepad write song demo vocal recording compose',
   programs: 'programs curriculum markdown practice plan sessions metronome import',
   exercises: 'exercises media library pdf audio video lesson links',
+  drums: 'drums drum machine beat fill groove rhythm tab sequencer kick snare hihat metal rock punk blast beat practice',
 };
 
 const MODE_NAMES = new Set([
