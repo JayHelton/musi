@@ -31,23 +31,24 @@
 .session-history-status{color:var(--muted);white-space:nowrap;flex-shrink:0}
 
 /* ---- Home + Tools: Programs ---- */
-.home-programs{margin-bottom:26px}
-.home-programs-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-.home-programs-head .home-section-label{margin-bottom:0}
-.program-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.home-programs{margin-bottom:26px;min-width:0;max-width:100%}
+.home-programs-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;min-width:0}
+.home-programs-head .home-section-label{margin-bottom:0;min-width:0}
+.program-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:14px;min-width:0;max-width:100%}
 .home-programs-empty,.program-empty{padding:22px;border:1px dashed var(--border);border-radius:16px;text-align:center;color:var(--muted);background:rgba(24,24,24,0.5)}
 .home-programs-empty p,.program-empty p{margin-bottom:12px;font-size:.92rem;line-height:1.4}
 .programs-toolbar{display:flex;justify-content:flex-end;margin-bottom:16px}
 .programs-list{display:flex;flex-direction:column;gap:16px}
 .program-detail{display:flex;flex-direction:column;gap:10px}
-.program-card{display:flex;flex-direction:column;gap:7px;padding:18px;background:linear-gradient(180deg,rgba(255,140,90,0.14),var(--card));border:1px solid rgba(255,140,90,0.25);border-radius:18px;box-shadow:0 2px 12px rgba(0,0,0,0.5);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.program-card{display:flex;flex-direction:column;gap:7px;padding:18px;background:linear-gradient(180deg,rgba(255,140,90,0.14),var(--card));border:1px solid rgba(255,140,90,0.25);border-radius:18px;box-shadow:0 2px 12px rgba(0,0,0,0.5);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;min-width:0;max-width:100%}
 .program-card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,0.6);border-color:rgba(255,140,90,0.5)}
-.program-card-name{font-size:1.18rem;font-weight:700;color:var(--text);line-height:1.2}
+.program-card-name{font-size:1.18rem;font-weight:700;color:var(--text);line-height:1.2;overflow-wrap:anywhere;word-break:break-word}
 .program-card-meta,.program-card-next{font-size:.82rem;color:var(--muted)}
-.program-card-next{color:var(--text);opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.program-card-notes{font-size:.82rem;color:var(--text);opacity:.85;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.program-card-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
-.program-card-actions .btn.primary{flex:1;min-width:110px}
+.program-card-next{color:var(--text);opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.program-card-notes{font-size:.82rem;color:var(--text);opacity:.85;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+.program-card-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;min-width:0}
+.program-card-actions .btn{min-width:0}
+.program-card-actions .btn.primary{flex:1;min-width:0}
 .program-delete{color:var(--err)}
 .program-delete:hover{background:rgba(231,76,60,0.12);color:var(--err)}
 .program-session-list{display:flex;flex-direction:column;gap:8px;padding:12px;background:rgba(24,24,24,0.55);border:1px solid var(--border);border-radius:16px}
@@ -61,7 +62,7 @@
 .program-session-main{flex:1;min-width:0}
 .program-session-name{font-size:.94rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .program-session-meta{font-size:.76rem;color:var(--muted);margin-top:2px}
-.program-session-desc{display:none;padding:0 14px 14px 78px;color:var(--text);font-size:.86rem;line-height:1.5}
+.program-session-desc{display:none;padding:0 14px 14px 78px;color:var(--text);font-size:.86rem;line-height:1.5;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word}
 .program-session-item.open .program-session-desc{display:block;animation:sectionIn .16s ease}
 .program-session-desc.empty{color:var(--muted);font-style:italic}
 .program-editor{max-width:680px}
@@ -229,6 +230,10 @@ body.session-running .session-runner{display:block;position:fixed;top:0;left:0;r
 /* The home card keeps its multi-line clamp; drop heading margins so it stays compact. */
 .session-card-notes.markdown-body p,.session-card-notes.markdown-body h1,.session-card-notes.markdown-body h2,.session-card-notes.markdown-body h3,.session-card-notes.markdown-body h4,.session-card-notes.markdown-body h5,.session-card-notes.markdown-body h6{margin:0}
 .session-card-notes.markdown-body ul,.session-card-notes.markdown-body ol{margin:0;padding-left:1.2em}
+.program-card-notes.markdown-body p,.program-card-notes.markdown-body h1,.program-card-notes.markdown-body h2,.program-card-notes.markdown-body h3,.program-card-notes.markdown-body h4,.program-card-notes.markdown-body h5,.program-card-notes.markdown-body h6{margin:0}
+.program-card-notes.markdown-body ul,.program-card-notes.markdown-body ol{margin:0;padding-left:1.2em}
+.program-card-notes.markdown-body pre,.program-card-notes.markdown-body code,.program-session-desc.markdown-body pre,.program-session-desc.markdown-body code{max-width:100%;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
+.program-card-notes.markdown-body pre,.program-session-desc.markdown-body pre{overflow-x:auto}
 
 /* ---- Full-screen exercise mode (while a session is running) ----
    Strip away navigation, headings and config so the active exercise owns the
@@ -245,7 +250,15 @@ body.session-running .action-dock{bottom:calc(env(safe-area-inset-bottom,0px) + 
 
 @media(max-width:768px){
   .session-grid{grid-template-columns:1fr}
-  .program-grid{grid-template-columns:1fr}
+  .program-grid{grid-template-columns:minmax(0,1fr)}
+  #sec-home .home-programs{overflow-x:clip}
+  .home-programs-head{flex-wrap:wrap}
+  .home-programs-head .btn{width:100%}
+  .program-card-actions .btn{flex:1 1 0}
+  .program-session-row{flex-wrap:wrap}
+  .program-session-main{flex-basis:calc(100% - 42px)}
+  .program-session-row .btn{flex:1}
+  .program-session-desc{padding:0 12px 12px 12px}
   .session-runner-inner{flex-wrap:wrap;gap:8px 12px;padding:8px 14px}
   .session-runner-main{flex:1 1 100%;order:1}
   .session-runner-timer{order:2;font-size:1.6rem;min-width:72px;text-align:left}
@@ -258,10 +271,6 @@ body.session-running .action-dock{bottom:calc(env(safe-area-inset-bottom,0px) + 
 @media(max-width:480px){
   .programs-toolbar{justify-content:stretch}
   .programs-toolbar .btn{width:100%}
-  .program-session-row{flex-wrap:wrap}
-  .program-session-main{flex-basis:calc(100% - 42px)}
-  .program-session-row .btn{flex:1}
-  .program-session-desc{padding:0 12px 12px 12px}
   .session-runner-controls .btn{padding:8px 12px;font-size:.8rem}
   .session-runner-timer{font-size:1.4rem}
 }
