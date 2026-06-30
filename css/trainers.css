@@ -145,6 +145,7 @@
 .pt-readout-cents.close{color:var(--warn)}
 .pt-readout-cents.off{color:var(--err)}
 .pt-status{font-size:.85rem;color:var(--muted);text-align:center;margin-top:10px}
+#pt-replay.playing{background:var(--accent-dim);color:var(--accent);box-shadow:0 0 14px var(--accent-dim)}
 @media(max-width:600px){
   .pt-meter{height:220px}
   .pt-controls{flex-direction:column;align-items:stretch}

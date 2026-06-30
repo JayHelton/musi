@@ -63,7 +63,8 @@ const pt = {
   completed: 0,   // notes passed this session
 
   voices: [],
-  toneTimer: null,
+  advanceTimer: null,
+  replayActive: false,
 };
 
 function el(id) { return document.getElementById(id); }
@@ -74,17 +75,55 @@ function difficultyById(id) {
 
 // ---- Reference / guide tone -------------------------------------------------
 
-function stopGuideTone() {
-  pt.voices.forEach(v => { try { v.stop(); } catch (e) {} });
-  pt.voices = [];
-  if (pt.toneTimer) { clearTimeout(pt.toneTimer); pt.toneTimer = null; }
+function clearAdvanceTimer() {
+  if (pt.advanceTimer) {
+    clearTimeout(pt.advanceTimer);
+    pt.advanceTimer = null;
+  }
 }
 
-// Play a short, soft reference tone for a target MIDI note so the learner has
-// something to match. Mirrors the warm timbre used elsewhere in the tuner.
-function playTone(midi, duration = 1.1) {
+function setReplayButtonActive(active) {
+  pt.replayActive = active;
+  const btn = el('pt-replay');
+  if (!btn) return;
+  btn.classList.toggle('playing', active);
+  btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  btn.textContent = active ? 'Release to stop' : 'Hold note';
+}
+
+function cleanupVoice(voice) {
+  pt.voices = pt.voices.filter(v => v !== voice);
+}
+
+function releaseVoice(voice, release = 0.14) {
+  if (!voice || voice.releasing) return;
+  voice.releasing = true;
+  if (voice.releaseTimer) {
+    clearTimeout(voice.releaseTimer);
+    voice.releaseTimer = null;
+  }
+
+  try {
+    const t = audioCtx.currentTime;
+    const level = Math.max(voice.gain.gain.value || 0.001, 0.001);
+    voice.gain.gain.cancelScheduledValues(t);
+    voice.gain.gain.setValueAtTime(level, t);
+    voice.gain.gain.exponentialRampToValueAtTime(0.001, t + release);
+    voice.osc.stop(t + release + 0.03);
+    voice.osc2.stop(t + release + 0.03);
+  } catch (e) {
+    try { voice.osc.stop(); voice.osc2.stop(); } catch (err) {}
+    cleanupVoice(voice);
+  }
+}
+
+function stopGuideTone(release = 0.08) {
+  pt.voices.slice().forEach(v => releaseVoice(v, release));
+  setReplayButtonActive(false);
+}
+
+function startGuideTone(midi) {
   ensureAudio();
-  stopGuideTone();
   const freq = midiFreq(midi);
   const osc = audioCtx.createOscillator();
   const osc2 = audioCtx.createOscillator();
@@ -101,25 +140,44 @@ function playTone(midi, duration = 1.1) {
   filter.frequency.value = Math.min(freq * 3.5, 4500);
   filter.Q.value = 0.5;
 
-  const sustain = duration * 0.55;
-  const release = duration * 0.4;
   gain.gain.setValueAtTime(0.001, t);
   gain.gain.linearRampToValueAtTime(0.16, t + 0.03);
-  gain.gain.setValueAtTime(0.13, t + sustain);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + sustain + release);
+  gain.gain.linearRampToValueAtTime(0.13, t + 0.18);
 
   osc.connect(filter);
   osc2.connect(filter);
   filter.connect(gain);
   gain.connect(getAnalyserDestination());
 
-  const stopAt = t + sustain + release + 0.05;
+  const voice = { osc, osc2, gain, releaseTimer: null, releasing: false };
   osc.start(t);
   osc2.start(t);
-  osc.stop(stopAt);
-  osc2.stop(stopAt);
-  pt.voices.push(osc, osc2);
-  osc.onended = () => { pt.voices = pt.voices.filter(v => v !== osc && v !== osc2); };
+  pt.voices.push(voice);
+  osc.onended = () => cleanupVoice(voice);
+  return voice;
+}
+
+// Play a short, soft reference tone for automatic guide cues.
+function playTone(midi, duration = 1.1) {
+  stopGuideTone();
+  const voice = startGuideTone(midi);
+  const sustain = duration * 0.55;
+  const release = duration * 0.4;
+  voice.releaseTimer = setTimeout(() => releaseVoice(voice, release), sustain * 1000);
+}
+
+function ptStartReplay() {
+  if (pt.replayActive) return;
+  const midi = currentTargetMidi();
+  if (midi == null) return;
+  stopGuideTone(0.05);
+  startGuideTone(midi);
+  setReplayButtonActive(true);
+}
+
+function ptStopReplay() {
+  if (!pt.replayActive) return;
+  stopGuideTone(0.14);
 }
 
 // ---- Exercise sequencing ----------------------------------------------------
@@ -218,7 +276,8 @@ function onMatched() {
   const puck = el('pt-puck');
   if (puck) { puck.classList.remove('off', 'close'); puck.classList.add('in'); }
   // Brief pause so the success state is visible before moving on.
-  pt.toneTimer = setTimeout(() => { if (pt.running) advance(); }, 650);
+  clearAdvanceTimer();
+  pt.advanceTimer = setTimeout(() => { if (pt.running) advance(); }, 650);
 }
 
 // ---- Meter rendering --------------------------------------------------------
@@ -330,6 +389,7 @@ function stopPitchTrainer() {
   }
   pt.running = false;
   pt.advancing = false;
+  clearAdvanceTimer();
   if (pt.rafId) { cancelAnimationFrame(pt.rafId); pt.rafId = null; }
   if (pt.tracker) pt.tracker.reset();
   if (pt.matcher) pt.matcher.reset();
@@ -355,6 +415,7 @@ function togglePitchTrainer() {
 
 function ptSkip() {
   if (!pt.running) return;
+  clearAdvanceTimer();
   stopGuideTone();
   pt.advancing = false;
   advance();
@@ -365,6 +426,43 @@ function ptSkip() {
 function ptReplay() {
   const midi = currentTargetMidi();
   if (midi != null) playTone(midi);
+}
+
+function wireReplayButton() {
+  const btn = el('pt-replay');
+  if (!btn || btn.dataset.holdWired) return;
+  btn.dataset.holdWired = '1';
+  btn.onclick = null;
+  setReplayButtonActive(false);
+
+  const begin = (e) => {
+    e.preventDefault();
+    btn.setPointerCapture?.(e.pointerId);
+    ptStartReplay();
+  };
+  const end = (e) => {
+    e.preventDefault();
+    if (btn.hasPointerCapture?.(e.pointerId)) btn.releasePointerCapture(e.pointerId);
+    ptStopReplay();
+  };
+
+  btn.addEventListener('pointerdown', begin);
+  btn.addEventListener('pointerup', end);
+  btn.addEventListener('pointercancel', end);
+  btn.addEventListener('lostpointercapture', ptStopReplay);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+  btn.addEventListener('click', e => e.preventDefault());
+  btn.addEventListener('keydown', e => {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    if (!e.repeat) ptStartReplay();
+  });
+  btn.addEventListener('keyup', e => {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    ptStopReplay();
+  });
+  btn.addEventListener('blur', ptStopReplay);
 }
 
 // ---- Controls / init --------------------------------------------------------
@@ -414,9 +512,11 @@ function initPitchTrainer() {
 
   if (pt.initialized) {
     syncRangeUI();
+    setReplayButtonActive(false);
     return;
   }
   pt.initialized = true;
+  wireReplayButton();
 
   const diffSel = el('pt-difficulty');
   if (diffSel) {
