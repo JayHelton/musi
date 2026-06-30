@@ -6,6 +6,7 @@ import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
 import { initMetronome, stopMetronome, metro } from './metronome.js';
 import { initFretboard } from './fretboardTrainer.js';
 import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
+import { initPitchTrainer, stopPitchTrainer, pt } from './pitchTrainer.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 // Backing Track feature is intentionally disabled in the UI for now.
@@ -88,7 +89,7 @@ const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); },
-  tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); },
+  tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); },
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
   sightreading: () => stopSightReading(),
   recorder: () => { if (recorder.playing) stopRecorder(); },
@@ -103,7 +104,7 @@ const TOOL_INITS = {
   scaleref: initScaleRef,
   chords: initChordBuilder,
   fretboard: initFretboard,
-  tuner: initTuner,
+  tuner: () => { initTuner(); initPitchTrainer(); },
   ear: initEarTrainer,
   sightreading: initSightReading,
   recorder: initRecorder,

@@ -4,6 +4,13 @@ import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext } from './musicalContext.js';
 import { SCALES } from './scales.js';
 import { createPitchTracker } from './pitch.js';
+import { pt, stopPitchTrainer } from './pitchTrainer.js';
+
+// Ensure the guided pitch trainer (which shares this section and the mic)
+// releases the microphone before the tuner grabs it.
+function stopPitchTrainerIfRunning() {
+  if (pt && pt.running) stopPitchTrainer();
+}
 
 const tuner = {
   running: false,
@@ -68,6 +75,8 @@ function buildTunerConstraints() {
 }
 
 async function startTuner() {
+  // Only one mic-driven tool in the Pitch section runs at a time.
+  stopPitchTrainerIfRunning();
   ensureAudio();
   try {
     try {

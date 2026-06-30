@@ -575,6 +575,56 @@
         </div>
         <div class="tuner-status" id="vt-scale-status">One beat per note</div>
       </div>
+      <div class="quiz-card" style="margin-top:16px">
+        <div class="field-label">Pitch trainer</div>
+        <div class="pt-controls">
+          <label class="pt-field">
+            <span>Challenge</span>
+            <select id="pt-difficulty"></select>
+          </label>
+          <label class="pt-field">
+            <span>Vocal range</span>
+            <select id="pt-range-preset"></select>
+          </label>
+          <label class="pt-field">
+            <span>Low note</span>
+            <select id="pt-range-low"></select>
+          </label>
+          <label class="pt-field">
+            <span>High note</span>
+            <select id="pt-range-high"></select>
+          </label>
+        </div>
+        <div class="pt-controls" style="margin-bottom:6px">
+          <label class="pt-field" style="flex-direction:row;align-items:center;gap:8px">
+            <input type="checkbox" id="pt-guide" checked>
+            <span style="font-size:.85rem">Play guide tone on each note</span>
+          </label>
+        </div>
+        <div class="pt-stage" id="pt-stage">Press start to begin</div>
+        <div class="pt-prompt" id="pt-prompt">--<span class="pt-prompt-sub">Sing &amp; hold the highlighted note</span></div>
+        <div class="pt-meter">
+          <div class="pt-meter-scale" id="pt-scale"></div>
+          <div class="pt-meter-track" id="pt-track">
+            <div class="pt-zone" id="pt-zone"></div>
+            <div class="pt-tick" style="top:25%"></div>
+            <div class="pt-tick" style="top:75%"></div>
+            <div class="pt-target-line"></div>
+            <div class="pt-puck" id="pt-puck">--</div>
+            <div class="pt-progress-ring" id="pt-progress"></div>
+          </div>
+        </div>
+        <div class="pt-readout">
+          <span class="pt-readout-note" id="pt-note">--</span>
+          <span class="pt-readout-cents off" id="pt-cents">-- &cent;</span>
+        </div>
+        <div class="tuner-tuning-row" style="margin-top:14px;margin-bottom:0">
+          <button class="btn primary" id="pt-toggle" onclick="togglePitchTrainer()">Start training</button>
+          <button class="btn" id="pt-skip" onclick="ptSkip()">Skip</button>
+          <button class="btn" id="pt-replay" onclick="ptReplay()">Hear note</button>
+        </div>
+        <div class="pt-status" id="pt-status">Mic off</div>
+      </div>
     </div>
   </section>
 
