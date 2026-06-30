@@ -40,6 +40,12 @@ const RANGE_PRESETS = [
   { id: 'soprano',   label: 'Soprano',   low: 60, high: 84 },
 ];
 
+const GUIDE_DRONE_LAYERS = [
+  { type: 'sine',     detune: 0,  level: 0.5 },
+  { type: 'triangle', detune: -5, level: 0.32 },
+  { type: 'sawtooth', detune: 7,  level: 0.18 },
+];
+
 const pt = {
   running: false,
   initialized: false,
@@ -109,10 +115,9 @@ function releaseVoice(voice, release = 0.14) {
     voice.gain.gain.cancelScheduledValues(t);
     voice.gain.gain.setValueAtTime(level, t);
     voice.gain.gain.exponentialRampToValueAtTime(0.001, t + release);
-    voice.osc.stop(t + release + 0.03);
-    voice.osc2.stop(t + release + 0.03);
+    voice.sources.forEach(src => { try { src.stop(t + release + 0.03); } catch (e) {} });
   } catch (e) {
-    try { voice.osc.stop(); voice.osc2.stop(); } catch (err) {}
+    voice.sources.forEach(src => { try { src.stop(); } catch (err) {} });
     cleanupVoice(voice);
   }
 }
@@ -125,35 +130,36 @@ function stopGuideTone(release = 0.08) {
 function startGuideTone(midi) {
   ensureAudio();
   const freq = midiFreq(midi);
-  const osc = audioCtx.createOscillator();
-  const osc2 = audioCtx.createOscillator();
   const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
   const t = audioCtx.currentTime;
 
-  osc.type = 'sine';
-  osc2.type = 'triangle';
-  osc.frequency.value = freq;
-  osc2.frequency.value = freq;
-
   filter.type = 'lowpass';
-  filter.frequency.value = Math.min(freq * 3.5, 4500);
-  filter.Q.value = 0.5;
+  filter.frequency.value = Math.min(Math.max(freq * 8, 2200), 7200);
+  filter.Q.value = 0.35;
 
   gain.gain.setValueAtTime(0.001, t);
-  gain.gain.linearRampToValueAtTime(0.16, t + 0.03);
-  gain.gain.linearRampToValueAtTime(0.13, t + 0.18);
+  gain.gain.linearRampToValueAtTime(0.18, t + 0.04);
+  gain.gain.linearRampToValueAtTime(0.14, t + 0.2);
 
-  osc.connect(filter);
-  osc2.connect(filter);
+  const sources = GUIDE_DRONE_LAYERS.map(layer => {
+    const osc = audioCtx.createOscillator();
+    const layerGain = audioCtx.createGain();
+    osc.type = layer.type;
+    osc.frequency.value = freq;
+    osc.detune.value = layer.detune;
+    layerGain.gain.value = layer.level;
+    osc.connect(layerGain);
+    layerGain.connect(filter);
+    return osc;
+  });
   filter.connect(gain);
   gain.connect(getAnalyserDestination());
 
-  const voice = { osc, osc2, gain, releaseTimer: null, releasing: false };
-  osc.start(t);
-  osc2.start(t);
+  const voice = { sources, gain, releaseTimer: null, releasing: false };
+  sources.forEach(src => src.start(t));
   pt.voices.push(voice);
-  osc.onended = () => cleanupVoice(voice);
+  sources[0].onended = () => cleanupVoice(voice);
   return voice;
 }
 
