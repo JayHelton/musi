@@ -680,6 +680,88 @@
     </div>
   </section>
 
+  <!-- TIMING DRILL -->
+  <section id="sec-timing" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Drill</div>
+      <h2>Timing</h2>
+      <p>Tap with your thumb against a click track and learn whether each beat is perfect, good, too fast or too slow.</p>
+    </div>
+    <div class="timing-layout">
+      <div class="quiz-card timing-main-card">
+        <div class="timing-topline">
+          <div>
+            <div class="timing-readout" id="td-bpm-readout">120 BPM</div>
+            <div class="timing-subreadout" id="td-measure-label">Measure 1 - 4/4</div>
+          </div>
+          <div class="timing-current">
+            <span>Beat</span>
+            <b id="td-current-beat">1.1</b>
+          </div>
+        </div>
+
+        <div class="timing-controls">
+          <label class="timing-field">
+            <span>BPM</span>
+            <input type="number" id="td-bpm" min="30" max="300" value="120" inputmode="numeric" aria-label="Timing drill BPM">
+          </label>
+          <label class="timing-field timing-slider-field">
+            <span>Tempo</span>
+            <input type="range" id="td-bpm-slider" min="30" max="300" value="120" aria-label="Timing drill BPM slider">
+          </label>
+          <label class="timing-field">
+            <span>Measure</span>
+            <select id="td-beats" aria-label="Timing drill beats per measure"></select>
+          </label>
+        </div>
+
+        <div class="timing-transport">
+          <button class="btn primary" id="td-start" type="button">Start click</button>
+          <button class="btn sm" id="td-reset" type="button">Reset score</button>
+        </div>
+
+        <div class="timing-beat-dots" id="td-beat-dots" aria-label="Measure beats"></div>
+
+        <div class="timing-result-row">
+          <div class="td-result" id="td-result">Ready</div>
+          <div class="td-result-detail" id="td-result-detail">Start the click track and tap with your thumb.</div>
+        </div>
+
+        <div class="td-offset-meter" aria-hidden="true">
+          <span>Fast</span>
+          <div class="td-offset-track">
+            <div class="td-offset-center"></div>
+            <div class="td-offset-marker" id="td-offset-marker"></div>
+          </div>
+          <span>Slow</span>
+        </div>
+
+        <button class="timing-tap-pad" id="td-tap-pad" type="button" aria-label="Tap timing beat">
+          <span class="timing-tap-label">Thumb Tap</span>
+          <span class="timing-tap-hint">Tap every click or press Space</span>
+        </button>
+
+        <div class="timing-status" id="td-status">Click track stopped.</div>
+      </div>
+
+      <div class="quiz-card timing-score-card">
+        <div class="metro-card-title">Timing Score</div>
+        <div class="timing-score-grid">
+          <div class="timing-score perfect"><b id="td-perfect">0</b><span>Perfect</span></div>
+          <div class="timing-score good"><b id="td-good">0</b><span>Good</span></div>
+          <div class="timing-score fast"><b id="td-fast">0</b><span>Too fast</span></div>
+          <div class="timing-score slow"><b id="td-slow">0</b><span>Too slow</span></div>
+        </div>
+        <div class="timing-summary">
+          <div><span>Total taps</span><b id="td-attempts">0</b></div>
+          <div><span>On time</span><b id="td-on-time">0%</b></div>
+          <div><span>Streak</span><b id="td-streak">0</b></div>
+        </div>
+        <p class="timing-help">Perfect is within 20 ms of the click. Good is within 60 ms. Early taps are too fast; late taps are too slow.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- BACKING TRACK -->
   <!-- Backing Track feature disabled in the UI for now. Keep this markup for future reactivation.
   <section id="sec-backing" class="section">
