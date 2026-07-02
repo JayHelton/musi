@@ -144,6 +144,11 @@ function emptyState() {
   return patternToState(base);
 }
 
+function hasPlayableMachinePattern(state = machine) {
+  if (!state) return false;
+  return MACHINE_LANES.some((lane) => state.grid[lane.key]?.some((sym) => sym !== '-'));
+}
+
 function stateToPattern(state) {
   const steps = [];
   MACHINE_LANES.forEach((l) => {
@@ -363,7 +368,7 @@ function buildPatternCard(p) {
   card.querySelector('.dr-a-play').onclick = (e) => auditionPattern(p, e.currentTarget);
   card.querySelector('.dr-a-load').onclick = () => { loadIntoMachine(p); setView('machine'); };
   card.querySelector('.dr-a-copy').onclick = (e) => copyText(p.tab, e.currentTarget);
-  card.querySelector('.dr-a-practice').onclick = () => { loadIntoMachine(p); startPracticeWith(p); setView('practice'); };
+  card.querySelector('.dr-a-practice').onclick = () => { startPracticeWith(p); setView('practice'); };
   const del = card.querySelector('.dr-a-delete');
   if (del) del.onclick = async () => {
     if (!confirm(`Delete “${p.title}”?`)) return;
@@ -394,7 +399,9 @@ function auditionPattern(p, btn) {
 // ===========================================================================
 function loadIntoMachine(p) {
   machine = patternToState(p);
+  practice.patternId = p.id || null;
   if (currentView === 'machine') renderMachine();
+  if (currentView === 'practice') renderPractice();
 }
 
 function renderMachine() {
@@ -948,18 +955,19 @@ function machineStatusFill(msg) {
 // PRACTICE MODE
 // ===========================================================================
 function startPracticeWith(pattern) {
-  practice.patternId = pattern.id;
   loadIntoMachine(pattern);
 }
 
 function renderPractice() {
   const root = $('drums-view-practice');
-  const loaded = machine ? machine.title : '(none)';
+  const hasPattern = hasPlayableMachinePattern();
+  const loaded = hasPattern && machine ? machine.title : 'None';
   root.innerHTML = `
     <div class="dr-practice">
       <div class="dr-practice-presets" id="dr-pp"></div>
       <div class="dr-practice-form">
-        <div class="dr-practice-loaded">Pattern: <strong>${escapeHtml(loaded)}</strong></div>
+        <div class="dr-practice-loaded ${hasPattern ? '' : 'empty'}">Beat loaded in drum machine: <strong>${escapeHtml(loaded)}</strong></div>
+        <div class="dr-practice-note">${hasPattern ? 'Practice plays the loaded beat with quarter-note metronome clicks.' : 'Load a beat into the Drum Machine before starting practice.'}</div>
         <label class="dr-ctl">Start BPM <input type="number" id="pr-start" min="30" max="300" value="${practice.startBpm}"></label>
         <label class="dr-ctl">Target BPM <input type="number" id="pr-target" min="30" max="300" value="${practice.targetBpm}"></label>
         <label class="dr-ctl">BPM step <input type="number" id="pr-step" min="1" max="40" value="${practice.bpmStep}"></label>
@@ -972,7 +980,7 @@ function renderPractice() {
         <div class="dr-pr-stat"><span class="dr-pr-val" id="pr-clean-val">${practice.cleanReps}</span><span class="dr-pr-lbl">Clean reps</span></div>
       </div>
       <div class="dr-practice-actions">
-        <button class="btn primary" id="pr-toggle">▶ Start Practice</button>
+        <button class="btn primary" id="pr-toggle" ${hasPattern ? '' : 'disabled'}>▶ Start Practice</button>
         <button class="btn sm" id="pr-clean-plus">+ Clean rep</button>
         <button class="btn sm" id="pr-clean-minus">− Clean rep</button>
         <button class="btn sm dr-needs-work ${practice.needsWork ? 'on' : ''}" id="pr-needs">⚑ Needs work</button>
@@ -1004,7 +1012,11 @@ function renderPractice() {
 }
 
 function startPractice() {
-  if (!machine) { machine = emptyState(); }
+  if (!hasPlayableMachinePattern()) {
+    practice.running = false;
+    renderPractice();
+    return;
+  }
   engine.initEngine();
   practice.running = true;
   practice.loopCount = 0;
@@ -1014,7 +1026,7 @@ function startPractice() {
   practice.startTime = Date.now();
   syncEngineFromState();
   engine.setBpm(practice.currentBpm);
-  engine.setEngineOptions({ looping: true });
+  engine.setEngineOptions({ looping: true, metronome: true });
   engine.setCallbacks({ onStep: highlightStep, onLoop: onPracticeLoop });
   engine.start();
   showNowPlaying(`Practice — ${practice.currentBpm} BPM`, stopDrums);
@@ -1055,7 +1067,11 @@ function updatePracticeTime() {
 }
 function updatePracticeToggle() {
   const btn = $('pr-toggle');
-  if (btn) { btn.textContent = practice.running ? '■ Stop Practice' : '▶ Start Practice'; btn.classList.toggle('playing', practice.running); }
+  if (btn) {
+    btn.textContent = practice.running ? '■ Stop Practice' : '▶ Start Practice';
+    btn.classList.toggle('playing', practice.running);
+    btn.disabled = !practice.running && !hasPlayableMachinePattern();
+  }
 }
 
 // ===========================================================================
