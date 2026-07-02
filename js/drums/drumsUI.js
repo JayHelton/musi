@@ -961,13 +961,16 @@ function startPracticeWith(pattern) {
 function renderPractice() {
   const root = $('drums-view-practice');
   const hasPattern = hasPlayableMachinePattern();
-  const loaded = hasPattern && machine ? machine.title : 'None';
+  const loaded = hasPattern && machine ? machine.title : 'Metronome only';
+  const practiceNote = hasPattern
+    ? 'Practice plays the loaded beat with quarter-note metronome clicks.'
+    : 'No drum loop loaded. Practice will run as a metronome-only tempo ramp.';
   root.innerHTML = `
     <div class="dr-practice">
       <div class="dr-practice-presets" id="dr-pp"></div>
       <div class="dr-practice-form">
-        <div class="dr-practice-loaded ${hasPattern ? '' : 'empty'}">Beat loaded in drum machine: <strong>${escapeHtml(loaded)}</strong></div>
-        <div class="dr-practice-note">${hasPattern ? 'Practice plays the loaded beat with quarter-note metronome clicks.' : 'Load a beat into the Drum Machine before starting practice.'}</div>
+        <div class="dr-practice-loaded ${hasPattern ? '' : 'empty'}">Practice source: <strong>${escapeHtml(loaded)}</strong></div>
+        <div class="dr-practice-note">${practiceNote}</div>
         <label class="dr-ctl">Start BPM <input type="number" id="pr-start" min="30" max="300" value="${practice.startBpm}"></label>
         <label class="dr-ctl">Target BPM <input type="number" id="pr-target" min="30" max="300" value="${practice.targetBpm}"></label>
         <label class="dr-ctl">BPM step <input type="number" id="pr-step" min="1" max="40" value="${practice.bpmStep}"></label>
@@ -980,7 +983,7 @@ function renderPractice() {
         <div class="dr-pr-stat"><span class="dr-pr-val" id="pr-clean-val">${practice.cleanReps}</span><span class="dr-pr-lbl">Clean reps</span></div>
       </div>
       <div class="dr-practice-actions">
-        <button class="btn primary" id="pr-toggle" ${hasPattern ? '' : 'disabled'}>▶ Start Practice</button>
+        <button class="btn primary" id="pr-toggle">▶ Start Practice</button>
         <button class="btn sm" id="pr-clean-plus">+ Clean rep</button>
         <button class="btn sm" id="pr-clean-minus">− Clean rep</button>
         <button class="btn sm dr-needs-work ${practice.needsWork ? 'on' : ''}" id="pr-needs">⚑ Needs work</button>
@@ -1012,11 +1015,7 @@ function renderPractice() {
 }
 
 function startPractice() {
-  if (!hasPlayableMachinePattern()) {
-    practice.running = false;
-    renderPractice();
-    return;
-  }
+  if (!machine) machine = emptyState();
   engine.initEngine();
   practice.running = true;
   practice.loopCount = 0;
@@ -1070,7 +1069,7 @@ function updatePracticeToggle() {
   if (btn) {
     btn.textContent = practice.running ? '■ Stop Practice' : '▶ Start Practice';
     btn.classList.toggle('playing', practice.running);
-    btn.disabled = !practice.running && !hasPlayableMachinePattern();
+    btn.disabled = false;
   }
 }
 
