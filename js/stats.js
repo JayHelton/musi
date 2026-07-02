@@ -19,6 +19,7 @@ const SKILL_LABELS = {
   sightreading: 'Sight Reading',
   fretboard: 'Fretboard',
   ear: 'Ear',
+  timing: 'Timing',
 };
 
 function todayKey() {

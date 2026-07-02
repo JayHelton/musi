@@ -8,6 +8,7 @@ import { initFretboard } from './fretboardTrainer.js';
 import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
 import { initPitchTrainer, stopPitchTrainer, pt } from './pitchTrainer.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
+import { initTimingDrill, stopTimingDrill, timingDrill } from './timingDrill.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 // Backing Track feature is intentionally disabled in the UI for now.
 // import { initBacking, stopBacking, backing } from './backingTrack.js';
@@ -42,6 +43,7 @@ const ICONS = {
   fretboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M4 6h16M4 10h16M4 14h16M4 18h16M9 2v20M15 2v20"/></svg>',
   tuner:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
   ear:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
+  timing:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M4 20 2 22m18-2 2 2"/><path d="M8 2 6 4m10-2 2 2"/></svg>',
   // backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
   // riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
   recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
@@ -58,6 +60,7 @@ const TABS = [
   {id:'fretboard', label:'Fretboard',  group:'Drill'},
   {id:'tuner',     label:'Pitch',      group:'Drill'},
   {id:'ear',       label:'Ear',        group:'Drill'},
+  {id:'timing',    label:'Timing',     group:'Drill'},
   {id:'scaleref',  label:'Scales',     group:'Reference'},
   {id:'chords',    label:'Chords',     group:'Reference'},
   {id:'circle',    label:'Circle',     group:'Reference'},
@@ -91,6 +94,7 @@ const TOOL_STOPPERS = {
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); },
   tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); },
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
+  timing: () => { if (timingDrill.playing) stopTimingDrill(); },
   sightreading: () => stopSightReading(),
   recorder: () => { if (recorder.playing) stopRecorder(); },
   songwriter: () => stopSongwriter(),
@@ -106,6 +110,7 @@ const TOOL_INITS = {
   fretboard: initFretboard,
   tuner: () => { initTuner(); initPitchTrainer(); },
   ear: initEarTrainer,
+  timing: initTimingDrill,
   sightreading: initSightReading,
   recorder: initRecorder,
   songwriter: initSongwriter,
@@ -350,6 +355,7 @@ function isSwipeBlockedTarget(target) {
     '.hold-rec-overlay',
     '.note-btn-row',
     '.note-action-row',
+    '.timing-tap-pad',
     '.int-picker',
     '.rec-controls',
     '.sl-scroll',
