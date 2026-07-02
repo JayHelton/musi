@@ -112,6 +112,8 @@
 .dr-practice-form{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
 .dr-practice-loaded{font-size:.85rem;color:var(--muted);width:100%}
 .dr-practice-loaded strong{color:var(--text)}
+.dr-practice-loaded.empty strong{color:var(--muted)}
+.dr-practice-note{font-size:.8rem;color:var(--muted);width:100%;margin-top:-8px}
 .dr-practice-readout{display:flex;gap:14px;flex-wrap:wrap}
 .dr-pr-stat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 18px;display:flex;flex-direction:column;align-items:center;min-width:88px}
 .dr-pr-val{font-size:1.6rem;font-weight:700;color:var(--accent)}
