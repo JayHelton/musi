@@ -89,9 +89,15 @@ input[type=range]{accent-color:var(--accent)}
 .acc-btn{width:36px;height:36px;border:1px solid var(--border);border-radius:50%;background:var(--bg2);color:var(--muted);cursor:pointer;font-size:.85rem;font-weight:600;transition:all 0.15s ease}
 .acc-btn:hover{border-color:var(--accent);color:var(--text)}
 .acc-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
-#m-beat-ind{display:flex;gap:6px;justify-content:center;margin-top:14px;min-height:20px;flex-wrap:wrap}
-.bi-dot{width:14px;height:14px;border-radius:50%;background:var(--border);transition:all 0.08s ease}
-.bi-dot.active{background:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+#m-beat-ind{display:flex;gap:16px;justify-content:center;align-items:flex-start;margin-top:14px;min-height:40px;flex-wrap:wrap}
+.bi-beat{display:flex;gap:6px;align-items:flex-start}
+.bi-sub{display:grid;grid-template-rows:14px auto;justify-items:center;align-items:center;gap:5px}
+.bi-sub .bi-dot{width:9px;height:9px;border-radius:50%;background:var(--border);transition:all 0.08s ease}
+.bi-sub .bi-count{font-size:.68rem;font-weight:600;color:var(--muted);line-height:1;transition:color 0.08s ease}
+.bi-sub.beat .bi-dot{width:14px;height:14px}
+.bi-sub.beat .bi-count{color:var(--text);font-size:.8rem}
+.bi-sub.active .bi-dot{background:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+.bi-sub.active .bi-count{color:var(--accent)}
 #m-play.playing{background:var(--err);color:#fff;box-shadow:0 0 16px rgba(231,76,60,0.3)}
 #m-play.playing:hover{opacity:.85}
 .metro-toggle.active{background:var(--accent-dim);color:var(--accent)}
@@ -131,6 +137,10 @@ input[type=range]{accent-color:var(--accent)}
   .nv-btn{padding:6px 10px;font-size:.8rem}
   .m-slot{font-size:.65rem;padding:3px 1px}
   .acc-btn{width:30px;height:30px;font-size:.75rem}
-  #m-beat-ind{gap:4px}
-  .bi-dot{width:10px;height:10px}
+  #m-beat-ind{gap:10px}
+  .bi-beat{gap:4px}
+  .bi-sub .bi-dot{width:7px;height:7px}
+  .bi-sub.beat .bi-dot{width:10px;height:10px}
+  .bi-sub .bi-count{font-size:.6rem}
+  .bi-sub.beat .bi-count{font-size:.7rem}
 }
