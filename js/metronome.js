@@ -20,6 +20,7 @@ const metro = {
   _timer: null,
   _nextNoteTime: 0,
   _currentSlot: 0,
+  _sub16: 0,
   _countInLeft: 0,
   _tapTimes: [],
   _sessionElapsedMs: 0,
@@ -301,19 +302,41 @@ function getAccentForSlot(slotIndex) {
 function highlightSlot(index) {
   document.querySelectorAll('.m-slot').forEach((el, i) =>
     el.classList.toggle('playing', i === index));
-  document.querySelectorAll('.bi-dot').forEach((el, i) =>
+}
+
+function highlightSub(index) {
+  document.querySelectorAll('.bi-sub').forEach((el, i) =>
     el.classList.toggle('active', i === index));
 }
+
+// Vocal subdivision counting: each beat splits into four equal 16th-note parts
+// spoken as "1 e & a". Index 0 is the beat number, 1-3 are the subdivisions.
+const SUB_LABELS = ['e', '&', 'a'];
 
 function renderBeatIndicator() {
   const container = document.getElementById('m-beat-ind');
   if (!container) return;
   container.innerHTML = '';
-  metro.measure.forEach(() => {
+  const total = Math.max(0, Math.round(measureCapacity() * 4));
+  let beatGroup = null;
+  for (let k = 0; k < total; k++) {
+    const sub = k % 4;
+    if (sub === 0) {
+      beatGroup = document.createElement('div');
+      beatGroup.className = 'bi-beat';
+      container.appendChild(beatGroup);
+    }
+    const cell = document.createElement('div');
+    cell.className = 'bi-sub' + (sub === 0 ? ' beat' : '');
     const dot = document.createElement('div');
     dot.className = 'bi-dot';
-    container.appendChild(dot);
-  });
+    const count = document.createElement('div');
+    count.className = 'bi-count';
+    count.textContent = sub === 0 ? String(Math.floor(k / 4) + 1) : SUB_LABELS[sub - 1];
+    cell.appendChild(dot);
+    cell.appendChild(count);
+    beatGroup.appendChild(cell);
+  }
 }
 
 function formatSessionTime(ms) {
@@ -366,6 +389,7 @@ function startMetronome() {
   ensureAudio();
   metro.playing = true;
   metro._currentSlot = 0;
+  metro._sub16 = 0;
   document.getElementById('m-play').textContent = '\u25A0 Stop';
   document.getElementById('m-play').classList.add('playing');
   showNowPlaying(`Metronome \u2014 ${metro.bpm} BPM`, stopMetronome);
@@ -383,6 +407,7 @@ function stopMetronome() {
   document.getElementById('m-play').textContent = '\u25B6 Play';
   document.getElementById('m-play').classList.remove('playing');
   highlightSlot(-1);
+  highlightSub(-1);
   hideNowPlaying();
 }
 
@@ -405,13 +430,25 @@ function metroScheduler() {
       scheduleClick(metro._nextNoteTime, getAccentForSlot(metro._currentSlot));
     }
     const idx = metro._currentSlot;
-    const delay = Math.max(0, (metro._nextNoteTime - audioCtx.currentTime) * 1000);
+    const slotStart = metro._nextNoteTime;
+    const delay = Math.max(0, (slotStart - audioCtx.currentTime) * 1000);
     setTimeout(() => { if (metro.playing) highlightSlot(idx); }, delay);
+    // Light up the "1 e & a" subdivision cells at 16th-note resolution even
+    // when no click sounds on the off-beats (clicks follow the note value).
+    const sixteenthSec = (60 / metro.bpm) * 0.25;
+    const subCount = Math.max(1, Math.round(slotDuration(slot) * 4));
+    for (let s = 0; s < subCount; s++) {
+      const subIdx = metro._sub16 + s;
+      const subDelay = Math.max(0, (slotStart + s * sixteenthSec - audioCtx.currentTime) * 1000);
+      setTimeout(() => { if (metro.playing) highlightSub(subIdx); }, subDelay);
+    }
+    metro._sub16 += subCount;
     metro._nextNoteTime += slotDuration(slot) * (60 / metro.bpm);
     metro._currentSlot++;
     if (metro._currentSlot >= metro.measure.length) {
       if (metro.looping) {
         metro._currentSlot = 0;
+        metro._sub16 = 0;
       } else {
         const stopDelay = Math.max(0, (metro._nextNoteTime - audioCtx.currentTime) * 1000);
         setTimeout(() => stopMetronome(), stopDelay);
