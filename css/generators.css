@@ -11,9 +11,74 @@
 .guitar-tab-wrap pre{font-family:'Courier New',monospace;font-size:.95rem;color:var(--accent);line-height:1.8;margin:0;letter-spacing:1px}
 .guitar-tab-wrap .tab-title{font-size:.9rem;color:var(--muted);margin-bottom:8px;font-weight:600}
 
+/* Scale Reference — interval-coded fretboard */
+#sl-ref-tuning .sl-item{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sl-item-sub{font-size:.68rem;color:var(--muted);flex:0 0 auto}
+.ref-fb-card{padding:20px}
+.ref-fb-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.ref-fb-title{font-size:1.05rem;font-weight:650;color:var(--accent)}
+.ref-fb-sub{font-size:.82rem;color:var(--muted);margin-top:3px;line-height:1.4}
+.ref-fb-sub strong{color:var(--text)}
+.ref-fb-opts{display:flex;gap:10px;align-items:center;font-size:.8rem;color:var(--muted);flex-wrap:wrap}
+.ref-fb-opts label{display:flex;gap:5px;align-items:center}
+.ref-fb-opts input[type=number]{width:50px;padding:5px 7px;border:1px solid var(--border);border-radius:9px;background:var(--bg2);color:var(--text);font:inherit}
+.ref-fb-opts input[type=checkbox]{accent-color:var(--accent)}
+.ref-fb-check{cursor:pointer}
+
+.ref-mode-label{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600;margin-bottom:6px}
+.ref-mode-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.ref-mode-btn{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 11px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;min-width:54px;font-family:inherit;transition:all 0.15s ease}
+.ref-mode-btn:hover{background:var(--hover)}
+.ref-mode-btn.active{border-color:var(--accent);background:var(--accent-dim);box-shadow:0 0 0 1px var(--accent-dim)}
+.ref-mode-btn .rm-deg{font-size:.6rem;color:var(--muted);font-weight:700}
+.ref-mode-btn.active .rm-deg{color:var(--accent)}
+.ref-mode-btn .rm-note{font-size:.95rem;font-weight:700;line-height:1.1}
+.ref-mode-btn.active .rm-note{color:var(--accent)}
+.ref-mode-btn .rm-name{font-size:.6rem;color:var(--muted);white-space:nowrap}
+
+.ref-fb-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+.ref-fretboard{display:grid;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;min-width:520px}
+.ref-fb-corner{height:22px}
+.ref-fb-fretnum{height:22px;display:flex;align-items:center;justify-content:center;font-size:.62rem;color:var(--muted);font-weight:600}
+.ref-fb-strlabel{display:flex;align-items:center;justify-content:center;font-size:.66rem;color:var(--muted);font-weight:600;background:var(--bg);border-right:2px solid var(--border);border-top:1px solid rgba(255,255,255,0.05)}
+.ref-fb-cell{position:relative;height:34px;display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,0.05);border-top:1px solid rgba(255,255,255,0.05)}
+.ref-fb-cell.nut{border-right:3px solid var(--muted);background:rgba(255,255,255,0.02)}
+.ref-fb-cell.inlay::before{content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.12)}
+.ref-fb-cell.in-band{background:rgba(255,107,53,0.06)}
+.ref-fb-cell.band-t{border-top:2px solid var(--accent)}
+.ref-fb-cell.band-b{border-bottom:2px solid var(--accent)}
+.ref-fb-cell.band-l{border-left:2px solid var(--accent)}
+.ref-fb-cell.band-r{border-right:2px solid var(--accent)}
+
+.ref-note{position:relative;z-index:1;width:25px;height:25px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:800;color:#0a0a0a;box-shadow:0 1px 3px rgba(0,0,0,0.5)}
+.ref-note.dim{opacity:0.26}
+.ref-note.root{box-shadow:0 0 0 2px var(--text),0 1px 3px rgba(0,0,0,0.6);width:27px;height:27px}
+
+.ref-fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:14px;font-size:.74rem;color:var(--muted)}
+.ref-leg-item{display:flex;align-items:center;gap:6px}
+.ref-leg-item.root{color:var(--text);font-weight:600}
+.ref-leg-swatch{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+
+.deg-0{background:#ff6b35}
+.deg-1{background:#adb5bd}
+.deg-2{background:#ffd23f}
+.deg-3{background:#83c5be}
+.deg-4{background:#06d6a0}
+.deg-5{background:#4cc9f0}
+.deg-6{background:#c86bfa}
+.deg-7{background:#4895ef}
+.deg-8{background:#b5179e}
+.deg-9{background:#f72585}
+.deg-10{background:#ffa62b}
+.deg-11{background:#ff8fab}
+
 @media(max-width:768px){
   #sec-scaleref .sidebar{order:1}
   #sec-scaleref .quiz-main{order:2}
+  .ref-fb-cell{height:30px}
+  .ref-note{width:22px;height:22px;font-size:.58rem}
+  .ref-note.root{width:24px;height:24px}
+  .ref-fb-opts{width:100%;justify-content:flex-start}
 }
 
 /* 3-NPS modes panel — large screens only, shown beneath the main reference */

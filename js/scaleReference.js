@@ -1,4 +1,4 @@
-import { parseNote, ROOTS, INTERVAL_LABELS } from './theory.js';
+import { parseNote, ROOTS, INTERVAL_LABELS, TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
 import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
@@ -12,9 +12,26 @@ const KEY_SIGS = {
   'C#':'7#','Cb':'7b'
 };
 
+// Short scale-degree names keyed by the number of semitones above the tonic.
+// Used to label each in-key note on the fretboard relative to the modal root.
+const DEGREE_LABELS = {
+  0:'R', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4',
+  6:'b5', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7'
+};
+// Fretboard position inlay markers (single dots), plus a double dot at 12/24.
+const REF_FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
+// Width of the highlighted "box" position window, in frets (inclusive span).
+const REF_BOX_SPAN = 4;
+
 let refRoot = 'C';
 let refScale = 'Major (Ionian)';
+let refTuning = 'Standard';
+let refModeIndex = 0;
+let refFbStart = 0;
+let refFbEnd = 15;
+let refBoxOnly = false;
 let refContextSubscribed = false;
+let refFbWired = false;
 
 function initScaleRef() {
   const rootScroll = document.getElementById('sl-ref-root');
@@ -23,6 +40,13 @@ function initScaleRef() {
   const ctx = getContext();
   refRoot = ctx.root;
   refScale = ctx.scale;
+  const tuningNames = Object.keys(TUNINGS);
+  refTuning = getSetting('ref.tuning', refTuning, tuningNames);
+  refModeIndex = clampModeIndex(Number(getSetting('ref.modeIndex', refModeIndex)));
+  refFbStart = Number(getSetting('ref.fbStart', refFbStart));
+  refFbEnd = Number(getSetting('ref.fbEnd', refFbEnd));
+  refBoxOnly = getSetting('ref.boxOnly', refBoxOnly, [true, false]);
+
   rootScroll.innerHTML = '';
   ROOTS.forEach(r => {
     const div = document.createElement('div');
@@ -40,18 +64,81 @@ function initScaleRef() {
     rootScroll.appendChild(div);
   });
   buildScaleList();
+  buildTuningList();
+  wireFretboardControls();
   renderScaleRef();
 
   if (!refContextSubscribed) {
     refContextSubscribed = true;
     subscribeContext(c => {
       if (c.root === refRoot && c.scale === refScale) return;
+      const scaleChanged = c.scale !== refScale;
       refRoot = c.root;
       refScale = c.scale;
+      if (scaleChanged) refModeIndex = 0;
       syncRefSelection();
       renderScaleRef();
     });
   }
+}
+
+// The tonal-center index must stay within the current scale's degree count.
+function clampModeIndex(idx) {
+  const def = SCALES[refScale];
+  const len = def ? def.length : 7;
+  if (!Number.isFinite(idx) || idx < 0 || idx >= len) return 0;
+  return Math.floor(idx);
+}
+
+function buildTuningList() {
+  const container = document.getElementById('sl-ref-tuning');
+  if (!container) return;
+  container.innerHTML = '';
+  Object.keys(TUNINGS).forEach(name => {
+    const div = document.createElement('div');
+    div.className = 'sl-item' + (name === refTuning ? ' active' : '');
+    div.dataset.val = name;
+    const strings = TUNINGS[name];
+    div.innerHTML = `<span>${name}</span><span class="sl-item-sub">${strings.length}-string</span>`;
+    div.onclick = () => {
+      container.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
+      div.classList.add('active');
+      refTuning = name;
+      saveSetting('ref.tuning', refTuning);
+      renderRefFretboard();
+    };
+    container.appendChild(div);
+  });
+}
+
+function wireFretboardControls() {
+  const start = document.getElementById('ref-fb-start');
+  const end = document.getElementById('ref-fb-end');
+  const boxOnly = document.getElementById('ref-fb-boxonly');
+  if (!start || refFbWired) return;
+  refFbWired = true;
+  start.value = refFbStart;
+  end.value = refFbEnd;
+  boxOnly.checked = refBoxOnly;
+
+  const updateRange = () => {
+    let s = Math.max(0, Math.min(24, Number(start.value) || 0));
+    let e = Math.max(s + 1, Math.min(24, Number(end.value) || 15));
+    refFbStart = s;
+    refFbEnd = e;
+    start.value = s;
+    end.value = e;
+    saveSetting('ref.fbStart', refFbStart);
+    saveSetting('ref.fbEnd', refFbEnd);
+    renderRefFretboard();
+  };
+  start.onchange = updateRange;
+  end.onchange = updateRange;
+  boxOnly.onchange = () => {
+    refBoxOnly = boxOnly.checked;
+    saveSetting('ref.boxOnly', refBoxOnly);
+    renderRefFretboard();
+  };
 }
 
 function syncRefSelection() {
@@ -59,6 +146,8 @@ function syncRefSelection() {
     el.classList.toggle('active', el.dataset.val === refRoot));
   document.querySelectorAll('#sl-ref-scale .sl-item').forEach(el =>
     el.classList.toggle('active', el.dataset.val === refScale));
+  document.querySelectorAll('#sl-ref-tuning .sl-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.val === refTuning));
 }
 
 function buildScaleList() {
@@ -81,7 +170,9 @@ function buildScaleList() {
       container.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       refScale = val;
+      refModeIndex = 0;
       saveSetting('ref.scale', refScale);
+      saveSetting('ref.modeIndex', refModeIndex);
       setContext({ scale: refScale }, 'scaleref');
       renderScaleRef();
     };
@@ -232,6 +323,170 @@ function renderRefModes() {
   wrap.innerHTML = html;
 }
 
+// MIDI note numbers of each open string for the active tuning (low → high).
+function refOpenMidis() {
+  const strings = TUNINGS[refTuning] || TUNINGS['Standard'];
+  return strings.map(s => {
+    const p = parseNote(s.note);
+    return p ? 12 * (s.oct + 1) + p.semi : 0;
+  });
+}
+
+// Each degree of the current scale as a potential tonal center. For 7-note
+// scales we also resolve the conventional mode name (Dorian, Phrygian, …).
+function refModeChoices() {
+  const def = SCALES[refScale];
+  const notes = getScaleNotes(refRoot, refScale);
+  const rootP = parseNote(refRoot);
+  if (!def || !rootP) return [];
+  const semis = def.map(d => d[1]);
+  return def.map((d, i) => {
+    let name = null;
+    if (def.length === 7) {
+      const rotated = [];
+      for (let k = 0; k < def.length; k++)
+        rotated.push(((semis[(i + k) % def.length] - semis[i]) % 12 + 12) % 12);
+      name = findScaleNameBySemis(rotated);
+    }
+    const note = notes ? notes[i] : NOTE_NAMES_SHARP[(rootP.semi + d[1]) % 12];
+    return { index: i, note, name };
+  });
+}
+
+// The initial "box" position for a modal root: a fret window anchored to the
+// lowest occurrence of that root on the lowest string. Guitarists learn scales
+// as movable box shapes, so this gives the player a concrete starting shape.
+function computeRefBox(openMidis, modalRootSemi) {
+  const lowOpen = openMidis[0];
+  let rootFret = 0;
+  while (((lowOpen + rootFret) % 12) !== modalRootSemi && rootFret < 12) rootFret++;
+  return { start: rootFret, end: rootFret + REF_BOX_SPAN };
+}
+
+function renderRefModeRow() {
+  const row = document.getElementById('ref-mode-row');
+  if (!row) return;
+  const choices = refModeChoices();
+  row.innerHTML = '';
+  choices.forEach(({ index, note, name }) => {
+    const btn = document.createElement('button');
+    btn.className = 'ref-mode-btn' + (index === refModeIndex ? ' active' : '');
+    btn.dataset.index = index;
+    btn.innerHTML = `<span class="rm-deg">${index + 1}</span>` +
+      `<span class="rm-note">${note}</span>` +
+      (name ? `<span class="rm-name">${name.replace(/\s*\(.*\)/, '')}</span>` : '');
+    btn.onclick = () => {
+      refModeIndex = index;
+      saveSetting('ref.modeIndex', refModeIndex);
+      renderRefFretboard();
+    };
+    row.appendChild(btn);
+  });
+}
+
+function renderRefLegend(pcSet, modalRootSemi) {
+  const el = document.getElementById('ref-fb-legend');
+  if (!el) return;
+  const intervals = [...pcSet]
+    .map(pc => (pc - modalRootSemi + 12) % 12)
+    .sort((a, b) => a - b);
+  el.innerHTML = intervals.map(iv =>
+    `<span class="ref-leg-item${iv === 0 ? ' root' : ''}">` +
+    `<span class="ref-leg-swatch deg-${iv}"></span>` +
+    `${DEGREE_LABELS[iv]} · ${INTERVAL_LABELS[iv] || iv}</span>`
+  ).join('');
+}
+
+// Renders the full neck for the active tuning: every in-key note is shown and
+// colour-coded by its interval above the selected modal root. The selected
+// mode's initial box position is emphasised while the rest is dimmed.
+function renderRefFretboard() {
+  const board = document.getElementById('ref-fretboard');
+  if (!board) return;
+  const rootP = parseNote(refRoot);
+  const def = SCALES[refScale];
+  if (!rootP || !def) { board.innerHTML = ''; return; }
+  refModeIndex = clampModeIndex(refModeIndex);
+
+  renderRefModeRow();
+
+  const strings = TUNINGS[refTuning] || TUNINGS['Standard'];
+  const openMidis = refOpenMidis();
+  const notes = getScaleNotes(refRoot, refScale);
+  const rootSemi = rootP.semi;
+
+  const pcSet = new Set();
+  const pcToNote = {};
+  def.forEach((d, i) => {
+    const pc = (rootSemi + d[1]) % 12;
+    pcSet.add(pc);
+    pcToNote[pc] = notes ? notes[i] : NOTE_NAMES_SHARP[pc];
+  });
+
+  const modalRootSemi = (rootSemi + def[refModeIndex][1]) % 12;
+  const box = computeRefBox(openMidis, modalRootSemi);
+
+  const start = Math.max(0, Math.min(24, refFbStart));
+  const end = Math.max(start + 1, Math.min(24, refFbEnd));
+  const count = end - start + 1;
+  const middleString = Math.floor(strings.length / 2);
+
+  board.style.gridTemplateColumns = `34px repeat(${count}, minmax(30px, 1fr))`;
+
+  let html = '<div class="ref-fb-corner"></div>';
+  for (let f = start; f <= end; f++) {
+    html += `<div class="ref-fb-fretnum">${f}</div>`;
+  }
+
+  for (let s = strings.length - 1; s >= 0; s--) {
+    const isTop = s === strings.length - 1;
+    const isBottom = s === 0;
+    html += `<div class="ref-fb-strlabel">${strings[s].note}${strings[s].oct}</div>`;
+    for (let f = start; f <= end; f++) {
+      const midi = openMidis[s] + f;
+      const pc = midi % 12;
+      const inScale = pcSet.has(pc);
+      const interval = (pc - modalRootSemi + 12) % 12;
+      const inBox = inScale && f >= box.start && f <= box.end;
+
+      const cls = ['ref-fb-cell'];
+      if (f === 0) cls.push('nut');
+      if (f > 0 && REF_FB_DOTS.includes(f) && s === middleString) cls.push('inlay');
+      // Box band outline drawn with edge classes so the whole position reads as
+      // one rectangle across every string.
+      if (f >= box.start && f <= box.end) {
+        cls.push('in-band');
+        if (f === box.start) cls.push('band-l');
+        if (f === box.end) cls.push('band-r');
+        if (isTop) cls.push('band-t');
+        if (isBottom) cls.push('band-b');
+      }
+
+      let inner = '';
+      if (inScale && !(refBoxOnly && !inBox)) {
+        const noteCls = ['ref-note', `deg-${interval}`];
+        if (interval === 0) noteCls.push('root');
+        if (!inBox) noteCls.push('dim');
+        inner = `<span class="${noteCls.join(' ')}" title="${pcToNote[pc]} · ${INTERVAL_LABELS[interval] || interval}">${DEGREE_LABELS[interval]}</span>`;
+      }
+      html += `<div class="${cls.join(' ')}">${inner}</div>`;
+    }
+  }
+  board.innerHTML = html;
+
+  const choices = refModeChoices();
+  const active = choices[refModeIndex] || {};
+  const modeName = active.name ? active.name.replace(/\s*\(.*\)/, '') : `degree ${refModeIndex + 1}`;
+  const sub = document.getElementById('ref-fb-sub');
+  const title = document.getElementById('ref-fb-title');
+  if (title) title.textContent = `${refRoot} ${refScale} — ${refTuning}`;
+  if (sub) {
+    sub.innerHTML = `Tonal centre <strong>${active.note || refRoot} ${modeName}</strong> · ` +
+      `box at frets ${box.start}–${box.end} · every in-key note coloured by interval`;
+  }
+  renderRefLegend(pcSet, modalRootSemi);
+}
+
 function renderScaleRef() {
   const card = document.getElementById('ref-card');
   const notes = getScaleNotes(refRoot, refScale);
@@ -275,6 +530,7 @@ function renderScaleRef() {
   }
 
   card.innerHTML = html;
+  renderRefFretboard();
   renderRefModes();
 }
 
