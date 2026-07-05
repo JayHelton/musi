@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v52-more-guitar-tunings";
+const CACHE_VERSION = "v53-chord-mapping";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -36,6 +36,8 @@ const PRECACHE_URLS = [
   "js/progressHeader.js",
   "js/backingTrack.js",
   "js/chordBuilder.js",
+  "js/chordReference.js",
+  "js/chords.js",
   "js/circleOfFifths.js",
   "js/earTrainer.js",
   "js/fretboardTrainer.js",
