@@ -15,6 +15,7 @@ import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 // Riff Generator feature is intentionally disabled in the UI for now.
 // import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
+import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises } from './exercises.js';
@@ -91,7 +92,7 @@ const SWIPE_NAV_VERTICAL_LIMIT = 80;
 const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
-  chords: () => { if (chordBuilder.oscillators.length) stopChord(); },
+  chords: () => { if (chordBuilder.oscillators.length) stopChord(); if (chOscillators.length) stopChordRef(); },
   tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); },
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
   timing: () => { if (timingDrill.playing) stopTimingDrill(); },
@@ -106,7 +107,7 @@ const TOOL_INITS = {
   keyboard: buildKeyboard,
   metronome: initMetronome,
   scaleref: initScaleRef,
-  chords: initChordBuilder,
+  chords: () => { initChordRef(); initChordBuilder(); },
   fretboard: initFretboard,
   tuner: () => { initTuner(); initPitchTrainer(); },
   ear: initEarTrainer,

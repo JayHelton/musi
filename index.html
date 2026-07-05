@@ -293,31 +293,75 @@
     <div id="ref-modes"></div>
   </section>
 
-  <!-- CHORD BUILDER -->
+  <!-- CHORDS: MAPPING + BUILDER -->
   <section id="sec-chords" class="section">
     <div class="section-head">
       <div class="section-kicker">Reference</div>
-      <h2>Chord Builder</h2>
+      <h2>Chords</h2>
     </div>
-    <div class="quiz-card">
-      <div class="field-label">Note</div>
-      <div class="chord-picker">
-        <div class="note-btn-row" id="cb-notes"></div>
+    <div class="quiz-layout">
+      <div class="sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Root</div>
+          <div class="sl-scroll" id="sl-chord-root"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Chord</div>
+          <div class="sl-scroll" id="sl-chord-type" style="max-height:320px"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Tuning</div>
+          <div class="sl-scroll" id="sl-chord-tuning"></div>
+        </div>
       </div>
-      <div class="field-label">Octave</div>
-      <div class="chord-picker">
-        <div class="oct-group" id="cb-octaves"></div>
+      <div class="quiz-main">
+        <div class="quiz-card ref-fb-card">
+          <div class="ref-fb-head">
+            <div>
+              <div class="ref-fb-title" id="chord-fb-title">Fretboard</div>
+              <div class="ref-fb-sub" id="chord-fb-sub"></div>
+            </div>
+            <div class="ref-fb-opts">
+              <label>Fret <input type="number" id="chord-fb-start" min="0" max="24" value="0"></label>
+              <label>– <input type="number" id="chord-fb-end" min="1" max="24" value="15"></label>
+              <label class="ref-fb-check"><input type="checkbox" id="chord-fb-rootsonly"> Roots only</label>
+            </div>
+          </div>
+          <div class="ref-fb-scroll"><div class="ref-fretboard" id="chord-fretboard"></div></div>
+          <div class="ref-fb-legend" id="chord-fb-legend"></div>
+        </div>
+        <div class="quiz-card" id="chord-info-card">
+          <p style="color:var(--muted)">Pick a root &amp; chord.</p>
+        </div>
       </div>
-      <div class="chord-chips" id="cb-chips"></div>
     </div>
-    <div class="chord-analysis" id="cb-analysis">
-      <p style="color:var(--muted)">2+ notes to analyze</p>
-    </div>
-    <div class="action-dock">
-      <div class="chord-actions">
-        <button class="btn primary" onclick="playChord()">Play Chord</button>
-        <button class="btn" onclick="stopChord()">Stop</button>
-        <button class="btn sm" onclick="clearChord()">Clear</button>
+
+    <!-- CHORD BUILDER -->
+    <div class="chord-builder-block">
+      <div class="chord-builder-head">
+        <h3>Chord Builder</h3>
+        <p>Stack notes to identify a chord and hear it.</p>
+      </div>
+      <div class="quiz-card">
+        <div class="field-label">Note</div>
+        <div class="chord-picker">
+          <div class="note-btn-row" id="cb-notes"></div>
+        </div>
+        <div class="field-label">Octave</div>
+        <div class="chord-picker">
+          <div class="oct-group" id="cb-octaves"></div>
+        </div>
+        <div class="chord-chips" id="cb-chips"></div>
+      </div>
+      <div class="chord-analysis" id="cb-analysis">
+        <p style="color:var(--muted)">2+ notes to analyze</p>
+      </div>
+      <div class="action-dock">
+        <div class="chord-actions">
+          <button class="btn primary" onclick="playChord()">Play Chord</button>
+          <button class="btn" onclick="stopChord()">Stop</button>
+          <button class="btn sm" onclick="clearChord()">Clear</button>
+        </div>
       </div>
     </div>
   </section>

@@ -101,6 +101,24 @@ body.split-mode #ref-modes{display:none}
 .mfb-cell.note::after{background:var(--accent)}
 .mfb-cell.root::after{background:var(--accent2);box-shadow:0 0 0 2px var(--accent-dim)}
 
+/* Chord mapping (reference) */
+.chord-sl-item{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.chord-dark-badge{flex:0 0 auto;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent2);background:rgba(124,91,245,0.14);padding:2px 6px;border-radius:8px}
+.sl-item.active .chord-dark-badge{color:var(--accent);background:var(--accent-dim)}
+.chord-ref-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.chord-ref-name{margin:0;color:var(--accent);font-size:1.3rem;font-weight:700}
+.chord-ref-full{font-size:.85rem;font-weight:400;color:var(--muted)}
+.chord-ref-play{flex:0 0 auto}
+.chord-builder-block{margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
+.chord-builder-head{margin-bottom:14px}
+.chord-builder-head h3{margin:0 0 4px;color:var(--accent);font-size:1.05rem}
+.chord-builder-head p{margin:0;color:var(--muted);font-size:.85rem}
+
+@media(max-width:768px){
+  #sec-chords .sidebar{order:1}
+  #sec-chords .quiz-main{order:2}
+}
+
 /* Chord Builder */
 .chord-picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
 .chord-chips{display:flex;gap:6px;flex-wrap:wrap;min-height:44px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:16px;margin-bottom:12px;align-items:center;transition:box-shadow 0.2s ease}
