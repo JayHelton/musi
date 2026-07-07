@@ -14,10 +14,12 @@ import { stopTuner, tuner } from './vocalTrainer.js';
 // close / how long held) is delegated to the reusable engine in pitchMatch.js
 // so the same machinery can power future sing-along features.
 
-// Challenge presets. Every level keeps the hold time at a full second or more
-// so a note must be *sustained* in tune before it counts, and the tolerance
-// stays forgiving on the easier levels so the drill is not hair-trigger.
+// Challenge presets. The "Quick" level uses a half-second hold for a fast,
+// low-commitment drill, while the rest keep the hold time at a full second or
+// more so a note must be *sustained* in tune before it counts. Tolerance stays
+// forgiving on the easier levels so the drill is not hair-trigger.
 const DIFFICULTIES = [
+  { id: 'quick',  label: 'Quick',  holdMs: 500,  toleranceCents: 45 },
   { id: 'easy',   label: 'Easy',   holdMs: 1000, toleranceCents: 40 },
   { id: 'medium', label: 'Medium', holdMs: 1500, toleranceCents: 28 },
   { id: 'hard',   label: 'Hard',   holdMs: 2000, toleranceCents: 18 },
@@ -71,6 +73,11 @@ const pt = {
   voices: [],
   advanceTimer: null,
   replayActive: false,
+  // performance.now() timestamp until which a reference/guide tone is sounding.
+  // While the guide tone plays it bleeds into the mic (it *is* the target note),
+  // so the hold timer is paused until this passes to avoid crediting the app's
+  // own cue as if the singer had sustained the note.
+  guideEndsAt: 0,
 };
 
 function el(id) { return document.getElementById(id); }
@@ -169,6 +176,9 @@ function playTone(midi, duration = 1.1) {
   const voice = startGuideTone(midi);
   const sustain = duration * 0.55;
   const release = duration * 0.4;
+  // Pause hold scoring for the tone's full audible life (sustain + release tail)
+  // so the cue bleeding into the mic can't be mistaken for the singer holding.
+  pt.guideEndsAt = performance.now() + (sustain + release) * 1000;
   voice.releaseTimer = setTimeout(() => releaseVoice(voice, release), sustain * 1000);
 }
 
@@ -178,12 +188,16 @@ function ptStartReplay() {
   if (midi == null) return;
   stopGuideTone(0.05);
   startGuideTone(midi);
+  // Suppress hold scoring for as long as the note is held down.
+  pt.guideEndsAt = Infinity;
   setReplayButtonActive(true);
 }
 
 function ptStopReplay() {
   if (!pt.replayActive) return;
   stopGuideTone(0.14);
+  // Keep scoring paused for the brief release tail after letting go.
+  pt.guideEndsAt = performance.now() + 200;
 }
 
 // ---- Exercise sequencing ----------------------------------------------------
@@ -326,7 +340,11 @@ function loop() {
   if (!pt.running) return;
   pt.analyser.getFloatTimeDomainData(pt.buf);
   const { info, freq } = pt.tracker.process(pt.buf);
-  const res = pt.matcher.update(freq > 0 ? freq : -1, performance.now());
+  const now = performance.now();
+  // While the guide/reference tone is still sounding it bleeds into the mic, so
+  // don't let those frames count toward the hold — only credit the singer.
+  const scoring = now >= pt.guideEndsAt;
+  const res = pt.matcher.update(freq > 0 ? freq : -1, now, scoring);
 
   renderMeter(res, info);
   if (res.matched && !pt.advancing) onMatched();
@@ -360,6 +378,7 @@ async function startPitchTrainer() {
   pt.stages = buildStages();
   pt.stageIdx = 0;
   pt.completed = 0;
+  pt.guideEndsAt = 0;
   buildSequence();
 
   try {
@@ -395,6 +414,7 @@ function stopPitchTrainer() {
   }
   pt.running = false;
   pt.advancing = false;
+  pt.guideEndsAt = 0;
   clearAdvanceTimer();
   if (pt.rafId) { cancelAnimationFrame(pt.rafId); pt.rafId = null; }
   if (pt.tracker) pt.tracker.reset();
