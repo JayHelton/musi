@@ -428,6 +428,7 @@
           <button class="btn sm metro-timer-reset" id="m-timer-reset" aria-label="Reset session timer">Reset</button>
         </div>
         <div id="m-beat-ind" class="metro-beat-dots"></div>
+        <div class="metro-gap-status" id="m-gap-status" aria-live="polite" hidden></div>
         <div class="beat-pulse-ring" id="beat-pulse-ring"></div>
       </div>
       <div class="quiz-card metro-settings-card">
@@ -455,6 +456,20 @@
           <button class="btn sm metro-bpm-preset" data-bpm="220">220</button>
           <button class="btn sm metro-bpm-preset" data-bpm="240">240</button>
           <button class="btn sm metro-bpm-preset" data-bpm="260">260</button>
+        </div>
+        <div class="metro-card-title">Silent Bars <span class="metro-gap-hint">Drop the click to test your timing</span></div>
+        <div class="metro-gap-controls">
+          <button class="btn sm metro-toggle" id="m-gap-toggle" aria-pressed="false">Off</button>
+          <label class="metro-gap-field">
+            <span>Play</span>
+            <input type="number" id="m-gap-play" min="1" max="16" value="2" inputmode="numeric" aria-label="Bars to play">
+            <span>bars</span>
+          </label>
+          <label class="metro-gap-field">
+            <span>Silent</span>
+            <input type="number" id="m-gap-mute" min="1" max="16" value="2" inputmode="numeric" aria-label="Bars to mute">
+            <span>bars</span>
+          </label>
         </div>
       </div>
     </div>

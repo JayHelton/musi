@@ -17,11 +17,16 @@ const metro = {
   dotted: false,
   triplet: false,
   restMode: false,
+  gapEnabled: false,
+  gapPlayBars: 2,
+  gapMuteBars: 2,
   _timer: null,
   _nextNoteTime: 0,
   _currentSlot: 0,
   _sub16: 0,
   _countInLeft: 0,
+  _cycleBar: 0,
+  _gapMuted: false,
   _tapTimes: [],
   _sessionElapsedMs: 0,
   _sessionStart: 0,
@@ -66,6 +71,9 @@ function restoreMetronomeSettings() {
   metro.dotted = !!getSetting('metro.dotted', metro.dotted);
   metro.triplet = !!getSetting('metro.triplet', metro.triplet);
   metro.restMode = !!getSetting('metro.restMode', metro.restMode);
+  metro.gapEnabled = !!getSetting('metro.gapEnabled', metro.gapEnabled);
+  metro.gapPlayBars = numberSetting('metro.gapPlayBars', metro.gapPlayBars, 1, 16);
+  metro.gapMuteBars = numberSetting('metro.gapMuteBars', metro.gapMuteBars, 1, 16);
 
   const savedMeasure = getSetting('metro.measure', null);
   if (Array.isArray(savedMeasure)) {
@@ -309,6 +317,44 @@ function highlightSub(index) {
     el.classList.toggle('active', i === index));
 }
 
+function gapCycleLength() {
+  return metro.gapPlayBars + metro.gapMuteBars;
+}
+
+// In the variable ("silent bars") metronome, playback alternates between a run
+// of audible bars and a run of muted bars so the player can test whether they
+// stay in time through the silence. _cycleBar counts loop iterations since the
+// metronome started (count-in bars excluded).
+function barIsMuted(barIndex) {
+  if (!metro.gapEnabled || !metro.looping) return false;
+  const cycle = gapCycleLength();
+  if (cycle <= 0 || metro.gapMuteBars <= 0) return false;
+  return (barIndex % cycle) >= metro.gapPlayBars;
+}
+
+function renderGapStatus() {
+  const el = document.getElementById('m-gap-status');
+  if (!el) return;
+  if (!metro.playing || !metro.gapEnabled || !metro.looping || metro.gapMuteBars <= 0) {
+    el.hidden = true;
+    el.classList.remove('muted', 'audible');
+    return;
+  }
+  const cycle = gapCycleLength();
+  const posInCycle = metro._cycleBar % cycle;
+  const muted = posInCycle >= metro.gapPlayBars;
+  el.hidden = false;
+  el.classList.toggle('muted', muted);
+  el.classList.toggle('audible', !muted);
+  if (muted) {
+    const left = metro.gapMuteBars - (posInCycle - metro.gapPlayBars);
+    el.textContent = `Silent \u2014 ${left} bar${left === 1 ? '' : 's'} left`;
+  } else {
+    const left = metro.gapPlayBars - posInCycle;
+    el.textContent = `Playing \u2014 ${left} bar${left === 1 ? '' : 's'} left`;
+  }
+}
+
 // Vocal subdivision counting: each beat splits into four equal 16th-note parts
 // spoken as "1 e & a". Index 0 is the beat number, 1-3 are the subdivisions.
 const SUB_LABELS = ['e', '&', 'a'];
@@ -390,10 +436,13 @@ function startMetronome() {
   metro.playing = true;
   metro._currentSlot = 0;
   metro._sub16 = 0;
+  metro._cycleBar = 0;
+  metro._gapMuted = false;
   document.getElementById('m-play').textContent = '\u25A0 Stop';
   document.getElementById('m-play').classList.add('playing');
   showNowPlaying(`Metronome \u2014 ${metro.bpm} BPM`, stopMetronome);
   renderBeatIndicator();
+  renderGapStatus();
   metro._countInLeft = metro.countIn ? metro.tsNum : 0;
   metro._nextNoteTime = audioCtx.currentTime + 0.05;
   startSessionTimer();
@@ -408,6 +457,7 @@ function stopMetronome() {
   document.getElementById('m-play').classList.remove('playing');
   highlightSlot(-1);
   highlightSub(-1);
+  renderGapStatus();
   hideNowPlaying();
 }
 
@@ -426,22 +476,37 @@ function metroScheduler() {
       metro._currentSlot = 0;
       continue;
     }
-    if (!slot.rest) {
+    // During a muted bar, suppress both the click and the on-screen beat cues
+    // so the timing test is genuine.
+    const muted = barIsMuted(metro._cycleBar);
+    if (metro._currentSlot === 0 && muted !== metro._gapMuted) {
+      metro._gapMuted = muted;
+      const statusStart = metro._nextNoteTime;
+      const statusDelay = Math.max(0, (statusStart - audioCtx.currentTime) * 1000);
+      setTimeout(() => { if (metro.playing) renderGapStatus(); }, statusDelay);
+    }
+    if (!slot.rest && !muted) {
       scheduleClick(metro._nextNoteTime, getAccentForSlot(metro._currentSlot));
     }
     const idx = metro._currentSlot;
     const slotStart = metro._nextNoteTime;
-    const delay = Math.max(0, (slotStart - audioCtx.currentTime) * 1000);
-    setTimeout(() => { if (metro.playing) highlightSlot(idx); }, delay);
-    // Light up the "1 e & a" subdivision cells at 16th-note resolution even
-    // when no click sounds on the off-beats (clicks follow the note value).
-    const sixteenthSec = (60 / metro.bpm) * 0.25;
-    const subCount = Math.max(1, Math.round(slotDuration(slot) * 4));
-    for (let s = 0; s < subCount; s++) {
-      const subIdx = metro._sub16 + s;
-      const subDelay = Math.max(0, (slotStart + s * sixteenthSec - audioCtx.currentTime) * 1000);
-      setTimeout(() => { if (metro.playing) highlightSub(subIdx); }, subDelay);
+    if (!muted) {
+      const delay = Math.max(0, (slotStart - audioCtx.currentTime) * 1000);
+      setTimeout(() => { if (metro.playing) highlightSlot(idx); }, delay);
+      // Light up the "1 e & a" subdivision cells at 16th-note resolution even
+      // when no click sounds on the off-beats (clicks follow the note value).
+      const sixteenthSec = (60 / metro.bpm) * 0.25;
+      const subCount = Math.max(1, Math.round(slotDuration(slot) * 4));
+      for (let s = 0; s < subCount; s++) {
+        const subIdx = metro._sub16 + s;
+        const subDelay = Math.max(0, (slotStart + s * sixteenthSec - audioCtx.currentTime) * 1000);
+        setTimeout(() => { if (metro.playing) highlightSub(subIdx); }, subDelay);
+      }
+    } else {
+      const clearDelay = Math.max(0, (slotStart - audioCtx.currentTime) * 1000);
+      setTimeout(() => { if (metro.playing) { highlightSlot(-1); highlightSub(-1); } }, clearDelay);
     }
+    const subCount = Math.max(1, Math.round(slotDuration(slot) * 4));
     metro._sub16 += subCount;
     metro._nextNoteTime += slotDuration(slot) * (60 / metro.bpm);
     metro._currentSlot++;
@@ -449,6 +514,7 @@ function metroScheduler() {
       if (metro.looping) {
         metro._currentSlot = 0;
         metro._sub16 = 0;
+        metro._cycleBar++;
       } else {
         const stopDelay = Math.max(0, (metro._nextNoteTime - audioCtx.currentTime) * 1000);
         setTimeout(() => stopMetronome(), stopDelay);
@@ -601,7 +667,44 @@ function initMetronome() {
   };
   const timerReset = document.getElementById('m-timer-reset');
   if (timerReset) timerReset.onclick = resetSessionTimer;
+
+  const gapToggle = document.getElementById('m-gap-toggle');
+  const gapPlay = document.getElementById('m-gap-play');
+  const gapMute = document.getElementById('m-gap-mute');
+  if (gapToggle) {
+    gapToggle.textContent = metro.gapEnabled ? 'On' : 'Off';
+    gapToggle.classList.toggle('active', metro.gapEnabled);
+    gapToggle.setAttribute('aria-pressed', String(metro.gapEnabled));
+    gapToggle.onclick = () => {
+      metro.gapEnabled = !metro.gapEnabled;
+      gapToggle.textContent = metro.gapEnabled ? 'On' : 'Off';
+      gapToggle.classList.toggle('active', metro.gapEnabled);
+      gapToggle.setAttribute('aria-pressed', String(metro.gapEnabled));
+      saveSetting('metro.gapEnabled', metro.gapEnabled);
+      renderGapStatus();
+    };
+  }
+  if (gapPlay) {
+    gapPlay.value = metro.gapPlayBars;
+    gapPlay.onchange = () => {
+      metro.gapPlayBars = Math.max(1, Math.min(16, parseInt(gapPlay.value) || 1));
+      gapPlay.value = metro.gapPlayBars;
+      saveSetting('metro.gapPlayBars', metro.gapPlayBars);
+      renderGapStatus();
+    };
+  }
+  if (gapMute) {
+    gapMute.value = metro.gapMuteBars;
+    gapMute.onchange = () => {
+      metro.gapMuteBars = Math.max(1, Math.min(16, parseInt(gapMute.value) || 1));
+      gapMute.value = metro.gapMuteBars;
+      saveSetting('metro.gapMuteBars', metro.gapMuteBars);
+      renderGapStatus();
+    };
+  }
+
   renderSessionTimer();
+  renderGapStatus();
   updateAccentButtons();
   renderMeasure();
   updateBeatsFilled();
