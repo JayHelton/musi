@@ -69,7 +69,13 @@ export function createPitchMatcher(opts = {}) {
   // Feed a detected frequency (or <=0 / null for "no pitch") plus the current
   // timestamp in milliseconds. Returns a snapshot describing proximity and
   // progress for both the matching logic and the UI meter.
-  function update(freq, nowMs) {
+  //
+  // When `count` is false the frame is treated as "don't score": proximity and
+  // offset are still computed for the meter, but no hold time accumulates and
+  // the progress is held at zero. This lets callers ignore audio they shouldn't
+  // credit (e.g. a reference/guide tone bleeding back into the mic) without
+  // losing the live visual feedback.
+  function update(freq, nowMs, count = true) {
     if (targetMidi == null) {
       return { active: false, freq: -1, centsOff: null, within: false, progress: 0, matched: false, proximity: 0 };
     }
@@ -81,7 +87,12 @@ export function createPitchMatcher(opts = {}) {
     const centsOff = hasPitch ? centsOffFromTarget(freq, targetMidi) : null;
     const within = hasPitch && Math.abs(centsOff) <= toleranceCents;
 
-    if (within) {
+    if (!count) {
+      // Suppressed frame: keep the hold pinned at zero and drop any grace so a
+      // fresh, clean hold begins the moment scoring resumes.
+      heldMs = 0;
+      lastWithinTs = null;
+    } else if (within) {
       heldMs += dt;
       lastWithinTs = nowMs;
     } else if (lastWithinTs != null && nowMs - lastWithinTs <= graceMs) {
