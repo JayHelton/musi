@@ -94,7 +94,7 @@ const TOOL_STOPPERS = {
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); if (chOscillators.length) stopChordRef(); },
   tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); },
-  ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
+  ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc || ear._voices.length) stopEarTone(); },
   timing: () => { if (timingDrill.playing) stopTimingDrill(); },
   sightreading: () => stopSightReading(),
   recorder: () => { if (recorder.playing) stopRecorder(); },

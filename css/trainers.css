@@ -80,6 +80,13 @@
 .ear-transport{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .ear-transport .btn.primary{flex:1 1 140px}
 .ear-transport .btn.sm{flex:0 1 110px}
+.ear-modal-card{margin:0 auto 14px;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--bg);max-width:520px;text-align:left}
+.ear-modal-kicker{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.9px;font-weight:700;margin-bottom:5px}
+.ear-modal-prompt{color:var(--text);font-size:.9rem;line-height:1.4;margin-bottom:8px}
+.ear-modal-progression{display:flex;flex-direction:column;gap:4px;color:var(--accent);font-weight:700;font-size:.9rem;line-height:1.35}
+.ear-modal-change{margin-top:8px;color:var(--muted);font-size:.82rem;line-height:1.45}
+.ear-mode-answers{justify-content:center}
+.mode-btn{min-width:118px}
 .ear-pulse{width:44px;height:44px;margin:0 auto 12px;border-radius:50%;border:1px solid var(--accent);background:var(--accent-dim);animation:earPulse .65s ease-out}
 @keyframes earPulse{
   0%{transform:scale(.8);opacity:.9}
@@ -178,6 +185,8 @@
   .vt-scale-field select{width:100%}
   .string-btn{padding:6px 10px;font-size:.8rem;min-width:42px}
   .ear-pulse{width:34px;height:34px;margin-bottom:8px}
+  .ear-modal-card{padding:12px}
+  .mode-btn{min-width:0;flex:1 1 44%}
   .timing-topline{align-items:stretch}
   .timing-readout{font-size:1.55rem}
   .timing-current{min-width:66px;padding:8px 10px}
