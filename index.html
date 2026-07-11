@@ -704,18 +704,22 @@
         <details class="adv-options">
           <summary><span class="adv-gear">&#9881;</span> Options</summary>
           <div class="sidebar-list">
+            <div class="sl-head">Training</div>
+            <div class="sl-scroll" id="sl-ear-exercise"></div>
+          </div>
+          <div class="sidebar-list">
             <div class="sl-head">Context</div>
             <div class="sl-scroll" id="sl-ear-context"></div>
           </div>
-          <div class="sidebar-list">
+          <div class="sidebar-list ear-tone-setting">
             <div class="sl-head">Pool</div>
             <div class="sl-scroll" id="sl-ear-pool"></div>
           </div>
-          <div class="sidebar-list">
+          <div class="sidebar-list ear-tone-setting">
             <div class="sl-head">Answer</div>
             <div class="sl-scroll" id="sl-ear-answer"></div>
           </div>
-          <div class="sidebar-list">
+          <div class="sidebar-list ear-tone-setting">
             <div class="sl-head">Octave</div>
             <div class="sl-scroll" id="sl-ear-octave"></div>
           </div>
@@ -731,6 +735,12 @@
         <div class="quiz-card">
           <div class="question" id="ear-question">Play to start.</div>
           <div class="ear-ripple-wrap" id="ear-ripple-wrap"></div>
+          <div class="ear-modal-card" id="ear-modal-card" hidden>
+            <div class="ear-modal-kicker">Modal chord progression</div>
+            <div class="ear-modal-prompt" id="ear-modal-prompt">Listen for the changed scale tone.</div>
+            <div class="ear-modal-progression" id="ear-modal-progression"></div>
+            <div class="ear-modal-change" id="ear-modal-change"></div>
+          </div>
           <div class="field-label" id="ear-answer-label">Pitch</div>
           <div class="note-btn-row" id="ear-answers"></div>
           <div class="fb-feedback" id="ear-feedback"></div>
