@@ -84,8 +84,6 @@ const GROUP_ICONS = {
 };
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
-const SWIPE_NAV_THRESHOLD = 70;
-const SWIPE_NAV_VERTICAL_LIMIT = 80;
 
 // Per-tool audio stoppers and initializers, shared by single-view navigation
 // and split-screen so behaviour stays consistent.
@@ -342,36 +340,6 @@ function isMobileSwipeNav() {
   return window.matchMedia(MOBILE_SWIPE_QUERY).matches;
 }
 
-function isSwipeBlockedTarget(target) {
-  return Boolean(target.closest([
-    'button',
-    'a',
-    'input',
-    'select',
-    'textarea',
-    '[contenteditable="true"]',
-    '.dock',
-    '.dock-group-menu',
-    '#hold-rec-btn',
-    '.hold-rec-overlay',
-    '.note-btn-row',
-    '.note-action-row',
-    '.timing-tap-pad',
-    '.int-picker',
-    '.rec-controls',
-    '.sl-scroll',
-    '.piano-wrap',
-    '.fb-wrap',
-    '.sr-staff-wrap',
-    '.guitar-tab-wrap',
-    '.riff-tab-wrap',
-    '.ref-table',
-    '.m-bar',
-    '.composer-timeline',
-    '.backing-progression',
-  ].join(',')));
-}
-
 function init() {
   const nav = document.getElementById('nav');
 
@@ -493,49 +461,6 @@ function init() {
     'easy');
 
   const activeSection = () => document.querySelector('.section.active')?.id;
-  let swipeStart = null;
-
-  function showAdjacentSection(direction) {
-    const currentId = activeSection()?.replace('sec-', '');
-    const currentIndex = TABS.findIndex(t => t.id === currentId);
-    if (currentIndex < 0) return;
-
-    // TABS is the visible feature order: top-to-bottom by group, left-to-right inside each group.
-    const nextIndex = (currentIndex + direction + TABS.length) % TABS.length;
-    closeAllGroupMenus();
-    showSection(TABS[nextIndex].id);
-  }
-
-  document.addEventListener('touchstart', (e) => {
-    if (!isMobileSwipeNav() || e.touches.length !== 1 || isSwipeBlockedTarget(e.target)) {
-      swipeStart = null;
-      return;
-    }
-
-    const touch = e.touches[0];
-    swipeStart = {
-      x: touch.clientX,
-      y: touch.clientY,
-      time: Date.now(),
-    };
-  }, { passive: true });
-
-  document.addEventListener('touchend', (e) => {
-    if (!swipeStart || !isMobileSwipeNav() || !e.changedTouches.length) return;
-
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - swipeStart.x;
-    const dy = touch.clientY - swipeStart.y;
-    swipeStart = null;
-
-    if (Math.abs(dx) < SWIPE_NAV_THRESHOLD) return;
-    if (Math.abs(dy) > SWIPE_NAV_VERTICAL_LIMIT) return;
-    if (Math.abs(dx) < Math.abs(dy) * 1.35) return;
-
-    showAdjacentSection(dx < 0 ? 1 : -1);
-  }, { passive: true });
-
-  document.addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
 
   document.addEventListener('keydown', (e) => {
     if (e.repeat) return;
