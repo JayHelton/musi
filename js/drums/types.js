@@ -8,7 +8,7 @@
 //
 // @typedef {'crash'|'ride'|'hihatClosed'|'hihatOpen'|'kick'|'snare'|'snareGhost'|'snareFlam'|'tomHigh'|'tomMid'|'tomFloor'} DrumInstrument
 // @typedef {{ instrument: DrumInstrument, step: number, velocity: number, probability?: number }} PatternStep
-// @typedef {{ id:string, title:string, category:'beat'|'fill'|'exercise', style:string, tags?:string[], difficulty:number, bpmRange:[number,number], meter:string, subdivision:string, bars:number, stepsPerBar:number, recommendedLoopBars?:number, notes?:string, steps:PatternStep[], tab:string, builtin?:boolean, createdAt?:string }} DrumPattern
+// @typedef {{ id:string, title:string, category:'beat'|'fill'|'exercise', style:string, tags?:string[], difficulty:number, bpmRange:[number,number], meter:string, subdivision:string, bars:number, stepsPerBar:number, recommendedLoopBars?:number, notes?:string, sourcePdf?:string, sourcePage?:number, parseMethod?:'count-row'|'visual-probability', steps:PatternStep[], tab:string, builtin?:boolean, createdAt?:string }} DrumPattern
 
 // Ordered top-to-bottom the way a drummer reads a kit: cymbals, hats, snare,
 // toms, kick. Tab rendering and the sequencer grid both follow this order.
