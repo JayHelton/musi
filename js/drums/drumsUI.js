@@ -317,7 +317,8 @@ function filteredPatterns() {
     if (libFilters.style !== 'all' && p.style !== libFilters.style) return false;
     if (libFilters.difficulty !== 'all' && String(p.difficulty) !== libFilters.difficulty) return false;
     if (libFilters.favOnly && !favs.includes(p.id)) return false;
-    if (q && !(`${p.title} ${p.style} ${p.category}`.toLowerCase().includes(q))) return false;
+    const tags = Array.isArray(p.tags) ? p.tags.join(' ') : '';
+    if (q && !(`${p.title} ${p.style} ${p.category} ${tags} ${p.notes || ''}`.toLowerCase().includes(q))) return false;
     return true;
   });
 }
@@ -339,6 +340,7 @@ function buildPatternCard(p) {
   const card = document.createElement('div');
   card.className = 'dr-card';
   const fav = isFavorite(p.id);
+  const tags = Array.isArray(p.tags) ? p.tags : [];
   card.innerHTML = `
     <div class="dr-card-head">
       <div>
@@ -349,13 +351,14 @@ function buildPatternCard(p) {
           <span class="dr-badge">D${p.difficulty}</span>
           <span class="dr-badge">${p.meter}</span>
           <span class="dr-badge">${p.bpmRange[0]}–${p.bpmRange[1]} BPM</span>
+          ${tags.map((tag) => `<span class="dr-badge tag">${escapeHtml(tag)}</span>`).join('')}
           ${p.builtin ? '' : '<span class="dr-badge user">Mine</span>'}
         </div>
       </div>
       <button class="dr-fav ${fav ? 'on' : ''}" title="Favorite" aria-label="Favorite">${fav ? '★' : '☆'}</button>
     </div>
     <div class="dr-tab-pre-wrap"><pre class="dr-tab-pre">${escapeHtml(p.tab)}</pre></div>
-    ${p.notes ? `<div class="dr-card-notes">${escapeHtml(p.notes)}</div>` : ''}
+    ${p.notes ? `<section class="dr-card-notes" aria-label="Notes"><strong>Notes</strong><p>${escapeHtml(p.notes)}</p></section>` : ''}
     <div class="dr-card-actions">
       <button class="btn sm primary dr-a-play">▶ Play</button>
       <button class="btn sm dr-a-load">Load in Machine</button>
