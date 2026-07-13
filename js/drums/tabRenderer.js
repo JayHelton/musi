@@ -84,7 +84,7 @@ export function renderTab(pattern) {
   const colWidth = new Array(total).fill(1);
   for (let i = 0; i < total; i++) colWidth[i] = Math.max(1, count[i].length);
 
-  const labelWidth = Math.max(5, ...activeLanes.map((r) => r.lane.label.length));
+  const labelWidth = Math.max(6, ...activeLanes.map((r) => r.lane.label.length));
   const pad = (str, w) => str + ' '.repeat(Math.max(0, w - str.length));
 
   const renderRow = (label, cells) => {
