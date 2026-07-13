@@ -5,6 +5,7 @@
 
 import { parseTab } from './tabParser.js';
 import { stepsPerBeat } from './types.js';
+import { LESSON_PATTERNS } from './lessonPatterns.js';
 
 function slug(title) {
   return 'builtin-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -586,7 +587,7 @@ K     | X - - - - - - - X - - - - - - -`,
   },
 ];
 
-export const BUILTIN_PATTERNS = RAW.map(makePattern);
+export const BUILTIN_PATTERNS = [...RAW.map(makePattern), ...LESSON_PATTERNS];
 
 export function getBuiltinById(id) {
   return BUILTIN_PATTERNS.find((p) => p.id === id) || null;

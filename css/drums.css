@@ -29,12 +29,15 @@
 .dr-badge.cat-beat{background:var(--accent-dim);color:var(--accent)}
 .dr-badge.cat-fill{background:rgba(124,91,245,.14);color:#b39bff}
 .dr-badge.cat-exercise{background:rgba(46,204,113,.14);color:var(--ok)}
+.dr-badge.tag{background:rgba(255,255,255,.08);color:var(--accent2)}
 .dr-badge.user{background:rgba(243,156,18,.16);color:var(--warn)}
 .dr-fav{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1;padding:2px;transition:color .15s ease}
 .dr-fav:hover,.dr-fav.on{color:var(--accent)}
 .dr-tab-pre-wrap{min-width:0;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--bg);border:1px solid var(--border);border-radius:10px}
 .dr-tab-pre{font-family:'Courier New',monospace;font-size:.82rem;line-height:1.5;color:var(--accent);padding:12px;margin:0;display:inline-block;min-width:100%;box-sizing:border-box;white-space:pre}
-.dr-card-notes{font-size:.8rem;color:var(--muted);line-height:1.5;font-style:italic;overflow-wrap:anywhere;word-break:break-word}
+.dr-card-notes{font-size:.8rem;color:var(--muted);line-height:1.5;overflow-wrap:anywhere;word-break:break-word;background:rgba(255,255,255,.035);border:1px solid var(--border);border-radius:10px;padding:10px}
+.dr-card-notes strong{display:block;color:var(--text);font-size:.68rem;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.dr-card-notes p{margin:0;font-style:italic}
 .dr-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;min-width:0}
 .dr-card-actions .btn{min-width:0}
 
