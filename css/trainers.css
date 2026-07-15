@@ -196,6 +196,7 @@
 .pt-field{display:flex;flex-direction:column;gap:4px;text-align:left}
 .pt-field span{color:var(--muted);font-size:.8rem}
 .pt-field select{padding:6px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.9rem;min-width:120px;font-family:inherit}
+.pt-pattern-field select{min-width:260px}
 .pt-stage{font-size:.9rem;color:var(--muted);text-align:center;margin:6px 0}
 .pt-stage-name{color:var(--accent);font-weight:600}
 .pt-prompt{font-size:1.6rem;font-weight:700;color:var(--text);text-align:center;margin:4px 0}
