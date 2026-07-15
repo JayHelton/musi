@@ -4,15 +4,15 @@ import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext } from './musicalContext.js';
 import { createPitchTracker } from './pitch.js';
 import { createPitchMatcher, midiToLabel } from './pitchMatch.js';
-import { buildStages, chooseRootMidi } from './pitchExercises.js';
+import { buildStages, chooseRootMidi, SCALE_PATTERNS } from './pitchExercises.js';
 import { stopTuner, tuner } from './vocalTrainer.js';
 
 // "Pitch trainer" — a guided, mic-driven sing-the-note drill that lives in the
-// Pitch section alongside the tuner. It cycles through interval, scale, and
-// arpeggio exercises rooted on the shared musical context's key, transposed
-// into the singer's configured vocal range. The actual pitch-matching (how
-// close / how long held) is delegated to the reusable engine in pitchMatch.js
-// so the same machinery can power future sing-along features.
+// Pitch section alongside the tuner. It walks selectable vocal warmup patterns
+// through the shared musical context's current scale and key, transposed into
+// the singer's configured vocal range. The actual pitch-matching (how close /
+// how long held) is delegated to the reusable engine in pitchMatch.js so the
+// same machinery can power future sing-along features.
 
 // Challenge presets. The "Quick" level uses a half-second hold for a fast,
 // low-commitment drill, while the rest keep the hold time at a full second or
@@ -59,6 +59,7 @@ const pt = {
   matcher: null,
 
   difficulty: 'easy',
+  pattern: 'five-tone',
   rangeLow: 48,
   rangeHigh: 72,
   guide: true,
@@ -203,15 +204,20 @@ function ptStopReplay() {
 // ---- Exercise sequencing ----------------------------------------------------
 
 function currentStage() {
-  if (!pt.stages.length) pt.stages = buildStages();
+  if (!pt.stages.length) {
+    const { scale } = getContext();
+    pt.stages = buildStages(scale, pt.pattern);
+  }
   return pt.stages[pt.stageIdx % pt.stages.length];
 }
 
 // Resolve the active stage's semitone offsets into concrete MIDI targets placed
 // in the singer's range, rooted on the shared context key.
 function buildSequence() {
+  const { root, scale } = getContext();
+  pt.stages = buildStages(scale, pt.pattern);
+  pt.stageIdx = 0;
   const stage = currentStage();
-  const { root } = getContext();
   const parsed = parseNote(root);
   const rootPc = parsed ? parsed.semi : 0;
   const span = stage.offsets.reduce((m, o) => Math.max(m, o), 0);
@@ -229,7 +235,8 @@ function currentTargetMidi() {
 function stageLabel() {
   const stage = currentStage();
   const { root } = getContext();
-  return `${root} · ${stage.label}`;
+  const hint = stage.hint ? ` · ${stage.hint}` : '';
+  return `${root} · ${stage.label}${hint}`;
 }
 
 function updatePrompt() {
@@ -369,13 +376,17 @@ async function startPitchTrainer() {
 
   ensureAudio();
   pt.difficulty = getSetting('pitchTrainer.difficulty', pt.difficulty, DIFFICULTIES.map(d => d.id));
+  pt.pattern = getSetting('pitchTrainer.pattern', pt.pattern, SCALE_PATTERNS.map(p => p.id));
   const diff = difficultyById(pt.difficulty);
   pt.matcher = createPitchMatcher({
     holdMs: diff.holdMs,
     toleranceCents: diff.toleranceCents,
     windowCents: WINDOW_CENTS,
   });
-  pt.stages = buildStages();
+  {
+    const { scale } = getContext();
+    pt.stages = buildStages(scale, pt.pattern);
+  }
   pt.stageIdx = 0;
   pt.completed = 0;
   pt.guideEndsAt = 0;
@@ -527,9 +538,18 @@ function rebuildIfRunning() {
   }
 }
 
+function rebuildPreviewStage() {
+  const { scale } = getContext();
+  pt.stages = buildStages(scale, pt.pattern);
+  pt.stageIdx = 0;
+  const stageEl = el('pt-stage');
+  if (stageEl) stageEl.innerHTML = `<span class="pt-stage-name">${stageLabel()}</span>`;
+}
+
 function initPitchTrainer() {
   // Load persisted config every time the section opens.
   pt.difficulty = getSetting('pitchTrainer.difficulty', pt.difficulty, DIFFICULTIES.map(d => d.id));
+  pt.pattern = getSetting('pitchTrainer.pattern', pt.pattern, SCALE_PATTERNS.map(p => p.id));
   pt.rangeLow = Number(getSetting('pitchTrainer.rangeLow', pt.rangeLow));
   pt.rangeHigh = Number(getSetting('pitchTrainer.rangeHigh', pt.rangeHigh));
   pt.guide = getSetting('pitchTrainer.guide', pt.guide) !== false;
@@ -538,6 +558,9 @@ function initPitchTrainer() {
 
   if (pt.initialized) {
     syncRangeUI();
+    const patternSel = el('pt-pattern');
+    if (patternSel) patternSel.value = pt.pattern;
+    if (!pt.running) rebuildPreviewStage();
     setReplayButtonActive(false);
     return;
   }
@@ -569,6 +592,24 @@ function initPitchTrainer() {
   const lowSel = el('pt-range-low');
   const highSel = el('pt-range-high');
   const presetSel = el('pt-range-preset');
+  const patternSel = el('pt-pattern');
+
+  if (patternSel) {
+    patternSel.innerHTML = '';
+    SCALE_PATTERNS.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.label} · ${p.hint}`;
+      patternSel.appendChild(opt);
+    });
+    patternSel.value = pt.pattern;
+    patternSel.onchange = () => {
+      pt.pattern = patternSel.value;
+      saveSetting('pitchTrainer.pattern', pt.pattern);
+      rebuildIfRunning();
+      if (!pt.running) rebuildPreviewStage();
+    };
+  }
 
   fillNoteSelect(lowSel, pt.rangeLow);
   fillNoteSelect(highSel, pt.rangeHigh);
@@ -624,10 +665,13 @@ function initPitchTrainer() {
   // Keep the prompt/key in sync if the shared context key changes mid-drill.
   subscribeContext(() => {
     if (pt.running) { buildSequence(); setTarget(); }
-    else { const stageEl = el('pt-stage'); if (stageEl && pt.stages.length) stageEl.innerHTML = `<span class="pt-stage-name">${stageLabel()}</span>`; }
+    else rebuildPreviewStage();
   });
 
-  if (!pt.stages.length) pt.stages = buildStages();
+  if (!pt.stages.length) {
+    const { scale } = getContext();
+    pt.stages = buildStages(scale, pt.pattern);
+  }
   const stageEl = el('pt-stage');
   if (stageEl) stageEl.innerHTML = `<span class="pt-stage-name">${stageLabel()}</span>`;
 }
