@@ -6,6 +6,13 @@ import { getContext, setContext, subscribeContext } from './musicalContext.js';
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
 const TRIAD_SUFFIX = ['','m','m','','','m','dim'];
 const SEVENTH_SUFFIX = ['maj7','m7','m7','maj7','7','m7','m7b5'];
+const MAJOR_SCALE = 'Major (Ionian)';
+const TRIAD_QUALITIES = {
+  '4,7': { name: 'Major', suffix: '' },
+  '3,7': { name: 'Minor', suffix: 'm' },
+  '3,6': { name: 'Diminished', suffix: 'dim' },
+  '4,8': { name: 'Augmented', suffix: 'aug' },
+};
 const KEY_SIGS = {
   'C':'none','G':'1#','D':'2#','A':'3#','E':'4#','B':'5#','F#':'6#','Gb':'6b',
   'Db':'5b','Ab':'4b','Eb':'3b','Bb':'2b','F':'1b',
@@ -323,6 +330,121 @@ function renderRefModes() {
   wrap.innerHTML = html;
 }
 
+function noteSemi(note) {
+  const p = parseNote(note);
+  return p ? p.semi : null;
+}
+
+function triadQuality(notes) {
+  const root = noteSemi(notes[0]);
+  const third = noteSemi(notes[1]);
+  const fifth = noteSemi(notes[2]);
+  if (root == null || third == null || fifth == null) return { name: 'Unknown', suffix: '' };
+
+  const thirdIv = (third - root + 12) % 12;
+  const fifthIv = (fifth - root + 12) % 12;
+  return TRIAD_QUALITIES[`${thirdIv},${fifthIv}`] || {
+    name: `${INTERVAL_LABELS[thirdIv] || thirdIv} + ${INTERVAL_LABELS[fifthIv] || fifthIv}`,
+    suffix: '',
+  };
+}
+
+function diatonicTriadsForNotes(notes) {
+  if (!notes || notes.length !== 7) return [];
+  return notes.map((root, i) => {
+    const tones = [root, notes[(i + 2) % 7], notes[(i + 4) % 7]];
+    const quality = triadQuality(tones);
+    return {
+      degree: DEGREE_ROMAN[i],
+      root,
+      tones,
+      quality: quality.name,
+      suffix: quality.suffix,
+      display: `${root} ${quality.name}`,
+      symbol: `${root}${quality.suffix}`,
+    };
+  });
+}
+
+function modeAlterations(scaleName) {
+  const major = SCALES[MAJOR_SCALE];
+  const current = SCALES[scaleName];
+  if (!major || !current || current.length !== 7) return [];
+
+  return current.map((d, i) => {
+    const diff = d[1] - major[i][1];
+    if (!diff) return null;
+    const degree = i + 1;
+    if (diff === 1) return `#${degree}`;
+    if (diff === -1) return `b${degree}`;
+    if (diff === 2) return `##${degree}`;
+    if (diff === -2) return `bb${degree}`;
+    return `${diff > 0 ? '+' : ''}${diff} on ${degree}`;
+  }).filter(Boolean);
+}
+
+function renderModalChordVisualizer() {
+  const currentDef = SCALES[refScale];
+  const majorNotes = getScaleNotes(refRoot, MAJOR_SCALE);
+  const modalNotes = getScaleNotes(refRoot, refScale);
+  if (!currentDef || currentDef.length !== 7 || !majorNotes || !modalNotes) return '';
+
+  const majorTriads = diatonicTriadsForNotes(majorNotes);
+  const modalTriads = diatonicTriadsForNotes(modalNotes);
+  const alterations = modeAlterations(refScale);
+  const changedRows = modalTriads
+    .map((chord, i) => ({ chord, base: majorTriads[i] }))
+    .filter(({ chord, base }) => chord.display !== base.display || chord.tones.join(',') !== base.tones.join(','));
+
+  const modeLabel = refScale.replace(/\s*\(.*\)/, '');
+  const alterationText = alterations.length ? alterations.join(', ') : 'no scale-degree changes';
+  const changedText = `${changedRows.length} chord${changedRows.length === 1 ? '' : 's'} changed`;
+
+  let html = `<div class="modal-chord-viz">`;
+  html += `<div class="modal-chord-head">`;
+  html += `<div>`;
+  html += `<div class="modal-chord-kicker">Modal Chord Visualizer</div>`;
+  html += `<h3>${refRoot} Major &rarr; ${refRoot} ${modeLabel}</h3>`;
+  html += `<p>Start with the standard major key, apply <strong>${alterationText}</strong>, then respell every diatonic triad built by stacking 1-3-5 inside the new scale.</p>`;
+  html += `</div>`;
+  html += `<div class="modal-chord-count">${changedText}</div>`;
+  html += `</div>`;
+  html += `<div class="modal-scale-flow">`;
+  html += `<div><span>Major scale</span><strong>${majorNotes.join(' ')}</strong></div>`;
+  html += `<div><span>${modeLabel} scale</span><strong>${modalNotes.join(' ')}</strong></div>`;
+  html += `</div>`;
+  html += `<div class="modal-chord-scroll"><table class="modal-chord-table">`;
+  html += `<tr><th>Degree</th><th>Major-key chord</th><th>Modal chord</th><th>Changed tones</th></tr>`;
+  modalTriads.forEach((chord, i) => {
+    const base = majorTriads[i];
+    const changed = chord.display !== base.display || chord.tones.join(',') !== base.tones.join(',');
+    const toneHtml = chord.tones.map((tone, toneIndex) => {
+      const toneChanged = tone !== base.tones[toneIndex];
+      return `<span class="modal-tone${toneChanged ? ' changed' : ''}">${tone}</span>`;
+    }).join('');
+    const changedToneText = chord.tones
+      .map((tone, toneIndex) => tone !== base.tones[toneIndex] ? `${base.tones[toneIndex]} &rarr; ${tone}` : null)
+      .filter(Boolean)
+      .join(', ');
+    html += `<tr class="${changed ? 'changed' : ''}">`;
+    html += `<td><span class="modal-degree">${chord.degree}</span></td>`;
+    html += `<td><strong>${base.display}</strong><span class="modal-tones">${base.tones.join(' ')}</span></td>`;
+    html += `<td><strong>${chord.display}</strong><span class="modal-tones">${toneHtml}</span></td>`;
+    html += `<td>${changedToneText || '<span class="modal-unchanged">unchanged</span>'}</td>`;
+    html += `</tr>`;
+  });
+  html += `</table></div>`;
+
+  if (changedRows.length) {
+    html += `<div class="modal-chord-summary">`;
+    html += `Modal chords: ${changedRows.map(({ chord, base }) => `<strong>${chord.display}</strong> instead of ${base.display}`).join(' · ')}`;
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
 // MIDI note numbers of each open string for the active tuning (low → high).
 function refOpenMidis() {
   const strings = TUNINGS[refTuning] || TUNINGS['Standard'];
@@ -510,7 +632,7 @@ function renderScaleRef() {
   });
   html += `</table>`;
 
-  if (refScale === 'Major (Ionian)' && notes.length === 7) {
+  if (refScale === MAJOR_SCALE && notes.length === 7) {
     html += `<div class="chord-row"><strong>Diatonic Triads:</strong> <span>`;
     html += notes.map((n, i) => DEGREE_ROMAN[i] + ': ' + n + TRIAD_SUFFIX[i]).join('  ');
     html += `</span></div>`;
@@ -518,6 +640,8 @@ function renderScaleRef() {
     html += notes.map((n, i) => DEGREE_ROMAN[i] + ': ' + n + SEVENTH_SUFFIX[i]).join('  ');
     html += `</span></div>`;
   }
+
+  html += renderModalChordVisualizer();
 
   const tabStr = render3NPSTab(refRoot, refScale);
   if (tabStr) {

@@ -7,6 +7,33 @@
 .ref-info{font-size:.9rem;color:var(--muted);margin:8px 0}
 .chord-row{margin:8px 0;font-size:.9rem;color:var(--muted)}
 .chord-row span{color:var(--accent);font-family:monospace;letter-spacing:1px}
+.modal-chord-viz{margin:18px 0 14px;padding:18px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,rgba(255,107,53,0.07),rgba(255,107,53,0.02))}
+.modal-chord-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:14px}
+.modal-chord-kicker{font-size:.66rem;color:var(--accent);text-transform:uppercase;letter-spacing:1.2px;font-weight:800;margin-bottom:4px}
+.modal-chord-head h3{margin:0 0 6px;color:var(--text);font-size:1.05rem}
+.modal-chord-head p{margin:0;color:var(--muted);font-size:.85rem;line-height:1.45;max-width:680px}
+.modal-chord-head p strong{color:var(--accent)}
+.modal-chord-count{flex:0 0 auto;padding:7px 11px;border-radius:999px;background:var(--accent-dim);color:var(--accent);font-size:.75rem;font-weight:750;white-space:nowrap}
+.modal-scale-flow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.modal-scale-flow>div{padding:12px;border-radius:12px;background:rgba(0,0,0,0.18);border:1px solid var(--border)}
+.modal-scale-flow span{display:block;margin-bottom:4px;font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700}
+.modal-scale-flow strong{font-family:'Courier New',monospace;color:var(--text);letter-spacing:1px}
+.modal-chord-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.modal-chord-table{width:100%;border-collapse:separate;border-spacing:0;border-radius:12px;overflow:hidden;min-width:680px}
+.modal-chord-table th,.modal-chord-table td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:.84rem;vertical-align:top}
+.modal-chord-table th{background:var(--bg2);color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.6px}
+.modal-chord-table td{background:rgba(20,20,20,0.7);color:var(--muted)}
+.modal-chord-table tr:last-child td{border-bottom:none}
+.modal-chord-table tr.changed td{background:rgba(255,107,53,0.08)}
+.modal-chord-table strong{display:block;color:var(--text);margin-bottom:4px}
+.modal-degree{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--bg2);color:var(--muted);font-weight:800;font-size:.72rem}
+.modal-chord-table tr.changed .modal-degree{background:var(--accent-dim);color:var(--accent)}
+.modal-tones{display:flex;gap:4px;flex-wrap:wrap;font-family:'Courier New',monospace;color:var(--muted)}
+.modal-tone{display:inline-flex;padding:2px 6px;border-radius:8px;background:rgba(255,255,255,0.04)}
+.modal-tone.changed{background:var(--accent);color:#0a0a0a;font-weight:800}
+.modal-unchanged{color:var(--muted);font-style:italic}
+.modal-chord-summary{margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.04);color:var(--muted);font-size:.85rem;line-height:1.5}
+.modal-chord-summary strong{color:var(--accent)}
 .guitar-tab-wrap{background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;padding:18px;margin:12px 0;overflow-x:auto}
 .guitar-tab-wrap pre{font-family:'Courier New',monospace;font-size:.95rem;color:var(--accent);line-height:1.8;margin:0;letter-spacing:1px}
 .guitar-tab-wrap .tab-title{font-size:.9rem;color:var(--muted);margin-bottom:8px;font-weight:600}
@@ -184,6 +211,10 @@ body.split-mode #ref-modes{display:none}
 @media(max-width:768px){
   .ref-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .ref-table th,.ref-table td{white-space:nowrap;padding:8px 10px;font-size:.82rem}
+  .modal-chord-viz{padding:14px;margin:14px 0}
+  .modal-chord-head{flex-direction:column;gap:10px}
+  .modal-scale-flow{grid-template-columns:1fr}
+  .modal-chord-table th,.modal-chord-table td{padding:8px 10px;font-size:.78rem}
   .guitar-tab-wrap{padding:12px;-webkit-overflow-scrolling:touch}
   .guitar-tab-wrap pre{font-size:.75rem;line-height:1.6}
   .chord-picker{gap:6px}
