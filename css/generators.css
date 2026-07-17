@@ -136,6 +136,23 @@ body.split-mode #ref-modes{display:none}
 .chord-ref-name{margin:0;color:var(--accent);font-size:1.3rem;font-weight:700}
 .chord-ref-full{font-size:.85rem;font-weight:400;color:var(--muted)}
 .chord-ref-play{flex:0 0 auto}
+.chord-position-card{margin:0 0 14px;padding:14px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,0.03)}
+.chord-position-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.chord-position-kicker{font-size:.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:800;margin-bottom:3px}
+.chord-position-title{font-size:.98rem;color:var(--text);font-weight:700}
+.chord-position-help{max-width:430px;color:var(--muted);font-size:.76rem;line-height:1.35;text-align:right}
+.chord-position-empty{margin:0;color:var(--muted);font-size:.84rem}
+.chord-position-strings{display:grid;grid-template-columns:repeat(auto-fit,minmax(82px,1fr));gap:8px}
+.chord-position-string{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 6px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);min-width:0}
+.chord-position-string.muted{opacity:.58}
+.cps-label{font-size:.68rem;color:var(--muted);font-weight:700}
+.cps-dot{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#0a0a0a;font-weight:900;font-size:.9rem;box-shadow:0 0 0 2px rgba(0,0,0,0.25)}
+.cps-dot.root{box-shadow:0 0 0 2px var(--text),0 0 12px var(--accent-glow)}
+.chord-position-string.muted .cps-dot{background:var(--bg);color:var(--muted);border:1px solid var(--border);box-shadow:none}
+.cps-fret{font-size:.68rem;color:var(--text);font-weight:650}
+.cps-tone{font-size:.66rem;color:var(--muted);white-space:nowrap}
+.ref-note.suggested{outline:2px solid var(--text);outline-offset:2px;transform:scale(1.06)}
+.chord-finger{position:absolute;right:-6px;top:-7px;display:flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--text);color:#0a0a0a;font-size:.55rem;font-weight:900;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 .chord-builder-block{margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
 .chord-builder-head{margin-bottom:14px}
 .chord-builder-head h3{margin:0 0 4px;color:var(--accent);font-size:1.05rem}
@@ -144,6 +161,9 @@ body.split-mode #ref-modes{display:none}
 @media(max-width:768px){
   #sec-chords .sidebar{order:1}
   #sec-chords .quiz-main{order:2}
+  .chord-position-head{flex-direction:column;gap:8px}
+  .chord-position-help{text-align:left}
+  .chord-position-strings{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
 }
 
 /* Chord Builder */
