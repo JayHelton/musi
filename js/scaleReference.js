@@ -354,12 +354,21 @@ function diatonicTriadsForNotes(notes) {
   return notes.map((root, i) => {
     const tones = [root, notes[(i + 2) % 7], notes[(i + 4) % 7]];
     const quality = triadQuality(tones);
+    const rootSemi = noteSemi(tones[0]);
+    const formula = tones.map((tone, toneIndex) => {
+      if (toneIndex === 0 || rootSemi == null) return 'R';
+      const semi = noteSemi(tone);
+      if (semi == null) return '?';
+      const interval = (semi - rootSemi + 12) % 12;
+      return DEGREE_LABELS[interval] || INTERVAL_LABELS[interval] || String(interval);
+    });
     return {
       degree: DEGREE_ROMAN[i],
       root,
       tones,
       quality: quality.name,
       suffix: quality.suffix,
+      formula,
       display: `${root} ${quality.name}`,
       symbol: `${root}${quality.suffix}`,
     };
@@ -383,38 +392,65 @@ function modeAlterations(scaleName) {
   }).filter(Boolean);
 }
 
+function activeModalContext() {
+  const def = SCALES[refScale];
+  const notes = getScaleNotes(refRoot, refScale);
+  if (!def || def.length !== 7 || !notes) return null;
+
+  const modeIndex = clampModeIndex(refModeIndex);
+  const semis = def.map(d => d[1]);
+  const modalSemis = [];
+  const modalNotes = [];
+  for (let i = 0; i < def.length; i++) {
+    modalSemis.push(((semis[(modeIndex + i) % def.length] - semis[modeIndex]) % 12 + 12) % 12);
+    modalNotes.push(notes[(modeIndex + i) % def.length]);
+  }
+
+  const modeName = findScaleNameBySemis(modalSemis) || (modeIndex === 0 ? refScale : `Mode ${modeIndex + 1}`);
+  return {
+    root: modalNotes[0],
+    name: modeName.replace(/\s*\(.*\)/, ''),
+    notes: modalNotes,
+    semis: modalSemis,
+    modeIndex,
+  };
+}
+
 function renderModalChordVisualizer() {
   const currentDef = SCALES[refScale];
-  const majorNotes = getScaleNotes(refRoot, MAJOR_SCALE);
-  const modalNotes = getScaleNotes(refRoot, refScale);
-  if (!currentDef || currentDef.length !== 7 || !majorNotes || !modalNotes) return '';
+  const modal = activeModalContext();
+  const majorNotes = getScaleNotes(modal ? modal.root : refRoot, MAJOR_SCALE);
+  if (!currentDef || currentDef.length !== 7 || !modal || !majorNotes) return '';
 
   const majorTriads = diatonicTriadsForNotes(majorNotes);
-  const modalTriads = diatonicTriadsForNotes(modalNotes);
+  const modalTriads = diatonicTriadsForNotes(modal.notes);
   const alterations = modeAlterations(refScale);
   const changedRows = modalTriads
     .map((chord, i) => ({ chord, base: majorTriads[i] }))
     .filter(({ chord, base }) => chord.display !== base.display || chord.tones.join(',') !== base.tones.join(','));
 
-  const modeLabel = refScale.replace(/\s*\(.*\)/, '');
-  const alterationText = alterations.length ? alterations.join(', ') : 'no scale-degree changes';
-  const changedText = `${changedRows.length} chord${changedRows.length === 1 ? '' : 's'} changed`;
+  const sourceLabel = modal.modeIndex === 0
+    ? `${refRoot} ${refScale.replace(/\s*\(.*\)/, '')}`
+    : `${refRoot} ${refScale} degree ${modal.modeIndex + 1}`;
+  const alterationText = modal.modeIndex === 0
+    ? (alterations.length ? alterations.join(', ') : 'no scale-degree changes')
+    : 'same parent notes, rotated to the selected tonal center';
 
   let html = `<div class="modal-chord-viz">`;
   html += `<div class="modal-chord-head">`;
   html += `<div>`;
-  html += `<div class="modal-chord-kicker">Modal Chord Visualizer</div>`;
-  html += `<h3>${refRoot} Major &rarr; ${refRoot} ${modeLabel}</h3>`;
-  html += `<p>Start with the standard major key, apply <strong>${alterationText}</strong>, then respell every diatonic triad built by stacking 1-3-5 inside the new scale.</p>`;
+  html += `<div class="modal-chord-kicker">Mode triads</div>`;
+  html += `<h3>${modal.root} ${modal.name} chord triads</h3>`;
+  html += `<p>For the selected key/mode, each interval stacks scale degrees 1-3-5 from that note. This shows exactly which notes make each modal chord.</p>`;
   html += `</div>`;
-  html += `<div class="modal-chord-count">${changedText}</div>`;
+  html += `<div class="modal-chord-count">${modal.notes.join(' ')}</div>`;
   html += `</div>`;
   html += `<div class="modal-scale-flow">`;
-  html += `<div><span>Major scale</span><strong>${majorNotes.join(' ')}</strong></div>`;
-  html += `<div><span>${modeLabel} scale</span><strong>${modalNotes.join(' ')}</strong></div>`;
+  html += `<div><span>Selected source</span><strong>${sourceLabel}</strong></div>`;
+  html += `<div><span>Mode rule</span><strong>${alterationText}</strong></div>`;
   html += `</div>`;
   html += `<div class="modal-chord-scroll"><table class="modal-chord-table">`;
-  html += `<tr><th>Degree</th><th>Major-key chord</th><th>Modal chord</th><th>Changed tones</th></tr>`;
+  html += `<tr><th>Interval</th><th>Scale degree</th><th>Chord triad</th><th>Notes in chord</th><th>Formula</th></tr>`;
   modalTriads.forEach((chord, i) => {
     const base = majorTriads[i];
     const changed = chord.display !== base.display || chord.tones.join(',') !== base.tones.join(',');
@@ -422,22 +458,19 @@ function renderModalChordVisualizer() {
       const toneChanged = tone !== base.tones[toneIndex];
       return `<span class="modal-tone${toneChanged ? ' changed' : ''}">${tone}</span>`;
     }).join('');
-    const changedToneText = chord.tones
-      .map((tone, toneIndex) => tone !== base.tones[toneIndex] ? `${base.tones[toneIndex]} &rarr; ${tone}` : null)
-      .filter(Boolean)
-      .join(', ');
     html += `<tr class="${changed ? 'changed' : ''}">`;
     html += `<td><span class="modal-degree">${chord.degree}</span></td>`;
-    html += `<td><strong>${base.display}</strong><span class="modal-tones">${base.tones.join(' ')}</span></td>`;
-    html += `<td><strong>${chord.display}</strong><span class="modal-tones">${toneHtml}</span></td>`;
-    html += `<td>${changedToneText || '<span class="modal-unchanged">unchanged</span>'}</td>`;
+    html += `<td><strong>${modal.notes[i]}</strong><span class="modal-tones">${INTERVAL_LABELS[modal.semis[i]] || DEGREE_LABELS[modal.semis[i]] || modal.semis[i]}</span></td>`;
+    html += `<td><strong>${chord.display}</strong><span class="modal-symbol">${chord.symbol}</span></td>`;
+    html += `<td><span class="modal-tones">${toneHtml}</span></td>`;
+    html += `<td><span class="modal-tones">${chord.formula.join(' - ')}</span></td>`;
     html += `</tr>`;
   });
   html += `</table></div>`;
 
   if (changedRows.length) {
     html += `<div class="modal-chord-summary">`;
-    html += `Modal chords: ${changedRows.map(({ chord, base }) => `<strong>${chord.display}</strong> instead of ${base.display}`).join(' · ')}`;
+    html += `Compared with ${modal.root} Major, modal-color triads are: ${changedRows.map(({ chord, base }) => `<strong>${chord.display}</strong> instead of ${base.display}`).join(' · ')}`;
     html += `</div>`;
   }
 
@@ -500,7 +533,7 @@ function renderRefModeRow() {
     btn.onclick = () => {
       refModeIndex = index;
       saveSetting('ref.modeIndex', refModeIndex);
-      renderRefFretboard();
+      renderScaleRef();
     };
     row.appendChild(btn);
   });

@@ -26,6 +26,7 @@
 .modal-chord-table tr:last-child td{border-bottom:none}
 .modal-chord-table tr.changed td{background:rgba(255,107,53,0.08)}
 .modal-chord-table strong{display:block;color:var(--text);margin-bottom:4px}
+.modal-symbol{display:block;color:var(--accent);font-family:'Courier New',monospace;font-size:.78rem;font-weight:700}
 .modal-degree{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--bg2);color:var(--muted);font-weight:800;font-size:.72rem}
 .modal-chord-table tr.changed .modal-degree{background:var(--accent-dim);color:var(--accent)}
 .modal-tones{display:flex;gap:4px;flex-wrap:wrap;font-family:'Courier New',monospace;color:var(--muted)}
