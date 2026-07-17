@@ -52,6 +52,7 @@ const pt = {
   running: false,
   initialized: false,
   stream: null,
+  source: null,
   analyser: null,
   buf: null,
   rafId: null,
@@ -360,14 +361,15 @@ function loop() {
 }
 
 function buildConstraints() {
-  return {
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      channelCount: 1,
-    },
-  };
+  const supported = (navigator.mediaDevices.getSupportedConstraints &&
+    navigator.mediaDevices.getSupportedConstraints()) || {};
+  const audio = {};
+  if (supported.echoCancellation) audio.echoCancellation = false;
+  if (supported.noiseSuppression) audio.noiseSuppression = false;
+  if (supported.autoGainControl) audio.autoGainControl = false;
+  if (supported.channelCount) audio.channelCount = 1;
+  if (supported.sampleRate) audio.sampleRate = 48000;
+  return Object.keys(audio).length ? { audio } : { audio: true };
 }
 
 async function startPitchTrainer() {
@@ -398,13 +400,13 @@ async function startPitchTrainer() {
     } catch (constraintErr) {
       pt.stream = await requestMicStream({ audio: true });
     }
-    const source = audioCtx.createMediaStreamSource(pt.stream);
+    pt.source = audioCtx.createMediaStreamSource(pt.stream);
     pt.analyser = audioCtx.createAnalyser();
     pt.analyser.fftSize = 4096;
     pt.analyser.smoothingTimeConstant = 0;
     pt.buf = new Float32Array(pt.analyser.fftSize);
-    pt.tracker = createPitchTracker({ sampleRate: audioCtx.sampleRate, maxFreq: 1400 });
-    source.connect(pt.analyser);
+    pt.tracker = createPitchTracker({ sampleRate: audioCtx.sampleRate, maxFreq: 1400, minRms: 0.006 });
+    pt.source.connect(pt.analyser);
 
     pt.running = true;
     setToggleLabel(true);
@@ -430,6 +432,7 @@ function stopPitchTrainer() {
   if (pt.rafId) { cancelAnimationFrame(pt.rafId); pt.rafId = null; }
   if (pt.tracker) pt.tracker.reset();
   if (pt.matcher) pt.matcher.reset();
+  if (pt.source) { try { pt.source.disconnect(); } catch (e) { /* noop */ } pt.source = null; }
   if (pt.stream) { releaseMicStream(pt.stream); pt.stream = null; }
   stopGuideTone();
   setToggleLabel(false);
