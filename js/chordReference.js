@@ -11,6 +11,8 @@ const DEGREE_LABELS = {
   6:'b5', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7'
 };
 const CH_FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
+const CH_MAX_FRET = 24;
+const CH_GRIP_SPAN = 4;
 
 let chRoot = 'C';
 let chChord = 'Major';
@@ -192,6 +194,138 @@ function renderChordLegend(pcMap) {
   ).join('');
 }
 
+function chordToneCandidate(openMidi, pcMap, fret) {
+  const pc = (openMidi + fret) % 12;
+  const tone = pcMap[pc];
+  if (!tone) return null;
+  return { fret, pc, tone };
+}
+
+function candidatesForString(openMidi, pcMap, windowStart, windowEnd) {
+  const candidates = [];
+  const open = chordToneCandidate(openMidi, pcMap, 0);
+  if (open) candidates.push(open);
+
+  for (let fret = Math.max(1, windowStart); fret <= Math.min(CH_MAX_FRET, windowEnd); fret++) {
+    const candidate = chordToneCandidate(openMidi, pcMap, fret);
+    if (candidate) candidates.push(candidate);
+  }
+  return candidates;
+}
+
+function chooseGripCandidate(candidates, usedIntervals, needRoot) {
+  let best = null;
+  let bestScore = -Infinity;
+  candidates.forEach(candidate => {
+    let score = 0;
+    if (!usedIntervals.has(candidate.tone.interval)) score += 60;
+    if (candidate.tone.isRoot) score += needRoot ? 50 : 12;
+    if (candidate.fret === 0) score += 16;
+    else score += Math.max(0, 16 - candidate.fret);
+    if (candidate.fret > 0 && candidate.fret <= 4) score += 6;
+    if (score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  });
+  return best;
+}
+
+function buildGripForWindow(openMidis, pcMap, windowStart) {
+  const windowEnd = windowStart === 0 ? CH_GRIP_SPAN : windowStart + CH_GRIP_SPAN - 1;
+  const perString = openMidis.map(openMidi => candidatesForString(openMidi, pcMap, windowStart, windowEnd));
+  const bassString = perString.findIndex(candidates => candidates.some(c => c.tone.isRoot));
+  const firstPlayable = perString.findIndex(candidates => candidates.length);
+  const startString = bassString >= 0 ? bassString : firstPlayable;
+  if (startString < 0) return null;
+
+  const strings = [];
+  const usedIntervals = new Set();
+  for (let s = 0; s < perString.length; s++) {
+    if (s < startString) {
+      strings.push({ muted: true });
+      continue;
+    }
+    const chosen = chooseGripCandidate(perString[s], usedIntervals, !usedIntervals.has(0));
+    if (!chosen) {
+      strings.push({ muted: true });
+      continue;
+    }
+    usedIntervals.add(chosen.tone.interval);
+    strings.push(chosen);
+  }
+
+  const played = strings.filter(s => !s.muted);
+  if (played.length < 2) return null;
+  const fretted = played.map(s => s.fret).filter(f => f > 0);
+  const uniqueFrets = [...new Set(fretted)].sort((a, b) => a - b);
+  strings.forEach(string => {
+    if (string.muted) return;
+    string.finger = string.fret === 0 ? '0' : String(Math.min(4, uniqueFrets.indexOf(string.fret) + 1));
+  });
+
+  const coverage = usedIntervals.size;
+  const hasRootBass = !strings[startString].muted && strings[startString].tone.isRoot;
+  const openCount = played.filter(s => s.fret === 0).length;
+  const fretSpan = uniqueFrets.length ? uniqueFrets[uniqueFrets.length - 1] - uniqueFrets[0] : 0;
+  const score = coverage * 1000 + (hasRootBass ? 300 : 0) + played.length * 35 + openCount * 18 - fretSpan * 12 - windowStart;
+
+  return {
+    strings,
+    startFret: uniqueFrets[0] || 0,
+    endFret: uniqueFrets[uniqueFrets.length - 1] || 0,
+    windowStart,
+    windowEnd,
+    score,
+  };
+}
+
+function suggestedChordGrip(openMidis, pcMap) {
+  const grips = [];
+  for (let windowStart = 0; windowStart <= 12; windowStart++) {
+    const grip = buildGripForWindow(openMidis, pcMap, windowStart);
+    if (grip) grips.push(grip);
+  }
+  return grips.sort((a, b) => b.score - a.score)[0] || null;
+}
+
+function renderChordPosition(grip, strings) {
+  const card = document.getElementById('chord-position-card');
+  if (!card) return;
+  if (!grip) {
+    card.innerHTML = '<p class="chord-position-empty">No compact position found for this chord in the current tuning.</p>';
+    return;
+  }
+
+  const fretted = grip.strings.filter(s => !s.muted && s.fret > 0);
+  const positionText = fretted.length
+    ? `frets ${grip.startFret}-${grip.endFret}`
+    : 'open position';
+  let html = `<div class="chord-position-head">`;
+  html += `<div><div class="chord-position-kicker">Suggested position</div>`;
+  html += `<div class="chord-position-title">${positionText}</div></div>`;
+  html += `<div class="chord-position-help">Numbers are fingers: 1 index, 2 middle, 3 ring, 4 pinky. 0 = open, X = mute.</div>`;
+  html += `</div>`;
+  html += `<div class="chord-position-strings">`;
+  grip.strings.forEach((string, i) => {
+    const label = `${strings[i].note}${strings[i].oct}`;
+    if (string.muted) {
+      html += `<div class="chord-position-string muted"><span class="cps-label">${label}</span><span class="cps-dot">X</span><span class="cps-fret">mute</span></div>`;
+      return;
+    }
+    const note = NOTE_NAMES_SHARP[string.pc];
+    const tone = string.tone.label;
+    html += `<div class="chord-position-string">`;
+    html += `<span class="cps-label">${label}</span>`;
+    html += `<span class="cps-dot${string.tone.isRoot ? ' root' : ''}">${string.finger}</span>`;
+    html += `<span class="cps-fret">fret ${string.fret}</span>`;
+    html += `<span class="cps-tone">${note} · ${tone}</span>`;
+    html += `</div>`;
+  });
+  html += `</div>`;
+  card.innerHTML = html;
+}
+
 // Renders the whole neck for the active tuning, highlighting every instance of a
 // chord tone and colouring each by its interval above the root.
 function renderChordFretboard() {
@@ -204,6 +338,13 @@ function renderChordFretboard() {
   const strings = TUNINGS[chTuning] || TUNINGS['Standard'];
   const openMidis = chOpenMidis();
   const pcMap = chordPcMap();
+  const grip = suggestedChordGrip(openMidis, pcMap);
+  const gripByString = new Map();
+  if (grip) {
+    grip.strings.forEach((string, index) => {
+      if (!string.muted) gripByString.set(`${index}:${string.fret}`, string);
+    });
+  }
 
   const start = Math.max(0, Math.min(24, chFbStart));
   const end = Math.max(start + 1, Math.min(24, chFbEnd));
@@ -225,11 +366,14 @@ function renderChordFretboard() {
       if (f > 0 && CH_FB_DOTS.includes(f) && s === middleString) cls.push('inlay');
 
       let inner = '';
-      if (tone && !(chRootsOnly && !tone.isRoot)) {
+      const gripTone = gripByString.get(`${s}:${f}`);
+      if (tone && (!(chRootsOnly && !tone.isRoot) || gripTone)) {
         const noteCls = ['ref-note', `deg-${tone.interval}`];
         if (tone.isRoot) noteCls.push('root');
+        if (gripTone) noteCls.push('suggested');
         const spelled = NOTE_NAMES_SHARP[pc];
-        inner = `<span class="${noteCls.join(' ')}" title="${spelled} · ${tone.label} (${INTERVAL_LABELS[tone.interval] || tone.interval})">${tone.label}</span>`;
+        const finger = gripTone ? `<span class="chord-finger">${gripTone.finger}</span>` : '';
+        inner = `<span class="${noteCls.join(' ')}" title="${spelled} · ${tone.label} (${INTERVAL_LABELS[tone.interval] || tone.interval})">${tone.label}${finger}</span>`;
       }
       html += `<div class="${cls.join(' ')}">${inner}</div>`;
     }
@@ -243,8 +387,9 @@ function renderChordFretboard() {
   if (title) title.textContent = `${chRoot}${def.sym} — ${chChord}`;
   if (sub) {
     sub.innerHTML = `<strong>${chTuning}</strong> · ${uniqueNotes.join(' · ')} · ` +
-      `every instance across the neck, coloured by interval`;
+      `numbered markers show the suggested fingering`;
   }
+  renderChordPosition(grip, strings);
   renderChordLegend(pcMap);
 }
 
