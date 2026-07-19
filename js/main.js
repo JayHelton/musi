@@ -5,6 +5,7 @@ import { drawCoF } from './circleOfFifths.js';
 import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
 import { initMetronome, stopMetronome, metro } from './metronome.js';
 import { initFretboard } from './fretboardTrainer.js';
+import { initChordWorkout, stopChordWorkout } from './chordWorkout.js';
 import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
 import { initPitchTrainer, stopPitchTrainer, pt } from './pitchTrainer.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
@@ -45,6 +46,7 @@ const ICONS = {
   tuner:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
   ear:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
   timing:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M4 20 2 22m18-2 2 2"/><path d="M8 2 6 4m10-2 2 2"/></svg>',
+  chordlab:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/><circle cx="17" cy="16" r="2" fill="currentColor" stroke="none"/></svg>',
   // backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
   // riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
   recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
@@ -59,6 +61,7 @@ const TABS = [
   {id:'intervals', label:'Intervals',  group:'Drill'},
   {id:'sightreading', label:'Sight Read', group:'Drill'},
   {id:'fretboard', label:'Fretboard',  group:'Drill'},
+  {id:'chordlab',  label:'Chord Lab',  group:'Drill'},
   {id:'tuner',     label:'Pitch',      group:'Drill'},
   {id:'ear',       label:'Ear',        group:'Drill'},
   {id:'timing',    label:'Timing',     group:'Drill'},
@@ -95,6 +98,7 @@ const TOOL_STOPPERS = {
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
   timing: () => { if (timingDrill.playing) stopTimingDrill(); },
   sightreading: () => stopSightReading(),
+  chordlab: () => stopChordWorkout(),
   recorder: () => { if (recorder.playing) stopRecorder(); },
   songwriter: () => stopSongwriter(),
   exercises: () => stopExercises(),
@@ -107,6 +111,7 @@ const TOOL_INITS = {
   scaleref: initScaleRef,
   chords: () => { initChordRef(); initChordBuilder(); },
   fretboard: initFretboard,
+  chordlab: initChordWorkout,
   tuner: () => { initTuner(); initPitchTrainer(); },
   ear: initEarTrainer,
   timing: initTimingDrill,

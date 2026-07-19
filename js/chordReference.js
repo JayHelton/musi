@@ -14,6 +14,21 @@ const CH_FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 const CH_MAX_FRET = 24;
 const CH_GRIP_SPAN = 4;
 
+// --- CAGED system --------------------------------------------------------
+// The five movable major-chord shapes, defined for standard tuning. Each shape
+// lists a fret offset per string (index 0 = low E … 5 = high e) relative to the
+// root fret on its anchor string, plus the string that carries the shape's
+// primary root. `null` means the string is muted. Offsets contain only chord
+// tones R/3/5, matching the classic open C, A, G, E and D chords.
+const CAGED_SHAPES = [
+  { letter: 'C', anchor: 1, offsets: [null, 0, -1, -3, -2, -3] },
+  { letter: 'A', anchor: 1, offsets: [null, 0, 2, 2, 2, 0] },
+  { letter: 'G', anchor: 0, offsets: [0, -1, -3, -3, -3, 0] },
+  { letter: 'E', anchor: 0, offsets: [0, 2, 2, 1, 0, 0] },
+  { letter: 'D', anchor: 2, offsets: [null, null, 0, 2, 3, 2] },
+];
+const CAGED_TONE_LABELS = { 0: 'R', 4: '3', 7: '5' };
+
 let chRoot = 'C';
 let chChord = 'Major';
 let chTuning = 'Standard';
@@ -475,9 +490,80 @@ function stopChordRef() {
   chOscillators = [];
 }
 
+// Open-string MIDI numbers for standard tuning — CAGED is defined against it,
+// so the shapes stay correct regardless of the tuning chosen for the neck view.
+function cagedStdOpenMidis() {
+  return TUNINGS['Standard'].map(s => {
+    const p = parseNote(s.note);
+    return p ? 12 * (s.oct + 1) + p.semi : 0;
+  });
+}
+
+// Render one movable CAGED shape as a compact per-string diagram for the given
+// major root (pitch class). Roots are highlighted and every note is labelled
+// with its chord role (R/3/5).
+function renderCagedShape(shape, rootPc, openMidis) {
+  const strings = TUNINGS['Standard'];
+  const anchorPc = openMidis[shape.anchor] % 12;
+  let p = (((rootPc - anchorPc) % 12) + 12) % 12;
+  const defined = shape.offsets.filter(o => o !== null);
+  const minOff = Math.min(...defined);
+  // Keep the whole shape on the neck (no negative frets) by shifting up octaves.
+  while (p + minOff < 0) p += 12;
+
+  const frets = shape.offsets.map(o => (o === null ? null : p + o)).filter(f => f !== null);
+  const lo = Math.min(...frets);
+  const hi = Math.max(...frets);
+  const posText = lo === 0 ? 'open position' : `frets ${lo}\u2013${hi}`;
+
+  let cols = '';
+  for (let i = 0; i < strings.length; i++) {
+    const label = `${strings[i].note}${strings[i].oct}`;
+    const off = shape.offsets[i];
+    if (off === null) {
+      cols += `<div class="chord-position-string muted"><span class="cps-label">${label}</span><span class="cps-dot">X</span><span class="cps-fret">mute</span></div>`;
+      continue;
+    }
+    const fret = p + off;
+    const pc = (openMidis[i] + fret) % 12;
+    const interval = ((pc - rootPc) % 12 + 12) % 12;
+    const role = CAGED_TONE_LABELS[interval] || DEGREE_LABELS[interval] || interval;
+    const isRoot = interval === 0;
+    const note = NOTE_NAMES_SHARP[pc];
+    cols += `<div class="chord-position-string">` +
+      `<span class="cps-label">${label}</span>` +
+      `<span class="cps-dot${isRoot ? ' root' : ''}">${role}</span>` +
+      `<span class="cps-fret">${fret === 0 ? 'open' : 'fret ' + fret}</span>` +
+      `<span class="cps-tone">${note}</span></div>`;
+  }
+
+  return `<div class="caged-shape">` +
+    `<div class="caged-shape-head"><span class="caged-shape-badge">${shape.letter}</span>` +
+    `<span class="caged-shape-pos">${posText}</span></div>` +
+    `<div class="chord-position-strings caged-strings">${cols}</div></div>`;
+}
+
+function renderCaged() {
+  const container = document.getElementById('caged-shapes');
+  if (!container) return;
+  const rootP = parseNote(chRoot);
+  if (!rootP) { container.innerHTML = ''; return; }
+  const openMidis = cagedStdOpenMidis();
+  container.innerHTML = CAGED_SHAPES
+    .map(shape => renderCagedShape(shape, rootP.semi, openMidis))
+    .join('');
+
+  const sub = document.getElementById('caged-sub');
+  if (sub) {
+    const notes = getChordNotes(chRoot, 'Major') || [];
+    sub.textContent = `${chRoot} major shapes \u00b7 ${[...new Set(notes)].join(' \u00b7 ')}`;
+  }
+}
+
 function renderChordRef() {
   renderChordFretboard();
   renderChordInfo();
+  renderCaged();
 }
 
 export { initChordRef, stopChordRef, chOscillators };

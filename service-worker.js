@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v64-drums-random-picker";
+const CACHE_VERSION = "v66-chord-workout-caged-drums-picker";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -25,6 +25,7 @@ const PRECACHE_URLS = [
   "css/songwriter.css",
   "css/exercises.css",
   "css/drums.css",
+  "css/chordworkout.css",
   "js/main.js",
   "js/markdown.js",
   "js/attachments.js",
@@ -37,6 +38,7 @@ const PRECACHE_URLS = [
   "js/backingTrack.js",
   "js/chordBuilder.js",
   "js/chordReference.js",
+  "js/chordWorkout.js",
   "js/chords.js",
   "js/circleOfFifths.js",
   "js/earTrainer.js",
