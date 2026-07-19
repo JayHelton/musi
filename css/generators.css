@@ -167,6 +167,28 @@ body.split-mode #ref-modes{display:none}
 .chord-builder-head h3{margin:0 0 4px;color:var(--accent);font-size:1.05rem}
 .chord-builder-head p{margin:0;color:var(--muted);font-size:.85rem}
 
+/* CAGED system reference */
+.caged-block{margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
+.caged-head h3{margin:0 0 6px;color:var(--accent);font-size:1.05rem}
+.caged-head p{margin:0 0 8px;color:var(--muted);font-size:.85rem;line-height:1.55;max-width:74ch}
+.caged-head p strong{color:var(--text);font-weight:700}
+.caged-sub{font-size:.85rem;color:var(--accent);font-weight:600;margin-bottom:14px}
+.caged-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px}
+.caged-shape{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px}
+.caged-shape-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.caged-shape-badge{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:var(--accent);color:#0a0a0a;font-weight:900;font-size:1.05rem}
+.caged-shape-pos{font-size:.72rem;color:var(--muted);font-weight:650}
+.caged-strings{grid-template-columns:repeat(6,1fr);gap:5px}
+.caged-strings .chord-position-string{padding:7px 3px;gap:3px;border-radius:9px}
+.caged-strings .cps-label{font-size:.58rem}
+.caged-strings .cps-dot{width:24px;height:24px;font-size:.72rem}
+.caged-strings .cps-fret{font-size:.58rem}
+.caged-strings .cps-tone{font-size:.58rem}
+
+@media(max-width:600px){
+  .caged-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+}
+
 @media(max-width:768px){
   #sec-chords .sidebar{order:1}
   #sec-chords .quiz-main{order:2}
