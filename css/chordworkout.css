@@ -1,0 +1,79 @@
+/* Chord Workout drill styles. Reuses shared .quiz-card, .ref-fretboard,
+   .chord-position-* and .deg-* utilities; only the drill-specific chrome lives
+   here. */
+
+.cw-prompt-card{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.cw-prompt-head{min-width:0}
+.cw-prompt-kicker{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.cw-chord-name{font-size:2.1rem;font-weight:800;color:var(--text);line-height:1.1;margin-top:2px}
+.cw-chord-sub{font-size:.9rem;color:var(--accent);font-weight:600;margin-top:4px;word-break:break-word}
+.cw-prompt-card .btn.primary{flex:0 0 auto}
+
+.cw-card-title{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin-bottom:10px}
+
+/* Task checklist */
+.cw-task-list{display:flex;flex-direction:column;gap:8px}
+.cw-task{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border-radius:12px;
+  background:var(--bg2);border:1px solid var(--border);color:var(--text);font:inherit;cursor:pointer;transition:border-color .15s,background .15s}
+.cw-task:hover{border-color:var(--accent)}
+.cw-task.done{border-color:var(--accent);background:rgba(255,107,53,0.08)}
+.cw-task-check{flex:0 0 auto;width:24px;height:24px;border-radius:7px;border:2px solid var(--border);display:flex;align-items:center;
+  justify-content:center;font-weight:900;color:#0a0a0a;font-size:.85rem;background:var(--card)}
+.cw-task.done .cw-task-check{background:var(--accent);border-color:var(--accent)}
+.cw-task-num{flex:0 0 auto;font-size:.78rem;font-weight:800;color:var(--muted)}
+.cw-task.done .cw-task-num{color:var(--accent)}
+.cw-task-label{flex:1;font-size:.92rem;font-weight:500}
+
+/* Recording card */
+.cw-rec-card .cw-rec-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cw-rec-status{font-size:.85rem;color:var(--muted);flex:1;min-width:160px}
+#cw-rec-toggle.recording{background:var(--err,#e5484d);color:#fff;animation:cw-rec-pulse 1.1s ease-in-out infinite}
+@keyframes cw-rec-pulse{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,0.5)}50%{box-shadow:0 0 0 8px rgba(229,72,77,0)}}
+.cw-rec-live{font-size:1.6rem;font-weight:800;color:var(--muted);text-align:center;margin:14px 0 6px;letter-spacing:.02em}
+.cw-rec-live.active{color:var(--accent)}
+.cw-rec-seq{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;min-height:4px}
+.cw-rec-note{font-size:.74rem;font-weight:700;padding:4px 9px;border-radius:999px;background:var(--bg2);border:1px solid var(--border);color:var(--text)}
+
+.cw-rec-feedback{display:none}
+.cw-rec-feedback.show{display:block;margin-top:14px}
+.cw-fb-score{font-weight:700;font-size:1rem;margin-bottom:12px}
+.cw-fb-score.good{color:var(--ok,#30a46c)}
+.cw-fb-score.partial{color:var(--accent)}
+.cw-fb-group{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.cw-fb-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;min-width:92px;padding-top:6px}
+
+/* Chips shared by arpeggio / feedback */
+.cw-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.cw-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--bg2);
+  border:1px solid var(--border);font-size:.78rem;font-weight:600;color:var(--text)}
+.cw-chip.root{border-color:var(--text)}
+.cw-chip-dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+.cw-chip-note{font-weight:700}
+.cw-chip-deg{font-size:.68rem;color:var(--muted);font-weight:700}
+.cw-chip.hit{border-color:var(--ok,#30a46c)}
+.cw-chip.missing{opacity:.75;border-style:dashed}
+.cw-chip.extra{border-color:var(--muted);opacity:.8}
+
+/* Answer sections */
+.cw-answer{margin-top:16px;display:flex;flex-direction:column;gap:14px}
+.cw-answer-section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+.cw-answer-title{font-size:.95rem;font-weight:800;color:var(--text);margin-bottom:12px}
+.cw-sub{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:12px 0 2px}
+.cw-muted{color:var(--muted);font-size:.82rem;margin:8px 0 0}
+.cw-play-btn.playing{background:var(--accent);color:#0a0a0a}
+
+.cw-pos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.cw-pos-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px}
+.cw-pos-kicker{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);font-weight:800;margin-bottom:8px}
+.cw-pos-title{font-size:.82rem;color:var(--text);font-weight:650;margin-bottom:8px}
+.cw-pos-card .chord-position-strings{grid-template-columns:repeat(auto-fit,minmax(58px,1fr))}
+.cw-pos-card .cw-play-btn{margin-top:10px;width:100%}
+
+#cw-toggle-answer.active{background:var(--accent);color:#0a0a0a}
+
+@media (max-width:600px){
+  .cw-chord-name{font-size:1.7rem}
+  .cw-prompt-card{flex-direction:column;align-items:stretch}
+  .cw-prompt-card .btn.primary{width:100%}
+  .cw-fb-label{min-width:0}
+}

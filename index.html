@@ -31,6 +31,7 @@
 <link rel="stylesheet" href="css/songwriter.css">
 <link rel="stylesheet" href="css/exercises.css">
 <link rel="stylesheet" href="css/drums.css">
+<link rel="stylesheet" href="css/chordworkout.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -575,6 +576,54 @@
         <div class="action-dock">
           <button class="btn primary" style="width:100%" onclick="newFbQuestion()">Next</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHORD WORKOUT -->
+  <section id="sec-chordlab" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Drill</div>
+      <h2>Chord Workout</h2>
+      <p>Get a random chord in your current key, then work through its positions, arpeggios and scale. Record yourself for feedback, and reveal the answer when you are ready.</p>
+    </div>
+    <div class="quiz-layout">
+      <div class="sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Tuning</div>
+          <div class="sl-scroll" id="sl-cw-tuning"></div>
+        </div>
+      </div>
+      <div class="quiz-main">
+        <div class="quiz-card cw-prompt-card">
+          <div class="cw-prompt-head">
+            <div class="cw-prompt-kicker">Your chord</div>
+            <div class="cw-chord-name" id="cw-chord-name">C</div>
+            <div class="cw-chord-sub" id="cw-chord-sub"></div>
+          </div>
+          <button class="btn primary" id="cw-new-chord" type="button">New Chord</button>
+        </div>
+
+        <div class="quiz-card">
+          <div class="cw-card-title">Work through</div>
+          <div class="cw-task-list" id="cw-task-list"></div>
+        </div>
+
+        <div class="quiz-card cw-rec-card">
+          <div class="cw-card-title">Record &amp; get feedback</div>
+          <div class="cw-rec-controls">
+            <button class="btn primary" id="cw-rec-toggle" type="button">&#9679; Record</button>
+            <span class="cw-rec-status" id="cw-rec-status">Play the chord tones and I&rsquo;ll check which ones you hit.</span>
+          </div>
+          <div class="cw-rec-live" id="cw-rec-live">--</div>
+          <div class="cw-rec-seq" id="cw-rec-seq"></div>
+          <div class="cw-rec-feedback" id="cw-rec-feedback"></div>
+        </div>
+
+        <div class="action-dock">
+          <button class="btn" id="cw-toggle-answer" type="button" style="width:100%">Show Answer</button>
+        </div>
+        <div class="cw-answer" id="cw-answer" hidden></div>
       </div>
     </div>
   </section>
