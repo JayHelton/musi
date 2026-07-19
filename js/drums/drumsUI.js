@@ -291,6 +291,12 @@ function renderLibrary() {
       </select>
       <button class="btn sm dr-fav-toggle ${libFilters.favOnly ? 'active' : ''}" id="dr-fav-only">★ Favorites</button>
     </div>
+    <div class="dr-random">
+      <span class="dr-random-label">Can't decide what to practice? Let Musi pick:</span>
+      <button class="btn sm primary" id="dr-rand-beat">🎲 Random Beat</button>
+      <button class="btn sm primary" id="dr-rand-fill">🎲 Random Fill</button>
+    </div>
+    <div class="dr-random-result" id="dr-random-result"></div>
     <div class="dr-lib-count" id="dr-lib-count"></div>
     <div class="dr-cards" id="dr-cards"></div>`;
 
@@ -306,7 +312,67 @@ function renderLibrary() {
     $('dr-fav-only').classList.toggle('active', libFilters.favOnly);
     renderCards();
   };
+  $('dr-rand-beat').onclick = () => pickRandom('beat');
+  $('dr-rand-fill').onclick = () => pickRandom('fill');
   renderCards();
+}
+
+// ---- Random practice picker ----------------------------------------------
+// Remembers the last pick per category so "again" never repeats immediately.
+const lastRandomPick = { beat: null, fill: null };
+
+// Picks a random pattern of the given category. It honours the active style,
+// difficulty, search and favourites filters when possible, but falls back to
+// the full category so the button always yields something to practise.
+function pickRandomPattern(category) {
+  const q = libFilters.search.trim().toLowerCase();
+  const favs = favorites();
+  const matchesFilters = (p) => {
+    if (libFilters.style !== 'all' && p.style !== libFilters.style) return false;
+    if (libFilters.difficulty !== 'all' && String(p.difficulty) !== libFilters.difficulty) return false;
+    if (libFilters.favOnly && !favs.includes(p.id)) return false;
+    if (q) {
+      const tags = Array.isArray(p.tags) ? p.tags.join(' ') : '';
+      if (!(`${p.title} ${p.style} ${p.category} ${tags} ${p.notes || ''}`.toLowerCase().includes(q))) return false;
+    }
+    return true;
+  };
+  const inCategory = allPatterns().filter((p) => p.category === category);
+  let pool = inCategory.filter(matchesFilters);
+  let usedFilters = true;
+  if (!pool.length) { pool = inCategory; usedFilters = false; }
+  if (!pool.length) return null;
+  let choice = pool[Math.floor(Math.random() * pool.length)];
+  let guard = 0;
+  while (pool.length > 1 && choice.id === lastRandomPick[category] && guard++ < 50) {
+    choice = pool[Math.floor(Math.random() * pool.length)];
+  }
+  lastRandomPick[category] = choice.id;
+  return { pattern: choice, usedFilters };
+}
+
+function pickRandom(category) {
+  const wrap = $('dr-random-result');
+  if (!wrap) return;
+  const result = pickRandomPattern(category);
+  const label = category === 'beat' ? 'beat' : 'fill';
+  if (!result) {
+    wrap.innerHTML = `<div class="dr-empty">No ${label}s available to pick from.</div>`;
+    return;
+  }
+  wrap.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'dr-random-heading';
+  head.innerHTML = `
+    <span class="dr-random-pick-label">🥁 Practice this ${label}:</span>
+    ${result.usedFilters ? '' : '<span class="dr-random-note">(no match for your filters — picked from all ' + label + 's)</span>'}
+    <button class="btn sm dr-rand-again">🎲 Pick another</button>`;
+  head.querySelector('.dr-rand-again').onclick = () => pickRandom(category);
+  wrap.appendChild(head);
+  const card = buildPatternCard(result.pattern);
+  card.classList.add('dr-random-card');
+  wrap.appendChild(card);
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function filteredPatterns() {
