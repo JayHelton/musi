@@ -32,6 +32,8 @@
 <link rel="stylesheet" href="css/exercises.css">
 <link rel="stylesheet" href="css/drums.css">
 <link rel="stylesheet" href="css/chordworkout.css">
+<link rel="stylesheet" href="css/notes.css">
+<link rel="stylesheet" href="css/practice.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -1111,6 +1113,104 @@
             <button class="btn" id="sw-save" type="button">Save</button>
             <button class="btn sm sw-delete" id="sw-delete" type="button">Delete song</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOTES -->
+  <section id="sec-notes" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tools</div>
+      <h2>Notes</h2>
+      <p>Jot down practice notes, ideas and reminders. Saved on this device.</p>
+    </div>
+    <div class="notes-layout">
+      <aside class="notes-sidebar">
+        <div class="notes-sidebar-head">
+          <span class="home-section-label">Notes</span>
+          <button class="btn sm primary" id="notes-new" type="button">+ New</button>
+        </div>
+        <div class="notes-list" id="notes-list"></div>
+        <div class="notes-empty" id="notes-empty" style="display:none">No notes yet. Create one to start writing.</div>
+      </aside>
+      <div class="notes-editor">
+        <div class="notes-editor-empty" id="notes-editor-empty">
+          <p>Select a note from the list, or start a new one.</p>
+          <button class="btn primary" id="notes-empty-new" type="button">+ New Note</button>
+        </div>
+        <div class="notes-editor-body" id="notes-editor-body" style="display:none">
+          <input type="text" class="notes-title-input" id="notes-title" placeholder="Note title" maxlength="120" aria-label="Note title">
+          <textarea class="notes-body-input" id="notes-body" placeholder="Start typing&hellip;" aria-label="Note body"></textarea>
+          <div class="notes-actions">
+            <span class="notes-saved" id="notes-saved"></span>
+            <button class="btn sm notes-delete" id="notes-delete" type="button">Delete note</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRACTICE TIMER -->
+  <section id="sec-practice" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tools</div>
+      <h2>Practice Timer</h2>
+      <p>Set a countdown for focused practice, with an optional tempo plan that drives the metronome.</p>
+    </div>
+    <div class="pt-layout">
+      <div class="quiz-card pt-timer-card">
+        <div class="pt-display" id="pt-display" aria-live="polite">15:00</div>
+        <div class="pt-progress"><div class="pt-progress-fill" id="pt-progress-fill"></div></div>
+        <div class="pt-status" id="pt-status">Ready</div>
+        <div class="pt-duration">
+          <span class="pt-field-label">Duration (minutes)</span>
+          <div class="pt-duration-row">
+            <button class="metro-round-btn" id="pt-min-down" type="button" aria-label="Decrease minutes">-</button>
+            <input type="number" id="pt-minutes" min="1" max="180" value="15" inputmode="numeric" aria-label="Practice minutes">
+            <button class="metro-round-btn" id="pt-min-up" type="button" aria-label="Increase minutes">+</button>
+          </div>
+          <div class="pt-presets">
+            <button class="btn sm pt-preset" data-min="5" type="button">5</button>
+            <button class="btn sm pt-preset" data-min="10" type="button">10</button>
+            <button class="btn sm pt-preset" data-min="15" type="button">15</button>
+            <button class="btn sm pt-preset" data-min="20" type="button">20</button>
+            <button class="btn sm pt-preset" data-min="30" type="button">30</button>
+            <button class="btn sm pt-preset" data-min="45" type="button">45</button>
+          </div>
+        </div>
+        <div class="pt-controls">
+          <button class="btn primary pt-start" id="pt-start" type="button">&#9654; Start</button>
+          <button class="btn pt-reset" id="pt-reset" type="button">Reset</button>
+        </div>
+        <label class="pt-alarm-row">
+          <input type="checkbox" id="pt-alarm" checked>
+          <span>Play an alarm when time is up</span>
+        </label>
+      </div>
+      <div class="quiz-card pt-sched-card">
+        <div class="pt-sched-head">
+          <div class="metro-card-title">Tempo plan</div>
+          <label class="pt-sched-toggle">
+            <input type="checkbox" id="pt-auto">
+            <span>Drive the metronome</span>
+          </label>
+        </div>
+        <p class="pt-sched-note">Set a tempo for points in your session. When the timer reaches each mark, the metronome switches to that BPM.</p>
+        <div class="pt-gen">
+          <div class="pt-gen-title">Quick plan</div>
+          <div class="pt-gen-row">
+            <label>Every <input type="number" id="pt-gen-interval" min="1" max="60" value="5" inputmode="numeric"> min</label>
+            <label>Start <input type="number" id="pt-gen-start" min="30" max="300" value="80" inputmode="numeric"> BPM</label>
+            <label>Change <input type="number" id="pt-gen-step" min="-100" max="100" value="5" inputmode="numeric"> BPM</label>
+          </div>
+          <button class="btn sm" id="pt-gen-build" type="button">Generate plan</button>
+        </div>
+        <div class="pt-sched-list" id="pt-sched-list"></div>
+        <div class="pt-sched-add">
+          <label>At <input type="number" id="pt-add-min" min="0" max="180" value="0" inputmode="numeric"> min</label>
+          <label><input type="number" id="pt-add-bpm" min="30" max="300" value="120" inputmode="numeric"> BPM</label>
+          <button class="btn sm" id="pt-add" type="button">+ Add</button>
         </div>
       </div>
     </div>

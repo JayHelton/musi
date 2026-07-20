@@ -20,6 +20,8 @@ import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises } from './exercises.js';
+import { initNotes, stopNotes } from './notes.js';
+import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
 import { initDrums, stopDrums } from './drums/drumsUI.js';
 import { initScaleRef } from './scaleReference.js';
 import { initVisualizer } from './visualizer.js';
@@ -50,6 +52,8 @@ const ICONS = {
   recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
   songwriter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
   exercises: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>',
+  notes:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16v13l-5 5H4z"/><path d="M20 16h-5v5"/><path d="M8 8h8M8 12h6"/></svg>',
+  practice:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="8"/><path d="M12 14V9.5"/><path d="M9 2h6"/><path d="M18.5 6.5 20 5"/></svg>',
   drums:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="9" ry="3.5"/><path d="M3 8v5c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V8"/><path d="M7 16.5 4 22M17 16.5 20 22M12 17v5"/></svg>',
 };
 
@@ -71,6 +75,8 @@ const TABS = [
   // {id:'riff',      label:'Riff',       group:'Create'},
   {id:'recorder',  label:'Record',     group:'Tools'},
   {id:'songwriter', label:'Lyrics',    group:'Tools'},
+  {id:'notes',     label:'Notes',      group:'Tools'},
+  {id:'practice',  label:'Timer',      group:'Tools'},
   {id:'exercises', label:'Exercises',  group:'Tools'},
   {id:'drums',     label:'Drums',      group:'Tools'},
 ];
@@ -98,6 +104,8 @@ const TOOL_STOPPERS = {
   recorder: () => { if (recorder.playing) stopRecorder(); },
   songwriter: () => stopSongwriter(),
   exercises: () => stopExercises(),
+  notes: () => stopNotes(),
+  practice: () => stopPracticeTimer(),
   drums: () => stopDrums(),
 };
 const TOOL_INITS = {
@@ -115,6 +123,8 @@ const TOOL_INITS = {
   recorder: initRecorder,
   songwriter: initSongwriter,
   exercises: initExercises,
+  notes: initNotes,
+  practice: initPracticeTimer,
   drums: initDrums,
 };
 

@@ -611,4 +611,4 @@ function initMetronome() {
 window.loadPreset = loadPreset;
 window.clearMeasure = clearMeasure;
 
-export { initMetronome, stopMetronome, metro };
+export { initMetronome, stopMetronome, startMetronome, setBpm, metro };
