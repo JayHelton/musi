@@ -22,7 +22,8 @@ const TOOL_TITLES = {
   timing: 'Timing Drill',
   recorder: 'Recorder',
   songwriter: 'Songwriting',
-  programs: 'Programs',
+  notes: 'Notes',
+  practice: 'Practice Timer',
   exercises: 'Exercises',
   drums: 'Drums',
 };
@@ -42,7 +43,8 @@ const TOOL_KEYWORDS = {
   timing: 'timing rhythm tempo bpm click track metronome thumb tap pocket early late fast slow',
   recorder: 'recorder record audio capture pitch take voice',
   songwriter: 'songwriting lyrics notepad write song demo vocal recording compose',
-  programs: 'programs curriculum markdown practice plan sessions metronome import',
+  notes: 'notes notepad practice notes ideas reminders text journal write',
+  practice: 'practice timer countdown stopwatch alarm metronome tempo plan bpm schedule interval session',
   exercises: 'exercises media library pdf audio video lesson links',
   drums: 'drums drum machine beat fill groove rhythm tab sequencer kick snare hihat metal rock punk blast beat practice',
 };

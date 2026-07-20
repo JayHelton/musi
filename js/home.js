@@ -19,7 +19,8 @@ const TITLES = {
   timing: 'Timing Drill',
   recorder: 'Recorder',
   songwriter: 'Songwriting',
-  programs: 'Programs',
+  notes: 'Notes',
+  practice: 'Practice Timer',
   exercises: 'Exercises',
   drums: 'Drums',
 };
@@ -39,7 +40,8 @@ const DESCRIPTIONS = {
   timing: 'Tap against a click track and tighten your pocket.',
   recorder: 'Capture takes and inspect pitch.',
   songwriter: 'Write lyrics and attach recordings.',
-  programs: 'Build guided practice plans from markdown.',
+  notes: 'Jot down practice notes and ideas.',
+  practice: 'Countdown timer with a metronome tempo plan.',
   exercises: 'Upload tabs, audio, videos and lesson links.',
   drums: 'Beats, fills, drum machine and fill generator.',
 };

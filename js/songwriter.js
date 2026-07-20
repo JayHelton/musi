@@ -2,7 +2,7 @@
 // attach one or more named vocal recordings to each song, with full CRUD: a
 // list of songs, a New button, per-song delete, and saving (manual + autosave).
 //
-// Like Sessions, the split mirrors the rest of the app:
+// Storage mirrors the rest of the app:
 //   - song text/metadata lives in localStorage (musi.songs)
 //   - recorded audio Blobs live in IndexedDB (attachments.js), referenced from
 //     the song by an ordered `recordings` list of { id, name, addedAt }.
@@ -624,7 +624,7 @@ function setRecStatus(text, isError) {
   recStatusEl.classList.toggle('error', !!isError);
 }
 
-// --- lightweight confirm modal (reuses session-* modal styles) -------------
+// --- lightweight confirm modal (reuses shared modal styles) ----------------
 
 let confirmRoot = null;
 
@@ -636,17 +636,17 @@ function openConfirm(title, body, confirmLabel, onConfirm) {
   confirmRoot.innerHTML = '';
 
   const overlay = document.createElement('div');
-  overlay.className = 'session-overlay';
+  overlay.className = 'modal-overlay';
 
   const dialog = document.createElement('div');
-  dialog.className = 'session-dialog session-confirm';
+  dialog.className = 'modal-dialog modal-confirm';
   dialog.innerHTML = `
-    <h3 class="session-dialog-title">${escapeHtml(title)}</h3>
-    ${body ? `<p class="session-dialog-body">${escapeHtml(body)}</p>` : ''}
+    <h3 class="modal-title">${escapeHtml(title)}</h3>
+    ${body ? `<p class="modal-body">${escapeHtml(body)}</p>` : ''}
   `;
 
   const actions = document.createElement('div');
-  actions.className = 'session-dialog-actions';
+  actions.className = 'modal-actions';
 
   const cancel = document.createElement('button');
   cancel.className = 'btn sm';

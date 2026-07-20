@@ -637,8 +637,8 @@ function toggleRecording() {
   if (recorder.recording) stopRecording(); else startRecording();
 }
 
-// Saves the current take into the IndexedDB audio library so it persists and
-// can be attached to sessions. Library items remain until deleted manually.
+// Saves the current take into the IndexedDB audio library so it persists.
+// Library items remain until deleted manually.
 async function saveRecording() {
   const btn = document.getElementById('rec-save');
   if (!recorder.blob) return;
