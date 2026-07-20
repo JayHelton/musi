@@ -27,7 +27,7 @@
 <link rel="stylesheet" href="css/visualizer.css">
 <link rel="stylesheet" href="css/recorder.css">
 <link rel="stylesheet" href="css/mobile-ux.css">
-<link rel="stylesheet" href="css/sessions.css">
+<link rel="stylesheet" href="css/modals.css">
 <link rel="stylesheet" href="css/songwriter.css">
 <link rel="stylesheet" href="css/exercises.css">
 <link rel="stylesheet" href="css/drums.css">
@@ -101,32 +101,6 @@
     </div>
     <div id="home-stats" class="home-stats">
       <div class="home-stats-grid" id="home-stats-grid"></div>
-    </div>
-    <div id="home-programs" class="home-section home-programs">
-      <div class="home-programs-head">
-        <div class="home-section-label">Programs</div>
-        <button id="home-programs-create" class="btn sm" type="button">+ Create Program</button>
-      </div>
-      <div id="home-programs-grid" class="program-grid"></div>
-      <div id="home-programs-empty" class="home-programs-empty" style="display:none">
-        <p>Paste a markdown curriculum. Each ## heading becomes a one-hour metronome session.</p>
-        <button id="home-programs-empty-create" class="btn primary" type="button">Create your first program</button>
-      </div>
-    </div>
-    <div id="home-sessions" class="home-section home-sessions">
-      <div class="home-sessions-head">
-        <div class="home-section-label">Sessions</div>
-        <button id="home-sessions-create" class="btn sm" type="button">+ Create Session</button>
-      </div>
-      <div id="home-sessions-grid" class="session-grid"></div>
-      <div id="home-sessions-empty" class="home-sessions-empty" style="display:none">
-        <p>No sessions yet. Build a timed drill routine.</p>
-        <button id="home-sessions-empty-create" class="btn primary" type="button">Create your first session</button>
-      </div>
-      <div id="home-sessions-history" class="home-sessions-history" style="display:none">
-        <div class="home-section-label">Recent sessions</div>
-        <div id="home-sessions-history-list" class="session-history-list"></div>
-      </div>
     </div>
     <div id="home-fav-section" class="home-section" style="display:none">
       <div class="home-section-label">Favorites</div>
@@ -1140,19 +1114,6 @@
         </div>
       </div>
     </div>
-  </section>
-
-  <!-- PROGRAMS -->
-  <section id="sec-programs" class="section">
-    <div class="section-head">
-      <div class="section-kicker">Tools</div>
-      <h2>Programs</h2>
-      <p>Turn a large markdown curriculum into a sequence of one-hour metronome sessions.</p>
-    </div>
-    <div class="programs-toolbar">
-      <button class="btn primary" id="programs-create" type="button">+ Create Program</button>
-    </div>
-    <div id="programs-list" class="programs-list"></div>
   </section>
 
   <!-- EXERCISES (MEDIA LIBRARY) -->

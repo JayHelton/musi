@@ -1,11 +1,11 @@
 // Exercises library for Musi. A place to upload practice files (PDFs, images,
 // audio and video) or add external lesson links, organize them into categories,
-// view/play them in a built-in viewer, and reference them from practice sessions.
+// and view/play them in a built-in viewer.
 //
 // Storage mirrors the rest of the app:
 //   - exercise metadata + categories live in localStorage (musi.exercises)
 //   - uploaded file Blobs live in IndexedDB (attachments.js) keyed by an
-//     attachment id, with source 'exercise' so they never mix with session audio.
+//     attachment id, with source 'exercise'.
 //
 // All storage access is defensive so the feature degrades gracefully when
 // localStorage / IndexedDB are unavailable.
@@ -730,7 +730,7 @@ export function closeExerciseViewer() {
   document.body.classList.remove('ex-viewer-open');
 }
 
-// --- confirm / prompt modals (reuse session-* modal styles) ----------------
+// --- confirm / prompt modals (reuse shared modal styles) -------------------
 
 let dialogRoot = null;
 
@@ -748,12 +748,12 @@ function closeDialog() {
 function openConfirm(title, body, confirmLabel, onConfirm) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
-  const overlay = el('div', { class: 'session-overlay' });
-  const dialog = el('div', { class: 'session-dialog session-confirm' }, [
-    el('h3', { class: 'session-dialog-title', text: title }),
-    body ? el('p', { class: 'session-dialog-body', text: body }) : null,
+  const overlay = el('div', { class: 'modal-overlay' });
+  const dialog = el('div', { class: 'modal-dialog modal-confirm' }, [
+    el('h3', { class: 'modal-title', text: title }),
+    body ? el('p', { class: 'modal-body', text: body }) : null,
   ]);
-  const actions = el('div', { class: 'session-dialog-actions' });
+  const actions = el('div', { class: 'modal-actions' });
   actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: closeDialog }));
   actions.appendChild(el('button', {
     class: 'btn primary', type: 'button', text: confirmLabel,
@@ -768,14 +768,14 @@ function openConfirm(title, body, confirmLabel, onConfirm) {
 function openPrompt(title, initialValue, confirmLabel, onConfirm) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
-  const overlay = el('div', { class: 'session-overlay' });
-  const dialog = el('div', { class: 'session-dialog' });
-  dialog.appendChild(el('h3', { class: 'session-dialog-title', text: title }));
+  const overlay = el('div', { class: 'modal-overlay' });
+  const dialog = el('div', { class: 'modal-dialog' });
+  dialog.appendChild(el('h3', { class: 'modal-title', text: title }));
   const input = el('input', {
-    type: 'text', class: 'session-name-input', value: initialValue || '', maxlength: String(CAT_LIMIT),
+    type: 'text', class: 'modal-input', value: initialValue || '', maxlength: String(CAT_LIMIT),
   });
   dialog.appendChild(input);
-  const actions = el('div', { class: 'session-dialog-actions' });
+  const actions = el('div', { class: 'modal-actions' });
   actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: closeDialog }));
   const confirm = el('button', {
     class: 'btn primary', type: 'button', text: confirmLabel,
@@ -793,23 +793,23 @@ function openPrompt(title, initialValue, confirmLabel, onConfirm) {
 function openLinkDialog() {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
-  const overlay = el('div', { class: 'session-overlay' });
-  const dialog = el('div', { class: 'session-dialog ex-link-dialog' });
-  dialog.appendChild(el('h3', { class: 'session-dialog-title', text: 'Add exercise link' }));
+  const overlay = el('div', { class: 'modal-overlay' });
+  const dialog = el('div', { class: 'modal-dialog ex-link-dialog' });
+  dialog.appendChild(el('h3', { class: 'modal-title', text: 'Add exercise link' }));
   dialog.appendChild(el('p', {
-    class: 'session-dialog-body',
+    class: 'modal-body',
     text: 'Paste a YouTube lesson or any http(s) page. Musi will embed it when the site allows iframes.',
   }));
 
   const urlInput = el('input', {
-    type: 'url', class: 'session-name-input', placeholder: 'https://youtu.be/...',
+    type: 'url', class: 'modal-input', placeholder: 'https://youtu.be/...',
     maxlength: String(URL_LIMIT), 'aria-label': 'Exercise link URL',
   });
   const nameInput = el('input', {
-    type: 'text', class: 'session-name-input ex-link-name-input', placeholder: 'Optional title',
+    type: 'text', class: 'modal-input ex-link-name-input', placeholder: 'Optional title',
     maxlength: String(NAME_LIMIT), 'aria-label': 'Exercise link title',
   });
-  const error = el('div', { class: 'session-errors' });
+  const error = el('div', { class: 'modal-errors' });
   dialog.appendChild(urlInput);
   dialog.appendChild(nameInput);
   dialog.appendChild(error);
@@ -825,7 +825,7 @@ function openLinkDialog() {
     addLinkExercise(nameInput.value, safe);
   };
 
-  const actions = el('div', { class: 'session-dialog-actions' });
+  const actions = el('div', { class: 'modal-actions' });
   actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: closeDialog }));
   actions.appendChild(el('button', { class: 'btn primary', type: 'button', text: 'Add Link', onClick: save }));
   dialog.appendChild(actions);
@@ -864,13 +864,12 @@ function onDeleteExercise(item) {
   openConfirm(
     `Delete "${item.name}"?`,
     item.url
-      ? 'This removes the exercise link from this device and any sessions using it.'
-      : 'This permanently removes the exercise file from this device and any sessions using it.',
+      ? 'This removes the exercise link from this device.'
+      : 'This permanently removes the exercise file from this device.',
     'Delete',
     async () => {
       await deleteExercise(item.id);
       render();
-      if (typeof window.musiRefreshSessions === 'function') window.musiRefreshSessions();
     },
   );
 }

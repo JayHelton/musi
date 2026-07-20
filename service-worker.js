@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v67-chordlab-random-scale-nps";
+const CACHE_VERSION = "v68-remove-programs-sessions";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -21,13 +21,12 @@ const PRECACHE_URLS = [
   "css/visualizer.css",
   "css/recorder.css",
   "css/mobile-ux.css",
-  "css/sessions.css",
+  "css/modals.css",
   "css/songwriter.css",
   "css/exercises.css",
   "css/drums.css",
   "css/chordworkout.css",
   "js/main.js",
-  "js/markdown.js",
   "js/attachments.js",
   "js/audio.js",
   "js/musicalContext.js",
@@ -53,16 +52,12 @@ const PRECACHE_URLS = [
   "js/pitchMatch.js",
   "js/pitchExercises.js",
   "js/pitchTrainer.js",
-  "js/programs.js",
-  "js/programsUI.js",
   "js/recorder.js",
   "js/recorderWorklet.js",
   "js/riffGenerator.js",
   "js/scaleQuiz.js",
   "js/scaleReference.js",
   "js/stats.js",
-  "js/sessions.js",
-  "js/sessionsUI.js",
   "js/songwriter.js",
   "js/exercises.js",
   "js/scales.js",

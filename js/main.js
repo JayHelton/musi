@@ -29,8 +29,6 @@ import { initContextBar } from './contextBar.js';
 import { initCommandPalette } from './commandPalette.js';
 import { initProgressHeaders } from './progressHeader.js';
 import { initHome } from './home.js';
-import { initSessions } from './sessionsUI.js';
-import { initPrograms } from './programsUI.js';
 import { initStats, renderStats } from './stats.js';
 
 const ICONS = {
@@ -51,7 +49,6 @@ const ICONS = {
   // riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
   recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
   songwriter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
-  programs:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M4 12h16M4 19h16"/><path d="M8 3v4M8 10v4M8 17v4"/></svg>',
   exercises: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>',
   drums:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="9" ry="3.5"/><path d="M3 8v5c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V8"/><path d="M7 16.5 4 22M17 16.5 20 22M12 17v5"/></svg>',
 };
@@ -74,7 +71,6 @@ const TABS = [
   // {id:'riff',      label:'Riff',       group:'Create'},
   {id:'recorder',  label:'Record',     group:'Tools'},
   {id:'songwriter', label:'Lyrics',    group:'Tools'},
-  {id:'programs', label:'Programs',    group:'Tools'},
   {id:'exercises', label:'Exercises',  group:'Tools'},
   {id:'drums',     label:'Drums',      group:'Tools'},
 ];
@@ -120,7 +116,6 @@ const TOOL_INITS = {
   songwriter: initSongwriter,
   exercises: initExercises,
   drums: initDrums,
-  programs: () => {},
 };
 
 function stopOtherTools(keepIds) {
@@ -520,8 +515,6 @@ function init() {
   initCommandPalette({ showSection, tabs: TABS, icons: ICONS });
   initProgressHeaders();
   initHome({ showSection, tabs: TABS, icons: ICONS });
-  initSessions({ showSection, tabs: TABS, icons: ICONS });
-  initPrograms({ showSection, tabs: TABS, icons: ICONS });
   initStats();
   initSplitView();
 
