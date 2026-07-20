@@ -1,18 +1,19 @@
 // Chord Workout — a guided practice drill built on top of the shared music
-// engine. The player is handed a random chord (built on the current global key)
-// and works through a fixed routine: find three fretboard positions, play the
-// arpeggio, play the 3-note and 5-note arpeggios, and play a scale position that
-// fits the chord. They can record themselves so the app can check which chord
-// tones they actually hit, and reveal a full worked answer.
+// engine. The player is handed a random chord (a random root paired with a
+// random chord type, independent of the app-wide key) and works through a fixed
+// routine: find three fretboard positions, play the arpeggio, play the 3-note
+// and 5-note arpeggios, and play a scale position that fits the chord. They can
+// record themselves so the app can check which chord tones they actually hit,
+// and reveal a full worked answer.
 //
-// Everything reuses the existing theory/chord/scale libraries and the shared
-// musical context so the chord root always follows the app-wide key.
+// Everything reuses the existing theory/chord/scale libraries. Unlike the other
+// drills, the chord lab keeps its own root selection and does not follow (or
+// mutate) the shared musical context.
 
 import { parseNote, spellNote, ROOTS, TUNINGS, NOTE_NAMES_SHARP, INTERVAL_LABELS } from './theory.js';
 import { CHORDS, getChordNotes } from './chords.js';
 import { SCALES, getScaleNotes, scaleStepPattern } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
-import { getContext, subscribeContext } from './musicalContext.js';
 import {
   audioCtx, ensureAudio, midiFreq, getAnalyserDestination,
   requestMicStream, releaseMicStream,
@@ -60,7 +61,6 @@ const cw = {
   done: {},
   answerShown: false,
   built: false,
-  subscribed: false,
   // playback
   voices: [],
   timers: [],
@@ -756,9 +756,11 @@ function toggleRecording() {
 // Chord selection
 // ---------------------------------------------------------------------------
 
-function setChord(idx, { keepDone } = {}) {
+function setChord(idx, root, { keepDone } = {}) {
   cw.chordIdx = ((idx % WORKOUT_CHORDS.length) + WORKOUT_CHORDS.length) % WORKOUT_CHORDS.length;
+  if (root && ROOTS.includes(root)) cw.root = root;
   saveSetting('chordWorkout.chordIdx', cw.chordIdx);
+  saveSetting('chordWorkout.root', cw.root);
   if (!keepDone) cw.done = {};
   cw.answerShown = false;
   stopWorkoutAudio();
@@ -773,12 +775,20 @@ function setChord(idx, { keepDone } = {}) {
   recStatus('Play the chord tones and I\u2019ll check which ones you hit.');
 }
 
+// Pick a fresh chord by randomising both the root note and the chord type,
+// independent of the shared musical context. We reroll until the combination
+// differs from the one on screen so "New Chord" always visibly changes.
 function newChord() {
   let idx = cw.chordIdx;
-  if (WORKOUT_CHORDS.length > 1) {
-    while (idx === cw.chordIdx) idx = Math.floor(Math.random() * WORKOUT_CHORDS.length);
+  let root = cw.root;
+  const combos = WORKOUT_CHORDS.length * ROOTS.length;
+  if (combos > 1) {
+    while (idx === cw.chordIdx && root === cw.root) {
+      idx = Math.floor(Math.random() * WORKOUT_CHORDS.length);
+      root = ROOTS[Math.floor(Math.random() * ROOTS.length)];
+    }
   }
-  setChord(idx);
+  setChord(idx, root);
 }
 
 // ---------------------------------------------------------------------------
@@ -809,8 +819,9 @@ function initChordWorkout() {
   const promptEl = document.getElementById('cw-chord-name');
   if (!promptEl) return;
 
-  const ctx = getContext();
-  cw.root = ROOTS.includes(ctx.root) ? ctx.root : cw.root;
+  // The chord lab owns its own root; it deliberately ignores the shared
+  // musical context so both root and chord type stay random per drill.
+  cw.root = getSetting('chordWorkout.root', cw.root, ROOTS);
   cw.tuning = getSetting('chordWorkout.tuning', cw.tuning, Object.keys(TUNINGS));
   cw.chordIdx = Number(getSetting('chordWorkout.chordIdx', cw.chordIdx));
   if (!Number.isInteger(cw.chordIdx) || cw.chordIdx < 0 || cw.chordIdx >= WORKOUT_CHORDS.length) {
@@ -830,21 +841,6 @@ function initChordWorkout() {
       cw.answerShown = !cw.answerShown;
       updateAnswerVisibility();
     };
-  }
-
-  if (!cw.subscribed) {
-    cw.subscribed = true;
-    subscribeContext(c => {
-      if (!ROOTS.includes(c.root) || c.root === cw.root) return;
-      cw.root = c.root;
-      renderPrompt();
-      if (cw.answerShown) renderAnswer();
-      // A key change invalidates any prior recording feedback.
-      const fbEl = document.getElementById('cw-rec-feedback');
-      if (fbEl) { fbEl.innerHTML = ''; fbEl.className = 'cw-rec-feedback'; }
-      cw.rec.notes = [];
-      renderRecSeq();
-    });
   }
 
   renderPrompt();
