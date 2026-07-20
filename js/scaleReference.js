@@ -29,6 +29,8 @@ const DEGREE_LABELS = {
 const REF_FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 // Width of the highlighted "box" position window, in frets (inclusive span).
 const REF_BOX_SPAN = 4;
+// Selectable notes-per-string values for the arpeggio/scale-run visualiser.
+const NPS_OPTIONS = [1, 2, 3, 4];
 
 let refRoot = 'C';
 let refScale = 'Major (Ionian)';
@@ -37,6 +39,7 @@ let refModeIndex = 0;
 let refFbStart = 0;
 let refFbEnd = 15;
 let refBoxOnly = false;
+let refNotesPerString = 3;
 let refContextSubscribed = false;
 let refFbWired = false;
 
@@ -53,6 +56,7 @@ function initScaleRef() {
   refFbStart = Number(getSetting('ref.fbStart', refFbStart));
   refFbEnd = Number(getSetting('ref.fbEnd', refFbEnd));
   refBoxOnly = getSetting('ref.boxOnly', refBoxOnly, [true, false]);
+  refNotesPerString = clampNps(Number(getSetting('ref.notesPerString', refNotesPerString)));
 
   rootScroll.innerHTML = '';
   ROOTS.forEach(r => {
@@ -95,6 +99,10 @@ function clampModeIndex(idx) {
   const len = def ? def.length : 7;
   if (!Number.isFinite(idx) || idx < 0 || idx >= len) return 0;
   return Math.floor(idx);
+}
+
+function clampNps(n) {
+  return NPS_OPTIONS.includes(n) ? n : 3;
 }
 
 function buildTuningList() {
@@ -217,24 +225,205 @@ function compute3NPSFromSemis(rootStr, semis) {
   return result;
 }
 
-function compute3NPS(rootStr, scaleName) {
-  const def = SCALES[scaleName];
-  if (!def) return null;
-  const pattern = compute3NPSFromSemis(rootStr, def.map(d => d[1]));
-  if (!pattern) return null;
-  return pattern.map(s => ({ label: s.label, frets: s.frets.map(f => f.fret) }));
+// ---------------------------------------------------------------------------
+// Notes-per-string arpeggio / scale-run visualiser
+// ---------------------------------------------------------------------------
+
+// How many notes to place on each string (low → high) for a given
+// notes-per-string setting. For 1 note per string the outer strings are allowed
+// two notes each so a standard 6-string neck still completes a full 8-note
+// octave of the scale rather than stopping one note short.
+function notesPerStringCounts(nps, numStrings) {
+  const counts = new Array(numStrings).fill(nps);
+  if (nps === 1 && numStrings >= 2) {
+    counts[0] = 2;
+    counts[numStrings - 1] = 2;
+  }
+  return counts;
 }
 
-function render3NPSTab(rootStr, scaleName) {
-  const pattern = compute3NPS(rootStr, scaleName);
-  if (!pattern) return '';
-  const reversed = [...pattern].reverse();
-  let tab = '';
-  reversed.forEach(s => {
-    const fretStr = s.frets.map(f => String(f).padStart(2, '-')).join('---');
-    tab += s.label + '|---' + fretStr + '---|\n';
+// Lays the scale out as an ascending run across the neck, packing `nps`
+// consecutive scale tones onto each string (low → high). The sequence always
+// starts on the root and steps through every scale degree in order, so the
+// pattern walks through the whole scale regardless of the notes-per-string
+// count. The finished shape is octave-shifted (see positionOnNeck) so it lands
+// on the playable part of the neck for the active tuning.
+function computeNPSLayout(rootStr, scaleName, nps) {
+  const rootP = parseNote(rootStr);
+  const def = SCALES[scaleName];
+  if (!rootP || !def) return null;
+  const semis = [...new Set(def.map(d => ((d[1] % 12) + 12) % 12))].sort((a, b) => a - b);
+  const len = semis.length;
+  if (!len) return null;
+
+  const strings = TUNINGS[refTuning] || TUNINGS['Standard'];
+  const openMidis = refOpenMidis();
+  const numStrings = openMidis.length;
+  const counts = notesPerStringCounts(nps, numStrings);
+  const total = counts.reduce((a, b) => a + b, 0);
+  const scaleNotes = getScaleNotes(rootStr, scaleName) || [];
+
+  const lowOpen = openMidis[0];
+  const rootFretLow = ((rootP.semi - (lowOpen % 12)) % 12 + 12) % 12;
+  const rootMidi = lowOpen + rootFretLow;
+
+  const layout = [];
+  let ni = 0;
+  for (let s = 0; s < numStrings; s++) {
+    const frets = [];
+    for (let c = 0; c < counts[s] && ni < total; c++) {
+      const degreeIdx = ni % len;
+      const off = semis[degreeIdx] + 12 * Math.floor(ni / len);
+      const interval = ((off % 12) + 12) % 12;
+      frets.push({
+        fret: rootMidi + off - openMidis[s],
+        interval,
+        isRoot: interval === 0,
+        noteName: scaleNotes[degreeIdx] || NOTE_NAMES_SHARP[(rootP.semi + interval) % 12],
+        order: ni,
+      });
+      ni++;
+    }
+    layout.push({ note: strings[s].note, label: `${strings[s].note}${strings[s].oct}`, frets });
+  }
+
+  positionOnNeck(layout);
+  return layout;
+}
+
+// Slides the raw shape by whole octaves to sit as squarely on a 24-fret neck as
+// possible, then nudges any leftover stragglers on/off the neck by an octave.
+// Shifting only by octaves keeps every fret's scale degree intact. This matters
+// most for spread 1-note-per-string runs, which can otherwise drift past fret 24.
+function positionOnNeck(layout) {
+  const raw = layout.flatMap(str => str.frets.map(f => f.fret));
+  if (!raw.length) return;
+
+  let bestShift = 0;
+  let bestCost = Infinity;
+  for (let sh = -48; sh <= 48; sh += 12) {
+    let violation = 0;
+    raw.forEach(fr => {
+      const v = fr + sh;
+      if (v < 0) violation += -v;
+      else if (v > 24) violation += v - 24;
+    });
+    const minAfter = Math.min(...raw) + sh;
+    const cost = violation * 1000 + Math.abs(minAfter - 2);
+    if (cost < bestCost) { bestCost = cost; bestShift = sh; }
+  }
+
+  layout.forEach(str => str.frets.forEach(f => {
+    f.fret += bestShift;
+    while (f.fret < 0) f.fret += 12;
+    while (f.fret > 24) f.fret -= 12;
+  }));
+}
+
+// Compact fretboard diagram of the notes-per-string run, low string on the
+// bottom. The fret window auto-fits the shape with one fret of padding.
+function renderNpsDiagram(layout) {
+  let min = Infinity, max = -Infinity;
+  layout.forEach(str => str.frets.forEach(f => {
+    if (f.fret < min) min = f.fret;
+    if (f.fret > max) max = f.fret;
+  }));
+  if (min === Infinity) return '';
+
+  const start = Math.max(0, min - 1);
+  const end = max + 1;
+  const count = end - start + 1;
+  const reversed = [...layout].reverse();
+
+  let html = `<div class="ref-fb-scroll"><div class="ref-fretboard" style="grid-template-columns:34px repeat(${count}, minmax(30px, 1fr))">`;
+  html += '<div class="ref-fb-corner"></div>';
+  for (let f = start; f <= end; f++) html += `<div class="ref-fb-fretnum">${f}</div>`;
+
+  reversed.forEach(str => {
+    html += `<div class="ref-fb-strlabel">${str.label}</div>`;
+    for (let f = start; f <= end; f++) {
+      const hit = str.frets.find(x => x.fret === f);
+      const cls = ['ref-fb-cell'];
+      if (f === 0) cls.push('nut');
+      let inner = '';
+      if (hit) {
+        const noteCls = ['ref-note', `deg-${hit.interval}`];
+        if (hit.isRoot) noteCls.push('root');
+        inner = `<span class="${noteCls.join(' ')}" title="${hit.noteName} · ${INTERVAL_LABELS[hit.interval] || hit.interval}">${DEGREE_LABELS[hit.interval]}</span>`;
+      }
+      html += `<div class="${cls.join(' ')}">${inner}</div>`;
+    }
   });
+  html += '</div></div>';
+  return html;
+}
+
+// Time-ordered tab: one column per note in the ascending run, so the arpeggio
+// reads left-to-right the way it is played.
+function renderNpsTab(layout) {
+  const notes = [];
+  layout.forEach((str, si) => str.frets.forEach(f => notes.push({ si, fret: f.fret, order: f.order })));
+  if (!notes.length) return '';
+  notes.sort((a, b) => a.order - b.order);
+
+  const numStrings = layout.length;
+  const rows = new Array(numStrings).fill('');
+  notes.forEach(n => {
+    const cell = String(n.fret);
+    const blank = '-'.repeat(cell.length);
+    for (let si = 0; si < numStrings; si++) {
+      rows[si] += '-' + (si === n.si ? cell : blank);
+    }
+  });
+
+  let tab = '';
+  for (let si = numStrings - 1; si >= 0; si--) {
+    tab += layout[si].note.padEnd(2, ' ') + '|' + rows[si] + '-|\n';
+  }
   return tab;
+}
+
+// The full notes-per-string block: picker + diagram + tab.
+function renderNpsSection() {
+  const layout = computeNPSLayout(refRoot, refScale, refNotesPerString);
+
+  let html = `<div class="nps-section">`;
+  html += `<div class="nps-head">`;
+  html += `<div>`;
+  html += `<div class="nps-title">Notes per string — arpeggio / scale run</div>`;
+  const sub = refNotesPerString === 1
+    ? `One note per string, ascending through the whole scale. The lowest and highest strings carry two notes so the run still completes a full 8-note octave.`
+    : `${refNotesPerString} notes per string, ascending through the whole scale across the neck.`;
+  html += `<p class="nps-sub">${sub}</p>`;
+  html += `</div>`;
+  html += `<div class="nps-picker" role="group" aria-label="Notes per string">`;
+  html += NPS_OPTIONS.map(n =>
+    `<button type="button" class="nps-btn${n === refNotesPerString ? ' active' : ''}" data-nps="${n}">${n}</button>`
+  ).join('');
+  html += `</div>`;
+  html += `</div>`;
+
+  if (layout) {
+    html += renderNpsDiagram(layout);
+    const tab = renderNpsTab(layout);
+    if (tab) {
+      html += `<div class="guitar-tab-wrap"><div class="tab-title">Ascending run (${refTuning})</div><pre>${tab}</pre></div>`;
+    }
+  } else {
+    html += `<p class="ref-info">Could not build a notes-per-string pattern for this scale.</p>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function wireNpsButtons() {
+  document.querySelectorAll('#ref-card .nps-btn').forEach(btn => {
+    btn.onclick = () => {
+      refNotesPerString = clampNps(Number(btn.dataset.nps));
+      saveSetting('ref.notesPerString', refNotesPerString);
+      renderScaleRef();
+    };
+  });
 }
 
 // Finds a SCALES entry whose semitone pattern matches the given list, so each
@@ -668,17 +857,10 @@ function renderScaleRef() {
 
   html += renderModalChordVisualizer();
 
-  const tabStr = render3NPSTab(refRoot, refScale);
-  if (tabStr) {
-    const rootP = parseNote(refRoot);
-    const startFret = ((rootP.semi - 4) % 12 + 12) % 12;
-    html += `<div class="guitar-tab-wrap">`;
-    html += `<div class="tab-title">3-Notes-Per-String Pattern (root at fret ${startFret} on low E)</div>`;
-    html += `<pre>${tabStr}</pre>`;
-    html += `</div>`;
-  }
+  html += renderNpsSection();
 
   card.innerHTML = html;
+  wireNpsButtons();
   renderRefFretboard();
   renderRefModes();
 }
