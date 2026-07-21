@@ -11,18 +11,35 @@ code** with a **shared CLI companion**. All heavy lifting (parsing + analysis)
 lives in **pure, DOM‑free ES modules under `js/`** so the web view and the CLI
 can both call it.
 
-**Status:** all phases below are **Planned**. Nothing here is implemented yet.
+**Status:** Phases 0–4 are **Implemented** (text + best‑effort PDF, web view and
+CLI parity). Phase 5 remains **Planned**.
 
 ## Status summary
 
 | Phase | Scope | Status |
 | ----- | ----- | ------ |
-| 0 | Extract shared detection engine (key + chord) from feature modules | Planned |
-| 1 | Text tab parser → structured note/event model (tuning‑aware) | Planned |
-| 2 | Key / tonal‑center + chord + progression (roman numerals) | Planned |
-| 3 | Scale detection, arpeggio detection, technique catalog, riff/solo segmentation | Planned |
-| 4 | Web UI, PDF ingestion, fretboard overlays, playback | Planned |
+| 0 | Extract shared detection engine (key + chord) from feature modules | Implemented |
+| 1 | Text tab parser → structured note/event model (tuning‑aware) | Implemented |
+| 2 | Key / tonal‑center + chord + progression (roman numerals) | Implemented |
+| 3 | Scale detection, arpeggio detection, technique catalog, riff/solo segmentation | Implemented |
+| 4 | Web UI, PDF ingestion, fretboard overlays, playback | Implemented |
 | 5 | Advanced: windowed modulation, modal refinement, confidence, export | Planned |
+
+### What shipped
+
+- **Engine** (pure, CLI‑safe): `js/tab/tabParser.js`, `js/tab/tabModel.js`,
+  `js/tab/tabAnalyzer.js`, and `js/analysis/{keyDetect,chordDetect,pitchClass,
+  scaleDetect,arpeggios,techniques,segments}.js`.
+- **Chromatic‑aware tonal center**: `tonalCenterReport` reports a tonic center
+  with a confidence and a chromaticism score, and explicitly flags material that
+  does not sit in one major/minor key (e.g. "F center (chromatic, minor‑ish)")
+  instead of forcing a key — while still refusing to call true noise a center.
+- **Web view**: `js/tabAnalyzer.js` + the `#sec-tabanalyzer` section, registered
+  in `main.js`/`home.js`/`commandPalette.js`, styled by `css/tabanalyzer.css`,
+  precached via `service-worker.js` (`v70-tab-analyzer`). PDF import is a lazy,
+  best‑effort CDN load of `pdf.js` with an editable text fallback.
+- **CLI**: `cli/src/analyzers/tab.js` wired as the `tab` activity
+  (`--file`, `--tuning`), sharing the engine through `cli/src/shared.js`.
 
 ---
 
