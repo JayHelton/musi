@@ -43,9 +43,11 @@ export const CHORD_TYPES = [
 /**
  * Identify the best chord for a set of pitch classes.
  * @param {number[]} pitchClasses pcs 0..11 (duplicates ok).
+ * @param {number|null} preferredRootPc when several equally-sized chords match
+ *   (e.g. a power-chord dyad), prefer the one rooted here (usually the bass).
  * @returns {{root:string, rootPC:number, type:object|null, intervals:number[], size?:number, unknown?:boolean}|null}
  */
-export function identifyChord(pitchClasses) {
+export function identifyChord(pitchClasses, preferredRootPc = null) {
   if (pitchClasses.length < 2) return null;
   const uniq = [...new Set(pitchClasses)].sort((a, b) => a - b);
   let bestMatch = null;
@@ -57,7 +59,11 @@ export function identifyChord(pitchClasses) {
       const mapped = ct.semis.map((s) => s % 12);
       if (mapped.every((s, i) => s === intervals[i])) {
         const rootName = NOTE_NAMES_SHARP[rootPC];
-        if (!bestMatch || ct.semis.length > bestMatch.size) {
+        const bigger = !bestMatch || ct.semis.length > bestMatch.size;
+        // Tie-break same-size matches toward the preferred (bass) root.
+        const tiePreferred = bestMatch && ct.semis.length === bestMatch.size &&
+          preferredRootPc != null && rootPC === preferredRootPc && bestMatch.rootPC !== preferredRootPc;
+        if (bigger || tiePreferred) {
           bestMatch = { root: rootName, rootPC, type: ct, size: ct.semis.length, intervals };
         }
       }
@@ -85,7 +91,7 @@ export function identifyChord(pitchClasses) {
  * @param {number|null} bassPc lowest sounding pitch class, or null.
  */
 export function identifyChordWithBass(pitchClasses, bassPc = null) {
-  const res = identifyChord(pitchClasses);
+  const res = identifyChord(pitchClasses, bassPc);
   if (!res) return res;
   const symbol = res.unknown ? res.root + '?' : res.root + res.type.sym;
   let label = symbol;
