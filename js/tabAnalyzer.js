@@ -8,6 +8,7 @@ import { SCALES } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { parseTab } from './tab/tabParser.js';
 import { analyzeModel } from './tab/tabAnalyzer.js';
+import { pdfToText } from './tab/pdfText.js';
 import { ensureAudio, audioCtx, midiFreq, getAnalyserDestination } from './audio.js';
 
 const ta = {
@@ -322,45 +323,9 @@ function play() {
   ta.timers.push(setTimeout(() => { ta.playing = false; }, total));
 }
 
-// ---- PDF ingestion (best-effort, lazy CDN import) ------------------------
-
-async function extractPdfText(arrayBuffer) {
-  const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
-  pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
-  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-  const lines = [];
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const content = await page.getTextContent();
-    // Group text items into lines by rounded y, then place by x to keep columns.
-    const rows = new Map();
-    let charW = 0, charN = 0;
-    for (const it of content.items) {
-      if (!it.str) continue;
-      const x = it.transform[4];
-      const y = Math.round(it.transform[5]);
-      if (it.width && it.str.length) { charW += it.width / it.str.length; charN++; }
-      if (!rows.has(y)) rows.set(y, []);
-      rows.get(y).push({ x, str: it.str });
-    }
-    const cw = charN ? charW / charN : 6;
-    const ys = [...rows.keys()].sort((a, b) => b - a);
-    for (const y of ys) {
-      const items = rows.get(y).sort((a, b) => a.x - b.x);
-      const minX = items[0].x;
-      const chars = [];
-      for (const it of items) {
-        const col = Math.max(0, Math.round((it.x - minX) / cw));
-        for (let i = 0; i < it.str.length; i++) chars[col + i] = it.str[i];
-      }
-      let line = '';
-      for (let i = 0; i < chars.length; i++) line += chars[i] || ' ';
-      lines.push(line.replace(/\s+$/, ''));
-    }
-    lines.push('');
-  }
-  return lines.join('\n');
-}
+// ---- PDF ingestion (best-effort, offline) --------------------------------
+// Uses the analyzer's own offline extractor (js/tab/pdfText.js), kept parallel
+// to and independent from the drum PDF importer so they can't break each other.
 
 async function handleFile(file) {
   const note = document.getElementById('ta-file-note');
@@ -371,7 +336,7 @@ async function handleFile(file) {
     if (isPdf) {
       if (note) note.textContent = 'Extracting text from PDF…';
       const buf = await file.arrayBuffer();
-      const text = await extractPdfText(buf);
+      const text = await pdfToText(buf);
       input.value = text;
       if (note) note.textContent = `Loaded ${file.name}. PDF text is best-effort — fix any misaligned rows, then Analyze.`;
     } else {
@@ -381,7 +346,7 @@ async function handleFile(file) {
     }
     analyze();
   } catch (err) {
-    if (note) note.textContent = 'Could not read that file' + (isPdf ? ' (PDF extraction needs a network connection). Paste the tab text instead.' : '.');
+    if (note) note.textContent = 'Could not read that file' + (isPdf ? ' — this PDF may use an unsupported layout. Paste the tab text instead.' : '.');
   }
 }
 
