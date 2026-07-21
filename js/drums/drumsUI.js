@@ -12,6 +12,8 @@ import { BUILTIN_PATTERNS } from './builtinPatterns.js';
 import { renderTab, renderMarkdown } from './tabRenderer.js';
 import { generateFill, FILL_TEMPLATES } from './fillGenerator.js';
 import { listPatterns, savePattern, deletePattern, drumsDbSupported } from './drumPatternDb.js';
+import { extractPdf } from './pdfExtract.js';
+import { pdfToPatterns } from './pdfTabImport.js';
 import * as engine from './drumEngine.js';
 
 // ---- Lane model shared by the sequencer and tab conversion ----------------
@@ -273,6 +275,11 @@ const libFilters = { category: 'all', style: 'all', difficulty: 'all', search: '
 function renderLibrary() {
   const root = $('drums-view-library');
   root.innerHTML = `
+    <div class="dr-lib-tools">
+      <button class="btn sm primary" id="dr-import-pdf">📄 Import PDF</button>
+      <input type="file" id="dr-import-pdf-file" accept="application/pdf,.pdf" hidden multiple>
+      <span class="dr-lib-tools-hint">Add your own drum tabs or drum-notation PDFs to the library.</span>
+    </div>
     <div class="dr-filters">
       <input type="search" id="dr-search" class="dr-search" placeholder="Search patterns…" value="${escapeAttr(libFilters.search)}">
       <select id="dr-f-cat">
@@ -314,6 +321,8 @@ function renderLibrary() {
   };
   $('dr-rand-beat').onclick = () => pickRandom('beat');
   $('dr-rand-fill').onclick = () => pickRandom('fill');
+  $('dr-import-pdf').onclick = () => $('dr-import-pdf-file').click();
+  $('dr-import-pdf-file').onchange = handlePdfImport;
   renderCards();
 }
 
@@ -461,6 +470,212 @@ function auditionPattern(p, btn) {
   auditionId = p.id;
   document.querySelectorAll('.dr-a-play').forEach((b) => (b.textContent = '▶ Play'));
   if (btn) btn.textContent = '■ Stop';
+}
+
+// ===========================================================================
+// PDF IMPORT
+// ===========================================================================
+// Reads one or more drum-tab / drum-notation PDFs, reconstructs patterns with
+// the dependency-free parser and lets the user review + pick before saving them
+// into the library.
+
+let importPreviewId = null;
+
+async function handlePdfImport(e) {
+  const files = Array.from((e.target && e.target.files) || []);
+  if (e.target) e.target.value = '';
+  if (!files.length) return;
+
+  if (!drumsDbSupported()) {
+    openImportModal({
+      entries: [],
+      warnings: ['Your browser blocks local storage (IndexedDB), so imported patterns can’t be saved. Try a normal (non-private) window.'],
+      files,
+    });
+    return;
+  }
+
+  openImportModal({ loading: true, files });
+
+  const allEntries = [];
+  const allWarnings = [];
+  for (const file of files) {
+    try {
+      const buf = await file.arrayBuffer();
+      const extracted = await extractPdf(buf);
+      const { patterns, warnings } = pdfToPatterns(extracted, { sourceName: file.name });
+      warnings.forEach((w) => { if (!allWarnings.includes(w)) allWarnings.push(w); });
+      patterns.forEach((p, i) => allEntries.push({
+        pid: `import-${Date.now().toString(36)}-${allEntries.length}-${i}`,
+        pattern: p,
+        checked: true,
+      }));
+    } catch (err) {
+      allWarnings.push(`Could not read “${file.name}”: ${err && err.message ? err.message : 'unsupported or corrupt PDF'}.`);
+    }
+  }
+
+  openImportModal({ entries: allEntries, warnings: allWarnings, files });
+}
+
+let importModalEl = null;
+function closeImportModal() {
+  stopMachine();
+  importPreviewId = null;
+  if (importModalEl) { importModalEl.remove(); importModalEl = null; }
+  document.removeEventListener('keydown', onImportKey);
+}
+function onImportKey(ev) { if (ev.key === 'Escape') closeImportModal(); }
+
+function openImportModal(state) {
+  if (importModalEl) importModalEl.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) closeImportModal(); });
+
+  const fileLabel = state.files && state.files.length
+    ? state.files.map((f) => f.name).join(', ')
+    : '';
+
+  if (state.loading) {
+    overlay.innerHTML = `
+      <div class="modal-dialog dr-import-modal">
+        <div class="modal-title">Importing PDF…</div>
+        <div class="modal-body">Reading and parsing ${escapeHtml(fileLabel)}. This runs entirely on your device.</div>
+        <div class="dr-import-spinner" aria-hidden="true"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    importModalEl = overlay;
+    document.addEventListener('keydown', onImportKey);
+    return;
+  }
+
+  const entries = state.entries || [];
+  const warnings = state.warnings || [];
+  const warnHtml = warnings.length
+    ? `<div class="dr-import-warnings">${warnings.map((w) => `<div class="dr-import-warn">⚠ ${escapeHtml(w)}</div>`).join('')}</div>`
+    : '';
+
+  const listHtml = entries.length
+    ? entries.map((entry, i) => importItemHtml(entry, i)).join('')
+    : '<div class="dr-empty">No patterns to import.</div>';
+
+  overlay.innerHTML = `
+    <div class="modal-dialog dr-import-modal">
+      <div class="dr-import-head">
+        <div class="modal-title">Review imported patterns</div>
+        ${entries.length ? `<label class="dr-chk dr-import-all"><input type="checkbox" id="dr-import-all" checked> Select all</label>` : ''}
+      </div>
+      <div class="modal-body">${entries.length
+        ? `Found <strong>${entries.length}</strong> pattern${entries.length === 1 ? '' : 's'} in ${escapeHtml(fileLabel)}. Edit titles/categories, preview, then add the ones you want.`
+        : `Nothing could be imported from ${escapeHtml(fileLabel)}.`}</div>
+      ${warnHtml}
+      <div class="dr-import-list" id="dr-import-list">${listHtml}</div>
+      <div class="modal-actions">
+        <button class="btn" id="dr-import-cancel">Cancel</button>
+        ${entries.length ? '<button class="btn primary" id="dr-import-add">Add selected to library</button>' : ''}
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  importModalEl = overlay;
+  document.addEventListener('keydown', onImportKey);
+
+  $('dr-import-cancel').onclick = closeImportModal;
+  const allBox = $('dr-import-all');
+  if (allBox) allBox.onchange = (ev) => {
+    entries.forEach((en) => { en.checked = ev.target.checked; });
+    overlay.querySelectorAll('.dr-import-check').forEach((c) => { c.checked = ev.target.checked; });
+  };
+
+  entries.forEach((entry, i) => wireImportItem(overlay, entry, i));
+
+  const addBtn = $('dr-import-add');
+  if (addBtn) addBtn.onclick = () => commitImport(entries);
+}
+
+function importItemHtml(entry, i) {
+  const p = entry.pattern;
+  const cats = ['beat', 'fill', 'exercise'];
+  return `
+    <div class="dr-import-item" data-i="${i}">
+      <label class="dr-import-select">
+        <input type="checkbox" class="dr-import-check" data-i="${i}" ${entry.checked ? 'checked' : ''}>
+      </label>
+      <div class="dr-import-body">
+        <div class="dr-import-fields">
+          <input type="text" class="dr-import-title" data-i="${i}" value="${escapeAttr(p.title)}" aria-label="Pattern title">
+          <select class="dr-import-cat" data-i="${i}" aria-label="Category">
+            ${cats.map((c) => `<option value="${c}" ${p.category === c ? 'selected' : ''}>${cap(c)}</option>`).join('')}
+          </select>
+          <span class="dr-badge">${p.subdivision}</span>
+          <span class="dr-badge">${p.bars} bar${p.bars === 1 ? '' : 's'}</span>
+          <span class="dr-badge">${p.bpmRange[0]}–${p.bpmRange[1]} BPM</span>
+          <button class="btn sm dr-import-play" data-i="${i}">▶ Preview</button>
+        </div>
+        <div class="dr-tab-pre-wrap"><pre class="dr-tab-pre">${escapeHtml(p.tab)}</pre></div>
+        ${p.notes ? `<div class="dr-import-note">${escapeHtml(p.notes)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+function wireImportItem(overlay, entry, i) {
+  const check = overlay.querySelector(`.dr-import-check[data-i="${i}"]`);
+  if (check) check.onchange = (ev) => { entry.checked = ev.target.checked; };
+  const title = overlay.querySelector(`.dr-import-title[data-i="${i}"]`);
+  if (title) title.oninput = (ev) => { entry.pattern.title = ev.target.value; };
+  const cat = overlay.querySelector(`.dr-import-cat[data-i="${i}"]`);
+  if (cat) cat.onchange = (ev) => { entry.pattern.category = ev.target.value; };
+  const play = overlay.querySelector(`.dr-import-play[data-i="${i}"]`);
+  if (play) play.onclick = () => previewImport(entry, play);
+}
+
+function previewImport(entry, btn) {
+  const audition = { ...entry.pattern, id: entry.pid };
+  if (importPreviewId === entry.pid && engine.isPlaying()) {
+    stopMachine();
+    importPreviewId = null;
+    if (importModalEl) importModalEl.querySelectorAll('.dr-import-play').forEach((b) => (b.textContent = '▶ Preview'));
+    return;
+  }
+  loadIntoMachine(audition);
+  playMachine();
+  importPreviewId = entry.pid;
+  if (importModalEl) importModalEl.querySelectorAll('.dr-import-play').forEach((b) => (b.textContent = '▶ Preview'));
+  if (btn) btn.textContent = '■ Stop';
+}
+
+async function commitImport(entries) {
+  const chosen = entries.filter((en) => en.checked);
+  if (!chosen.length) { closeImportModal(); return; }
+  stopMachine();
+  importPreviewId = null;
+  let saved = 0;
+  for (const entry of chosen) {
+    const rec = await savePattern({ ...entry.pattern, id: null, builtin: false });
+    if (rec) saved++;
+  }
+  await refreshUserPatterns();
+  closeImportModal();
+  if (currentView === 'library') renderCards();
+  const msg = saved
+    ? `Added ${saved} pattern${saved === 1 ? '' : 's'} to your library.`
+    : 'Could not save patterns (storage unavailable).';
+  flashLibraryToast(msg);
+}
+
+function flashLibraryToast(msg) {
+  let el = $('dr-lib-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'dr-lib-toast';
+    el.className = 'dr-lib-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3200);
 }
 
 // ===========================================================================
