@@ -34,6 +34,7 @@
 <link rel="stylesheet" href="css/chordworkout.css">
 <link rel="stylesheet" href="css/notes.css">
 <link rel="stylesheet" href="css/practice.css">
+<link rel="stylesheet" href="css/tabanalyzer.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -1262,6 +1263,42 @@
       <div class="drums-view" id="drums-view-machine"></div>
       <div class="drums-view" id="drums-view-fills"></div>
       <div class="drums-view" id="drums-view-practice"></div>
+    </div>
+  </section>
+
+  <!-- TAB ANALYZER -->
+  <section id="sec-tabanalyzer" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tools</div>
+      <h2>Tab Analyzer</h2>
+      <p>Paste or upload a guitar/bass tab, choose the tuning, and get an in-depth breakdown: key / tonal center, chords and progression, the scales and arpeggios behind the riffs and solos, and the techniques used.</p>
+    </div>
+    <div class="ta-layout">
+      <div class="ta-input-col">
+        <div class="sidebar-list">
+          <div class="sl-head">Tuning</div>
+          <div class="sl-scroll" id="sl-ta-tuning"></div>
+        </div>
+        <div class="ta-input-card">
+          <div class="ta-input-actions">
+            <label class="btn" for="ta-file">Upload .txt / .pdf</label>
+            <input type="file" id="ta-file" accept=".txt,.tab,.text,text/plain,application/pdf" hidden>
+            <button class="btn" id="ta-sample" type="button">Load sample</button>
+            <button class="btn primary" id="ta-analyze" type="button">Analyze</button>
+          </div>
+          <textarea id="ta-input" class="ta-textarea" spellcheck="false" autocomplete="off" placeholder="Paste tab here, e.g.
+e|-------------------|
+B|-------------------|
+G|-------7b9--9-7----|
+D|--5h7-----------7~-|
+A|-------------------|
+E|-------------------|"></textarea>
+          <div class="ta-file-note" id="ta-file-note"></div>
+        </div>
+      </div>
+      <div class="ta-results" id="ta-results">
+        <div class="quiz-card"><p class="ta-muted">Paste a tab and hit Analyze.</p></div>
+      </div>
     </div>
   </section>
 

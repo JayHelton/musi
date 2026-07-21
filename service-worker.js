@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v69-notes-practice-timer";
+const CACHE_VERSION = "v70-tab-analyzer";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -28,6 +28,7 @@ const PRECACHE_URLS = [
   "css/chordworkout.css",
   "css/notes.css",
   "css/practice.css",
+  "css/tabanalyzer.css",
   "js/main.js",
   "js/attachments.js",
   "js/audio.js",
@@ -61,6 +62,17 @@ const PRECACHE_URLS = [
   "js/riffGenerator.js",
   "js/scaleQuiz.js",
   "js/scaleReference.js",
+  "js/tabAnalyzer.js",
+  "js/tab/tabModel.js",
+  "js/tab/tabParser.js",
+  "js/tab/tabAnalyzer.js",
+  "js/analysis/keyDetect.js",
+  "js/analysis/chordDetect.js",
+  "js/analysis/pitchClass.js",
+  "js/analysis/scaleDetect.js",
+  "js/analysis/arpeggios.js",
+  "js/analysis/techniques.js",
+  "js/analysis/segments.js",
   "js/stats.js",
   "js/songwriter.js",
   "js/exercises.js",
