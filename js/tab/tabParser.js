@@ -160,8 +160,8 @@ export function parseTab(text, tuning = 'Standard') {
 
   for (const block of blocks) {
     const m = block.length;
-    if (m < 3 || m > 8) {
-      warnings.push(`Skipped a ${m}-row block (expected 3–8 string rows).`);
+    if (m < 1 || m > 8) {
+      warnings.push(`Skipped a ${m}-row block (expected 1–8 string rows).`);
       continue;
     }
     if (m !== strings.length) {
