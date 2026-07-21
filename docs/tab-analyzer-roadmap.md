@@ -36,8 +36,15 @@ CLI parity). Phase 5 remains **Planned**.
   instead of forcing a key — while still refusing to call true noise a center.
 - **Web view**: `js/tabAnalyzer.js` + the `#sec-tabanalyzer` section, registered
   in `main.js`/`home.js`/`commandPalette.js`, styled by `css/tabanalyzer.css`,
-  precached via `service-worker.js` (`v70-tab-analyzer`). PDF import is a lazy,
-  best‑effort CDN load of `pdf.js` with an editable text fallback.
+  precached via `service-worker.js`. PDF import uses the analyzer's **own
+  offline extractor** (`js/tab/pdfText.js`) — no third‑party library and no
+  network, matching Musi's static/offline PWA rule. It parses the PDF object
+  structure, inflates FlateDecode content streams via the platform
+  `DecompressionStream`, and decodes glyph‑encoded fret numbers through each
+  font's `/ToUnicode` CMap, then reflows the positioned text into editable
+  monospaced rows. It is deliberately **parallel to and independent from** the
+  drum PDF importer (`js/drums/pdfExtract.js`) so the two cannot break each
+  other.
 - **CLI**: `cli/src/analyzers/tab.js` wired as the `tab` activity
   (`--file`, `--tuning`), sharing the engine through `cli/src/shared.js`.
 
