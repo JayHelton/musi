@@ -23,6 +23,7 @@ const TITLES = {
   practice: 'Practice Timer',
   exercises: 'Exercises',
   drums: 'Drums',
+  tabanalyzer: 'Tab Analyzer',
 };
 
 const DESCRIPTIONS = {
@@ -44,6 +45,7 @@ const DESCRIPTIONS = {
   practice: 'Countdown timer with a metronome tempo plan.',
   exercises: 'Upload tabs, audio, videos and lesson links.',
   drums: 'Beats, fills, drum machine and fill generator.',
+  tabanalyzer: 'Break down a tab: key, chords, scales, arpeggios.',
 };
 
 let showSectionFn = null;

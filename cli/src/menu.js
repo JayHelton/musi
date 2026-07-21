@@ -6,6 +6,7 @@ import { runFretboard } from './trainers/fretboard.js';
 import { runEarTrainer } from './trainers/ear.js';
 import { runPitch } from './trainers/pitch.js';
 import { runReference } from './reference.js';
+import { runTabAnalyzer } from './analyzers/tab.js';
 
 const ACTIVITIES = {
   scale: runScaleQuiz,
@@ -15,6 +16,7 @@ const ACTIVITIES = {
   ear: runEarTrainer,
   pitch: runPitch,
   reference: runReference,
+  tab: runTabAnalyzer,
 };
 
 export async function runActivity(name, opts = {}) {
@@ -40,6 +42,7 @@ export async function runMenu() {
         { label: c.bold('Train') + c.gray(' · Ear training'), value: 'ear' },
         { label: c.bold('Pitch') + c.gray(' · Play scales'), value: 'pitch' },
         { label: c.bold('Learn') + c.gray(' · Scale reference'), value: 'reference' },
+        { label: c.bold('Analyze') + c.gray(' · Guitar tab'), value: 'tab' },
         { label: c.gray('Quit'), value: '__quit__' },
       ],
       { defaultIndex: 0 }

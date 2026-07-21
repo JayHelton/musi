@@ -19,6 +19,10 @@ const ALIASES = {
   reference: 'reference',
   ref: 'reference',
   learn: 'reference',
+  tab: 'tab',
+  tabs: 'tab',
+  analyze: 'tab',
+  analyse: 'tab',
 };
 
 const FLAG_MAP = {
@@ -30,6 +34,8 @@ const FLAG_MAP = {
   '--clef': 'clef',
   '--key': 'key',
   '--tuning': 'tuning',
+  '--file': 'file',
+  '--tab': 'file',
   '--mode': 'mode',
   '--octave': 'octave',
   '--tempo': 'tempo',
@@ -67,12 +73,14 @@ function printHelp() {
   print('  ear         ' + c.gray('Ear trainer           (--key, --mode easy|hard)'));
   print('  pitch       ' + c.gray('Play scales           (--root, --type, --octave, --tempo, --start, --count, --step)'));
   print('  reference   ' + c.gray('Scale reference/learn (--root, --type)'));
+  print('  tab         ' + c.gray('Analyze a guitar tab  (--file, --tuning)'));
   print();
   print(c.bold('Examples:'));
   print('  musi scale --root C --type "Major (Ionian)"');
   print('  musi interval --diff medium');
   print('  musi pitch --root A --type "Natural Minor (Aeolian)" --tempo 120');
   print('  musi reference --root F --type Dorian');
+  print('  musi tab --file solo.txt --tuning "Drop C"');
   print();
   print(c.gray('During a quiz: type your answer, or use q (quit), s (reveal), h (hint), r (replay).'));
 }

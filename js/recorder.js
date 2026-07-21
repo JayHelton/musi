@@ -3,6 +3,7 @@ import { NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { detectPitch } from './pitch.js';
 import { saveAudio, attachmentsSupported } from './attachments.js';
+import { detectKey, keyLabel } from './analysis/keyDetect.js';
 
 const recorder = {
   recording: false,
@@ -61,45 +62,6 @@ function rmsOf(buf) {
   let rms = 0;
   for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
   return Math.sqrt(rms / buf.length);
-}
-
-// Krumhansl-Schmuckler key profiles.
-const MAJ_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
-const MIN_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
-
-function pearson(x, y) {
-  const n = x.length;
-  let mx = 0, my = 0;
-  for (let i = 0; i < n; i++) { mx += x[i]; my += y[i]; }
-  mx /= n; my /= n;
-  let num = 0, dx = 0, dy = 0;
-  for (let i = 0; i < n; i++) {
-    const a = x[i] - mx, b = y[i] - my;
-    num += a * b; dx += a * a; dy += b * b;
-  }
-  const den = Math.sqrt(dx * dy);
-  return den === 0 ? 0 : num / den;
-}
-
-function detectKey(weights) {
-  let total = 0;
-  for (let i = 0; i < 12; i++) total += weights[i];
-  if (total <= 0) return [];
-  const results = [];
-  for (let tonic = 0; tonic < 12; tonic++) {
-    for (const [mode, profile] of [['major', MAJ_PROFILE], ['minor', MIN_PROFILE]]) {
-      const candidate = new Array(12);
-      for (let pc = 0; pc < 12; pc++) candidate[pc] = profile[(pc - tonic + 12) % 12];
-      const r = pearson(Array.from(weights), candidate);
-      results.push({ tonic, mode, r });
-    }
-  }
-  results.sort((a, b) => b.r - a.r);
-  return results;
-}
-
-function keyLabel(k) {
-  return NOTE_NAMES_SHARP[k.tonic] + ' ' + (k.mode === 'major' ? 'Major' : 'Minor');
 }
 
 function resetAnalysis() {
