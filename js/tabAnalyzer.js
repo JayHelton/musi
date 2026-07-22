@@ -9,6 +9,7 @@ import { getSetting, saveSetting } from './persistence.js';
 import { parseTab } from './tab/tabParser.js';
 import { analyzeModel } from './tab/tabAnalyzer.js';
 import { pdfToText } from './tab/pdfText.js';
+import { parseGuitarPro, isGuitarProName } from './tab/guitarPro.js';
 import { ensureAudio, audioCtx, midiFreq, getAnalyserDestination } from './audio.js';
 
 const ta = {
@@ -283,6 +284,14 @@ function analyze() {
   render();
 }
 
+// Analyze a pre-built model (e.g. from a Guitar Pro file) without going through
+// the ASCII text parser, so exact fret/technique data is preserved.
+function analyzeFromModel(model) {
+  ta.model = model;
+  ta.report = analyzeModel(model);
+  render();
+}
+
 // ---- Playback ------------------------------------------------------------
 
 function stopPlayback() {
@@ -323,22 +332,44 @@ function play() {
   ta.timers.push(setTimeout(() => { ta.playing = false; }, total));
 }
 
-// ---- PDF ingestion (best-effort, offline) --------------------------------
-// Uses the analyzer's own offline extractor (js/tab/pdfText.js), kept parallel
-// to and independent from the drum PDF importer so they can't break each other.
+// ---- File ingestion ------------------------------------------------------
+// Guitar Pro (.gp) files are the reliable, exact path: they carry the full
+// score, so they parse straight into a TabModel. PDF import is best-effort and
+// offline (js/tab/pdfText.js) — it works for text-flow tabs but is lossy for
+// engraved notation, so users can fix the extracted text before analyzing.
 
 async function handleFile(file) {
   const note = document.getElementById('ta-file-note');
   const input = document.getElementById('ta-input');
   if (!file) return;
   const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  const isGp = isGuitarProName(file.name);
   try {
+    if (isGp) {
+      if (note) note.textContent = 'Reading Guitar Pro file…';
+      const buf = await file.arrayBuffer();
+      const { model, ascii, meta } = await parseGuitarPro(buf);
+      input.value = ascii;
+      saveSetting('tab.lastInput', ascii.slice(0, 20000));
+      if (note) {
+        const trk = meta.trackName ? ` — ${meta.trackName}` : '';
+        const extra = meta.tracks > 1 ? ` (analyzed the first fretted track of ${meta.tracks})` : '';
+        note.textContent = `Loaded ${file.name}${trk}${extra}. Exact data from the score.`;
+      }
+      analyzeFromModel(model);
+      return;
+    }
     if (isPdf) {
       if (note) note.textContent = 'Extracting text from PDF…';
       const buf = await file.arrayBuffer();
       const text = await pdfToText(buf);
       input.value = text;
-      if (note) note.textContent = `Loaded ${file.name}. PDF text is best-effort — fix any misaligned rows, then Analyze.`;
+      const looksLikeTab = /\|[-0-9]/.test(text) || /(^|\n)\s*[eEbBgGdDaA]\s*\|/.test(text);
+      if (note) {
+        note.textContent = looksLikeTab
+          ? `Loaded ${file.name}. PDF text is best-effort — fix any misaligned rows, then Analyze.`
+          : `Loaded ${file.name}, but this looks like engraved (not text) tab, so extraction is unreliable. For an exact read, open it in Guitar Pro and export a “.gp” file, or paste the tab as text.`;
+      }
     } else {
       const text = await file.text();
       input.value = text;
@@ -346,7 +377,11 @@ async function handleFile(file) {
     }
     analyze();
   } catch (err) {
-    if (note) note.textContent = 'Could not read that file' + (isPdf ? ' — this PDF may use an unsupported layout. Paste the tab text instead.' : '.');
+    const msg = err && err.message ? err.message : '';
+    if (note) {
+      if (isGp && msg) note.textContent = msg;
+      else note.textContent = 'Could not read that file' + (isPdf ? ' — this PDF may use an unsupported layout. Paste the tab text instead.' : '.');
+    }
   }
 }
 

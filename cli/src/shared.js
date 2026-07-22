@@ -27,3 +27,4 @@ export {
 // Tab analysis engine (pure, DOM-free) shared with the web Tab Analyzer.
 export { parseTab } from '../../js/tab/tabParser.js';
 export { analyzeModel, analyzeTab } from '../../js/tab/tabAnalyzer.js';
+export { parseGuitarPro, isGuitarProName, modelToAsciiTab } from '../../js/tab/guitarPro.js';
