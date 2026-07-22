@@ -20,6 +20,9 @@ const ta = {
   voices: [],
   timers: [],
   built: false,
+  gp: null,        // last-parsed Guitar Pro file: { format, tracks, ... }
+  gpIndex: 0,      // selected track index within ta.gp.tracks
+  gpName: '',      // source file name
 };
 
 const SAMPLE_TAB = `e|-------------------------------|
@@ -64,6 +67,55 @@ function buildTuningList() {
     };
     host.appendChild(div);
   });
+}
+
+// ---- Guitar Pro parts (track) picker -------------------------------------
+
+function hideTrackList() {
+  ta.gp = null;
+  const wrap = document.getElementById('ta-track-wrap');
+  if (wrap) wrap.hidden = true;
+}
+
+// Populate the "Parts" sidebar from a parsed Guitar Pro file. Hidden when the
+// file has a single track (nothing to choose).
+function buildTrackList(gp) {
+  const wrap = document.getElementById('ta-track-wrap');
+  const host = document.getElementById('sl-ta-track');
+  if (!wrap || !host) return;
+  host.innerHTML = '';
+  if (!gp || gp.tracks.length <= 1) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  gp.tracks.forEach((t, i) => {
+    const div = document.createElement('div');
+    div.className = 'sl-item' + (i === ta.gpIndex ? ' active' : '');
+    div.innerHTML = `<span class="ta-track-name">${esc(t.name)}</span>` +
+      `<span class="ta-track-meta">${esc(t.tuning)} · ${t.noteCount} notes</span>`;
+    div.onclick = () => selectGpTrack(i);
+    host.appendChild(div);
+  });
+}
+
+function selectGpTrack(i) {
+  if (!ta.gp || !ta.gp.tracks[i]) return;
+  ta.gpIndex = i;
+  const host = document.getElementById('sl-ta-track');
+  if (host) host.querySelectorAll('.sl-item').forEach((el, k) => el.classList.toggle('active', k === i));
+  loadGpTrack();
+}
+
+// Load the currently selected GP track into the editor and analyze it directly.
+function loadGpTrack() {
+  const track = ta.gp.tracks[ta.gpIndex];
+  const input = document.getElementById('ta-input');
+  const note = document.getElementById('ta-file-note');
+  if (input) input.value = track.ascii;
+  saveSetting('tab.lastInput', track.ascii.slice(0, 20000));
+  if (note) {
+    const part = ta.gp.tracks.length > 1 ? ` — part ${ta.gpIndex + 1}/${ta.gp.tracks.length}` : '';
+    note.textContent = `${ta.gpName}${part}: ${track.name} (${track.tuning}). Exact data from the score.`;
+  }
+  analyzeFromModel(track.model);
 }
 
 // ---- Rendering -----------------------------------------------------------
@@ -277,6 +329,8 @@ function render() {
 // ---- Analyze -------------------------------------------------------------
 
 function analyze() {
+  // Manual/text analysis takes over from any loaded Guitar Pro file.
+  hideTrackList();
   const text = document.getElementById('ta-input').value;
   saveSetting('tab.lastInput', text.slice(0, 20000));
   ta.model = parseTab(text, ta.tuning);
@@ -348,15 +402,12 @@ async function handleFile(file) {
     if (isGp) {
       if (note) note.textContent = 'Reading Guitar Pro file…';
       const buf = await file.arrayBuffer();
-      const { model, ascii, meta } = await parseGuitarPro(buf);
-      input.value = ascii;
-      saveSetting('tab.lastInput', ascii.slice(0, 20000));
-      if (note) {
-        const trk = meta.trackName ? ` — ${meta.trackName}` : '';
-        const extra = meta.tracks > 1 ? ` (analyzed the first fretted track of ${meta.tracks})` : '';
-        note.textContent = `Loaded ${file.name}${trk}${extra}. Exact data from the score.`;
-      }
-      analyzeFromModel(model);
+      const gp = await parseGuitarPro(buf);
+      ta.gp = gp;
+      ta.gpIndex = gp.defaultIndex || 0;
+      ta.gpName = file.name;
+      buildTrackList(gp);
+      loadGpTrack();
       return;
     }
     if (isPdf) {
