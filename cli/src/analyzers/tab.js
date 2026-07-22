@@ -23,6 +23,27 @@ function midiToName(midi) {
   return n + (Math.floor(midi / 12) - 1);
 }
 
+// Resolve which Guitar Pro part to analyze: a --track number (1-based) or a
+// name substring; otherwise prompt when interactive, else the default track.
+async function resolveTrackIndex(gp, wanted) {
+  const tracks = gp.tracks;
+  if (wanted != null && String(wanted).trim() !== '') {
+    const w = String(wanted).trim();
+    const asNum = Number(w);
+    if (Number.isInteger(asNum) && asNum >= 1 && asNum <= tracks.length) return asNum - 1;
+    const byName = tracks.findIndex((t) => t.name.toLowerCase().includes(w.toLowerCase()));
+    if (byName >= 0) return byName;
+    print(c.yellow(`No part matched "${w}"; using the default part.`));
+    return gp.defaultIndex || 0;
+  }
+  if (tracks.length > 1 && process.stdin.isTTY) {
+    return await choose('Part to analyze', tracks.map((t, i) => ({
+      label: `${t.name} (${t.tuning}, ${t.noteCount} notes)`, value: i,
+    })), { defaultIndex: gp.defaultIndex || 0 });
+  }
+  return gp.defaultIndex || 0;
+}
+
 function resolveTuningName(name) {
   if (!name) return 'Standard';
   const keys = Object.keys(TUNINGS);
@@ -136,11 +157,19 @@ export async function runTabAnalyzer(opts = {}) {
       return;
     }
     try {
-      const { model, meta } = await parseGuitarPro(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-      const trk = meta.trackName ? ` — ${meta.trackName}` : '';
-      const extra = meta.tracks > 1 ? ` (first fretted track of ${meta.tracks})` : '';
-      print(c.gray(`Loaded Guitar Pro file${trk}${extra}.`));
-      printReport(analyzeModel(model));
+      const gp = await parseGuitarPro(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+      const idx = await resolveTrackIndex(gp, opts.track);
+      if (gp.tracks.length > 1) {
+        print(c.gray(`Parts in this file (${gp.tracks.length} playable of ${gp.meta.tracks}):`));
+        gp.tracks.forEach((t, i) => {
+          const mark = i === idx ? c.ok('▶') : c.gray(' ');
+          print(`  ${mark} ${c.bold(String(i + 1).padStart(2))}. ${t.name} ${c.gray(`(${t.tuning}, ${t.noteCount} notes)`)}`);
+        });
+        print(c.gray('Use --track <number|name> to pick another part.'));
+      }
+      const track = gp.tracks[idx];
+      print(c.gray(`Analyzing part: ${track.name} (${track.tuning}).`));
+      printReport(analyzeModel(track.model));
     } catch (err) {
       print(c.err(err && err.message ? err.message : 'Could not read that Guitar Pro file.'));
     }
