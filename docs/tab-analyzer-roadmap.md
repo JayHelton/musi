@@ -12,7 +12,8 @@ lives in **pure, DOM‑free ES modules under `js/`** so the web view and the CLI
 can both call it.
 
 **Status:** Phases 0–4 are **Implemented** (text + best‑effort PDF, web view and
-CLI parity). Phase 5 remains **Planned**.
+CLI parity). **Guitar Pro `.gp` import is Implemented** (the reliable, exact
+ingestion path — see below). Phase 5 remains **Planned**.
 
 ## Status summary
 
@@ -23,7 +24,42 @@ CLI parity). Phase 5 remains **Planned**.
 | 2 | Key / tonal‑center + chord + progression (roman numerals) | Implemented |
 | 3 | Scale detection, arpeggio detection, technique catalog, riff/solo segmentation | Implemented |
 | 4 | Web UI, PDF ingestion, fretboard overlays, playback | Implemented |
+| 4b | **Guitar Pro `.gp` (GP7/8) import → exact TabModel** | **Implemented** |
 | 5 | Advanced: windowed modulation, modal refinement, confidence, export | Planned |
+
+## PDF vs Guitar Pro — evaluation & decision
+
+PDF import works only for tabs that are already **monospaced ASCII text** placed
+in a PDF (e.g. a `.txt` tab printed to PDF). It **does not work for engraved
+tab**, which is how Guitar Pro, MuseScore, Soundslice and most downloadable tab
+PDFs are produced: the staff is drawn as **vector lines** and each fret number
+is an **individually positioned glyph** — there are no `-` dashes, `|` bar
+lines, or string‑name labels as text. Extraction then yields sparse, unaligned
+digit soup (e.g. `0 / 0 / 2 / 2  57 / 0    12`) that the tab parser can't
+recognize. Reconstructing a real column grid from engraved notation is the same
+lossy geometry problem the drum importer tackles (detect staff‑line rects, bin
+glyphs by line, infer the time grid, synthesize scaffolding), and even then it
+can't recover tuning, durations, or letter‑based technique glyphs reliably.
+
+**Reading Guitar Pro files is both easier and exact.** A `.gp` (Guitar Pro 7/8)
+file is a plain **ZIP** whose `Content/score.gpif` entry is **XML** carrying the
+full score: tuning, every beat, the fret/string/MIDI of each note, and playing
+techniques as structured attributes. It fits Musi's static/offline rule with no
+new dependency — ZIP entries inflate with the platform `DecompressionStream`
+(already used by both PDF extractors) and a tiny built‑in XML parser reads the
+GPIF. So `.gp` is now the **recommended, reliable ingestion path**; PDF stays as
+a best‑effort convenience for text‑flow tabs, and the UI nudges users toward
+`.gp` when a PDF looks engraved.
+
+- **Guitar Pro reader** (pure, offline, CLI‑safe): `js/tab/guitarPro.js` —
+  `parseGuitarPro(bytes)` → `{ model, meta, ascii }`. Reads the ZIP central
+  directory, inflates `score.gpif`, and maps GPIF → `TabModel` (per‑beat slots;
+  stacked notes = chords; frets/MIDI taken straight from the file). Techniques
+  mapped: bends, slides, hammer‑ons/pull‑offs (HOPO), palm mutes, taps, slaps/
+  pops, harmonics, vibrato, trills, tremolo picking, dead notes. Also renders
+  the model back to editable ASCII for the textarea. Older binary `.gp3/.gp4/
+  .gp5` and the GP6 `.gpx` container are **detected and reported** with a
+  re‑export message rather than mis‑parsed (possible later phases).
 
 ### What shipped
 
@@ -69,8 +105,10 @@ CLI parity). Phase 5 remains **Planned**.
   the **CLI reaches parity** with the web view.
 
 **Non‑goals (initially)**
-- Parsing binary **Guitar Pro** (`.gp/.gpx/.gp5`) or MusicXML files — out of
-  scope; detect and message clearly. (Could be a later phase.)
+- ~~Parsing **Guitar Pro** files~~ — **done for `.gp` (GP7/8)**, the modern
+  default format (see "PDF vs Guitar Pro" above). Older binary `.gp3/.gp4/.gp5`,
+  the GP6 `.gpx` container, and MusicXML remain out of scope for now; they are
+  detected and messaged clearly, and could be later phases.
 - Reconstructing **exact rhythm/durations** — ASCII tab rarely encodes reliable
   timing. Analysis is pitch/technique‑centric; timing is approximated from
   column spacing only as a weak signal.
@@ -412,8 +450,10 @@ Smoke test (per `AGENTS.md`): `node bin/musi.js tab --file sample.txt --tuning "
 - **Key ambiguity from sparse pitch content** (power‑chord riffs). *Mitigation:*
   report ranked tonal‑center candidates with confidence, not a single answer.
 - **Relative‑mode ambiguity.** *Mitigation:* Phase 5 tonic‑emphasis heuristics.
-- **Binary Guitar Pro files.** *Mitigation:* detect and clearly message as
-  unsupported; consider a dedicated later phase.
+- **Guitar Pro files.** *Mitigation:* modern `.gp` (GP7/8) is fully supported
+  via `js/tab/guitarPro.js` (exact, offline). Older binary `.gp3/.gp4/.gp5` and
+  the GP6 `.gpx` container are detected and clearly messaged as needing a
+  `.gp` re‑export; a dedicated binary reader could be a later phase.
 - **Service‑worker caching** can hide new assets. *Mitigation:* bump the cache
   name and precache list whenever files are added (per `AGENTS.md`).
 
