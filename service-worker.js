@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v73-tab-guitarpro";
+const CACHE_VERSION = "v74-tab-gp5";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -68,6 +68,7 @@ const PRECACHE_URLS = [
   "js/tab/tabAnalyzer.js",
   "js/tab/pdfText.js",
   "js/tab/guitarPro.js",
+  "js/tab/gp5.js",
   "js/analysis/keyDetect.js",
   "js/analysis/chordDetect.js",
   "js/analysis/pitchClass.js",

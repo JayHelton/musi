@@ -73,7 +73,7 @@ function printHelp() {
   print('  ear         ' + c.gray('Ear trainer           (--key, --mode easy|hard)'));
   print('  pitch       ' + c.gray('Play scales           (--root, --type, --octave, --tempo, --start, --count, --step)'));
   print('  reference   ' + c.gray('Scale reference/learn (--root, --type)'));
-  print('  tab         ' + c.gray('Analyze a guitar tab  (--file .txt/.gp, --tuning)'));
+  print('  tab         ' + c.gray('Analyze a guitar tab  (--file .txt/.gp/.gp5, --tuning)'));
   print();
   print(c.bold('Examples:'));
   print('  musi scale --root C --type "Major (Ionian)"');

@@ -122,7 +122,7 @@ export async function runTabAnalyzer(opts = {}) {
   let filePath = opts.file;
 
   if (!filePath && process.stdin.isTTY) {
-    const answer = (await ask(c.gray('Path to a tab .txt or Guitar Pro .gp file (Enter for a built-in sample): '))).trim();
+    const answer = (await ask(c.gray('Path to a tab .txt or Guitar Pro .gp/.gp5 file (Enter for a built-in sample): '))).trim();
     if (answer) filePath = answer;
   }
 
