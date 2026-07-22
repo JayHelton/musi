@@ -24,7 +24,7 @@ ingestion path — see below). Phase 5 remains **Planned**.
 | 2 | Key / tonal‑center + chord + progression (roman numerals) | Implemented |
 | 3 | Scale detection, arpeggio detection, technique catalog, riff/solo segmentation | Implemented |
 | 4 | Web UI, PDF ingestion, fretboard overlays, playback | Implemented |
-| 4b | **Guitar Pro `.gp` (GP7/8) import → exact TabModel** | **Implemented** |
+| 4b | **Guitar Pro `.gp` (GP7/8) + `.gp5` import → exact TabModel** | **Implemented** |
 | 5 | Advanced: windowed modulation, modal refinement, confidence, export | Planned |
 
 ## PDF vs Guitar Pro — evaluation & decision
@@ -52,14 +52,16 @@ a best‑effort convenience for text‑flow tabs, and the UI nudges users toward
 `.gp` when a PDF looks engraved.
 
 - **Guitar Pro reader** (pure, offline, CLI‑safe): `js/tab/guitarPro.js` —
-  `parseGuitarPro(bytes)` → `{ model, meta, ascii }`. Reads the ZIP central
-  directory, inflates `score.gpif`, and maps GPIF → `TabModel` (per‑beat slots;
-  stacked notes = chords; frets/MIDI taken straight from the file). Techniques
+  `parseGuitarPro(bytes)` → `{ model, meta, ascii }`. For `.gp` (GP7/8) it reads
+  the ZIP central directory, inflates `score.gpif`, and maps GPIF → `TabModel`
+  (per‑beat slots; stacked notes = chords; frets/MIDI taken straight from the
+  file). For binary **`.gp5`** it delegates to `js/tab/gp5.js` (both 5.00 and
+  5.10), walking the GP5 byte stream to the *same* `TabModel`. Techniques
   mapped: bends, slides, hammer‑ons/pull‑offs (HOPO), palm mutes, taps, slaps/
   pops, harmonics, vibrato, trills, tremolo picking, dead notes. Also renders
-  the model back to editable ASCII for the textarea. Older binary `.gp3/.gp4/
-  .gp5` and the GP6 `.gpx` container are **detected and reported** with a
-  re‑export message rather than mis‑parsed (possible later phases).
+  the model back to editable ASCII for the textarea. Older binary `.gp3/.gp4`
+  and the GP6 `.gpx` container are **detected and reported** with a re‑export
+  message rather than mis‑parsed (possible later phases).
 
 ### What shipped
 
@@ -105,10 +107,10 @@ a best‑effort convenience for text‑flow tabs, and the UI nudges users toward
   the **CLI reaches parity** with the web view.
 
 **Non‑goals (initially)**
-- ~~Parsing **Guitar Pro** files~~ — **done for `.gp` (GP7/8)**, the modern
-  default format (see "PDF vs Guitar Pro" above). Older binary `.gp3/.gp4/.gp5`,
-  the GP6 `.gpx` container, and MusicXML remain out of scope for now; they are
-  detected and messaged clearly, and could be later phases.
+- ~~Parsing **Guitar Pro** files~~ — **done for `.gp` (GP7/8) and binary
+  `.gp5`** (see "PDF vs Guitar Pro" above). Older binary `.gp3/.gp4`, the GP6
+  `.gpx` container, and MusicXML remain out of scope for now; they are detected
+  and messaged clearly, and could be later phases.
 - Reconstructing **exact rhythm/durations** — ASCII tab rarely encodes reliable
   timing. Analysis is pitch/technique‑centric; timing is approximated from
   column spacing only as a weak signal.
@@ -450,10 +452,11 @@ Smoke test (per `AGENTS.md`): `node bin/musi.js tab --file sample.txt --tuning "
 - **Key ambiguity from sparse pitch content** (power‑chord riffs). *Mitigation:*
   report ranked tonal‑center candidates with confidence, not a single answer.
 - **Relative‑mode ambiguity.** *Mitigation:* Phase 5 tonic‑emphasis heuristics.
-- **Guitar Pro files.** *Mitigation:* modern `.gp` (GP7/8) is fully supported
-  via `js/tab/guitarPro.js` (exact, offline). Older binary `.gp3/.gp4/.gp5` and
-  the GP6 `.gpx` container are detected and clearly messaged as needing a
-  `.gp` re‑export; a dedicated binary reader could be a later phase.
+- **Guitar Pro files.** *Mitigation:* modern `.gp` (GP7/8) and binary `.gp5`
+  are fully supported (exact, offline) via `js/tab/guitarPro.js` and
+  `js/tab/gp5.js`. Older binary `.gp3/.gp4` and the GP6 `.gpx` container are
+  detected and clearly messaged as needing a `.gp`/`.gp5` re‑export; dedicated
+  readers for them could be a later phase.
 - **Service‑worker caching** can hide new assets. *Mitigation:* bump the cache
   name and precache list whenever files are added (per `AGENTS.md`).
 
