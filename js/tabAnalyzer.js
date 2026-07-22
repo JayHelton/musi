@@ -77,21 +77,31 @@ function hideTrackList() {
   if (wrap) wrap.hidden = true;
 }
 
-// Populate the "Parts" sidebar from a parsed Guitar Pro file. Hidden when the
-// file has a single track (nothing to choose).
+// Populate the "Parts" sidebar from a parsed Guitar Pro file. Every instrument
+// in the score is listed; fretted parts are selectable, and drums / vocals /
+// keys are shown disabled with the reason they can't be read as tab. Hidden
+// only when the file has a single instrument (nothing to choose).
 function buildTrackList(gp) {
   const wrap = document.getElementById('ta-track-wrap');
   const host = document.getElementById('sl-ta-track');
   if (!wrap || !host) return;
   host.innerHTML = '';
-  if (!gp || gp.tracks.length <= 1) { wrap.hidden = true; return; }
+  const parts = (gp && gp.parts) || null;
+  if (!parts || parts.length <= 1) { wrap.hidden = true; return; }
   wrap.hidden = false;
-  gp.tracks.forEach((t, i) => {
+  parts.forEach((p) => {
     const div = document.createElement('div');
-    div.className = 'sl-item' + (i === ta.gpIndex ? ' active' : '');
-    div.innerHTML = `<span class="ta-track-name">${esc(t.name)}</span>` +
-      `<span class="ta-track-meta">${esc(t.tuning)} · ${t.noteCount} notes</span>`;
-    div.onclick = () => selectGpTrack(i);
+    if (p.analyzable) {
+      div.className = 'sl-item' + (p.analyzableIndex === ta.gpIndex ? ' active' : '');
+      div.innerHTML = `<span class="ta-track-name">${esc(p.name)}</span>` +
+        `<span class="ta-track-meta">${esc(p.tuning)} · ${p.noteCount} notes</span>`;
+      div.onclick = () => selectGpTrack(p.analyzableIndex);
+    } else {
+      div.className = 'sl-item ta-track-disabled';
+      div.title = p.reason || '';
+      div.innerHTML = `<span class="ta-track-name">${esc(p.name)}</span>` +
+        `<span class="ta-track-meta">${esc(p.reason || 'not analyzable')}</span>`;
+    }
     host.appendChild(div);
   });
 }
@@ -99,8 +109,7 @@ function buildTrackList(gp) {
 function selectGpTrack(i) {
   if (!ta.gp || !ta.gp.tracks[i]) return;
   ta.gpIndex = i;
-  const host = document.getElementById('sl-ta-track');
-  if (host) host.querySelectorAll('.sl-item').forEach((el, k) => el.classList.toggle('active', k === i));
+  buildTrackList(ta.gp); // refresh which part is highlighted
   loadGpTrack();
 }
 
@@ -248,18 +257,37 @@ function renderTechniques(report) {
     </div>`;
 }
 
+function measureLabel(s) {
+  if (!s.measureRange) return '';
+  const [a, b] = s.measureRange;
+  return a === b ? `bar ${a}` : `bars ${a}–${b}`;
+}
+
+// A compact arrangement map: one chip per section in order, coloured by type.
+function renderStructure(report) {
+  if (!report.structure || report.structure.length < 2) return '';
+  const chips = report.structure
+    .map((s) => `<span class="ta-struct ta-type-${esc(s.type)}">${esc(s.label)}</span>`)
+    .join('<span class="ta-struct-arrow">→</span>');
+  return `<div class="ta-structure">${chips}</div>`;
+}
+
 function renderSections(report) {
   if (!report.sections.length) return '';
-  const cards = report.sections.map((s, i) => {
+  const cards = report.sections.map((s) => {
     const scales = s.scales.slice(0, 2).map((x) => `${x.rootName} ${x.scaleName}`).join(', ') || '—';
     const arps = s.arpeggios.map((a) => a.chord).join(', ');
     const techs = s.techniques.ordered.slice(0, 5).map((x) => `${x.label}×${x.count}`).join(', ');
     const range = s.range ? `${midiToName(s.range.lowMidi)}–${midiToName(s.range.highMidi)}` : '—';
     const chords = s.chords.slice(0, 8).map((c) => c.label).join(' ');
+    const kindTag = s.kind === 'solo' ? 'lead / solo' : 'rhythm / riff';
+    const bars = measureLabel(s);
+    const meta = [bars, `${s.noteCount} notes`, range].filter(Boolean).join(' · ');
     return `
-      <div class="ta-section ta-section-${s.kind}">
-        <div class="ta-section-head"><span class="ta-section-kind">${s.kind === 'solo' ? 'Solo / lead' : 'Riff / rhythm'}</span>
-          <span class="ta-section-range">${s.noteCount} notes · ${esc(range)}</span></div>
+      <div class="ta-section ta-section-${s.kind} ta-type-${esc(s.type)}">
+        <div class="ta-section-head">
+          <span class="ta-section-kind">${esc(s.label)} <span class="ta-section-tag">${kindTag}</span></span>
+          <span class="ta-section-range">${esc(meta)}</span></div>
         <div class="ta-section-body">
           <div><span class="ta-k">Scales</span> ${esc(scales)}</div>
           ${chords ? `<div><span class="ta-k">Chords</span> ${esc(chords)}</div>` : ''}
@@ -268,9 +296,13 @@ function renderSections(report) {
         </div>
       </div>`;
   }).join('');
+  const sub = report.sectionsLabelled
+    ? 'song parts from the score'
+    : 'auto-detected riff vs solo parts';
   return `
     <div class="quiz-card ta-card">
-      <div class="ta-card-title">Sections <span class="ta-sub">riff vs solo breakdown</span></div>
+      <div class="ta-card-title">Sections <span class="ta-sub">${sub}</span></div>
+      ${renderStructure(report)}
       <div class="ta-sections">${cards}</div>
     </div>`;
 }
