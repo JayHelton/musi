@@ -350,11 +350,12 @@ function parseVersionTuple(version) {
 }
 
 /**
- * Parse a Guitar Pro 5 (.gp5) binary file into a TabModel.
+ * Parse a Guitar Pro 5 (.gp5) binary file into per-track TabModels.
+ * A GP5 score has several parts; every fretted track is returned.
  * @param {ArrayBuffer|Uint8Array} input
- * @returns {{ model: object, meta: object }}
+ * @returns {{ tracks: Array<{index:number, name:string, fretted:boolean, model:object|null, tuningPitches:number[]}>, version:string }}
  */
-export function parseGp5(input) {
+export function parseGp5Tracks(input) {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   const r = new Reader(bytes);
   const version = r.version();
@@ -384,33 +385,43 @@ export function parseGp5(input) {
     for (let i = 0; i < trackCount; i++) tracks.push(readTrack(r, ctx, i + 1));
     r.skip(ctx.v500 ? 2 : 1);       // trailing blank(s)
 
-    // Measures are stored measure-by-measure across all tracks; keep only the
-    // target track's beats but parse every measure to stay byte-aligned.
-    const targetIdx = pickTrackIndex(tracks);
-    const measuresForTarget = [];
+    // Measures are stored measure-by-measure across all tracks; collect every
+    // track's beats (parsing all of them keeps the stream byte-aligned).
+    const measuresByTrack = tracks.map(() => []);
     for (let m = 0; m < measureCount; m++) {
       for (let t = 0; t < trackCount; t++) {
-        const voices = readMeasure(r, ctx, tracks[t]);
-        if (t === targetIdx) measuresForTarget.push(voices);
+        measuresByTrack[t].push(readMeasure(r, ctx, tracks[t]));
       }
     }
 
-    return buildModel(tracks[targetIdx], measuresForTarget, trackCount, version);
+    const built = tracks.map((track, i) => {
+      if (track.isPercussion || !track.tuning.length) {
+        return { index: i, name: track.name || `Track ${i + 1}`, fretted: false, model: null, tuningPitches: [] };
+      }
+      const model = buildModel(track, measuresByTrack[i]);
+      return { index: i, name: track.name || `Track ${i + 1}`, fretted: true, model, tuningPitches: track.tuning.slice().reverse() };
+    });
+    return { tracks: built, version };
   } catch (e) {
     if (e instanceof RangeError) throw new Error('gp5: unexpected end of file while parsing (unsupported variant?)');
     throw e;
   }
 }
 
-// Pick the first non-percussion track that has a tuning, else the first track.
-function pickTrackIndex(tracks) {
-  for (let i = 0; i < tracks.length; i++) {
-    if (!tracks[i].isPercussion && tracks[i].tuning.length) return i;
-  }
-  return 0;
+/**
+ * Backward-compatible single-track parse: returns the first fretted track.
+ * @param {ArrayBuffer|Uint8Array} input
+ * @returns {{ model: object, meta: object }}
+ */
+export function parseGp5(input) {
+  const { tracks, version } = parseGp5Tracks(input);
+  const fretted = tracks.filter((t) => t.fretted && t.model);
+  if (!fretted.length) throw new Error('gp5: no fretted track to analyze');
+  const def = fretted[0];
+  return { model: def.model, meta: { trackName: def.name, tracks: tracks.length, tuningPitches: def.tuningPitches, version } };
 }
 
-function buildModel(track, measures, trackCount, version) {
+function buildModel(track, measures) {
   if (!track || !track.tuning.length) throw new Error('gp5: no fretted track to analyze');
   const openMidis = track.tuning.slice().reverse(); // low -> high
   const strings = openMidis.map((m) => { const s = midiToNoteOct(m); return { note: s.note, oct: s.oct, label: s.note, openMidi: m }; });
@@ -464,7 +475,7 @@ function buildModel(track, measures, trackCount, version) {
     warnings.push('The Guitar Pro 5 track had no playable notes on the analyzed staff.');
   }
 
-  const model = {
+  return {
     tuning: tuningName,
     strings,
     events,
@@ -473,6 +484,4 @@ function buildModel(track, measures, trackCount, version) {
     techniqueCounts,
     warnings,
   };
-  const meta = { trackName: track.name || null, tracks: trackCount, tuningPitches: openMidis, version };
-  return { model, meta };
 }

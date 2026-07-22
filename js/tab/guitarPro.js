@@ -21,7 +21,7 @@
 // detected and reported with a clear message rather than mis-parsed.
 
 import { NOTE_NAMES_SHARP, TUNINGS } from '../theory.js';
-import { parseGp5 } from './gp5.js';
+import { parseGp5Tracks } from './gp5.js';
 
 const CHUNK = 0x8000;
 
@@ -229,15 +229,6 @@ function indexById(containerNode, tag) {
   return map;
 }
 
-// Choose the track to analyze: the first one whose staff carries a string
-// tuning (i.e. a fretted instrument), else the first track.
-function pickTrack(tracks) {
-  for (const t of tracks) {
-    if (tuningPitchesOf(t).length) return t;
-  }
-  return tracks[0] || null;
-}
-
 // Extract the open-string MIDI pitches (low->high) for a track, if fretted.
 function tuningPitchesOf(trackNode) {
   const staves = firstChild(trackNode, 'Staves');
@@ -255,35 +246,55 @@ function tuningPitchesOf(trackNode) {
   return [];
 }
 
+// Detect a drum/percussion track (these carry no string tuning, so they cannot
+// be analyzed as tab).
+function isPercussionTrack(trackNode) {
+  const set = firstChild(trackNode, 'InstrumentSet');
+  const type = childText(set, 'Type');
+  return /drum|perc/i.test(type);
+}
+
 /**
- * Convert a GPIF XML string into a TabModel (see js/tab/tabModel.js).
- * Each Guitar Pro beat becomes one time slot; notes stacked in a beat share the
- * slot (chords). Pitch comes straight from the file's MIDI/fret data.
+ * Convert a GPIF XML string into per-track TabModels (see js/tab/tabModel.js).
+ * A Guitar Pro score has many parts (tracks); every fretted track becomes its
+ * own model. Each beat is one time slot; notes stacked in a beat share the slot
+ * (chords). Pitch comes straight from the file's MIDI/fret data.
  * @param {string} xml
- * @returns {{ model: object, meta: object }}
+ * @returns {{ tracks: Array<{index:number, name:string, fretted:boolean, isPercussion:boolean, model:object|null, tuningPitches:number[]}> }}
  */
-export function gpifToModel(xml) {
+export function gpifToTracks(xml) {
   const root = parseXml(xml);
   const gpif = firstChild(root, 'GPIF') || root;
 
   const tracksNode = firstChild(gpif, 'Tracks');
-  const tracks = childrenNamed(tracksNode, 'Track');
-  const track = pickTrack(tracks);
-  if (!track) throw new Error('guitarPro: no tracks found in the score');
+  const trackNodes = childrenNamed(tracksNode, 'Track');
+  if (!trackNodes.length) throw new Error('guitarPro: no tracks found in the score');
 
-  const openMidis = tuningPitchesOf(track);
-  if (!openMidis.length) throw new Error('guitarPro: the first track is not a fretted (tuned) instrument');
+  const shared = {
+    bars: indexById(firstChild(gpif, 'Bars'), 'Bar'),
+    voices: indexById(firstChild(gpif, 'Voices'), 'Voice'),
+    beats: indexById(firstChild(gpif, 'Beats'), 'Beat'),
+    notes: indexById(firstChild(gpif, 'Notes'), 'Note'),
+    masterBars: childrenNamed(firstChild(gpif, 'MasterBars'), 'MasterBar'),
+  };
+
+  const tracks = trackNodes.map((trackNode, index) => {
+    const name = (firstChild(trackNode, 'Name') || {}).text?.trim() || `Track ${index + 1}`;
+    const openMidis = tuningPitchesOf(trackNode);
+    if (!openMidis.length) {
+      return { index, name, fretted: false, isPercussion: isPercussionTrack(trackNode), model: null, tuningPitches: [] };
+    }
+    const model = buildGpifTrackModel(trackNode, index, openMidis, shared);
+    return { index, name, fretted: true, isPercussion: false, model, tuningPitches: openMidis };
+  });
+  return { tracks };
+}
+
+// Build one track's TabModel from the shared GPIF collections.
+function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
+  const { bars, voices, beats, notes, masterBars } = shared;
   const strings = openMidis.map((m) => { const s = midiToNoteOct(m); return { note: s.note, oct: s.oct, label: s.note, openMidi: m }; });
   const tuningName = matchTuningName(openMidis) || 'Custom';
-
-  const bars = indexById(firstChild(gpif, 'Bars'), 'Bar');
-  const voices = indexById(firstChild(gpif, 'Voices'), 'Voice');
-  const beats = indexById(firstChild(gpif, 'Beats'), 'Beat');
-  const notes = indexById(firstChild(gpif, 'Notes'), 'Note');
-  const masterBars = childrenNamed(firstChild(gpif, 'MasterBars'), 'MasterBar');
-
-  // The track's index within <Tracks> selects its bar per master bar.
-  const trackIndex = Math.max(0, tracks.indexOf(track));
 
   const events = [];
   const measures = [];
@@ -360,7 +371,7 @@ export function gpifToModel(xml) {
     warnings.push('The Guitar Pro track had no playable notes on the analyzed staff.');
   }
 
-  const model = {
+  return {
     tuning: tuningName,
     strings,
     events,
@@ -369,12 +380,6 @@ export function gpifToModel(xml) {
     techniqueCounts,
     warnings,
   };
-  const meta = {
-    trackName: (firstChild(track, 'Name') || {}).text?.trim() || null,
-    tracks: tracks.length,
-    tuningPitches: openMidis,
-  };
-  return { model, meta };
 }
 
 // ---- ASCII rendering (for the editable textarea / previews) ----------------
@@ -446,19 +451,53 @@ export function isGuitarProName(name) {
   return /\.(gp|gpx|gp3|gp4|gp5)$/i.test(String(name || ''));
 }
 
+// Assemble the shared multi-track result from raw per-track entries. Only
+// fretted (tab) tracks are kept; each gets a rendered ASCII tab. The first
+// fretted track is the default. Top-level model/ascii/meta describe that
+// default track for convenience.
+function assembleResult(format, rawTracks, totalTracks) {
+  const fretted = rawTracks.filter((t) => t.fretted && t.model);
+  if (!fretted.length) {
+    throw new Error('This Guitar Pro file has no fretted (tab) part to analyze — it may contain only drums or vocals.');
+  }
+  const tracks = fretted.map((t, i) => ({
+    index: i,
+    sourceIndex: t.index,
+    name: t.name,
+    tuning: t.model.tuning,
+    tuningPitches: t.tuningPitches,
+    model: t.model,
+    ascii: modelToAsciiTab(t.model),
+    noteCount: t.model.events.filter((e) => e.fret != null || e.dead).length,
+  }));
+  const def = tracks[0];
+  const meta = {
+    format,
+    tracks: totalTracks,
+    frettedTracks: tracks.length,
+    trackName: def.name,
+    tuningPitches: def.tuningPitches,
+  };
+  return { format, tracks, defaultIndex: 0, model: def.model, ascii: def.ascii, meta };
+}
+
 /**
- * Parse a Guitar Pro file into a TabModel.
- * Only the modern `.gp` (Guitar Pro 7/8) container is supported; other formats
- * throw a descriptive error so the UI can guide the user to re-export.
+ * Parse a Guitar Pro file into per-track TabModels.
+ *
+ * Supports the modern `.gp` (Guitar Pro 7/8) container and binary `.gp5`; other
+ * formats throw a descriptive error so the UI can guide the user to re-export.
+ * A score usually has several parts, so the result carries every fretted track;
+ * callers pick which to analyze (top-level fields describe the default track).
+ *
  * @param {ArrayBuffer|Uint8Array} input
- * @returns {Promise<{ model: object, meta: object, ascii: string }>}
+ * @returns {Promise<{ format:string, tracks:Array, defaultIndex:number, model:object, ascii:string, meta:object }>}
  */
 export async function parseGuitarPro(input) {
   const bytes = toUint8(input);
   const fmt = detectGuitarProFormat(bytes);
   if (fmt === 'gp5') {
-    const { model, meta } = parseGp5(bytes);
-    return { model, meta, ascii: modelToAsciiTab(model) };
+    const { tracks } = parseGp5Tracks(bytes);
+    return assembleResult('gp5', tracks, tracks.length);
   }
   if (fmt === 'gpx') {
     throw new Error('This is a Guitar Pro 6 (.gpx) file. Open it in Guitar Pro and re-export as “.gp” (Guitar Pro 7/8) or “.gp5” to analyze it.');
@@ -476,7 +515,6 @@ export async function parseGuitarPro(input) {
   if (!gpif) throw new Error('guitarPro: no score.gpif inside the .gp archive');
   const xmlBytes = await readZipEntry(bytes, gpif);
   const xml = bytesToUtf8(xmlBytes);
-  const { model, meta } = gpifToModel(xml);
-  const ascii = modelToAsciiTab(model);
-  return { model, meta, ascii };
+  const { tracks } = gpifToTracks(xml);
+  return assembleResult('gp7', tracks, tracks.length);
 }

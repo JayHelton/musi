@@ -52,16 +52,20 @@ a best‑effort convenience for text‑flow tabs, and the UI nudges users toward
 `.gp` when a PDF looks engraved.
 
 - **Guitar Pro reader** (pure, offline, CLI‑safe): `js/tab/guitarPro.js` —
-  `parseGuitarPro(bytes)` → `{ model, meta, ascii }`. For `.gp` (GP7/8) it reads
-  the ZIP central directory, inflates `score.gpif`, and maps GPIF → `TabModel`
-  (per‑beat slots; stacked notes = chords; frets/MIDI taken straight from the
-  file). For binary **`.gp5`** it delegates to `js/tab/gp5.js` (both 5.00 and
-  5.10), walking the GP5 byte stream to the *same* `TabModel`. Techniques
-  mapped: bends, slides, hammer‑ons/pull‑offs (HOPO), palm mutes, taps, slaps/
-  pops, harmonics, vibrato, trills, tremolo picking, dead notes. Also renders
-  the model back to editable ASCII for the textarea. Older binary `.gp3/.gp4`
-  and the GP6 `.gpx` container are **detected and reported** with a re‑export
-  message rather than mis‑parsed (possible later phases).
+  `parseGuitarPro(bytes)` → `{ format, tracks:[…], defaultIndex, model, ascii,
+  meta }`. A score has **many parts (tracks)**, so the reader returns **every
+  fretted track** with its own `TabModel`, tuning and rendered ASCII; drum/
+  vocal (untuned) tracks are skipped. The web view shows a **Parts** picker to
+  switch tracks, and the CLI takes `--track <number|name>` (listing the parts).
+  For `.gp` (GP7/8) it reads the ZIP central directory, inflates `score.gpif`,
+  and maps GPIF → per‑track `TabModel`s (per‑beat slots; stacked notes = chords;
+  frets/MIDI straight from the file). For binary **`.gp5`** it delegates to
+  `js/tab/gp5.js` (both 5.00 and 5.10) via `parseGp5Tracks`, walking the GP5
+  byte stream to the *same* per‑track models. Techniques mapped: bends, slides,
+  hammer‑ons/pull‑offs (HOPO), palm mutes, taps, slaps/pops, harmonics, vibrato,
+  trills, tremolo picking, dead notes. Older binary `.gp3/.gp4` and the GP6
+  `.gpx` container are **detected and reported** with a re‑export message rather
+  than mis‑parsed (possible later phases).
 
 ### What shipped
 
