@@ -16,10 +16,12 @@
 //   * a tiny dependency-free XML parser turns the GPIF into a TabModel so the
 //     web view and the CLI share one code path.
 //
-// Older binary formats (.gp3/.gp4/.gp5) and the GP6 .gpx container are detected
-// and reported with a clear message rather than mis-parsed.
+// Binary Guitar Pro 5 (.gp5) is handled by the companion js/tab/gp5.js reader.
+// The remaining older formats (.gp3/.gp4) and the GP6 .gpx container are
+// detected and reported with a clear message rather than mis-parsed.
 
 import { NOTE_NAMES_SHARP, TUNINGS } from '../theory.js';
+import { parseGp5 } from './gp5.js';
 
 const CHUNK = 0x8000;
 
@@ -454,14 +456,18 @@ export function isGuitarProName(name) {
 export async function parseGuitarPro(input) {
   const bytes = toUint8(input);
   const fmt = detectGuitarProFormat(bytes);
-  if (fmt === 'gpx') {
-    throw new Error('This is a Guitar Pro 6 (.gpx) file. Open it in Guitar Pro and re-export as “.gp” (Guitar Pro 7/8) to analyze it.');
+  if (fmt === 'gp5') {
+    const { model, meta } = parseGp5(bytes);
+    return { model, meta, ascii: modelToAsciiTab(model) };
   }
-  if (fmt === 'gp3' || fmt === 'gp4' || fmt === 'gp5') {
-    throw new Error(`This is an older binary Guitar Pro file (${fmt}). Open it in Guitar Pro and re-save as “.gp” (Guitar Pro 7/8) to analyze it.`);
+  if (fmt === 'gpx') {
+    throw new Error('This is a Guitar Pro 6 (.gpx) file. Open it in Guitar Pro and re-export as “.gp” (Guitar Pro 7/8) or “.gp5” to analyze it.');
+  }
+  if (fmt === 'gp3' || fmt === 'gp4') {
+    throw new Error(`This is an older binary Guitar Pro file (${fmt}). Open it in Guitar Pro and re-save as “.gp” (7/8) or “.gp5” to analyze it.`);
   }
   if (fmt !== 'gp7') {
-    throw new Error('Unrecognized file — expected a Guitar Pro “.gp” (7/8) file.');
+    throw new Error('Unrecognized file — expected a Guitar Pro “.gp” (7/8) or “.gp5” file.');
   }
 
   const entries = readCentralDirectory(bytes);
