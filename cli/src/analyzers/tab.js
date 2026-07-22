@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import { c, print, banner, ask, choose } from '../ui.js';
-import { parseTab, analyzeModel, TUNINGS, NOTE_NAMES_SHARP } from '../shared.js';
+import {
+  parseTab, analyzeModel, TUNINGS, NOTE_NAMES_SHARP, parseGuitarPro, isGuitarProName,
+} from '../shared.js';
 
 const SAMPLE = `e|-------------------------------|
 B|-------------------------------|
@@ -120,8 +122,29 @@ export async function runTabAnalyzer(opts = {}) {
   let filePath = opts.file;
 
   if (!filePath && process.stdin.isTTY) {
-    const answer = (await ask(c.gray('Path to a tab .txt file (Enter for a built-in sample): '))).trim();
+    const answer = (await ask(c.gray('Path to a tab .txt or Guitar Pro .gp file (Enter for a built-in sample): '))).trim();
     if (answer) filePath = answer;
+  }
+
+  // Guitar Pro (.gp) files give exact data — parse straight into a model.
+  if (filePath && isGuitarProName(filePath)) {
+    let buf;
+    try {
+      buf = fs.readFileSync(filePath);
+    } catch (err) {
+      print(c.err(`Could not read file: ${filePath}`));
+      return;
+    }
+    try {
+      const { model, meta } = await parseGuitarPro(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+      const trk = meta.trackName ? ` — ${meta.trackName}` : '';
+      const extra = meta.tracks > 1 ? ` (first fretted track of ${meta.tracks})` : '';
+      print(c.gray(`Loaded Guitar Pro file${trk}${extra}.`));
+      printReport(analyzeModel(model));
+    } catch (err) {
+      print(c.err(err && err.message ? err.message : 'Could not read that Guitar Pro file.'));
+    }
+    return;
   }
 
   if (filePath) {
