@@ -227,3 +227,32 @@
   .pt-field{align-items:stretch}
   .pt-field select{width:100%}
 }
+
+/* Pitch Runner — scrolling, Guitar-Hero-style pitch game */
+.pr-card{max-width:640px;margin-left:auto;margin-right:auto}
+.pr-tag{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);border:1px solid var(--accent-dim,rgba(124,156,255,.4));border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+.pr-intro{font-size:.85rem;color:var(--muted);text-align:center;margin:0 0 14px}
+.pr-tempo{display:inline-flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:4px 8px;min-width:120px;justify-content:center}
+.pr-tempo b{font-size:1.05rem;color:var(--text);min-width:38px;text-align:center;font-variant-numeric:tabular-nums}
+.pr-bpm-btn{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:1.1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.pr-bpm-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pr-toggles{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+.pr-check{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted);cursor:pointer}
+.pr-hud{display:flex;justify-content:center;gap:26px;margin-bottom:12px}
+.pr-stat{display:flex;flex-direction:column;align-items:center;min-width:64px}
+.pr-stat-val{font-size:1.4rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.pr-stat-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pr-stage{position:relative;width:100%;height:320px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--card)}
+.pr-stage canvas{display:block;width:100%;height:100%}
+.pr-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.05rem;font-weight:600;color:var(--muted);background:rgba(0,0,0,0.35);z-index:2;text-align:center;padding:0 20px}
+.pr-judge{position:absolute;top:14%;left:50%;transform:translateX(-50%);font-size:1.6rem;font-weight:800;opacity:0;pointer-events:none;z-index:3;text-shadow:0 2px 12px rgba(0,0,0,0.6)}
+.pr-judge.perfect{color:var(--ok)}
+.pr-judge.good{color:var(--warn)}
+.pr-judge.miss{color:var(--err)}
+.pr-judge.anim{animation:pr-judge-pop .55s ease-out}
+@keyframes pr-judge-pop{0%{opacity:0;transform:translateX(-50%) scale(.7)}25%{opacity:1;transform:translateX(-50%) scale(1.1)}70%{opacity:1;transform:translateX(-50%) scale(1)}100%{opacity:0;transform:translateX(-50%) scale(1)}}
+@media(max-width:600px){
+  .pr-stage{height:260px}
+  .pr-hud{gap:16px}
+  .pr-toggles{gap:12px}
+}
