@@ -38,9 +38,15 @@ const RANGE_PRESETS = [
 
 // How the timeline maps to the canvas.
 const HIT_X_RATIO = 0.28;      // hit line position, fraction of width from left
-const VISIBLE_BEATS_AHEAD = 6; // beats shown to the right of the hit line
 const LEAD_IN_BEATS = 4;       // one 4/4 measure of count-in before the first note
-const NOTE_GAP_BEATS = 0.12;   // small silent gap so adjacent notes read distinctly
+const NOTE_GAP_BEATS = 0.18;   // silent gap (beats) between adjacent notes
+const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
+
+// Beats of runway shown to the right of the hit line. Scales with note length
+// so a long, sustained note still fits comfortably on screen with approach time.
+function visibleBeatsAhead() {
+  return 6 + (runner.noteBeats - 1) * 2;
+}
 
 const GUIDE_LAYERS = [
   { type: 'sine',     detune: 0,  level: 0.5 },
@@ -61,6 +67,7 @@ const runner = {
   pattern: 'five-tone',
   rangeLow: 48,
   rangeHigh: 72,
+  noteBeats: 1,
   metronome: true,
   guide: false,
 
@@ -183,12 +190,13 @@ function buildPatternSeq() {
 // Append notes until the timeline is populated a comfortable margin past the
 // right edge, cycling the pattern endlessly.
 function ensureNotes(playheadBeat) {
-  const horizon = playheadBeat + VISIBLE_BEATS_AHEAD + 4;
+  const horizon = playheadBeat + visibleBeatsAhead() + runner.noteBeats + 4;
+  const dur = Math.max(0.35, runner.noteBeats - NOTE_GAP_BEATS);
   while (runner.nextBeat < horizon) {
     const midi = runner.patternSeq[runner.seqIdx % runner.patternSeq.length];
     runner.notes.push({
       startBeat: runner.nextBeat,
-      dur: 1 - NOTE_GAP_BEATS,
+      dur,
       midi,
       samples: 0,
       hitSamples: 0,
@@ -196,7 +204,7 @@ function ensureNotes(playheadBeat) {
       result: null,
     });
     runner.seqIdx += 1;
-    runner.nextBeat += 1;
+    runner.nextBeat += runner.noteBeats;
   }
 }
 
@@ -291,7 +299,7 @@ function resizeCanvas() {
 
 function pxPerBeat() {
   const hitX = runner.cssW * HIT_X_RATIO;
-  return (runner.cssW - hitX) / VISIBLE_BEATS_AHEAD;
+  return (runner.cssW - hitX) / visibleBeatsAhead();
 }
 
 function midiToY(midiFloat) {
@@ -504,6 +512,21 @@ function scheduleAudio(playheadBeat) {
 
 function loop() {
   if (!runner.running) return;
+  try {
+    step();
+  } catch (e) {
+    // Never let a transient error kill the animation loop (which would freeze
+    // the display and make it look like the mic stopped responding).
+    if (typeof console !== 'undefined') console.error('pitchRunner loop error', e);
+  }
+  runner.rafId = requestAnimationFrame(loop);
+}
+
+function step() {
+  // The AudioContext can be auto-suspended (tab backgrounded, OS audio focus
+  // changes); keep it alive so the timeline clock and mic analyser keep running.
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
   const playheadBeat = (audioCtx.currentTime - runner.startAudioTime) / runner.secPerBeat;
 
   ensureNotes(playheadBeat);
@@ -544,7 +567,6 @@ function loop() {
   runner.notes = runner.notes.filter(n => n.startBeat + n.dur >= cutoff);
 
   draw(playheadBeat);
-  runner.rafId = requestAnimationFrame(loop);
 }
 
 // ---- Lifecycle --------------------------------------------------------------
@@ -681,10 +703,12 @@ function initPitchRunner() {
   runner.pattern = getSetting('pitchRunner.pattern', runner.pattern, SCALE_PATTERNS.map(p => p.id));
   runner.rangeLow = Number(getSetting('pitchRunner.rangeLow', runner.rangeLow));
   runner.rangeHigh = Number(getSetting('pitchRunner.rangeHigh', runner.rangeHigh));
+  runner.noteBeats = Number(getSetting('pitchRunner.noteBeats', runner.noteBeats));
   runner.metronome = getSetting('pitchRunner.metronome', runner.metronome) !== false;
   runner.guide = getSetting('pitchRunner.guide', runner.guide) === true;
   if (!(runner.rangeLow >= 36 && runner.rangeLow <= 84)) runner.rangeLow = 48;
   if (!(runner.rangeHigh >= 36 && runner.rangeHigh <= 84)) runner.rangeHigh = 72;
+  if (!NOTE_LENGTHS.includes(runner.noteBeats)) runner.noteBeats = 1;
 
   if (runner.initialized) {
     syncControls();
@@ -749,6 +773,23 @@ function initPitchRunner() {
         saveSetting('pitchRunner.rangeHigh', runner.rangeHigh);
         restartIfRunning();
       }
+    };
+  }
+
+  const lengthSel = el('pr-length');
+  if (lengthSel) {
+    lengthSel.innerHTML = '';
+    NOTE_LENGTHS.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = String(n);
+      opt.textContent = n === 1 ? '1 beat' : `${n} beats`;
+      lengthSel.appendChild(opt);
+    });
+    lengthSel.value = String(runner.noteBeats);
+    lengthSel.onchange = () => {
+      runner.noteBeats = Number(lengthSel.value);
+      saveSetting('pitchRunner.noteBeats', runner.noteBeats);
+      restartIfRunning();
     };
   }
 
@@ -818,11 +859,13 @@ function syncControls() {
   const diffSel = el('pr-difficulty');
   const patternSel = el('pr-pattern');
   const presetSel = el('pr-range-preset');
+  const lengthSel = el('pr-length');
   const metroChk = el('pr-metronome');
   const guideChk = el('pr-guide');
   if (diffSel) diffSel.value = runner.difficulty;
   if (patternSel) patternSel.value = runner.pattern;
   if (presetSel) presetSel.value = matchPreset();
+  if (lengthSel) lengthSel.value = String(runner.noteBeats);
   if (metroChk) metroChk.checked = runner.metronome;
   if (guideChk) guideChk.checked = runner.guide;
 }

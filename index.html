@@ -748,6 +748,10 @@
             <select id="pr-range-preset"></select>
           </label>
           <label class="pt-field">
+            <span>Note length</span>
+            <select id="pr-length"></select>
+          </label>
+          <label class="pt-field">
             <span>Tempo</span>
             <span class="pr-tempo">
               <button type="button" class="pr-bpm-btn" id="pr-bpm-down" aria-label="Slower">&minus;</button>
@@ -1361,7 +1365,17 @@ E|-------------------|"></textarea>
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (refreshing) return;
         refreshing = true;
-        window.location.reload();
+        // Don't reload while the microphone is in use (tuner, pitch trainer,
+        // pitch runner, recorder, etc.) — a reload tears down the live audio
+        // session and makes the mic appear to "drop". Defer until it's idle.
+        const reloadWhenIdle = () => {
+          if (window.__musiCaptureActive) {
+            setTimeout(reloadWhenIdle, 1000);
+          } else {
+            window.location.reload();
+          }
+        };
+        reloadWhenIdle();
       });
 
       navigator.serviceWorker.register("service-worker.js")
