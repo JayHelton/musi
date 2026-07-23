@@ -115,13 +115,23 @@ function printReport(report) {
   // Sections
   if (report.sections.length) {
     print();
-    print(c.accent('Sections:'));
+    const heading = report.sectionsLabelled ? 'Sections (song parts):' : 'Sections (auto riff/solo):';
+    print(c.accent(heading));
+    if (report.structure && report.structure.length > 1) {
+      print(c.gray('  Structure: ' + report.structure.map((s) => s.label).join(' → ')));
+    }
     report.sections.forEach((s) => {
-      const kind = s.kind === 'solo' ? c.bold('Solo/lead') : c.bold('Riff/rhythm');
+      const kindWord = s.kind === 'solo' ? 'lead/solo' : 'rhythm/riff';
+      const bars = s.measureRange
+        ? (s.measureRange[0] === s.measureRange[1] ? `bar ${s.measureRange[0]}` : `bars ${s.measureRange[0]}–${s.measureRange[1]}`)
+        : null;
       const scales = s.scales.slice(0, 2).map((x) => `${x.rootName} ${x.scaleName}`).join(', ') || '—';
       const range = s.range ? `${midiToName(s.range.lowMidi)}–${midiToName(s.range.highMidi)}` : '—';
-      print(`  ${kind} ${c.gray(`(${s.noteCount} notes, ${range})`)}`);
+      const meta = [bars, `${s.noteCount} notes`, range].filter(Boolean).join(', ');
+      print(`  ${c.bold(s.label)} ${c.gray(`[${kindWord}] (${meta})`)}`);
       print(c.gray(`     scales: ${scales}`));
+      const chords = s.chords.slice(0, 8).map((x) => x.label).join(' ');
+      if (chords) print(c.gray(`     chords: ${chords}`));
       const arps = s.arpeggios.map((a) => a.chord).join(', ');
       if (arps) print(c.gray(`     arpeggios: ${arps}`));
       const techs = s.techniques.ordered.slice(0, 5).map((x) => `${x.label}×${x.count}`).join(', ');
@@ -159,11 +169,16 @@ export async function runTabAnalyzer(opts = {}) {
     try {
       const gp = await parseGuitarPro(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
       const idx = await resolveTrackIndex(gp, opts.track);
-      if (gp.tracks.length > 1) {
-        print(c.gray(`Parts in this file (${gp.tracks.length} playable of ${gp.meta.tracks}):`));
-        gp.tracks.forEach((t, i) => {
-          const mark = i === idx ? c.ok('▶') : c.gray(' ');
-          print(`  ${mark} ${c.bold(String(i + 1).padStart(2))}. ${t.name} ${c.gray(`(${t.tuning}, ${t.noteCount} notes)`)}`);
+      const parts = gp.parts || gp.tracks.map((t) => ({ name: t.name, analyzable: true, analyzableIndex: t.index, tuning: t.tuning, noteCount: t.noteCount }));
+      if (parts.length > 1) {
+        print(c.gray(`Instruments in this file (${gp.tracks.length} playable of ${gp.meta.tracks}):`));
+        parts.forEach((p) => {
+          if (p.analyzable) {
+            const mark = p.analyzableIndex === idx ? c.ok('▶') : c.gray(' ');
+            print(`  ${mark} ${c.bold(String(p.analyzableIndex + 1).padStart(2))}. ${p.name} ${c.gray(`(${p.tuning}, ${p.noteCount} notes)`)}`);
+          } else {
+            print(`  ${c.gray('  · ')}${c.gray(p.name)} ${c.gray(`(${p.reason})`)}`);
+          }
         });
         print(c.gray('Use --track <number|name> to pick another part.'));
       }

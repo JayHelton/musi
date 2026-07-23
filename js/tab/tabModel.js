@@ -6,7 +6,7 @@
 //     strings: [{ label, note, oct, openMidi }],  // low -> high index
 //     events: [TabEvent],             // ordered by slot then string
 //     slots: number,                  // total time slots (weak timing proxy)
-//     measures: [{ startSlot, endSlot }],
+//     measures: [{ startSlot, endSlot, marker }], // marker: section label or null
 //     techniqueCounts: { [tech]: number },
 //     warnings: string[],
 //   }

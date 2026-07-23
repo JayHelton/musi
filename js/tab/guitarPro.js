@@ -309,6 +309,11 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
     const bar = bars.get(barId);
     if (!bar) continue;
     const measureStart = slot;
+    // Section markers (rehearsal marks) label song parts: Intro, Verse, Chorus…
+    const sectionNode = firstChild(mb, 'Section');
+    const marker = sectionNode
+      ? (childText(sectionNode, 'Text') || childText(sectionNode, 'Letter') || null)
+      : null;
 
     // First playable voice (GP marks empty voices as -1).
     const voiceRefs = childText(bar, 'Voices').split(/\s+/).filter((v) => v && v !== '-1');
@@ -363,7 +368,7 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
       }
     }
     if (slot === measureStart) slot += 1; // guarantee forward progress
-    measures.push({ startSlot: measureStart, endSlot: slot });
+    measures.push({ startSlot: measureStart, endSlot: slot, marker });
   }
 
   events.sort((a, b) => (a.slot - b.slot) || (a.stringIndex - b.stringIndex));
@@ -451,10 +456,18 @@ export function isGuitarProName(name) {
   return /\.(gp|gpx|gp3|gp4|gp5)$/i.test(String(name || ''));
 }
 
-// Assemble the shared multi-track result from raw per-track entries. Only
-// fretted (tab) tracks are kept; each gets a rendered ASCII tab. The first
-// fretted track is the default. Top-level model/ascii/meta describe that
-// default track for convenience.
+// Reason a raw track cannot be analyzed as tab (drums have no pitched frets,
+// vocals/piano parts carry no string tuning).
+function unanalyzableReason(t) {
+  if (t.isPercussion) return 'Drums / percussion — no fretted notes to analyze';
+  return 'No guitar/bass tuning — this part cannot be read as tab';
+}
+
+// Assemble the shared multi-track result from raw per-track entries. Every
+// fretted (tab) track is analyzable and gets a rendered ASCII tab; the first is
+// the default. Non-fretted parts (drums, vocals, keys) are still listed in
+// `parts` so callers can show the full instrument list and explain what can be
+// analyzed. Top-level model/ascii/meta describe the default track.
 function assembleResult(format, rawTracks, totalTracks) {
   const fretted = rawTracks.filter((t) => t.fretted && t.model);
   if (!fretted.length) {
@@ -470,6 +483,22 @@ function assembleResult(format, rawTracks, totalTracks) {
     ascii: modelToAsciiTab(t.model),
     noteCount: t.model.events.filter((e) => e.fret != null || e.dead).length,
   }));
+  // Index analyzable tracks by their source position for the parts list.
+  const analyzableBySource = new Map(tracks.map((t) => [t.sourceIndex, t.index]));
+  const parts = rawTracks.map((t) => {
+    const analyzableIndex = analyzableBySource.has(t.index) ? analyzableBySource.get(t.index) : -1;
+    const analyzable = analyzableIndex >= 0;
+    return {
+      name: t.name,
+      sourceIndex: t.index,
+      analyzable,
+      analyzableIndex,
+      isPercussion: !!t.isPercussion,
+      tuning: analyzable ? tracks[analyzableIndex].tuning : null,
+      noteCount: analyzable ? tracks[analyzableIndex].noteCount : 0,
+      reason: analyzable ? null : unanalyzableReason(t),
+    };
+  });
   const def = tracks[0];
   const meta = {
     format,
@@ -478,7 +507,7 @@ function assembleResult(format, rawTracks, totalTracks) {
     trackName: def.name,
     tuningPitches: def.tuningPitches,
   };
-  return { format, tracks, defaultIndex: 0, model: def.model, ascii: def.ascii, meta };
+  return { format, tracks, parts, defaultIndex: 0, model: def.model, ascii: def.ascii, meta };
 }
 
 /**
@@ -490,7 +519,7 @@ function assembleResult(format, rawTracks, totalTracks) {
  * callers pick which to analyze (top-level fields describe the default track).
  *
  * @param {ArrayBuffer|Uint8Array} input
- * @returns {Promise<{ format:string, tracks:Array, defaultIndex:number, model:object, ascii:string, meta:object }>}
+ * @returns {Promise<{ format:string, tracks:Array, parts:Array, defaultIndex:number, model:object, ascii:string, meta:object }>}
  */
 export async function parseGuitarPro(input) {
   const bytes = toUint8(input);

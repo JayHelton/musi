@@ -67,7 +67,8 @@ function matchTuningName(openMidis) {
 // ---- structural sub-readers ------------------------------------------------
 
 function readColor(r) { r.skip(4); }                       // r,g,b,blank
-function readMarker(r) { r.intByteSizeString(); readColor(r); }
+// A marker is a rehearsal/section label (e.g. "Intro", "Verse", "Chorus").
+function readMarker(r) { const name = r.intByteSizeString(); readColor(r); return name; }
 
 function readMidiChannels(r) {
   for (let i = 0; i < 64; i++) {
@@ -88,18 +89,22 @@ function readRSEInstrumentEffect(r, ctx) {
   if (!ctx.v500) { r.intByteSizeString(); r.intByteSizeString(); }
 }
 
+// Returns { marker } where marker is the section label starting at this measure
+// (or null). The label is what Guitar Pro shows above the staff for song parts.
 function readMeasureHeader(r, ctx, isFirst) {
   if (!isFirst) r.skip(1);
   const flags = r.u8();
+  let marker = null;
   if (flags & 0x01) r.i8();        // numerator
   if (flags & 0x02) r.i8();        // denominator
   if (flags & 0x08) r.i8();        // repeat close count
-  if (flags & 0x20) readMarker(r);
+  if (flags & 0x20) marker = readMarker(r) || null;
   if (flags & 0x40) { r.i8(); r.i8(); } // key signature
   if (flags & 0x10) r.u8();        // repeat alternative
   if (flags & 0x03) r.skip(4);     // time-signature beams
   if ((flags & 0x10) === 0) r.skip(1);
   r.u8();                          // triplet feel
+  return { marker };
 }
 
 // Read one track's header, returning its tuning (MIDI open pitches, high->low)
@@ -379,7 +384,8 @@ export function parseGp5Tracks(input) {
     const measureCount = r.i32();
     const trackCount = r.i32();
 
-    for (let i = 0; i < measureCount; i++) readMeasureHeader(r, ctx, i === 0);
+    const measureMarkers = [];
+    for (let i = 0; i < measureCount; i++) measureMarkers.push(readMeasureHeader(r, ctx, i === 0).marker);
 
     const tracks = [];
     for (let i = 0; i < trackCount; i++) tracks.push(readTrack(r, ctx, i + 1));
@@ -396,10 +402,17 @@ export function parseGp5Tracks(input) {
 
     const built = tracks.map((track, i) => {
       if (track.isPercussion || !track.tuning.length) {
-        return { index: i, name: track.name || `Track ${i + 1}`, fretted: false, model: null, tuningPitches: [] };
+        return {
+          index: i,
+          name: track.name || `Track ${i + 1}`,
+          fretted: false,
+          isPercussion: track.isPercussion,
+          model: null,
+          tuningPitches: [],
+        };
       }
-      const model = buildModel(track, measuresByTrack[i]);
-      return { index: i, name: track.name || `Track ${i + 1}`, fretted: true, model, tuningPitches: track.tuning.slice().reverse() };
+      const model = buildModel(track, measuresByTrack[i], measureMarkers);
+      return { index: i, name: track.name || `Track ${i + 1}`, fretted: true, isPercussion: false, model, tuningPitches: track.tuning.slice().reverse() };
     });
     return { tracks: built, version };
   } catch (e) {
@@ -421,7 +434,7 @@ export function parseGp5(input) {
   return { model: def.model, meta: { trackName: def.name, tracks: tracks.length, tuningPitches: def.tuningPitches, version } };
 }
 
-function buildModel(track, measures) {
+function buildModel(track, measures, measureMarkers = []) {
   if (!track || !track.tuning.length) throw new Error('gp5: no fretted track to analyze');
   const openMidis = track.tuning.slice().reverse(); // low -> high
   const strings = openMidis.map((m) => { const s = midiToNoteOct(m); return { note: s.note, oct: s.oct, label: s.note, openMidi: m }; });
@@ -435,8 +448,11 @@ function buildModel(track, measures) {
   const lastByString = new Map();
 
   let slot = 0;
+  let measureIndex = 0;
   for (const voices of measures) {
     const measureStart = slot;
+    const marker = measureMarkers[measureIndex] || null;
+    measureIndex += 1;
     // Prefer the first voice that actually plays notes.
     const voice = voices.find((bts) => bts.some((b) => b.notes.length)) || voices[0] || [];
     for (const beat of voice) {
@@ -467,7 +483,7 @@ function buildModel(track, measures) {
       slot += 1;
     }
     if (slot === measureStart) slot += 1;
-    measureSpans.push({ startSlot: measureStart, endSlot: slot });
+    measureSpans.push({ startSlot: measureStart, endSlot: slot, marker });
   }
 
   events.sort((a, b) => (a.slot - b.slot) || (a.stringIndex - b.stringIndex));

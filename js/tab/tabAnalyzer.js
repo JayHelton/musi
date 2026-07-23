@@ -94,6 +94,10 @@ export function analyzeModel(model) {
     const secChords = chordsFromEvents(evs);
     return {
       kind: sec.kind,
+      label: sec.label,
+      type: sec.type,
+      source: sec.source,
+      measureRange: sec.measureRange || null,
       slotRange: sec.slotRange,
       scales: detectScales(pitchedEvents(evs), key.tonicPc, { limit: 3 }),
       arpeggios: detectArpeggios(evs),
@@ -103,6 +107,9 @@ export function analyzeModel(model) {
       noteCount: pitchedEvents(evs).length,
     };
   });
+  // Compact arrangement, e.g. Intro → Verse → Chorus → Verse → Chorus → Solo.
+  const structure = sections.map((s) => ({ label: s.label, type: s.type }));
+  const labelled = sections.length > 0 && sections[0].source === 'marker';
 
   return {
     tuning: model.tuning,
@@ -128,6 +135,8 @@ export function analyzeModel(model) {
     range,
     histogram: Array.from(histogram),
     sections,
+    structure,
+    sectionsLabelled: labelled,
     warnings: model.warnings || [],
   };
 }
