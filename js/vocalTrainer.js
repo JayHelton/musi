@@ -5,11 +5,13 @@ import { getContext, subscribeContext } from './musicalContext.js';
 import { SCALES } from './scales.js';
 import { createPitchTracker } from './pitch.js';
 import { pt, stopPitchTrainer } from './pitchTrainer.js';
+import { runner, stopPitchRunner } from './pitchRunner.js';
 
-// Ensure the guided pitch trainer (which shares this section and the mic)
-// releases the microphone before the tuner grabs it.
+// Ensure the other mic-driven tools in this section release the microphone
+// before the tuner grabs it.
 function stopPitchTrainerIfRunning() {
   if (pt && pt.running) stopPitchTrainer();
+  if (runner && runner.running) stopPitchRunner();
 }
 
 const tuner = {

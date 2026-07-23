@@ -731,6 +731,50 @@
         </div>
         <div class="pt-status" id="pt-status">Mic off</div>
       </div>
+      <div class="quiz-card pr-card" style="margin-top:16px">
+        <div class="field-label">Pitch runner <span class="pr-tag">beta</span></div>
+        <p class="pr-intro">Sing each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left.</p>
+        <div class="pt-controls">
+          <label class="pt-field">
+            <span>Challenge</span>
+            <select id="pr-difficulty"></select>
+          </label>
+          <label class="pt-field pt-pattern-field">
+            <span>Melody</span>
+            <select id="pr-pattern"></select>
+          </label>
+          <label class="pt-field">
+            <span>Vocal range</span>
+            <select id="pr-range-preset"></select>
+          </label>
+          <label class="pt-field">
+            <span>Tempo</span>
+            <span class="pr-tempo">
+              <button type="button" class="pr-bpm-btn" id="pr-bpm-down" aria-label="Slower">&minus;</button>
+              <b id="pr-bpm">120</b>
+              <button type="button" class="pr-bpm-btn" id="pr-bpm-up" aria-label="Faster">+</button>
+            </span>
+          </label>
+        </div>
+        <div class="pr-toggles">
+          <label class="pr-check"><input type="checkbox" id="pr-metronome" checked><span>Metronome click</span></label>
+          <label class="pr-check"><input type="checkbox" id="pr-guide"><span>Play melody guide</span></label>
+        </div>
+        <div class="pr-hud">
+          <div class="pr-stat"><span class="pr-stat-val" id="pr-score">0</span><span class="pr-stat-label">Score</span></div>
+          <div class="pr-stat"><span class="pr-stat-val" id="pr-combo">0</span><span class="pr-stat-label">Combo</span></div>
+          <div class="pr-stat"><span class="pr-stat-val" id="pr-accuracy">--</span><span class="pr-stat-label">Accuracy</span></div>
+        </div>
+        <div class="pr-stage" id="pr-stage">
+          <canvas id="pr-canvas"></canvas>
+          <div class="pr-judge" id="pr-judge"></div>
+          <div class="pr-overlay" id="pr-overlay">Press start to play</div>
+        </div>
+        <div class="tuner-tuning-row" style="margin-top:14px;margin-bottom:0">
+          <button class="btn primary" id="pr-toggle" onclick="togglePitchRunner()">Start game</button>
+        </div>
+        <div class="pt-status" id="pr-status">Mic off</div>
+      </div>
     </div>
   </section>
 

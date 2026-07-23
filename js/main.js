@@ -8,6 +8,7 @@ import { initFretboard } from './fretboardTrainer.js';
 import { initChordWorkout, stopChordWorkout } from './chordWorkout.js';
 import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
 import { initPitchTrainer, stopPitchTrainer, pt } from './pitchTrainer.js';
+import { initPitchRunner, stopPitchRunner, runner } from './pitchRunner.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
 import { initTimingDrill, stopTimingDrill, timingDrill } from './timingDrill.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
@@ -99,7 +100,7 @@ const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); if (chOscillators.length) stopChordRef(); },
-  tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); },
+  tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); if (runner.running) stopPitchRunner(); },
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
   timing: () => { if (timingDrill.playing) stopTimingDrill(); },
   sightreading: () => stopSightReading(),
@@ -120,7 +121,7 @@ const TOOL_INITS = {
   chords: () => { initChordRef(); initChordBuilder(); },
   fretboard: initFretboard,
   chordlab: initChordWorkout,
-  tuner: () => { initTuner(); initPitchTrainer(); },
+  tuner: () => { initTuner(); initPitchTrainer(); initPitchRunner(); },
   ear: initEarTrainer,
   timing: initTimingDrill,
   sightreading: initSightReading,

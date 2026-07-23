@@ -51,6 +51,12 @@ Musi is built around five practice modes:
   the interval between notes (scale steps, thirds for triads, fourths, or fifths)
   to drill triads and other segmented scales, one beat per note at the context
   tempo.
+- **Pitch runner** - a Guitar Hero / Yousician-style scrolling pitch game in the
+  Pitch section. Note bars stream in from the right in strict 4/4 time and you
+  sing each one in tune as it crosses the hit line, with pitch on the vertical
+  axis (a piano-roll ladder), a live pitch trace, an optional metronome and
+  melody guide, and score/combo/accuracy tracking. Melody, key, scale, and tempo
+  follow the shared musical context.
 - **Ear trainer** - hear notes in the shared musical context's key and scale and
   identify them by ear, with replay and streak tracking.
 

@@ -6,6 +6,7 @@ import { createPitchTracker } from './pitch.js';
 import { createPitchMatcher, midiToLabel } from './pitchMatch.js';
 import { buildStages, chooseRootMidi, SCALE_PATTERNS } from './pitchExercises.js';
 import { stopTuner, tuner } from './vocalTrainer.js';
+import { runner, stopPitchRunner } from './pitchRunner.js';
 
 // "Pitch trainer" — a guided, mic-driven sing-the-note drill that lives in the
 // Pitch section alongside the tuner. It walks selectable vocal warmup patterns
@@ -375,6 +376,7 @@ function buildConstraints() {
 async function startPitchTrainer() {
   // Only one mic-driven tool in the Pitch section runs at a time.
   if (tuner && tuner.running) stopTuner();
+  if (runner && runner.running) stopPitchRunner();
 
   ensureAudio();
   pt.difficulty = getSetting('pitchTrainer.difficulty', pt.difficulty, DIFFICULTIES.map(d => d.id));
