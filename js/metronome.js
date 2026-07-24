@@ -17,6 +17,9 @@ const metro = {
   dotted: false,
   triplet: false,
   restMode: false,
+  phasesEnabled: false,
+  phasesLoop: false,
+  phases: [],          // [{ seconds, bpm }] — timed tempo phases
   _timer: null,
   _nextNoteTime: 0,
   _currentSlot: 0,
@@ -26,7 +29,14 @@ const metro = {
   _sessionElapsedMs: 0,
   _sessionStart: 0,
   _sessionTimer: null,
+  _phaseStartTime: 0,  // audioCtx time when the current phase cycle began
+  _phaseIndex: -1,
+  _phaseTimer: null,
 };
+
+const PHASE_MIN_BPM = 30;
+const PHASE_MAX_BPM = 300;
+const PHASE_MAX_SECONDS = 180 * 60;
 
 let metroSettingsLoaded = false;
 
@@ -66,6 +76,13 @@ function restoreMetronomeSettings() {
   metro.dotted = !!getSetting('metro.dotted', metro.dotted);
   metro.triplet = !!getSetting('metro.triplet', metro.triplet);
   metro.restMode = !!getSetting('metro.restMode', metro.restMode);
+  metro.phasesEnabled = !!getSetting('metro.phasesEnabled', metro.phasesEnabled);
+  metro.phasesLoop = !!getSetting('metro.phasesLoop', metro.phasesLoop);
+
+  const savedPhases = getSetting('metro.phases', null);
+  if (Array.isArray(savedPhases)) {
+    metro.phases = normalizePhases(savedPhases);
+  }
 
   const savedMeasure = getSetting('metro.measure', null);
   if (Array.isArray(savedMeasure)) {
@@ -384,12 +401,214 @@ function resetSessionTimer() {
   renderSessionTimer();
 }
 
+// --- tempo phases ----------------------------------------------------------
+// Phases let the metronome run continuously through timed tempo sections,
+// e.g. 2 minutes at 100 BPM into 5 minutes at 80 BPM, switching BPM on the fly.
+
+function clampPhaseInt(value, min, max, fallback) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function normalizePhases(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  raw.forEach(p => {
+    if (!p || typeof p !== 'object') return;
+    const seconds = clampPhaseInt(p.seconds, 1, PHASE_MAX_SECONDS, null);
+    const bpm = clampPhaseInt(p.bpm, PHASE_MIN_BPM, PHASE_MAX_BPM, null);
+    if (seconds === null || bpm === null) return;
+    out.push({ seconds, bpm });
+  });
+  return out;
+}
+
+function savePhases() {
+  saveSetting('metro.phases', metro.phases.map(p => ({ seconds: p.seconds, bpm: p.bpm })));
+}
+
+function phasesTotalSeconds() {
+  return metro.phases.reduce((sum, p) => sum + p.seconds, 0);
+}
+
+function phaseIndexForElapsed(elapsedSec) {
+  let acc = 0;
+  for (let i = 0; i < metro.phases.length; i++) {
+    acc += metro.phases[i].seconds;
+    if (elapsedSec < acc - 1e-6) return i;
+  }
+  return metro.phases.length - 1;
+}
+
+function phaseActive() {
+  return metro.phasesEnabled && metro.phases.length > 0;
+}
+
+function fmtPhaseDuration(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function addPhase(seconds, bpm) {
+  const sec = clampPhaseInt(seconds, 1, PHASE_MAX_SECONDS, null);
+  const b = clampPhaseInt(bpm, PHASE_MIN_BPM, PHASE_MAX_BPM, null);
+  if (sec === null || b === null) return;
+  metro.phases.push({ seconds: sec, bpm: b });
+  savePhases();
+  renderPhases();
+}
+
+function removePhase(index) {
+  if (index < 0 || index >= metro.phases.length) return;
+  metro.phases.splice(index, 1);
+  savePhases();
+  renderPhases();
+}
+
+function clearPhases() {
+  metro.phases = [];
+  savePhases();
+  renderPhases();
+}
+
+function currentPhaseElapsed() {
+  if (!phaseActive() || !metro.playing || !metro._phaseStartTime) return 0;
+  const total = phasesTotalSeconds();
+  let elapsed = audioCtx.currentTime - metro._phaseStartTime;
+  if (metro.phasesLoop && total > 0) elapsed %= total;
+  return Math.max(0, elapsed);
+}
+
+function renderPhaseStatus() {
+  const status = document.getElementById('m-phases-status');
+  if (!status) return;
+  if (!phaseActive()) {
+    status.textContent = '';
+    status.classList.remove('active');
+    return;
+  }
+  if (!metro.playing || !metro._phaseStartTime) {
+    const total = phasesTotalSeconds();
+    status.textContent = `${metro.phases.length} phase${metro.phases.length === 1 ? '' : 's'} \u00B7 ${fmtPhaseDuration(total)} total`;
+    status.classList.remove('active');
+    return;
+  }
+  const elapsed = currentPhaseElapsed();
+  const idx = phaseIndexForElapsed(elapsed);
+  let acc = 0;
+  for (let i = 0; i < idx; i++) acc += metro.phases[i].seconds;
+  const remaining = Math.max(0, metro.phases[idx].seconds - (elapsed - acc));
+  status.textContent = `Phase ${idx + 1}/${metro.phases.length} \u00B7 ${metro.phases[idx].bpm} BPM \u00B7 ${fmtPhaseDuration(remaining)} left`;
+  status.classList.add('active');
+}
+
+function renderPhases() {
+  const toggle = document.getElementById('m-phases-toggle');
+  if (toggle) toggle.checked = metro.phasesEnabled;
+  const loopBtn = document.getElementById('m-phases-loop');
+  if (loopBtn) {
+    loopBtn.textContent = 'Loop phases: ' + (metro.phasesLoop ? 'On' : 'Off');
+    loopBtn.classList.toggle('active', metro.phasesLoop);
+  }
+  const card = document.getElementById('m-phases-card');
+  if (card) card.classList.toggle('enabled', metro.phasesEnabled);
+
+  const list = document.getElementById('m-phases-list');
+  if (list) {
+    list.innerHTML = '';
+    if (!metro.phases.length) {
+      const empty = document.createElement('div');
+      empty.className = 'm-phase-empty';
+      empty.textContent = 'No phases yet. Add a duration and tempo below.';
+      list.appendChild(empty);
+    } else {
+      const activeIdx = (phaseActive() && metro.playing && metro._phaseStartTime)
+        ? phaseIndexForElapsed(currentPhaseElapsed()) : -1;
+      metro.phases.forEach((p, i) => {
+        const row = document.createElement('div');
+        row.className = 'm-phase-row' + (i === activeIdx ? ' current' : '');
+        const num = document.createElement('span');
+        num.className = 'm-phase-num';
+        num.textContent = i + 1;
+        const dur = document.createElement('span');
+        dur.className = 'm-phase-dur';
+        dur.textContent = fmtPhaseDuration(p.seconds);
+        const bpm = document.createElement('span');
+        bpm.className = 'm-phase-bpm';
+        bpm.textContent = p.bpm + ' BPM';
+        const del = document.createElement('button');
+        del.className = 'm-phase-del';
+        del.type = 'button';
+        del.setAttribute('aria-label', 'Remove phase');
+        del.textContent = '\u2715';
+        del.onclick = () => removePhase(i);
+        row.appendChild(num);
+        row.appendChild(dur);
+        row.appendChild(bpm);
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+    }
+  }
+  renderPhaseStatus();
+}
+
+// Called from the scheduler for each note being queued so BPM switches land on
+// the phase boundary. Returns false when non-looping phases have finished and
+// the metronome should stop.
+function applyPhaseForScheduleTime(scheduleTime) {
+  if (!phaseActive()) return true;
+  if (!metro._phaseStartTime) metro._phaseStartTime = scheduleTime;
+  const total = phasesTotalSeconds();
+  let elapsed = scheduleTime - metro._phaseStartTime;
+  if (elapsed >= total - 1e-6) {
+    if (metro.phasesLoop) {
+      while (elapsed >= total - 1e-6 && total > 0) {
+        metro._phaseStartTime += total;
+        elapsed -= total;
+      }
+    } else {
+      return false;
+    }
+  }
+  const idx = phaseIndexForElapsed(elapsed);
+  const target = metro.phases[idx].bpm;
+  if (target !== metro.bpm) {
+    setBpm(target);
+    const delay = Math.max(0, (scheduleTime - audioCtx.currentTime) * 1000);
+    setTimeout(() => {
+      if (metro.playing) showNowPlaying(`Metronome \u2014 ${target} BPM`, stopMetronome);
+    }, delay);
+  }
+  metro._phaseIndex = idx;
+  return true;
+}
+
+function startPhaseStatusTimer() {
+  if (metro._phaseTimer) clearInterval(metro._phaseTimer);
+  if (!phaseActive()) return;
+  metro._phaseTimer = setInterval(() => {
+    if (!metro.playing) return;
+    renderPhases();
+  }, 500);
+}
+
+function stopPhaseStatusTimer() {
+  if (metro._phaseTimer) { clearInterval(metro._phaseTimer); metro._phaseTimer = null; }
+}
+
 function startMetronome() {
   if (metro.measure.length === 0) setSimpleMeasure();
   ensureAudio();
+  // When phases are active the first phase sets the starting tempo.
+  if (phaseActive()) setBpm(metro.phases[0].bpm);
   metro.playing = true;
   metro._currentSlot = 0;
   metro._sub16 = 0;
+  metro._phaseStartTime = 0;
+  metro._phaseIndex = -1;
   document.getElementById('m-play').textContent = '\u25A0 Stop';
   document.getElementById('m-play').classList.add('playing');
   showNowPlaying(`Metronome \u2014 ${metro.bpm} BPM`, stopMetronome);
@@ -397,6 +616,8 @@ function startMetronome() {
   metro._countInLeft = metro.countIn ? metro.tsNum : 0;
   metro._nextNoteTime = audioCtx.currentTime + 0.05;
   startSessionTimer();
+  startPhaseStatusTimer();
+  renderPhases();
   metroScheduler();
 }
 
@@ -404,11 +625,15 @@ function stopMetronome() {
   metro.playing = false;
   if (metro._timer) { clearTimeout(metro._timer); metro._timer = null; }
   pauseSessionTimer();
+  stopPhaseStatusTimer();
+  metro._phaseStartTime = 0;
+  metro._phaseIndex = -1;
   document.getElementById('m-play').textContent = '\u25B6 Play';
   document.getElementById('m-play').classList.remove('playing');
   highlightSlot(-1);
   highlightSub(-1);
   hideNowPlaying();
+  renderPhases();
 }
 
 function metroScheduler() {
@@ -420,6 +645,13 @@ function metroScheduler() {
       metro._nextNoteTime += 60 / metro.bpm;
       metro._countInLeft--;
       continue;
+    }
+    // Switch tempo when the schedule time crosses a phase boundary. When the
+    // phase plan finishes (and isn't looping), let the metronome wind down.
+    if (phaseActive() && !applyPhaseForScheduleTime(metro._nextNoteTime)) {
+      const stopDelay = Math.max(0, (metro._nextNoteTime - audioCtx.currentTime) * 1000);
+      setTimeout(() => stopMetronome(), stopDelay);
+      return;
     }
     const slot = metro.measure[metro._currentSlot];
     if (!slot) {
@@ -446,7 +678,7 @@ function metroScheduler() {
     metro._nextNoteTime += slotDuration(slot) * (60 / metro.bpm);
     metro._currentSlot++;
     if (metro._currentSlot >= metro.measure.length) {
-      if (metro.looping) {
+      if (metro.looping || phaseActive()) {
         metro._currentSlot = 0;
         metro._sub16 = 0;
       } else {
@@ -601,11 +833,46 @@ function initMetronome() {
   };
   const timerReset = document.getElementById('m-timer-reset');
   if (timerReset) timerReset.onclick = resetSessionTimer;
+
+  const phasesToggle = document.getElementById('m-phases-toggle');
+  if (phasesToggle) {
+    phasesToggle.checked = metro.phasesEnabled;
+    phasesToggle.onchange = () => {
+      metro.phasesEnabled = phasesToggle.checked;
+      saveSetting('metro.phasesEnabled', metro.phasesEnabled);
+      if (metro.playing) {
+        // Re-baseline so the plan starts from "now" when toggled mid-session.
+        metro._phaseStartTime = 0;
+        metro._phaseIndex = -1;
+        startPhaseStatusTimer();
+      }
+      renderPhases();
+    };
+  }
+  const phasesLoopBtn = document.getElementById('m-phases-loop');
+  if (phasesLoopBtn) phasesLoopBtn.onclick = () => {
+    metro.phasesLoop = !metro.phasesLoop;
+    saveSetting('metro.phasesLoop', metro.phasesLoop);
+    renderPhases();
+  };
+  const phaseAdd = document.getElementById('m-phase-add');
+  if (phaseAdd) phaseAdd.onclick = () => {
+    const min = Number(document.getElementById('m-phase-min')?.value) || 0;
+    const sec = Number(document.getElementById('m-phase-sec')?.value) || 0;
+    const bpm = Number(document.getElementById('m-phase-bpm')?.value) || metro.bpm;
+    const totalSec = Math.round(min * 60 + sec);
+    if (totalSec < 1) return;
+    addPhase(totalSec, bpm);
+  };
+  const phaseClear = document.getElementById('m-phase-clear');
+  if (phaseClear) phaseClear.onclick = clearPhases;
+
   renderSessionTimer();
   updateAccentButtons();
   renderMeasure();
   updateBeatsFilled();
   renderBeatIndicator();
+  renderPhases();
 }
 
 window.loadPreset = loadPreset;

@@ -446,6 +446,28 @@
           <button class="btn sm metro-bpm-preset" data-bpm="260">260</button>
         </div>
       </div>
+      <div class="quiz-card metro-settings-card m-phases-card" id="m-phases-card">
+        <div class="m-phases-head">
+          <div class="metro-card-title">Tempo Phases</div>
+          <label class="m-phases-switch">
+            <input type="checkbox" id="m-phases-toggle">
+            <span>Enable</span>
+          </label>
+        </div>
+        <p class="m-phases-note">Chain timed tempo sections that play back-to-back without stopping &mdash; e.g. 2:00 at 100 BPM into 5:00 at 80 BPM.</p>
+        <div class="m-phases-status" id="m-phases-status" aria-live="polite"></div>
+        <div class="m-phases-list" id="m-phases-list"></div>
+        <div class="m-phases-add">
+          <label>Min <input type="number" id="m-phase-min" min="0" max="180" value="2" inputmode="numeric"></label>
+          <label>Sec <input type="number" id="m-phase-sec" min="0" max="59" value="0" inputmode="numeric"></label>
+          <label>BPM <input type="number" id="m-phase-bpm" min="30" max="300" value="100" inputmode="numeric"></label>
+          <button class="btn sm" id="m-phase-add">Add phase</button>
+        </div>
+        <div class="m-phases-actions">
+          <button class="btn sm metro-toggle" id="m-phases-loop">Loop phases: Off</button>
+          <button class="btn sm" id="m-phase-clear">Clear all</button>
+        </div>
+      </div>
     </div>
 
     <!-- Advanced metronome UI disabled for now. Keep this markup for future reactivation.
