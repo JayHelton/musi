@@ -48,7 +48,7 @@ Or jump straight into an activity:
 musi scale --root C --type "Major (Ionian)"
 musi interval --diff medium
 musi sight --clef Treble --diff easy
-musi fretboard --key C --tuning Standard
+musi fretboard --key C --tuning Standard --mode findInterval
 musi ear --key D --mode easy
 musi pitch --root A --type "Natural Minor (Aeolian)" --tempo 120
 musi reference --root F --type Dorian
@@ -64,7 +64,7 @@ If you omit flags, each activity asks you to pick its options interactively.
 | `scale`     | Quiz    | Spell every note of a named scale, in order |
 | `interval`  | Quiz    | Name the note a given interval above a root |
 | `sight`     | Quiz    | Read a note drawn on an ASCII staff (treble/bass); plays the note after each answer |
-| `fretboard` | Train   | Locate a note on an ASCII fretboard and name its interval |
+| `fretboard` | Train   | Find scale intervals (or notes) on an ASCII fretboard |
 | `ear`       | Train   | Identify a scale degree by ear (plays tones) |
 | `pitch`     | Pitch   | Play a scale (or segment) back at tempo, like the web Pitch tool |
 | `reference` | Learn   | Browse scale degrees, intervals, diatonic chords & 3-NPS tab |
@@ -91,6 +91,7 @@ Set `NO_COLOR=1` to disable ANSI colors.
 | `--key` | fretboard, ear | `C`, `F#`, … |
 | `--tuning` | fretboard | `Standard`, `Drop D`, `DADGAD`, … |
 | `--mode` | ear | `easy` (root first), `hard` (note only) |
+| `--mode` | fretboard | `findInterval` (interval only), `interval` (locate + name), `note` |
 | `--type` / `--scale` | pitch | a scale name, e.g. `"Major (Ionian)"`, `Dorian` |
 | `--octave` | pitch | base octave `2`–`6` (default `4`) |
 | `--tempo` | pitch | beats per minute `30`–`300` (default `100`) |

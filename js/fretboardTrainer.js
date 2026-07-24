@@ -9,23 +9,26 @@ const FB_DOTS = [3,5,7,9,12,15];
 const FB_ADVANCE_MS = 1600;
 const FB_FADE_START_MS = 1100;
 const FB_MODES = [
-  { val: 'interval', label: 'Interval' },
+  { val: 'findInterval', label: 'Find interval' },
+  { val: 'interval', label: 'Locate + name' },
   { val: 'note', label: 'Note' },
   { val: 'chordTone', label: 'Chord tones' },
 ];
 const CHORD_ROLE_LABELS = ['R', '3', '5', '7'];
+// Modes that only need a fret pick — no interval/role button.
+const FB_FRET_ONLY_MODES = new Set(['note', 'findInterval']);
 
 const fb = {
   key: 'C',
   tuning: 'Standard',
   scale: 'Major (Ionian)',
-  mode: 'interval',
+  mode: 'findInterval',
   fretStart: 0,
   fretEnd: 15,
   showLabels: false,
   showIntervals: false,
   targetNote: null, targetMidi: null, targetInterval: null,
-  targetRole: null,
+  targetRole: null, targetSemi: null,
   selectedFret: null, selectedInterval: null,
   answered: false, right: 0, total: 0, streak: 0,
   _advTimer: null, _fadeTimer: null,
@@ -73,13 +76,28 @@ function intervalLabel(semi) {
   return INTERVAL_LABELS[((semi % 12) + 12) % 12] || `${semi} st`;
 }
 
+function rootSemi() {
+  const rootP = parseNote(fb.key);
+  return rootP ? rootP.semi : 0;
+}
+
+function intervalFromRoot(midi) {
+  return ((midi % 12) - rootSemi() + 12) % 12;
+}
+
+function fretMatchesTarget(midi) {
+  if (fb.mode === 'findInterval') {
+    return intervalFromRoot(midi) === fb.targetInterval;
+  }
+  return midi === fb.targetMidi;
+}
+
 function buildFretboard() {
   const board = document.getElementById('fb-board');
   const strings = TUNINGS[fb.tuning];
   const openMidis = fbOpenMidis();
-  const rootP = parseNote(fb.key);
-  const rootSemi = rootP ? rootP.semi : 0;
-  const scaleSemis = new Set(scaleIntervals().map(semi => (rootSemi + semi) % 12));
+  const rSemi = rootSemi();
+  const scaleSemis = new Set(scaleIntervals().map(semi => (rSemi + semi) % 12));
   const { start, end, count } = activeFretRange();
   board.style.gridTemplateColumns = `34px repeat(${count}, minmax(38px, 1fr))`;
   board.style.gridTemplateRows = `24px repeat(${strings.length}, 32px)`;
@@ -108,7 +126,7 @@ function buildFretboard() {
       const noteName = NOTE_NAMES_SHARP[midi % 12];
       const oct = Math.floor(midi / 12) - 1;
       cell.className = 'fb-cell' + (f === 0 ? ' nut' : '');
-      const interval = (midi % 12 - rootSemi + 12) % 12;
+      const interval = (midi % 12 - rSemi + 12) % 12;
       if (scaleSemis.has(midi % 12)) cell.classList.add('in-scale');
       if (fb.showLabels || fb.showIntervals) cell.classList.add('show-label');
       if (f > 0 && FB_DOTS.includes(f) && s === middleString) cell.classList.add('dot');
@@ -135,9 +153,11 @@ function buildIntervalButtons() {
   const container = document.getElementById('fb-intervals');
   const label = document.getElementById('fb-answer-label');
   container.innerHTML = '';
-  if (fb.mode === 'note') {
+  if (FB_FRET_ONLY_MODES.has(fb.mode)) {
     container.hidden = true;
-    label.textContent = 'Find the target note';
+    label.textContent = fb.mode === 'findInterval'
+      ? 'Tap any fret that is the target interval'
+      : 'Find the target note';
     return;
   }
   container.hidden = false;
@@ -177,16 +197,15 @@ function newFbQuestion() {
   const feedback = document.getElementById('fb-feedback');
   feedback.className = 'fb-feedback';
 
-  const rootP = parseNote(fb.key);
-  if (!rootP) return;
-  const rootSemi = rootP.semi;
+  if (!parseNote(fb.key)) return;
+  const rSemi = rootSemi();
 
   const choices = fb.mode === 'chordTone'
     ? chordToneIntervals()
     : scaleIntervals().map(semi => ({ semi, role: intervalLabel(semi) }));
   const choice = choices[Math.floor(Math.random() * choices.length)];
   const interval = choice.semi;
-  const targetSemi = (rootSemi + interval) % 12;
+  const targetSemi = (rSemi + interval) % 12;
   const targetName = NOTE_NAMES_SHARP[targetSemi];
 
   const openMidis = fbOpenMidis();
@@ -204,23 +223,34 @@ function newFbQuestion() {
 
   fb.targetNote = targetName;
   fb.targetMidi = chosenMidi;
+  fb.targetSemi = targetSemi;
   fb.targetInterval = interval;
   fb.targetRole = choice.role || intervalLabel(interval);
 
   const oct = Math.floor(chosenMidi / 12) - 1;
-  const modeLabel = fb.mode === 'note' ? 'locate' : fb.mode === 'chordTone' ? `find ${fb.targetRole}` : 'locate + name';
+  let prompt;
+  if (fb.mode === 'findInterval') {
+    prompt = `find <span class="highlight">${fb.targetRole}</span>`;
+  } else if (fb.mode === 'chordTone') {
+    prompt = `find <span class="highlight">${fb.targetRole}</span> · <span class="highlight">${targetName}${oct}</span>`;
+  } else if (fb.mode === 'note') {
+    prompt = `locate <span class="highlight">${targetName}${oct}</span>`;
+  } else {
+    prompt = `locate + name <span class="highlight">${targetName}${oct}</span>`;
+  }
   document.getElementById('fb-question').innerHTML =
-    `<span class="highlight">${fb.key}</span> · ${fb.scale} · ${modeLabel} <span class="highlight">${targetName}${oct}</span>`;
+    `<span class="highlight">${fb.key}</span> · ${fb.scale} · ${prompt}`;
 }
 
 function checkFbAnswer() {
   if (!fb.selectedFret || fb.answered) return;
-  if (fb.mode !== 'note' && fb.selectedInterval === null) return;
+  if (!FB_FRET_ONLY_MODES.has(fb.mode) && fb.selectedInterval === null) return;
   fb.answered = true;
   fb.total++;
 
-  const fretCorrect = fb.selectedFret.midi === fb.targetMidi;
-  const intCorrect = fb.mode === 'note' || fb.selectedInterval === fb.targetInterval;
+  const fretCorrect = fretMatchesTarget(fb.selectedFret.midi);
+  const intCorrect = FB_FRET_ONLY_MODES.has(fb.mode)
+    || fb.selectedInterval === fb.targetInterval;
   const bothCorrect = fretCorrect && intCorrect;
   recordAttempt('fretboard', bothCorrect);
 
@@ -233,12 +263,13 @@ function checkFbAnswer() {
 
   if (!fretCorrect) {
     board.querySelectorAll('.fb-cell').forEach(c => {
-      if (parseInt(c.dataset.midi) === fb.targetMidi) c.classList.add('reveal');
+      const midi = parseInt(c.dataset.midi, 10);
+      if (fretMatchesTarget(midi)) c.classList.add('reveal');
     });
   }
 
   const intContainer = document.getElementById('fb-intervals');
-  if (fb.mode !== 'note') {
+  if (!FB_FRET_ONLY_MODES.has(fb.mode)) {
     const selectedBtn = intContainer.querySelector(`.int-btn[data-semi="${fb.selectedInterval}"]`);
     if (selectedBtn) {
       selectedBtn.classList.add(intCorrect ? 'correct' : 'wrong');
@@ -259,10 +290,14 @@ function checkFbAnswer() {
     fb.streak = 0;
     const correctInt = fb.mode === 'chordTone' ? fb.targetRole : intervalLabel(fb.targetInterval);
     let msg = '';
-    if (!fretCorrect) msg += 'Wrong position. ';
+    if (!fretCorrect) {
+      msg += fb.mode === 'findInterval'
+        ? `Wrong interval — look for ${correctInt}. `
+        : 'Wrong position. ';
+    }
     if (!intCorrect) msg += `Expected: ${correctInt}.`;
     feedback.className = 'fb-feedback show wrong';
-    feedback.textContent = msg;
+    feedback.textContent = msg.trim();
   }
 
   document.getElementById('fb-right').textContent = fb.right;
