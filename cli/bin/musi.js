@@ -71,7 +71,7 @@ function printHelp() {
   print('  scale       ' + c.gray('Scale spelling quiz   (--root, --type)'));
   print('  interval    ' + c.gray('Interval quiz         (--root, --diff easy|medium|hard)'));
   print('  sight       ' + c.gray('Sight reading quiz    (--clef Treble|Bass|both, --diff)'));
-  print('  fretboard   ' + c.gray('Fretboard trainer     (--key, --tuning)'));
+  print('  fretboard   ' + c.gray('Fretboard trainer     (--key, --tuning, --mode findInterval|interval|note)'));
   print('  ear         ' + c.gray('Ear trainer           (--key, --mode easy|hard)'));
   print('  pitch       ' + c.gray('Play scales           (--root, --type, --octave, --tempo, --start, --count, --step)'));
   print('  reference   ' + c.gray('Scale reference/learn (--root, --type)'));

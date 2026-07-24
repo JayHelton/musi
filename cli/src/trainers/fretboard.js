@@ -4,6 +4,11 @@ import { c, print, banner, scoreLine, correctMsg, wrongMsg, ask, askAnswer, choo
 const FB_FRETS = 15;
 const FB_DOTS = [3, 5, 7, 9, 12, 15];
 const FB_INT_NAMES = ['P1', 'm2', 'M2', 'm3', 'M3', 'P4', 'TT', 'P5', 'm6', 'M6', 'm7', 'M7'];
+const FB_MODES = [
+  { label: 'Find interval — tap the interval (no note name)', value: 'findInterval' },
+  { label: 'Locate + name — find the note and name its interval', value: 'interval' },
+  { label: 'Note — locate the note only', value: 'note' },
+];
 
 function fbOpenMidis(tuning) {
   return TUNINGS[tuning].map((s) => {
@@ -48,17 +53,36 @@ function renderBoard(tuning, highlight) {
   return out.join('\n');
 }
 
+function parsePosition(raw, openMidis) {
+  const m = raw.trim().match(/^(\d)\D+(\d{1,2})$/);
+  if (!m) return { error: 'Format: "1 5" means 1st string (high), 5th fret.' };
+  const stringNum = Number(m[1]);
+  const fret = Number(m[2]);
+  if (stringNum < 1 || stringNum > 6 || fret < 0 || fret > FB_FRETS) {
+    return { error: 'String must be 1-6 and fret 0-15.' };
+  }
+  return { midi: openMidis[6 - stringNum] + fret, stringNum, fret };
+}
+
 export async function runFretboard(opts = {}) {
-  banner('Fretboard Trainer', 'Locate the note on the neck and name its interval.');
+  banner('Fretboard Trainer', 'Practice locating notes and intervals on the neck.');
 
   let key = opts.key;
   let tuning = opts.tuning;
+  let mode = opts.mode;
 
   if (!key) {
     key = await choose('Key:', ROOTS.map((r) => ({ label: r, value: r })));
   }
   if (!tuning) {
     tuning = await choose('Tuning:', Object.keys(TUNINGS).map((t) => ({ label: t, value: t })));
+  }
+  if (!mode) {
+    mode = await choose('Mode:', FB_MODES);
+  }
+  if (!FB_MODES.some((m) => m.value === mode)) {
+    print(c.err(`Unknown mode: ${mode}. Use findInterval, interval, or note.`));
+    return;
   }
 
   const rootP = parseNote(key);
@@ -79,6 +103,7 @@ export async function runFretboard(opts = {}) {
     const interval = scaleIntervals[Math.floor(Math.random() * scaleIntervals.length)];
     const targetSemi = (rootP.semi + interval) % 12;
     const targetName = NOTE_NAMES_SHARP[targetSemi];
+    const intName = FB_INT_NAMES[interval];
 
     const possibleMidis = [];
     for (let s = 0; s < 6; s++) {
@@ -89,52 +114,60 @@ export async function runFretboard(opts = {}) {
     }
     const chosenMidi = possibleMidis[Math.floor(Math.random() * possibleMidis.length)];
     const oct = Math.floor(chosenMidi / 12) - 1;
-    const targetMatches = new Set(possibleMidis.filter((m) => m === chosenMidi));
+    const targetMatches = new Set(
+      mode === 'findInterval' ? possibleMidis : possibleMidis.filter((m) => m === chosenMidi)
+    );
 
     print();
-    print(c.bold(`Key ${c.accent(key)} — find ${c.accent(targetName + oct)} on the neck and name its interval from the root.`));
+    if (mode === 'findInterval') {
+      print(c.bold(`Key ${c.accent(key)} Major — find ${c.accent(intName)} anywhere on the neck.`));
+    } else if (mode === 'note') {
+      print(c.bold(`Key ${c.accent(key)} — find ${c.accent(targetName + oct)} on the neck.`));
+    } else {
+      print(c.bold(`Key ${c.accent(key)} — find ${c.accent(targetName + oct)} on the neck and name its interval from the root.`));
+    }
     print();
     print(renderBoard(tuning, null));
 
     const revealBoard = () => {
       print();
       print(renderBoard(tuning, targetMatches));
-      print(c.yellow('  Interval: ') + c.gray(FB_INT_NAMES[interval]));
+      print(c.yellow('  Interval: ') + c.gray(intName));
     };
 
     let posMidi = null;
     while (posMidi === null) {
       const raw = await askAnswer(c.cyan('Position (string fret) › '), { onReveal: revealBoard });
       if (raw === QUIT) break outer;
-      const m = raw.trim().match(/^(\d)\D+(\d{1,2})$/);
-      if (!m) {
-        print(c.gray('  Format: "1 5" means 1st string (high), 5th fret.'));
+      const parsed = parsePosition(raw, openMidis);
+      if (parsed.error) {
+        print(c.gray('  ' + parsed.error));
         continue;
       }
-      const stringNum = Number(m[1]);
-      const fret = Number(m[2]);
-      if (stringNum < 1 || stringNum > 6 || fret < 0 || fret > FB_FRETS) {
-        print(c.gray('  String must be 1-6 and fret 0-15.'));
-        continue;
-      }
-      posMidi = openMidis[6 - stringNum] + fret;
+      posMidi = parsed.midi;
     }
 
-    print(c.gray('  Intervals: ') + scaleIntervals.map((s) => FB_INT_NAMES[s]).join(' '));
-    let selSemi = null;
-    while (selSemi === null) {
-      const raw = (await ask(c.cyan('Interval › '))).trim();
-      if (raw.toLowerCase() === 'q') break outer;
-      const idx = FB_INT_NAMES.findIndex((n) => n.toLowerCase() === raw.toLowerCase());
-      if (idx === -1) {
-        print(c.gray('  Enter one of: ') + scaleIntervals.map((s) => FB_INT_NAMES[s]).join(' '));
-        continue;
+    let selSemi = interval;
+    let intCorrect = true;
+    if (mode === 'interval') {
+      print(c.gray('  Intervals: ') + scaleIntervals.map((s) => FB_INT_NAMES[s]).join(' '));
+      selSemi = null;
+      while (selSemi === null) {
+        const raw = (await ask(c.cyan('Interval › '))).trim();
+        if (raw.toLowerCase() === 'q') break outer;
+        const idx = FB_INT_NAMES.findIndex((n) => n.toLowerCase() === raw.toLowerCase());
+        if (idx === -1) {
+          print(c.gray('  Enter one of: ') + scaleIntervals.map((s) => FB_INT_NAMES[s]).join(' '));
+          continue;
+        }
+        selSemi = idx;
       }
-      selSemi = idx;
+      intCorrect = selSemi === interval;
     }
 
-    const fretCorrect = posMidi === chosenMidi;
-    const intCorrect = selSemi === interval;
+    const fretCorrect = mode === 'findInterval'
+      ? (posMidi % 12) === targetSemi
+      : posMidi === chosenMidi;
     stats.total++;
     if (fretCorrect && intCorrect) {
       stats.right++;
@@ -143,8 +176,12 @@ export async function runFretboard(opts = {}) {
     } else {
       stats.streak = 0;
       let msg = '';
-      if (!fretCorrect) msg += 'Wrong position. ';
-      if (!intCorrect) msg += `Interval is ${FB_INT_NAMES[interval]}. `;
+      if (!fretCorrect) {
+        msg += mode === 'findInterval'
+          ? `Wrong interval — look for ${intName}. `
+          : 'Wrong position. ';
+      }
+      if (!intCorrect) msg += `Interval is ${intName}. `;
       print(wrongMsg(msg.trim()));
       revealBoard();
     }
