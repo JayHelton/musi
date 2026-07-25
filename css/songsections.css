@@ -21,6 +21,14 @@
   gap:8px;
   margin-bottom:12px;
 }
+.ss-sidebar-head .home-section-label{
+  margin:0;
+  font-size:.7rem;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:1.2px;
+  font-weight:600;
+}
 .ss-project-list{
   display:flex;
   flex-direction:column;
