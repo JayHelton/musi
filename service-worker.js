@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v82-fretboard-compact-inlays";
+const CACHE_VERSION = "v83-song-sections";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -29,7 +29,10 @@ const PRECACHE_URLS = [
   "css/notes.css",
   "css/practice.css",
   "css/tabanalyzer.css",
+  "css/songsections.css",
   "js/main.js",
+  "js/songSections.js",
+  "js/analysis/audioKey.js",
   "js/attachments.js",
   "js/audio.js",
   "js/musicalContext.js",

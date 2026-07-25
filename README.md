@@ -72,6 +72,9 @@ Musi is built around five practice modes:
 - **Voice recorder** - record vocal ideas, monitor live pitch, play back takes,
   download audio, view detected notes, and estimate the key using pitch-class
   analysis.
+- **Song Sections** - upload a track, trim practice loops on a waveform, annotate
+  each section with notes, download trims as WAV, and estimate key / tonal center
+  for the whole song or a selected loop.
 
 ## Why it is useful
 

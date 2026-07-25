@@ -24,6 +24,7 @@ const TITLES = {
   exercises: 'Exercises',
   drums: 'Drums',
   tabanalyzer: 'Tab Analyzer',
+  songsections: 'Song Sections',
 };
 
 const DESCRIPTIONS = {
@@ -46,6 +47,7 @@ const DESCRIPTIONS = {
   exercises: 'Upload tabs, audio, videos and lesson links.',
   drums: 'Beats, fills, drum machine and fill generator.',
   tabanalyzer: 'Break down a tab: key, chords, scales, arpeggios.',
+  songsections: 'Trim song loops, add notes, and find the key.',
 };
 
 let showSectionFn = null;

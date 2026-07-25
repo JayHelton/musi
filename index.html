@@ -35,6 +35,7 @@
 <link rel="stylesheet" href="css/notes.css">
 <link rel="stylesheet" href="css/practice.css">
 <link rel="stylesheet" href="css/tabanalyzer.css">
+<link rel="stylesheet" href="css/songsections.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -1368,6 +1369,99 @@ E|-------------------|"></textarea>
       </div>
       <div class="ta-results" id="ta-results">
         <div class="quiz-card"><p class="ta-muted">Paste a tab and hit Analyze.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SONG SECTIONS -->
+  <section id="sec-songsections" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tools</div>
+      <h2>Song Sections</h2>
+      <p>Upload a track, trim practice loops, annotate each section, and estimate the song&rsquo;s key or tonal center. Built for learning hard parts one loop at a time.</p>
+    </div>
+    <div class="ss-layout">
+      <aside class="ss-sidebar">
+        <div class="ss-sidebar-head">
+          <span class="home-section-label">Songs</span>
+          <button class="btn sm primary" id="ss-upload" type="button">+ Upload</button>
+          <input type="file" id="ss-file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.webm" hidden>
+        </div>
+        <div class="ss-project-list" id="ss-project-list"></div>
+        <div class="ss-project-empty" id="ss-project-empty">No songs yet. Upload a music file to start.</div>
+      </aside>
+
+      <div class="ss-workspace-empty" id="ss-workspace-empty">
+        <p>Upload an audio file to carve out sections, add practice notes, and analyse key / tonal center.</p>
+        <button class="btn primary btn--spaced" type="button" onclick="document.getElementById('ss-file').click()">Upload music file</button>
+      </div>
+
+      <div class="ss-workspace" id="ss-workspace" style="display:none">
+        <div class="ss-title-row">
+          <input type="text" class="ss-title-input" id="ss-title" maxlength="120" aria-label="Song title" placeholder="Song title">
+          <button class="btn sm" id="ss-delete-project" type="button">Delete song</button>
+        </div>
+
+        <div class="ss-panel">
+          <div class="ss-panel-head">
+            <div class="ss-panel-title">Waveform &amp; loop</div>
+            <div class="ss-sel-len" id="ss-sel-len">0:00</div>
+          </div>
+          <div class="ss-wave-wrap">
+            <canvas id="ss-wave" aria-label="Audio waveform with trim handles"></canvas>
+          </div>
+          <div class="ss-transport">
+            <button class="btn primary" id="ss-play" type="button" disabled>&#9654; Play loop</button>
+            <button class="btn active" id="ss-loop" type="button">Loop</button>
+            <span class="ss-time" id="ss-time">0:00 / 0:00</span>
+            <button class="btn sm" id="ss-mark-start" type="button" disabled>Mark start</button>
+            <button class="btn sm" id="ss-mark-end" type="button" disabled>Mark end</button>
+            <button class="btn sm primary" id="ss-add-section" type="button" disabled>+ Add section</button>
+            <button class="btn sm" id="ss-download" type="button" disabled>Download trim</button>
+          </div>
+          <div class="ss-sel-row">
+            <label>Start <input type="text" id="ss-sel-start" value="0:00" aria-label="Selection start"></label>
+            <label>End <input type="text" id="ss-sel-end" value="0:00" aria-label="Selection end"></label>
+          </div>
+          <div class="ss-status" id="ss-status"></div>
+          <progress id="ss-progress" max="1" value="0" hidden></progress>
+        </div>
+
+        <div class="ss-panel">
+          <div class="ss-panel-head">
+            <div class="ss-panel-title">Song key / tonal center</div>
+            <button class="btn sm" id="ss-analyze-song" type="button" disabled>Analyse song</button>
+          </div>
+          <div id="ss-song-analysis"><p class="ss-muted">Hit Analyse song to estimate key / tonal center.</p></div>
+        </div>
+
+        <div class="ss-cols">
+          <div class="ss-panel">
+            <div class="ss-panel-head">
+              <div class="ss-panel-title">Sections</div>
+            </div>
+            <div class="ss-section-list" id="ss-section-list"></div>
+          </div>
+
+          <div class="ss-panel">
+            <div class="ss-panel-head">
+              <div class="ss-panel-title">Section notes &amp; analysis</div>
+              <button class="btn sm" id="ss-analyze-sel" type="button" disabled>Analyse selection</button>
+            </div>
+            <div id="ss-section-empty" class="ss-muted">Select a section to edit its name, times, and practice notes — or analyse the current waveform selection.</div>
+            <div id="ss-section-body" class="ss-section-body" style="display:none">
+              <label>Name <input type="text" id="ss-sec-name" maxlength="80" aria-label="Section name"></label>
+              <div class="ss-times-grid">
+                <label>Start <input type="text" id="ss-sec-start" aria-label="Section start time"></label>
+                <label>End <input type="text" id="ss-sec-end" aria-label="Section end time"></label>
+              </div>
+              <label>Practice notes
+                <textarea id="ss-sec-notes" maxlength="20000" placeholder="Fingerings, lyrics, count-ins, things to watch…" aria-label="Section practice notes"></textarea>
+              </label>
+            </div>
+            <div id="ss-section-analysis" style="margin-top:12px"></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
