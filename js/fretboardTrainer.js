@@ -101,8 +101,8 @@ function buildFretboard() {
   const rSemi = rootSemi();
   const scaleSemis = new Set(scaleIntervals().map(semi => (rSemi + semi) % 12));
   const { start, end, count } = activeFretRange();
-  board.style.gridTemplateColumns = `28px repeat(${count}, minmax(26px, 1fr))`;
-  board.style.gridTemplateRows = `18px repeat(${strings.length}, 26px)`;
+  board.style.gridTemplateColumns = `26px repeat(${count}, minmax(22px, 1fr))`;
+  board.style.gridTemplateRows = `16px repeat(${strings.length}, 24px)`;
   board.innerHTML = '';
 
   const hdr0 = document.createElement('div');
