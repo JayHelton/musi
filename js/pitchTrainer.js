@@ -149,8 +149,8 @@ function startGuideTone(midi) {
   filter.Q.value = 0.35;
 
   gain.gain.setValueAtTime(0.001, t);
-  gain.gain.linearRampToValueAtTime(0.18, t + 0.04);
-  gain.gain.linearRampToValueAtTime(0.14, t + 0.2);
+  gain.gain.linearRampToValueAtTime(0.12, t + 0.04);
+  gain.gain.linearRampToValueAtTime(0.09, t + 0.18);
 
   const sources = GUIDE_DRONE_LAYERS.map(layer => {
     const osc = audioCtx.createOscillator();
@@ -174,14 +174,15 @@ function startGuideTone(midi) {
 }
 
 // Play a short, soft reference tone for automatic guide cues.
-function playTone(midi, duration = 1.1) {
+function playTone(midi, duration = 0.7) {
   stopGuideTone();
   const voice = startGuideTone(midi);
-  const sustain = duration * 0.55;
-  const release = duration * 0.4;
-  // Pause hold scoring for the tone's full audible life (sustain + release tail)
-  // so the cue bleeding into the mic can't be mistaken for the singer holding.
-  pt.guideEndsAt = performance.now() + (sustain + release) * 1000;
+  const sustain = duration * 0.5;
+  const release = duration * 0.35;
+  // Pause hold scoring for the tone's full audible life plus a short room-tail
+  // buffer so speaker bleed / reverb can't be mistaken for the singer holding.
+  const muteMs = (sustain + release) * 1000 + 280;
+  pt.guideEndsAt = performance.now() + muteMs;
   voice.releaseTimer = setTimeout(() => releaseVoice(voice, release), sustain * 1000);
 }
 
@@ -199,8 +200,8 @@ function ptStartReplay() {
 function ptStopReplay() {
   if (!pt.replayActive) return;
   stopGuideTone(0.14);
-  // Keep scoring paused for the brief release tail after letting go.
-  pt.guideEndsAt = performance.now() + 200;
+  // Keep scoring paused for the release + room tail after letting go.
+  pt.guideEndsAt = performance.now() + 350;
 }
 
 // ---- Exercise sequencing ----------------------------------------------------
@@ -361,15 +362,19 @@ function loop() {
   pt.rafId = requestAnimationFrame(loop);
 }
 
+// Mic constraints tuned for singing. Auto-gain helps quiet laptop/phone mics
+// clear the RMS gate. Noise suppression and echo cancellation stay off —
+// NS chews sustained vowels, and AEC can cancel the singer when the guide
+// tone (same pitch) is playing through speakers. Guide-tone scoring is
+// suppressed in software via guideEndsAt instead.
 function buildConstraints() {
   const supported = (navigator.mediaDevices.getSupportedConstraints &&
     navigator.mediaDevices.getSupportedConstraints()) || {};
   const audio = {};
   if (supported.echoCancellation) audio.echoCancellation = false;
   if (supported.noiseSuppression) audio.noiseSuppression = false;
-  if (supported.autoGainControl) audio.autoGainControl = false;
+  if (supported.autoGainControl) audio.autoGainControl = true;
   if (supported.channelCount) audio.channelCount = 1;
-  if (supported.sampleRate) audio.sampleRate = 48000;
   return Object.keys(audio).length ? { audio } : { audio: true };
 }
 
@@ -407,7 +412,12 @@ async function startPitchTrainer() {
     pt.analyser.fftSize = 4096;
     pt.analyser.smoothingTimeConstant = 0;
     pt.buf = new Float32Array(pt.analyser.fftSize);
-    pt.tracker = createPitchTracker({ sampleRate: audioCtx.sampleRate, maxFreq: 1400, minRms: 0.006 });
+    pt.tracker = createPitchTracker({
+      sampleRate: audioCtx.sampleRate,
+      maxFreq: 1400,
+      minRms: 0.003,
+      minClarity: 0.45,
+    });
     pt.source.connect(pt.analyser);
 
     pt.running = true;

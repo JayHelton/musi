@@ -755,7 +755,7 @@
       </div>
       <div class="quiz-card pr-card" style="margin-top:16px">
         <div class="field-label">Pitch runner <span class="pr-tag">beta</span></div>
-        <p class="pr-intro">Sing each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left.</p>
+        <p class="pr-intro">Sing and sustain each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left. Use Note length (1&ndash;4 beats) to practice longer holds. The melody guide is a short cue only and does not count toward hits.</p>
         <div class="pt-controls">
           <label class="pt-field">
             <span>Challenge</span>
@@ -768,6 +768,10 @@
           <label class="pt-field">
             <span>Vocal range</span>
             <select id="pr-range-preset"></select>
+          </label>
+          <label class="pt-field">
+            <span>Note length</span>
+            <select id="pr-length"></select>
           </label>
           <label class="pt-field">
             <span>Tempo</span>
@@ -1383,7 +1387,17 @@ E|-------------------|"></textarea>
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (refreshing) return;
         refreshing = true;
-        window.location.reload();
+        // Don't reload while the microphone is in use (tuner, pitch trainer,
+        // pitch runner, recorder, etc.) — a reload tears down the live audio
+        // session and makes the mic appear to "drop". Defer until it's idle.
+        const reloadWhenIdle = () => {
+          if (window.__musiCaptureActive) {
+            setTimeout(reloadWhenIdle, 1000);
+          } else {
+            window.location.reload();
+          }
+        };
+        reloadWhenIdle();
       });
 
       navigator.serviceWorker.register("service-worker.js")
