@@ -27,6 +27,7 @@ const TOOL_TITLES = {
   exercises: 'Exercises',
   drums: 'Drums',
   tabanalyzer: 'Tab Analyzer',
+  songsections: 'Song Sections',
 };
 
 const TOOL_KEYWORDS = {
@@ -49,6 +50,7 @@ const TOOL_KEYWORDS = {
   exercises: 'exercises media library pdf audio video lesson links',
   drums: 'drums drum machine beat fill groove rhythm tab sequencer kick snare hihat metal rock punk blast beat practice',
   tabanalyzer: 'tab analyzer analyser guitar bass tablature key tonal center chord progression scale mode arpeggio technique riff solo pdf import breakdown',
+  songsections: 'song sections trim loop clip audio practice notes annotate key tonal center analyse analyze waveform learn riff chorus verse',
 };
 
 const MODE_NAMES = new Set([

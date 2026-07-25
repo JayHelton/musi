@@ -25,6 +25,7 @@ import { initNotes, stopNotes } from './notes.js';
 import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
 import { initDrums, stopDrums } from './drums/drumsUI.js';
 import { initTabAnalyzer, stopTabAnalyzer } from './tabAnalyzer.js';
+import { initSongSections, stopSongSections } from './songSections.js';
 import { initScaleRef } from './scaleReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
@@ -58,6 +59,7 @@ const ICONS = {
   practice:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="8"/><path d="M12 14V9.5"/><path d="M9 2h6"/><path d="M18.5 6.5 20 5"/></svg>',
   drums:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="9" ry="3.5"/><path d="M3 8v5c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V8"/><path d="M7 16.5 4 22M17 16.5 20 22M12 17v5"/></svg>',
   tabanalyzer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M7 13h6M7 17h10"/><circle cx="16.5" cy="6" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  songsections: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M4 8v8M20 8v8"/><path d="M8 6v12M12 9v6M16 7v10"/></svg>',
 };
 
 const TABS = [
@@ -83,6 +85,7 @@ const TABS = [
   {id:'exercises', label:'Exercises',  group:'Tools'},
   {id:'drums',     label:'Drums',      group:'Tools'},
   {id:'tabanalyzer', label:'Tab Analyzer', group:'Tools'},
+  {id:'songsections', label:'Sections', group:'Tools'},
 ];
 
 const GROUPS = ['Drill','Reference','Tools'];
@@ -112,6 +115,7 @@ const TOOL_STOPPERS = {
   practice: () => stopPracticeTimer(),
   drums: () => stopDrums(),
   tabanalyzer: () => stopTabAnalyzer(),
+  songsections: () => stopSongSections(),
 };
 const TOOL_INITS = {
   circle: drawCoF,
@@ -132,6 +136,7 @@ const TOOL_INITS = {
   practice: initPracticeTimer,
   drums: initDrums,
   tabanalyzer: initTabAnalyzer,
+  songsections: initSongSections,
 };
 
 function stopOtherTools(keepIds) {
