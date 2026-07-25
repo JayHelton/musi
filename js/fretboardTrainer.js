@@ -4,7 +4,9 @@ import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
 import { recordAttempt } from './stats.js';
 
-const FB_DOTS = [3,5,7,9,12,15];
+// Standard guitar position inlays — single dots, with double dots at 12/24.
+const FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
+const FB_DOUBLE_DOTS = new Set([12, 24]);
 
 const FB_ADVANCE_MS = 1600;
 const FB_FADE_START_MS = 1100;
@@ -99,8 +101,8 @@ function buildFretboard() {
   const rSemi = rootSemi();
   const scaleSemis = new Set(scaleIntervals().map(semi => (rSemi + semi) % 12));
   const { start, end, count } = activeFretRange();
-  board.style.gridTemplateColumns = `34px repeat(${count}, minmax(38px, 1fr))`;
-  board.style.gridTemplateRows = `24px repeat(${strings.length}, 32px)`;
+  board.style.gridTemplateColumns = `28px repeat(${count}, minmax(26px, 1fr))`;
+  board.style.gridTemplateRows = `18px repeat(${strings.length}, 26px)`;
   board.innerHTML = '';
 
   const hdr0 = document.createElement('div');
@@ -113,7 +115,11 @@ function buildFretboard() {
     board.appendChild(hdr);
   }
 
+  // Single inlays sit on the middle string; double dots (12/24) flank it,
+  // matching a typical guitar fretboard face.
   const middleString = Math.floor(strings.length / 2);
+  const doubleLow = Math.max(0, middleString - 1);
+  const doubleHigh = Math.min(strings.length - 1, middleString + 1);
   for (let s = strings.length - 1; s >= 0; s--) {
     const label = document.createElement('div');
     label.className = 'fb-string-label';
@@ -129,7 +135,12 @@ function buildFretboard() {
       const interval = (midi % 12 - rSemi + 12) % 12;
       if (scaleSemis.has(midi % 12)) cell.classList.add('in-scale');
       if (fb.showLabels || fb.showIntervals) cell.classList.add('show-label');
-      if (f > 0 && FB_DOTS.includes(f) && s === middleString) cell.classList.add('dot');
+      if (f > 0 && FB_DOTS.includes(f)) {
+        const isDouble = FB_DOUBLE_DOTS.has(f);
+        if (isDouble ? (s === doubleLow || s === doubleHigh) : s === middleString) {
+          cell.classList.add('dot');
+        }
+      }
       cell.dataset.midi = midi;
       cell.dataset.string = s;
       cell.dataset.fret = f;
