@@ -78,6 +78,23 @@ function setAudioSessionType(type) {
   }
 }
 
+// Number of live microphone captures. Tracked independently of the iOS-only
+// audio-session bookkeeping above so it is reliable on every platform.
+let activeCaptureCount = 0;
+
+// Expose whether any microphone capture is currently active so app-level code
+// (e.g. the service-worker update handler) can avoid disruptive actions like a
+// full page reload that would yank the mic out from under a live session.
+function updateCaptureFlag() {
+  if (typeof window !== 'undefined') {
+    window.__musiCaptureActive = activeCaptureCount > 0;
+  }
+}
+
+export function isCaptureActive() {
+  return activeCaptureCount > 0;
+}
+
 function beginMicAudioSession() {
   const session = getAudioSession();
   if (!session) return;
@@ -111,6 +128,8 @@ export async function requestMicStream(constraints) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     activateMicAudioSession();
+    activeCaptureCount += 1;
+    updateCaptureFlag();
     return stream;
   } catch (e) {
     endMicAudioSession();
@@ -121,6 +140,8 @@ export async function requestMicStream(constraints) {
 export function releaseMicStream(stream) {
   if (stream) {
     try { stream.getTracks().forEach(t => t.stop()); } catch (e) { /* noop */ }
+    activeCaptureCount = Math.max(0, activeCaptureCount - 1);
+    updateCaptureFlag();
   }
   endMicAudioSession();
 }

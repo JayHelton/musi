@@ -38,9 +38,19 @@ const RANGE_PRESETS = [
 
 // How the timeline maps to the canvas.
 const HIT_X_RATIO = 0.28;      // hit line position, fraction of width from left
-const VISIBLE_BEATS_AHEAD = 6; // beats shown to the right of the hit line
 const LEAD_IN_BEATS = 4;       // one 4/4 measure of count-in before the first note
-const NOTE_GAP_BEATS = 0.12;   // small silent gap so adjacent notes read distinctly
+const NOTE_GAP_BEATS = 0.18;   // silent gap (beats) between adjacent notes
+const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
+// Short cue length for the optional melody guide. Kept brief so the singer —
+// not the app's own speakers — must sustain the note for the hit.
+const GUIDE_CUE_BEATS = 0.35;
+const GUIDE_CUE_TAIL_SEC = 0.18; // release/reverb tail after the cue ends
+
+// Beats of runway shown to the right of the hit line. Scales with note length
+// so a long, sustained note still fits comfortably on screen with approach time.
+function visibleBeatsAhead() {
+  return 6 + (runner.noteBeats - 1) * 2;
+}
 
 const GUIDE_LAYERS = [
   { type: 'sine',     detune: 0,  level: 0.5 },
@@ -61,6 +71,7 @@ const runner = {
   pattern: 'five-tone',
   rangeLow: 48,
   rangeHigh: 72,
+  noteBeats: 2,
   metronome: true,
   guide: false,
 
@@ -121,20 +132,22 @@ function scheduleClick(time, accented) {
   osc.stop(time + 0.08);
 }
 
-// A short, soft melody-guide tone at a note's start. Kept quiet and brief so it
-// hints the pitch without dominating the singer's own voice.
-function scheduleGuideTone(midi, time, beats) {
+// A short, soft melody-guide cue at a note's start. Intentionally brief — just
+// enough to hint the pitch — so speaker bleed can't sustain the hit for the
+// singer. Returns the cue's audible duration in seconds (including release).
+function scheduleGuideTone(midi, time) {
   const freq = midiFreq(midi);
-  const dur = Math.max(0.18, beats * runner.secPerBeat * 0.8);
+  const dur = Math.max(0.16, Math.min(0.55, GUIDE_CUE_BEATS * runner.secPerBeat));
+  const release = 0.12;
   const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
   filter.type = 'lowpass';
   filter.frequency.value = Math.min(Math.max(freq * 6, 1800), 6000);
   filter.Q.value = 0.4;
   gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.linearRampToValueAtTime(0.12, time + 0.03);
-  gain.gain.setValueAtTime(0.1, time + dur * 0.5);
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+  gain.gain.linearRampToValueAtTime(0.1, time + 0.025);
+  gain.gain.setValueAtTime(0.08, time + dur * 0.55);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + dur + release);
   const oscs = GUIDE_LAYERS.map(layer => {
     const osc = audioCtx.createOscillator();
     const lg = audioCtx.createGain();
@@ -148,7 +161,8 @@ function scheduleGuideTone(midi, time, beats) {
   });
   filter.connect(gain);
   gain.connect(getAnalyserDestination());
-  oscs.forEach(o => { o.start(time); o.stop(time + dur + 0.05); });
+  oscs.forEach(o => { o.start(time); o.stop(time + dur + release + 0.05); });
+  return dur + release;
 }
 
 // ---- Sequence building ------------------------------------------------------
@@ -183,20 +197,25 @@ function buildPatternSeq() {
 // Append notes until the timeline is populated a comfortable margin past the
 // right edge, cycling the pattern endlessly.
 function ensureNotes(playheadBeat) {
-  const horizon = playheadBeat + VISIBLE_BEATS_AHEAD + 4;
+  const horizon = playheadBeat + visibleBeatsAhead() + runner.noteBeats + 4;
+  const dur = Math.max(0.35, runner.noteBeats - NOTE_GAP_BEATS);
   while (runner.nextBeat < horizon) {
     const midi = runner.patternSeq[runner.seqIdx % runner.patternSeq.length];
     runner.notes.push({
       startBeat: runner.nextBeat,
-      dur: 1 - NOTE_GAP_BEATS,
+      dur,
       midi,
       samples: 0,
       hitSamples: 0,
       judged: false,
       result: null,
+      // AudioContext time until which guide-tone bleed must not count as a hit.
+      // 0 means "no guide suppression" for this note.
+      guideMuteUntil: 0,
+      guideScheduled: false,
     });
     runner.seqIdx += 1;
-    runner.nextBeat += 1;
+    runner.nextBeat += runner.noteBeats;
   }
 }
 
@@ -291,7 +310,7 @@ function resizeCanvas() {
 
 function pxPerBeat() {
   const hitX = runner.cssW * HIT_X_RATIO;
-  return (runner.cssW - hitX) / VISIBLE_BEATS_AHEAD;
+  return (runner.cssW - hitX) / visibleBeatsAhead();
 }
 
 function midiToY(midiFloat) {
@@ -489,13 +508,17 @@ function scheduleAudio(playheadBeat) {
     }
     runner.nextClickBeat += 1;
   }
-  // Optional melody guide tones at each upcoming note's start.
+  // Optional short melody-guide cues at each upcoming note's start. Scoring is
+  // muted for the cue's audible life so speaker bleed can't count as a hit.
   if (runner.guide) {
     for (const note of runner.notes) {
       if (note.guideScheduled) continue;
       if (note.startBeat <= horizonBeat) {
         const t = runner.startAudioTime + note.startBeat * runner.secPerBeat;
-        if (t > audioCtx.currentTime - 0.05) scheduleGuideTone(note.midi, t, note.dur);
+        if (t > audioCtx.currentTime - 0.05) {
+          const cueSec = scheduleGuideTone(note.midi, t);
+          note.guideMuteUntil = t + cueSec + GUIDE_CUE_TAIL_SEC;
+        }
         note.guideScheduled = true;
       }
     }
@@ -504,7 +527,23 @@ function scheduleAudio(playheadBeat) {
 
 function loop() {
   if (!runner.running) return;
-  const playheadBeat = (audioCtx.currentTime - runner.startAudioTime) / runner.secPerBeat;
+  try {
+    step();
+  } catch (e) {
+    // Never let a transient error kill the animation loop (which would freeze
+    // the display and make it look like the mic stopped responding).
+    if (typeof console !== 'undefined') console.error('pitchRunner loop error', e);
+  }
+  runner.rafId = requestAnimationFrame(loop);
+}
+
+function step() {
+  // The AudioContext can be auto-suspended (tab backgrounded, OS audio focus
+  // changes); keep it alive so the timeline clock and mic analyser keep running.
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  const now = audioCtx.currentTime;
+  const playheadBeat = (now - runner.startAudioTime) / runner.secPerBeat;
 
   ensureNotes(playheadBeat);
   scheduleAudio(playheadBeat);
@@ -515,7 +554,8 @@ function loop() {
   const hasPitch = freq > 0;
   const midiFloat = hasPitch ? freqToMidiFloat(freq) : null;
 
-  // Score any note currently crossing the hit line.
+  // Score any note currently crossing the hit line. Frames while a guide cue
+  // is still audible are ignored so the app's own speakers can't "hit" notes.
   const target = currentTargetMidi(playheadBeat);
   let inTune = false;
   if (hasPitch && target != null) {
@@ -526,6 +566,8 @@ function loop() {
     if (note.judged) continue;
     const end = note.startBeat + note.dur;
     if (playheadBeat >= note.startBeat && playheadBeat < end) {
+      const guideMute = note.guideMuteUntil > 0 && now < note.guideMuteUntil;
+      if (guideMute) continue;
       note.samples += 1;
       if (hasPitch) {
         const cents = centsOffFromTarget(freq, note.midi);
@@ -544,18 +586,22 @@ function loop() {
   runner.notes = runner.notes.filter(n => n.startBeat + n.dur >= cutoff);
 
   draw(playheadBeat);
-  runner.rafId = requestAnimationFrame(loop);
 }
 
 // ---- Lifecycle --------------------------------------------------------------
 
+// Mic constraints tuned for singing into a laptop/phone mic. Auto-gain helps
+// quiet voices clear the RMS gate; noise suppression is left off so sustained
+// vowels aren't chewed up. Echo cancellation stays off because the melody guide
+// is the same pitch the singer should hold — AEC can cancel the voice along
+// with the speakers. Guide-tone scoring is suppressed in software instead.
 function buildConstraints() {
   const supported = (navigator.mediaDevices.getSupportedConstraints &&
     navigator.mediaDevices.getSupportedConstraints()) || {};
   const audio = {};
   if (supported.echoCancellation) audio.echoCancellation = false;
   if (supported.noiseSuppression) audio.noiseSuppression = false;
-  if (supported.autoGainControl) audio.autoGainControl = false;
+  if (supported.autoGainControl) audio.autoGainControl = true;
   if (supported.channelCount) audio.channelCount = 1;
   return Object.keys(audio).length ? { audio } : { audio: true };
 }
@@ -597,7 +643,12 @@ async function startRunner() {
     runner.analyser.fftSize = 4096;
     runner.analyser.smoothingTimeConstant = 0;
     runner.buf = new Float32Array(runner.analyser.fftSize);
-    runner.tracker = createPitchTracker({ sampleRate: audioCtx.sampleRate, maxFreq: 1400, minRms: 0.006 });
+    runner.tracker = createPitchTracker({
+      sampleRate: audioCtx.sampleRate,
+      maxFreq: 1400,
+      minRms: 0.003,
+      minClarity: 0.45,
+    });
     runner.source.connect(runner.analyser);
 
     runner.running = true;
@@ -681,10 +732,12 @@ function initPitchRunner() {
   runner.pattern = getSetting('pitchRunner.pattern', runner.pattern, SCALE_PATTERNS.map(p => p.id));
   runner.rangeLow = Number(getSetting('pitchRunner.rangeLow', runner.rangeLow));
   runner.rangeHigh = Number(getSetting('pitchRunner.rangeHigh', runner.rangeHigh));
+  runner.noteBeats = Number(getSetting('pitchRunner.noteBeats', runner.noteBeats));
   runner.metronome = getSetting('pitchRunner.metronome', runner.metronome) !== false;
   runner.guide = getSetting('pitchRunner.guide', runner.guide) === true;
   if (!(runner.rangeLow >= 36 && runner.rangeLow <= 84)) runner.rangeLow = 48;
   if (!(runner.rangeHigh >= 36 && runner.rangeHigh <= 84)) runner.rangeHigh = 72;
+  if (!NOTE_LENGTHS.includes(runner.noteBeats)) runner.noteBeats = 2;
 
   if (runner.initialized) {
     syncControls();
@@ -749,6 +802,23 @@ function initPitchRunner() {
         saveSetting('pitchRunner.rangeHigh', runner.rangeHigh);
         restartIfRunning();
       }
+    };
+  }
+
+  const lengthSel = el('pr-length');
+  if (lengthSel) {
+    lengthSel.innerHTML = '';
+    NOTE_LENGTHS.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = String(n);
+      opt.textContent = n === 1 ? '1 beat' : `${n} beats`;
+      lengthSel.appendChild(opt);
+    });
+    lengthSel.value = String(runner.noteBeats);
+    lengthSel.onchange = () => {
+      runner.noteBeats = Number(lengthSel.value);
+      saveSetting('pitchRunner.noteBeats', runner.noteBeats);
+      restartIfRunning();
     };
   }
 
@@ -818,11 +888,13 @@ function syncControls() {
   const diffSel = el('pr-difficulty');
   const patternSel = el('pr-pattern');
   const presetSel = el('pr-range-preset');
+  const lengthSel = el('pr-length');
   const metroChk = el('pr-metronome');
   const guideChk = el('pr-guide');
   if (diffSel) diffSel.value = runner.difficulty;
   if (patternSel) patternSel.value = runner.pattern;
   if (presetSel) presetSel.value = matchPreset();
+  if (lengthSel) lengthSel.value = String(runner.noteBeats);
   if (metroChk) metroChk.checked = runner.metronome;
   if (guideChk) guideChk.checked = runner.guide;
 }
