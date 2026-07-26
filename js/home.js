@@ -30,7 +30,7 @@ const DESCRIPTIONS = {
   scales: 'Spell scales by root and type.',
   intervals: 'Name intervals above any root.',
   sightreading: 'Read pitches on the staff.',
-  scaleref: 'Find scales, modes and 3-NPS shapes.',
+  scaleref: 'Find scales, modes, 3-NPS shapes and sweep patterns.',
   chords: 'Build voicings and analyze chords.',
   circle: 'Explore keys and relationships.',
   keyboard: 'Play notes and hold drones.',

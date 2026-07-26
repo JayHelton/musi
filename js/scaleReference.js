@@ -2,6 +2,11 @@ import { parseNote, ROOTS, INTERVAL_LABELS, TUNINGS, NOTE_NAMES_SHARP } from './
 import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
+import {
+  SWEEP_STRING_SETS,
+  DIMINISHED_PRIORITY,
+  getSweepLibrary,
+} from './sweepPatterns.js';
 
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
 const TRIAD_SUFFIX = ['','m','m','','','m','dim'];
@@ -29,8 +34,8 @@ const DEGREE_LABELS = {
 const REF_FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 // Width of the highlighted "box" position window, in frets (inclusive span).
 const REF_BOX_SPAN = 4;
-// Selectable notes-per-string values for the arpeggio/scale-run visualiser.
-const NPS_OPTIONS = [1, 2, 3, 4];
+// Selectable string-set sizes for the sweep-picking library (3 / 4 / 5 string).
+const SWEEP_SET_OPTIONS = [3, 4, 5];
 
 let refRoot = 'C';
 let refScale = 'Major (Ionian)';
@@ -39,7 +44,7 @@ let refModeIndex = 0;
 let refFbStart = 0;
 let refFbEnd = 15;
 let refBoxOnly = false;
-let refNotesPerString = 3;
+let refSweepStringSet = 3;
 let refContextSubscribed = false;
 let refFbWired = false;
 
@@ -56,7 +61,7 @@ function initScaleRef() {
   refFbStart = Number(getSetting('ref.fbStart', refFbStart));
   refFbEnd = Number(getSetting('ref.fbEnd', refFbEnd));
   refBoxOnly = getSetting('ref.boxOnly', refBoxOnly, [true, false]);
-  refNotesPerString = clampNps(Number(getSetting('ref.notesPerString', refNotesPerString)));
+  refSweepStringSet = clampSweepSet(Number(getSetting('ref.sweepStringSet', refSweepStringSet)));
 
   rootScroll.innerHTML = '';
   ROOTS.forEach(r => {
@@ -101,8 +106,8 @@ function clampModeIndex(idx) {
   return Math.floor(idx);
 }
 
-function clampNps(n) {
-  return NPS_OPTIONS.includes(n) ? n : 3;
+function clampSweepSet(n) {
+  return SWEEP_SET_OPTIONS.includes(n) ? n : 3;
 }
 
 function buildTuningList() {
@@ -226,201 +231,71 @@ function compute3NPSFromSemis(rootStr, semis) {
 }
 
 // ---------------------------------------------------------------------------
-// Notes-per-string arpeggio / scale-run visualiser
+// Sweep-picking library (movable chord-tone exercises)
 // ---------------------------------------------------------------------------
 
-// How many notes to place on each string (low → high) for a given
-// notes-per-string setting. For 1 note per string the outer strings are allowed
-// two notes each so a standard 6-string neck still completes a full 8-note
-// octave of the scale rather than stopping one note short.
-function notesPerStringCounts(nps, numStrings) {
-  const counts = new Array(numStrings).fill(nps);
-  if (nps === 1 && numStrings >= 2) {
-    counts[0] = 2;
-    counts[numStrings - 1] = 2;
-  }
-  return counts;
-}
+function renderSweepSection() {
+  const set = SWEEP_STRING_SETS[refSweepStringSet];
+  const library = getSweepLibrary(refRoot, refSweepStringSet);
+  const wh = DIMINISHED_PRIORITY.wholeHalf;
+  const hw = DIMINISHED_PRIORITY.halfWhole;
+  const seq = DIMINISHED_PRIORITY.sequence;
 
-// Lays the scale out as an ascending run across the neck, packing `nps`
-// consecutive scale tones onto each string (low → high). The sequence always
-// starts on the root and steps through every scale degree in order, so the
-// pattern walks through the whole scale regardless of the notes-per-string
-// count. The finished shape is octave-shifted (see positionOnNeck) so it lands
-// on the playable part of the neck for the active tuning.
-function computeNPSLayout(rootStr, scaleName, nps) {
-  const rootP = parseNote(rootStr);
-  const def = SCALES[scaleName];
-  if (!rootP || !def) return null;
-  const semis = [...new Set(def.map(d => ((d[1] % 12) + 12) % 12))].sort((a, b) => a - b);
-  const len = semis.length;
-  if (!len) return null;
-
-  const strings = TUNINGS[refTuning] || TUNINGS['Standard'];
-  const openMidis = refOpenMidis();
-  const numStrings = openMidis.length;
-  const counts = notesPerStringCounts(nps, numStrings);
-  const total = counts.reduce((a, b) => a + b, 0);
-  const scaleNotes = getScaleNotes(rootStr, scaleName) || [];
-
-  const lowOpen = openMidis[0];
-  const rootFretLow = ((rootP.semi - (lowOpen % 12)) % 12 + 12) % 12;
-  const rootMidi = lowOpen + rootFretLow;
-
-  const layout = [];
-  let ni = 0;
-  for (let s = 0; s < numStrings; s++) {
-    const frets = [];
-    for (let c = 0; c < counts[s] && ni < total; c++) {
-      const degreeIdx = ni % len;
-      const off = semis[degreeIdx] + 12 * Math.floor(ni / len);
-      const interval = ((off % 12) + 12) % 12;
-      frets.push({
-        fret: rootMidi + off - openMidis[s],
-        interval,
-        isRoot: interval === 0,
-        noteName: scaleNotes[degreeIdx] || NOTE_NAMES_SHARP[(rootP.semi + interval) % 12],
-        order: ni,
-      });
-      ni++;
-    }
-    layout.push({ note: strings[s].note, label: `${strings[s].note}${strings[s].oct}`, frets });
-  }
-
-  positionOnNeck(layout);
-  return layout;
-}
-
-// Slides the raw shape by whole octaves to sit as squarely on a 24-fret neck as
-// possible, then nudges any leftover stragglers on/off the neck by an octave.
-// Shifting only by octaves keeps every fret's scale degree intact. This matters
-// most for spread 1-note-per-string runs, which can otherwise drift past fret 24.
-function positionOnNeck(layout) {
-  const raw = layout.flatMap(str => str.frets.map(f => f.fret));
-  if (!raw.length) return;
-
-  let bestShift = 0;
-  let bestCost = Infinity;
-  for (let sh = -48; sh <= 48; sh += 12) {
-    let violation = 0;
-    raw.forEach(fr => {
-      const v = fr + sh;
-      if (v < 0) violation += -v;
-      else if (v > 24) violation += v - 24;
-    });
-    const minAfter = Math.min(...raw) + sh;
-    const cost = violation * 1000 + Math.abs(minAfter - 2);
-    if (cost < bestCost) { bestCost = cost; bestShift = sh; }
-  }
-
-  layout.forEach(str => str.frets.forEach(f => {
-    f.fret += bestShift;
-    while (f.fret < 0) f.fret += 12;
-    while (f.fret > 24) f.fret -= 12;
-  }));
-}
-
-// Compact fretboard diagram of the notes-per-string run, low string on the
-// bottom. The fret window auto-fits the shape with one fret of padding.
-function renderNpsDiagram(layout) {
-  let min = Infinity, max = -Infinity;
-  layout.forEach(str => str.frets.forEach(f => {
-    if (f.fret < min) min = f.fret;
-    if (f.fret > max) max = f.fret;
-  }));
-  if (min === Infinity) return '';
-
-  const start = Math.max(0, min - 1);
-  const end = max + 1;
-  const count = end - start + 1;
-  const reversed = [...layout].reverse();
-
-  let html = `<div class="ref-fb-scroll"><div class="ref-fretboard" style="grid-template-columns:34px repeat(${count}, minmax(30px, 1fr))">`;
-  html += '<div class="ref-fb-corner"></div>';
-  for (let f = start; f <= end; f++) html += `<div class="ref-fb-fretnum">${f}</div>`;
-
-  reversed.forEach(str => {
-    html += `<div class="ref-fb-strlabel">${str.label}</div>`;
-    for (let f = start; f <= end; f++) {
-      const hit = str.frets.find(x => x.fret === f);
-      const cls = ['ref-fb-cell'];
-      if (f === 0) cls.push('nut');
-      let inner = '';
-      if (hit) {
-        const noteCls = ['ref-note', `deg-${hit.interval}`];
-        if (hit.isRoot) noteCls.push('root');
-        inner = `<span class="${noteCls.join(' ')}" title="${hit.noteName} · ${INTERVAL_LABELS[hit.interval] || hit.interval}">${DEGREE_LABELS[hit.interval]}</span>`;
-      }
-      html += `<div class="${cls.join(' ')}">${inner}</div>`;
-    }
-  });
-  html += '</div></div>';
-  return html;
-}
-
-// Time-ordered tab: one column per note in the ascending run, so the arpeggio
-// reads left-to-right the way it is played.
-function renderNpsTab(layout) {
-  const notes = [];
-  layout.forEach((str, si) => str.frets.forEach(f => notes.push({ si, fret: f.fret, order: f.order })));
-  if (!notes.length) return '';
-  notes.sort((a, b) => a.order - b.order);
-
-  const numStrings = layout.length;
-  const rows = new Array(numStrings).fill('');
-  notes.forEach(n => {
-    const cell = String(n.fret);
-    const blank = '-'.repeat(cell.length);
-    for (let si = 0; si < numStrings; si++) {
-      rows[si] += '-' + (si === n.si ? cell : blank);
-    }
-  });
-
-  let tab = '';
-  for (let si = numStrings - 1; si >= 0; si--) {
-    tab += layout[si].note.padEnd(2, ' ') + '|' + rows[si] + '-|\n';
-  }
-  return tab;
-}
-
-// The full notes-per-string block: picker + diagram + tab.
-function renderNpsSection() {
-  const layout = computeNPSLayout(refRoot, refScale, refNotesPerString);
-
-  let html = `<div class="nps-section">`;
-  html += `<div class="nps-head">`;
+  let html = `<div class="sweep-section">`;
+  html += `<div class="sweep-head">`;
   html += `<div>`;
-  html += `<div class="nps-title">Notes per string — arpeggio / scale run</div>`;
-  const sub = refNotesPerString === 1
-    ? `One note per string, ascending through the whole scale. The lowest and highest strings carry two notes so the run still completes a full 8-note octave.`
-    : `${refNotesPerString} notes per string, ascending through the whole scale across the neck.`;
-  html += `<p class="nps-sub">${sub}</p>`;
+  html += `<div class="sweep-title">${refRoot}-Centered Sweep-Picking Library</div>`;
+  html += `<p class="sweep-sub">Common root-position sweep shapes with hammer-ons and pull-offs — playable exercises, not random scale tones. Pick any tonal center from the Root list; shapes move with it. Patterns use standard-tuning string sets.</p>`;
   html += `</div>`;
-  html += `<div class="nps-picker" role="group" aria-label="Notes per string">`;
-  html += NPS_OPTIONS.map(n =>
-    `<button type="button" class="nps-btn${n === refNotesPerString ? ' active' : ''}" data-nps="${n}">${n}</button>`
+  html += `<div class="sweep-picker" role="group" aria-label="String set">`;
+  html += SWEEP_SET_OPTIONS.map(n =>
+    `<button type="button" class="sweep-btn${n === refSweepStringSet ? ' active' : ''}" data-sweep-set="${n}">${n}</button>`
   ).join('');
   html += `</div>`;
   html += `</div>`;
 
-  if (layout) {
-    html += renderNpsDiagram(layout);
-    const tab = renderNpsTab(layout);
-    if (tab) {
-      html += `<div class="guitar-tab-wrap"><div class="tab-title">Ascending run (${refTuning})</div><pre>${tab}</pre></div>`;
-    }
-  } else {
-    html += `<p class="ref-info">Could not build a notes-per-string pattern for this scale.</p>`;
-  }
+  html += `<div class="sweep-set-label"><strong>${set.label} root patterns</strong> · Strings used: <code>${set.used}</code></div>`;
+  html += `<div class="sweep-library">`;
+  library.forEach(item => {
+    html += `<article class="sweep-card">`;
+    html += `<div class="sweep-card-title">${item.title} <span class="sweep-formula">— ${item.formula}</span></div>`;
+    html += `<div class="guitar-tab-wrap sweep-tab"><pre>${item.tab}</pre></div>`;
+    html += `</article>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="sweep-dim-priority">`;
+  html += `<h4>Diminished-scale priority patterns</h4>`;
+  html += `<div class="sweep-dim-grid">`;
+  html += `<div class="sweep-dim-block">`;
+  html += `<div class="sweep-dim-kicker">For <strong>${refRoot} whole-half diminished</strong> riffs</div>`;
+  html += `<pre class="sweep-dim-scale">${wh.scaleHint(refRoot)}</pre>`;
+  html += `<div class="sweep-dim-label">Prioritize</div>`;
+  html += `<ul>${wh.prioritizeLabels(refRoot).map(x => `<li>${x}</li>`).join('')}</ul>`;
+  html += `</div>`;
+  html += `<div class="sweep-dim-block">`;
+  html += `<div class="sweep-dim-kicker">For <strong>${refRoot} half-whole diminished</strong> dominant riffs</div>`;
+  html += `<pre class="sweep-dim-scale">${hw.scaleHint(refRoot)}</pre>`;
+  html += `<div class="sweep-dim-label">Prioritize</div>`;
+  html += `<ul>${hw.prioritizeLabels(refRoot).map(x => `<li>${x}</li>`).join('')}</ul>`;
+  html += `</div>`;
+  html += `</div>`;
+  html += `<div class="sweep-dim-seq">`;
+  html += `<div class="sweep-dim-label">${seq.title}</div>`;
+  html += `<pre class="sweep-dim-scale">${seq.describe(refRoot)}</pre>`;
+  html += `<p>${seq.note}</p>`;
+  html += `</div>`;
+  html += `</div>`;
+
   html += `</div>`;
   return html;
 }
 
-function wireNpsButtons() {
-  document.querySelectorAll('#ref-card .nps-btn').forEach(btn => {
+function wireSweepButtons() {
+  document.querySelectorAll('#ref-card .sweep-btn').forEach(btn => {
     btn.onclick = () => {
-      refNotesPerString = clampNps(Number(btn.dataset.nps));
-      saveSetting('ref.notesPerString', refNotesPerString);
+      refSweepStringSet = clampSweepSet(Number(btn.dataset.sweepSet));
+      saveSetting('ref.sweepStringSet', refSweepStringSet);
       renderScaleRef();
     };
   });
@@ -857,10 +732,10 @@ function renderScaleRef() {
 
   html += renderModalChordVisualizer();
 
-  html += renderNpsSection();
+  html += renderSweepSection();
 
   card.innerHTML = html;
-  wireNpsButtons();
+  wireSweepButtons();
   renderRefFretboard();
   renderRefModes();
 }
