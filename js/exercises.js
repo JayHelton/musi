@@ -1,6 +1,6 @@
 // Exercises library for Musi. A place to upload practice files (PDFs, images,
-// audio and video) or add external lesson links, organize them into categories,
-// and view/play them in a built-in viewer.
+// audio and video) or add external lesson links, organize them into folders
+// (category tags), and view/play them in a built-in viewer.
 //
 // Storage mirrors the rest of the app:
 //   - exercise metadata + categories live in localStorage (musi.exercises)
@@ -97,7 +97,7 @@ function titleFromUrl(url) {
 function normalizeCategory(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const id = typeof raw.id === 'string' && raw.id ? raw.id : uid('cat');
-  const name = clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Category', CAT_LIMIT);
+  const name = clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Folder', CAT_LIMIT);
   return { id, name };
 }
 
@@ -179,9 +179,9 @@ export function getExercise(id) {
 }
 
 function categoryName(categoryId) {
-  if (!categoryId) return 'Uncategorized';
+  if (!categoryId) return 'No folder';
   const cat = getStore().categories.find(c => c.id === categoryId);
-  return cat ? cat.name : 'Uncategorized';
+  return cat ? cat.name : 'No folder';
 }
 
 function addCategory(name) {
@@ -369,6 +369,8 @@ function el(tag, props = {}, children = []) {
 
 let wired = false;
 let selectedCategory = 'all'; // 'all', 'uncategorized', or a category id.
+// Folder sections collapsed in the "All" grouped view (category id or 'uncategorized').
+const collapsedFolders = new Set();
 
 let listEl, catListEl, titleEl, statusEl, fileInput, uploadBtn, addLinkBtn, addCatForm, addCatInput;
 
@@ -408,11 +410,11 @@ function renderCategories() {
     if (opts.editable) {
       const tools = el('div', { class: 'ex-cat-tools' });
       tools.appendChild(el('button', {
-        class: 'ex-cat-tool', type: 'button', title: 'Rename category', 'aria-label': 'Rename category',
+        class: 'ex-cat-tool', type: 'button', title: 'Rename folder', 'aria-label': 'Rename folder',
         html: '&#9998;', onClick: () => onRenameCategory(opts.id, name),
       }));
       tools.appendChild(el('button', {
-        class: 'ex-cat-tool ex-cat-del', type: 'button', title: 'Delete category', 'aria-label': 'Delete category',
+        class: 'ex-cat-tool ex-cat-del', type: 'button', title: 'Delete folder', 'aria-label': 'Delete folder',
         html: '&#10005;', onClick: () => onDeleteCategory(opts.id, name),
       }));
       row.appendChild(tools);
@@ -426,19 +428,19 @@ function renderCategories() {
     makeRow(cat.id, cat.name, count, { editable: true, id: cat.id });
   });
   if (uncategorizedCount > 0) {
-    makeRow('uncategorized', 'Uncategorized', uncategorizedCount);
+    makeRow('uncategorized', 'No folder', uncategorizedCount);
   }
 }
 
 function currentTitleText() {
   if (selectedCategory === 'all') return 'All Exercises';
-  if (selectedCategory === 'uncategorized') return 'Uncategorized';
+  if (selectedCategory === 'uncategorized') return 'No folder';
   return categoryName(selectedCategory);
 }
 
 function buildCategorySelect(item) {
-  const select = el('select', { class: 'ex-item-cat-select', 'aria-label': 'Category' });
-  select.appendChild(el('option', { value: '', text: 'Uncategorized' }));
+  const select = el('select', { class: 'ex-item-cat-select', 'aria-label': 'Folder' });
+  select.appendChild(el('option', { value: '', text: 'No folder' }));
   getCategories().forEach(cat => {
     const opt = el('option', { value: cat.id, text: cat.name });
     if (cat.id === item.categoryId) opt.selected = true;
@@ -451,6 +453,124 @@ function buildCategorySelect(item) {
     render();
   });
   return select;
+}
+
+function folderIconSvg(open) {
+  if (open) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H3z"/><path d="M3 10h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+}
+
+function buildExerciseRow(item, opts = {}) {
+  const row = el('div', { class: 'ex-item', 'data-id': item.id });
+
+  const icon = el('div', { class: 'ex-item-icon', html: exerciseIconSvg(item), 'aria-hidden': 'true' });
+  row.appendChild(icon);
+
+  const body = el('div', { class: 'ex-item-body' });
+  const nameInput = el('input', {
+    type: 'text', class: 'ex-item-name', value: item.name, maxlength: String(NAME_LIMIT),
+    'aria-label': 'Exercise name',
+  });
+  nameInput.addEventListener('change', () => {
+    const clean = renameExercise(item.id, nameInput.value);
+    if (clean) nameInput.value = clean;
+  });
+  body.appendChild(nameInput);
+
+  const sizeOrSource = item.url ? titleFromUrl(item.url) : fmtSize(item.size);
+  const catPart = opts.hideCategory ? '' : `${categoryName(item.categoryId)} · `;
+  const meta = `${catPart}${mediaKindLabel(item)} · ${sizeOrSource} · ${fmtRelativeDate(item.addedAt)}`;
+  body.appendChild(el('div', { class: 'ex-item-meta', text: meta }));
+  row.appendChild(body);
+
+  const actions = el('div', { class: 'ex-item-actions' });
+  actions.appendChild(buildCategorySelect(item));
+  actions.appendChild(el('button', {
+    class: 'btn sm primary ex-item-open', type: 'button', text: 'Open',
+    onClick: () => openExerciseViewer(item.id),
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn sm ex-item-del', type: 'button', text: 'Delete',
+    'aria-label': `Delete ${item.name}`,
+    onClick: () => onDeleteExercise(item),
+  }));
+  row.appendChild(actions);
+  return row;
+}
+
+// Group items into folder sections by category tag. Empty/missing tags stay
+// ungrouped at the end (or under an Uncategorized folder when mixed in).
+function groupItemsByCategory(items) {
+  const store = getStore();
+  const byId = new Map();
+  store.categories.forEach(cat => byId.set(cat.id, []));
+  const uncategorized = [];
+
+  items.forEach(item => {
+    if (item.categoryId && byId.has(item.categoryId)) {
+      byId.get(item.categoryId).push(item);
+    } else if (item.categoryId) {
+      // Orphaned category id — treat as uncategorized for display.
+      uncategorized.push(item);
+    } else {
+      uncategorized.push(item);
+    }
+  });
+
+  const groups = [];
+  store.categories.forEach(cat => {
+    const list = byId.get(cat.id) || [];
+    if (list.length) groups.push({ key: cat.id, name: cat.name, items: list });
+  });
+  if (uncategorized.length) {
+    groups.push({ key: 'uncategorized', name: 'Uncategorized', items: uncategorized });
+  }
+  return groups;
+}
+
+function buildFolder(group) {
+  const open = !collapsedFolders.has(group.key);
+  const folder = el('div', {
+    class: 'ex-folder' + (open ? ' is-open' : ''),
+    'data-folder': group.key,
+  });
+
+  const head = el('button', {
+    class: 'ex-folder-head',
+    type: 'button',
+    'aria-expanded': open ? 'true' : 'false',
+    'aria-controls': `ex-folder-body-${group.key}`,
+  });
+  head.appendChild(el('span', {
+    class: 'ex-folder-chevron', 'aria-hidden': 'true', html: open ? '&#9662;' : '&#9656;',
+  }));
+  head.appendChild(el('span', {
+    class: 'ex-folder-icon', 'aria-hidden': 'true', html: folderIconSvg(open),
+  }));
+  head.appendChild(el('span', { class: 'ex-folder-name', text: group.name }));
+  head.appendChild(el('span', {
+    class: 'ex-folder-count',
+    text: `${group.items.length} exercise${group.items.length === 1 ? '' : 's'}`,
+  }));
+  head.addEventListener('click', () => {
+    if (collapsedFolders.has(group.key)) collapsedFolders.delete(group.key);
+    else collapsedFolders.add(group.key);
+    renderList();
+  });
+  folder.appendChild(head);
+
+  const body = el('div', {
+    class: 'ex-folder-body',
+    id: `ex-folder-body-${group.key}`,
+    hidden: open ? undefined : true,
+  });
+  if (open) {
+    group.items.forEach(item => body.appendChild(buildExerciseRow(item, { hideCategory: true })));
+  }
+  folder.appendChild(body);
+  return folder;
 }
 
 function renderList() {
@@ -474,48 +594,36 @@ function renderList() {
   if (items.length === 0) {
     const msg = getExercises().length === 0
       ? 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.'
-      : 'No exercises in this category yet.';
+      : 'No exercises in this folder yet.';
     listEl.appendChild(el('div', { class: 'ex-empty', text: msg }));
     return;
   }
 
-  items.forEach(item => {
-    const row = el('div', { class: 'ex-item', 'data-id': item.id });
+  // "All" view: group by category tag into collapsible folders. Filtered views
+  // stay a flat list (the sidebar already acts as the folder selection).
+  if (selectedCategory === 'all') {
+    const groups = groupItemsByCategory(items);
+    const tagged = groups.filter(g => g.key !== 'uncategorized');
+    const untagged = groups.find(g => g.key === 'uncategorized');
 
-    const icon = el('div', { class: 'ex-item-icon', html: exerciseIconSvg(item), 'aria-hidden': 'true' });
-    row.appendChild(icon);
+    if (tagged.length === 0 && untagged) {
+      // Nothing tagged — keep a simple flat list.
+      untagged.items.forEach(item => listEl.appendChild(buildExerciseRow(item)));
+      return;
+    }
 
-    const body = el('div', { class: 'ex-item-body' });
-    const nameInput = el('input', {
-      type: 'text', class: 'ex-item-name', value: item.name, maxlength: String(NAME_LIMIT),
-      'aria-label': 'Exercise name',
-    });
-    nameInput.addEventListener('change', () => {
-      const clean = renameExercise(item.id, nameInput.value);
-      if (clean) nameInput.value = clean;
-    });
-    body.appendChild(nameInput);
+    tagged.forEach(group => listEl.appendChild(buildFolder(group)));
+    if (untagged) {
+      // Untagged items sit outside folders so tags read as optional folders.
+      const loose = el('div', { class: 'ex-ungrouped' });
+      loose.appendChild(el('div', { class: 'ex-ungrouped-label', text: 'No folder' }));
+      untagged.items.forEach(item => loose.appendChild(buildExerciseRow(item)));
+      listEl.appendChild(loose);
+    }
+    return;
+  }
 
-    const sizeOrSource = item.url ? titleFromUrl(item.url) : fmtSize(item.size);
-    const meta = `${categoryName(item.categoryId)} · ${mediaKindLabel(item)} · ${sizeOrSource} · ${fmtRelativeDate(item.addedAt)}`;
-    body.appendChild(el('div', { class: 'ex-item-meta', text: meta }));
-    row.appendChild(body);
-
-    const actions = el('div', { class: 'ex-item-actions' });
-    actions.appendChild(buildCategorySelect(item));
-    actions.appendChild(el('button', {
-      class: 'btn sm primary ex-item-open', type: 'button', text: 'Open',
-      onClick: () => openExerciseViewer(item.id),
-    }));
-    actions.appendChild(el('button', {
-      class: 'btn sm ex-item-del', type: 'button', text: 'Delete',
-      'aria-label': `Delete ${item.name}`,
-      onClick: () => onDeleteExercise(item),
-    }));
-    row.appendChild(actions);
-
-    listEl.appendChild(row);
-  });
+  items.forEach(item => listEl.appendChild(buildExerciseRow(item)));
 }
 
 function render() {
@@ -842,15 +950,15 @@ function openLinkDialog() {
 }
 
 function onRenameCategory(id, current) {
-  openPrompt('Rename category', current, 'Save', (name) => {
+  openPrompt('Rename folder', current, 'Save', (name) => {
     if (renameCategory(id, name)) render();
   });
 }
 
 function onDeleteCategory(id, name) {
   openConfirm(
-    `Delete category "${name}"?`,
-    'Exercises in this category are kept but become Uncategorized.',
+    `Delete folder "${name}"?`,
+    'Exercises in this folder are kept but become unfiled.',
     'Delete',
     () => {
       deleteCategory(id);
