@@ -33,7 +33,7 @@ const TOOL_KEYWORDS = {
   scales: 'spell scale quiz drill practice',
   intervals: 'interval quiz drill recognition',
   sightreading: 'sight reading staff notation clef treble bass note',
-  scaleref: 'scale finder reference modes explorer 3nps guitar diatonic',
+  scaleref: 'scale finder reference modes explorer 3nps sweep picking arpeggio guitar diatonic',
   chords: 'chord builder analyzer analyser voicing identify',
   circle: 'circle of fifths key signature relative minor',
   keyboard: 'keyboard piano keys notes drone play wave synth',

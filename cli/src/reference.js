@@ -1,4 +1,14 @@
-import { parseNote, SCALES, getScaleNotes, scaleStepPattern, ROOTS, INTERVAL_LABELS } from './shared.js';
+import {
+  parseNote,
+  SCALES,
+  getScaleNotes,
+  scaleStepPattern,
+  ROOTS,
+  INTERVAL_LABELS,
+  SWEEP_STRING_SETS,
+  DIMINISHED_PRIORITY,
+  getSweepLibrary,
+} from './shared.js';
 import { c, print, banner, choose, ask } from './ui.js';
 
 const DEGREE_ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
@@ -46,7 +56,7 @@ function render3NPSTab(rootStr, scaleName) {
   return tab;
 }
 
-export function printScaleReference(root, scaleName) {
+export function printScaleReference(root, scaleName, opts = {}) {
   const notes = getScaleNotes(root, scaleName);
   if (!notes) {
     print(c.err('Could not compute that scale.'));
@@ -93,13 +103,63 @@ export function printScaleReference(root, scaleName) {
     print();
     print(c.cyan(tab.replace(/\n$/, '')));
   }
+
+  printSweepLibrary(root, opts.sweep);
+}
+
+function resolveSweepSets(sweepOpt) {
+  const raw = String(sweepOpt || '3').toLowerCase();
+  if (raw === 'all') return [3, 4, 5];
+  const n = Number(raw);
+  if ([3, 4, 5].includes(n)) return [n];
+  return [3];
+}
+
+function printSweepLibrary(root, sweepOpt) {
+  const sets = resolveSweepSets(sweepOpt);
+  print();
+  print(c.bold(`${root}-Centered Sweep-Picking Library`));
+  print(c.gray('Common root-position sweep shapes with hammer-ons / pull-offs. Movable by tonal center.'));
+  if (sets.length === 1) {
+    print(c.gray(`Showing ${sets[0]}-string set (use --sweep 4|5|all for more).`));
+  }
+
+  for (const setId of sets) {
+    const set = SWEEP_STRING_SETS[setId];
+    const library = getSweepLibrary(root, setId);
+    print();
+    print(c.accent(`${set.label} root patterns`) + c.gray(` · Strings used: ${set.used}`));
+    library.forEach((item) => {
+      print();
+      print(c.bold(`${item.title}`) + c.gray(` — ${item.formula}`));
+      print(c.cyan(item.tab.replace(/\n$/, '')));
+    });
+  }
+
+  const wh = DIMINISHED_PRIORITY.wholeHalf;
+  const hw = DIMINISHED_PRIORITY.halfWhole;
+  const seq = DIMINISHED_PRIORITY.sequence;
+  print();
+  print(c.bold('Diminished-scale priority patterns'));
+  print();
+  print(c.accent(`For ${root} whole-half diminished riffs:`));
+  print(c.cyan(wh.scaleHint(root)));
+  print(c.gray('Prioritize: ') + wh.prioritizeLabels(root).join(', '));
+  print();
+  print(c.accent(`For ${root} half-whole diminished dominant riffs:`));
+  print(c.cyan(hw.scaleHint(root)));
+  print(c.gray('Prioritize: ') + hw.prioritizeLabels(root).join(', '));
+  print();
+  print(c.accent(seq.title + ':'));
+  print(c.cyan(seq.describe(root)));
+  print(c.gray(seq.note));
 }
 
 export async function runReference(opts = {}) {
   banner('Scale Reference', 'Browse scales: degrees, intervals, chords, and fretboard patterns.');
 
   if (opts.root && opts.type) {
-    printScaleReference(opts.root, opts.type);
+    printScaleReference(opts.root, opts.type, opts);
     return;
   }
 
