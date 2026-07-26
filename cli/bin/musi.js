@@ -44,6 +44,7 @@ const FLAG_MAP = {
   '--start': 'start',
   '--count': 'count',
   '--step': 'step',
+  '--sweep': 'sweep',
 };
 
 function parseArgs(argv) {
@@ -74,7 +75,7 @@ function printHelp() {
   print('  fretboard   ' + c.gray('Fretboard trainer     (--key, --tuning, --mode findInterval|interval|note)'));
   print('  ear         ' + c.gray('Ear trainer           (--key, --mode easy|hard)'));
   print('  pitch       ' + c.gray('Play scales           (--root, --type, --octave, --tempo, --start, --count, --step)'));
-  print('  reference   ' + c.gray('Scale reference/learn (--root, --type)'));
+  print('  reference   ' + c.gray('Scale reference/learn (--root, --type, --sweep 3|4|5|all)'));
   print('  tab         ' + c.gray('Analyze a guitar tab  (--file .txt/.gp/.gp5, --tuning, --track)'));
   print();
   print(c.bold('Examples:'));

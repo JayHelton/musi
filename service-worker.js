@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v83-pitch-mic-guide-beats";
+const CACHE_VERSION = "v84-sweep-picking-library";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -63,6 +63,7 @@ const PRECACHE_URLS = [
   "js/riffGenerator.js",
   "js/scaleQuiz.js",
   "js/scaleReference.js",
+  "js/sweepPatterns.js",
   "js/tabAnalyzer.js",
   "js/tab/tabModel.js",
   "js/tab/tabParser.js",

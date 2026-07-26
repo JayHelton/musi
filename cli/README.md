@@ -67,7 +67,7 @@ If you omit flags, each activity asks you to pick its options interactively.
 | `fretboard` | Train   | Find scale intervals (or notes) on an ASCII fretboard |
 | `ear`       | Train   | Identify a scale degree by ear (plays tones) |
 | `pitch`     | Pitch   | Play a scale (or segment) back at tempo, like the web Pitch tool |
-| `reference` | Learn   | Browse scale degrees, intervals, diatonic chords & 3-NPS tab |
+| `reference` | Learn   | Browse scale degrees, intervals, diatonic chords, 3-NPS & sweep-picking tabs |
 
 ## In-quiz controls
 
@@ -86,6 +86,7 @@ Set `NO_COLOR=1` to disable ANSI colors.
 |------|------------|--------|
 | `--root` | scale, interval, reference | `C`, `F#`, `Bb`, … |
 | `--type` | scale, reference | a scale name, e.g. `"Major (Ionian)"`, `Dorian` |
+| `--sweep` | reference | `3` (default), `4`, `5`, or `all` — string-set size for the sweep library |
 | `--diff` | interval, sight | `easy`, `medium`, `hard` |
 | `--clef` | sight | `Treble`, `Bass`, `both` |
 | `--key` | fretboard, ear | `C`, `F#`, … |

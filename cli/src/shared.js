@@ -17,6 +17,12 @@ export {
 export { SCALES, getScaleNotes, scaleStepPattern } from '../../js/scales.js';
 
 export {
+  SWEEP_STRING_SETS,
+  DIMINISHED_PRIORITY,
+  getSweepLibrary,
+} from '../../js/sweepPatterns.js';
+
+export {
   INT_EASY,
   INT_MED_ADD,
   INT_HARD_ADD,
