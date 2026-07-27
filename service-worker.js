@@ -1,9 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-<<<<<<< HEAD
-const CACHE_VERSION = "v85-exercises-tag-folders";
-=======
-const CACHE_VERSION = "v85-sweep-fretboard";
->>>>>>> 913da48 (Show sweep patterns on the fretboard)
+const CACHE_VERSION = "v87-sweep-full-neck";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the

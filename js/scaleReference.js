@@ -236,47 +236,62 @@ function compute3NPSFromSemis(rootStr, semis) {
 // Sweep-picking library (movable chord-tone exercises)
 // ---------------------------------------------------------------------------
 
-// Compact fretboard for a sweep shape. High string on top; window fits the
-// shape with one fret of padding. Dots show scale-degree colour plus play-order
-// so the ascending sweep reads clearly on the neck.
-function renderSweepFretboard(layout, { compact = false } = {}) {
-  if (!layout?.strings?.length) return '';
-  let min = Infinity, max = -Infinity;
-  layout.strings.forEach(str => str.frets.forEach(f => {
-    if (f.fret < min) min = f.fret;
-    if (f.fret > max) max = f.fret;
-  }));
-  if (min === Infinity) return '';
+// Map library string labels onto a Standard 6-string neck (low → high).
+// Patterns only light the strings they use; the rest of the neck stays empty
+// so the shape is read in full-fretboard context.
+const SWEEP_NECK = [
+  { key: 'E', label: 'E2' },
+  { key: 'A', label: 'A2' },
+  { key: 'D', label: 'D3' },
+  { key: 'G', label: 'G3' },
+  { key: 'B', label: 'B3' },
+  { key: 'e', label: 'e4' },
+];
+const SWEEP_FB_START = 0;
+const SWEEP_FB_END = 24;
 
-  const start = Math.max(0, min - 1);
-  const end = max + 1;
-  const count = end - start + 1;
-  const reversed = [...layout.strings].reverse();
-  const cellMin = compact ? '22px' : '30px';
-  const labelW = compact ? '22px' : '34px';
+function sweepHitMap(layout) {
+  const map = new Map();
+  if (!layout?.strings) return map;
+  layout.strings.forEach(str => {
+    str.frets.forEach(f => {
+      map.set(`${str.note}:${f.fret}`, f);
+    });
+  });
+  return map;
+}
 
-  let html = `<div class="ref-fb-scroll"><div class="ref-fretboard sweep-fretboard${compact ? ' compact' : ''}" style="grid-template-columns:${labelW} repeat(${count}, minmax(${cellMin}, 1fr))">`;
+// One full 6-string / 0–24 fretboard with the selected sweep highlighted.
+function renderSweepFullFretboard(layout) {
+  const hits = sweepHitMap(layout);
+  const count = SWEEP_FB_END - SWEEP_FB_START + 1;
+  const middle = Math.floor(SWEEP_NECK.length / 2);
+
+  let html = `<div class="ref-fb-scroll"><div class="ref-fretboard sweep-fretboard" style="grid-template-columns:34px repeat(${count}, minmax(30px, 1fr))">`;
   html += '<div class="ref-fb-corner"></div>';
-  for (let f = start; f <= end; f++) html += `<div class="ref-fb-fretnum">${f}</div>`;
+  for (let f = SWEEP_FB_START; f <= SWEEP_FB_END; f++) {
+    html += `<div class="ref-fb-fretnum">${f}</div>`;
+  }
 
-  reversed.forEach(str => {
-    html += `<div class="ref-fb-strlabel">${str.label}</div>`;
-    for (let f = start; f <= end; f++) {
-      const hit = str.frets.find(x => x.fret === f);
+  for (let s = SWEEP_NECK.length - 1; s >= 0; s--) {
+    const { key, label } = SWEEP_NECK[s];
+    html += `<div class="ref-fb-strlabel">${label}</div>`;
+    for (let f = SWEEP_FB_START; f <= SWEEP_FB_END; f++) {
+      const hit = hits.get(`${key}:${f}`);
       const cls = ['ref-fb-cell'];
       if (f === 0) cls.push('nut');
+      if (f > 0 && REF_FB_DOTS.includes(f) && s === middle) cls.push('inlay');
       let inner = '';
       if (hit) {
         const noteCls = ['ref-note', `deg-${hit.interval}`];
         if (hit.isRoot) noteCls.push('root');
         const tech = hit.tech ? ` · ${hit.tech}` : '';
-        const label = compact ? String(hit.order + 1) : (DEGREE_LABELS[hit.interval] || hit.interval);
         const title = `${hit.noteName} · ${INTERVAL_LABELS[hit.interval] || hit.interval}${tech} · step ${hit.order + 1}`;
-        inner = `<span class="${noteCls.join(' ')}" title="${title}">${label}</span>`;
+        inner = `<span class="${noteCls.join(' ')}" title="${title}">${DEGREE_LABELS[hit.interval]}</span>`;
       }
       html += `<div class="${cls.join(' ')}">${inner}</div>`;
     }
-  });
+  }
   html += '</div></div>';
   return html;
 }
@@ -308,42 +323,41 @@ function renderSweepSection() {
   html += `<div class="sweep-head">`;
   html += `<div>`;
   html += `<div class="sweep-title">${refRoot}-Centered Sweep-Picking Library</div>`;
-  html += `<p class="sweep-sub">Common root-position sweep shapes on the fretboard — playable exercises with hammer-ons and pull-offs, not random scale tones. Pick any tonal center from the Root list; shapes move with it.</p>`;
+  html += `<p class="sweep-sub">One full fretboard. Choose a 3-, 4-, or 5-string root pattern, then pick the quality. Shapes are common teachable sweeps (with hammer-ons / pull-offs) and move with the Root tonal center.</p>`;
   html += `</div>`;
+  html += `</div>`;
+
+  html += `<div class="sweep-controls">`;
+  html += `<div class="sweep-control-row">`;
+  html += `<span class="sweep-control-label">Strings</span>`;
   html += `<div class="sweep-picker" role="group" aria-label="String set">`;
-  html += SWEEP_SET_OPTIONS.map(n =>
-    `<button type="button" class="sweep-btn${n === refSweepStringSet ? ' active' : ''}" data-sweep-set="${n}" title="${n}-string">${n}</button>`
-  ).join('');
+  html += SWEEP_SET_OPTIONS.map(n => {
+    const info = SWEEP_STRING_SETS[n];
+    return `<button type="button" class="sweep-btn${n === refSweepStringSet ? ' active' : ''}" data-sweep-set="${n}" title="${info.used}">${n}-string</button>`;
+  }).join('');
   html += `</div>`;
+  html += `<span class="sweep-set-hint">Uses <code>${set.used}</code></span>`;
   html += `</div>`;
 
-  html += `<div class="sweep-set-label"><strong>${set.label} root patterns</strong> · Strings used: <code>${set.used}</code></div>`;
-
+  html += `<div class="sweep-control-row">`;
+  html += `<span class="sweep-control-label">Pattern</span>`;
   html += `<div class="sweep-quality-picker" role="listbox" aria-label="Sweep pattern">`;
   library.forEach(item => {
-    const short = item.join === '' ? `${refRoot}${item.name}` : item.name;
-    html += `<button type="button" class="sweep-quality-btn${item.id === refSweepPatternId ? ' active' : ''}" data-sweep-pattern="${item.id}" title="${item.title} — ${item.formula}">${short}</button>`;
+    const short = item.join === '' ? `${refRoot}${item.name}` : `${refRoot} ${item.name}`;
+    html += `<button type="button" class="sweep-quality-btn${item.id === refSweepPatternId ? ' active' : ''}" data-sweep-pattern="${item.id}" title="${item.formula}">${short}</button>`;
   });
+  html += `</div>`;
+  html += `</div>`;
   html += `</div>`;
 
   if (selected) {
     html += `<div class="sweep-featured">`;
     html += `<div class="sweep-card-title">${selected.title} <span class="sweep-formula">— ${selected.formula}</span></div>`;
-    html += renderSweepFretboard(selected.layout);
+    html += renderSweepFullFretboard(selected.layout);
     html += renderSweepLegend(selected.layout);
     html += `<div class="guitar-tab-wrap sweep-tab"><div class="tab-title">Sweep tab (h = hammer-on, p = pull-off)</div><pre>${selected.tab}</pre></div>`;
     html += `</div>`;
   }
-
-  html += `<div class="sweep-gallery-label">All ${set.label} shapes</div>`;
-  html += `<div class="sweep-gallery">`;
-  library.forEach(item => {
-    html += `<button type="button" class="sweep-gallery-card${item.id === refSweepPatternId ? ' active' : ''}" data-sweep-pattern="${item.id}">`;
-    html += `<div class="sweep-card-title">${item.title} <span class="sweep-formula">— ${item.formula}</span></div>`;
-    html += renderSweepFretboard(item.layout, { compact: true });
-    html += `</button>`;
-  });
-  html += `</div>`;
 
   html += `<div class="sweep-dim-priority">`;
   html += `<h4>Diminished-scale priority patterns</h4>`;
