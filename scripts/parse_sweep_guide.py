@@ -134,6 +134,22 @@ def parse_tab_block(lines):
     return events
 
 
+def ban_open_strings(events):
+    """Sweep shapes never use open strings — move that string into the 12th zone."""
+    open_strings = {e['s'] for e in events if e['f'] == 0}
+    if not open_strings:
+        return events
+    out = []
+    for e in events:
+        if e['s'] in open_strings:
+            ne = dict(e)
+            ne['f'] = e['f'] + 12
+            out.append(ne)
+        else:
+            out.append(e)
+    return out
+
+
 def main():
     text = GUIDE.read_text()
     lines = text.splitlines()
@@ -150,7 +166,7 @@ def main():
     def flush_tab():
         nonlocal tab_buf, in_tab
         if current and string_set is not None and inv is not None and tab_buf:
-            events = parse_tab_block(tab_buf)
+            events = ban_open_strings(parse_tab_block(tab_buf))
             if events:
                 library.append({
                     'id': current[0],

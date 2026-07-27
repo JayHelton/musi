@@ -127,7 +127,8 @@ export function transposeShift(rootStr, frets) {
     let violation = 0;
     frets.forEach((f) => {
       const v = f + s;
-      if (v < 0) violation += -v;
+      // Sweep shapes never use open strings (fret 0); treat them like out-of-range.
+      if (v <= 0) violation += 1 - v;
       else if (v > 24) violation += v - 24;
     });
     const cost = violation * 1000 + Math.abs(oct);
@@ -139,18 +140,32 @@ export function transposeShift(rootStr, frets) {
   return best;
 }
 
+// Open strings are forbidden in sweeps — move that string's frets into the 12th zone.
+export function banOpenStrings(events) {
+  const openStrings = new Set(
+    events.filter((e) => e.f === 0).map((e) => e.s)
+  );
+  if (!openStrings.size) return events;
+  return events.map((e) => (
+    openStrings.has(e.s) ? { ...e, f: e.f + 12 } : e
+  ));
+}
+
 export function transposePattern(rootStr, pattern) {
   const baseFrets = pattern.events.map((e) => e.f);
   const shift = transposeShift(rootStr, baseFrets);
+  const events = banOpenStrings(
+    pattern.events.map((e) => ({
+      s: e.s,
+      f: e.f + shift,
+      t: e.t || null,
+    }))
+  );
   return {
     ...pattern,
     title: patternTitle(rootStr, pattern, pattern.inversion || 0),
     shift,
-    events: pattern.events.map((e) => ({
-      s: e.s,
-      f: e.f + shift,
-      t: e.t || null,
-    })),
+    events,
   };
 }
 
