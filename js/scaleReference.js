@@ -5,7 +5,6 @@ import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import {
   SWEEP_STRING_SETS,
   DIMINISHED_PRIORITY,
-  getSweepLibrary,
   getSweepPattern,
   patternsForStringSet,
   inversionOptionsFor,
