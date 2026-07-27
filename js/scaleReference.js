@@ -7,7 +7,8 @@ import {
   DIMINISHED_PRIORITY,
   getSweepLibrary,
   getSweepPattern,
-  inversionOptions,
+  patternsForStringSet,
+  inversionOptionsFor,
 } from './sweepPatterns.js';
 
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
@@ -282,18 +283,26 @@ const SWEEP_NECK = [
   { key: 'e', label: 'e4' },
 ];
 
+function clampSweepInversion(patternId, stringSet, inv) {
+  const opts = inversionOptionsFor(patternId, stringSet);
+  if (!opts.length) return 0;
+  const max = opts[opts.length - 1].inv;
+  if (!Number.isFinite(inv) || inv < 0) return 0;
+  if (inv > max) return max;
+  return Math.floor(inv);
+}
+
 function selectedSweep() {
-  const library = getSweepLibrary(refRoot, refSweepStringSet, refSweepInversion);
-  if (!library.some(p => p.id === refSweepPatternId)) refSweepPatternId = library[0]?.id || 'maj';
-  let selected = getSweepPattern(refRoot, refSweepStringSet, refSweepPatternId, refSweepInversion);
-  if (selected) {
-    const maxInv = Math.max(0, (selected.inversions?.length || 1) - 1);
-    if (refSweepInversion > maxInv) {
-      refSweepInversion = maxInv;
-      selected = getSweepPattern(refRoot, refSweepStringSet, refSweepPatternId, refSweepInversion);
-    }
+  const qualities = patternsForStringSet(refSweepStringSet);
+  if (!qualities.some(p => p.id === refSweepPatternId)) {
+    refSweepPatternId = qualities[0]?.id || 'maj';
   }
-  return selected;
+  refSweepInversion = clampSweepInversion(
+    refSweepPatternId,
+    refSweepStringSet,
+    refSweepInversion
+  );
+  return getSweepPattern(refRoot, refSweepStringSet, refSweepPatternId, refSweepInversion);
 }
 
 function sweepHitMap(layout) {
@@ -311,11 +320,14 @@ function renderSweepControls() {
   const el = document.getElementById('ref-sweep-controls');
   if (!el) return;
   const set = SWEEP_STRING_SETS[refSweepStringSet];
-  const library = getSweepLibrary(refRoot, refSweepStringSet, 0);
+  const qualities = patternsForStringSet(refSweepStringSet);
   const selected = selectedSweep();
-  const invOpts = selected
-    ? selected.inversions
-    : inversionOptions(library[0]?.formula || '1 3 5');
+  const invOpts = selected?.inversions
+    || inversionOptionsFor(refSweepPatternId, refSweepStringSet, refRoot);
+  const invIdx = Math.max(0, invOpts.findIndex(o => o.inv === refSweepInversion));
+  const invMeta = invOpts[invIdx] || invOpts[0];
+  const canPrev = invIdx > 0;
+  const canNext = invIdx < invOpts.length - 1;
 
   let html = '';
   html += `<div class="sweep-control-row">`;
@@ -330,21 +342,26 @@ function renderSweepControls() {
   html += `</div>`;
 
   html += `<div class="sweep-control-row">`;
-  html += `<span class="sweep-control-label">Inversion</span>`;
-  html += `<div class="sweep-picker" role="group" aria-label="Inversion">`;
-  html += invOpts.map(opt =>
-    `<button type="button" class="sweep-btn${opt.inv === refSweepInversion ? ' active' : ''}" data-sweep-inv="${opt.inv}">${opt.label}</button>`
-  ).join('');
-  html += `</div>`;
-  html += `</div>`;
-
-  html += `<div class="sweep-control-row">`;
   html += `<span class="sweep-control-label">Pattern</span>`;
   html += `<div class="sweep-quality-picker" role="listbox" aria-label="Sweep pattern">`;
-  library.forEach(item => {
+  qualities.forEach(item => {
     const short = item.join === '' ? `${refRoot}${item.name}` : `${refRoot} ${item.name}`;
     html += `<button type="button" class="sweep-quality-btn${item.id === refSweepPatternId ? ' active' : ''}" data-sweep-pattern="${item.id}" title="${item.formula}">${short}</button>`;
   });
+  html += `</div>`;
+  html += `</div>`;
+
+  // Inversion toggle appears after a pattern is chosen.
+  html += `<div class="sweep-control-row sweep-inv-row">`;
+  html += `<span class="sweep-control-label">Inversion</span>`;
+  html += `<div class="sweep-inv-toggle" role="group" aria-label="Toggle inversion">`;
+  html += `<button type="button" class="sweep-btn sweep-inv-step" data-sweep-inv-dir="-1"${canPrev ? '' : ' disabled'} aria-label="Previous inversion">‹</button>`;
+  html += `<div class="sweep-inv-status">`;
+  html += `<strong>${invMeta?.label || 'Root'}</strong>`;
+  if (invMeta?.bassLabel) html += `<span>${invMeta.bassLabel}</span>`;
+  html += `<span class="sweep-inv-count">${invIdx + 1} / ${invOpts.length}</span>`;
+  html += `</div>`;
+  html += `<button type="button" class="sweep-btn sweep-inv-step" data-sweep-inv-dir="1"${canNext ? '' : ' disabled'} aria-label="Next inversion">›</button>`;
   html += `</div>`;
   html += `</div>`;
 
@@ -352,13 +369,14 @@ function renderSweepControls() {
   el.querySelectorAll('[data-sweep-set]').forEach(btn => {
     btn.onclick = () => {
       refSweepStringSet = clampSweepSet(Number(btn.dataset.sweepSet));
+      // Keep the same chord quality when it exists on the new string set.
+      const qualities = patternsForStringSet(refSweepStringSet);
+      if (!qualities.some(p => p.id === refSweepPatternId)) {
+        refSweepPatternId = qualities[0]?.id || 'maj';
+        saveSetting('ref.sweepPatternId', refSweepPatternId);
+      }
+      refSweepInversion = 0;
       saveSetting('ref.sweepStringSet', refSweepStringSet);
-      renderScaleRef();
-    };
-  });
-  el.querySelectorAll('[data-sweep-inv]').forEach(btn => {
-    btn.onclick = () => {
-      refSweepInversion = Math.max(0, Number(btn.dataset.sweepInv) || 0);
       saveSetting('ref.sweepInversion', refSweepInversion);
       renderScaleRef();
     };
@@ -366,7 +384,19 @@ function renderSweepControls() {
   el.querySelectorAll('[data-sweep-pattern]').forEach(btn => {
     btn.onclick = () => {
       refSweepPatternId = btn.dataset.sweepPattern || 'maj';
+      refSweepInversion = 0; // start each pattern at root position
       saveSetting('ref.sweepPatternId', refSweepPatternId);
+      saveSetting('ref.sweepInversion', refSweepInversion);
+      renderScaleRef();
+    };
+  });
+  el.querySelectorAll('[data-sweep-inv-dir]').forEach(btn => {
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      const dir = Number(btn.dataset.sweepInvDir) || 0;
+      const nextIdx = Math.max(0, Math.min(invOpts.length - 1, invIdx + dir));
+      refSweepInversion = invOpts[nextIdx]?.inv ?? 0;
+      saveSetting('ref.sweepInversion', refSweepInversion);
       renderScaleRef();
     };
   });
@@ -416,8 +446,9 @@ function renderSweepOnMainBoard() {
     ? `${selected.title} — ${selected.formula}`
     : `${refRoot} Sweep`;
   if (sub) {
+    const inv = selected?.inversions?.find(o => o.inv === selected.inversion);
     sub.innerHTML = selected
-      ? `<strong>${set.label}</strong> · strings <code>${set.used}</code> · inversion <strong>${selected.inversions[selected.inversion]?.label || 'Root'}</strong> · full neck 0–24`
+      ? `<strong>${set.label}</strong> · <code>${set.used}</code> · <strong>${inv?.label || 'Root'}</strong>${inv?.bassLabel ? ` — ${inv.bassLabel}` : ''} · full neck 0–24`
       : 'Pick a sweep pattern';
   }
 
@@ -447,10 +478,14 @@ function renderSweepSection() {
 
   let html = `<div class="sweep-section">`;
   html += `<div class="sweep-title">${refRoot}-Centered Sweep-Picking Library</div>`;
-  html += `<p class="sweep-sub">Use the fretboard above: choose Scale or Sweep, then 3/4/5-string set, inversion (Root / 1st / 2nd / 3rd), and pattern. Root-position shapes match the common A-centered library; inversions are the standard one-note-per-string sweeps with hammer-on turnarounds. Everything moves with the Root tonal center.</p>`;
+  html += `<p class="sweep-sub">321 authored close-position sweeps (3/4/5-string) with every chord-tone inversion. Pick a pattern on the fretboard above, then step through inversions. Shapes move with the Root tonal center.</p>`;
 
   if (selected) {
+    const inv = selected.inversions.find(o => o.inv === selected.inversion);
     html += `<div class="sweep-card-title">${selected.title} <span class="sweep-formula">— ${selected.formula}</span></div>`;
+    if (inv?.bassLabel) {
+      html += `<div class="sweep-bass-line">${inv.label} — ${inv.bassLabel}</div>`;
+    }
     html += `<div class="guitar-tab-wrap sweep-tab"><div class="tab-title">Sweep tab (h = hammer-on, p = pull-off)</div><pre>${selected.tab}</pre></div>`;
   }
 

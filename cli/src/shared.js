@@ -21,7 +21,9 @@ export {
   DIMINISHED_PRIORITY,
   getSweepLibrary,
   getSweepPattern,
-  inversionOptions,
+  patternsForStringSet,
+  inversionOptionsFor,
+  SWEEP_LIBRARY_COUNT,
 } from '../../js/sweepPatterns.js';
 
 export {

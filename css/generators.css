@@ -68,6 +68,14 @@
 .sweep-quality-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
 .sweep-card-title{font-size:.95rem;font-weight:650;color:var(--text);margin-bottom:8px}
 .sweep-formula{color:var(--muted);font-weight:500}
+.sweep-bass-line{color:var(--muted);font-size:.86rem;margin:-2px 0 8px}
+.sweep-inv-toggle{display:flex;align-items:stretch;gap:8px;flex:1;min-width:220px}
+.sweep-inv-step{min-width:42px;font-size:1.25rem;line-height:1}
+.sweep-inv-step:disabled{opacity:.35;cursor:default}
+.sweep-inv-status{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:6px 12px;border:1px solid var(--border);border-radius:11px;background:var(--bg2);min-height:34px}
+.sweep-inv-status strong{color:var(--text);font-size:.9rem}
+.sweep-inv-status span{color:var(--muted);font-size:.78rem;line-height:1.3}
+.sweep-inv-count{margin-top:2px}
 .sweep-tab{margin:10px 0 0;padding:14px 16px}
 .sweep-dim-priority{margin-top:22px;padding-top:16px;border-top:1px solid var(--border)}
 .sweep-dim-priority h4{margin:0 0 12px;color:var(--accent);font-size:.98rem}
