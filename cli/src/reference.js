@@ -8,6 +8,9 @@ import {
   SWEEP_STRING_SETS,
   DIMINISHED_PRIORITY,
   getSweepLibrary,
+  getSweepPattern,
+  patternsForStringSet,
+  SWEEP_LIBRARY_COUNT,
 } from './shared.js';
 import { c, print, banner, choose, ask } from './ui.js';
 
@@ -119,20 +122,27 @@ function printSweepLibrary(root, sweepOpt) {
   const sets = resolveSweepSets(sweepOpt);
   print();
   print(c.bold(`${root}-Centered Sweep-Picking Library`));
-  print(c.gray('Common root-position sweep shapes with hammer-ons / pull-offs. Movable by tonal center.'));
+  print(c.gray(`${SWEEP_LIBRARY_COUNT} authored close-position sweeps with every chord-tone inversion.`));
   if (sets.length === 1) {
     print(c.gray(`Showing ${sets[0]}-string set (use --sweep 4|5|all for more).`));
   }
 
   for (const setId of sets) {
     const set = SWEEP_STRING_SETS[setId];
-    const library = getSweepLibrary(root, setId);
+    const qualities = patternsForStringSet(setId);
     print();
-    print(c.accent(`${set.label} root patterns`) + c.gray(` · Strings used: ${set.used}`));
-    library.forEach((item) => {
-      print();
-      print(c.bold(`${item.title}`) + c.gray(` — ${item.formula}`));
-      print(c.cyan(item.tab.replace(/\n$/, '')));
+    print(c.accent(`${set.label} patterns`) + c.gray(` · Strings used: ${set.used}`));
+    qualities.forEach((q) => {
+      const rootShape = getSweepPattern(root, setId, q.id, 0);
+      if (!rootShape) return;
+      rootShape.inversions.forEach((inv) => {
+        const shaped = getSweepPattern(root, setId, q.id, inv.inv);
+        if (!shaped) return;
+        print();
+        print(c.bold(`${shaped.title}`) + c.gray(` — ${shaped.formula}`));
+        if (inv.bassLabel) print(c.gray(`${inv.label} — ${inv.bassLabel}`));
+        print(c.cyan(shaped.tab.replace(/\n$/, '')));
+      });
     });
   }
 

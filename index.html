@@ -252,13 +252,20 @@
               <div class="ref-fb-sub" id="ref-fb-sub"></div>
             </div>
             <div class="ref-fb-opts">
-              <label>Fret <input type="number" id="ref-fb-start" min="0" max="24" value="0"></label>
-              <label>– <input type="number" id="ref-fb-end" min="1" max="24" value="15"></label>
+              <div class="ref-view-picker" id="ref-view-picker" role="group" aria-label="Fretboard view">
+                <button type="button" class="ref-view-btn active" data-ref-view="scale">Scale</button>
+                <button type="button" class="ref-view-btn" data-ref-view="sweep">Sweep</button>
+              </div>
+              <label class="ref-fb-range">Fret <input type="number" id="ref-fb-start" min="0" max="24" value="0"></label>
+              <label class="ref-fb-range">– <input type="number" id="ref-fb-end" min="1" max="24" value="15"></label>
               <label class="ref-fb-check"><input type="checkbox" id="ref-fb-boxonly"> Box only</label>
             </div>
           </div>
-          <div class="ref-mode-label">Mode / tonal center</div>
-          <div class="ref-mode-row" id="ref-mode-row"></div>
+          <div id="ref-scale-controls">
+            <div class="ref-mode-label">Mode / tonal center</div>
+            <div class="ref-mode-row" id="ref-mode-row"></div>
+          </div>
+          <div id="ref-sweep-controls" class="ref-sweep-controls" hidden></div>
           <div class="ref-fb-scroll"><div class="ref-fretboard" id="ref-fretboard"></div></div>
           <div class="ref-fb-legend" id="ref-fb-legend"></div>
         </div>
