@@ -3,7 +3,7 @@
 // then transposed by semitone so any tonal center can be practised as an
 // exercise — not random scale tones.
 
-import { parseNote, spellNote } from './theory.js';
+import { parseNote, spellNote, NOTE_NAMES_SHARP } from './theory.js';
 
 // Spell a note as an interval above a tonal center (letter + semitone offsets).
 function spellAbove(rootStr, letterOff, semiOff) {
@@ -13,6 +13,9 @@ function spellAbove(rootStr, letterOff, semiOff) {
 }
 
 const A_SEMI = 9; // pitch-class of A
+
+// Pitch classes of the open strings used by the library (standard tuning).
+const OPEN_PC = { A: 9, D: 2, G: 7, B: 11, e: 4, E: 4 };
 
 // Standard-tuning string labels used by the library (high → low display order).
 export const SWEEP_STRING_SETS = {
@@ -536,17 +539,67 @@ export function renderSweepTab(transposed, stringSet) {
   return tab;
 }
 
+// Fretboard layout for a transposed pattern: one entry per string (low → high
+// within the string set), with unique fretted notes labelled by interval above
+// the tonal center. Play order is preserved on each fret entry so the UI can
+// show sequence numbers for the ascending sweep.
+export function buildSweepLayout(rootStr, pattern) {
+  const root = parseNote(rootStr);
+  const tp = transposePattern(rootStr, pattern);
+  const set = SWEEP_STRING_SETS[pattern.stringSet];
+  if (!root || !set) return null;
+
+  const byString = Object.fromEntries(set.strings.map((s) => [s, []]));
+  tp.events.forEach((ev, order) => {
+    const pc = ((OPEN_PC[ev.s] + ev.f) % 12 + 12) % 12;
+    const interval = (pc - root.semi + 12) % 12;
+    const existing = byString[ev.s].find((f) => f.fret === ev.f);
+    if (existing) {
+      // Prefer the earliest (ascending) play order for the shared fretted note.
+      if (order < existing.order) existing.order = order;
+      if (ev.t && !existing.tech) existing.tech = ev.t;
+      return;
+    }
+    byString[ev.s].push({
+      fret: ev.f,
+      interval,
+      isRoot: interval === 0,
+      noteName: NOTE_NAMES_SHARP[pc],
+      order,
+      tech: ev.t || null,
+    });
+  });
+
+  return {
+    title: tp.title,
+    formula: pattern.formula,
+    stringSet: pattern.stringSet,
+    stringsUsed: set.used,
+    events: tp.events,
+    tab: renderSweepTab(tp, pattern.stringSet),
+    strings: set.strings.map((s) => ({
+      note: s,
+      label: s,
+      frets: byString[s],
+    })),
+  };
+}
+
 export function getSweepLibrary(rootStr, stringSet) {
   return patternsForStringSet(stringSet).map((p) => {
-    const tp = transposePattern(rootStr, p);
+    const layout = buildSweepLayout(rootStr, p);
     return {
       id: p.id,
-      title: tp.title,
+      name: p.name,
+      join: p.join,
+      title: layout.title,
       formula: p.formula,
       stringSet,
-      stringsUsed: SWEEP_STRING_SETS[stringSet].used,
-      tab: renderSweepTab(tp, stringSet),
-      events: tp.events,
+      stringsUsed: layout.stringsUsed,
+      tab: layout.tab,
+      events: layout.events,
+      strings: layout.strings,
+      layout,
     };
   });
 }
