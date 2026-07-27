@@ -1,6 +1,6 @@
-/* Exercises library: category sidebar + file list, plus a full-screen
-   viewer for PDFs, images, audio, video and links. Reuses Musi's design tokens for a consistent
-   look. */
+/* Exercises library: folder sidebar + file list (grouped by category tag
+   when viewing All), plus a full-screen viewer for PDFs, images, audio,
+   video and links. Reuses Musi's design tokens for a consistent look. */
 
 .ex-layout{align-items:flex-start}
 .ex-sidebar{width:220px}
@@ -31,6 +31,22 @@
 .ex-status.error{color:var(--warn);border-color:rgba(243,156,18,0.4)}
 
 .ex-empty{padding:30px 20px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted);font-size:.88rem;background:rgba(24,24,24,0.5)}
+
+/* ---- Folder groups (by category tag) ---- */
+.ex-folder{border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.35)}
+.ex-folder-head{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border:none;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s ease}
+.ex-folder-head:hover{background:var(--hover)}
+.ex-folder-chevron{flex-shrink:0;width:1em;color:var(--muted);font-size:.85rem;line-height:1}
+.ex-folder-icon{flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--accent)}
+.ex-folder-icon svg{width:20px;height:20px}
+.ex-folder-name{flex:1;min-width:0;font-size:.98rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ex-folder-count{flex-shrink:0;font-size:.66rem;color:var(--muted);background:var(--bg2);padding:2px 8px;border-radius:999px;font-weight:600}
+.ex-folder.is-open .ex-folder-count{color:var(--accent);background:var(--accent-dim)}
+.ex-folder-body{display:flex;flex-direction:column;gap:8px;padding:0 10px 10px;border-top:1px solid var(--border);background:rgba(0,0,0,0.15)}
+.ex-folder-body[hidden]{display:none}
+.ex-folder-body .ex-item{box-shadow:none}
+.ex-ungrouped{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.ex-ungrouped-label{padding:4px 4px 0;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700}
 
 /* ---- Exercise rows ---- */
 .ex-list{display:flex;flex-direction:column;gap:10px}
@@ -78,6 +94,7 @@
   .ex-toolbar-actions{width:100%!important;max-width:100%!important;min-width:0!important;display:flex;flex-direction:column}
   .ex-toolbar-actions .btn{display:flex;align-items:center;justify-content:center;width:100%!important;max-width:100%!important;min-width:0!important;padding-left:12px;padding-right:12px;text-align:center;white-space:normal;overflow-wrap:anywhere;color:var(--text);line-height:1.2;font-size:.85rem!important}
   #ex-upload-btn{color:#0a0a0a}
+  .ex-folder-head{padding:12px}
   .ex-item{flex-wrap:wrap}
   .ex-item-actions{width:100%;justify-content:flex-start}
   .ex-viewer-overlay{padding:0}
