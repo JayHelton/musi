@@ -14,8 +14,9 @@ function spellAbove(rootStr, letterOff, semiOff) {
 
 const A_SEMI = 9; // pitch-class of A
 
-// Pitch classes of the open strings used by the library (standard tuning).
+// Pitch classes / open MIDI of the open strings used by the library (standard).
 const OPEN_PC = { A: 9, D: 2, G: 7, B: 11, e: 4, E: 4 };
+const OPEN_MIDI = { E: 40, A: 45, D: 50, G: 55, B: 59, e: 64 };
 
 // Standard-tuning string labels used by the library (high → low display order).
 export const SWEEP_STRING_SETS = {
@@ -23,6 +24,44 @@ export const SWEEP_STRING_SETS = {
   4: { id: 4, label: '4-string', strings: ['D', 'G', 'B', 'e'], used: 'D-G-B-e' },
   5: { id: 5, label: '5-string', strings: ['A', 'D', 'G', 'B', 'e'], used: 'A-D-G-B-e' },
 };
+
+const FORMULA_SEMIS = {
+  '1': 0, 'b2': 1, 'b9': 1, '2': 2, '#2': 3, '#9': 3, 'b3': 3, '3': 4,
+  '4': 5, 'b5': 6, '5': 7, '#5': 8, 'b6': 8, 'b13': 8, '6': 9, '13': 9,
+  'bb7': 9, 'b7': 10, '7': 11,
+};
+const INV_LABELS = ['Root', '1st', '2nd', '3rd', '4th', '5th'];
+
+// Unique chord-tone semitones from a formula string, in written order.
+export function formulaTones(formula) {
+  const seen = new Set();
+  const tones = [];
+  String(formula || '').split(/\s+/).forEach((tok) => {
+    const s = FORMULA_SEMIS[tok];
+    if (s == null || seen.has(s)) return;
+    seen.add(s);
+    tones.push(s);
+  });
+  return tones;
+}
+
+// Inversions are taught on the chord's core shell (1 / 3 / 5 / 7 family),
+// not on tensions like b9/#9. Cap at four (Root..3rd).
+const INVERTIBLE = new Set([0, 3, 4, 6, 7, 8, 9, 10, 11]);
+
+export function inversionBassTones(formula) {
+  const tones = formulaTones(formula);
+  const core = tones.filter((s) => INVERTIBLE.has(s));
+  return (core.length ? core : tones).slice(0, 4);
+}
+
+export function inversionOptions(formula) {
+  return inversionBassTones(formula).map((semi, i) => ({
+    inv: i,
+    label: INV_LABELS[i] || `${i}`,
+    bassSemi: semi,
+  }));
+}
 
 // join: '' → "Amaj7"; ' ' → "A major"
 function p(id, name, join, formula, stringSet, events) {
@@ -461,36 +500,129 @@ export const DIMINISHED_PRIORITY = {
   },
 };
 
-export function patternTitle(root, pattern) {
-  return pattern.join === '' ? `${root}${pattern.name}` : `${root} ${pattern.name}`;
+export function patternTitle(root, pattern, inversion = 0) {
+  const base = pattern.join === '' ? `${root}${pattern.name}` : `${root} ${pattern.name}`;
+  if (!inversion) return base;
+  const opt = inversionOptions(pattern.formula)[inversion];
+  return `${base} · ${opt ? opt.label : inversion} inv`;
 }
 
 export function patternsForStringSet(stringSet) {
   return SWEEP_PATTERNS.filter((p) => p.stringSet === stringSet);
 }
 
-// Semitone shift from authored root A → target tonal center, plus a whole-octave
-// nudge so the shape sits on a playable 0–24 fret window.
+// Build a playable ascending+descending sweep for an inversion. Root position
+// (inversion 0) keeps the authored library events; higher inversions place the
+// Nth chord tone on the lowest string of the set and ascend one chord tone per
+// string with a hammer/pull turnaround on the top string — the standard way
+// 1st/2nd/3rd inversion sweeps are taught.
+function generateInversionEvents(pattern, inversion) {
+  // Ascending path uses the full formula tone set; bass rotation uses the
+  // invertible shell so tensions don't become inversion roots.
+  const tones = formulaTones(pattern.formula);
+  const bassTones = inversionBassTones(pattern.formula);
+  if (!tones.length || !bassTones.length) return pattern.events;
+  const inv = ((inversion % bassTones.length) + bassTones.length) % bassTones.length;
+  if (inv === 0) return pattern.events;
+
+  // Rotate the full tone list so it starts on the chosen bass degree.
+  const bass = bassTones[inv];
+  const start = tones.indexOf(bass);
+  const rotated = start >= 0
+    ? tones.slice(start).concat(tones.slice(0, start))
+    : bassTones.slice(inv).concat(bassTones.slice(0, inv));
+
+  const strings = SWEEP_STRING_SETS[pattern.stringSet].strings;
+  const asc = [];
+  let prevMidi = null;
+
+  for (let i = 0; i < strings.length; i++) {
+    const s = strings[i];
+    const tone = rotated[i % rotated.length];
+    const open = OPEN_MIDI[s];
+    const targetPc = (A_SEMI + tone) % 12;
+    let baseFret = (targetPc - (open % 12) + 12) % 12;
+    let fret = baseFret;
+    let midi = open + fret;
+
+    if (prevMidi == null) {
+      // Prefer a mid-neck starting fret so inversions sit as teachable shapes.
+      let best = fret;
+      let bestCost = Infinity;
+      for (const oct of [-12, 0, 12, 24]) {
+        const f = baseFret + oct;
+        if (f < 0 || f > 21) continue;
+        const cost = Math.abs(f - 10);
+        if (cost < bestCost) {
+          bestCost = cost;
+          best = f;
+        }
+      }
+      fret = best;
+      midi = open + fret;
+    } else {
+      while (midi <= prevMidi) {
+        fret += 12;
+        midi += 12;
+      }
+      if (fret > 24) {
+        // Fall back: allow a slightly lower pitch-class match an octave down
+        // only if still above the previous note (rare on these string sets).
+        const fallback = fret - 12;
+        if (fallback >= 0 && open + fallback > prevMidi) {
+          fret = fallback;
+          midi = open + fret;
+        }
+      }
+    }
+    asc.push({ s, f: fret });
+    prevMidi = midi;
+  }
+
+  const top = strings[strings.length - 1];
+  const last = asc[asc.length - 1];
+  const hammerTone = rotated[strings.length % rotated.length];
+  const hammerPc = (A_SEMI + hammerTone) % 12;
+  let hf = (hammerPc - (OPEN_MIDI[top] % 12) + 12) % 12;
+  while (hf <= last.f) hf += 12;
+  // Keep the hammer in a one-position stretch when possible.
+  while (hf - last.f > 7 && hf - 12 > last.f) hf -= 12;
+
+  const events = asc.map((n) => ({ s: n.s, f: n.f }));
+  events.push({ s: top, f: hf, t: 'h' });
+  events.push({ s: top, f: last.f, t: 'p' });
+  for (let i = asc.length - 2; i >= 0; i--) events.push({ s: asc[i].s, f: asc[i].f });
+  return events;
+}
+
+export function resolvePattern(pattern, inversion = 0) {
+  const bassTones = inversionBassTones(pattern.formula);
+  const inv = Math.max(0, Math.min(inversion, Math.max(0, bassTones.length - 1)));
+  return {
+    ...pattern,
+    inversion: inv,
+    events: generateInversionEvents(pattern, inv),
+  };
+}
+
+// Semitone shift from authored root A → target tonal center. Only nudge by
+// whole octaves when needed to keep frets on a 0–24 neck — do not pull
+// already-playable inversion shapes up toward mid-neck.
 export function transposeShift(rootStr, frets) {
   const root = parseNote(rootStr);
   if (!root) return 0;
-  let shift = root.semi - A_SEMI;
-  // Prefer the octave that keeps the majority of frets in 0–24 and near the
-  // authored register (avoid dumping everything into negative frets).
+  const shift = root.semi - A_SEMI;
   let best = shift;
   let bestCost = Infinity;
-  for (const oct of [-12, 0, 12, 24]) {
+  for (const oct of [-24, -12, 0, 12, 24]) {
     const s = shift + oct;
     let violation = 0;
-    let sum = 0;
     frets.forEach((f) => {
       const v = f + s;
-      sum += v;
       if (v < 0) violation += -v;
       else if (v > 24) violation += v - 24;
     });
-    const mean = sum / frets.length;
-    const cost = violation * 1000 + Math.abs(mean - 12);
+    const cost = violation * 1000 + Math.abs(oct);
     if (cost < bestCost) {
       bestCost = cost;
       best = s;
@@ -499,14 +631,15 @@ export function transposeShift(rootStr, frets) {
   return best;
 }
 
-export function transposePattern(rootStr, pattern) {
-  const baseFrets = pattern.events.map((e) => e.f);
+export function transposePattern(rootStr, pattern, inversion = 0) {
+  const resolved = resolvePattern(pattern, inversion);
+  const baseFrets = resolved.events.map((e) => e.f);
   const shift = transposeShift(rootStr, baseFrets);
   return {
-    ...pattern,
-    title: patternTitle(rootStr, pattern),
+    ...resolved,
+    title: patternTitle(rootStr, resolved, resolved.inversion),
     shift,
-    events: pattern.events.map((e) => ({
+    events: resolved.events.map((e) => ({
       s: e.s,
       f: e.f + shift,
       t: e.t || null,
@@ -543,9 +676,9 @@ export function renderSweepTab(transposed, stringSet) {
 // within the string set), with unique fretted notes labelled by interval above
 // the tonal center. Play order is preserved on each fret entry so the UI can
 // show sequence numbers for the ascending sweep.
-export function buildSweepLayout(rootStr, pattern) {
+export function buildSweepLayout(rootStr, pattern, inversion = 0) {
   const root = parseNote(rootStr);
-  const tp = transposePattern(rootStr, pattern);
+  const tp = transposePattern(rootStr, pattern, inversion);
   const set = SWEEP_STRING_SETS[pattern.stringSet];
   if (!root || !set) return null;
 
@@ -574,6 +707,7 @@ export function buildSweepLayout(rootStr, pattern) {
     title: tp.title,
     formula: pattern.formula,
     stringSet: pattern.stringSet,
+    inversion: tp.inversion || 0,
     stringsUsed: set.used,
     events: tp.events,
     tab: renderSweepTab(tp, pattern.stringSet),
@@ -585,9 +719,10 @@ export function buildSweepLayout(rootStr, pattern) {
   };
 }
 
-export function getSweepLibrary(rootStr, stringSet) {
+export function getSweepLibrary(rootStr, stringSet, inversion = 0) {
   return patternsForStringSet(stringSet).map((p) => {
-    const layout = buildSweepLayout(rootStr, p);
+    const layout = buildSweepLayout(rootStr, p, inversion);
+    const invOpts = inversionOptions(p.formula);
     return {
       id: p.id,
       name: p.name,
@@ -595,6 +730,8 @@ export function getSweepLibrary(rootStr, stringSet) {
       title: layout.title,
       formula: p.formula,
       stringSet,
+      inversion: layout.inversion,
+      inversions: invOpts,
       stringsUsed: layout.stringsUsed,
       tab: layout.tab,
       events: layout.events,
@@ -602,4 +739,26 @@ export function getSweepLibrary(rootStr, stringSet) {
       layout,
     };
   });
+}
+
+export function getSweepPattern(rootStr, stringSet, patternId, inversion = 0) {
+  const pattern = patternsForStringSet(stringSet).find((p) => p.id === patternId)
+    || patternsForStringSet(stringSet)[0];
+  if (!pattern) return null;
+  const layout = buildSweepLayout(rootStr, pattern, inversion);
+  return {
+    id: pattern.id,
+    name: pattern.name,
+    join: pattern.join,
+    title: layout.title,
+    formula: pattern.formula,
+    stringSet,
+    inversion: layout.inversion,
+    inversions: inversionOptions(pattern.formula),
+    stringsUsed: layout.stringsUsed,
+    tab: layout.tab,
+    events: layout.events,
+    strings: layout.strings,
+    layout,
+  };
 }

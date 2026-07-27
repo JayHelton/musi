@@ -8,6 +8,7 @@ import {
   SWEEP_STRING_SETS,
   DIMINISHED_PRIORITY,
   getSweepLibrary,
+  getSweepPattern,
 } from './shared.js';
 import { c, print, banner, choose, ask } from './ui.js';
 
@@ -119,20 +120,24 @@ function printSweepLibrary(root, sweepOpt) {
   const sets = resolveSweepSets(sweepOpt);
   print();
   print(c.bold(`${root}-Centered Sweep-Picking Library`));
-  print(c.gray('Common root-position sweep shapes with hammer-ons / pull-offs. Movable by tonal center.'));
+  print(c.gray('3/4/5-string sweeps with Root / 1st / 2nd / 3rd inversions. Movable by tonal center.'));
   if (sets.length === 1) {
     print(c.gray(`Showing ${sets[0]}-string set (use --sweep 4|5|all for more).`));
   }
 
   for (const setId of sets) {
     const set = SWEEP_STRING_SETS[setId];
-    const library = getSweepLibrary(root, setId);
+    const library = getSweepLibrary(root, setId, 0);
     print();
-    print(c.accent(`${set.label} root patterns`) + c.gray(` · Strings used: ${set.used}`));
+    print(c.accent(`${set.label} patterns`) + c.gray(` · Strings used: ${set.used}`));
     library.forEach((item) => {
-      print();
-      print(c.bold(`${item.title}`) + c.gray(` — ${item.formula}`));
-      print(c.cyan(item.tab.replace(/\n$/, '')));
+      item.inversions.forEach((inv) => {
+        const shaped = getSweepPattern(root, setId, item.id, inv.inv);
+        if (!shaped) return;
+        print();
+        print(c.bold(`${shaped.title}`) + c.gray(` — ${shaped.formula}`));
+        print(c.cyan(shaped.tab.replace(/\n$/, '')));
+      });
     });
   }
 

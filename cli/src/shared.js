@@ -20,6 +20,8 @@ export {
   SWEEP_STRING_SETS,
   DIMINISHED_PRIORITY,
   getSweepLibrary,
+  getSweepPattern,
+  inversionOptions,
 } from '../../js/sweepPatterns.js';
 
 export {

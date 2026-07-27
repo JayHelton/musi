@@ -43,30 +43,31 @@
 .modal-unchanged{color:var(--muted);font-style:italic}
 .modal-chord-summary{margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.04);color:var(--muted);font-size:.85rem;line-height:1.5}
 .modal-chord-summary strong{color:var(--accent)}
+/* Scale / Sweep view toggle on the main fretboard card */
+.ref-view-picker{display:flex;gap:4px;margin-right:4px}
+.ref-view-btn{padding:6px 12px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}
+.ref-view-btn:hover{background:var(--hover)}
+.ref-view-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.ref-sweep-controls{display:flex;flex-direction:column;gap:10px;margin:0 0 12px}
+
 /* Sweep-picking library (scale reference) */
-.sweep-section{margin:18px 0 6px;padding-top:18px;border-top:1px solid var(--border)}
-.sweep-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.sweep-section{margin:4px 0 6px}
 .sweep-title{font-size:1.02rem;font-weight:650;color:var(--accent)}
-.sweep-sub{margin:4px 0 0;color:var(--muted);font-size:.82rem;line-height:1.45;max-width:62ch}
-.sweep-picker{display:flex;gap:6px;flex:0 0 auto}
-.sweep-btn{min-width:38px;height:38px;padding:0 10px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font:inherit;font-weight:700;font-size:.95rem;cursor:pointer;transition:all 0.15s ease}
+.sweep-sub{margin:4px 0 12px;color:var(--muted);font-size:.82rem;line-height:1.45;max-width:70ch}
+.sweep-picker{display:flex;gap:6px;flex:0 0 auto;flex-wrap:wrap}
+.sweep-btn{min-width:auto;height:34px;padding:0 12px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font:inherit;font-weight:700;font-size:.82rem;cursor:pointer;transition:all 0.15s ease}
 .sweep-btn:hover{background:var(--hover)}
 .sweep-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);box-shadow:0 0 0 1px var(--accent-dim)}
-.sweep-controls{display:flex;flex-direction:column;gap:12px;margin:0 0 14px}
 .sweep-control-row{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
-.sweep-control-label{flex:0 0 64px;padding-top:8px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:650}
+.sweep-control-label{flex:0 0 72px;padding-top:8px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:650}
 .sweep-set-hint{align-self:center;color:var(--muted);font-size:.82rem}
 .sweep-set-hint code{color:var(--text);font-size:.8rem}
-.sweep-btn{min-width:auto;padding:0 12px;font-size:.82rem}
 .sweep-quality-picker{display:flex;flex-wrap:wrap;gap:6px;flex:1}
 .sweep-quality-btn{padding:6px 10px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font:inherit;font-size:.78rem;font-weight:650;cursor:pointer;transition:all 0.15s ease}
 .sweep-quality-btn:hover{background:var(--hover)}
 .sweep-quality-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
-.sweep-featured{margin-bottom:8px}
 .sweep-card-title{font-size:.95rem;font-weight:650;color:var(--text);margin-bottom:8px}
 .sweep-formula{color:var(--muted);font-weight:500}
-.sweep-fretboard{margin:0 0 8px}
-.sweep-legend{margin-top:8px;margin-bottom:4px}
 .sweep-tab{margin:10px 0 0;padding:14px 16px}
 .sweep-dim-priority{margin-top:22px;padding-top:16px;border-top:1px solid var(--border)}
 .sweep-dim-priority h4{margin:0 0 12px;color:var(--accent);font-size:.98rem}
@@ -80,8 +81,10 @@
 .sweep-dim-seq{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px}
 .sweep-dim-seq p{margin:8px 0 0;color:var(--muted);font-size:.84rem;line-height:1.45}
 @media(max-width:768px){
-  .sweep-head{flex-direction:column;gap:10px}
   .sweep-control-label{flex-basis:100%;padding-top:0}
+  .ref-fb-opts{width:100%}
+  .ref-view-picker{width:100%}
+  .ref-view-btn{flex:1}
 }
 
 .guitar-tab-wrap{background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;padding:18px;margin:12px 0;overflow-x:auto}
