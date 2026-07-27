@@ -124,14 +124,16 @@ export function transposeShift(rootStr, frets) {
   let bestCost = Infinity;
   for (const oct of [-24, -12, 0, 12, 24]) {
     const s = shift + oct;
-    let violation = 0;
+    let hard = 0;
+    let opens = 0;
     frets.forEach((f) => {
       const v = f + s;
-      // Sweep shapes never use open strings (fret 0); treat them like out-of-range.
-      if (v <= 0) violation += 1 - v;
-      else if (v > 24) violation += v - 24;
+      if (v < 0) hard += -v;
+      else if (v === 0) opens += 1;
+      else if (v > 24) hard += v - 24;
     });
-    const cost = violation * 1000 + Math.abs(oct);
+    // Prefer fretted in-range shapes; open strings are fixed afterward via +12.
+    const cost = hard * 1000 + opens * 100 + Math.abs(oct);
     if (cost < bestCost) {
       bestCost = cost;
       best = s;
@@ -151,16 +153,28 @@ export function banOpenStrings(events) {
   ));
 }
 
+function clampHighStrings(events) {
+  const highStrings = new Set(
+    events.filter((e) => e.f > 24).map((e) => e.s)
+  );
+  if (!highStrings.size) return events;
+  return events.map((e) => (
+    highStrings.has(e.s) ? { ...e, f: e.f - 12 } : e
+  ));
+}
+
 export function transposePattern(rootStr, pattern) {
   const baseFrets = pattern.events.map((e) => e.f);
   const shift = transposeShift(rootStr, baseFrets);
-  const events = banOpenStrings(
-    pattern.events.map((e) => ({
-      s: e.s,
-      f: e.f + shift,
-      t: e.t || null,
-    }))
-  );
+  let events = pattern.events.map((e) => ({
+    s: e.s,
+    f: e.f + shift,
+    t: e.t || null,
+  }));
+  events = banOpenStrings(events);
+  events = clampHighStrings(events);
+  // Clamping high strings can reintroduce opens; ban once more if needed.
+  events = banOpenStrings(events);
   return {
     ...pattern,
     title: patternTitle(rootStr, pattern, pattern.inversion || 0),
