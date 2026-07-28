@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v90-sweep-no-open-strings";
+const CACHE_VERSION = "v91-interval-orbit";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -29,6 +29,7 @@ const PRECACHE_URLS = [
   "css/notes.css",
   "css/practice.css",
   "css/tabanalyzer.css",
+  "css/intervalorbit.css",
   "js/main.js",
   "js/attachments.js",
   "js/audio.js",
@@ -45,6 +46,8 @@ const PRECACHE_URLS = [
   "js/circleOfFifths.js",
   "js/earTrainer.js",
   "js/fretboardTrainer.js",
+  "js/intervalOrbit.js",
+  "js/intervalOrbitModel.js",
   "js/intervalQuiz.js",
   "js/intervals.js",
   "js/keyboard.js",
