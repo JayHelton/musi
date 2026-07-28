@@ -5,6 +5,7 @@ import { drawCoF } from './circleOfFifths.js';
 import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
 import { initMetronome, stopMetronome, metro } from './metronome.js';
 import { initFretboard } from './fretboardTrainer.js';
+import { initIntervalOrbit, stopIntervalOrbit } from './intervalOrbit.js';
 import { initChordWorkout, stopChordWorkout } from './chordWorkout.js';
 import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
 import { initPitchTrainer, stopPitchTrainer, pt } from './pitchTrainer.js';
@@ -45,6 +46,7 @@ const ICONS = {
   keyboard:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
   metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L6 22h12L12 2z"/><path d="M12 8v6"/><circle cx="12" cy="16" r="1.5"/></svg>',
   fretboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M4 6h16M4 10h16M4 14h16M4 18h16M9 2v20M15 2v20"/></svg>',
+  intervalorbit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>',
   tuner:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
   ear:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
   timing:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M4 20 2 22m18-2 2 2"/><path d="M8 2 6 4m10-2 2 2"/></svg>',
@@ -65,6 +67,7 @@ const TABS = [
   {id:'intervals', label:'Intervals',  group:'Drill'},
   {id:'sightreading', label:'Sight Read', group:'Drill'},
   {id:'fretboard', label:'Fretboard',  group:'Drill'},
+  {id:'intervalorbit', label:'Orbit', group:'Drill'},
   {id:'chordlab',  label:'Chord Lab',  group:'Drill'},
   {id:'tuner',     label:'Pitch',      group:'Drill'},
   {id:'ear',       label:'Ear',        group:'Drill'},
@@ -105,6 +108,7 @@ const TOOL_STOPPERS = {
   timing: () => { if (timingDrill.playing) stopTimingDrill(); },
   sightreading: () => stopSightReading(),
   chordlab: () => stopChordWorkout(),
+  intervalorbit: () => stopIntervalOrbit(),
   recorder: () => { if (recorder.playing) stopRecorder(); },
   songwriter: () => stopSongwriter(),
   exercises: () => stopExercises(),
@@ -120,6 +124,7 @@ const TOOL_INITS = {
   scaleref: initScaleRef,
   chords: () => { initChordRef(); initChordBuilder(); },
   fretboard: initFretboard,
+  intervalorbit: initIntervalOrbit,
   chordlab: initChordWorkout,
   tuner: () => { initTuner(); initPitchTrainer(); initPitchRunner(); },
   ear: initEarTrainer,

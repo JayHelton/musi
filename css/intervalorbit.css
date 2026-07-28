@@ -1,0 +1,105 @@
+/* Interval Orbit — Guitar Interval-Mapping Trainer */
+
+#sec-intervalorbit .quiz-main{max-width:720px}
+.io-layout .sidebar{gap:10px}
+.io-tuning-badge{
+  font-size:.78rem;color:var(--muted);margin:0 0 8px;
+  letter-spacing:.02em;font-variant-numeric:tabular-nums;
+}
+.io-controls{gap:12px}
+.io-full-label{
+  display:flex;flex-direction:column;gap:6px;width:100%;
+  color:var(--muted);font-size:.82rem;margin:8px 0;
+}
+.io-full-label input[type=text]{
+  width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:12px;
+  background:var(--bg2);color:var(--text);font:inherit;
+}
+.io-err{color:var(--err);font-size:.78rem;margin-top:4px}
+.io-custom-tuning-row{padding:0 4px 8px}
+
+.io-board-wrap{position:relative;margin:0 auto 8px}
+.io-shape-overlay{
+  position:absolute;inset:0;pointer-events:none;z-index:2;
+  overflow:visible;
+}
+.io-shape-line{
+  stroke:var(--accent);stroke-width:1.5;stroke-opacity:.45;
+  stroke-linecap:round;
+}
+
+.io-fretboard .io-cell{height:26px;font-size:.62rem;line-height:1.05;white-space:pre-line;text-align:center}
+.io-fretboard .io-hidden{opacity:.12;pointer-events:none;cursor:default}
+.io-fretboard .io-empty{cursor:pointer}
+.io-fretboard .io-empty:hover{background:var(--hover)}
+.io-fretboard .io-root{
+  background:var(--accent);color:#0a0a0a;font-weight:800;font-size:.75rem;
+  box-shadow:0 0 0 1px rgba(0,0,0,.25) inset;
+  z-index:1;
+}
+.io-fretboard .io-octave{color:var(--accent);font-weight:700}
+.io-fretboard .io-target{
+  background:var(--accent-dim);color:var(--accent);font-weight:800;font-size:.85rem;
+  outline:1px dashed var(--accent);
+}
+.io-fretboard .io-ghost{opacity:.55;color:var(--muted)}
+.io-fretboard .io-slot{
+  outline:1px dashed rgba(255,255,255,.22);cursor:pointer;background:rgba(255,255,255,.03);
+}
+.io-fretboard .io-chord-tone{
+  background:rgba(46,204,113,.14);color:var(--ok);font-weight:700;
+}
+.io-fretboard .io-boundary{
+  box-shadow:inset 0 2px 0 0 rgba(241,196,15,.55);
+}
+.io-boundary-string{color:var(--warn)!important}
+.io-boundary-note{
+  font-size:.78rem;color:var(--muted);line-height:1.4;margin:0 0 10px;
+  padding:8px 10px;border-left:3px solid rgba(241,196,15,.7);background:rgba(241,196,15,.06);
+  border-radius:0 10px 10px 0;
+}
+
+.io-card-title{
+  font-size:.72rem;text-transform:uppercase;letter-spacing:1px;
+  color:var(--muted);font-weight:700;margin-bottom:10px;
+}
+.io-improv-panel .io-improv-controls{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:8px;
+  font-size:.82rem;color:var(--muted);
+}
+.io-improv-panel label{display:flex;gap:6px;align-items:center}
+.io-improv-panel select,
+.io-improv-panel input[type=number]{
+  padding:6px 8px;border:1px solid var(--border);border-radius:10px;
+  background:var(--bg2);color:var(--text);font:inherit;
+}
+.io-improv-panel input[type=number]{width:64px}
+.io-prog-strip{
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  margin:10px 0;min-height:36px;
+}
+.io-prog-chord{
+  padding:6px 12px;border-radius:999px;background:var(--bg2);
+  border:1px solid var(--border);font-weight:700;font-size:.85rem;
+}
+.io-prog-chord.active{
+  background:var(--accent);color:#0a0a0a;border-color:var(--accent);
+}
+.io-prog-sep{color:var(--muted);font-size:.75rem}
+.io-improv-tip{font-size:.8rem;color:var(--muted);margin:0 0 10px}
+.io-improv-transport{display:flex;gap:8px}
+#io-play.playing{background:var(--err);color:#fff}
+
+.io-stats-card{margin-top:4px}
+.io-muted{color:var(--muted);font-size:.8rem}
+.io-hist-row,.io-weak-row{
+  padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);
+  font-size:.82rem;
+}
+.io-weak-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.io-weak-row b{color:var(--warn);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+@media (max-width:768px){
+  #sec-intervalorbit .quiz-main{max-width:100%}
+  .io-fretboard .io-cell{height:24px;font-size:.55rem}
+}

@@ -12,6 +12,9 @@ const ALIASES = {
   'sight-reading': 'sight',
   fretboard: 'fretboard',
   fret: 'fretboard',
+  orbit: 'orbit',
+  'interval-orbit': 'orbit',
+  intervalorbit: 'orbit',
   ear: 'ear',
   pitch: 'pitch',
   play: 'pitch',
@@ -39,6 +42,7 @@ const FLAG_MAP = {
   '--track': 'track',
   '--part': 'track',
   '--mode': 'mode',
+  '--stage': 'stage',
   '--octave': 'octave',
   '--tempo': 'tempo',
   '--start': 'start',
@@ -73,6 +77,7 @@ function printHelp() {
   print('  interval    ' + c.gray('Interval quiz         (--root, --diff easy|medium|hard)'));
   print('  sight       ' + c.gray('Sight reading quiz    (--clef Treble|Bass|both, --diff)'));
   print('  fretboard   ' + c.gray('Fretboard trainer     (--key, --tuning, --mode findInterval|interval|note)'));
+  print('  orbit       ' + c.gray('Interval Orbit        (--tuning, --mode find|identify|formula, --stage 1-7)'));
   print('  ear         ' + c.gray('Ear trainer           (--key, --mode easy|hard)'));
   print('  pitch       ' + c.gray('Play scales           (--root, --type, --octave, --tempo, --start, --count, --step)'));
   print('  reference   ' + c.gray('Scale reference/learn (--root, --type, --sweep 3|4|5|all)'));
