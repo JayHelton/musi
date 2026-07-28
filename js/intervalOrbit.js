@@ -1391,6 +1391,7 @@ function wireOptions() {
   bind('io-shape-lines', (e) => {
     io.showShapeLines = e.target.checked;
     saveSetting('io.showShapeLines', io.showShapeLines);
+    if (io.drill === 'find') newIoQuestion();
   });
   bind('io-show-boundary', (e) => {
     io.showBoundary = e.target.checked;
