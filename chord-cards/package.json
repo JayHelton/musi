@@ -1,0 +1,14 @@
+{
+  "name": "musi-chord-cards",
+  "private": true,
+  "type": "module",
+  "description": "Printable movable guitar chord reference cards for Musi",
+  "scripts": {
+    "validate": "node scripts/validate.mjs",
+    "generate": "node scripts/generate.mjs && node scripts/generate.mjs --deck=minimal && node scripts/export-yaml.mjs",
+    "build": "npm run validate && npm run generate"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

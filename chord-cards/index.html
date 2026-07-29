@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Musi — Movable Chord Reference Cards</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/cards.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Musi Chord Cards</h1>
+    <p class="lede">
+      Printable reference cards for <strong>closed, movable</strong> guitar shapes —
+      labeled by root and interval (R, 3, b7, 9…), not by key. Standard and drop tuning.
+    </p>
+  </header>
+
+  <div class="toolbar no-print">
+    <div class="field">
+      <label for="f-deck">Deck</label>
+      <select id="f-deck">
+        <option value="all">All cards</option>
+        <option value="minimal">Minimal (core)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-tuning">Tuning</label>
+      <select id="f-tuning">
+        <option value="all">All</option>
+        <option value="standard">Standard</option>
+        <option value="drop">Drop</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-family">Family</label>
+      <select id="f-family">
+        <option value="all">All</option>
+        <option value="core">Core</option>
+        <option value="sevenths">Sevenths</option>
+        <option value="extended">Extended</option>
+        <option value="altered">Altered</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-root">Root string</label>
+      <select id="f-root">
+        <option value="all">All</option>
+        <option value="6">6</option>
+        <option value="5">5</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-tag">Deck tag</label>
+      <select id="f-tag">
+        <option value="all">All</option>
+        <option value="minimal">Core</option>
+        <option value="expanded">Extended</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-voicing">Voicing</label>
+      <select id="f-voicing">
+        <option value="all">All</option>
+        <option value="Full">Full</option>
+        <option value="Shell">Shell</option>
+        <option value="Compact">Compact</option>
+        <option value="High-gain friendly">High-gain friendly</option>
+        <option value="Advanced stretch">Advanced stretch</option>
+      </select>
+    </div>
+    <div class="field" style="min-width:10rem;flex:1">
+      <label for="f-search">Search</label>
+      <input id="f-search" type="search" placeholder="maj9, m11, drop…" />
+    </div>
+    <div class="field">
+      <label>Intervals</label>
+      <label style="display:flex;gap:0.4rem;align-items:center;text-transform:none;letter-spacing:0;font-size:0.9rem;font-weight:500;color:var(--ink)">
+        <input id="f-intervals" type="checkbox" checked /> Show labels
+      </label>
+    </div>
+    <div class="field">
+      <label for="f-fingering">Fingering</label>
+      <label style="display:flex;gap:0.4rem;align-items:center;text-transform:none;letter-spacing:0;font-size:0.9rem;font-weight:500;color:var(--ink)">
+        <input id="f-fingering" type="checkbox" /> Show fingers
+      </label>
+    </div>
+    <div class="toolbar-actions">
+      <button type="button" class="secondary" id="btn-reset">Reset</button>
+      <button type="button" id="btn-print">Print / PDF</button>
+    </div>
+  </div>
+
+  <p class="status-bar" id="status"></p>
+  <p class="legend">
+    <strong>How to read:</strong> frets are relative to the root fret (<code>R</code>).
+    × = muted. No open-string shapes — move the whole grip anywhere (usually fret 1+).
+    Drop tuning uses a DADGBE geometry model that transfers to other drop-6 tunings.
+    Prebuilt printable files live in <code>dist/</code>.
+  </p>
+
+  <main id="card-grid" class="card-grid"></main>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
