@@ -9,6 +9,7 @@ import {
   openRootPicker, openScalePicker, openChordPicker, openTuningPicker,
   formatChordLabel, getQuickScales, cycleEnharmonicPref, getEnharmonicPref,
 } from './pickers.js';
+import { stepChord } from './chordReference.js';
 import { openSelectionSheet } from './selectionSheet.js';
 import {
   renderSetupSummary, initSubviewTabs, renderCompactProgress,
@@ -303,6 +304,61 @@ function setupChords() {
 
   refreshChordsSetup();
   subscribeContext(() => refreshChordsSetup());
+  // Keep Quality chip in sync when swipe / ← → / sidebar changes the chord.
+  document.addEventListener('musi:chordref-change', () => refreshChordsSetup());
+  wireChordQualityChipSwipe();
+}
+
+/** Horizontal swipe on the Quality setup chip cycles chords (tap still opens picker). */
+function wireChordQualityChipSwipe() {
+  const setup = document.getElementById('chords-setup');
+  if (!setup || setup.dataset.chordSwipeWired) return;
+  setup.dataset.chordSwipeWired = '1';
+
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+  let pointerId = null;
+  let swiped = false;
+
+  setup.addEventListener('pointerdown', (e) => {
+    const chip = e.target.closest?.('.setup-chip[data-key="chord"]');
+    if (!chip) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    tracking = true;
+    swiped = false;
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startY = e.clientY;
+    try { chip.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+
+  setup.addEventListener('pointerup', (e) => {
+    if (!tracking || e.pointerId !== pointerId) return;
+    const chip = setup.querySelector('.setup-chip[data-key="chord"]');
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    tracking = false;
+    pointerId = null;
+    try { chip?.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+    swiped = true;
+    stepChord(dx < 0 ? 1 : -1);
+  });
+
+  setup.addEventListener('pointercancel', () => {
+    tracking = false;
+    pointerId = null;
+  });
+
+  // Suppress the chip's click (picker) after a successful swipe.
+  setup.addEventListener('click', (e) => {
+    if (!swiped) return;
+    if (!e.target.closest?.('.setup-chip[data-key="chord"]')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    swiped = false;
+  }, true);
 }
 
 function refreshChordsSetup() {

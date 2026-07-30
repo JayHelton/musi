@@ -1,5 +1,5 @@
 import { parseNote, ROOTS, INTERVAL_LABELS, TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
-import { CHORDS, groupedChordEntries, getChordNotes, DARK_METAL_CHORDS } from './chords.js';
+import { CHORDS, groupedChordEntries, orderedChordNames, getChordNotes, DARK_METAL_CHORDS } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
@@ -38,7 +38,112 @@ let chFbEnd = 15;
 let chRootsOnly = false;
 let chContextSubscribed = false;
 let chFbWired = false;
+let chSwipeWired = false;
 let chOscillators = [];
+
+const CH_SWIPE_THRESH = 48;
+const CH_SWIPE_IGNORE = 'input, textarea, select, button, a, label, .ref-fb-scroll, .adv-options, .sl-scroll';
+
+function notifyChordRefChange() {
+  document.dispatchEvent(new CustomEvent('musi:chordref-change', {
+    detail: { root: chRoot, chord: chChord, tuning: chTuning },
+  }));
+}
+
+/** Select a chord quality by name; keeps sidebar, settings, and view in sync. */
+function selectChord(name, { animateDir = 0 } = {}) {
+  if (!CHORDS[name]) return false;
+  if (name === chChord) {
+    syncChordSelection();
+    return false;
+  }
+  chChord = name;
+  saveSetting('chordref.chord', chChord);
+  syncChordSelection();
+  const active = document.querySelector('#sl-chord-type .sl-item.active');
+  if (active?.scrollIntoView) {
+    try { active.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
+    catch (_) { active.scrollIntoView(); }
+  }
+  renderChordRef();
+  if (animateDir) {
+    const main = document.querySelector('#sec-chords .quiz-main');
+    if (main) {
+      main.classList.remove('chord-slide-left', 'chord-slide-right');
+      // Force reflow so repeated swipes retrigger the animation.
+      void main.offsetWidth;
+      main.classList.add(animateDir > 0 ? 'chord-slide-left' : 'chord-slide-right');
+    }
+  }
+  notifyChordRefChange();
+  return true;
+}
+
+/** Step ±1 through the grouped chord list (wraps). Swipe left → next. */
+function stepChord(dir) {
+  const names = orderedChordNames();
+  if (!names.length) return false;
+  let idx = names.indexOf(chChord);
+  if (idx < 0) idx = 0;
+  const next = names[(idx + dir + names.length * 10) % names.length];
+  return selectChord(next, { animateDir: dir });
+}
+
+function wireChordSwipe() {
+  const main = document.querySelector('#sec-chords .quiz-main');
+  if (!main || chSwipeWired) return;
+  chSwipeWired = true;
+  main.classList.add('chord-swipe-target');
+  main.setAttribute('aria-label', 'Chord reference. Swipe horizontally to browse chords.');
+
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+  let pointerId = null;
+
+  const clear = () => {
+    tracking = false;
+    pointerId = null;
+  };
+
+  main.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest?.(CH_SWIPE_IGNORE)) return;
+    tracking = true;
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startY = e.clientY;
+    try { main.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+
+  main.addEventListener('pointerup', (e) => {
+    if (!tracking || e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    try { main.releasePointerCapture(e.pointerId); } catch (_) {}
+    clear();
+    if (Math.abs(dx) < CH_SWIPE_THRESH) return;
+    // Prefer horizontal intent so vertical scrolling still works.
+    if (Math.abs(dx) < Math.abs(dy) * 1.15) return;
+    stepChord(dx < 0 ? 1 : -1);
+  });
+
+  main.addEventListener('pointercancel', (e) => {
+    try { main.releasePointerCapture(e.pointerId); } catch (_) {}
+    clear();
+  });
+
+  // Keyboard: ← / → while the Chords section is active (skip form fields).
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const sec = document.getElementById('sec-chords');
+    if (!sec?.classList.contains('active')) return;
+    const t = e.target;
+    if (t && (t.closest?.('input, textarea, select') || t.isContentEditable)) return;
+    e.preventDefault();
+    stepChord(e.key === 'ArrowRight' ? 1 : -1);
+  });
+}
 
 function initChordRef() {
   const rootScroll = document.getElementById('sl-chord-root');
@@ -66,6 +171,7 @@ function initChordRef() {
       saveSetting('chordref.root', chRoot);
       setContext({ root: chRoot }, 'chordref');
       renderChordRef();
+      notifyChordRefChange();
     };
     rootScroll.appendChild(div);
   });
@@ -73,6 +179,7 @@ function initChordRef() {
   buildChordList();
   buildTuningList();
   wireFretboardControls();
+  wireChordSwipe();
   renderChordRef();
 
   if (!chContextSubscribed) {
@@ -102,13 +209,7 @@ function buildChordList() {
     div.className = 'sl-item chord-sl-item' + (val === chChord ? ' active' : '');
     div.dataset.val = val;
     div.innerHTML = `<span>${label}</span>` + (dark ? '<span class="chord-dark-badge" title="Great for darker metal / deathcore">dark</span>' : '');
-    div.onclick = () => {
-      container.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
-      div.classList.add('active');
-      chChord = val;
-      saveSetting('chordref.chord', chChord);
-      renderChordRef();
-    };
+    div.onclick = () => { selectChord(val); };
     container.appendChild(div);
   });
 }
@@ -419,9 +520,14 @@ function renderChordInfo() {
   const formula = def.tones.map(t => t[2]).join(' – ');
 
   let html = `<div class="chord-ref-head">`;
+  html += `<div class="chord-ref-title-row">`;
+  html += `<button type="button" class="btn sm chord-ref-step" id="chord-ref-prev" aria-label="Previous chord">←</button>`;
   html += `<h3 class="chord-ref-name">${chRoot}${def.sym} <span class="chord-ref-full">${chChord}</span></h3>`;
+  html += `<button type="button" class="btn sm chord-ref-step" id="chord-ref-next" aria-label="Next chord">→</button>`;
+  html += `</div>`;
   html += `<button class="btn sm chord-ref-play" id="chord-ref-play" type="button">&#9654; Play</button>`;
   html += `</div>`;
+  html += `<div class="chord-ref-swipe-hint">Swipe sideways or use ← → to browse chords</div>`;
   html += `<div class="ref-info">Formula: <strong>${formula}</strong></div>`;
   html += `<div class="ref-info">Notes: <strong>${[...new Set(notes)].join(' · ')}</strong></div>`;
 
@@ -435,6 +541,10 @@ function renderChordInfo() {
   card.innerHTML = html;
   const playBtn = document.getElementById('chord-ref-play');
   if (playBtn) playBtn.onclick = playChordRef;
+  const prevBtn = document.getElementById('chord-ref-prev');
+  const nextBtn = document.getElementById('chord-ref-next');
+  if (prevBtn) prevBtn.onclick = () => stepChord(-1);
+  if (nextBtn) nextBtn.onclick = () => stepChord(1);
 }
 
 function playChordRef() {
@@ -568,4 +678,4 @@ function renderChordRef() {
   renderMovableChordCards({ chord: chChord, tuning: chTuning });
 }
 
-export { initChordRef, stopChordRef, chOscillators };
+export { initChordRef, stopChordRef, stepChord, selectChord, chOscillators };
