@@ -237,8 +237,44 @@ body.split-mode #ref-modes{display:none}
 .caged-strings .cps-fret{font-size:.58rem}
 .caged-strings .cps-tone{font-size:.58rem}
 
+/* Movable chord cards (Chords section) */
+.mcc-block{margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
+.mcc-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap}
+.mcc-head h3{margin:0 0 6px;color:var(--accent);font-size:1.05rem}
+.mcc-head p{margin:0;color:var(--muted);font-size:.85rem;line-height:1.55;max-width:74ch}
+.mcc-follow-hint{margin-top:8px;font-size:.8rem;color:var(--accent);font-weight:600;min-height:1.1em}
+.mcc-head-actions{display:flex;gap:8px;flex-shrink:0}
+.mcc-toolbar{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;margin-bottom:14px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,0.03)}
+.mcc-field{display:flex;flex-direction:column;gap:4px;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.mcc-field select,.mcc-field input{font:inherit;font-size:.85rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;min-width:7rem}
+.mcc-search-field{flex:1;min-width:10rem}
+.mcc-search-field input{width:100%}
+.mcc-check{display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--text);font-weight:600;padding-bottom:6px;cursor:pointer;user-select:none}
+.mcc-check input{accent-color:var(--accent)}
+.mcc-status{margin-left:auto;font-size:.78rem;color:var(--muted);padding-bottom:8px;font-weight:600}
+.mcc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.mcc-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.mcc-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.mcc-card-title{font-size:1rem;font-weight:700;color:var(--text);line-height:1.2}
+.mcc-sym{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;color:var(--accent);font-weight:600}
+.mcc-card-meta{margin-top:4px;font-size:.72rem;color:var(--muted)}
+.mcc-badges{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.mcc-badge{font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;font-weight:800;padding:3px 7px;border-radius:999px;background:var(--bg2);border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.mcc-badge-core{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.mcc-card-body{display:grid;grid-template-columns:156px 1fr;gap:12px;align-items:start}
+.mcc-diagram{display:flex;justify-content:center}
+.mcc-info{font-size:.78rem;line-height:1.4;color:var(--text);display:flex;flex-direction:column;gap:5px}
+.mcc-info p{margin:0}
+.mcc-k{display:inline-block;min-width:3.2rem;font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--muted)}
+.mcc-info code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.7rem;background:var(--bg2);border:1px solid var(--border);padding:1px 5px;border-radius:5px}
+.mcc-note{color:var(--muted)}
+.mcc-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:14px;font-size:.9rem}
+
 @media(max-width:600px){
   .caged-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .mcc-card-body{grid-template-columns:1fr}
+  .mcc-diagram{justify-content:flex-start}
+  .mcc-status{margin-left:0;width:100%}
 }
 
 @media(max-width:768px){

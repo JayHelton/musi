@@ -12,13 +12,22 @@ const STRING_COUNT = 6;
 /**
  * Build SVG fretboard for a shape (root-relative).
  * @param {import('../data/shapes.js').ChordShape} shape
- * @param {{ showIntervals?: boolean, showFingering?: boolean, width?: number, height?: number }} opts
+ * @param {{ showIntervals?: boolean, showFingering?: boolean, width?: number, height?: number, theme?: 'light'|'dark' }} opts
  */
 export function renderDiagramSVG(shape, opts = {}) {
   const showIntervals = opts.showIntervals !== false;
   const showFingering = !!opts.showFingering;
   const width = opts.width || 168;
   const height = opts.height || 148;
+  const dark = opts.theme === 'dark';
+  const ink = dark ? '#e8e6e1' : '#111';
+  const inkSoft = dark ? '#9a968c' : '#666';
+  const stringStroke = dark ? '#6a665c' : '#222';
+  const rootFill = dark ? 'var(--accent, #7dba4a)' : '#111';
+  const rootText = dark ? '#0a0a0a' : '#fff';
+  const noteFill = dark ? '#1a1a1a' : '#fff';
+  const noteStroke = dark ? '#e8e6e1' : '#111';
+  const noteText = dark ? '#e8e6e1' : '#111';
 
   const frets = shape.frets;
   const sounding = frets.filter((f) => f !== null && f !== undefined);
@@ -49,13 +58,13 @@ export function renderDiagramSVG(shape, opts = {}) {
   for (let f = start; f <= end; f++) {
     const y = yAt(f);
     const thick = f === start ? 2.4 : 1;
-    parts.push(`<line x1="${padL}" y1="${y}" x2="${padL + gridW}" y2="${y}" stroke="#111" stroke-width="${thick}"/>`);
+    parts.push(`<line x1="${padL}" y1="${y}" x2="${padL + gridW}" y2="${y}" stroke="${ink}" stroke-width="${thick}"/>`);
   }
 
   // String lines (vertical) — string 6 on the left
   for (let i = 0; i < STRING_COUNT; i++) {
     const x = xAt(i);
-    parts.push(`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT + gridH}" stroke="#222" stroke-width="${i === 0 ? 1.6 : 1}"/>`);
+    parts.push(`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT + gridH}" stroke="${stringStroke}" stroke-width="${i === 0 ? 1.6 : 1}"/>`);
   }
 
   // Mute / open markers above the diagram (open never used; only x)
@@ -63,7 +72,7 @@ export function renderDiagramSVG(shape, opts = {}) {
     const f = frets[i];
     const x = xAt(i);
     if (f === null || f === undefined) {
-      parts.push(`<text x="${x}" y="${padT - 4}" text-anchor="middle" font-size="11" font-family="ui-monospace,monospace" fill="#111" font-weight="700">×</text>`);
+      parts.push(`<text x="${x}" y="${padT - 4}" text-anchor="middle" font-size="11" font-family="ui-monospace,monospace" fill="${ink}" font-weight="700">×</text>`);
     }
   }
 
@@ -80,19 +89,19 @@ export function renderDiagramSVG(shape, opts = {}) {
     const label = shape.intervals[i];
     const isRoot = label === 'R';
     const r = isRoot ? 9 : 8;
-    parts.push(`<circle cx="${x}" cy="${y}" r="${r}" fill="${isRoot ? '#111' : '#fff'}" stroke="#111" stroke-width="1.5"/>`);
+    parts.push(`<circle cx="${x}" cy="${y}" r="${r}" fill="${isRoot ? rootFill : noteFill}" stroke="${isRoot ? rootFill : noteStroke}" stroke-width="1.5"/>`);
     if (showIntervals) {
-      const fill = isRoot ? '#fff' : '#111';
+      const fill = isRoot ? rootText : noteText;
       const fs = label && label.length > 2 ? 7.5 : 9;
       parts.push(`<text x="${x}" y="${y + 3}" text-anchor="middle" font-size="${fs}" font-family="IBM Plex Sans Condensed,Segoe UI,sans-serif" font-weight="700" fill="${fill}">${escapeXml(label)}</text>`);
     } else {
       // just a filled marker; roots already filled
       if (!isRoot) {
-        parts.push(`<circle cx="${x}" cy="${y}" r="3" fill="#111"/>`);
+        parts.push(`<circle cx="${x}" cy="${y}" r="3" fill="${ink}"/>`);
       }
     }
     if (showFingering && shape.fingering && shape.fingering[i] != null) {
-      parts.push(`<text x="${x}" y="${height - 3}" text-anchor="middle" font-size="9" font-family="ui-monospace,monospace" fill="#333">${escapeXml(String(shape.fingering[i]))}</text>`);
+      parts.push(`<text x="${x}" y="${height - 3}" text-anchor="middle" font-size="9" font-family="ui-monospace,monospace" fill="${inkSoft}">${escapeXml(String(shape.fingering[i]))}</text>`);
     }
   }
 
@@ -102,7 +111,7 @@ export function renderDiagramSVG(shape, opts = {}) {
     const yBot = yAt(f + 1);
     const y = (yTop + yBot) / 2;
     const lab = f === 0 ? 'R' : f > 0 ? `+${f}` : `${f}`;
-    parts.push(`<text x="${width - 4}" y="${y + 3}" text-anchor="end" font-size="8" font-family="ui-monospace,monospace" fill="#666">${lab}</text>`);
+    parts.push(`<text x="${width - 4}" y="${y + 3}" text-anchor="end" font-size="8" font-family="ui-monospace,monospace" fill="${inkSoft}">${lab}</text>`);
   }
 
   parts.push('</svg>');

@@ -5,6 +5,12 @@ are root-relative (labels like `R`, `3`, `b7`, `9`) — not a note-specific deck
 in every key. The goal is learning usable chord *families*, not memorizing every
 named chord everywhere.
 
+## In-app UI (Musi Chords section)
+
+The same shape library powers a **Movable Chord Cards** panel inside Musi’s
+Chords reference view (`#sec-chords`). It follows the selected chord/tuning when
+“Follow selection” is on, and links out to the full printable viewer / PDF.
+
 ## Deliverables
 
 | Path | What |
