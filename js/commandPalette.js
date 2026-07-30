@@ -1,7 +1,7 @@
 import { SCALES } from './scales.js';
 import { ROOTS } from './theory.js';
 import { setContext } from './musicalContext.js';
-import { shortScaleName } from './contextBar.js';
+import { shortScaleName } from './scales.js';
 
 // A Raycast/VS Code style global launcher. It indexes tools, scales, modes,
 // keys, chord shortcuts and quick actions so power users can jump anywhere with

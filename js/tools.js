@@ -1,0 +1,307 @@
+// Centralized tool / category metadata shared by Home, mobile hubs,
+// desktop dock, command palette, and hold-to-record relevance.
+
+export const CATEGORIES = [
+  {
+    id: 'train',
+    label: 'Train',
+    short: 'Train',
+    description: 'Drills and practice trainers',
+    icon: 'train',
+  },
+  {
+    id: 'reference',
+    label: 'Reference',
+    short: 'Reference',
+    description: 'Look up scales, chords, and tabs',
+    icon: 'reference',
+  },
+  {
+    id: 'create',
+    label: 'Create',
+    short: 'Create',
+    description: 'Record, write, and collect exercises',
+    icon: 'create',
+  },
+  {
+    id: 'tools',
+    label: 'Tools',
+    short: 'Tools',
+    description: 'Metronome, keyboard, drums, and timer',
+    icon: 'tools',
+  },
+];
+
+export const TOOLS = [
+  {
+    id: 'scales',
+    label: 'Scale Spelling',
+    short: 'Scales',
+    category: 'train',
+    description: 'Spell scales by root and type.',
+    title: 'Scale Spelling',
+    drill: true,
+    holdRecord: false,
+  },
+  {
+    id: 'intervals',
+    label: 'Intervals',
+    short: 'Intervals',
+    category: 'train',
+    description: 'Name intervals above any root.',
+    title: 'Intervals',
+    drill: true,
+    holdRecord: false,
+  },
+  {
+    id: 'sightreading',
+    label: 'Sight Reading',
+    short: 'Sight Read',
+    category: 'train',
+    description: 'Read pitches on the staff.',
+    title: 'Sight Reading',
+    drill: true,
+    holdRecord: false,
+  },
+  {
+    id: 'fretboard',
+    label: 'Fretboard',
+    short: 'Fretboard',
+    category: 'train',
+    description: 'Drill notes and intervals on guitar.',
+    title: 'Fretboard Trainer',
+    drill: true,
+    holdRecord: true,
+  },
+  {
+    id: 'intervalorbit',
+    label: 'Interval Orbit',
+    short: 'Orbit',
+    category: 'train',
+    description: 'Map intervals from any root — orbits, formulas, improv loops.',
+    title: 'Interval Orbit',
+    drill: true,
+    holdRecord: true,
+  },
+  {
+    id: 'chordlab',
+    label: 'Chord Workout',
+    short: 'Chord Lab',
+    category: 'train',
+    description: 'Practice chord shapes with guided prompts.',
+    title: 'Chord Workout',
+    drill: true,
+    holdRecord: true,
+  },
+  {
+    id: 'tuner',
+    label: 'Pitch',
+    short: 'Pitch',
+    category: 'train',
+    description: 'Tuner, reference tones, pitch trainer, and Pitch Runner.',
+    title: 'Pitch',
+    drill: true,
+    holdRecord: true,
+  },
+  {
+    id: 'ear',
+    label: 'Ear',
+    short: 'Ear',
+    category: 'train',
+    description: 'Identify pitches by ear.',
+    title: 'Ear Trainer',
+    drill: true,
+    holdRecord: false,
+  },
+  {
+    id: 'timing',
+    label: 'Timing',
+    short: 'Timing',
+    category: 'train',
+    description: 'Tap against a click track and tighten your pocket.',
+    title: 'Timing Drill',
+    drill: true,
+    holdRecord: false,
+  },
+  {
+    id: 'scaleref',
+    label: 'Scale Reference',
+    short: 'Scales',
+    category: 'reference',
+    description: 'Find scales, modes, and sweep patterns on the neck.',
+    title: 'Scale Reference',
+    holdRecord: false,
+  },
+  {
+    id: 'chords',
+    label: 'Chords',
+    short: 'Chords',
+    category: 'reference',
+    description: 'Map voicings, movable cards, builder, and CAGED.',
+    title: 'Chords',
+    holdRecord: false,
+  },
+  {
+    id: 'circle',
+    label: 'Circle of Fifths',
+    short: 'Circle',
+    category: 'reference',
+    description: 'Explore keys and relationships.',
+    title: 'Circle of Fifths',
+    holdRecord: false,
+  },
+  {
+    id: 'tabanalyzer',
+    label: 'Tab Analyzer',
+    short: 'Tabs',
+    category: 'reference',
+    description: 'Break down a tab: key, chords, scales, arpeggios.',
+    title: 'Tab Analyzer',
+    holdRecord: false,
+  },
+  {
+    id: 'recorder',
+    label: 'Recorder',
+    short: 'Record',
+    category: 'create',
+    description: 'Capture takes and inspect pitch.',
+    title: 'Recorder',
+    holdRecord: true,
+  },
+  {
+    id: 'songwriter',
+    label: 'Songwriting',
+    short: 'Lyrics',
+    category: 'create',
+    description: 'Write lyrics and attach recordings.',
+    title: 'Songwriting',
+    holdRecord: true,
+  },
+  {
+    id: 'notes',
+    label: 'Notes',
+    short: 'Notes',
+    category: 'create',
+    description: 'Jot down practice notes and ideas.',
+    title: 'Notes',
+    holdRecord: false,
+  },
+  {
+    id: 'exercises',
+    label: 'Exercises',
+    short: 'Exercises',
+    category: 'create',
+    description: 'Upload tabs, audio, videos and lesson links.',
+    title: 'Exercises',
+    holdRecord: false,
+  },
+  {
+    id: 'keyboard',
+    label: 'Keyboard',
+    short: 'Keys',
+    category: 'tools',
+    description: 'Play notes and hold drones.',
+    title: 'Keyboard',
+    holdRecord: false,
+  },
+  {
+    id: 'metronome',
+    label: 'Metronome',
+    short: 'Tempo',
+    category: 'tools',
+    description: 'Tempo, meter, tap tempo, and tempo phases.',
+    title: 'Metronome',
+    holdRecord: false,
+  },
+  {
+    id: 'practice',
+    label: 'Practice Timer',
+    short: 'Timer',
+    category: 'tools',
+    description: 'Countdown timer with a metronome tempo plan.',
+    title: 'Practice Timer',
+    holdRecord: false,
+  },
+  {
+    id: 'drums',
+    label: 'Drums',
+    short: 'Drums',
+    category: 'tools',
+    description: 'Beats, fills, drum machine and fill generator.',
+    title: 'Drums',
+    holdRecord: false,
+  },
+];
+
+export const CATEGORY_ICONS = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',
+  train: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  reference: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
+  create: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
+  tools: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
+};
+
+export const TOOL_ICONS = {
+  scales: CATEGORY_ICONS.train,
+  intervals: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M4 20V8m16 12V4M8 20v-6m4 6V6m4 6v8"/></svg>',
+  sightreading: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 10h18M3 14h18M3 18h18"/><circle cx="8" cy="15" r="2.4" fill="currentColor" stroke="none"/><path d="M10.4 15V7"/></svg>',
+  scaleref: CATEGORY_ICONS.reference,
+  chords: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg>',
+  circle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>',
+  keyboard: CATEGORY_ICONS.tools,
+  metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L6 22h12L12 2z"/><path d="M12 8v6"/><circle cx="12" cy="16" r="1.5"/></svg>',
+  fretboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M4 6h16M4 10h16M4 14h16M4 18h16M9 2v20M15 2v20"/></svg>',
+  intervalorbit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>',
+  tuner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
+  ear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
+  timing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M4 20 2 22m18-2 2 2"/><path d="M8 2 6 4m10-2 2 2"/></svg>',
+  chordlab: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/><circle cx="17" cy="16" r="2" fill="currentColor" stroke="none"/></svg>',
+  recorder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
+  songwriter: CATEGORY_ICONS.create,
+  exercises: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>',
+  notes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16v13l-5 5H4z"/><path d="M20 16h-5v5"/><path d="M8 8h8M8 12h6"/></svg>',
+  practice: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="8"/><path d="M12 14V9.5"/><path d="M9 2h6"/><path d="M18.5 6.5 20 5"/></svg>',
+  drums: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="9" ry="3.5"/><path d="M3 8v5c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V8"/><path d="M7 16.5 4 22M17 16.5 20 22M12 17v5"/></svg>',
+  tabanalyzer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M7 13h6M7 17h10"/><circle cx="16.5" cy="6" r="1.2" fill="currentColor" stroke="none"/></svg>',
+};
+
+export function getTool(id) {
+  return TOOLS.find(t => t.id === id) || null;
+}
+
+export function getCategory(id) {
+  return CATEGORIES.find(c => c.id === id) || null;
+}
+
+export function toolsInCategory(categoryId) {
+  return TOOLS.filter(t => t.category === categoryId);
+}
+
+export function isHoldRecordRelevant(toolId) {
+  const tool = getTool(toolId);
+  return !!(tool && tool.holdRecord);
+}
+
+/** Tabs shape used by legacy call sites (command palette, split view). */
+export function asTabs() {
+  return TOOLS.map(t => ({
+    id: t.id,
+    label: t.short,
+    group: categoryLabel(t.category),
+    category: t.category,
+  }));
+}
+
+function categoryLabel(id) {
+  const c = getCategory(id);
+  return c ? c.label : id;
+}
+
+/** Map old Drill/Reference/Tools group names onto new category ids. */
+export function legacyGroupToCategory(group) {
+  if (group === 'Drill') return 'train';
+  if (group === 'Reference') return 'reference';
+  if (group === 'Create') return 'create';
+  if (group === 'Tools') return 'tools';
+  return group;
+}

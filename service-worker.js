@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v93-movable-chord-cards-ui";
+const CACHE_VERSION = "v94-mobile-ux-restructure";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -30,6 +30,9 @@ const PRECACHE_URLS = [
   "css/practice.css",
   "css/tabanalyzer.css",
   "css/intervalorbit.css",
+  "css/selection-sheet.css",
+  "css/ux-shell.css",
+  "css/ux-chords-orbit.css",
   "chord-cards/",
   "chord-cards/index.html",
   "chord-cards/css/cards.css",
@@ -39,6 +42,12 @@ const PRECACHE_URLS = [
   "chord-cards/data/shapes.js",
   "js/movableChordCards.js",
   "js/main.js",
+  "js/tools.js",
+  "js/recents.js",
+  "js/selectionSheet.js",
+  "js/uxPrimitives.js",
+  "js/pickers.js",
+  "js/screenUx.js",
   "js/attachments.js",
   "js/audio.js",
   "js/musicalContext.js",

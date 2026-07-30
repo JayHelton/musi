@@ -1,19 +1,11 @@
 import { getContext, setContext, subscribeContext, TEMPO_MIN, TEMPO_MAX, ITERATION_MODES, getIterationModeLabel } from './musicalContext.js';
-import { ROOTS } from './theory.js';
-import { groupedScaleEntries } from './scales.js';
+import { shortScaleName } from './scales.js';
+import { openRootPicker, openScalePicker } from './pickers.js';
 
 const SOURCE = 'context-bar';
 const MODE_ITEMS = ITERATION_MODES.map(m => ({ val: m, label: getIterationModeLabel(m) }));
 
-export function shortScaleName(name) {
-  if (!name) return '';
-  return name
-    .replace('Major (Ionian)', 'Major')
-    .replace('Natural Minor (Aeolian)', 'Minor')
-    .replace('Melodic Minor (Asc)', 'Melodic Minor')
-    .replace(/\s*\(.*?\)\s*/g, ' ')
-    .trim();
-}
+export { shortScaleName };
 
 let pillText = null;
 let sheet = null;
@@ -44,8 +36,7 @@ function buildSegmented(container, items, activeVal, onPick) {
 }
 
 function markActive(container, val) {
-  container.querySelectorAll('.seg-btn,option').forEach(el => {
-    if (el.tagName === 'OPTION') return;
+  container.querySelectorAll('.seg-btn').forEach(el => {
     el.classList.toggle('active', el.dataset.val === val);
   });
 }
@@ -61,6 +52,7 @@ function buildEditor() {
   sheet = document.createElement('div');
   sheet.className = 'context-sheet';
   sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
   sheet.setAttribute('aria-label', 'Musical context');
 
   sheet.innerHTML = `
@@ -68,7 +60,10 @@ function buildEditor() {
     <div class="context-sheet-title">Musical Context</div>
     <div class="context-field">
       <div class="context-field-label">Key</div>
-      <div class="seg-row" id="ctx-root"></div>
+      <button type="button" class="setup-chip context-pick-btn" id="ctx-root-btn" aria-label="Change root">
+        <span class="setup-chip-value" id="ctx-root-val">C</span>
+        <span class="setup-chip-hint">Change</span>
+      </button>
       <div class="context-mode-row">
         <div class="context-field-label context-mode-label">Key progression</div>
         <div class="seg-row compact" id="ctx-root-mode"></div>
@@ -76,8 +71,11 @@ function buildEditor() {
     </div>
     <div class="context-field">
       <div class="context-field-label">Mode / Scale</div>
-      <div class="seg-row" id="ctx-scale"></div>
-      <select class="context-scale-select" id="ctx-scale-select" aria-label="All scales"></select>
+      <button type="button" class="setup-chip context-pick-btn" id="ctx-scale-btn" aria-label="Change scale">
+        <span class="setup-chip-value" id="ctx-scale-val">Major</span>
+        <span class="setup-chip-hint">Change</span>
+      </button>
+      <div class="quick-scale-row" id="ctx-quick-scales" aria-label="Quick scales"></div>
       <div class="context-mode-row">
         <div class="context-field-label context-mode-label">Scale progression</div>
         <div class="seg-row compact" id="ctx-scale-mode"></div>
@@ -101,62 +99,65 @@ function buildEditor() {
   overlay.onclick = closeEditor;
   sheet.querySelector('#ctx-done').onclick = closeEditor;
 
-  const rootRow = sheet.querySelector('#ctx-root');
   const rootModeRow = sheet.querySelector('#ctx-root-mode');
-  const scaleRow = sheet.querySelector('#ctx-scale');
   const scaleModeRow = sheet.querySelector('#ctx-scale-mode');
-  const scaleSelect = sheet.querySelector('#ctx-scale-select');
   const tempoInput = sheet.querySelector('#ctx-tempo');
 
-  buildSegmented(rootRow, ROOTS.map(r => ({ val: r, label: r })), getContext().root, val => {
-    setContext({ root: val }, SOURCE);
-  });
   buildSegmented(rootModeRow, MODE_ITEMS, getContext().rootMode, val => {
     setContext({ rootMode: val }, SOURCE);
-  });
-
-  const allScales = groupedScaleEntries(false);
-  const commonScales = allScales
-    .filter(e => e.type !== 'label')
-    .slice(0, 8)
-    .map(e => ({ val: e.val, label: shortScaleName(e.label) }));
-  buildSegmented(scaleRow, commonScales, getContext().scale, val => {
-    setContext({ scale: val }, SOURCE);
   });
   buildSegmented(scaleModeRow, MODE_ITEMS, getContext().scaleMode, val => {
     setContext({ scaleMode: val }, SOURCE);
   });
 
-  allScales.forEach(({ type, val, label }) => {
-    if (type === 'label') {
-      const og = document.createElement('optgroup');
-      og.label = label;
-      scaleSelect.appendChild(og);
-      return;
-    }
-    const opt = document.createElement('option');
-    opt.value = val;
-    opt.textContent = label;
-    const target = scaleSelect.lastElementChild;
-    if (target && target.tagName === 'OPTGROUP') target.appendChild(opt);
-    else scaleSelect.appendChild(opt);
-  });
-  scaleSelect.value = getContext().scale;
-  scaleSelect.onchange = () => setContext({ scale: scaleSelect.value }, SOURCE);
+  sheet.querySelector('#ctx-root-btn').onclick = async () => {
+    await openRootPicker({ value: getContext().root, source: SOURCE });
+  };
+  sheet.querySelector('#ctx-scale-btn').onclick = async () => {
+    await openScalePicker({ value: getContext().scale, source: SOURCE });
+  };
 
   tempoInput.value = getContext().tempo;
   tempoInput.onchange = () => setContext({ tempo: Number(tempoInput.value) }, SOURCE);
   sheet.querySelector('#ctx-tempo-down').onclick = () => setContext({ tempo: getContext().tempo - 1 }, SOURCE);
   sheet.querySelector('#ctx-tempo-up').onclick = () => setContext({ tempo: getContext().tempo + 1 }, SOURCE);
 
-  // Keep the editor controls in sync when context changes from anywhere.
+  syncEditor(getContext());
+  renderQuickScales();
+
   subscribeContext(c => {
-    markActive(rootRow, c.root);
+    syncEditor(c);
     markActive(rootModeRow, c.rootMode);
-    markActive(scaleRow, c.scale);
     markActive(scaleModeRow, c.scaleMode);
-    if (scaleSelect.value !== c.scale) scaleSelect.value = c.scale;
-    if (Number(tempoInput.value) !== c.tempo) tempoInput.value = c.tempo;
+    renderQuickScales();
+  });
+}
+
+function syncEditor(c) {
+  if (!sheet) return;
+  const rootVal = sheet.querySelector('#ctx-root-val');
+  const scaleVal = sheet.querySelector('#ctx-scale-val');
+  const tempoInput = sheet.querySelector('#ctx-tempo');
+  if (rootVal) rootVal.textContent = c.root;
+  if (scaleVal) scaleVal.textContent = shortScaleName(c.scale);
+  if (tempoInput && Number(tempoInput.value) !== c.tempo) tempoInput.value = c.tempo;
+}
+
+function renderQuickScales() {
+  const row = sheet?.querySelector('#ctx-quick-scales');
+  if (!row) return;
+  import('./pickers.js').then(({ getQuickScales }) => {
+    const c = getContext();
+    const scales = getQuickScales(5);
+    row.innerHTML = '';
+    scales.forEach(name => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-scale-chip' + (name === c.scale ? ' active' : '');
+      btn.textContent = shortScaleName(name);
+      btn.onclick = () => setContext({ scale: name }, SOURCE);
+      row.appendChild(btn);
+    });
   });
 }
 

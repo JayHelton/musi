@@ -13,10 +13,6 @@ import { initPitchRunner, stopPitchRunner, runner } from './pitchRunner.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
 import { initTimingDrill, stopTimingDrill, timingDrill } from './timingDrill.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
-// Backing Track feature is intentionally disabled in the UI for now.
-// import { initBacking, stopBacking, backing } from './backingTrack.js';
-// Riff Generator feature is intentionally disabled in the UI for now.
-// import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initMovableChordCards } from './movableChordCards.js';
@@ -34,72 +30,18 @@ import { getSetting, saveSetting } from './persistence.js';
 import { initContextBar } from './contextBar.js';
 import { initCommandPalette } from './commandPalette.js';
 import { initProgressHeaders } from './progressHeader.js';
-import { initHome } from './home.js';
+import { initHome, refreshHome, renderHub } from './home.js';
 import { initStats, renderStats } from './stats.js';
+import {
+  TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
+  asTabs, getTool, isHoldRecordRelevant,
+} from './tools.js';
+import { initScreenUx } from './screenUx.js';
 
-const ICONS = {
-  scales:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
-  intervals: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M4 20V8m16 12V4M8 20v-6m4 6V6m4 6v8"/></svg>',
-  sightreading: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 10h18M3 14h18M3 18h18"/><circle cx="8" cy="15" r="2.4" fill="currentColor" stroke="none"/><path d="M10.4 15V7"/></svg>',
-  scaleref:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
-  chords:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg>',
-  circle:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>',
-  keyboard:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
-  metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L6 22h12L12 2z"/><path d="M12 8v6"/><circle cx="12" cy="16" r="1.5"/></svg>',
-  fretboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M4 6h16M4 10h16M4 14h16M4 18h16M9 2v20M15 2v20"/></svg>',
-  intervalorbit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>',
-  tuner:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
-  ear:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
-  timing:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M4 20 2 22m18-2 2 2"/><path d="M8 2 6 4m10-2 2 2"/></svg>',
-  chordlab:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/><circle cx="17" cy="16" r="2" fill="currentColor" stroke="none"/></svg>',
-  // backing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>',
-  // riff:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l10-10a2.83 2.83 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
-  recorder:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
-  songwriter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
-  exercises: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>',
-  notes:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16v13l-5 5H4z"/><path d="M20 16h-5v5"/><path d="M8 8h8M8 12h6"/></svg>',
-  practice:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="8"/><path d="M12 14V9.5"/><path d="M9 2h6"/><path d="M18.5 6.5 20 5"/></svg>',
-  drums:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="9" ry="3.5"/><path d="M3 8v5c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V8"/><path d="M7 16.5 4 22M17 16.5 20 22M12 17v5"/></svg>',
-  tabanalyzer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M7 13h6M7 17h10"/><circle cx="16.5" cy="6" r="1.2" fill="currentColor" stroke="none"/></svg>',
-};
-
-const TABS = [
-  {id:'scales',    label:'Scales',     group:'Drill'},
-  {id:'intervals', label:'Intervals',  group:'Drill'},
-  {id:'sightreading', label:'Sight Read', group:'Drill'},
-  {id:'fretboard', label:'Fretboard',  group:'Drill'},
-  {id:'intervalorbit', label:'Orbit', group:'Drill'},
-  {id:'chordlab',  label:'Chord Lab',  group:'Drill'},
-  {id:'tuner',     label:'Pitch',      group:'Drill'},
-  {id:'ear',       label:'Ear',        group:'Drill'},
-  {id:'timing',    label:'Timing',     group:'Drill'},
-  {id:'scaleref',  label:'Scales',     group:'Reference'},
-  {id:'chords',    label:'Chords',     group:'Reference'},
-  {id:'circle',    label:'Circle',     group:'Reference'},
-  {id:'keyboard',  label:'Keys',       group:'Tools'},
-  {id:'metronome', label:'Tempo',      group:'Tools'},
-  // {id:'backing',   label:'Backing',    group:'Create'},
-  // {id:'riff',      label:'Riff',       group:'Create'},
-  {id:'recorder',  label:'Record',     group:'Tools'},
-  {id:'songwriter', label:'Lyrics',    group:'Tools'},
-  {id:'notes',     label:'Notes',      group:'Tools'},
-  {id:'practice',  label:'Timer',      group:'Tools'},
-  {id:'exercises', label:'Exercises',  group:'Tools'},
-  {id:'drums',     label:'Drums',      group:'Tools'},
-  {id:'tabanalyzer', label:'Tab Analyzer', group:'Tools'},
-];
-
-const GROUPS = ['Drill','Reference','Tools'];
-const GROUP_ICONS = {
-  Drill:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
-  Reference: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
-  Tools:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 4v10m4-10v10m4-10v10m4-10v10"/></svg>',
-};
-
+const ICONS = TOOL_ICONS;
+const TABS = asTabs();
 const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
 
-// Per-tool audio stoppers and initializers, shared by single-view navigation
-// and split-screen so behaviour stays consistent.
 const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
@@ -150,6 +92,7 @@ function initTool(id) {
 }
 
 let splitSecondaryId = null;
+let currentNavId = 'home';
 
 function clearSplitPane() {
   if (!splitSecondaryId) return;
@@ -160,9 +103,38 @@ function clearSplitPane() {
   updateSplitUI();
 }
 
+function isHubId(id) {
+  return typeof id === 'string' && id.startsWith('hub-');
+}
+
+function hubCategory(id) {
+  return id.replace(/^hub-/, '');
+}
+
+function updateHoldRecordVisibility(id) {
+  const relevant = isHoldRecordRelevant(id);
+  document.body.classList.toggle('hold-rec-relevant', relevant);
+}
+
+function updateHeaderChrome(id) {
+  const isTool = id && id !== 'home' && !isHubId(id);
+  document.body.classList.toggle('tool-screen', !!isTool);
+  const tool = getTool(id);
+  document.querySelectorAll('.dock-cat-btn').forEach(btn => {
+    const cat = btn.dataset.cat;
+    let active = false;
+    if (id === 'home') active = cat === 'home';
+    else if (isHubId(id)) active = cat === hubCategory(id);
+    else if (tool) active = cat === tool.category;
+    btn.classList.toggle('active', active);
+  });
+}
+
+function showHub(categoryId, skipHash) {
+  showSection('hub-' + categoryId, skipHash);
+}
+
 function showSection(id, skipHash) {
-  // Leaving the previous view collapses any split pane; audio for it is stopped
-  // by stopOtherTools below.
   if (splitSecondaryId) {
     const sec = document.getElementById('sec-' + splitSecondaryId);
     if (sec) sec.classList.remove('active', 'split-secondary');
@@ -172,30 +144,71 @@ function showSection(id, skipHash) {
 
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.dock-group-trigger').forEach(t => t.classList.remove('active'));
-  const sec = document.getElementById('sec-'+id);
+
+  const sec = document.getElementById('sec-' + id);
+  if (!sec) return;
   sec.classList.add('active');
-  document.querySelectorAll(`.dock-item[data-s="${id}"],.dock-menu-item[data-s="${id}"]`).forEach(el => el.classList.add('active'));
-  const tab = TABS.find(t => t.id === id);
-  if (tab) {
-    const groupTrigger = document.querySelector(`.dock-group-trigger[data-group="${tab.group}"]`);
-    if (groupTrigger) groupTrigger.classList.add('active');
+  currentNavId = id;
+
+  document.querySelectorAll(`.dock-item[data-s="${id}"]`).forEach(el => el.classList.add('active'));
+
+  if (!skipHash) {
+    if (id === 'home') history.replaceState(null, '', location.pathname + location.search);
+    else history.replaceState(null, '', '#' + id);
   }
 
-  if (!skipHash) history.replaceState(null, '', '#' + id);
+  if (isHubId(id)) {
+    const cat = hubCategory(id);
+    saveSetting('nav.lastCategory', cat);
+    renderHub(cat, sec, {
+      showSection,
+      onFavorite: () => { refreshHome(); renderHub(cat, sec, { showSection, onFavorite: refreshHome }); },
+    });
+    stopOtherTools([]);
+    updateHoldRecordVisibility(null);
+    updateHeaderChrome(id);
+    updateSplitUI();
+    return;
+  }
 
-  if (id === 'home') renderStats();
+  if (id === 'home') {
+    renderStats();
+    refreshHome();
+    stopOtherTools([]);
+    updateHoldRecordVisibility(null);
+    updateHeaderChrome(id);
+    updateSplitUI();
+    return;
+  }
+
+  const tool = getTool(id);
+  if (tool) {
+    saveSetting('nav.lastTool', id);
+    saveSetting('nav.lastCategory', tool.category);
+  }
+
+  // Wire back button
+  const back = sec.querySelector('.tool-back');
+  if (back && tool) {
+    back.onclick = () => showHub(tool.category);
+    back.textContent = `← ${CATEGORIES.find(c => c.id === tool.category)?.label || 'Back'}`;
+  }
 
   stopOtherTools([id]);
   initTool(id);
+  updateHoldRecordVisibility(id);
+  updateHeaderChrome(id);
   updateSplitUI();
+  refreshHome();
 }
 window.showSection = showSection;
+window.showHub = showHub;
 
 function enterSplit(secondaryId) {
   const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
   if (isMobileSwipeNav()) return;
   if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || secondaryId === 'home') return;
+  if (isHubId(primaryId) || isHubId(secondaryId)) return;
   if (!TABS.some(t => t.id === secondaryId)) return;
   splitSecondaryId = secondaryId;
   document.body.classList.add('split-mode');
@@ -268,14 +281,15 @@ function updateSplitUI() {
       if (sec) sec.classList.remove('active', 'split-secondary');
       splitSecondaryId = null;
       document.body.classList.remove('split-mode');
-      stopOtherTools(primaryId ? [primaryId] : []);
+      stopOtherTools(primaryId && !isHubId(primaryId) && primaryId !== 'home' ? [primaryId] : []);
     }
     closeSplitMenu();
     trigger.style.display = 'none';
     trigger.classList.remove('active');
     return;
   }
-  trigger.style.display = currentPrimaryId() === 'home' ? 'none' : '';
+  const primary = currentPrimaryId();
+  trigger.style.display = (primary === 'home' || isHubId(primary)) ? 'none' : '';
   trigger.classList.toggle('active', !!splitSecondaryId);
 }
 
@@ -286,7 +300,6 @@ function initVolumeControl() {
   const valueLabel = document.getElementById('volume-value');
   if (!trigger || !popover || !slider) return;
 
-  // Stored as a 0..1.5 gain fraction; the slider works in whole percent.
   const saved = Number(getSetting('global.volume', getMasterVolume()));
   const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
   setMasterVolume(initial);
@@ -351,20 +364,14 @@ function initSplitView() {
   updateSplitUI();
 }
 
-function closeAllGroupMenus() {
-  document.querySelectorAll('.dock-group').forEach(g => g.classList.remove('open'));
-  document.querySelectorAll('.dock-group-menu').forEach(m => m.classList.remove('open'));
-  const overlay = document.getElementById('dock-overlay');
-  if (overlay) overlay.classList.remove('visible');
-}
-
 function isMobileSwipeNav() {
   return window.matchMedia(MOBILE_SWIPE_QUERY).matches;
 }
 
-function init() {
+function initNav() {
   const nav = document.getElementById('nav');
 
+  // Desktop: flat tool list
   TABS.forEach(t => {
     const item = document.createElement('button');
     item.className = 'dock-item dock-desktop';
@@ -374,91 +381,48 @@ function init() {
     nav.appendChild(item);
   });
 
-  const mobileWrap = document.createElement('div');
-  mobileWrap.className = 'dock-mobile';
-
-  const overlay = document.createElement('div');
-  overlay.id = 'dock-overlay';
-  overlay.className = 'dock-overlay';
-  overlay.onclick = closeAllGroupMenus;
-  document.body.appendChild(overlay);
-
-  GROUPS.forEach(groupName => {
-    const groupTabs = TABS.filter(t => t.group === groupName);
-    const group = document.createElement('div');
-    group.className = 'dock-group';
-
-    const trigger = document.createElement('button');
-    trigger.className = 'dock-group-trigger';
-    trigger.dataset.group = groupName;
-    trigger.innerHTML = `<span class="dock-icon">${GROUP_ICONS[groupName]}</span><span class="dock-label">${groupName}</span>`;
-
-    let menu = null;
-    if (groupTabs.length > 1) {
-      menu = document.createElement('div');
-      menu.className = 'dock-group-menu';
-      groupTabs.forEach(t => {
-        const btn = document.createElement('button');
-        btn.className = 'dock-menu-item';
-        btn.dataset.s = t.id;
-        btn.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span>${t.label}</span>`;
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          showSection(t.id);
-          closeAllGroupMenus();
-          mobileWrap.querySelectorAll('.dock-group-trigger').forEach(tr => tr.classList.remove('active'));
-          trigger.classList.add('active');
-          mobileWrap.querySelectorAll('.dock-menu-item').forEach(mi => mi.classList.remove('active'));
-          btn.classList.add('active');
-        };
-        menu.appendChild(btn);
-      });
-      document.body.appendChild(menu);
-    }
-
-    trigger.onclick = (e) => {
-      e.stopPropagation();
-      if (groupTabs.length === 1) {
-        showSection(groupTabs[0].id);
-        closeAllGroupMenus();
-        return;
-      }
-      const isOpen = group.classList.contains('open');
-      closeAllGroupMenus();
-      if (!isOpen) {
-        group.classList.add('open');
-        overlay.classList.add('visible');
-        if (menu) {
-          const rect = trigger.getBoundingClientRect();
-          menu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-          menu.classList.add('open');
-          // Clamp horizontally so the menu (centered via translateX(-50%))
-          // never spills past the viewport edges and clips its contents.
-          const margin = 8;
-          const half = menu.offsetWidth / 2;
-          const minCenter = margin + half;
-          const maxCenter = window.innerWidth - margin - half;
-          let center = rect.left + rect.width / 2;
-          if (minCenter <= maxCenter) {
-            center = Math.min(Math.max(center, minCenter), maxCenter);
-          } else {
-            center = window.innerWidth / 2;
-          }
-          menu.style.left = center + 'px';
+  // Mobile: 5 persistent destinations
+  const mobileCats = document.createElement('div');
+  mobileCats.className = 'dock-mobile-cats';
+  const destinations = [
+    { id: 'home', label: 'Home', icon: CATEGORY_ICONS.home, action: () => showSection('home') },
+    ...CATEGORIES.map(cat => ({
+      id: cat.id,
+      label: cat.short,
+      icon: CATEGORY_ICONS[cat.id],
+      action: () => {
+        // If already on a tool in this category, go to hub; else hub
+        const tool = getTool(currentNavId);
+        if (currentNavId === 'hub-' + cat.id) return;
+        if (tool && tool.category === cat.id && currentNavId === tool.id) {
+          showHub(cat.id);
+        } else {
+          showHub(cat.id);
         }
-      }
-    };
-    group.appendChild(trigger);
-    mobileWrap.appendChild(group);
+      },
+    })),
+  ];
+  destinations.forEach(dest => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dock-cat-btn';
+    btn.dataset.cat = dest.id;
+    btn.innerHTML = `<span class="dock-icon">${dest.icon}</span><span class="dock-label">${dest.label}</span>`;
+    btn.onclick = dest.action;
+    mobileCats.appendChild(btn);
   });
+  nav.appendChild(mobileCats);
+}
 
-  nav.appendChild(mobileWrap);
+function init() {
+  initNav();
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
+    if (!container) return;
     const validValues = items.filter(item => item.type !== 'label').map(item => item.val);
     const activeVal = getSetting(containerId, defaultVal, validValues);
-    items.forEach(({type, val, label}) => {
+    items.forEach(({ type, val, label }) => {
       if (type === 'label') {
         const group = document.createElement('div');
         group.className = 'sl-group-label';
@@ -466,7 +430,6 @@ function init() {
         container.appendChild(group);
         return;
       }
-
       const div = document.createElement('div');
       div.className = 'sl-item' + (val === activeVal ? ' active' : '');
       div.dataset.val = val;
@@ -476,10 +439,8 @@ function init() {
     });
   }
 
-  // Intervals inherits key/scale from the shared musical context; Scale
-  // Spelling now manages its own mode/root question sequence.
   buildList('sl-int-diff',
-    [{val:'easy',label:'Diatonic'},{val:'medium',label:'Extended'},{val:'hard',label:'Chromatic'}],
+    [{ val: 'easy', label: 'Diatonic' }, { val: 'medium', label: 'Extended' }, { val: 'hard', label: 'Chromatic' }],
     'easy');
 
   const activeSection = () => document.querySelector('.section.active')?.id;
@@ -499,7 +460,7 @@ function init() {
   });
 
   document.querySelectorAll('.wave-btn').forEach(btn => {
-    S.kb.wave = getSetting('kb.wave', S.kb.wave, ['sine','triangle','sawtooth','square']);
+    S.kb.wave = getSetting('kb.wave', S.kb.wave, ['sine', 'triangle', 'sawtooth', 'square']);
     btn.classList.toggle('active', btn.dataset.w === S.kb.wave);
     btn.onclick = () => {
       document.querySelectorAll('.wave-btn').forEach(b => b.classList.remove('active'));
@@ -510,23 +471,25 @@ function init() {
   });
 
   const kbVol = document.getElementById('kb-vol');
-  const savedKbVol = Number(getSetting('kb.vol', Number(kbVol.value) / 100));
-  if (!Number.isNaN(savedKbVol)) {
-    S.kb.vol = Math.max(0, Math.min(1, savedKbVol));
-    kbVol.value = Math.round(S.kb.vol * 100);
+  if (kbVol) {
+    const savedKbVol = Number(getSetting('kb.vol', Number(kbVol.value) / 100));
+    if (!Number.isNaN(savedKbVol)) {
+      S.kb.vol = Math.max(0, Math.min(1, savedKbVol));
+      kbVol.value = Math.round(S.kb.vol * 100);
+    }
+    kbVol.oninput = (e) => {
+      S.kb.vol = e.target.value / 100;
+      saveSetting('kb.vol', S.kb.vol);
+      Object.values(S.kb.drones).forEach(dr => {
+        if (typeof audioCtx !== 'undefined' && audioCtx) {
+          dr.gain.gain.setValueAtTime(S.kb.vol, audioCtx.currentTime);
+        }
+      });
+    };
   }
-  kbVol.oninput = (e) => {
-    S.kb.vol = e.target.value / 100;
-    saveSetting('kb.vol', S.kb.vol);
-    Object.values(S.kb.drones).forEach(dr => {
-      if (typeof audioCtx !== 'undefined' && audioCtx) {
-        dr.gain.gain.setValueAtTime(S.kb.vol, audioCtx.currentTime);
-      }
-    });
-  };
 
-  buildNoteButtons('sq-notes','scale');
-  buildNoteButtons('iq-notes','interval');
+  buildNoteButtons('sq-notes', 'scale');
+  buildNoteButtons('iq-notes', 'interval');
 
   initVolumeControl();
   initMetronome();
@@ -536,9 +499,10 @@ function init() {
   initContextBar();
   initCommandPalette({ showSection, tabs: TABS, icons: ICONS });
   initProgressHeaders();
-  initHome({ showSection, tabs: TABS, icons: ICONS });
+  initHome({ showSection, showHub, tabs: TABS, icons: ICONS });
   initStats();
   initSplitView();
+  initScreenUx({ showSection, showHub });
 
   const wordmark = document.getElementById('wordmark-home');
   if (wordmark) {
@@ -546,18 +510,23 @@ function init() {
     wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
   }
 
-  const isValidSection = (id) => id === 'home' || TABS.some(t => t.id === id);
+  const isValidSection = (id) =>
+    id === 'home' ||
+    isHubId(id) && CATEGORIES.some(c => c.id === hubCategory(id)) ||
+    TABS.some(t => t.id === id);
 
   const hashTab = location.hash.replace('#', '');
   if (hashTab && isValidSection(hashTab)) {
     showSection(hashTab, true);
+  } else {
+    updateHeaderChrome('home');
+    updateHoldRecordVisibility(null);
   }
 
   window.addEventListener('hashchange', () => {
     const id = location.hash.replace('#', '');
-    if (id && isValidSection(id)) {
-      showSection(id, true);
-    }
+    if (id && isValidSection(id)) showSection(id, true);
+    else if (!id) showSection('home', true);
   });
 }
 
