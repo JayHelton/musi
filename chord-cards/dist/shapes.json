@@ -1,0 +1,4132 @@
+{
+  "version": 1,
+  "shapes": [
+    {
+      "id": "std-r6-5",
+      "chordFamily": "core",
+      "chordType": "Power (5)",
+      "symbol": "5",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "High-gain friendly",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        2,
+        null,
+        null,
+        null
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        null,
+        null
+      ],
+      "fingering": [
+        1,
+        3,
+        4,
+        null,
+        null,
+        null
+      ],
+      "bestUse": "High-gain rhythm foundation; pairs with palm mute",
+      "playability": "Compact shell — usable anywhere above fret 1",
+      "rootPositionNote": "Root on string 6; classic power-chord grip",
+      "pattern": "R R+2 R+2 x x x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-major",
+      "chordFamily": "core",
+      "chordType": "Major",
+      "symbol": "",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        2,
+        1,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "3",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        4,
+        2,
+        1,
+        1
+      ],
+      "bestUse": "Clean tonic color; primary movable major grip",
+      "playability": "Full voicing — barre index across the root fret",
+      "rootPositionNote": "Root on string 6; mirrors open E major",
+      "pattern": "R R+2 R+2 R+1 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-minor",
+      "chordFamily": "core",
+      "chordType": "Minor",
+      "symbol": "m",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        2,
+        0,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "b3",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        4,
+        1,
+        1,
+        1
+      ],
+      "bestUse": "Clean or light-gain minor tonic",
+      "playability": "Full voicing — easiest full barre of the E family",
+      "rootPositionNote": "Root on string 6; mirrors open E minor",
+      "pattern": "R R+2 R+2 R R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-sus2",
+      "chordFamily": "core",
+      "chordType": "Sus2",
+      "symbol": "sus2",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        4,
+        2,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "9",
+        "11",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        2,
+        4,
+        3,
+        1,
+        1
+      ],
+      "bestUse": "Open, ambiguous color — pads and indie textures",
+      "playability": "Advanced stretch — best at or above fret 3",
+      "rootPositionNote": "Root on string 6; 9 on string 4 (string 3 adds 11)",
+      "notes": "Classic Esus2 footprint; the 11 is a natural neighbor tone",
+      "pattern": "R R+2 R+4 R+2 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-sus4",
+      "chordFamily": "core",
+      "chordType": "Sus4",
+      "symbol": "sus4",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        2,
+        2,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "4",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        2,
+        3,
+        4,
+        1,
+        1
+      ],
+      "bestUse": "Resolves strongly to major/minor; anthem and rock cadences",
+      "playability": "Full voicing — compact and ergonomic",
+      "rootPositionNote": "Root on string 6; 4 on string 3",
+      "pattern": "R R+2 R+2 R+2 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-add9",
+      "chordFamily": "core",
+      "chordType": "Add9",
+      "symbol": "add9",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        2,
+        1,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "3",
+        "5",
+        "9"
+      ],
+      "fingering": [
+        1,
+        3,
+        4,
+        2,
+        1,
+        4
+      ],
+      "bestUse": "Best as a clean tonic color chord",
+      "playability": "Full voicing — pinky reaches the 9 on string 1",
+      "rootPositionNote": "Root on string 6; 9 on high E",
+      "pattern": "R R+2 R+2 R+1 R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-madd9",
+      "chordFamily": "core",
+      "chordType": "Minor add9",
+      "symbol": "m(add9)",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        2,
+        0,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "b3",
+        "5",
+        "9"
+      ],
+      "fingering": [
+        1,
+        3,
+        4,
+        1,
+        1,
+        4
+      ],
+      "bestUse": "Dark, modern minor color — clean or light drive",
+      "playability": "Full voicing — same pinky reach as add9",
+      "rootPositionNote": "Root on string 6; 9 on high E",
+      "pattern": "R R+2 R+2 R R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-6",
+      "chordFamily": "core",
+      "chordType": "Major 6",
+      "symbol": "6",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        2,
+        1,
+        2,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "3",
+        "6",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        4,
+        2,
+        4,
+        1
+      ],
+      "bestUse": "Vintage / jump-blues tonic color",
+      "playability": "Full voicing — pinky on string 2 at +2",
+      "rootPositionNote": "Root on string 6; 6 replaces the high 5",
+      "pattern": "R R+2 R+2 R+1 R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-m6",
+      "chordFamily": "core",
+      "chordType": "Minor 6",
+      "symbol": "m6",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        2,
+        0,
+        2,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "b3",
+        "6",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        4,
+        1,
+        4,
+        1
+      ],
+      "bestUse": "Jazz / Latin minor color",
+      "playability": "Full voicing — compact",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Contains a tritone (b3–6) — watch muddiness under gain",
+      "pattern": "R R+2 R+2 R R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-69",
+      "chordFamily": "core",
+      "chordType": "6/9",
+      "symbol": "6/9",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        2,
+        1,
+        2,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "3",
+        "6",
+        "9"
+      ],
+      "fingering": [
+        1,
+        3,
+        3,
+        2,
+        4,
+        4
+      ],
+      "bestUse": "Lush clean tonic — jazz, soul, fusion",
+      "playability": "Full voicing — best above fret 3",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+2 R+2 R+1 R+2 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-maj7",
+      "chordFamily": "sevenths",
+      "chordType": "Maj7",
+      "symbol": "maj7",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "7",
+        "3",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        4,
+        2,
+        3,
+        1,
+        1
+      ],
+      "bestUse": "Best as a clean tonic color chord",
+      "playability": "Full voicing — compact and highly usable",
+      "rootPositionNote": "Root on string 6; 7 on string 4",
+      "pattern": "R R+2 R+1 R+1 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-m7",
+      "chordFamily": "sevenths",
+      "chordType": "Minor 7",
+      "symbol": "m7",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        2,
+        0,
+        3,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "b3",
+        "b7",
+        "R"
+      ],
+      "fingering": [
+        1,
+        2,
+        3,
+        1,
+        4,
+        1
+      ],
+      "bestUse": "ii / vi / i7 in pop, jazz, R&B",
+      "playability": "Full voicing — pinky takes b7 on string 2",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+2 R+2 R R+3 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-m7-shell",
+      "chordFamily": "sevenths",
+      "chordType": "Minor 7",
+      "symbol": "m7",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "b3",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        1,
+        1,
+        1
+      ],
+      "bestUse": "Works well under gain as a shell voicing",
+      "playability": "Compact shell — one of the easiest m7 grips",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Preferred under distortion; full m7 can get muddy",
+      "pattern": "R R+2 R R R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-7",
+      "chordFamily": "sevenths",
+      "chordType": "Dominant 7",
+      "symbol": "7",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        0,
+        1,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "3",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        2,
+        1,
+        1
+      ],
+      "bestUse": "Best as a dominant tension chord — blues, funk, rock V",
+      "playability": "Full voicing — very compact",
+      "rootPositionNote": "Root on string 6; b7 on string 4",
+      "pattern": "R R+2 R R+1 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-m7b5",
+      "chordFamily": "sevenths",
+      "chordType": "Half-diminished (m7b5)",
+      "symbol": "m7b5",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        1,
+        2,
+        0,
+        3,
+        null
+      ],
+      "intervals": [
+        "R",
+        "b5",
+        "R",
+        "b3",
+        "b7",
+        null
+      ],
+      "fingering": [
+        1,
+        2,
+        3,
+        1,
+        4,
+        null
+      ],
+      "bestUse": "iiø in minor keys; jazz cadence setup",
+      "playability": "Full voicing — best above fret 2",
+      "rootPositionNote": "Root on string 6; b5 on string 5",
+      "notes": "Mute high E to keep the voicing clear",
+      "pattern": "R R+1 R+2 R R+3 x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-dim7",
+      "chordFamily": "sevenths",
+      "chordType": "Diminished 7",
+      "symbol": "dim7",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Compact",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        1,
+        2,
+        0,
+        2,
+        null
+      ],
+      "intervals": [
+        "R",
+        "b5",
+        "R",
+        "b3",
+        "6",
+        null
+      ],
+      "fingering": [
+        1,
+        2,
+        4,
+        1,
+        3,
+        null
+      ],
+      "bestUse": "Passing / diminished-approach chord",
+      "playability": "Compact — repeats every three frets",
+      "rootPositionNote": "Root on string 6; bb7 labeled as 6 (enharmonic)",
+      "notes": "Symmetric — same shape moves ±3 frets",
+      "pattern": "R R+1 R+2 R R+2 x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-7sus4",
+      "chordFamily": "sevenths",
+      "chordType": "7sus4",
+      "symbol": "7sus4",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        0,
+        2,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "4",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        4,
+        1,
+        1
+      ],
+      "bestUse": "Dominant suspension — gospel, fusion, rock builds",
+      "playability": "Full voicing — compact",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Also doubles as a practical 11(no3) color",
+      "pattern": "R R+2 R R+2 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-7sus2",
+      "chordFamily": "sevenths",
+      "chordType": "7sus2",
+      "symbol": "7sus2",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        0,
+        2,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "11",
+        "5",
+        "9"
+      ],
+      "fingering": [
+        1,
+        2,
+        1,
+        3,
+        1,
+        4
+      ],
+      "bestUse": "Modern dominant color without the 3rd",
+      "playability": "Shell-leaning — best above fret 3",
+      "rootPositionNote": "Root on string 6; 9 on high E",
+      "notes": "No 3rd — ambiguous major/minor dominant; string 3 is 11",
+      "pattern": "R R+2 R R+2 R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-maj7sus2",
+      "chordFamily": "sevenths",
+      "chordType": "Maj7sus2",
+      "symbol": "maj7sus2",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        1,
+        2,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "7",
+        "11",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        2,
+        4,
+        1,
+        1
+      ],
+      "bestUse": "Airy tonic color — ambient / modern jazz",
+      "playability": "Shell — omits the 3rd by design",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+2 R+1 R+2 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-maj9",
+      "chordFamily": "extended",
+      "chordType": "Maj9",
+      "symbol": "maj9",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        1,
+        1,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "7",
+        "3",
+        "5",
+        "9"
+      ],
+      "fingering": [
+        1,
+        4,
+        2,
+        3,
+        1,
+        4
+      ],
+      "bestUse": "Best as a clean tonic color chord",
+      "playability": "Full voicing — maj7 + pinky 9",
+      "rootPositionNote": "Root on string 6",
+      "notes": "One of the most useful movable maj9 grips",
+      "pattern": "R R+2 R+1 R+1 R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-m9",
+      "chordFamily": "extended",
+      "chordType": "Minor 9",
+      "symbol": "m9",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "b3",
+        "5",
+        "9"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        1,
+        1,
+        4
+      ],
+      "bestUse": "Soul / neo-soul / jazz minor color",
+      "playability": "Full voicing — compact and very common",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Shell-friendly under light gain; muddy if overdriven hard",
+      "pattern": "R R+2 R R R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-9",
+      "chordFamily": "extended",
+      "chordType": "Dominant 9",
+      "symbol": "9",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        0,
+        1,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "3",
+        "5",
+        "9"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        2,
+        1,
+        4
+      ],
+      "bestUse": "Best as a dominant tension chord — funk and blues",
+      "playability": "Full voicing — compact",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+2 R R+1 R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-m11",
+      "chordFamily": "extended",
+      "chordType": "Minor 11",
+      "symbol": "m11",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        0,
+        2,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "11",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        4,
+        1,
+        1
+      ],
+      "bestUse": "Modern minor color — jazz, fusion, R&B",
+      "playability": "Compact shell — highly pragmatic",
+      "rootPositionNote": "Root on string 6; 11 on string 3",
+      "notes": "Omits explicit b3; reads as m11 in minor contexts (same grip as 7sus4/11)",
+      "pattern": "R R+2 R R+2 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-11",
+      "chordFamily": "extended",
+      "chordType": "Dominant 11 (no3)",
+      "symbol": "11",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        0,
+        2,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "11",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        4,
+        1,
+        1
+      ],
+      "bestUse": "Dominant suspension / 11 color without clashing 3",
+      "playability": "Full voicing — same grip as 7sus4",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Practical form is 11(no3); the 3 clashes with 11",
+      "pattern": "R R+2 R R+2 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-13",
+      "chordFamily": "extended",
+      "chordType": "Dominant 13",
+      "symbol": "13",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        2,
+        0,
+        1,
+        2,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "3",
+        "13",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        2,
+        4,
+        1
+      ],
+      "bestUse": "Best as a dominant tension chord — jazz / blues turnarounds",
+      "playability": "Shell-leaning full grip — omit 9/11 by design",
+      "rootPositionNote": "Root on string 6; 13 on string 2",
+      "pattern": "R R+2 R R+1 R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-m13",
+      "chordFamily": "extended",
+      "chordType": "Minor 13",
+      "symbol": "m13",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        0,
+        0,
+        2,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "b3",
+        "13",
+        "R"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        1,
+        4,
+        1
+      ],
+      "bestUse": "Jazz minor color — use sparingly",
+      "playability": "Shell — best above fret 3",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+2 R R R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-maj13",
+      "chordFamily": "extended",
+      "chordType": "Maj13",
+      "symbol": "maj13",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        1,
+        1,
+        2,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "7",
+        "3",
+        "13",
+        "R"
+      ],
+      "fingering": [
+        1,
+        4,
+        2,
+        3,
+        4,
+        1
+      ],
+      "bestUse": "Lush clean tonic — fusion / jazz ballad",
+      "playability": "Shell — best above fret 3",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+2 R+1 R+1 R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-aug",
+      "chordFamily": "altered",
+      "chordType": "Augmented",
+      "symbol": "aug",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        null,
+        2,
+        1,
+        1,
+        null
+      ],
+      "intervals": [
+        "R",
+        null,
+        "R",
+        "3",
+        "#5",
+        null
+      ],
+      "fingering": [
+        1,
+        null,
+        3,
+        2,
+        2,
+        null
+      ],
+      "bestUse": "Clear + triad without mud",
+      "playability": "Compact shell — preferred under gain",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R x R+2 R+1 R+1 x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-aug-full",
+      "chordFamily": "altered",
+      "chordType": "Augmented",
+      "symbol": "aug",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        3,
+        2,
+        1,
+        1,
+        0
+      ],
+      "intervals": [
+        "R",
+        "b6",
+        "R",
+        "3",
+        "#5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        4,
+        3,
+        2,
+        2,
+        1
+      ],
+      "bestUse": "Dramatic tonic or V+ approach",
+      "playability": "Full voicing — moderate stretch",
+      "rootPositionNote": "Root on string 6",
+      "notes": "String 5 tone is enharmonic b6/#5 class",
+      "pattern": "R R+3 R+2 R+1 R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-dim",
+      "chordFamily": "altered",
+      "chordType": "Diminished triad",
+      "symbol": "dim",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        1,
+        2,
+        0,
+        null,
+        null
+      ],
+      "intervals": [
+        "R",
+        "b5",
+        "R",
+        "b3",
+        null,
+        null
+      ],
+      "fingering": [
+        1,
+        2,
+        3,
+        1,
+        null,
+        null
+      ],
+      "bestUse": "Passing diminished color",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+1 R+2 R x x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-7sharp5",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7#5",
+      "symbol": "7#5",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        3,
+        0,
+        1,
+        1,
+        0
+      ],
+      "intervals": [
+        "R",
+        "#5",
+        "b7",
+        "3",
+        "#5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        4,
+        1,
+        2,
+        3,
+        1
+      ],
+      "bestUse": "Altered dominant — resolves strongly to I",
+      "playability": "Full voicing — best above fret 2",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Also called aug7 when the +5 is primary",
+      "pattern": "R R+3 R R+1 R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-7flat5",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7b5",
+      "symbol": "7b5",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        1,
+        0,
+        1,
+        null,
+        null
+      ],
+      "intervals": [
+        "R",
+        "b5",
+        "b7",
+        "3",
+        null,
+        null
+      ],
+      "fingering": [
+        1,
+        2,
+        1,
+        3,
+        null,
+        null
+      ],
+      "bestUse": "Altered dominant / tritone-sub color",
+      "playability": "Compact shell — very usable",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+1 R R+1 x x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-7sharp11",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7#11",
+      "symbol": "7#11",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        1,
+        0,
+        1,
+        0,
+        0
+      ],
+      "intervals": [
+        "R",
+        "#11",
+        "b7",
+        "3",
+        "5",
+        "R"
+      ],
+      "fingering": [
+        1,
+        2,
+        1,
+        3,
+        1,
+        1
+      ],
+      "bestUse": "Lydian-dominant / V7#11 color — fusion and jazz",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6; #11 on string 5",
+      "notes": "b5 and #11 share pitch class; context chooses the label",
+      "pattern": "R R+1 R R+1 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r6-13flat9",
+      "chordFamily": "altered",
+      "chordType": "Dominant 13b9",
+      "symbol": "13b9",
+      "tuningType": "standard",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        2,
+        0,
+        1,
+        2,
+        1
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b7",
+        "3",
+        "13",
+        "b9"
+      ],
+      "fingering": [
+        1,
+        3,
+        1,
+        2,
+        4,
+        2
+      ],
+      "bestUse": "Best as a dominant tension chord — jazz turnaround",
+      "playability": "Advanced stretch — best above fret 4",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R+2 R R+1 R+2 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-5",
+      "chordFamily": "core",
+      "chordType": "Power (5)",
+      "symbol": "5",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "High-gain friendly",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        null,
+        null
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        null,
+        null
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        4,
+        null,
+        null
+      ],
+      "bestUse": "High-gain rhythm on A-string roots",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+2 x x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-major",
+      "chordFamily": "core",
+      "chordType": "Major",
+      "symbol": "",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        2,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        "3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        3,
+        4,
+        1
+      ],
+      "bestUse": "Clean tonic — second essential movable major",
+      "playability": "Full voicing — three-finger cluster on the +2 frets",
+      "rootPositionNote": "Root on string 5; mirrors open A major",
+      "pattern": "x R R+2 R+2 R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-minor",
+      "chordFamily": "core",
+      "chordType": "Minor",
+      "symbol": "m",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        1,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        "b3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        4,
+        2,
+        1
+      ],
+      "bestUse": "Clean minor tonic on A-string roots",
+      "playability": "Full voicing — compact",
+      "rootPositionNote": "Root on string 5; mirrors open A minor",
+      "pattern": "x R R+2 R+2 R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-sus2",
+      "chordFamily": "core",
+      "chordType": "Sus2",
+      "symbol": "sus2",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        0,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        "9",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        4,
+        1,
+        1
+      ],
+      "bestUse": "Open sus color — preferred movable sus2",
+      "playability": "Full voicing — easier than root-6 sus2",
+      "rootPositionNote": "Root on string 5; 9 on string 2",
+      "pattern": "x R R+2 R+2 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-sus4",
+      "chordFamily": "core",
+      "chordType": "Sus4",
+      "symbol": "sus4",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        3,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        "4",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        3,
+        4,
+        1
+      ],
+      "bestUse": "Suspension resolving to major/minor",
+      "playability": "Full voicing — slight stretch on string 2",
+      "rootPositionNote": "Root on string 5",
+      "notes": "Best at or above fret 2",
+      "pattern": "x R R+2 R+2 R+3 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-add9",
+      "chordFamily": "core",
+      "chordType": "Add9",
+      "symbol": "add9",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        4,
+        2,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "9",
+        "3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        4,
+        3,
+        1
+      ],
+      "bestUse": "Best as a clean tonic color chord",
+      "playability": "Full voicing — moderate stretch",
+      "rootPositionNote": "Root on string 5; 9 on string 3",
+      "pattern": "x R R+2 R+4 R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-madd9",
+      "chordFamily": "core",
+      "chordType": "Minor add9",
+      "symbol": "m(add9)",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        4,
+        1,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "9",
+        "b3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        4,
+        1,
+        1
+      ],
+      "bestUse": "Dark clean minor color",
+      "playability": "Full voicing — best above fret 3",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+4 R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-6",
+      "chordFamily": "core",
+      "chordType": "Major 6",
+      "symbol": "6",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        2,
+        2
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        "3",
+        "6"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        3,
+        4,
+        4
+      ],
+      "bestUse": "Vintage tonic color on A-string roots",
+      "playability": "Full voicing — barre the +2 cluster including high E",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+2 R+2 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-m6",
+      "chordFamily": "core",
+      "chordType": "Minor 6",
+      "symbol": "m6",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        "b3",
+        "6"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        4,
+        2,
+        4
+      ],
+      "bestUse": "Jazz / Latin minor color",
+      "playability": "Full voicing — compact",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+2 R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-69",
+      "chordFamily": "core",
+      "chordType": "6/9",
+      "symbol": "6/9",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Advanced stretch",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        4,
+        2,
+        2
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "9",
+        "3",
+        "6"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        4,
+        3,
+        3
+      ],
+      "bestUse": "Full 6/9 color when stretch allows",
+      "playability": "Advanced stretch — best above fret 4",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+4 R+2 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-maj7",
+      "chordFamily": "sevenths",
+      "chordType": "Maj7",
+      "symbol": "maj7",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        1,
+        2,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "7",
+        "3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        2,
+        4,
+        1
+      ],
+      "bestUse": "Best as a clean tonic color chord",
+      "playability": "Full voicing — very common jazz/pop grip",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+1 R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-m7",
+      "chordFamily": "sevenths",
+      "chordType": "Minor 7",
+      "symbol": "m7",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        1,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "b3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        1,
+        2,
+        1
+      ],
+      "bestUse": "ii / vi workhorse in every style",
+      "playability": "Full voicing — compact and ergonomic",
+      "rootPositionNote": "Root on string 5",
+      "notes": "One of the most used movable chords on guitar",
+      "pattern": "x R R+2 R R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-7",
+      "chordFamily": "sevenths",
+      "chordType": "Dominant 7",
+      "symbol": "7",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        2,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        1,
+        4,
+        1
+      ],
+      "bestUse": "Best as a dominant tension chord",
+      "playability": "Full voicing — compact",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-m7b5",
+      "chordFamily": "sevenths",
+      "chordType": "Half-diminished (m7b5)",
+      "symbol": "m7b5",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        1,
+        0,
+        1,
+        null
+      ],
+      "intervals": [
+        null,
+        "R",
+        "b5",
+        "b7",
+        "b3",
+        null
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        1,
+        3,
+        null
+      ],
+      "bestUse": "iiø in minor — jazz cadences",
+      "playability": "Compact shell/full hybrid",
+      "rootPositionNote": "Root on string 5",
+      "notes": "Mute high E for clarity",
+      "pattern": "x R R+1 R R+1 x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-dim7",
+      "chordFamily": "sevenths",
+      "chordType": "Diminished 7",
+      "symbol": "dim7",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        1,
+        2,
+        1,
+        2
+      ],
+      "intervals": [
+        null,
+        "R",
+        "b5",
+        "R",
+        "b3",
+        "6"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        4,
+        3,
+        4
+      ],
+      "bestUse": "Full dim7 color with bb7 (labeled 6)",
+      "playability": "Full voicing — best above fret 3",
+      "rootPositionNote": "Root on string 5",
+      "notes": "bb7 enharmonically labeled 6; shape moves in minor thirds",
+      "pattern": "x R R+1 R+2 R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-7sus4",
+      "chordFamily": "sevenths",
+      "chordType": "7sus4",
+      "symbol": "7sus4",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        3,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "4",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        1,
+        4,
+        1
+      ],
+      "bestUse": "Dominant suspension",
+      "playability": "Full voicing — slight stretch",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R R+3 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-7sus2",
+      "chordFamily": "sevenths",
+      "chordType": "7sus2",
+      "symbol": "7sus2",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        0,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "9",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        1,
+        1,
+        1
+      ],
+      "bestUse": "Modern dominant without 3rd",
+      "playability": "Full voicing — very easy",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-maj7sus2",
+      "chordFamily": "sevenths",
+      "chordType": "Maj7sus2",
+      "symbol": "maj7sus2",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        1,
+        0,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "7",
+        "9",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        2,
+        1,
+        1
+      ],
+      "bestUse": "Airy tonic — ambient / modern",
+      "playability": "Shell — no 3rd",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+1 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-maj9",
+      "chordFamily": "extended",
+      "chordType": "Maj9",
+      "symbol": "maj9",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        1,
+        0,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "7",
+        "9",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        2,
+        1,
+        1
+      ],
+      "bestUse": "Best as a clean tonic color chord",
+      "playability": "Shell — omits 3; still reads maj9",
+      "rootPositionNote": "Root on string 5",
+      "notes": "Extremely common pragmatic maj9",
+      "pattern": "x R R+2 R+1 R R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-m9",
+      "chordFamily": "extended",
+      "chordType": "Minor 9",
+      "symbol": "m9",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Advanced stretch",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        4,
+        1,
+        3
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "9",
+        "b3",
+        "b7"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        4,
+        1,
+        3
+      ],
+      "bestUse": "Soul / jazz minor color",
+      "playability": "Advanced stretch — best above fret 4",
+      "rootPositionNote": "Root on string 5; b7 on high E",
+      "notes": "Prefer root-6 m9 if the stretch is uncomfortable",
+      "pattern": "x R R+2 R+4 R+1 R+3",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-9",
+      "chordFamily": "extended",
+      "chordType": "Dominant 9",
+      "symbol": "9",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        4,
+        2,
+        3
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "9",
+        "3",
+        "b7"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        4,
+        3,
+        3
+      ],
+      "bestUse": "Best as a dominant tension chord — funk staple",
+      "playability": "Full voicing — best above fret 3",
+      "rootPositionNote": "Root on string 5; b7 on high E",
+      "pattern": "x R R+2 R+4 R+2 R+3",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-m11",
+      "chordFamily": "extended",
+      "chordType": "Minor 11",
+      "symbol": "m11",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "11",
+        "b7",
+        "b3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        1,
+        1,
+        2,
+        1
+      ],
+      "bestUse": "Modern minor — one of the best m11 grips on guitar",
+      "playability": "Compact shell — barre + one finger",
+      "rootPositionNote": "Root on string 5; 11 on string 4",
+      "notes": "Must sit at fret ≥1 so every string is fretted (closed)",
+      "pattern": "x R R R R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-11",
+      "chordFamily": "extended",
+      "chordType": "Dominant 11 (no3)",
+      "symbol": "11",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        3,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "11",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        1,
+        4,
+        1
+      ],
+      "bestUse": "Dominant 11 without the clashing 3",
+      "playability": "Full voicing — same as 7sus4",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R R+3 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-13",
+      "chordFamily": "extended",
+      "chordType": "Dominant 13",
+      "symbol": "13",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        2,
+        2
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "3",
+        "13"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        1,
+        3,
+        4
+      ],
+      "bestUse": "Best as a dominant tension chord with clear 13",
+      "playability": "Shell-leaning — compact",
+      "rootPositionNote": "Root on string 5; 13 on high E",
+      "pattern": "x R R+2 R R+2 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-m13",
+      "chordFamily": "extended",
+      "chordType": "Minor 13",
+      "symbol": "m13",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        1,
+        2
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "b3",
+        "13"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        1,
+        1,
+        4
+      ],
+      "bestUse": "Jazz minor color",
+      "playability": "Shell — best above fret 3",
+      "rootPositionNote": "Root on string 5; 13 on high E",
+      "pattern": "x R R+2 R R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-aug",
+      "chordFamily": "altered",
+      "chordType": "Augmented",
+      "symbol": "aug",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        3,
+        2,
+        2,
+        1
+      ],
+      "intervals": [
+        null,
+        "R",
+        "#5",
+        "R",
+        "3",
+        "#5"
+      ],
+      "fingering": [
+        null,
+        1,
+        4,
+        2,
+        3,
+        1
+      ],
+      "bestUse": "Dramatic + color on A-string roots",
+      "playability": "Full voicing — moderate stretch",
+      "rootPositionNote": "Root on string 5",
+      "notes": "Symmetric augmented — moves in major thirds",
+      "pattern": "x R R+3 R+2 R+2 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-dim",
+      "chordFamily": "altered",
+      "chordType": "Diminished triad",
+      "symbol": "dim",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        1,
+        2,
+        1,
+        null
+      ],
+      "intervals": [
+        null,
+        "R",
+        "b5",
+        "R",
+        "b3",
+        null
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        4,
+        3,
+        null
+      ],
+      "bestUse": "Passing diminished triad",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+1 R+2 R+1 x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-7sharp5",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7#5",
+      "symbol": "7#5",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        3,
+        0,
+        2,
+        1
+      ],
+      "intervals": [
+        null,
+        "R",
+        "#5",
+        "b7",
+        "3",
+        "#5"
+      ],
+      "fingering": [
+        null,
+        1,
+        4,
+        1,
+        3,
+        2
+      ],
+      "bestUse": "Altered dominant",
+      "playability": "Shell — best above fret 3",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+3 R R+2 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-7flat5",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7b5",
+      "symbol": "7b5",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        1,
+        0,
+        2,
+        null
+      ],
+      "intervals": [
+        null,
+        "R",
+        "b5",
+        "b7",
+        "3",
+        null
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        1,
+        3,
+        null
+      ],
+      "bestUse": "Altered / tritone-sub dominant",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+1 R R+2 x",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-7sharp11",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7#11",
+      "symbol": "7#11",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        1,
+        0,
+        2,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "#11",
+        "b7",
+        "3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        1,
+        3,
+        1
+      ],
+      "bestUse": "Lydian dominant color",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 5; #11 on string 4",
+      "pattern": "x R R+1 R R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r5-13flat9",
+      "chordFamily": "altered",
+      "chordType": "Dominant 13b9",
+      "symbol": "13b9",
+      "tuningType": "standard",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        3,
+        2,
+        2
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b9",
+        "3",
+        "13"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        3,
+        2,
+        4
+      ],
+      "bestUse": "Best as a dominant tension chord",
+      "playability": "Shell — omits b7 (implied by dominant function); best above fret 3",
+      "rootPositionNote": "Root on string 5; b9 on string 3",
+      "pattern": "x R R+2 R+3 R+2 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r4-major",
+      "chordFamily": "core",
+      "chordType": "Major",
+      "symbol": "",
+      "tuningType": "standard",
+      "rootString": 4,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        null,
+        0,
+        2,
+        3,
+        2
+      ],
+      "intervals": [
+        null,
+        null,
+        "R",
+        "5",
+        "R",
+        "3"
+      ],
+      "fingering": [
+        null,
+        null,
+        1,
+        2,
+        4,
+        3
+      ],
+      "bestUse": "Clean triad shell on D-string roots",
+      "playability": "Compact shell — mirrors open D major",
+      "rootPositionNote": "Root on string 4",
+      "pattern": "x x R R+2 R+3 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r4-minor",
+      "chordFamily": "core",
+      "chordType": "Minor",
+      "symbol": "m",
+      "tuningType": "standard",
+      "rootString": 4,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        null,
+        0,
+        2,
+        3,
+        1
+      ],
+      "intervals": [
+        null,
+        null,
+        "R",
+        "5",
+        "R",
+        "b3"
+      ],
+      "fingering": [
+        null,
+        null,
+        1,
+        3,
+        4,
+        2
+      ],
+      "bestUse": "Minor triad shell on D-string roots",
+      "playability": "Compact shell — mirrors open D minor",
+      "rootPositionNote": "Root on string 4",
+      "pattern": "x x R R+2 R+3 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r4-maj7",
+      "chordFamily": "sevenths",
+      "chordType": "Maj7",
+      "symbol": "maj7",
+      "tuningType": "standard",
+      "rootString": 4,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        null,
+        0,
+        2,
+        2,
+        2
+      ],
+      "intervals": [
+        null,
+        null,
+        "R",
+        "5",
+        "7",
+        "3"
+      ],
+      "fingering": [
+        null,
+        null,
+        1,
+        2,
+        2,
+        2
+      ],
+      "bestUse": "Best as a clean tonic shell",
+      "playability": "Compact shell — excellent jazz grip",
+      "rootPositionNote": "Root on string 4",
+      "notes": "One of the best maj7 shells on guitar",
+      "pattern": "x x R R+2 R+2 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r4-7",
+      "chordFamily": "sevenths",
+      "chordType": "Dominant 7",
+      "symbol": "7",
+      "tuningType": "standard",
+      "rootString": 4,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        null,
+        0,
+        2,
+        1,
+        2
+      ],
+      "intervals": [
+        null,
+        null,
+        "R",
+        "5",
+        "b7",
+        "3"
+      ],
+      "fingering": [
+        null,
+        null,
+        1,
+        3,
+        2,
+        4
+      ],
+      "bestUse": "Best as a dominant tension shell",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 4",
+      "pattern": "x x R R+2 R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "std-r4-m7",
+      "chordFamily": "sevenths",
+      "chordType": "Minor 7",
+      "symbol": "m7",
+      "tuningType": "standard",
+      "rootString": 4,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        null,
+        0,
+        2,
+        1,
+        1
+      ],
+      "intervals": [
+        null,
+        null,
+        "R",
+        "5",
+        "b7",
+        "b3"
+      ],
+      "fingering": [
+        null,
+        null,
+        1,
+        4,
+        2,
+        3
+      ],
+      "bestUse": "ii / vi shell on D-string roots",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 4",
+      "pattern": "x x R R+2 R+1 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-5",
+      "chordFamily": "core",
+      "chordType": "Power (5)",
+      "symbol": "5",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "High-gain friendly",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        null,
+        null
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        null,
+        null
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        null,
+        null
+      ],
+      "bestUse": "Works well under gain — drop-tuning one-finger power chord",
+      "playability": "Compact shell — low three strings share the same fret",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Core drop-tuning advantage",
+      "pattern": "R R R x x x",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-major",
+      "chordFamily": "core",
+      "chordType": "Major",
+      "symbol": "",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        2,
+        3,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "5",
+        "R",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        2,
+        4,
+        3
+      ],
+      "bestUse": "Clean or light-gain tonic in drop",
+      "playability": "Full voicing — one-finger barre + D-shape on top",
+      "rootPositionNote": "Root on string 6; mirrors drop “000232” geometry",
+      "pattern": "R R R R+2 R+3 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-minor",
+      "chordFamily": "core",
+      "chordType": "Minor",
+      "symbol": "m",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        2,
+        3,
+        1
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "5",
+        "R",
+        "b3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        3,
+        4,
+        2
+      ],
+      "bestUse": "Minor tonic in drop — metal / rock",
+      "playability": "Full voicing — compact on top of power barre",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R R+2 R+3 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-sus2",
+      "chordFamily": "core",
+      "chordType": "Sus2",
+      "symbol": "sus2",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        null,
+        0
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        null,
+        "9"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        null,
+        1
+      ],
+      "bestUse": "High-gain friendly sus2 — open high E is a 9 above the drop root",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6; 9 on high E",
+      "notes": "Drop-specific: high E is naturally a 9th above the low root",
+      "pattern": "R R R x x R",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-sus4",
+      "chordFamily": "core",
+      "chordType": "Sus4",
+      "symbol": "sus4",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        null,
+        3
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        null,
+        "4"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        null,
+        4
+      ],
+      "bestUse": "Suspension over drop power foundation",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6; 4 on high E",
+      "pattern": "R R R x x R+3",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-add9",
+      "chordFamily": "core",
+      "chordType": "Add9",
+      "symbol": "add9",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        2,
+        2,
+        3,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "9",
+        "5",
+        "R",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        2,
+        3,
+        4,
+        3
+      ],
+      "bestUse": "Best as a clean tonic color chord in drop",
+      "playability": "Full voicing — 9 on the octave-D string at +2",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R+2 R+2 R+3 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-madd9",
+      "chordFamily": "core",
+      "chordType": "Minor add9",
+      "symbol": "m(add9)",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        0,
+        2,
+        2,
+        3,
+        1
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "9",
+        "5",
+        "R",
+        "b3"
+      ],
+      "fingering": [
+        1,
+        1,
+        2,
+        3,
+        4,
+        2
+      ],
+      "bestUse": "Dark minor color over drop power",
+      "playability": "Full voicing — best above fret 2",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R+2 R+2 R+3 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-6",
+      "chordFamily": "core",
+      "chordType": "Major 6",
+      "symbol": "6",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        "13",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        1,
+        3
+      ],
+      "bestUse": "6/13 color with major 3 — clean drop tonic",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6; open-B relative is 13/6",
+      "notes": "Label 13 here is the 6th degree (same pitch class)",
+      "pattern": "R R R x R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-m6",
+      "chordFamily": "core",
+      "chordType": "Minor 6",
+      "symbol": "m6",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        0,
+        1
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        "13",
+        "b3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        1,
+        2
+      ],
+      "bestUse": "Minor 6 color over drop power",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R x R R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-maj7",
+      "chordFamily": "sevenths",
+      "chordType": "Maj7",
+      "symbol": "maj7",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        2,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        "7",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        2,
+        3
+      ],
+      "bestUse": "Best as a clean tonic color chord in drop",
+      "playability": "Compact shell over power barre",
+      "rootPositionNote": "Root on string 6; 7 on string 2, 3 on string 1",
+      "pattern": "R R R x R+2 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-m7",
+      "chordFamily": "sevenths",
+      "chordType": "Minor 7",
+      "symbol": "m7",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        1,
+        1
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        "b7",
+        "b3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        2,
+        3
+      ],
+      "bestUse": "Works well under gain as a shell voicing",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R x R+1 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-7",
+      "chordFamily": "sevenths",
+      "chordType": "Dominant 7",
+      "symbol": "7",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        1,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        "b7",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        2,
+        3
+      ],
+      "bestUse": "Best as a dominant tension chord in drop",
+      "playability": "Compact shell — high-gain friendly",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R x R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-m7b5",
+      "chordFamily": "sevenths",
+      "chordType": "Half-diminished (m7b5)",
+      "symbol": "m7b5",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        null,
+        0,
+        1,
+        1,
+        1
+      ],
+      "intervals": [
+        "R",
+        null,
+        "R",
+        "b5",
+        "b7",
+        "b3"
+      ],
+      "fingering": [
+        1,
+        null,
+        1,
+        2,
+        3,
+        4
+      ],
+      "bestUse": "iiø in minor — jazz / prog",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Drop: G+1 = b5",
+      "pattern": "R x R R+1 R+1 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-dim7",
+      "chordFamily": "sevenths",
+      "chordType": "Diminished 7",
+      "symbol": "dim7",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        null,
+        0,
+        1,
+        0,
+        1
+      ],
+      "intervals": [
+        "R",
+        null,
+        "R",
+        "b5",
+        "6",
+        "b3"
+      ],
+      "fingering": [
+        1,
+        null,
+        1,
+        3,
+        1,
+        2
+      ],
+      "bestUse": "Passing diminished in drop context",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6; bb7 labeled 6 on string 2",
+      "pattern": "R x R R+1 R R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-7sus4",
+      "chordFamily": "sevenths",
+      "chordType": "7sus4",
+      "symbol": "7sus4",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        1,
+        3
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        "b7",
+        "4"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        2,
+        4
+      ],
+      "bestUse": "Dominant suspension over drop power",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R x R+1 R+3",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-maj9",
+      "chordFamily": "extended",
+      "chordType": "Maj9",
+      "symbol": "maj9",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        2,
+        null,
+        2,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "9",
+        null,
+        "7",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        2,
+        null,
+        3,
+        4
+      ],
+      "bestUse": "Best as a clean tonic color chord",
+      "playability": "Shell — best above fret 2",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R+2 x R+2 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-m9",
+      "chordFamily": "extended",
+      "chordType": "Minor 9",
+      "symbol": "m9",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        2,
+        null,
+        1,
+        1
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "9",
+        null,
+        "b7",
+        "b3"
+      ],
+      "fingering": [
+        1,
+        1,
+        2,
+        null,
+        3,
+        4
+      ],
+      "bestUse": "Dark minor 9 over drop foundation",
+      "playability": "Shell — best above fret 2",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Under heavy gain, mute G–E and keep power",
+      "pattern": "R R R+2 x R+1 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-9",
+      "chordFamily": "extended",
+      "chordType": "Dominant 9",
+      "symbol": "9",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        2,
+        null,
+        1,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "9",
+        null,
+        "b7",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        2,
+        null,
+        3,
+        4
+      ],
+      "bestUse": "Best as a dominant tension chord",
+      "playability": "Shell — best above fret 2",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R R R+2 x R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-m11",
+      "chordFamily": "extended",
+      "chordType": "Minor 11",
+      "symbol": "m11",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "11",
+        "b7",
+        "b3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        1,
+        2,
+        3
+      ],
+      "bestUse": "Modern minor 11 in drop",
+      "playability": "Compact shell — open G is naturally an 11 above the drop root",
+      "rootPositionNote": "Root on string 6; 11 on string 3",
+      "pattern": "R R R R R+1 R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-11",
+      "chordFamily": "extended",
+      "chordType": "Dominant 11 (no3)",
+      "symbol": "11",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        3
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "11",
+        "b7",
+        "4"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        1,
+        2,
+        4
+      ],
+      "bestUse": "Dominant 11 without 3",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6",
+      "notes": "4 on high E reinforces the sus/11 color",
+      "pattern": "R R R R R+1 R+3",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-13",
+      "chordFamily": "extended",
+      "chordType": "Dominant 13",
+      "symbol": "13",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        0,
+        0,
+        null,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        null,
+        "13",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        null,
+        1,
+        3
+      ],
+      "bestUse": "Best as a dominant tension chord",
+      "playability": "Compact shell — add b7 on G at +5 when desired",
+      "rootPositionNote": "Root on string 6; 13 on string 2 (natural in drop)",
+      "pattern": "R R R x R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-aug",
+      "chordFamily": "altered",
+      "chordType": "Augmented",
+      "symbol": "aug",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        null,
+        0,
+        3,
+        null,
+        2
+      ],
+      "intervals": [
+        "R",
+        null,
+        "R",
+        "#5",
+        null,
+        "3"
+      ],
+      "fingering": [
+        1,
+        null,
+        1,
+        3,
+        null,
+        2
+      ],
+      "bestUse": "Clear + triad over drop root/octave",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R x R R+3 x R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-dim",
+      "chordFamily": "altered",
+      "chordType": "Diminished triad",
+      "symbol": "dim",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        0,
+        null,
+        0,
+        1,
+        null,
+        1
+      ],
+      "intervals": [
+        "R",
+        null,
+        "R",
+        "b5",
+        null,
+        "b3"
+      ],
+      "fingering": [
+        1,
+        null,
+        1,
+        2,
+        null,
+        3
+      ],
+      "bestUse": "Passing diminished shell",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R x R R+1 x R+1",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-7sharp5",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7#5",
+      "symbol": "7#5",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        null,
+        0,
+        3,
+        1,
+        2
+      ],
+      "intervals": [
+        "R",
+        null,
+        "R",
+        "#5",
+        "b7",
+        "3"
+      ],
+      "fingering": [
+        1,
+        null,
+        1,
+        4,
+        2,
+        3
+      ],
+      "bestUse": "Altered dominant in drop",
+      "playability": "Shell — best above fret 3",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R x R R+3 R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-7flat5",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7b5",
+      "symbol": "7b5",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        null,
+        0,
+        1,
+        1,
+        2
+      ],
+      "intervals": [
+        "R",
+        null,
+        "R",
+        "b5",
+        "b7",
+        "3"
+      ],
+      "fingering": [
+        1,
+        null,
+        1,
+        2,
+        3,
+        4
+      ],
+      "bestUse": "Altered / tritone-sub dominant",
+      "playability": "Compact shell — high-gain friendly",
+      "rootPositionNote": "Root on string 6",
+      "pattern": "R x R R+1 R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-7sharp11",
+      "chordFamily": "altered",
+      "chordType": "Dominant 7#11",
+      "symbol": "7#11",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "R",
+        "#11",
+        "b7",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        1,
+        2,
+        3,
+        4
+      ],
+      "bestUse": "Lydian-dominant color in drop",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 6; #11 on string 3",
+      "pattern": "R R R R+1 R+1 R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r6-13flat9",
+      "chordFamily": "altered",
+      "chordType": "Dominant 13b9",
+      "symbol": "13b9",
+      "tuningType": "drop",
+      "rootString": 6,
+      "voicingCategory": "Shell",
+      "practicalTag": "expanded",
+      "frets": [
+        0,
+        0,
+        1,
+        null,
+        0,
+        2
+      ],
+      "intervals": [
+        "R",
+        "5",
+        "b9",
+        null,
+        "13",
+        "3"
+      ],
+      "fingering": [
+        1,
+        1,
+        2,
+        null,
+        1,
+        3
+      ],
+      "bestUse": "Best as a dominant tension chord",
+      "playability": "Shell — best above fret 3",
+      "rootPositionNote": "Root on string 6",
+      "notes": "Lean shell; add b7 on G+5 when desired",
+      "pattern": "R R R+1 x R R+2",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r5-5",
+      "chordFamily": "core",
+      "chordType": "Power (5)",
+      "symbol": "5",
+      "tuningType": "drop",
+      "rootString": 5,
+      "voicingCategory": "High-gain friendly",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        null,
+        null
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        null,
+        null
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        4,
+        null,
+        null
+      ],
+      "bestUse": "A-string power — same geometry as standard on strings 5–1",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+2 x x",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r5-major",
+      "chordFamily": "core",
+      "chordType": "Major",
+      "symbol": "",
+      "tuningType": "drop",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        2,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        "3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        3,
+        4,
+        1
+      ],
+      "bestUse": "Clean tonic on A-string roots",
+      "playability": "Full voicing",
+      "rootPositionNote": "Root on string 5",
+      "notes": "Upper-string shapes transfer from standard",
+      "pattern": "x R R+2 R+2 R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r5-minor",
+      "chordFamily": "core",
+      "chordType": "Minor",
+      "symbol": "m",
+      "tuningType": "drop",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        1,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "R",
+        "b3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        4,
+        2,
+        1
+      ],
+      "bestUse": "Minor tonic on A-string roots",
+      "playability": "Full voicing",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+2 R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r5-maj7",
+      "chordFamily": "sevenths",
+      "chordType": "Maj7",
+      "symbol": "maj7",
+      "tuningType": "drop",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        1,
+        2,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "7",
+        "3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        2,
+        4,
+        1
+      ],
+      "bestUse": "Best as a clean tonic color chord",
+      "playability": "Full voicing",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+1 R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r5-m7",
+      "chordFamily": "sevenths",
+      "chordType": "Minor 7",
+      "symbol": "m7",
+      "tuningType": "drop",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        1,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "b3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        1,
+        2,
+        1
+      ],
+      "bestUse": "ii / vi workhorse — transfers from standard",
+      "playability": "Full voicing",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r5-7",
+      "chordFamily": "sevenths",
+      "chordType": "Dominant 7",
+      "symbol": "7",
+      "tuningType": "drop",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        2,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "b7",
+        "3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        3,
+        1,
+        4,
+        1
+      ],
+      "bestUse": "Best as a dominant tension chord",
+      "playability": "Full voicing",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R R+2 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r5-m11",
+      "chordFamily": "extended",
+      "chordType": "Minor 11",
+      "symbol": "m11",
+      "tuningType": "drop",
+      "rootString": 5,
+      "voicingCategory": "Shell",
+      "practicalTag": "minimal",
+      "frets": [
+        null,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "intervals": [
+        null,
+        "R",
+        "11",
+        "b7",
+        "b3",
+        "5"
+      ],
+      "fingering": [
+        null,
+        1,
+        1,
+        1,
+        2,
+        1
+      ],
+      "bestUse": "Modern minor — same pragmatic grip as standard",
+      "playability": "Compact shell",
+      "rootPositionNote": "Root on string 5",
+      "notes": "Closed when root fret ≥ 1",
+      "pattern": "x R R R R+1 R",
+      "minRootFret": 1
+    },
+    {
+      "id": "drop-r5-9",
+      "chordFamily": "extended",
+      "chordType": "Dominant 9",
+      "symbol": "9",
+      "tuningType": "drop",
+      "rootString": 5,
+      "voicingCategory": "Full",
+      "practicalTag": "expanded",
+      "frets": [
+        null,
+        0,
+        2,
+        4,
+        2,
+        3
+      ],
+      "intervals": [
+        null,
+        "R",
+        "5",
+        "9",
+        "3",
+        "b7"
+      ],
+      "fingering": [
+        null,
+        1,
+        2,
+        4,
+        3,
+        3
+      ],
+      "bestUse": "Funk / blues dominant on A-string roots",
+      "playability": "Full voicing — best above fret 3",
+      "rootPositionNote": "Root on string 5",
+      "pattern": "x R R+2 R+4 R+2 R+3",
+      "minRootFret": 1
+    }
+  ]
+}

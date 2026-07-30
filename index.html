@@ -284,6 +284,7 @@
     <div class="section-head">
       <div class="section-kicker">Reference</div>
       <h2>Chords</h2>
+      <p>Browse chord tones on the neck, build voicings, and study closed movable shapes for standard and drop tuning.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
@@ -321,6 +322,61 @@
           <p style="color:var(--muted)">Pick a root &amp; chord.</p>
         </div>
       </div>
+    </div>
+
+    <!-- MOVABLE CHORD CARDS -->
+    <div class="mcc-block" id="mcc-block">
+      <div class="mcc-head">
+        <div>
+          <h3>Movable Chord Cards</h3>
+          <p>Closed, root-relative grips labeled by interval (R, 3, b7, 9…) — not note names. No open-string cowboy chords. Follows the chord/tuning selected above when enabled.</p>
+          <div class="mcc-follow-hint" id="mcc-follow-hint"></div>
+        </div>
+        <div class="mcc-head-actions">
+          <button type="button" class="btn sm" id="mcc-open">Full viewer</button>
+          <button type="button" class="btn sm primary" id="mcc-print">Printable PDF</button>
+        </div>
+      </div>
+      <div class="mcc-toolbar">
+        <label class="mcc-field">Deck
+          <select id="mcc-deck">
+            <option value="minimal">Core</option>
+            <option value="all">All cards</option>
+          </select>
+        </label>
+        <label class="mcc-field">Tuning
+          <select id="mcc-tuning">
+            <option value="all">All</option>
+            <option value="standard">Standard</option>
+            <option value="drop">Drop</option>
+          </select>
+        </label>
+        <label class="mcc-field">Family
+          <select id="mcc-family">
+            <option value="all">All</option>
+            <option value="core">Core</option>
+            <option value="sevenths">Sevenths</option>
+            <option value="extended">Extended</option>
+            <option value="altered">Altered</option>
+          </select>
+        </label>
+        <label class="mcc-field">Root string
+          <select id="mcc-root">
+            <option value="all">All</option>
+            <option value="6">6</option>
+            <option value="5">5</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+        <label class="mcc-field mcc-search-field">Search
+          <input id="mcc-search" type="search" placeholder="maj9, m11, 7#11…" />
+        </label>
+        <label class="mcc-check"><input type="checkbox" id="mcc-follow" checked /> Follow selection</label>
+        <label class="mcc-check"><input type="checkbox" id="mcc-intervals" checked /> Intervals</label>
+        <label class="mcc-check"><input type="checkbox" id="mcc-fingering" /> Fingering</label>
+        <span class="mcc-status" id="mcc-status"></span>
+      </div>
+      <div class="mcc-grid" id="mcc-grid"></div>
     </div>
 
     <!-- CHORD BUILDER -->

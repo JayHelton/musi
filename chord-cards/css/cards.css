@@ -1,0 +1,349 @@
+/* Movable chord reference cards — screen + print */
+
+:root {
+  --ink: #121212;
+  --muted: #555;
+  --rule: #ccc;
+  --paper: #f7f4ef;
+  --card: #fff;
+  --accent: #0b5f4b;
+  --accent-soft: #d8ebe5;
+  --badge: #e8e4dc;
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --font-body: "Source Sans 3", "Source Sans Pro", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #e7f2ee 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #f0e8d8 0%, transparent 50%),
+    var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.4;
+}
+
+a { color: var(--accent); }
+
+.app-header {
+  padding: 1.75rem 1.5rem 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.app-header h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  margin: 0 0 0.35rem;
+  letter-spacing: -0.02em;
+}
+
+.app-header .lede {
+  margin: 0;
+  max-width: 42rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: end;
+  padding: 0.75rem 1.5rem 1.25rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--rule);
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, var(--paper) 92%, white);
+  backdrop-filter: blur(8px);
+  z-index: 5;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 7.5rem;
+}
+
+.field label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.field select,
+.field input {
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+button, .btn {
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  padding: 0.45rem 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button.secondary, .btn.secondary {
+  background: transparent;
+  color: var(--ink);
+}
+
+button:hover, .btn:hover { opacity: 0.9; }
+
+.status-bar {
+  max-width: 1200px;
+  margin: 0.75rem auto 0;
+  padding: 0 1.5rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.chord-card {
+  background: var(--card);
+  border: 1px solid #cfc9bd;
+  border-radius: 2px;
+  padding: 0.85rem 0.9rem 0.95rem;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.45rem;
+}
+
+.card-title h2 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  margin: 0;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.card-title .sym {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.card-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.card-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-end;
+}
+
+.badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--badge);
+  color: var(--ink);
+  padding: 0.18rem 0.4rem;
+  border-radius: 2px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.badge-min { background: var(--accent-soft); color: var(--accent); }
+.badge-exp { background: #efe8da; }
+
+.card-body {
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.card-diagram {
+  display: flex;
+  justify-content: center;
+}
+
+.card-info {
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.card-info p { margin: 0; }
+
+.card-info .k {
+  display: inline-block;
+  min-width: 3.4rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+.card-info code {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  background: #f3f0ea;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
+}
+
+.legend {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.legend strong { color: var(--ink); }
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* -------- Print / PDF -------- */
+@page {
+  size: letter;
+  margin: 0.45in;
+}
+
+@media print {
+  html, body {
+    background: #fff;
+  }
+
+  .app-header,
+  .toolbar,
+  .status-bar,
+  .legend,
+  .no-print {
+    display: none !important;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35in;
+    padding: 0;
+    max-width: none;
+  }
+
+  .chord-card {
+    box-shadow: none;
+    border: 1.5px solid #222;
+    border-radius: 0;
+    padding: 0.35in 0.3in;
+    min-height: 4.6in;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .card-body {
+    grid-template-columns: 150px 1fr;
+  }
+
+  .card-info {
+    font-size: 0.72rem;
+  }
+
+  a { text-decoration: none; color: inherit; }
+}
+
+/* Printable-only document (dist/printable.html) */
+body.print-doc {
+  background: #fff;
+}
+
+body.print-doc .print-title {
+  font-family: var(--font-display);
+  text-align: center;
+  margin: 0 0 0.35in;
+  font-size: 1.1rem;
+}
+
+body.print-doc .print-sub {
+  text-align: center;
+  color: #555;
+  font-size: 0.8rem;
+  margin: -0.25in 0 0.4in;
+}
+
+@media screen {
+  body.print-doc {
+    background: #ddd;
+  }
+  body.print-doc .card-grid {
+    background: #fff;
+    max-width: 8.5in;
+    margin: 1rem auto;
+    padding: 0.45in;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  }
+}
+
+@media (max-width: 640px) {
+  .card-body {
+    grid-template-columns: 1fr;
+  }
+  .card-diagram {
+    justify-content: flex-start;
+  }
+  .toolbar-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}

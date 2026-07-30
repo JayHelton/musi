@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v91-interval-orbit";
+const CACHE_VERSION = "v93-movable-chord-cards-ui";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -30,6 +30,14 @@ const PRECACHE_URLS = [
   "css/practice.css",
   "css/tabanalyzer.css",
   "css/intervalorbit.css",
+  "chord-cards/",
+  "chord-cards/index.html",
+  "chord-cards/css/cards.css",
+  "chord-cards/src/app.js",
+  "chord-cards/src/render.js",
+  "chord-cards/src/validate.js",
+  "chord-cards/data/shapes.js",
+  "js/movableChordCards.js",
   "js/main.js",
   "js/attachments.js",
   "js/audio.js",

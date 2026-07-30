@@ -19,6 +19,7 @@ import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 // import { initRiff, stopRiff, riffState, initComposerNotes, stopComposer, composer } from './riffGenerator.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
+import { initMovableChordCards } from './movableChordCards.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises } from './exercises.js';
@@ -122,7 +123,7 @@ const TOOL_INITS = {
   keyboard: buildKeyboard,
   metronome: initMetronome,
   scaleref: initScaleRef,
-  chords: () => { initChordRef(); initChordBuilder(); },
+  chords: () => { initMovableChordCards(); initChordRef(); initChordBuilder(); },
   fretboard: initFretboard,
   intervalorbit: initIntervalOrbit,
   chordlab: initChordWorkout,

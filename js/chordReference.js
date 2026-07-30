@@ -3,6 +3,7 @@ import { CHORDS, groupedChordEntries, getChordNotes, DARK_METAL_CHORDS } from '.
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
+import { renderMovableChordCards } from './movableChordCards.js';
 
 // Short interval labels keyed by semitones-from-root within one octave. Used to
 // colour every chord tone on the neck by its interval (matches the Scale ref).
@@ -564,6 +565,7 @@ function renderChordRef() {
   renderChordFretboard();
   renderChordInfo();
   renderCaged();
+  renderMovableChordCards({ chord: chChord, tuning: chTuning });
 }
 
 export { initChordRef, stopChordRef, chOscillators };
