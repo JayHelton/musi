@@ -193,10 +193,25 @@ body.split-mode #ref-modes{display:none}
 .chord-sl-item{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .chord-dark-badge{flex:0 0 auto;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent2);background:rgba(124,91,245,0.14);padding:2px 6px;border-radius:8px}
 .sl-item.active .chord-dark-badge{color:var(--accent);background:var(--accent-dim)}
-.chord-ref-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.chord-ref-name{margin:0;color:var(--accent);font-size:1.3rem;font-weight:700}
+.chord-ref-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.chord-ref-title-row{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+.chord-ref-name{margin:0;color:var(--accent);font-size:1.3rem;font-weight:700;min-width:0}
 .chord-ref-full{font-size:.85rem;font-weight:400;color:var(--muted)}
 .chord-ref-play{flex:0 0 auto}
+.chord-ref-step{flex:0 0 auto;min-width:40px;padding-left:10px;padding-right:10px;font-weight:700}
+.chord-ref-swipe-hint{font-size:.72rem;color:var(--muted);margin:0 0 10px}
+#sec-chords .quiz-main.chord-swipe-target{touch-action:pan-y}
+#sec-chords .quiz-main.chord-swipe-target .ref-fb-scroll{touch-action:pan-x pan-y}
+#sec-chords .quiz-main.chord-slide-left,
+#sec-chords .quiz-main.chord-slide-right{
+  animation:chord-ref-slide .28s ease;
+}
+#sec-chords .quiz-main.chord-slide-left{--chord-slide-from:18px}
+#sec-chords .quiz-main.chord-slide-right{--chord-slide-from:-18px}
+@keyframes chord-ref-slide{
+  from{opacity:.55;transform:translateX(var(--chord-slide-from,12px))}
+  to{opacity:1;transform:translateX(0)}
+}
 .chord-position-card{margin:0 0 14px;padding:14px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,0.03)}
 .chord-position-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
 .chord-position-kicker{font-size:.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:800;margin-bottom:3px}
