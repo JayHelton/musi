@@ -114,9 +114,18 @@ function tile(value, label, opts = {}) {
 }
 
 export function renderStats() {
+  const s = getStatsSnapshot();
+  const today = document.getElementById('home-today');
+  if (today) {
+    const acc = s.accuracy === null ? '—' : `${s.accuracy}% accuracy`;
+    today.innerHTML = `
+      <div class="home-today-main">${s.minutesToday} min practiced · ${acc} · ${s.currentStreak} streak</div>
+      <div class="home-today-weak">${s.weakest ? `Weakest: ${s.weakest.label}` : 'Keep training to surface a weakest skill'}</div>
+    `;
+  }
+
   const grid = document.getElementById('home-stats-grid');
   if (!grid) return;
-  const s = getStatsSnapshot();
 
   const accVal = s.accuracy === null ? '--' : `${s.accuracy}%`;
   const weakVal = s.weakest ? s.weakest.label : '--';

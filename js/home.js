@@ -1,72 +1,17 @@
 import { getSetting, saveSetting } from './persistence.js';
-
-// Homepage built around scannable tool cards plus a Favorites rail. Musicians
-// tend to reach for the same handful of utilities, so pinned tools sit up top
-// and a long-press (or the card menu) lets them pin, hide and reorder.
-
-const TITLES = {
-  scales: 'Scale Quiz',
-  intervals: 'Interval Quiz',
-  sightreading: 'Sight Reading',
-  scaleref: 'Scale Finder',
-  chords: 'Chord Builder',
-  circle: 'Circle of Fifths',
-  keyboard: 'Keyboard',
-  metronome: 'Metronome',
-  fretboard: 'Fretboard Trainer',
-  intervalorbit: 'Interval Orbit',
-  tuner: 'Pitch / Tuner',
-  ear: 'Ear Trainer',
-  timing: 'Timing Drill',
-  recorder: 'Recorder',
-  songwriter: 'Songwriting',
-  notes: 'Notes',
-  practice: 'Practice Timer',
-  exercises: 'Exercises',
-  drums: 'Drums',
-  tabanalyzer: 'Tab Analyzer',
-};
-
-const DESCRIPTIONS = {
-  scales: 'Spell scales by root and type.',
-  intervals: 'Name intervals above any root.',
-  sightreading: 'Read pitches on the staff.',
-  scaleref: 'Find scales, modes, 3-NPS shapes and sweep patterns.',
-  chords: 'Build voicings and analyze chords.',
-  circle: 'Explore keys and relationships.',
-  keyboard: 'Play notes and hold drones.',
-  metronome: 'Tempo, meter and tap tempo.',
-  fretboard: 'Drill notes and intervals on guitar.',
-  intervalorbit: 'Map intervals from any root — orbits, formulas, improv loops.',
-  tuner: 'Live pitch and reference tones.',
-  ear: 'Identify pitches by ear.',
-  timing: 'Tap against a click track and tighten your pocket.',
-  recorder: 'Capture takes and inspect pitch.',
-  songwriter: 'Write lyrics and attach recordings.',
-  notes: 'Jot down practice notes and ideas.',
-  practice: 'Countdown timer with a metronome tempo plan.',
-  exercises: 'Upload tabs, audio, videos and lesson links.',
-  drums: 'Beats, fills, drum machine and fill generator.',
-  tabanalyzer: 'Break down a tab: key, chords, scales, arpeggios.',
-};
+import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory } from './tools.js';
+import { getStatsSnapshot } from './stats.js';
+import { getContext } from './musicalContext.js';
+import { shortScaleName } from './scales.js';
 
 let showSectionFn = null;
-let icons = {};
-let tabs = [];
-let longPressTimer = null;
-let menuEl = null;
-let allToolsDefaultApplied = false;
+let showHubFn = null;
 
 function favorites() {
   const v = getSetting('home.favorites', []);
-  return Array.isArray(v) ? v.filter(id => tabs.some(t => t.id === id)) : [];
-}
-function hidden() {
-  const v = getSetting('home.hidden', []);
-  return Array.isArray(v) ? v.filter(id => tabs.some(t => t.id === id)) : [];
+  return Array.isArray(v) ? v.filter(id => TOOLS.some(t => t.id === id)) : [];
 }
 function setFavorites(list) { saveSetting('home.favorites', list); }
-function setHidden(list) { saveSetting('home.hidden', list); }
 
 function toggleFavorite(id) {
   const list = favorites();
@@ -75,142 +20,271 @@ function toggleFavorite(id) {
   setFavorites(list);
   render();
 }
-function toggleHidden(id) {
-  const list = hidden();
-  const i = list.indexOf(id);
-  if (i >= 0) list.splice(i, 1); else list.push(id);
-  setHidden(list);
-  render();
-}
-function moveFavorite(id, dir) {
-  const list = favorites();
-  const i = list.indexOf(id);
-  if (i < 0) return;
-  const j = i + dir;
-  if (j < 0 || j >= list.length) return;
-  [list[i], list[j]] = [list[j], list[i]];
-  setFavorites(list);
-  render();
+
+function lastTool() {
+  const id = getSetting('nav.lastTool', null);
+  return id && getTool(id) ? id : null;
 }
 
-function closeMenu() {
-  if (menuEl) menuEl.classList.remove('open');
+function continueSetupLine(toolId) {
+  const c = getContext();
+  const bits = [];
+  if (['scaleref', 'chords', 'fretboard', 'intervalorbit', 'chordlab', 'scales', 'tuner'].includes(toolId)) {
+    bits.push(`${c.root} ${shortScaleName(c.scale)}`);
+  }
+  if (['metronome', 'timing', 'practice', 'intervalorbit'].includes(toolId)) {
+    bits.push(`${c.tempo} BPM`);
+  }
+  const tuning = getSetting('picker.lastTuning', getSetting('chordref.tuning', getSetting('io.tuning', null)));
+  if (tuning && ['scaleref', 'chords', 'fretboard', 'intervalorbit', 'chordlab', 'tabanalyzer'].includes(toolId)) {
+    bits.push(tuning);
+  }
+  const sub = getSetting(`subview.${toolId}`, null);
+  if (sub) bits.push(String(sub).replace(/^\w/, ch => ch.toUpperCase()));
+  return bits.filter(Boolean).join(' · ') || (getTool(toolId)?.description || '');
 }
 
-function openMenu(id, x, y) {
-  if (!menuEl) return;
-  const isFav = favorites().includes(id);
-  const isHidden = hidden().includes(id);
-  menuEl.innerHTML = `
-    <button class="tc-menu-item" data-act="fav">${isFav ? '\u2605 Unpin from Home' : '\u2606 Pin to Home'}</button>
-    ${isFav ? '<button class="tc-menu-item" data-act="up">\u2191 Move up</button><button class="tc-menu-item" data-act="down">\u2193 Move down</button>' : ''}
-    <button class="tc-menu-item" data-act="hide">${isHidden ? 'Show' : 'Hide'}</button>
+function renderContinue(host) {
+  const id = lastTool();
+  if (!id) {
+    host.innerHTML = '';
+    host.style.display = 'none';
+    return;
+  }
+  host.style.display = '';
+  const tool = getTool(id);
+  host.innerHTML = `
+    <button type="button" class="home-continue-card" data-id="${id}">
+      <span class="home-continue-kicker">Continue</span>
+      <span class="home-continue-title">${tool.title}</span>
+      <span class="home-continue-setup">${continueSetupLine(id)}</span>
+    </button>
   `;
-  menuEl.querySelectorAll('.tc-menu-item').forEach(btn => {
+  host.querySelector('button').onclick = () => showSectionFn(id);
+}
+
+function renderQuickStart(host) {
+  const fav = favorites().slice(0, 4);
+  const pinned = fav.length ? fav : ['intervalorbit', 'scaleref', 'metronome', 'tuner'].filter(id => getTool(id));
+  host.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'home-section-label';
+  label.textContent = 'Quick Start';
+  host.appendChild(label);
+  const grid = document.createElement('div');
+  grid.className = 'home-quick';
+  pinned.forEach(id => {
+    const tool = getTool(id);
+    if (!tool) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'home-quick-card';
+    btn.innerHTML = `
+      <span class="hq-icon">${TOOL_ICONS[id] || ''}</span>
+      <span class="hq-title">${tool.label}</span>
+      <span class="home-quick-fav" data-fav="${id}" aria-label="Favorite">${favorites().includes(id) ? '★' : '☆'}</span>
+    `;
     btn.onclick = (e) => {
-      e.stopPropagation();
-      const act = btn.dataset.act;
-      if (act === 'fav') toggleFavorite(id);
-      else if (act === 'hide') toggleHidden(id);
-      else if (act === 'up') moveFavorite(id, -1);
-      else if (act === 'down') moveFavorite(id, 1);
-      closeMenu();
+      if (e.target.closest('[data-fav]')) {
+        e.stopPropagation();
+        toggleFavorite(id);
+        return;
+      }
+      showSectionFn(id);
     };
+    grid.appendChild(btn);
   });
-  const vw = window.innerWidth, vh = window.innerHeight;
-  menuEl.style.left = Math.min(x, vw - 200) + 'px';
-  menuEl.style.top = Math.min(y, vh - 180) + 'px';
-  menuEl.classList.add('open');
+  host.appendChild(grid);
 }
 
-function buildCard(id, { pinned } = {}) {
-  const card = document.createElement('div');
-  card.className = 'tool-card';
-  card.dataset.id = id;
-  const title = TITLES[id] || (tabs.find(t => t.id === id) || {}).label || id;
-  const desc = DESCRIPTIONS[id] || '';
-  card.innerHTML = `
-    <button class="tool-card-menu" type="button" aria-label="Tool options">&#8943;</button>
-    <div class="tool-card-icon">${icons[id] || ''}</div>
-    <div class="tool-card-title">${title}</div>
-    <div class="tool-card-desc">${desc}</div>
-    <button class="btn primary tool-card-open" type="button">Open</button>
+function renderToday(host) {
+  const s = getStatsSnapshot();
+  const acc = s.accuracy === null ? '—' : `${s.accuracy}% accuracy`;
+  host.innerHTML = `
+    <div class="home-today-main">${s.minutesToday} min practiced · ${acc} · ${s.currentStreak} streak</div>
+    <div class="home-today-weak">${s.weakest ? `Weakest: ${s.weakest.label}` : 'Keep training to surface a weakest skill'}</div>
   `;
-  if (pinned) card.classList.add('pinned');
+}
 
-  card.querySelector('.tool-card-open').onclick = () => showSectionFn(id);
-  const menuBtn = card.querySelector('.tool-card-menu');
-  menuBtn.onclick = (e) => {
-    e.stopPropagation();
-    const r = menuBtn.getBoundingClientRect();
-    openMenu(id, r.left, r.bottom + 4);
+function renderCategories(host) {
+  host.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'home-section-label';
+  label.textContent = 'Categories';
+  host.appendChild(label);
+  const grid = document.createElement('div');
+  grid.className = 'home-cats';
+  CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'home-cat-link';
+    btn.innerHTML = `<span class="dock-icon">${CATEGORY_ICONS[cat.id] || ''}</span><span>${cat.label}</span>`;
+    btn.onclick = () => {
+      if (typeof showHubFn === 'function') showHubFn(cat.id);
+      else showSectionFn('hub-' + cat.id);
+    };
+    grid.appendChild(btn);
+  });
+  host.appendChild(grid);
+}
+
+function renderAllTools(panel) {
+  if (!panel) return;
+  const search = panel.querySelector('.home-all-search') || (() => {
+    const input = document.createElement('input');
+    input.type = 'search';
+    input.className = 'home-all-search';
+    input.placeholder = 'Search tools…';
+    input.setAttribute('aria-label', 'Search tools');
+    panel.insertBefore(input, panel.querySelector('.home-all-rows'));
+    return input;
+  })();
+
+  let rows = panel.querySelector('.home-all-rows');
+  if (!rows) {
+    rows = document.createElement('div');
+    rows.className = 'home-all-rows';
+    panel.appendChild(rows);
+  }
+
+  const paint = () => {
+    const q = (search.value || '').toLowerCase().trim();
+    rows.innerHTML = '';
+    TOOLS.filter(t => {
+      if (!q) return true;
+      return (t.label + ' ' + t.description + ' ' + t.category).toLowerCase().includes(q);
+    }).forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'home-tool-row';
+      row.innerHTML = `
+        <span class="ht-icon">${TOOL_ICONS[t.id] || ''}</span>
+        <button type="button" class="ht-title">${t.label}</button>
+        <button type="button" class="ht-fav${favorites().includes(t.id) ? ' on' : ''}" aria-label="Favorite">${favorites().includes(t.id) ? '★' : '☆'}</button>
+      `;
+      row.querySelector('.ht-title').onclick = () => showSectionFn(t.id);
+      row.querySelector('.ht-fav').onclick = (e) => {
+        e.stopPropagation();
+        toggleFavorite(t.id);
+      };
+      // Make whole row tappable except star
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.ht-fav')) return;
+        showSectionFn(t.id);
+      });
+      rows.appendChild(row);
+    });
   };
-
-  // Long-press anywhere on the card reveals the same menu on touch devices.
-  card.addEventListener('touchstart', (e) => {
-    longPressTimer = setTimeout(() => {
-      const t = e.touches[0];
-      openMenu(id, t.clientX, t.clientY);
-    }, 500);
-  }, { passive: true });
-  const cancel = () => { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } };
-  card.addEventListener('touchend', cancel);
-  card.addEventListener('touchmove', cancel, { passive: true });
-
-  return card;
+  search.oninput = paint;
+  paint();
 }
 
 function render() {
-  const favWrap = document.getElementById('home-favorites');
-  const favSection = document.getElementById('home-fav-section');
+  const continueHost = document.getElementById('home-continue');
+  const quickHost = document.getElementById('home-quickstart');
+  const todayHost = document.getElementById('home-today');
+  const catsHost = document.getElementById('home-categories');
   const allPanel = document.getElementById('home-all-panel');
-  const grid = document.getElementById('home-grid');
-  if (!grid) return;
 
-  const fav = favorites();
-  const hid = hidden();
-
+  if (continueHost) renderContinue(continueHost);
+  if (quickHost) renderQuickStart(quickHost);
+  if (todayHost) renderToday(todayHost);
+  if (catsHost) renderCategories(catsHost);
   if (allPanel) {
-    if (!allToolsDefaultApplied) {
-      allPanel.open = fav.length === 0;
-      allToolsDefaultApplied = true;
-    } else if (fav.length === 0) {
-      allPanel.open = true;
+    allPanel.open = false;
+    renderAllTools(allPanel);
+  }
+}
+
+export function renderHub(categoryId, container, { showSection, onFavorite } = {}) {
+  if (!container) return;
+  const cat = CATEGORIES.find(c => c.id === categoryId);
+  if (!cat) return;
+  const tools = toolsInCategory(categoryId);
+  const fav = favorites().filter(id => tools.some(t => t.id === id));
+  const recentId = lastTool();
+  const recentTool = recentId && tools.some(t => t.id === recentId) ? getTool(recentId) : null;
+
+  container.innerHTML = `
+    <div class="section-head">
+      <div class="section-kicker">Category</div>
+      <h2>${cat.label}</h2>
+      <p>${cat.description}</p>
+    </div>
+    <input type="search" class="hub-search" placeholder="Filter ${cat.label.toLowerCase()}…" aria-label="Filter ${cat.label}">
+    <div class="hub-body"></div>
+  `;
+  const body = container.querySelector('.hub-body');
+  const search = container.querySelector('.hub-search');
+
+  const paint = () => {
+    const q = (search.value || '').toLowerCase().trim();
+    body.innerHTML = '';
+    if (recentTool && !q) {
+      const lab = document.createElement('div');
+      lab.className = 'hub-recent-label';
+      lab.textContent = 'Recently used';
+      body.appendChild(lab);
+      body.appendChild(toolRow(recentTool, { showSection, onFavorite }));
     }
-  }
-
-  if (favSection) favSection.style.display = fav.length ? '' : 'none';
-  if (favWrap) {
-    favWrap.innerHTML = '';
-    fav.forEach(id => favWrap.appendChild(buildCard(id, { pinned: true })));
-  }
-
-  grid.innerHTML = '';
-  tabs.filter(t => !hid.includes(t.id)).forEach(t => grid.appendChild(buildCard(t.id)));
-
-  const hiddenNote = document.getElementById('home-hidden-note');
-  if (hiddenNote) {
-    if (hid.length) {
-      hiddenNote.style.display = '';
-      hiddenNote.textContent = `${hid.length} hidden tool${hid.length > 1 ? 's' : ''} — long-press or use the menu to show`;
-    } else {
-      hiddenNote.style.display = 'none';
+    if (fav.length && !q) {
+      const lab = document.createElement('div');
+      lab.className = 'hub-pinned-label';
+      lab.textContent = 'Pinned';
+      body.appendChild(lab);
+      const list = document.createElement('div');
+      list.className = 'hub-tool-list';
+      fav.forEach(id => {
+        const t = getTool(id);
+        if (t) list.appendChild(toolRow(t, { showSection, onFavorite }));
+      });
+      body.appendChild(list);
     }
-  }
+    const lab = document.createElement('div');
+    lab.className = 'hub-pinned-label';
+    lab.textContent = q ? 'Results' : 'All';
+    body.appendChild(lab);
+    const list = document.createElement('div');
+    list.className = 'hub-tool-list';
+    tools.filter(t => {
+      if (!q) return true;
+      return (t.label + ' ' + t.description).toLowerCase().includes(q);
+    }).forEach(t => list.appendChild(toolRow(t, { showSection, onFavorite })));
+    body.appendChild(list);
+  };
+  search.oninput = paint;
+  paint();
+}
+
+function toolRow(tool, { showSection, onFavorite }) {
+  const fav = favorites().includes(tool.id);
+  const row = document.createElement('div');
+  row.className = 'hub-tool-row';
+  row.innerHTML = `
+    <span class="hub-icon">${TOOL_ICONS[tool.id] || ''}</span>
+    <span class="hub-tool-meta">
+      <span class="hub-tool-title">${tool.label}</span>
+      <span class="hub-tool-desc">${tool.description}</span>
+    </span>
+    <button type="button" class="hub-tool-fav${fav ? ' on' : ''}" aria-label="Favorite">${fav ? '★' : '☆'}</button>
+  `;
+  row.querySelector('.hub-tool-fav').onclick = (e) => {
+    e.stopPropagation();
+    toggleFavorite(tool.id);
+    if (onFavorite) onFavorite();
+  };
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('.hub-tool-fav')) return;
+    showSection(tool.id);
+  });
+  return row;
 }
 
 export function initHome(config) {
   showSectionFn = config.showSection;
-  icons = config.icons || {};
-  tabs = config.tabs || [];
+  showHubFn = config.showHub;
+  render();
+}
 
-  if (!menuEl) {
-    menuEl = document.createElement('div');
-    menuEl.className = 'tc-menu';
-    document.body.appendChild(menuEl);
-    document.addEventListener('click', closeMenu);
-    document.addEventListener('scroll', closeMenu, true);
-  }
-
+export function refreshHome() {
   render();
 }

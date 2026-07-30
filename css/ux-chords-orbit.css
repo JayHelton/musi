@@ -1,0 +1,24 @@
+/* Chords map: keep fretboard near top on mobile */
+@media (max-width: 768px) {
+  #sec-chords [data-subview="map"] .quiz-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  #sec-chords [data-subview="map"] .ref-fb-card {
+    order: -1;
+  }
+  #sec-chords .chord-position-card {
+    font-size: 0.85rem;
+  }
+}
+
+/* Interval orbit: board before dock */
+#sec-intervalorbit .io-drill-dock {
+  margin-top: 10px;
+}
+
+/* Sticky subview tabs clear header */
+.subview-tabs {
+  top: 0;
+  background: rgba(14, 14, 14, 0.94);
+}

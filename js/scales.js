@@ -115,3 +115,14 @@ export function scaleStepPattern(scaleName) {
   }
   return steps.join(' – ');
 }
+
+/** Compact display name for UI chrome (e.g. "Major (Ionian)" → "Major"). */
+export function shortScaleName(name) {
+  if (!name) return '';
+  return name
+    .replace('Major (Ionian)', 'Major')
+    .replace('Natural Minor (Aeolian)', 'Minor')
+    .replace('Melodic Minor (Asc)', 'Melodic Minor')
+    .replace(/\s*\(.*?\)\s*/g, ' ')
+    .trim();
+}
