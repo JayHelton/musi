@@ -4,8 +4,8 @@ Plan for using Guitar Pro files as a **local exercise library**: upload once,
 open on demand, practice with tempo-aware playback. Builds on work already
 shipped in Tab Analyzer and the Exercises library.
 
-Like the rest of Musi, this must stay **static, zero-build, offline**, with
-shared parse/play logic in pure ES modules under `js/` so the CLI can reuse it.
+**Web-only.** No new CLI activity or playback path for this feature. Like the
+rest of Musi, it stays **static, zero-build, and offline**.
 
 ## Why this feature
 
@@ -31,7 +31,6 @@ analysis.
 | Shared model | `js/tab/tabModel.js` | Events keyed by **slot**; no duration/tempo fields yet |
 | Analysis | `js/tab/tabAnalyzer.js` + `js/analysis/*` | Key, chords, scales, techniques, segments |
 | Web Tab Analyzer | `js/tabAnalyzer.js`, `#sec-tabanalyzer` | Upload → Parts → Analyze → Play |
-| CLI `tab` | `cli/src/analyzers/tab.js` | Analyze only; no playback |
 | Exercises library | `js/exercises.js` + `js/attachments.js` | `musi.exercises` + IndexedDB blobs; viewer for pdf/image/audio/video/link |
 | Audio bus | `js/audio.js` | Web Audio oscillators; no SoundFont/MIDI I/O |
 
@@ -44,8 +43,8 @@ model keeps time.
 
 | Option | Pros | Cons |
 | ------ | ---- | ---- |
-| **A. Extend own engine** (recommended) | Matches zero-dep / offline / CLI-share rules; small surface; already maps techniques into Musi analysis | Must add rhythm + a practice scheduler ourselves; no engraved score view |
-| **B. Vendor alphaTab** | Full score render + SoundFont playback + GP3–8 | Large dependency, SoundFont assets, workers; fights static/zero-dep and CLI parity; overkill for “play my étude” |
+| **A. Extend own engine** (recommended) | Matches zero-dep / offline rules; small surface; already maps techniques into Musi analysis | Must add rhythm + a practice scheduler ourselves; no engraved score view |
+| **B. Vendor alphaTab** | Full score render + SoundFont playback + GP3–8 | Large dependency, SoundFont assets, workers; fights static/zero-dep; overkill for “play my étude” |
 
 **Decision: Option A.** Keep parsing in `js/tab/*`. Add rhythm to `TabModel`,
 a small tempo-aware player, and wire Exercises to open GP files into a practice
@@ -58,11 +57,10 @@ view. Revisit alphaTab only if we later want full engraved notation.
 - Open a stored file into a **practice player**: play / pause / stop, tempo
   control (% or BPM), loop selection (measures or markers), track picker.
 - Preserve **exact** frets, tuning, techniques from the existing parsers.
-- Keep parse + schedule logic **DOM-free** for CLI reuse (CLI can play via WAV
-  like other trainers).
 - Optional one-tap path into Tab Analyzer analysis for the same model.
 
 **Non-goals (v1)**
+- Any new CLI surface (no `play-tab`, no CLI verification requirement).
 - Engraved notation / alphaTab-style sheet rendering.
 - SoundFont / realistic guitar amp modeling (oscillator / simple synth is enough).
 - Writing or editing Guitar Pro files.
@@ -88,7 +86,7 @@ Practice      analyzeModel()   # existing analysis
 player UI     (optional deep-link)
     │
     ▼
-tabPlayer.schedule(model, opts) → Web Audio / CLI WAV
+tabPlayer.schedule(model, opts) → Web Audio
 ```
 
 **New / extended modules (proposed):**
@@ -97,10 +95,9 @@ tabPlayer.schedule(model, opts) → Web Audio / CLI WAV
 | ------ | ---- |
 | `js/tab/tabModel.js` | Add optional `tempo`, per-event `duration`, measure time signatures |
 | `js/tab/guitarPro.js` / `gp5.js` | Map beat Rhythm / duration + score tempo onto the model |
-| `js/tab/tabPlayer.js` | Pure scheduler: events → timed note list (start, dur, midi, techniques) |
-| `js/gpPractice.js` (web) | Practice overlay / section: transport, loop, tempo, ASCII or compact tab strip |
+| `js/tab/tabPlayer.js` | Scheduler: events → timed note list (start, dur, midi, techniques) |
+| `js/gpPractice.js` (web) | Practice overlay: transport, loop, tempo, ASCII or compact tab strip |
 | `js/exercises.js` | Accept GP types; `mediaKind === 'gp'` → open practice player |
-| `cli/src/…` | Optional: `musi play-tab --file x.gp --bpm 90` (later phase) |
 
 Reuse: `attachments.js`, Exercises folder UX, `audio.js`, Tab Analyzer track
 picker patterns, measure `marker` fields already imported from GPIF sections.
@@ -163,8 +160,8 @@ attachment path before investing in rhythm.
 - GP5: read duration / tuplet instead of skipping; map to the same units.
 - Score tempo (+ basic tempo changes if cheap).
 - Leave ASCII parser unchanged (`duration` absent → legacy behavior).
-- Smoke-check: CLI `tab --file` still analyzes; add a small dump of
-  `tempo` + first N event durations for verification.
+- Smoke-check in the browser: after Open, surface `tempo` and a few event
+  durations in the overlay (or console) to confirm mapping.
 
 **Risk:** Tied notes, grace notes, tuplets, alternate endings — v1 can treat
 grace as zero/steal-from-next and ignore repeats/alt endings (linear play).
@@ -196,12 +193,6 @@ grace as zero/steal-from-next and ignore repeats/alt endings (linear play).
 - “Save to Exercises” from Tab Analyzer after a GP upload (closes Phase 5
   export idea from `docs/tab-analyzer-roadmap.md` for this path).
 
-### Phase 4 — CLI play (optional)
-
-- `musi play-tab --file étude.gp [--track 1] [--bpm 90] [--loop 4-8]`
-- Render WAV via `cli/src/audio.js` and shell out to `afplay` / `paplay` / …
-- Useful for headless smoke tests of the scheduler.
-
 ### Later / out of scope until needed
 
 - `.gp3` / `.gp4` / `.gpx` readers.
@@ -210,6 +201,7 @@ grace as zero/steal-from-next and ignore repeats/alt endings (linear play).
 - SoundFont or sampled guitar.
 - MusicXML import.
 - Cloud / shared exercise packs.
+- CLI playback or a dedicated CLI activity for this feature.
 
 ## UX sketch (Exercises → Open)
 
@@ -226,7 +218,7 @@ Tab Analyzer stays the deep analysis surface.
 
 ## Verification (no test framework)
 
-Per `AGENTS.md`:
+Per `AGENTS.md`, verify in the browser:
 
 1. Add 2–3 small fixture `.gp` / `.gp5` études under something like
    `docs/fixtures/gp/` (short, known BPM, clear rhythms) if licensing allows;
@@ -234,8 +226,6 @@ Per `AGENTS.md`:
 2. Web: `python3 -m http.server 8080` → Exercises → upload → Open → Play at
    100% and 70% tempo; loop two measures; switch tracks; Analyze handoff.
 3. Hard-reload after JS/CSS edits (service worker).
-4. CLI: `node bin/musi.js tab --file <fixture.gp>` still reports analysis;
-   after Phase 4, `play-tab` produces audible WAV.
 
 ## Risks & mitigations
 
@@ -254,7 +244,6 @@ Per `AGENTS.md`:
 2. **Phase 1** — rhythm on `TabModel` (unblocks real play).
 3. **Phase 2** — practice player (core “on demand” experience).
 4. **Phase 3** — polish + Tab Analyzer → Exercises save.
-5. **Phase 4** — CLI play if needed for smoke / power users.
 
 ## Relationship to Tab Analyzer roadmap
 
