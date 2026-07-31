@@ -27,26 +27,26 @@ export const STAGE_INTERVALS = {
   4: { name: 'Second Relationships', intervals: [0, 1, 2, 3, 4, 5, 7, 10, 11] },
   5: { name: 'Sixth Relationships', intervals: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11] },
   6: { name: 'Tritone', intervals: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
-  7: { name: 'Complete Chromatic Orbit', intervals: ALL_INTERVALS },
+  7: { name: 'Complete Chromatic Map', intervals: ALL_INTERVALS },
 };
 
 export const ORBIT_DEFS = {
   1: {
-    name: 'Orbit 1 — Immediate',
+    name: 'Local Shape',
     maxStringDist: 2,
     maxFretDist: 4,
     includeNearestOctave: true,
     defaultIntervals: [0, 1, 2, 3, 4, 5, 6, 7, 10],
   },
   2: {
-    name: 'Orbit 2 — Extended',
+    name: 'Position Map',
     maxStringDist: 3,
     maxFretDist: 7,
     includeNearestOctave: true,
     defaultIntervals: ALL_INTERVALS,
   },
   3: {
-    name: 'Orbit 3 — Connected',
+    name: 'Full Neck',
     maxStringDist: Infinity,
     maxFretDist: Infinity,
     includeNearestOctave: true,

@@ -664,100 +664,43 @@
   <!-- INTERVAL ORBIT -->
   <section id="sec-intervalorbit" class="section">
     <div class="section-head">
-      <div class="section-kicker">Drill</div>
-      <h2>Interval Orbit</h2>
-      <p>See every fret as an interval relative to a root. Locate, identify, and build from local orbits — then improvise chord tones over looping progressions.</p>
+      <div class="section-kicker">Train</div>
+      <h2>Fretboard Interval Map</h2>
+      <p>Learn the reusable fretboard shapes for every interval around an anchor root, then test yourself by locating, naming, or playing them.</p>
     </div>
     <div class="quiz-layout io-layout">
-      <div class="sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Tuning</div>
-          <div class="sl-scroll" id="sl-io-tuning"></div>
+      <div class="quiz-main io-main">
+        <div id="io-tabs" class="subview-tabs" role="tablist" aria-label="Interval Map views"></div>
+        <div id="io-setup" class="setup-summary mobile-setup-first"></div>
+        <div id="io-compact-progress" class="compact-progress" aria-live="polite"></div>
+
+        <div id="io-panel-map" class="subview-panel active" data-subview="map" data-subview-for="io-tabs">
+          <div id="io-anchor-display" class="io-anchor-display" aria-live="polite"></div>
+          <div id="io-interval-picker" class="io-interval-picker" role="toolbar" aria-label="Interval focus"></div>
         </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Drill</div>
-          <div class="sl-scroll" id="sl-io-drill"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Orbit</div>
-          <div class="sl-scroll" id="sl-io-orbit"></div>
-        </div>
-      </div>
-      <div class="quiz-main">
-        <div class="progress-header" data-right="#io-right" data-total="#io-total" data-streak="#io-streak">
-          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="io-streak">0</span><span class="ph-streak-label">Streak</span></div>
-          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count"><b id="io-right">0</b> / <span id="io-total">0</span></span></div>
-          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
-          <button class="btn sm ph-reset" id="io-reset-score" onclick="resetIoScore()">Reset</button>
+        <div id="io-panel-quiz" class="subview-panel" data-subview="quiz" data-subview-for="io-tabs" hidden></div>
+        <div id="io-panel-play" class="subview-panel" data-subview="play" data-subview-for="io-tabs" hidden></div>
+        <div id="io-panel-progress" class="subview-panel" data-subview="progress" data-subview-for="io-tabs" hidden>
+          <div id="io-progress-body"></div>
         </div>
 
-        <div class="io-tuning-badge" id="io-tuning-badge"></div>
-
-        <details class="adv-options" open>
-          <summary><span class="adv-gear">&#9881;</span> Options</summary>
-          <div class="fb-workbench-controls io-controls">
-            <label>Stage <select id="io-stage"></select></label>
-            <label>Labels <select id="io-label-mode"></select></label>
-            <label>Find mode <select id="io-find-mode"></select></label>
-            <label>Hand <select id="io-handedness"></select></label>
-            <label>Frets <input type="number" id="io-fret-start" min="0" max="24" value="0" inputmode="numeric"> – <input type="number" id="io-fret-end" min="1" max="24" value="12" inputmode="numeric"></label>
-            <label><input type="checkbox" id="io-octave-8"> Octave as 8</label>
-            <label><input type="checkbox" id="io-shape-lines" checked> Shape lines (study)</label>
-            <label><input type="checkbox" id="io-show-boundary" checked> Mark tuning boundary</label>
-            <label><input type="checkbox" id="io-hide-root"> Hide root after flash</label>
-          </div>
-          <div class="io-custom-tuning-row" id="io-custom-tuning-row" hidden>
-            <label class="io-full-label">Custom tuning
-              <input type="text" id="io-custom-tuning" placeholder="C2 G2 C3 F3 A3 D4" spellcheck="false">
-            </label>
-            <div class="io-err" id="io-custom-tuning-err" hidden></div>
-          </div>
-        </details>
-
-        <div class="quiz-card fb-card-compact io-card">
-          <div class="fb-question" id="io-question">Next to start.</div>
+        <div class="quiz-card fb-card-compact io-card" id="io-workbench">
+          <div class="fb-question" id="io-challenge" aria-live="polite">Choose an anchor root to begin.</div>
+          <div id="io-interval-meta" class="io-interval-meta"></div>
           <div class="io-board-wrap">
             <svg class="io-shape-overlay" id="io-shape-overlay" aria-hidden="true"></svg>
             <div class="fb-wrap">
-              <div class="fretboard io-fretboard" id="io-board"></div>
+              <div class="fretboard io-fretboard" id="io-board" role="grid" aria-label="Guitar fretboard"></div>
             </div>
           </div>
-          <p class="io-boundary-note" id="io-boundary-note" hidden></p>
-          <div class="field-label" id="io-picker-label" hidden>Interval</div>
-          <div class="int-picker" id="io-picker" hidden></div>
-          <div class="fb-feedback" id="io-feedback"></div>
+          <div id="io-shape-compare" class="io-shape-compare"></div>
+          <div id="io-answer-picker" class="int-picker" hidden></div>
+          <div id="io-pitch-live" class="io-pitch-live" aria-live="polite"></div>
+          <div class="fb-feedback" id="io-feedback" aria-live="polite"></div>
+          <div id="io-actions" class="io-actions"></div>
         </div>
 
-        <div class="quiz-card io-improv-panel" id="io-improv-panel" hidden>
-          <div class="io-card-title">Improv loop</div>
-          <div class="io-improv-controls">
-            <label>Key <select id="io-tonal-center"></select></label>
-            <label>Preset <select id="io-prog-preset"></select></label>
-            <label>Beats/chord <input type="number" id="io-beats" min="1" max="8" value="4" inputmode="numeric"></label>
-            <label>BPM <input type="number" id="io-bpm" min="40" max="220" value="110" inputmode="numeric"></label>
-            <label>Labels <select id="io-improv-perspective"></select></label>
-            <label><input type="checkbox" id="io-metro" checked> Metronome</label>
-          </div>
-          <label class="io-full-label">Custom progression
-            <input type="text" id="io-prog-custom" placeholder="Dm | Bb | F | C  or  i | VI | III | VII" spellcheck="false">
-          </label>
-          <div class="io-prog-strip" id="io-prog-strip"></div>
-          <p class="io-improv-tip" id="io-improv-tip" hidden></p>
-          <div class="io-improv-transport">
-            <button class="btn primary" type="button" id="io-play">Play Loop</button>
-          </div>
-        </div>
-
-        <div class="quiz-card io-stats-card">
-          <div class="io-card-title">Weak relationships</div>
-          <div id="io-weak"></div>
-          <div class="io-card-title" style="margin-top:14px">Session history</div>
-          <div id="io-history"></div>
-        </div>
-
-        <div class="action-dock">
-          <button class="btn primary" style="width:100%" onclick="newIoQuestion()">Next</button>
-        </div>
+        <div class="quiz-card io-improv-panel" id="io-improv-panel" hidden></div>
       </div>
     </div>
   </section>

@@ -18,7 +18,7 @@ const SKILL_LABELS = {
   interval: 'Intervals',
   sightreading: 'Sight Reading',
   fretboard: 'Fretboard',
-  intervalorbit: 'Interval Orbit',
+  intervalorbit: 'Interval Map',
   ear: 'Ear',
   timing: 'Timing',
 };

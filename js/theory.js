@@ -54,23 +54,8 @@ export const ROOTS_RAND = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B']
 
 export function pick(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
 
-export const TUNINGS = {
-  'Standard':     [{note:'E',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'E',oct:4}],
-  'Drop D':       [{note:'D',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'E',oct:4}],
-  'Half Step Down':[{note:'Eb',oct:2},{note:'Ab',oct:2},{note:'Db',oct:3},{note:'Gb',oct:3},{note:'Bb',oct:3},{note:'Eb',oct:4}],
-  'Drop C':       [{note:'C',oct:2},{note:'G',oct:2},{note:'C',oct:3},{note:'F',oct:3},{note:'A',oct:3},{note:'D',oct:4}],
-  'C Standard':   [{note:'C',oct:2},{note:'F',oct:2},{note:'Bb',oct:2},{note:'Eb',oct:3},{note:'G',oct:3},{note:'C',oct:4}],
-  'Open G':       [{note:'D',oct:2},{note:'G',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'D',oct:4}],
-  'Open D':       [{note:'D',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'F#',oct:3},{note:'A',oct:3},{note:'D',oct:4}],
-  'DADGAD':       [{note:'D',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'A',oct:3},{note:'D',oct:4}],
-  '7-String Standard': [{note:'B',oct:1},{note:'E',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'E',oct:4}],
-  '7-String Drop A':   [{note:'A',oct:1},{note:'E',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'E',oct:4}],
-  '7-String Drop G':   [{note:'G',oct:1},{note:'D',oct:2},{note:'G',oct:2},{note:'C',oct:3},{note:'F',oct:3},{note:'A',oct:3},{note:'D',oct:4}],
-  '7-String Drop F#':  [{note:'F#',oct:1},{note:'C#',oct:2},{note:'F#',oct:2},{note:'B',oct:2},{note:'E',oct:3},{note:'G#',oct:3},{note:'C#',oct:4}],
-  '8-String Standard': [{note:'F#',oct:1},{note:'B',oct:1},{note:'E',oct:2},{note:'A',oct:2},{note:'D',oct:3},{note:'G',oct:3},{note:'B',oct:3},{note:'E',oct:4}],
-  'Bass 4':       [{note:'E',oct:1},{note:'A',oct:1},{note:'D',oct:2},{note:'G',oct:2}],
-  'Bass 5':       [{note:'B',oct:0},{note:'E',oct:1},{note:'A',oct:1},{note:'D',oct:2},{note:'G',oct:2}],
-};
+// Generated from the structured catalog in tunings.js (keeps legacy key names).
+export { TUNINGS } from './tunings.js';
 
 export const INTERVAL_LABELS = {
   0:'P1', 1:'m2', 2:'M2', 3:'m3', 4:'M3', 5:'P4',

@@ -3,6 +3,7 @@ import { openSelectionSheet } from './selectionSheet.js';
 import { getList, pushRecent, toggleFavorite, isFavorite } from './recents.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { ROOTS, TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
+import { TUNING_CATALOG, findPresetByName, pitchSequenceString } from './tunings.js';
 import { SCALES, shortScaleName } from './scales.js';
 import { CHORDS, DARK_METAL_CHORDS } from './chords.js';
 import { setContext } from './musicalContext.js';
@@ -151,10 +152,9 @@ function chordCategory(name) {
 }
 
 const TUNING_CATEGORIES = [
-  { id: 'standard', label: 'Standard' },
+  { id: 'standard', label: 'Standard-family' },
   { id: 'drop', label: 'Drop' },
-  { id: 'lower', label: 'Lower standard' },
-  { id: 'open', label: 'Open' },
+  { id: 'alternate', label: 'Alternate / Open' },
   { id: 'seven', label: 'Seven-string' },
   { id: 'eight', label: 'Eight-string' },
   { id: 'bass', label: 'Bass' },
@@ -163,19 +163,20 @@ const TUNING_CATEGORIES = [
 
 function tuningCategory(name) {
   if (name === 'Custom') return 'custom';
+  const preset = findPresetByName(name);
+  if (preset?.category) return preset.category === 'open' ? 'alternate' : preset.category;
   if (/^8-String/.test(name)) return 'eight';
   if (/^7-String/.test(name)) return 'seven';
   if (/^Bass/.test(name)) return 'bass';
-  if (/^Open|^DADGAD/.test(name)) return 'open';
+  if (/Open|DADGAD|FACGCE|Double Drop/.test(name)) return 'alternate';
   if (/^Drop/.test(name)) return 'drop';
-  if (/Half Step|C Standard/.test(name)) return 'lower';
   return 'standard';
 }
 
 function tuningPitches(name) {
   const strings = TUNINGS[name];
   if (!strings) return '';
-  return strings.map(s => s.note).join(' ');
+  return pitchSequenceString(strings);
 }
 
 function scaleKeywords(name) {
@@ -370,22 +371,44 @@ export function openTuningPicker({
   value,
   includeCustom = false,
   onCustom,
+  stringCount = null,
 } = {}) {
-  const names = Object.keys(TUNINGS);
-  const current = value && (TUNINGS[value] || value === 'Custom') ? value : 'Standard';
+  // Prefer catalog names (deduped) so legacy aliases don't double-list.
+  const catalogNames = TUNING_CATALOG.map((p) => p.name);
+  const legacyOnly = Object.keys(TUNINGS).filter((n) => !catalogNames.includes(n));
+  const names = [...catalogNames, ...legacyOnly];
+  const current = value && (TUNINGS[value] || value === 'Custom' || findPresetByName(value))
+    ? (findPresetByName(value)?.name || value)
+    : 'Standard';
   const recent = getList('picker.recentTunings', [...names, 'Custom']);
   const favorites = getList('picker.favoriteTunings', [...names, 'Custom']);
 
-  const items = names.map(name => {
-    const strings = TUNINGS[name];
-    return {
-      id: name,
-      label: name,
-      sub: `${strings.length} string · ${tuningPitches(name)}`,
-      category: tuningCategory(name),
-      keywords: [name, tuningPitches(name), String(strings.length)],
-    };
-  });
+  const items = names
+    .filter((name) => {
+      if (stringCount == null) return true;
+      const strings = TUNINGS[name];
+      return strings && strings.length === stringCount;
+    })
+    .map((name) => {
+      const strings = TUNINGS[name] || findPresetByName(name)?.pitches || [];
+      const preset = findPresetByName(name);
+      const seq = tuningPitches(name);
+      return {
+        id: name,
+        label: name,
+        sub: `${strings.length} string · ${seq}`,
+        category: tuningCategory(name),
+        keywords: [
+          name,
+          seq,
+          String(strings.length),
+          ...(preset?.aliases || []),
+          ...(preset?.legacyKeys || []),
+          ...(preset?.tags || []),
+          strings.map((s) => s.note).join(''),
+        ],
+      };
+    });
 
   if (includeCustom) {
     items.push({
@@ -393,14 +416,14 @@ export function openTuningPicker({
       label: 'Custom…',
       sub: 'Open the custom tuning editor',
       category: 'custom',
-      keywords: ['custom'],
+      keywords: ['custom', 'editor'],
     });
   }
 
   return openSelectionSheet({
     title: 'Tuning',
     value: current,
-    searchPlaceholder: 'Drop C, Open G, 7-string…',
+    searchPlaceholder: 'Drop C, CGCFAD, 7-string…',
     recent,
     favorites,
     categories: TUNING_CATEGORIES,

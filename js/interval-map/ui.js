@@ -163,13 +163,21 @@ function saveMastery() {
 
 function g(id) { return document.getElementById(id); }
 
+function preferredParent() {
+  return document.querySelector('#sec-intervalorbit .io-main')
+    || document.querySelector('#sec-intervalorbit .quiz-main')
+    || document.getElementById('sec-intervalorbit')
+    || document.body;
+}
+
 function getOrCreate(id, tag = 'div', parentId = 'sec-intervalorbit', cls = '') {
   let el = document.getElementById(id);
   if (!el) {
     el = document.createElement(tag);
     el.id = id;
     if (cls) el.className = cls;
-    const parent = document.getElementById(parentId) || document.body;
+    const parent = document.getElementById(parentId)
+      || preferredParent();
     parent.appendChild(el);
   }
   return el;
@@ -217,6 +225,84 @@ function ensureBoardStructure() {
 function refreshTuning() {
   st.strings   = resolveTuningPitches(st.tuningName, st.customStrings);
   st.openMidis = openMidisFromTuning(st.strings);
+}
+
+async function openCustomTuningEditor() {
+  const draft = st.customStrings
+    ? st.customStrings.map((p) => ({ note: p.note, oct: Number(p.oct) }))
+    : createCustomTuningDraft(st.strings?.length || 6, st.tuningName === 'Custom' ? 'Standard' : st.tuningName);
+
+  const host = getOrCreate('io-custom-editor', 'div', 'sec-intervalorbit', 'io-custom-editor');
+  host.hidden = false;
+
+  function paint() {
+    const geometry = getTuningGeometry(draft);
+    const validation = validateTuningPitches(draft);
+    host.innerHTML = `
+      <div class="io-custom-editor-card" role="dialog" aria-label="Custom tuning editor">
+        <div class="io-card-title">Custom tuning</div>
+        <label class="io-full-label">Strings
+          <select id="io-custom-string-count">
+            ${[4, 5, 6, 7, 8].map((n) => `<option value="${n}" ${n === draft.length ? 'selected' : ''}>${n}</option>`).join('')}
+          </select>
+        </label>
+        <div class="io-custom-string-rows">
+          ${draft.map((p, i) => `
+            <div class="io-custom-string-row">
+              <span class="io-muted">S${i + 1}</span>
+              <input data-i="${i}" data-f="note" value="${escapeHtml(p.note)}" aria-label="String ${i + 1} note" spellcheck="false">
+              <input data-i="${i}" data-f="oct" type="number" min="0" max="6" value="${p.oct}" aria-label="String ${i + 1} octave" inputmode="numeric">
+            </div>`).join('')}
+        </div>
+        <p class="io-muted">Adjacent intervals: ${geometry.adjacent.map((a) => a.name).join(' · ')}</p>
+        <p class="io-err" ${validation.ok ? 'hidden' : ''}>${escapeHtml((validation.errors || []).join(' '))}</p>
+        <div class="io-actions">
+          <button type="button" class="btn" id="io-custom-dup">Duplicate current</button>
+          <button type="button" class="btn" id="io-custom-cancel">Cancel</button>
+          <button type="button" class="btn primary" id="io-custom-save" ${validation.ok ? '' : 'disabled'}>Save</button>
+        </div>
+      </div>`;
+
+    host.querySelector('#io-custom-string-count').onchange = (e) => {
+      const n = Number(e.target.value);
+      const next = createCustomTuningDraft(n, 'Standard');
+      for (let i = 0; i < Math.min(n, draft.length); i++) next[i] = { ...draft[i] };
+      draft.length = 0;
+      next.forEach((p) => draft.push(p));
+      paint();
+    };
+    host.querySelectorAll('input[data-i]').forEach((input) => {
+      input.onchange = input.oninput = () => {
+        const i = Number(input.dataset.i);
+        const f = input.dataset.f;
+        if (f === 'note') draft[i].note = input.value.trim();
+        else draft[i].oct = Number(input.value);
+        paint();
+      };
+    });
+    host.querySelector('#io-custom-dup').onclick = () => {
+      const base = resolveTuningPitches(st.tuningName === 'Custom' ? 'Standard' : st.tuningName);
+      draft.length = 0;
+      base.forEach((p) => draft.push({ note: p.note, oct: p.oct }));
+      paint();
+    };
+    host.querySelector('#io-custom-cancel').onclick = () => { host.hidden = true; host.innerHTML = ''; };
+    host.querySelector('#io-custom-save').onclick = () => {
+      const v = validateTuningPitches(draft);
+      if (!v.ok) return;
+      st.customStrings = draft.map((p) => ({ note: p.note, oct: Number(p.oct) }));
+      st.tuningName = 'Custom';
+      persist('io.tuning', 'Custom');
+      persist('io.customStrings', st.customStrings);
+      refreshTuning();
+      host.hidden = true;
+      host.innerHTML = '';
+      renderSetup();
+      onSubviewChange(st.subview);
+    };
+  }
+
+  paint();
 }
 
 // ─── Board render ─────────────────────────────────────────────────────────────
@@ -281,12 +367,20 @@ function renderSetup() {
       value: st.tuningName,
       hint: 'Tuning',
       onClick: async () => {
-        const id = await openTuningPicker({ value: st.tuningName, includeCustom: true });
+        const id = await openTuningPicker({
+          value: st.tuningName,
+          includeCustom: true,
+          onCustom: () => openCustomTuningEditor(),
+        });
         if (!id) return;
+        if (id === 'Custom') {
+          await openCustomTuningEditor();
+          return;
+        }
         st.tuningName = id;
-        if (id !== 'Custom') st.customStrings = null;
+        st.customStrings = null;
         persist('io.tuning', id);
-        persist('io.customStrings', st.customStrings);
+        persist('io.customStrings', null);
         refreshTuning();
         renderSetup();
         onSubviewChange(st.subview);
@@ -401,6 +495,17 @@ function showSubviewExtras(subview) {
   const isQuiz = subview === 'quiz';
   const isPlay = subview === 'play';
   const isProg = subview === 'progress';
+  const sec = g('sec-intervalorbit');
+  if (sec) {
+    sec.classList.toggle('io-mode-progress', isProg);
+    sec.classList.toggle('io-mode-play', isPlay);
+    sec.classList.toggle('io-mode-quiz', isQuiz);
+    sec.classList.toggle('io-mode-map', isMap);
+  }
+  setVis('io-panel-map',        isMap);
+  setVis('io-panel-quiz',       isQuiz);
+  setVis('io-panel-play',       isPlay);
+  setVis('io-panel-progress',   isProg);
   setVis('io-interval-picker',  isMap);
   setVis('io-anchor-display',   isMap);
   setVis('io-shape-compare',    isMap);
@@ -412,6 +517,9 @@ function showSubviewExtras(subview) {
   setVis('io-interval-meta',    isMap || isQuiz);
   setVis('io-challenge',        !isProg);
   setVis('io-feedback',         !isProg);
+  setVis('io-actions',          !isProg);
+  setVis('io-workbench',        !isProg);
+  setVis('io-setup',            !isProg);
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
