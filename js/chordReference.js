@@ -1,5 +1,5 @@
 import { parseNote, ROOTS, INTERVAL_LABELS, TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
-import { CHORDS, groupedChordEntries, orderedChordNames, getChordNotes, DARK_METAL_CHORDS } from './chords.js';
+import { CHORDS, groupedChordEntries, orderedChordNames, getChordNotes, getChordMood, DARK_METAL_CHORDS } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
@@ -530,6 +530,11 @@ function renderChordInfo() {
   html += `<div class="chord-ref-swipe-hint">Swipe sideways or use ← → to browse chords</div>`;
   html += `<div class="ref-info">Formula: <strong>${formula}</strong></div>`;
   html += `<div class="ref-info">Notes: <strong>${[...new Set(notes)].join(' · ')}</strong></div>`;
+
+  const mood = getChordMood(chChord);
+  if (mood) {
+    html += `<div class="chord-ref-mood"><span class="chord-ref-mood-label">Sound &amp; feeling</span>${mood}</div>`;
+  }
 
   html += `<table class="ref-table"><tr><th>Degree</th><th>Note</th><th>Interval</th><th>Semitones</th></tr>`;
   def.tones.forEach(([, so, label], i) => {
