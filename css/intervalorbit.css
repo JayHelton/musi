@@ -54,10 +54,14 @@
 }
 
 #sec-intervalorbit .io-interval-picker {
+  margin: 4px 0 2px;
+}
+
+#sec-intervalorbit .io-interval-picker .int-picker {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 4px 0 2px;
+  width: 100%;
 }
 
 #sec-intervalorbit .io-interval-picker .io-filter-row,
@@ -65,6 +69,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  width: 100%;
 }
 
 #sec-intervalorbit .io-filter-btn {
