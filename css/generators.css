@@ -200,6 +200,8 @@ body.split-mode #ref-modes{display:none}
 .chord-ref-play{flex:0 0 auto}
 .chord-ref-step{flex:0 0 auto;min-width:40px;padding-left:10px;padding-right:10px;font-weight:700}
 .chord-ref-swipe-hint{font-size:.72rem;color:var(--muted);margin:0 0 10px}
+.chord-ref-mood{font-size:.86rem;line-height:1.45;color:var(--text);margin:10px 0;padding:10px 12px;border-left:3px solid var(--accent);border-radius:0 8px 8px 0;background:rgba(255,255,255,0.03)}
+.chord-ref-mood-label{display:block;font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:800;margin-bottom:3px}
 #sec-chords .quiz-main.chord-swipe-target{touch-action:pan-y}
 #sec-chords .quiz-main.chord-swipe-target .ref-fb-scroll{touch-action:pan-x pan-y}
 #sec-chords .quiz-main.chord-slide-left,

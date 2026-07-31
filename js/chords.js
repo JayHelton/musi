@@ -86,6 +86,63 @@ export const CHORD_LIST_GROUPS = [
   },
 ];
 
+// Short "sound and feeling" descriptions for each chord quality. These capture
+// the emotional character / mood a chord tends to evoke so the reference card can
+// go beyond the raw formula. Descriptions are intentionally concise (one line)
+// and describe the chord's typical affect independent of the root note.
+export const CHORD_MOODS = {
+  // --- Core chords ---
+  'Power Chord (5)':        'Neutral but powerful. With no third it is neither happy nor sad — a solid, aggressive foundation for rock and metal.',
+  'Major':                  'Bright, stable, and happy. The sound of resolution and "home" — open, confident, and settled.',
+  'Major 7':                'Dreamy, lush, and sophisticated. Warm and jazzy with a soft, floating sweetness.',
+  'Dominant 7':             'Bluesy and restless. Full of tension that wants to resolve — the engine of blues, funk, and forward motion.',
+  'Augmented':              'Unstable, suspenseful, and dreamlike. The raised fifth gives an eerie, unresolved "floating" quality.',
+  'Sus 4':                  'Open and suspended. Neither major nor minor — builds anticipation that begs to fall back to the third.',
+  'Sus 2':                  'Airy, open, and ambiguous. Bright but hollow, great for shimmering, spacious textures.',
+  'Add 9':                  'Bright and colorful. A major chord with extra sparkle and shimmer, without heavy jazz weight.',
+  'Minor':                  'Sad, dark, and introspective. The core of melancholy, tension, and emotional depth.',
+  'Minor 7':                'Mellow, smooth, and pensive. Soft melancholy with a relaxed, soulful, jazzy warmth.',
+  'Minor Major 7':          'Tense, haunting, and mysterious. A minor chord with an unsettling, film-noir edge.',
+  'Half Diminished (m7b5)': 'Tense and melancholic. Dark and unresolved — a signature "yearning" color in minor jazz.',
+  'Diminished 7':           'Anxious, dramatic, and unstable. Maximum tension — spooky and suspenseful, pulling hard to resolve.',
+  'Minor Add 9':            'Melancholic yet lush. Dark minor color with an added shimmer — brooding but beautiful.',
+
+  // --- Extended / metal chords ---
+  'Minor 6':                'Bittersweet and nostalgic. Minor with a hopeful, jazzy lift — smooth and slightly noir.',
+  'Major 6':                'Sweet, vintage, and cheerful. Warm and nostalgic with a relaxed, retro swing feel.',
+  'Dominant 7 b9':          'Dark, dramatic tension. A Spanish/flamenco flavor — biting and menacing, with a strong pull to resolve.',
+  'Dominant 7 #9':          'Gritty and funky — the "Hendrix chord." Clashing brightness over blues grit, edgy and electric.',
+  'Dominant 7 b5':          'Tense and jazzy. A whole-tone color with an off-balance, floating instability.',
+  'Dominant 7 #5':          'Restless and edgy. The raised fifth adds an augmented, unresolved bite.',
+  'Minor 9':                'Lush, smooth, and sophisticated. Deep minor warmth with a silky R&B / neo-soul richness.',
+  'Major 9':                'Warm, open, and dreamy. Expansive and sophisticated — sunny sophistication without tension.',
+  'Dominant 9':             'Funky and soulful. Bluesy drive with extra color — the classic funk / Motown groove chord.',
+  'Minor 11':               'Spacious, moody, and modern. Dark and atmospheric with a hovering, unresolved depth.',
+  'Major 11':               'Ethereal and floating. Lush and expansive, with a slightly ambiguous shimmer from the 11th.',
+  'Dominant 11':            'Suspended and funky. Open, soulful tension that hangs in the air before resolving.',
+  'Minor 13':               'Rich, deep, and cinematic. Full and complex minor color — moody yet luxurious.',
+  'Dominant 13':            'Full, bright, and jazzy. Rich dominant color with big-band warmth and forward drive.',
+
+  // --- Metal-specific voicings / shapes ---
+  'Root + b2':              'Dissonant and menacing. An ultra-tight semitone clash — dark, tense, and claustrophobic.',
+  'Root + Major 2':         'Open and ambiguous. Hollow, ringing tension with a bright but unsettled edge.',
+  'Root + b5':              'Ominous and unstable. The tritone "devil\'s interval" — dark, dissonant, and foreboding.',
+  'Root + Tritone':         'Evil and unresolved. Pure tritone tension — one of the most restless, dissonant colors in metal.',
+  'Root + Octave':          'Massive and neutral. The root doubled — thick, powerful, and tonally open.',
+  'Root + 5th + Octave':    'Huge and powerful. A widened power chord — massive, solid, and heavy.',
+  'Root + b6':              'Dark and dramatic. A tense, brooding minor color with a haunting lean.',
+  'Root + b3 + b6':         'Bleak and ominous. Stacked minor darkness — heavy, dissonant, and oppressive.',
+  'Minor Triad':            'Sad, dark, and introspective. The pure core of melancholy and emotional weight.',
+  'Major Triad':            'Bright, stable, and happy. Pure, resolved, and confident.',
+  'Diminished Triad':       'Tense and unstable. Dark and anxious, pulling strongly toward resolution.',
+  'Augmented Triad':        'Dreamlike and unresolved. Eerie, suspenseful floating from the raised fifth.',
+};
+
+/** The "sound and feeling" description for a chord quality, if defined. */
+export function getChordMood(chordName) {
+  return CHORD_MOODS[chordName] || '';
+}
+
 // Chords especially useful for darker metal / deathcore. Flagged with a badge in
 // the picker so they are easy to find at a glance.
 export const DARK_METAL_CHORDS = new Set([
