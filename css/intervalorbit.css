@@ -55,9 +55,21 @@
 
 #sec-intervalorbit .io-interval-picker {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 2px;
+}
+
+#sec-intervalorbit .io-interval-picker .io-filter-row,
+#sec-intervalorbit .io-interval-picker .io-int-chips {
+  display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 4px 0 2px;
+}
+
+#sec-intervalorbit .io-filter-btn {
+  min-height: 36px;
+  font-size: 0.78rem;
 }
 
 #sec-intervalorbit .io-interval-picker .int-btn,
@@ -376,8 +388,15 @@
   background: var(--accent-dim);
 }
 
-#sec-intervalorbit.io-mode-progress #io-workbench {
-  display: none;
+#sec-intervalorbit.io-mode-progress #io-workbench,
+#sec-intervalorbit.io-mode-progress #io-setup,
+#sec-intervalorbit.io-mode-progress #io-compact-progress,
+#sec-intervalorbit.io-mode-progress #io-actions {
+  display: none !important;
+}
+
+#sec-intervalorbit [hidden] {
+  display: none !important;
 }
 
 @media (max-width: 768px) {
