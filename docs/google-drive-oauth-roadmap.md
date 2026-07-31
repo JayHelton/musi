@@ -66,8 +66,8 @@ OAuth client. The CLI companion is **out of scope**.
 | ------ | -------------- |
 | `js/config.js` | Public Google OAuth Client ID, optional app folder name, redirect URI helper |
 | `js/googleAuth.js` | PKCE helpers, authorize redirect/popup, code exchange, token storage, refresh/re-auth, sign-out, `getAccessToken()` |
-| `js/googleDrive.js` | Drive v3 `fetch` wrappers: list/search app files, upload (multipart/resumable), download blob, ensure app folder, open-via-picker metadata |
-| `js/drivePicker.js` (optional UI helper) | Minimal in-app file browser **or** thin wrapper around Google Picker API (Picker needs its own API key + origin setup) |
+| `js/googleDrive.js` | Drive v3 `fetch` wrappers: list/search app files, upload (multipart/resumable), download blob, ensure app folder |
+| `js/driveBrowser.js` | In-app Drive file browser UI (folder navigation, file list, select) — **not** Google Picker |
 
 Keep Google Identity Services (GIS) as an **optional alternative** for access-token-only flows later; v1 should implement classic PKCE so the auth story is explicit and inspectable without loading Google’s script for the core path.
 
@@ -90,8 +90,8 @@ Done once per deploy environment (localhost + production origin).
      production equivalents (include GitHub Pages subpath if used).
 5. Copy the **Client ID** into `js/config.js` (public; never a client secret).
 
-If using Google Picker later, also create a **Browser API key** restricted by HTTP
-referrer and enable the Picker API.
+No Browser API key or Google Picker setup is required for v1 — file selection uses
+the in-app Drive browser against the Musi app folder (`drive.file`).
 
 ---
 
@@ -162,9 +162,9 @@ With `drive.file`, Musi can:
 - Create files/folders in Drive (app-owned).
 - Read/update/delete files the user opened with the app or that the app created.
 
-It cannot browse arbitrary Drive content without an explicit open action
-(Picker or similar). That matches Musi’s “import this file / backup my library”
-needs without overreaching.
+It cannot browse the user’s entire Drive. The in-app browser only lists files
+and folders under the Musi app folder (plus files Musi created). That matches
+“import from my Musi library / backup my practice files” without overreaching.
 
 ### App folder convention
 
@@ -289,25 +289,44 @@ path.
 
 ### Phase 2 — Open files from Drive (Exercises first)
 
-**Goal:** import Drive files into the existing Exercises library.
+**Goal:** import Drive files into the existing Exercises library via an **in-app
+Drive browser** (decision locked: not Google Picker).
 
 Deliverables:
 
-- `js/googleDrive.js`: `downloadFile(fileId)`, `listAppFolderFiles(query)`,
-  `ensureAppFolder()`.
+- `js/googleDrive.js`: `downloadFile(fileId)`, `listChildren(folderId)`,
+  `ensureAppFolder()`, optional name search within the Musi tree.
+- `js/driveBrowser.js` + light CSS: modal/sheet that browses the Musi Drive
+  folder tree. Reuse existing modal patterns (`modal-overlay` / `modal-dialog`
+  as in Notes/Songwriter).
 - Exercises UI: **Open from Drive** next to the existing file input upload path
   (`#ex-file-input` flow in `js/exercises.js`).
-- v1 picker options (choose one):
-  - **A (simpler):** in-app list of files inside the Musi folder / recently opened
-    by the app (`drive.file` friendly).
-  - **B:** Google Picker with `drive.file` — better UX for first-time open of
-    arbitrary files; requires API key + extra script.
+
+#### Drive browser UX (v1)
+
+- Opens rooted at the Musi app folder (created in Phase 2/3 via `ensureAppFolder`).
+- Shows folders and files; tap folder to navigate; breadcrumb or “Up” to go back.
+- File rows: name, mime/type hint, size, modified time.
+- Optional filter chips or accept-list by feature (Exercises: PDF / image / audio /
+  video only — same rules as local upload).
+- Single-select for v1; confirm button **Add to library** (or double-tap/row action).
+- Empty state: “Nothing in Musi on Drive yet — save a file from the app, or add
+  files into the Musi folder in Drive.”
+- Loading / error / signed-out states; **Sign in** CTA if needed.
+- Mobile: full-height sheet; desktop: centered dialog. Keyboard: Escape closes;
+  Enter confirms selection when a file is focused.
+
+#### Import path
+
 - On select: download blob → `saveFile({…, source: 'exercise'})` → create exercise
   metadata as today’s upload path does (reuse size/type guards, 250 MB limit).
 - Store `driveFileId` on the exercise/attachment metadata when imported.
 
-**Exit criteria:** A PDF (or audio) living in Drive can be opened into Exercises
-and used offline afterward from IndexedDB.
+**Exit criteria:** A PDF (or audio) placed under the Musi Drive folder can be
+browsed in-app, opened into Exercises, and used offline afterward from IndexedDB.
+
+**Out of scope for v1:** Google Picker, browsing the user’s whole Drive, multi-select,
+move/rename/delete inside the browser (manage in Drive or later).
 
 ### Phase 3 — Save / export to Drive (Exercises + Recorder)
 
@@ -399,6 +418,8 @@ CLI smoke tests are unchanged and unrelated.
 | `js/config.js` | **New** — Client ID + constants |
 | `js/googleAuth.js` | **New** — PKCE + token lifecycle |
 | `js/googleDrive.js` | **New** — Drive REST helpers |
+| `js/driveBrowser.js` | **New** — in-app Musi-folder file browser |
+| `css/drive-browser.css` (or ux-shell) | Browser modal/sheet styles |
 | `js/main.js` | Callback handling on boot; wire account control |
 | `index.html` | Header account control markup; module is already via `main.js` |
 | `css/ux-shell.css` (or small new sheet) | Account button / menu styles |
@@ -410,16 +431,21 @@ CLI smoke tests are unchanged and unrelated.
 
 ---
 
+## Decisions
+
+| Topic | Decision |
+| ----- | -------- |
+| File selection UI | **In-app Drive browser** over the Musi app folder (`js/driveBrowser.js`). Google Picker is deferred / out of scope for v1. |
+
 ## Open decisions
 
 Resolve before or during Phase 1–2 implementation:
 
 1. **Redirect URI canonical form** — trailing `/` vs `/index.html` (register both if unsure; pick one in `config.js`).
-2. **Picker A vs B** — in-app Musi-folder browser first (faster to ship) vs Google Picker (better first-open UX).
-3. **Popup login** — defer until redirect is solid, or required for mic-heavy sessions.
-4. **Production Client ID** — single Client ID with multiple origins vs separate
+2. **Popup login** — defer until redirect is solid, or required for mic-heavy sessions.
+3. **Production Client ID** — single Client ID with multiple origins vs separate
    localhost/prod clients (either works; multiple origins on one client is fine).
-5. **Whether Phase 5 backup is worth building** before broader Phase 4 coverage.
+4. **Whether Phase 5 backup is worth building** before broader Phase 4 coverage.
 
 ---
 
@@ -429,7 +455,7 @@ Resolve before or during Phase 1–2 implementation:
 | ----- | ----- | ------ |
 | 0 | Google Cloud setup + `js/config.js` scaffolding | Planned |
 | 1 | PKCE auth module + header account UI | Planned |
-| 2 | Open from Drive → Exercises library | Planned |
+| 2 | Open from Drive via in-app browser → Exercises | Planned |
 | 3 | Save to Drive (Exercises + Recorder) | Planned |
 | 4 | Notes / Songwriter / Drums / Tab open-save | Planned |
 | 5 | Optional full library backup bundle | Stretch |
