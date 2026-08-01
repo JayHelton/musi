@@ -39,6 +39,7 @@ let chRootsOnly = false;
 let chContextSubscribed = false;
 let chFbWired = false;
 let chSwipeWired = false;
+let chFbPlayWired = false;
 let chOscillators = [];
 
 const CH_SWIPE_THRESH = 48;
@@ -180,6 +181,7 @@ function initChordRef() {
   buildTuningList();
   wireFretboardControls();
   wireChordSwipe();
+  wireChordFbPlay();
   renderChordRef();
 
   if (!chContextSubscribed) {
@@ -550,6 +552,15 @@ function renderChordInfo() {
   const nextBtn = document.getElementById('chord-ref-next');
   if (prevBtn) prevBtn.onclick = () => stepChord(-1);
   if (nextBtn) nextBtn.onclick = () => stepChord(1);
+  wireChordFbPlay();
+}
+
+function wireChordFbPlay() {
+  if (chFbPlayWired) return;
+  const btn = document.getElementById('chord-fb-play');
+  if (!btn) return;
+  chFbPlayWired = true;
+  btn.onclick = playChordRef;
 }
 
 function playChordRef() {
