@@ -12,8 +12,8 @@
   }
 }
 
-/* Interval orbit: board before dock */
-#sec-intervalorbit .io-drill-dock {
+/* Interval Map: keep actions reachable under the board */
+#sec-intervalorbit .io-actions {
   margin-top: 10px;
 }
 

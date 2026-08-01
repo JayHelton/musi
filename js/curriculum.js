@@ -10,7 +10,7 @@ const CURRICULA = {
       {name:'Gallop Picking',duration:5,sub:'Triplet gallop patterns on open strings and power chords, gradually increasing BPM'},
       {name:'Down-picking Stamina',duration:16,sub:'Sustained down-picking at 80-100% target BPM; rest 1min every 4min'},
       {name:'Modal Practice',duration:10,sub:'Play through one mode per day across the neck; improvise over backing track'},
-      {name:'Interval Training',duration:8,link:'intervalorbit',linkLabel:'Open Interval Orbit'},
+      {name:'Interval Training',duration:8,link:'intervalorbit',linkLabel:'Open Interval Map'},
     ],
     progression: [
       {title:'Weeks 1\u20134: Foundation',items:['Establish consistent daily routine','Gallop picking at 120 BPM clean','Down-picking stamina: 4 minutes continuous at 140 BPM','Learn 3 modes (Ionian, Dorian, Phrygian) in one position','Identify all intervals within an octave by ear']},

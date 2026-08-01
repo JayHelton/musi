@@ -510,12 +510,16 @@ function init() {
     wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
   }
 
-  const isValidSection = (id) =>
-    id === 'home' ||
-    isHubId(id) && CATEGORIES.some(c => c.id === hubCategory(id)) ||
-    TABS.some(t => t.id === id);
+  const resolveSectionAlias = (id) => (id === 'intervalmap' ? 'intervalorbit' : id);
 
-  const hashTab = location.hash.replace('#', '');
+  const isValidSection = (id) => {
+    const resolved = resolveSectionAlias(id);
+    return resolved === 'home' ||
+      isHubId(resolved) && CATEGORIES.some(c => c.id === hubCategory(resolved)) ||
+      TABS.some(t => t.id === resolved);
+  };
+
+  const hashTab = resolveSectionAlias(location.hash.replace('#', ''));
   if (hashTab && isValidSection(hashTab)) {
     showSection(hashTab, true);
   } else {
@@ -524,7 +528,7 @@ function init() {
   }
 
   window.addEventListener('hashchange', () => {
-    const id = location.hash.replace('#', '');
+    const id = resolveSectionAlias(location.hash.replace('#', ''));
     if (id && isValidSection(id)) showSection(id, true);
     else if (!id) showSection('home', true);
   });

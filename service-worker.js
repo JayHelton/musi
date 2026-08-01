@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v96-chord-sound-feeling";
+const CACHE_VERSION = "v97-fretboard-interval-map";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -63,8 +63,16 @@ const PRECACHE_URLS = [
   "js/circleOfFifths.js",
   "js/earTrainer.js",
   "js/fretboardTrainer.js",
+  "js/tunings.js",
   "js/intervalOrbit.js",
   "js/intervalOrbitModel.js",
+  "js/interval-map/model.js",
+  "js/interval-map/questions.js",
+  "js/interval-map/reveal.js",
+  "js/interval-map/audioAnswer.js",
+  "js/interval-map/progress.js",
+  "js/interval-map/fretboardView.js",
+  "js/interval-map/ui.js",
   "js/intervalQuiz.js",
   "js/intervals.js",
   "js/keyboard.js",
