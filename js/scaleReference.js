@@ -2,6 +2,7 @@ import { parseNote, ROOTS, INTERVAL_LABELS, TUNINGS, NOTE_NAMES_SHARP } from './
 import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import {
   SWEEP_STRING_SETS,
   DIMINISHED_PRIORITY,
@@ -53,6 +54,14 @@ let refViewMode = 'scale'; // 'scale' | 'sweep'
 let refContextSubscribed = false;
 let refFbWired = false;
 let refViewWired = false;
+let refPlayWired = false;
+let refVoices = [];
+let refPlayTimers = [];
+let refPlaying = false;
+
+// Open-string MIDI for the Standard neck used by the sweep library (low → high).
+const SWEEP_OPEN_MIDI = { E: 40, A: 45, D: 50, G: 55, B: 59, e: 64 };
+const REF_PLAY_OCTAVE = 3;
 
 function initScaleRef() {
   const rootScroll = document.getElementById('sl-ref-root');
@@ -92,6 +101,7 @@ function initScaleRef() {
   buildTuningList();
   wireFretboardControls();
   wireRefViewPicker();
+  wireRefPlay();
   renderScaleRef();
 
   if (!refContextSubscribed) {
@@ -129,9 +139,125 @@ function wireRefViewPicker() {
     btn.onclick = () => {
       refViewMode = btn.dataset.refView === 'sweep' ? 'sweep' : 'scale';
       saveSetting('ref.viewMode', refViewMode);
+      stopScaleRef();
       renderScaleRef();
     };
   });
+}
+
+function wireRefPlay() {
+  if (refPlayWired) return;
+  const btn = document.getElementById('ref-play');
+  if (!btn) return;
+  refPlayWired = true;
+  btn.onclick = () => {
+    if (refPlaying) {
+      stopScaleRef();
+      return;
+    }
+    if (refViewMode === 'sweep') playSweepRef();
+    else playScaleRef();
+  };
+}
+
+function syncRefPlayButton() {
+  const label = refViewMode === 'sweep' ? 'Play sweep' : 'Play scale';
+  document.querySelectorAll('#ref-play, #scale-ref-play, #sweep-ref-play').forEach(btn => {
+    btn.setAttribute('aria-label', refPlaying ? 'Stop playback' : label);
+    btn.innerHTML = refPlaying ? 'Stop' : '&#9654; Play';
+    btn.classList.toggle('playing', refPlaying);
+  });
+}
+
+function scheduleRefTone(midi, startTime, duration, vol = 0.16) {
+  const freq = midiFreq(midi);
+  const osc = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const filter = audioCtx.createBiquadFilter();
+  const gain = audioCtx.createGain();
+
+  osc.type = 'sine';
+  osc2.type = 'triangle';
+  osc.frequency.value = freq;
+  osc2.frequency.value = freq;
+
+  filter.type = 'lowpass';
+  filter.frequency.value = Math.min(freq * 3.5, 4500);
+  filter.Q.value = 0.5;
+
+  const sustain = duration * 0.55;
+  const release = duration * 0.4;
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.linearRampToValueAtTime(vol, startTime + 0.02);
+  gain.gain.setValueAtTime(vol * 0.8, startTime + sustain);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + sustain + release);
+
+  osc.connect(filter);
+  osc2.connect(filter);
+  filter.connect(gain);
+  gain.connect(getAnalyserDestination());
+
+  const stopAt = startTime + sustain + release + 0.05;
+  osc.start(startTime); osc.stop(stopAt);
+  osc2.start(startTime); osc2.stop(stopAt);
+  refVoices.push(osc, osc2);
+}
+
+function playRefSequence(midis, beat = 0.42) {
+  ensureAudio();
+  stopScaleRef();
+  if (!midis.length) return;
+  const start = audioCtx.currentTime + 0.06;
+  midis.forEach((m, i) => scheduleRefTone(m, start + i * beat, beat * 0.95));
+  refPlaying = true;
+  syncRefPlayButton();
+  const totalMs = (midis.length * beat + 0.4) * 1000;
+  refPlayTimers.push(setTimeout(() => {
+    refPlaying = false;
+    syncRefPlayButton();
+  }, totalMs));
+}
+
+/** Ascending one-octave scale (plus octave tonic) for the selected root/scale. */
+function playScaleRef() {
+  const rootP = parseNote(refRoot);
+  const def = SCALES[refScale];
+  if (!rootP || !def) return;
+  const { tempo } = getContext();
+  const beat = Math.max(0.22, Math.min(0.7, 60 / (tempo || 90)));
+  const rootMidi = 12 * (REF_PLAY_OCTAVE + 1) + rootP.semi;
+  const midis = def.map(([, so]) => rootMidi + so);
+  midis.push(rootMidi + 12);
+  playRefSequence(midis, beat);
+}
+
+/** Melodic sweep of the selected pattern (up then back down). */
+function playSweepRef() {
+  const selected = selectedSweep();
+  if (!selected?.events?.length) return;
+  const midis = selected.events.map(ev => {
+    const open = SWEEP_OPEN_MIDI[ev.s];
+    return open == null ? null : open + ev.f;
+  }).filter(m => m != null);
+  if (!midis.length) return;
+  // Full sweep: climb the shape, then descend without repeating the peak.
+  const sequence = midis.length > 1
+    ? [...midis, ...midis.slice(0, -1).reverse()]
+    : midis;
+  const { tempo } = getContext();
+  const beat = Math.max(0.18, Math.min(0.55, 60 / ((tempo || 90) * 1.35)));
+  playRefSequence(sequence, beat);
+}
+
+function stopScaleRef() {
+  refPlayTimers.forEach(id => clearTimeout(id));
+  refPlayTimers = [];
+  refVoices.forEach(v => {
+    try { v.stop(); } catch (_) {}
+  });
+  refVoices = [];
+  refPlaying = false;
+  syncRefPlayButton();
 }
 
 function syncRefViewPicker() {
@@ -481,7 +607,10 @@ function renderSweepSection() {
 
   if (selected) {
     const inv = selected.inversions.find(o => o.inv === selected.inversion);
+    html += `<div class="chord-ref-head sweep-card-head">`;
     html += `<div class="sweep-card-title">${selected.title} <span class="sweep-formula">— ${selected.formula}</span></div>`;
+    html += `<button class="btn sm chord-ref-play" id="sweep-ref-play" type="button">&#9654; Play</button>`;
+    html += `</div>`;
     if (inv?.bassLabel) {
       html += `<div class="sweep-bass-line">${inv.label} — ${inv.bassLabel}</div>`;
     }
@@ -921,6 +1050,9 @@ function renderRefFretboard() {
 }
 
 function renderScaleRef() {
+  // Changing root/scale/pattern re-renders; cut any in-flight preview so it
+  // can't keep sounding against a different selection.
+  stopScaleRef();
   const card = document.getElementById('ref-card');
   const notes = getScaleNotes(refRoot, refScale);
   if (!notes) { card.innerHTML = '<p style="color:var(--err)">Could not compute scale</p>'; return; }
@@ -928,7 +1060,12 @@ function renderScaleRef() {
   const def = SCALES[refScale];
   const stepPat = scaleStepPattern(refScale);
 
-  let html = `<h3 style="margin-bottom:12px;color:var(--accent)">${refRoot} ${refScale}</h3>`;
+  let html = `<div class="chord-ref-head">`;
+  html += `<h3 class="chord-ref-name" style="margin:0">${refRoot} ${refScale}</h3>`;
+  if (refViewMode === 'scale') {
+    html += `<button class="btn sm chord-ref-play" id="scale-ref-play" type="button">&#9654; Play</button>`;
+  }
+  html += `</div>`;
   html += `<div class="ref-info">Step pattern: <strong>${stepPat}</strong></div>`;
 
   if (KEY_SIGS[refRoot] && refScale === 'Major (Ionian)') {
@@ -959,8 +1096,23 @@ function renderScaleRef() {
   }
 
   card.innerHTML = html;
+  const scalePlay = document.getElementById('scale-ref-play');
+  if (scalePlay) {
+    scalePlay.onclick = () => {
+      if (refPlaying) stopScaleRef();
+      else playScaleRef();
+    };
+  }
+  const sweepPlay = document.getElementById('sweep-ref-play');
+  if (sweepPlay) {
+    sweepPlay.onclick = () => {
+      if (refPlaying) stopScaleRef();
+      else playSweepRef();
+    };
+  }
   renderRefFretboard();
   renderRefModes();
+  syncRefPlayButton();
 }
 
-export { initScaleRef };
+export { initScaleRef, stopScaleRef };

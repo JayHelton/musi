@@ -198,6 +198,9 @@ body.split-mode #ref-modes{display:none}
 .chord-ref-name{margin:0;color:var(--accent);font-size:1.3rem;font-weight:700;min-width:0}
 .chord-ref-full{font-size:.85rem;font-weight:400;color:var(--muted)}
 .chord-ref-play{flex:0 0 auto}
+.chord-ref-play.playing{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+.sweep-card-head{margin:10px 0 4px}
+.sweep-card-head .sweep-card-title{margin:0;flex:1;min-width:0}
 .chord-ref-step{flex:0 0 auto;min-width:40px;padding-left:10px;padding-right:10px;font-weight:700}
 .chord-ref-swipe-hint{font-size:.72rem;color:var(--muted);margin:0 0 10px}
 .chord-ref-mood{font-size:.86rem;line-height:1.45;color:var(--text);margin:10px 0;padding:10px 12px;border-left:3px solid var(--accent);border-radius:0 8px 8px 0;background:rgba(255,255,255,0.03)}
