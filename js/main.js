@@ -23,6 +23,7 @@ import { initNotes, stopNotes } from './notes.js';
 import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
 import { initDrums, stopDrums } from './drums/drumsUI.js';
 import { initTabAnalyzer, stopTabAnalyzer } from './tabAnalyzer.js';
+import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
@@ -60,6 +61,7 @@ const TOOL_STOPPERS = {
   practice: () => stopPracticeTimer(),
   drums: () => stopDrums(),
   tabanalyzer: () => stopTabAnalyzer(),
+  tracktosheet: () => stopTrackToSheet(),
 };
 const TOOL_INITS = {
   circle: drawCoF,
@@ -81,6 +83,7 @@ const TOOL_INITS = {
   practice: initPracticeTimer,
   drums: initDrums,
   tabanalyzer: initTabAnalyzer,
+  tracktosheet: initTrackToSheet,
 };
 
 function stopOtherTools(keepIds) {
