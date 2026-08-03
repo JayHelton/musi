@@ -194,25 +194,53 @@ function describeIc(ic) {
   return names[ic] || 'interval';
 }
 
+/**
+ * Positions that may receive a root→interval connector line.
+ * When answers are hidden, only already-revealed / correct / shown targets
+ * get a line — otherwise the line would give away the answer location.
+ */
+export function visibleShapeLineTargets(positions = [], {
+  answersHidden = false,
+  revealedKeys = null,
+  highlight = {},
+} = {}) {
+  return (positions || []).filter((p) => {
+    if (!p || p.isAnchor) return false;
+    if (!answersHidden) return true;
+    const key = `${p.string}:${p.fret}`;
+    const hl = highlight[key] || {};
+    if (revealedKeys && revealedKeys.has(key)) return true;
+    if (hl.reveal || hl.shown || hl.correct) return true;
+    return false;
+  });
+}
+
 export function drawShapeLines(overlayEl, boardEl, anchor, targets, handedness = 'right') {
   if (!overlayEl || !boardEl || !anchor) return;
   overlayEl.innerHTML = '';
   const aCell = boardEl.querySelector(`[data-string="${anchor.string}"][data-fret="${anchor.fret}"]`);
   if (!aCell) return;
+  // Use layout sizes (not getBoundingClientRect) so the overlay matches the
+  // board's scrollable content box and does not inflate page overflow.
+  const boardW = boardEl.offsetWidth || boardEl.clientWidth;
+  const boardH = boardEl.offsetHeight || boardEl.clientHeight;
+  if (!boardW || !boardH) return;
   const boardRect = boardEl.getBoundingClientRect();
+  const scaleX = boardRect.width ? boardW / boardRect.width : 1;
+  const scaleY = boardRect.height ? boardH / boardRect.height : 1;
   const aRect = aCell.getBoundingClientRect();
-  const ax = aRect.left - boardRect.left + aRect.width / 2;
-  const ay = aRect.top - boardRect.top + aRect.height / 2;
-  overlayEl.setAttribute('viewBox', `0 0 ${boardRect.width} ${boardRect.height}`);
-  overlayEl.setAttribute('width', String(boardRect.width));
-  overlayEl.setAttribute('height', String(boardRect.height));
+  const ax = (aRect.left - boardRect.left + aRect.width / 2) * scaleX;
+  const ay = (aRect.top - boardRect.top + aRect.height / 2) * scaleY;
+  overlayEl.setAttribute('viewBox', `0 0 ${boardW} ${boardH}`);
+  overlayEl.removeAttribute('width');
+  overlayEl.removeAttribute('height');
 
   for (const t of targets || []) {
     const tCell = boardEl.querySelector(`[data-string="${t.string}"][data-fret="${t.fret}"]`);
     if (!tCell) continue;
     const tRect = tCell.getBoundingClientRect();
-    const tx = tRect.left - boardRect.left + tRect.width / 2;
-    const ty = tRect.top - boardRect.top + tRect.height / 2;
+    const tx = (tRect.left - boardRect.left + tRect.width / 2) * scaleX;
+    const ty = (tRect.top - boardRect.top + tRect.height / 2) * scaleY;
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     line.setAttribute('x1', String(ax));
     line.setAttribute('y1', String(ay));

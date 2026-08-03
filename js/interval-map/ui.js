@@ -44,7 +44,7 @@ import {
   aggregateTuningMastery, summarizeWeaknesses, buildRecommendedSession,
   fretRegion, tuningFamily,
 } from './progress.js';
-import { renderFretboard, drawShapeLines } from './fretboardView.js';
+import { renderFretboard, drawShapeLines, visibleShapeLineTargets } from './fretboardView.js';
 import {
   CHORD_FORMULAS, PRESET_PROGRESSIONS, QUALITY_FORMULAS, buildProgressionChords,
 } from '../intervalOrbitModel.js';
@@ -206,16 +206,17 @@ function ensureBoardStructure() {
   if (!sec) return;
   const wrap = document.createElement('div');
   wrap.className = 'io-board-wrap';
+  const fbWrap = document.createElement('div');
+  fbWrap.className = 'fb-wrap';
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'io-shape-overlay');
   svg.id = 'io-shape-overlay';
-  const fbWrap = document.createElement('div');
-  fbWrap.className = 'fb-wrap';
+  svg.setAttribute('aria-hidden', 'true');
   const board = document.createElement('div');
   board.className = 'fretboard io-fretboard';
   board.id = 'io-board';
+  fbWrap.appendChild(svg);
   fbWrap.appendChild(board);
-  wrap.appendChild(svg);
   wrap.appendChild(fbWrap);
   sec.appendChild(wrap);
 }
@@ -346,8 +347,11 @@ function renderBoard({
 
   const overlay = g('io-shape-overlay');
   if (overlay) {
-    if (st.showShapeLines && st.anchor && positions.length) {
-      drawShapeLines(overlay, board, st.anchor, positions.filter(p => !p.isAnchor), st.handedness);
+    const lineTargets = st.showShapeLines && st.anchor
+      ? visibleShapeLineTargets(positions, { answersHidden, revealedKeys, highlight })
+      : [];
+    if (lineTargets.length) {
+      drawShapeLines(overlay, board, st.anchor, lineTargets, st.handedness);
     } else {
       overlay.innerHTML = '';
     }
@@ -850,6 +854,13 @@ function renderQuestion() {
   renderFeedback('');
 
   const positions = quizPositions(q);
+  // Mark intentionally shown positions so labels/lines are not treated as hidden answers.
+  if (q.shown?.length) {
+    for (const p of q.shown) {
+      const key = `${p.string}:${p.fret}`;
+      st.highlight[key] = { ...(st.highlight[key] || {}), shown: true };
+    }
+  }
   renderBoard({
     positions,
     highlight: st.highlight,

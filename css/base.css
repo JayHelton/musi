@@ -114,9 +114,12 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--accent);box-
   .dock{overflow-x:auto;-webkit-overflow-scrolling:touch}
 }
 @media(max-width:768px){
-  .quiz-layout{flex-direction:column}
+  html,body{overflow-x:clip;max-width:100%}
+  main{max-width:100%;overflow-x:clip}
+  .section{max-width:100%;min-width:0}
+  .quiz-layout{flex-direction:column;max-width:100%;min-width:0}
   header{padding:8px 14px}
-  .quiz-main{order:1}
+  .quiz-main{order:1;max-width:100%;min-width:0}
   .sidebar{order:2}
   .section-head{margin-bottom:8px}
   .section-head p{display:none}
