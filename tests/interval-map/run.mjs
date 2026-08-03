@@ -45,6 +45,9 @@ import {
   generateValidQuestion,
   questionHasValidAnswerInRange,
 } from '../../js/interval-map/questions.js';
+import {
+  visibleShapeLineTargets,
+} from '../../js/interval-map/fretboardView.js';
 
 let passed = 0;
 let failed = 0;
@@ -406,6 +409,56 @@ test('boundary-shift requires a boundary', () => {
 test('level filters intervals', () => {
   assert.deepEqual(enabledIntervalsForLevel(1).sort((a, b) => a - b), [0, 5, 7]);
   assert.ok(MAP_RANGE_DEFS[1].name.includes('Local'));
+});
+
+console.log('\nShape lines');
+test('hidden answers do not get connector lines', () => {
+  const positions = [
+    { string: 1, fret: 3, isAnchor: true },
+    { string: 2, fret: 5 },
+    { string: 3, fret: 5 },
+  ];
+  assert.deepEqual(
+    visibleShapeLineTargets(positions, { answersHidden: true }),
+    [],
+  );
+});
+test('revealed answers get connector lines while others stay hidden', () => {
+  const positions = [
+    { string: 1, fret: 3, isAnchor: true },
+    { string: 2, fret: 5 },
+    { string: 3, fret: 5 },
+  ];
+  const targets = visibleShapeLineTargets(positions, {
+    answersHidden: true,
+    revealedKeys: new Set(['2:5']),
+  });
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0].string, 2);
+  assert.equal(targets[0].fret, 5);
+});
+test('correct or shown highlights allow connector lines', () => {
+  const positions = [
+    { string: 2, fret: 5 },
+    { string: 3, fret: 5 },
+  ];
+  const targets = visibleShapeLineTargets(positions, {
+    answersHidden: true,
+    highlight: {
+      '2:5': { correct: true },
+      '3:5': { shown: true },
+    },
+  });
+  assert.equal(targets.length, 2);
+});
+test('when answers are not hidden, all non-anchor targets get lines', () => {
+  const positions = [
+    { string: 1, fret: 3, isAnchor: true },
+    { string: 2, fret: 5 },
+  ];
+  const targets = visibleShapeLineTargets(positions, { answersHidden: false });
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0].string, 2);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

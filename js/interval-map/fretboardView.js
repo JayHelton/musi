@@ -194,6 +194,27 @@ function describeIc(ic) {
   return names[ic] || 'interval';
 }
 
+/**
+ * Positions that may receive a root→interval connector line.
+ * When answers are hidden, only already-revealed / correct / shown targets
+ * get a line — otherwise the line would give away the answer location.
+ */
+export function visibleShapeLineTargets(positions = [], {
+  answersHidden = false,
+  revealedKeys = null,
+  highlight = {},
+} = {}) {
+  return (positions || []).filter((p) => {
+    if (!p || p.isAnchor) return false;
+    if (!answersHidden) return true;
+    const key = `${p.string}:${p.fret}`;
+    const hl = highlight[key] || {};
+    if (revealedKeys && revealedKeys.has(key)) return true;
+    if (hl.reveal || hl.shown || hl.correct) return true;
+    return false;
+  });
+}
+
 export function drawShapeLines(overlayEl, boardEl, anchor, targets, handedness = 'right') {
   if (!overlayEl || !boardEl || !anchor) return;
   overlayEl.innerHTML = '';
