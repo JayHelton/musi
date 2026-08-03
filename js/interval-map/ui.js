@@ -206,16 +206,17 @@ function ensureBoardStructure() {
   if (!sec) return;
   const wrap = document.createElement('div');
   wrap.className = 'io-board-wrap';
+  const fbWrap = document.createElement('div');
+  fbWrap.className = 'fb-wrap';
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'io-shape-overlay');
   svg.id = 'io-shape-overlay';
-  const fbWrap = document.createElement('div');
-  fbWrap.className = 'fb-wrap';
+  svg.setAttribute('aria-hidden', 'true');
   const board = document.createElement('div');
   board.className = 'fretboard io-fretboard';
   board.id = 'io-board';
+  fbWrap.appendChild(svg);
   fbWrap.appendChild(board);
-  wrap.appendChild(svg);
   wrap.appendChild(fbWrap);
   sec.appendChild(wrap);
 }

@@ -116,17 +116,46 @@
   padding-left: 1.1rem;
 }
 
+#sec-intervalorbit {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 #sec-intervalorbit .io-board-wrap {
   position: relative;
+  max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+
+/* Inner wrap sizes to the board; only the outer wrap scrolls. */
+#sec-intervalorbit .io-board-wrap .fb-wrap {
+  position: relative;
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  margin: 0;
+  overflow: visible;
+  touch-action: manipulation;
+}
+
+#sec-intervalorbit .io-fretboard {
+  width: max-content;
+  min-width: 100%;
 }
 
 #sec-intervalorbit .io-shape-overlay {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   z-index: 2;
+  overflow: visible;
 }
 
 #sec-intervalorbit .io-shape-line {
@@ -407,14 +436,19 @@
 @media (max-width: 768px) {
   #sec-intervalorbit .io-main {
     gap: 8px;
+    min-width: 0;
+    max-width: 100%;
   }
 
   #sec-intervalorbit .section-head p.drill-explain {
     display: none;
   }
 
-  #sec-intervalorbit .fb-wrap {
-    margin: 0 -4px;
+  #sec-intervalorbit .io-card,
+  #sec-intervalorbit .quiz-card {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
   }
 
   #sec-intervalorbit .io-actions {
@@ -423,6 +457,7 @@
     padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
     background: linear-gradient(to top, rgba(10, 10, 10, 0.96), rgba(10, 10, 10, 0.88) 70%, transparent);
     z-index: 4;
+    max-width: 100%;
   }
 }
 
