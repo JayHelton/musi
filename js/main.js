@@ -37,6 +37,7 @@ import { initProgressHeaders } from './progressHeader.js';
 import { initHome, refreshHome, renderHub } from './home.js';
 import { initStats, renderStats } from './stats.js';
 import { initMusicPreferences } from './musicPreferences.js';
+import { initStudyLab, stopStudyLab } from './studyLab.js';
 import {
   TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
   asTabs, getTool, isHoldRecordRelevant,
@@ -70,6 +71,7 @@ const TOOL_STOPPERS = {
   tracktosheet: () => stopTrackToSheet(),
   gpplayer: () => stopGpPlayer(),
   songlearn: () => stopSongLearn(),
+  studylab: () => stopStudyLab(),
 };
 const TOOL_INITS = {
   circle: drawCoF,
@@ -95,6 +97,7 @@ const TOOL_INITS = {
   tracktosheet: initTrackToSheet,
   gpplayer: initGpPlayer,
   songlearn: initSongLearn,
+  studylab: initStudyLab,
   musicprefs: () => initMusicPreferences({ showSection }),
 };
 

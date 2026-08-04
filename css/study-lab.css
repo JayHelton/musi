@@ -1,0 +1,280 @@
+/* Study Lab — mic-guided walkthrough (GBC screen tiles) */
+
+#sec-studylab .sl-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+#sec-studylab .sl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+#sec-studylab .sl-field select {
+  min-height: 40px;
+  min-width: 120px;
+}
+
+#sec-studylab .sl-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+#sec-studylab .sl-step-progress {
+  margin-left: auto;
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1.15rem;
+  color: var(--accent2);
+}
+
+#sec-studylab .sl-overall {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(180, 140, 255, 0.12);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+#sec-studylab .sl-overall-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  transition: width 0.25s ease;
+}
+
+#sec-studylab .sl-card {
+  padding: 16px;
+  border-radius: var(--radius-screen, 18px);
+  border: 1px solid rgba(180, 140, 255, 0.28);
+  background:
+    linear-gradient(165deg, rgba(180, 94, 255, 0.12), transparent 40%),
+    rgba(18, 26, 46, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+#sec-studylab .sl-step-kicker {
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.5rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+#sec-studylab .sl-card h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+#sec-studylab .sl-prompt {
+  font-size: 0.95rem;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+#sec-studylab .sl-focus {
+  margin: 0 0 14px;
+  padding-left: 1.2em;
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+
+#sec-studylab .sl-board-wrap {
+  margin: 12px 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(11, 16, 32, 0.65);
+  overflow: hidden;
+}
+
+#sec-studylab .sl-board-scroll {
+  overflow-x: auto;
+  padding: 8px;
+}
+
+#sec-studylab .sl-fretboard {
+  display: grid;
+  min-width: 520px;
+  width: max-content;
+}
+
+#sec-studylab .sl-fretboard .io-cell {
+  min-height: 28px;
+  height: auto;
+  font-size: 0.68rem;
+  line-height: 1.05;
+  color: var(--muted);
+}
+
+#sec-studylab .sl-fretboard .io-cell.io-two-line {
+  white-space: pre-line;
+  font-size: 0.58rem;
+}
+
+#sec-studylab .sl-fretboard .io-root {
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+  font-weight: 700;
+}
+
+#sec-studylab .sl-fretboard .io-cell.sl-dim-string {
+  opacity: 0.28;
+}
+
+#sec-studylab .sl-fretboard .io-cell.sl-focus-string {
+  box-shadow: inset 0 0 0 1px rgba(255, 225, 74, 0.25);
+}
+
+#sec-studylab .sl-fretboard .io-cell.io-ghost,
+#sec-studylab .sl-fretboard .io-cell.io-shown {
+  background: rgba(180, 94, 255, 0.14);
+  color: var(--muted);
+}
+
+#sec-studylab .sl-fretboard .io-cell.correct {
+  background: rgba(255, 225, 74, 0.28);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(255, 225, 74, 0.25);
+}
+
+#sec-studylab .sl-fretboard .io-cell.io-target {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  animation: sl-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes sl-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(255, 225, 74, 0); }
+  50% { box-shadow: 0 0 14px rgba(255, 225, 74, 0.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #sec-studylab .sl-fretboard .io-cell.io-target { animation: none; }
+}
+
+#sec-studylab .sl-mic-panel {
+  margin: 10px 0 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 225, 74, 0.22);
+  background: rgba(255, 225, 74, 0.05);
+}
+
+#sec-studylab .sl-mic-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+#sec-studylab .sl-live-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#sec-studylab .sl-live-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#sec-studylab .sl-live {
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1.6rem;
+  color: var(--accent);
+  min-width: 3ch;
+}
+
+#sec-studylab .sl-meter {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+#sec-studylab .sl-meter-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--btn-a, #4da3ff), var(--accent));
+  transition: width 0.08s linear;
+}
+
+#sec-studylab .sl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+#sec-studylab .sl-chip {
+  min-width: 2.2em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1.05rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+#sec-studylab .sl-chip.current {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+#sec-studylab .sl-chip.done {
+  border-color: rgba(77, 163, 255, 0.5);
+  color: var(--ok, #4da3ff);
+  background: rgba(77, 163, 255, 0.12);
+}
+
+#sec-studylab .sl-status {
+  font-size: 0.9rem;
+  color: var(--text);
+  min-height: 1.3em;
+  margin-bottom: 4px;
+}
+
+#sec-studylab .sl-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+#sec-studylab .sl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#sec-studylab .sl-actions .btn {
+  min-height: 44px;
+}
+
+@media (max-width: 560px) {
+  #sec-studylab .sl-step-progress {
+    margin-left: 0;
+    width: 100%;
+  }
+  #sec-studylab .sl-mic-row {
+    grid-template-columns: 1fr;
+  }
+}

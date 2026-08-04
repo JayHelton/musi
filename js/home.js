@@ -5,10 +5,10 @@ import { getContext } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
 import {
   buildRecommendations,
-  beginRecommendedStudy,
   completeRecommendedStudy,
 } from './studyRecommendations.js';
 import { hasActiveGenres, getMusicProfile } from './musicProfile.js';
+import { startStudyLab } from './studyLab.js';
 
 let showSectionFn = null;
 let showHubFn = null;
@@ -204,9 +204,9 @@ function renderStudyRec(host) {
 }
 
 function startStudy(studyId) {
-  const result = beginRecommendedStudy(studyId);
-  if (!result) return;
-  showSectionFn(result.toolId);
+  if (!studyId) return;
+  startStudyLab(studyId);
+  showSectionFn('studylab');
 }
 
 function renderCategories(host) {
@@ -411,7 +411,7 @@ function wireHero() {
         startStudy(rec.id);
         return;
       }
-      showSectionFn(continueId || rec?.toolId || 'intervalorbit');
+      showSectionFn(continueId || 'studylab');
     };
     const label = document.getElementById('gbc-cta-primary-label');
     if (label) {
