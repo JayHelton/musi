@@ -1,0 +1,87 @@
+/* Guitar Pro practice player — standalone screen + shared mount (Exercises). */
+
+.gpp-layout{display:flex;flex-direction:column;gap:14px;max-width:1100px}
+.gpp-drop{
+  border:1px dashed var(--border);border-radius:16px;background:var(--card);
+  padding:28px 20px;text-align:center;transition:border-color .15s ease,background .15s ease
+}
+.gpp-drop.is-drag{border-color:var(--accent);background:var(--accent-dim)}
+.gpp-drop-title{font-size:1.05rem;font-weight:650;color:var(--text);margin-bottom:6px}
+.gpp-drop-sub{font-size:.82rem;color:var(--muted);margin-bottom:14px}
+.gpp-drop-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+
+.gpp-status{
+  font-size:.82rem;color:var(--muted);padding:8px 12px;border:1px solid var(--border);
+  border-radius:10px;background:var(--bg2)
+}
+.gpp-status[data-kind="error"]{color:var(--warn);border-color:rgba(243,156,18,0.4)}
+.gpp-status[hidden]{display:none}
+
+.gpp-stage{
+  border:1px solid var(--border);border-radius:16px;background:var(--card);
+  padding:14px 16px 18px;box-shadow:0 2px 12px rgba(0,0,0,0.35)
+}
+.gpp-stage[hidden]{display:none}
+
+/* Shared mount root */
+.gpp-root{display:flex;flex-direction:column;gap:12px;min-height:0;color:var(--text)}
+.gpp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.gpp-title{font-size:1.05rem;font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gpp-head-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+
+.gpp-meta{display:flex;flex-direction:column;gap:8px}
+.gpp-info{font-size:.78rem;color:var(--muted);line-height:1.4}
+
+.gpp-transport{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gpp-play{min-width:88px}
+.gpp-time,.gpp-measure{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.gpp-measure{margin-left:4px}
+
+.gpp-controls{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;
+  padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg2)
+}
+.gpp-control-block{display:flex;flex-direction:column;gap:8px}
+.gpp-control-label{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gpp-control-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gpp-field{display:flex;flex-direction:column;gap:6px;font-size:.8rem;color:var(--muted)}
+.gpp-select,.gpp-num{
+  padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg);
+  color:var(--text);font-size:.85rem;font-family:inherit
+}
+.gpp-select{max-width:100%;min-width:0}
+.gpp-num{width:72px}
+.gpp-slider{flex:1;min-width:100px;accent-color:var(--accent)}
+.gpp-unit,.gpp-pct{font-size:.78rem;color:var(--muted);white-space:nowrap}
+.gpp-check{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text);cursor:pointer}
+.gpp-check input{accent-color:var(--accent)}
+.gpp-loop-sel{width:auto;min-width:72px}
+
+.gpp-strip{
+  display:flex;gap:6px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin
+}
+.gpp-bar{
+  flex:0 0 auto;min-width:36px;min-height:36px;padding:6px 8px;border:1px solid var(--border);
+  border-radius:10px;background:var(--bg);color:var(--muted);font-size:.72rem;font-family:inherit;
+  cursor:pointer;line-height:1.15;white-space:pre-line;text-align:center
+}
+.gpp-bar:hover{border-color:var(--accent);color:var(--text)}
+.gpp-bar.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.gpp-bar.has-marker{font-weight:650}
+
+.gpp-tab{
+  margin:0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#0d0d0d;
+  color:#c8c8c8;font-family:var(--font-ui,"VT323",monospace);font-size:.72rem;
+  line-height:1.35;overflow:auto;max-height:280px;white-space:pre
+}
+
+/* Exercises viewer body for GP */
+.ex-viewer-body-gp{background:var(--bg);padding:12px;overflow:auto}
+.ex-viewer-body-gp .gpp-root{height:100%}
+.ex-viewer-panel.ex-viewer-panel-gp{max-width:1100px}
+
+@media (max-width:768px){
+  .gpp-controls{grid-template-columns:1fr}
+  .gpp-tab{font-size:.65rem;max-height:220px}
+  .gpp-drop{padding:22px 14px}
+}

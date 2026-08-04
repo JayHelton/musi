@@ -211,7 +211,7 @@
   background: var(--hover);
 }
 .sel-sheet-item.selected {
-  border-color: rgba(255, 107, 53, 0.45);
+  border-color: rgba(255,225,74, 0.45);
   background: var(--accent-dim);
 }
 .sel-sheet-item:focus-visible {

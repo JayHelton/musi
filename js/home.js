@@ -279,12 +279,54 @@ function toolRow(tool, { showSection, onFavorite }) {
   return row;
 }
 
+function wireHero() {
+  const primary = document.getElementById('gbc-cta-primary');
+  const browse = document.getElementById('gbc-cta-browse');
+  const clock = document.getElementById('gbc-clock');
+
+  if (clock && !clock.dataset.wired) {
+    clock.dataset.wired = '1';
+    const tick = () => {
+      const d = new Date();
+      clock.textContent = d.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    };
+    tick();
+    setInterval(tick, 30000);
+  }
+
+  if (primary) {
+    const continueId = lastTool();
+    primary.onclick = () => {
+      showSectionFn(continueId || 'intervalorbit');
+    };
+    const label = document.getElementById('gbc-cta-primary-label');
+    if (label) label.textContent = continueId ? 'Continue' : 'Start practice';
+  }
+
+  if (browse) {
+    browse.onclick = () => {
+      const panel = document.getElementById('home-all-panel');
+      if (!panel) return;
+      panel.open = true;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const search = panel.querySelector('.home-all-search');
+      if (search) search.focus();
+    };
+  }
+}
+
 export function initHome(config) {
   showSectionFn = config.showSection;
   showHubFn = config.showHub;
   render();
+  wireHero();
 }
 
 export function refreshHome() {
   render();
+  wireHero();
 }
