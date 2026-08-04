@@ -2,7 +2,7 @@
 // (guitar + drums), save them, and practice with a follow-along multi-track player.
 
 import { parseGuitarPro, isGuitarProName, modelToAsciiTab } from './tab/guitarPro.js';
-import { buildGpSectionSnippets } from './drums/gpDrumImport.js';
+import { buildGpSectionSnippets, sliceGuitarModel } from './drums/gpDrumImport.js';
 import {
   listSongs,
   getSong,
@@ -10,9 +10,12 @@ import {
   renameSong,
   removeSection,
   createSongFromGpSnippets,
+  getSongSourceBlob,
   attachmentsSupported,
 } from './songLearnStore.js';
+import { saveFile, ensurePersistentStorage } from './attachments.js';
 import { savePattern } from './drums/drumPatternDb.js';
+import { addGpExerciseFromAttachment } from './exercises.js';
 import {
   createSongPlayer,
   buildFollowColumns,
@@ -26,8 +29,13 @@ const state = {
   import: null,
   player: null,
   follow: null,
-  activeSectionId: 'all', // 'all' | section id
-  loopSection: true,
+  activeSectionId: 'all', // 'all' | section id | 'selection'
+  loopEnabled: true,
+  loopRestSec: 2,
+  bpm: 120,
+  scoreBpm: 120,
+  selStart: 0, // measure index
+  selEnd: 0,
 };
 
 function $(id) { return document.getElementById(id); }
@@ -76,11 +84,39 @@ function ensurePlayer() {
   if (state.player) return state.player;
   state.player = createSongPlayer({
     onTick: (info) => {
-      if (state.follow) state.follow.update(info);
+      if (state.follow) {
+        state.follow.update({
+          ...info,
+          playing: info.playing && !info.resting,
+        });
+      }
       syncTransportButtons(info);
+      highlightActiveBar(info.measureIndex);
+      const restEl = $('sln-rest-status');
+      if (restEl) {
+        restEl.textContent = info.resting && info.restRemaining > 0
+          ? `Rest ${info.restRemaining.toFixed(1)}s`
+          : '';
+      }
     },
   });
   return state.player;
+}
+
+function songMeasures(song) {
+  const { guitar, drums } = songModels(song);
+  return guitar?.measures || drums?.measures || [];
+}
+
+function measureBeatRange(measures, startIdx, endIdx) {
+  if (!measures.length) return { startBeat: 0, endBeat: 4 };
+  const a = Math.max(0, Math.min(measures.length - 1, startIdx));
+  const b = Math.max(a, Math.min(measures.length - 1, endIdx));
+  const startBeat = Number.isFinite(measures[a].startBeat) ? measures[a].startBeat : 0;
+  const endBeat = Number.isFinite(measures[b].endBeat)
+    ? measures[b].endBeat
+    : startBeat + 4;
+  return { startBeat, endBeat, startIdx: a, endIdx: b };
 }
 
 function stitchGuitarFromSections(sections) {
@@ -176,6 +212,7 @@ function songModels(song) {
 }
 
 function sectionRange(song, sectionId) {
+  const measures = songMeasures(song);
   if (!sectionId || sectionId === 'all') {
     const { guitar, drums } = songModels(song);
     const end = Math.max(
@@ -184,15 +221,41 @@ function sectionRange(song, sectionId) {
       ...(song.sections || []).map((s) => s.endBeat || 0),
       4
     );
-    return { startBeat: 0, endBeat: end, loop: false, label: 'Full song' };
+    return {
+      startBeat: 0,
+      endBeat: end,
+      loop: state.loopEnabled,
+      label: 'Full song',
+      startIdx: 0,
+      endIdx: Math.max(0, measures.length - 1),
+    };
+  }
+  if (sectionId === 'selection') {
+    const beats = measureBeatRange(measures, state.selStart, state.selEnd);
+    return {
+      ...beats,
+      loop: state.loopEnabled,
+      label: `Bars ${beats.startIdx + 1}–${beats.endIdx + 1}`,
+    };
   }
   const sec = (song.sections || []).find((s) => s.id === sectionId);
   if (!sec) return sectionRange(song, 'all');
+  // Map section beats back onto measure indices when possible.
+  let startIdx = 0;
+  let endIdx = Math.max(0, measures.length - 1);
+  for (let i = 0; i < measures.length; i++) {
+    const ms = Number.isFinite(measures[i].startBeat) ? measures[i].startBeat : 0;
+    const me = Number.isFinite(measures[i].endBeat) ? measures[i].endBeat : ms;
+    if (ms <= (sec.startBeat || 0) + 1e-6 && me > (sec.startBeat || 0) + 1e-6) startIdx = i;
+    if (ms < (sec.endBeat || 0) - 1e-6 && me >= (sec.endBeat || 0) - 1e-6) endIdx = i;
+  }
   return {
     startBeat: sec.startBeat || 0,
     endBeat: sec.endBeat || (sec.startBeat + 4),
-    loop: state.loopSection,
+    loop: state.loopEnabled,
     label: sec.label,
+    startIdx,
+    endIdx,
   };
 }
 
@@ -200,19 +263,124 @@ function loadPlayerForSong(song, sectionId = state.activeSectionId) {
   const player = ensurePlayer();
   const { guitar, guitars, drums } = songModels(song);
   const range = sectionRange(song, sectionId);
-  // Full song mixes every fretted track + drums; section practice uses the primary guitar slice.
+  // Full song mixes every fretted track + drums; focused ranges use the primary guitar.
   const mixAll = !sectionId || sectionId === 'all';
   player.load({
     guitarModel: guitar,
     guitarModels: mixAll ? guitars : (guitar ? [guitar] : []),
     percModel: drums,
-    bpm: song.tempo,
+    bpm: state.bpm || song.tempo,
     startBeat: range.startBeat,
     endBeat: range.endBeat,
     loop: range.loop,
+    loopRestSec: state.loopRestSec,
   });
   remountFollow(song, range);
   return range;
+}
+
+function highlightActiveBar(idx) {
+  document.querySelectorAll('#sln-strip .sln-bar').forEach((b) => {
+    const i = Number(b.dataset.index);
+    b.classList.toggle('active', i === idx);
+    b.classList.toggle(
+      'selected',
+      i >= Math.min(state.selStart, state.selEnd) && i <= Math.max(state.selStart, state.selEnd)
+    );
+  });
+}
+
+async function saveSelectionAsExercise(song) {
+  const measures = songMeasures(song);
+  if (!measures.length) {
+    setStatus('No measures available to save.', 'error');
+    return;
+  }
+  const a = Math.min(state.selStart, state.selEnd);
+  const b = Math.max(state.selStart, state.selEnd);
+  const beats = measureBeatRange(measures, a, b);
+  const name = `${song.title} · bars ${a + 1}–${b + 1}`;
+  try {
+    await ensurePersistentStorage();
+    const sourceBlob = await getSongSourceBlob(song);
+    if (sourceBlob) {
+      const meta = await saveFile({
+        blob: sourceBlob,
+        name: name.replace(/[^\w\- ]+/g, '').trim() || 'exercise',
+        type: 'application/x-guitar-pro',
+        fileName: song.fileName || 'score.gp',
+        size: sourceBlob.size || 0,
+        source: 'exercise',
+      });
+      if (!meta) throw new Error('Could not store exercise file.');
+      const item = addGpExerciseFromAttachment({
+        attachmentId: meta.id,
+        name,
+        fileName: song.fileName || meta.fileName || 'score.gp',
+        type: 'application/x-guitar-pro',
+        size: meta.size || sourceBlob.size || 0,
+        measureStart: a,
+        measureEnd: b,
+        loopEnabled: true,
+        loopRestSec: state.loopRestSec,
+        preferredTrackIndex: 0,
+      });
+      setStatus(item
+        ? `Saved “${item.name}” to Exercises (loop bars ${a + 1}–${b + 1}, ${state.loopRestSec}s rest).`
+        : 'Could not add exercise.', item ? '' : 'error');
+      return;
+    }
+
+    // Fallback: store a sliced tab-model snippet when the original GP blob is gone.
+    const { guitar } = songModels(song);
+    if (!guitar) {
+      setStatus('No guitar track to save as an exercise.', 'error');
+      return;
+    }
+    const sliced = sliceGuitarModel(guitar, {
+      startBeat: beats.startBeat,
+      endBeat: beats.endBeat,
+      label: name,
+    });
+    const payload = {
+      kind: 'musi-tab-model',
+      tempo: state.bpm || song.tempo,
+      trackName: song.guitarTrackName || 'Guitar',
+      sourceName: song.fileName || song.title,
+      measureStart: a,
+      measureEnd: b,
+      model: sliced,
+    };
+    const json = JSON.stringify(payload);
+    const blob = new Blob([json], { type: 'application/json' });
+    const fileName = `${(song.title || 'exercise').replace(/[^\w\- ]+/g, '').trim() || 'exercise'}-bars-${a + 1}-${b + 1}.musi-tab.json`;
+    const meta = await saveFile({
+      blob,
+      name: fileName.replace(/\.musi-tab\.json$/i, ''),
+      type: 'application/x-musi-tab-model',
+      fileName,
+      size: blob.size,
+      source: 'exercise',
+    });
+    if (!meta) throw new Error('Could not store exercise snippet.');
+    const item = addGpExerciseFromAttachment({
+      attachmentId: meta.id,
+      name,
+      fileName,
+      type: 'application/x-musi-tab-model',
+      size: blob.size,
+      measureStart: 0,
+      measureEnd: Math.max(0, (sliced.measures || []).length - 1),
+      loopEnabled: true,
+      loopRestSec: state.loopRestSec,
+      preferredTrackIndex: 0,
+    });
+    setStatus(item
+      ? `Saved “${item.name}” to Exercises as a practice snippet.`
+      : 'Could not add exercise.', item ? '' : 'error');
+  } catch (err) {
+    setStatus(err?.message || 'Could not save exercise.', 'error');
+  }
 }
 
 function remountFollow(song, range) {
@@ -229,7 +397,7 @@ function remountFollow(song, range) {
   state.follow = mountFollowView(host, layout);
   state.follow.update({
     currentSec: state.player?.currentSec || 0,
-    bpm: song.tempo,
+    bpm: state.bpm || song.tempo,
     playing: !!state.player?.playing,
     durationSec: state.player?.durationSec || 0,
   });
@@ -246,6 +414,16 @@ function syncTransportButtons(info) {
   const dMute = $('sln-mute-d');
   if (gMute) gMute.classList.toggle('muted', !!state.player?.muteGuitar);
   if (dMute) dMute.classList.toggle('muted', !!state.player?.muteDrums);
+  const timeEl = $('sln-time');
+  if (timeEl && state.player) {
+    const cur = info?.currentSec ?? state.player.currentSec;
+    const dur = info?.durationSec ?? state.player.durationSec;
+    const fmt = (s) => {
+      const n = Math.max(0, Math.floor(s || 0));
+      return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+    };
+    timeEl.textContent = `${fmt(cur)} / ${fmt(dur)}`;
+  }
 }
 
 function rebuildSnippets() {
@@ -333,6 +511,7 @@ async function saveImport() {
       saveDrumsToLibrary: !!imp.saveDrumsToLibrary,
     });
     state.detailId = song.id;
+    state._practiceSongId = null;
     state.view = 'detail';
     state.activeSectionId = 'all';
     state.import = null;
@@ -379,6 +558,7 @@ function renderLibrary(root) {
       onClick: () => {
         stopPlayback();
         state.detailId = song.id;
+        state._practiceSongId = null; // force practice UI reset
         state.activeSectionId = 'all';
         state.view = 'detail';
         render();
@@ -502,6 +682,31 @@ function renderDetail(root) {
   root.innerHTML = '';
   destroyFollow();
 
+  state.scoreBpm = Number(song.tempo) || 120;
+  if (state._practiceSongId !== song.id) {
+    state._practiceSongId = song.id;
+    state.bpm = state.scoreBpm;
+    state.activeSectionId = 'all';
+    state.selStart = 0;
+    state.selEnd = 0;
+  }
+  const measures = songMeasures(song);
+  if (measures.length) {
+    if (state.selEnd === 0 && state.selStart === 0 && state.activeSectionId === 'all') {
+      state.selEnd = measures.length - 1;
+    }
+    state.selStart = Math.max(0, Math.min(measures.length - 1, state.selStart));
+    state.selEnd = Math.max(state.selStart, Math.min(measures.length - 1, state.selEnd));
+  }
+
+  const reload = (sectionId = state.activeSectionId, { autoplay = false } = {}) => {
+    const was = autoplay || !!state.player?.playing;
+    loadPlayerForSong(song, sectionId);
+    if (was) state.player.play();
+    syncTransportButtons();
+    highlightActiveBar(state.player?.measureIndex ?? state.selStart);
+  };
+
   root.appendChild(el('div', { class: 'sln-import-head' }, [
     el('button', {
       class: 'btn sm', type: 'button', text: '← Library',
@@ -519,173 +724,328 @@ function renderDetail(root) {
     class: 'sln-song-meta',
     text: [
       song.fileName || 'Guitar Pro',
-      `${Math.round(song.tempo)} BPM`,
+      `${Math.round(state.scoreBpm)} BPM`,
       `${song.sections.length} sections`,
-      `${(song.fullGuitars || []).length || (song.fullGuitar ? 1 : 0)} guitar track(s) + drums`,
-      'follow-along play',
+      `${measures.length} bars`,
+      `${(song.fullGuitars || []).length || (song.fullGuitar ? 1 : 0)} guitar + drums`,
     ].join(' · '),
   }));
 
+  // Player shell
+  const playerCard = el('div', { class: 'sln-player' });
+
   // Transport
   const transport = el('div', { class: 'sln-transport' });
-  const playBtn = el('button', {
-    class: 'btn primary', type: 'button', id: 'sln-play', text: 'Play',
-    onClick: () => {
-      const player = ensurePlayer();
-      if (player.playing) {
-        player.pause();
-      } else if (player.paused) {
-        player.play();
-      } else {
-        loadPlayerForSong(song, state.activeSectionId);
-        player.play();
-      }
-      syncTransportButtons();
-    },
-  });
-  const stopBtn = el('button', {
-    class: 'btn', type: 'button', text: 'Stop',
-    onClick: () => {
-      stopPlayback();
-      if (state.follow) {
-        state.follow.update({
-          currentSec: state.player?.currentSec || 0,
-          bpm: song.tempo,
-          playing: false,
-          durationSec: state.player?.durationSec || 0,
-        });
-      }
-      syncTransportButtons();
-    },
-  });
-  const gMute = el('button', {
-    class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-g', text: 'Guitar',
-    onClick: () => {
-      const player = ensurePlayer();
-      player.setMuted({ guitar: !player.muteGuitar });
-      syncTransportButtons();
-    },
-  });
-  const dMute = el('button', {
-    class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-d', text: 'Drums',
-    onClick: () => {
-      const player = ensurePlayer();
-      player.setMuted({ drums: !player.muteDrums });
-      syncTransportButtons();
-    },
-  });
-  const loopChk = el('input', { type: 'checkbox', id: 'sln-loop' });
-  loopChk.checked = !!state.loopSection;
-  loopChk.onchange = () => {
-    state.loopSection = !!loopChk.checked;
-    const was = state.player?.playing;
-    loadPlayerForSong(song, state.activeSectionId);
-    if (was) state.player.play();
-  };
   transport.append(
-    playBtn,
-    stopBtn,
-    gMute,
-    dMute,
-    el('label', { class: 'sln-check', for: 'sln-loop' }, [
-      loopChk,
-      el('span', { text: 'Loop section' }),
-    ])
+    el('button', {
+      class: 'btn primary', type: 'button', id: 'sln-play', text: 'Play',
+      onClick: () => {
+        const player = ensurePlayer();
+        if (player.playing) player.pause();
+        else if (player.paused) player.play();
+        else {
+          loadPlayerForSong(song, state.activeSectionId);
+          player.play();
+        }
+        syncTransportButtons();
+      },
+    }),
+    el('button', {
+      class: 'btn', type: 'button', text: 'Stop',
+      onClick: () => {
+        stopPlayback();
+        if (state.follow) {
+          state.follow.update({
+            currentSec: state.player?.currentSec || 0,
+            bpm: state.bpm,
+            playing: false,
+            durationSec: state.player?.durationSec || 0,
+          });
+        }
+        syncTransportButtons();
+      },
+    }),
+    el('button', {
+      class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-g', text: 'Guitar',
+      onClick: () => {
+        const player = ensurePlayer();
+        player.setMuted({ guitar: !player.muteGuitar });
+        syncTransportButtons();
+      },
+    }),
+    el('button', {
+      class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-d', text: 'Drums',
+      onClick: () => {
+        const player = ensurePlayer();
+        player.setMuted({ drums: !player.muteDrums });
+        syncTransportButtons();
+      },
+    }),
+    el('span', { class: 'sln-time', id: 'sln-time', text: '0:00 / 0:00' }),
+    el('span', { class: 'sln-rest-status', id: 'sln-rest-status', text: '' }),
   );
-  root.appendChild(transport);
+  playerCard.appendChild(transport);
+
+  // Practice controls
+  const controls = el('div', { class: 'sln-controls' });
+
+  const bpmInput = el('input', {
+    type: 'number', class: 'sln-num', min: '40', max: '280', step: '1',
+    value: String(Math.round(state.bpm)), 'aria-label': 'BPM',
+  });
+  bpmInput.onchange = () => {
+    state.bpm = Math.max(40, Math.min(280, Number(bpmInput.value) || state.scoreBpm));
+    bpmInput.value = String(state.bpm);
+    reload();
+  };
+  controls.appendChild(el('div', { class: 'sln-control-block' }, [
+    el('div', { class: 'sln-control-label', text: 'Tempo' }),
+    el('div', { class: 'sln-control-row' }, [
+      bpmInput,
+      el('span', { class: 'sln-unit', text: 'BPM' }),
+      el('button', {
+        class: 'btn sm', type: 'button', text: 'Score',
+        onClick: () => {
+          state.bpm = state.scoreBpm;
+          bpmInput.value = String(Math.round(state.bpm));
+          reload();
+        },
+      }),
+    ]),
+  ]));
+
+  const loopChk = el('input', { type: 'checkbox', id: 'sln-loop' });
+  loopChk.checked = !!state.loopEnabled;
+  loopChk.onchange = () => {
+    state.loopEnabled = !!loopChk.checked;
+    reload();
+  };
+  const restInput = el('input', {
+    type: 'number', class: 'sln-num', min: '0', max: '30', step: '0.5',
+    value: String(state.loopRestSec), 'aria-label': 'Rest seconds between loops',
+  });
+  restInput.onchange = () => {
+    state.loopRestSec = Math.max(0, Math.min(30, Number(restInput.value) || 0));
+    restInput.value = String(state.loopRestSec);
+    if (state.player?.playing) reload(state.activeSectionId, { autoplay: true });
+    else {
+      state.player?.setLoopRestSec?.(state.loopRestSec);
+      loadPlayerForSong(song, state.activeSectionId);
+    }
+  };
+
+  const startSel = el('select', { class: 'sln-select sln-bar-sel', 'aria-label': 'Selection start bar' });
+  const endSel = el('select', { class: 'sln-select sln-bar-sel', 'aria-label': 'Selection end bar' });
+  measures.forEach((m, i) => {
+    const label = m.marker ? `${i + 1} · ${m.marker}` : String(i + 1);
+    startSel.appendChild(el('option', { value: String(i), text: label }));
+    endSel.appendChild(el('option', { value: String(i), text: label }));
+  });
+  startSel.value = String(state.selStart);
+  endSel.value = String(state.selEnd);
+  const onSelChange = () => {
+    state.selStart = Number(startSel.value) || 0;
+    state.selEnd = Number(endSel.value) || 0;
+    if (state.selEnd < state.selStart) {
+      state.selEnd = state.selStart;
+      endSel.value = String(state.selEnd);
+    }
+    state.activeSectionId = 'selection';
+    reload('selection');
+  };
+  startSel.onchange = onSelChange;
+  endSel.onchange = onSelChange;
+
+  controls.appendChild(el('div', { class: 'sln-control-block' }, [
+    el('div', { class: 'sln-control-label', text: 'Measures' }),
+    el('div', { class: 'sln-control-row' }, [
+      startSel,
+      el('span', { class: 'sln-unit', text: '–' }),
+      endSel,
+      el('button', {
+        class: 'btn sm primary', type: 'button', text: 'Play selection',
+        onClick: () => {
+          state.activeSectionId = 'selection';
+          loadPlayerForSong(song, 'selection');
+          state.player.play();
+          syncTransportButtons();
+        },
+      }),
+    ]),
+  ]));
+
+  controls.appendChild(el('div', { class: 'sln-control-block' }, [
+    el('div', { class: 'sln-control-label', text: 'Loop' }),
+    el('div', { class: 'sln-control-row' }, [
+      el('label', { class: 'sln-check', for: 'sln-loop' }, [
+        loopChk,
+        el('span', { text: 'Enable' }),
+      ]),
+      el('span', { class: 'sln-unit', text: 'Rest' }),
+      restInput,
+      el('span', { class: 'sln-unit', text: 'sec' }),
+    ]),
+  ]));
+
+  controls.appendChild(el('div', { class: 'sln-control-block' }, [
+    el('div', { class: 'sln-control-label', text: 'Exercises' }),
+    el('div', { class: 'sln-control-row' }, [
+      el('button', {
+        class: 'btn sm primary', type: 'button',
+        text: 'Save selection as Exercise',
+        onClick: () => saveSelectionAsExercise(song),
+      }),
+    ]),
+    el('div', {
+      class: 'sln-control-hint',
+      text: 'Select bars above (or on the strip), then save. Exercises open with this loop and rest.',
+    }),
+  ]));
+
+  playerCard.appendChild(controls);
+
+  // Measure strip
+  const strip = el('div', { class: 'sln-strip', id: 'sln-strip', 'aria-label': 'Measures' });
+  measures.forEach((m, i) => {
+    const selected = i >= Math.min(state.selStart, state.selEnd) && i <= Math.max(state.selStart, state.selEnd);
+    strip.appendChild(el('button', {
+      class: 'sln-bar' + (m.marker ? ' has-marker' : '') + (selected ? ' selected' : ''),
+      type: 'button',
+      text: m.marker ? `${i + 1}\n${m.marker}` : String(i + 1),
+      title: m.marker
+        ? `${m.marker} · click start, Shift+click end`
+        : `Bar ${i + 1} · click start, Shift+click end`,
+      'data-index': String(i),
+      onClick: (e) => {
+        if (e.shiftKey) {
+          state.selEnd = Math.max(state.selStart, i);
+        } else {
+          state.selStart = i;
+          if (state.selEnd < i) state.selEnd = i;
+        }
+        startSel.value = String(state.selStart);
+        endSel.value = String(state.selEnd);
+        state.activeSectionId = 'selection';
+        reload('selection');
+      },
+    }));
+  });
+  playerCard.appendChild(strip);
 
   // Section chips
   const chips = el('div', { class: 'sln-sec-chips' });
-  const allBtn = el('button', {
-    class: 'sln-chip' + (state.activeSectionId === 'all' ? ' active' : ''),
-    type: 'button',
-    text: 'Full song',
-    'data-sln-sec': 'all',
-    onClick: () => {
-      state.activeSectionId = 'all';
-      const was = state.player?.playing;
-      loadPlayerForSong(song, 'all');
-      if (was) state.player.play();
-      syncTransportButtons();
-    },
-  });
-  chips.appendChild(allBtn);
-  song.sections.forEach((sec) => {
+  const addChip = (id, label) => {
     chips.appendChild(el('button', {
-      class: 'sln-chip' + (state.activeSectionId === sec.id ? ' active' : ''),
+      class: 'sln-chip' + (state.activeSectionId === id ? ' active' : ''),
       type: 'button',
-      text: sec.label,
-      'data-sln-sec': sec.id,
+      text: label,
+      'data-sln-sec': id,
       onClick: () => {
-        state.activeSectionId = sec.id;
-        const was = state.player?.playing;
-        loadPlayerForSong(song, sec.id);
-        if (was) state.player.play();
-        syncTransportButtons();
+        state.activeSectionId = id;
+        if (id !== 'selection' && id !== 'all') {
+          const range = sectionRange(song, id);
+          state.selStart = range.startIdx ?? state.selStart;
+          state.selEnd = range.endIdx ?? state.selEnd;
+          startSel.value = String(state.selStart);
+          endSel.value = String(state.selEnd);
+        }
+        if (id === 'all' && measures.length) {
+          state.selStart = 0;
+          state.selEnd = measures.length - 1;
+          startSel.value = String(state.selStart);
+          endSel.value = String(state.selEnd);
+        }
+        reload(id);
       },
     }));
-  });
-  root.appendChild(chips);
+  };
+  addChip('all', 'Full song');
+  addChip('selection', 'Selection');
+  song.sections.forEach((sec) => addChip(sec.id, sec.label));
+  playerCard.appendChild(chips);
 
   // Follow-along visual
-  root.appendChild(el('div', { id: 'sln-follow-host', class: 'sln-follow-host' }));
+  playerCard.appendChild(el('div', { id: 'sln-follow-host', class: 'sln-follow-host' }));
+  root.appendChild(playerCard);
 
   // Section list (manage / save drums)
-  const list = el('div', { class: 'sln-snip-list' });
-  song.sections.forEach((sec) => {
-    const card = el('div', { class: 'sln-snip-card' });
-    card.appendChild(el('div', { class: 'sln-snip-title', text: sec.label }));
-    card.appendChild(el('div', {
-      class: 'sln-snip-meta',
-      text: [
-        sec.type,
-        sec.hasGuitar ? 'guitar' : null,
-        sec.hasDrums ? 'drums' : null,
-        `${Math.round(sec.tempo || song.tempo)} BPM`,
-      ].filter(Boolean).join(' · '),
-    }));
-    const actions = el('div', { class: 'sln-snip-actions' });
-    actions.appendChild(el('button', {
-      class: 'btn sm primary', type: 'button', text: 'Play section',
-      onClick: () => {
-        state.activeSectionId = sec.id;
-        loadPlayerForSong(song, sec.id);
-        state.player.play();
-        syncTransportButtons();
-      },
-    }));
-    if (sec.hasDrums && sec.drums) {
+  if (song.sections.length) {
+    const list = el('div', { class: 'sln-snip-list' });
+    list.appendChild(el('div', { class: 'sln-control-label', text: 'Saved sections' }));
+    song.sections.forEach((sec) => {
+      const card = el('div', { class: 'sln-snip-card' });
+      card.appendChild(el('div', { class: 'sln-snip-title', text: sec.label }));
+      card.appendChild(el('div', {
+        class: 'sln-snip-meta',
+        text: [
+          sec.type,
+          sec.hasGuitar ? 'guitar' : null,
+          sec.hasDrums ? 'drums' : null,
+          `${Math.round(sec.tempo || song.tempo)} BPM`,
+        ].filter(Boolean).join(' · '),
+      }));
+      const actions = el('div', { class: 'sln-snip-actions' });
       actions.appendChild(el('button', {
-        class: 'btn sm', type: 'button', text: 'Save to Drums',
-        onClick: async () => {
-          const saved = await savePattern({
-            ...sec.drums,
-            id: null,
-            title: `${song.title} · ${sec.label}`,
-            tags: [...(sec.drums.tags || []), 'song-learn'],
+        class: 'btn sm primary', type: 'button', text: 'Play',
+        onClick: () => {
+          state.activeSectionId = sec.id;
+          const range = sectionRange(song, sec.id);
+          state.selStart = range.startIdx ?? state.selStart;
+          state.selEnd = range.endIdx ?? state.selEnd;
+          startSel.value = String(state.selStart);
+          endSel.value = String(state.selEnd);
+          loadPlayerForSong(song, sec.id);
+          state.player.play();
+          syncTransportButtons();
+          highlightActiveBar(state.selStart);
+          document.querySelectorAll('[data-sln-sec]').forEach((btn) => {
+            btn.classList.toggle('active', btn.getAttribute('data-sln-sec') === sec.id);
           });
-          setStatus(saved ? `Saved “${saved.title}” to Drums library.` : 'Could not save drum pattern.', saved ? '' : 'error');
         },
       }));
-    }
-    actions.appendChild(el('button', {
-      class: 'btn sm sln-danger', type: 'button', text: 'Remove',
-      onClick: () => {
-        if (!confirm(`Remove section “${sec.label}”?`)) return;
-        stopPlayback();
-        removeSection(song.id, sec.id);
-        if (state.activeSectionId === sec.id) state.activeSectionId = 'all';
-        render();
-      },
-    }));
-    card.appendChild(actions);
-    list.appendChild(card);
-  });
-  root.appendChild(list);
+      actions.appendChild(el('button', {
+        class: 'btn sm', type: 'button', text: 'Save as Exercise',
+        onClick: () => {
+          const range = sectionRange(song, sec.id);
+          state.selStart = range.startIdx ?? 0;
+          state.selEnd = range.endIdx ?? state.selStart;
+          state.activeSectionId = 'selection';
+          saveSelectionAsExercise(song);
+        },
+      }));
+      if (sec.hasDrums && sec.drums) {
+        actions.appendChild(el('button', {
+          class: 'btn sm', type: 'button', text: 'Save to Drums',
+          onClick: async () => {
+            const saved = await savePattern({
+              ...sec.drums,
+              id: null,
+              title: `${song.title} · ${sec.label}`,
+              tags: [...(sec.drums.tags || []), 'song-learn'],
+            });
+            setStatus(saved ? `Saved “${saved.title}” to Drums library.` : 'Could not save drum pattern.', saved ? '' : 'error');
+          },
+        }));
+      }
+      actions.appendChild(el('button', {
+        class: 'btn sm sln-danger', type: 'button', text: 'Remove',
+        onClick: () => {
+          if (!confirm(`Remove section “${sec.label}”?`)) return;
+          stopPlayback();
+          removeSection(song.id, sec.id);
+          if (state.activeSectionId === sec.id) state.activeSectionId = 'all';
+          render();
+        },
+      }));
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
+    root.appendChild(list);
+  }
 
-  // Initial load of follow view (full song)
   loadPlayerForSong(song, state.activeSectionId);
   syncTransportButtons();
+  highlightActiveBar(state.selStart);
 }
 
 function render() {

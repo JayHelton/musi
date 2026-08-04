@@ -9,6 +9,29 @@ API. It ships as two deliverables that share the same music-theory engine in `js
   `css/`, `service-worker.js`, `manifest.webmanifest`). No build step or framework.
 - **CLI companion:** `cli/` — a zero-dependency Node.js (>=18) program.
 
+### Visual design (Atomic Purple Game Boy Color)
+
+The web UI is a **retro Game Boy Color** aesthetic — specifically an “Atomic Purple”
+handheld look. New UI work must respect this system rather than introducing a generic
+dark/modern dashboard style.
+
+- **Theme source of truth:** `css/base.css` (palette tokens) + `css/theme-gbc.css`
+  (shell ambient, hero, type hierarchy, screen-tile panels, dock chrome).
+- **Palette:** deep navy screen surfaces (`--bg` / `--bg2` / `--card`), translucent
+  purple shell gradients, punchy yellow accent (`--accent` / `--on-accent`), purple
+  secondary (`--accent2` / `--shell-bright`), ABXY-inspired button hues (`--btn-a/b/x`).
+- **Typography:** pixel stack — Press Start 2P for brand/kickers (`--font-pixel`),
+  Pixelify Sans for body/controls (`--font-body`), VT323 for dense readouts/tabs
+  (`--font-ui`). Prefer these over Inter/Roboto/system or Courier New.
+- **Surfaces:** panels read as LCD “screen tiles” (soft inset highlight + purple border),
+  not flat black cards. Prefer `var(--radius-screen)` / `var(--radius-pill)` and theme
+  tokens over hard-coded `#0a0a0a` / `#0d0d0d` / pure-black backgrounds.
+- **Motion:** keep ambient GBC motion (grid drift, soft hero blobs) intact; feature UI
+  motion should stay subtle and purposeful.
+- **Do not** restyle toward purple-on-white SaaS, cream/terracotta editorial, or
+  broadsheet newspaper layouts. When adding feature CSS (`css/<feature>.css`), reuse
+  existing tokens/fonts so Song Learning, Exercises, Drums, etc. stay on-theme.
+
 ### Running the services
 
 - **Web app:** serve the repo root over HTTP, e.g. `python3 -m http.server 8080`, then

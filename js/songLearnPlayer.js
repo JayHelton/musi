@@ -312,7 +312,9 @@ export function createSongPlayer(opts = {}) {
     bpm: 120,
     muteGuitar: false,
     muteDrums: false,
-    loop: null,
+    loop: null, // { startSec, endSec, restSec }
+    inLoopRest: false,
+    loopRestUntil: 0,
     range: { startBeat: 0, endBeat: null },
     guitarModel: null,
     percModel: null,
@@ -336,7 +338,13 @@ export function createSongPlayer(opts = {}) {
 
   function songTimeNow() {
     if (!state.playing || !audioCtx) return state.pauseAtSec;
+    if (state.inLoopRest) return state.loop?.endSec ?? state.pauseAtSec;
     return state.originSongSec + (audioCtx.currentTime - state.originAudioTime);
+  }
+
+  function restRemaining() {
+    if (!state.playing || !state.inLoopRest || !audioCtx) return 0;
+    return Math.max(0, state.loopRestUntil - audioCtx.currentTime);
   }
 
   function durationSec() {
@@ -350,6 +358,14 @@ export function createSongPlayer(opts = {}) {
       if (eEnd > end) end = eEnd;
     }
     return end;
+  }
+
+  function resyncCursor(fromSec) {
+    state.nextIndex = 0;
+    while (
+      state.nextIndex < state.events.length &&
+      state.events[state.nextIndex].startSec < fromSec - 0.0001
+    ) state.nextIndex += 1;
   }
 
   function emitTick() {
@@ -367,6 +383,8 @@ export function createSongPlayer(opts = {}) {
       bpm: state.bpm,
       muteGuitar: state.muteGuitar,
       muteDrums: state.muteDrums,
+      resting: !!state.inLoopRest,
+      restRemaining: restRemaining(),
     });
   }
 
@@ -379,19 +397,38 @@ export function createSongPlayer(opts = {}) {
   function scheduler() {
     if (!state.playing || !audioCtx) return;
     const now = audioCtx.currentTime;
+
+    if (state.loop && state.inLoopRest) {
+      if (now < state.loopRestUntil - 0.001) {
+        emitTick();
+        state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
+        return;
+      }
+      state.inLoopRest = false;
+      state.originSongSec = state.loop.startSec;
+      state.originAudioTime = now + 0.01;
+      resyncCursor(state.loop.startSec);
+      emitTick();
+    }
+
     let songNow = state.originSongSec + (now - state.originAudioTime);
 
-    if (state.loop && songNow >= state.loop.endSec - 0.001) {
-      const loopLen = Math.max(0.01, state.loop.endSec - state.loop.startSec);
-      const wrapped = state.loop.startSec + ((songNow - state.loop.startSec) % loopLen);
-      state.originSongSec = wrapped;
+    if (state.loop && !state.inLoopRest && songNow >= state.loop.endSec - 0.001) {
+      const rest = Math.max(0, Number(state.loop.restSec) || 0);
+      clearVoices();
+      if (rest > 0) {
+        state.inLoopRest = true;
+        state.loopRestUntil = now + rest;
+        state.originSongSec = state.loop.endSec;
+        state.originAudioTime = now;
+        emitTick();
+        state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
+        return;
+      }
+      state.originSongSec = state.loop.startSec;
       state.originAudioTime = now;
-      state.nextIndex = 0;
-      while (
-        state.nextIndex < state.events.length &&
-        state.events[state.nextIndex].startSec < state.loop.startSec - 0.0001
-      ) state.nextIndex += 1;
-      songNow = wrapped;
+      resyncCursor(state.loop.startSec);
+      songNow = state.loop.startSec;
       emitTick();
     }
 
@@ -436,6 +473,7 @@ export function createSongPlayer(opts = {}) {
     startBeat = 0,
     endBeat = null,
     loop = false,
+    loopRestSec = 0,
   } = {}) {
     stop();
     const models = Array.isArray(guitarModels) && guitarModels.length
@@ -450,6 +488,7 @@ export function createSongPlayer(opts = {}) {
       || 120;
     state.bpm = tempo;
     state.range = { startBeat, endBeat };
+    state.inLoopRest = false;
 
     let gNotes = [];
     for (const model of models) {
@@ -470,7 +509,11 @@ export function createSongPlayer(opts = {}) {
     rebuildEvents();
 
     if (loop && endSec != null && endSec > startSec) {
-      state.loop = { startSec, endSec };
+      state.loop = {
+        startSec,
+        endSec,
+        restSec: Math.max(0, Number(loopRestSec) || 0),
+      };
     } else {
       state.loop = null;
     }
@@ -486,6 +529,7 @@ export function createSongPlayer(opts = {}) {
     initEngine();
     clearVoices();
     stopTimer();
+    state.inLoopRest = false;
     const startSec = fromSec != null
       ? fromSec
       : (state.paused
@@ -495,11 +539,7 @@ export function createSongPlayer(opts = {}) {
           : quartersToSeconds(state.range.startBeat || 0, state.bpm)));
     state.originSongSec = startSec;
     state.originAudioTime = audioCtx.currentTime + 0.06;
-    state.nextIndex = 0;
-    while (
-      state.nextIndex < state.events.length &&
-      state.events[state.nextIndex].startSec < startSec - 0.0001
-    ) state.nextIndex += 1;
+    resyncCursor(startSec);
     state.playing = true;
     state.paused = false;
     state.pauseAtSec = startSec;
@@ -512,6 +552,7 @@ export function createSongPlayer(opts = {}) {
     state.pauseAtSec = songTimeNow();
     state.playing = false;
     state.paused = true;
+    state.inLoopRest = false;
     stopTimer();
     clearVoices();
     emitTick();
@@ -520,6 +561,7 @@ export function createSongPlayer(opts = {}) {
   function stop() {
     state.playing = false;
     state.paused = false;
+    state.inLoopRest = false;
     state.pauseAtSec = state.loop
       ? state.loop.startSec
       : quartersToSeconds(state.range.startBeat || 0, state.bpm);
@@ -546,6 +588,10 @@ export function createSongPlayer(opts = {}) {
     pause,
     stop,
     setMuted,
+    setLoopRestSec(sec) {
+      if (!state.loop) return;
+      state.loop.restSec = Math.max(0, Number(sec) || 0);
+    },
     setOnTick(fn) { state.onTick = fn; },
     get playing() { return state.playing; },
     get paused() { return state.paused; },
@@ -555,6 +601,7 @@ export function createSongPlayer(opts = {}) {
     get muteGuitar() { return state.muteGuitar; },
     get muteDrums() { return state.muteDrums; },
     get range() { return { ...state.range }; },
+    get measureIndex() { return state.measureIndex; },
   };
 }
 

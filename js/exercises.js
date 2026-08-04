@@ -108,6 +108,8 @@ function normalizeItem(raw) {
   const url = safeExternalUrl(raw.url);
   if (!attachmentId && !url) return null;
   const defaultName = url ? titleFromUrl(url) : 'Exercise';
+  const measureStart = Number.isFinite(Number(raw.measureStart)) ? Math.max(0, Math.floor(Number(raw.measureStart))) : null;
+  const measureEnd = Number.isFinite(Number(raw.measureEnd)) ? Math.max(0, Math.floor(Number(raw.measureEnd))) : null;
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('ex'),
     name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : defaultName, NAME_LIMIT),
@@ -118,6 +120,16 @@ function normalizeItem(raw) {
     type: typeof raw.type === 'string' ? raw.type : '',
     size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : 0,
     addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : nowISO(),
+    // Guitar Pro practice settings (optional).
+    preferredTrackIndex: Number.isFinite(Number(raw.preferredTrackIndex))
+      ? Math.max(0, Math.floor(Number(raw.preferredTrackIndex)))
+      : 0,
+    measureStart,
+    measureEnd,
+    loopEnabled: raw.loopEnabled == null
+      ? (measureStart != null && measureEnd != null)
+      : !!raw.loopEnabled,
+    loopRestSec: Math.max(0, Math.min(30, Number(raw.loopRestSec) || 0)),
   };
 }
 
@@ -304,11 +316,20 @@ function isVideoItem(item) {
   );
 }
 
+function isTabModelItem(item) {
+  return !!item && (
+    item.type === 'application/x-musi-tab-model' ||
+    /\.musi-tab\.json$/i.test(item.fileName || '') ||
+    (item.type === 'application/json' && /\.musi-tab\.json$/i.test(item.fileName || ''))
+  );
+}
+
 function isGpItem(item) {
   return !!item && (
     item.type === 'application/x-guitar-pro' ||
     isGuitarProName(item.fileName || item.name || '') ||
-    /^(gp|gp5)$/i.test(fileExt(item))
+    /^(gp|gp5)$/i.test(fileExt(item)) ||
+    isTabModelItem(item)
   );
 }
 
@@ -715,11 +736,23 @@ async function onUploadFiles() {
   else if (rejected) setStatus('Only PDF, image, audio, video or Guitar Pro (.gp/.gp5) files up to 250 MB can be uploaded.', true);
 }
 
-/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player). */
-export function addGpExerciseFromAttachment({ attachmentId, name, fileName, type, size, categoryId = '' }) {
+/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player / Song Learning). */
+export function addGpExerciseFromAttachment({
+  attachmentId,
+  name,
+  fileName,
+  type,
+  size,
+  categoryId = '',
+  preferredTrackIndex = 0,
+  measureStart = null,
+  measureEnd = null,
+  loopEnabled = null,
+  loopRestSec = 0,
+} = {}) {
   if (!attachmentId) return null;
   const store = getStore();
-  const item = {
+  const item = normalizeItem({
     id: uid('ex'),
     name: clampText(name || 'Guitar Pro', NAME_LIMIT),
     categoryId: typeof categoryId === 'string' ? categoryId : '',
@@ -729,11 +762,29 @@ export function addGpExerciseFromAttachment({ attachmentId, name, fileName, type
     type: type || 'application/x-guitar-pro',
     size: Number.isFinite(Number(size)) ? Number(size) : 0,
     addedAt: nowISO(),
-  };
+    preferredTrackIndex,
+    measureStart,
+    measureEnd,
+    loopEnabled: loopEnabled == null ? (measureStart != null && measureEnd != null) : !!loopEnabled,
+    loopRestSec,
+  });
+  if (!item) return null;
   store.items.unshift(item);
   persist();
   if (wired) render();
   return item;
+}
+
+/** Persist practice-player settings back onto an exercise (tempo loop, rest, track). */
+export function updateExercisePracticeSettings(id, patch = {}) {
+  const store = getStore();
+  const idx = store.items.findIndex((it) => it.id === id);
+  if (idx < 0) return null;
+  const next = normalizeItem({ ...store.items[idx], ...patch });
+  if (!next) return null;
+  store.items[idx] = next;
+  persist();
+  return next;
 }
 
 // --- URL exercise creation --------------------------------------------------
@@ -852,17 +903,45 @@ export async function openExerciseViewer(id) {
     viewerRoot.appendChild(overlay);
     document.body.classList.add('ex-viewer-open');
     try {
-      const buf = await blob.arrayBuffer();
-      const gp = await parseGuitarPro(buf);
+      let gp;
+      let analyzeBytes = null;
+      if (isTabModelItem(item)) {
+        const raw = JSON.parse(await blob.text());
+        const model = raw?.model || raw;
+        if (!model?.events) throw new Error('This exercise snippet is missing tab data.');
+        gp = {
+          tempo: Number(raw.tempo) || Number(model.tempo) || 120,
+          tracks: [{
+            index: 0,
+            name: raw.trackName || item.name || 'Exercise',
+            tuning: model.tuning || 'Standard',
+            noteCount: (model.events || []).filter((e) => e.midi != null).length,
+            model,
+          }],
+          drumTracks: [],
+          warnings: [],
+        };
+      } else {
+        const buf = await blob.arrayBuffer();
+        analyzeBytes = new Uint8Array(buf);
+        gp = await parseGuitarPro(buf);
+      }
       viewerGpMount = mountGpPlayer(mountHost, {
         gpResult: gp,
         title: item.name,
         fileName: item.fileName || item.name,
         hideTitle: true,
         preferredTrackIndex: Number.isFinite(item.preferredTrackIndex) ? item.preferredTrackIndex : 0,
-        onAnalyze: ({ trackIndex }) => {
+        initialLoopEnabled: !!item.loopEnabled,
+        initialLoopStart: item.measureStart,
+        initialLoopEnd: item.measureEnd,
+        loopRestSec: item.loopRestSec || 0,
+        onPracticeSettingsChange: (settings) => {
+          updateExercisePracticeSettings(item.id, settings);
+        },
+        onAnalyze: analyzeBytes ? ({ trackIndex }) => {
           window.__musiGpHandoff = {
-            bytes: new Uint8Array(buf),
+            bytes: analyzeBytes,
             name: item.fileName || item.name,
             trackIndex: trackIndex || 0,
           };
@@ -873,7 +952,7 @@ export async function openExerciseViewer(id) {
               window.__musiLoadGpHandoff(window.__musiGpHandoff);
             }
           }, 50);
-        },
+        } : null,
       });
     } catch (err) {
       mountHost.appendChild(el('div', {
