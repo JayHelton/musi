@@ -331,7 +331,7 @@ export function getPrimaryRecommendation() {
   return buildRecommendations({ limit: 1 }).primary;
 }
 
-/** Apply context + mark study started; returns toolId to navigate to. */
+/** Apply context + mark study started; returns Study Lab navigation target. */
 export function beginRecommendedStudy(studyId) {
   const study = getStudyById(studyId);
   if (!study) return null;
@@ -340,7 +340,8 @@ export function beginRecommendedStudy(studyId) {
   }
   recordStudyStarted(study);
   return {
-    toolId: study.toolId,
+    toolId: 'studylab',
+    legacyToolId: study.toolId,
     study,
   };
 }
