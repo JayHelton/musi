@@ -267,6 +267,15 @@ export const TOOLS = [
     title: 'Tab Analyzer',
     holdRecord: false,
   },
+  {
+    id: 'musicprefs',
+    label: 'Music Preferences',
+    short: 'Profile',
+    category: 'tools',
+    description: 'Genre priorities, learning goals, and study recommendation balance.',
+    title: 'Music Preferences',
+    holdRecord: false,
+  },
 ];
 
 export const CATEGORY_ICONS = {
@@ -304,6 +313,7 @@ export const TOOL_ICONS = {
 
   tabanalyzer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M7 13h6M7 17h10"/><circle cx="16.5" cy="6" r="1.2" fill="currentColor" stroke="none"/></svg>',
   tracktosheet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/><circle cx="9" cy="15" r="2.2" fill="currentColor" stroke="none"/><path d="M11.2 15V8l5-1v7"/><circle cx="16.2" cy="14" r="2.2" fill="currentColor" stroke="none"/></svg>',
+  musicprefs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.4.7 1.1 1.1 1.9 1.1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
 };
 
 export function getTool(id) {

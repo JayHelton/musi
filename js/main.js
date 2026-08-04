@@ -36,6 +36,7 @@ import { initCommandPalette } from './commandPalette.js';
 import { initProgressHeaders } from './progressHeader.js';
 import { initHome, refreshHome, renderHub } from './home.js';
 import { initStats, renderStats } from './stats.js';
+import { initMusicPreferences } from './musicPreferences.js';
 import {
   TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
   asTabs, getTool, isHoldRecordRelevant,
@@ -94,6 +95,7 @@ const TOOL_INITS = {
   tracktosheet: initTrackToSheet,
   gpplayer: initGpPlayer,
   songlearn: initSongLearn,
+  musicprefs: () => initMusicPreferences({ showSection }),
 };
 
 function stopOtherTools(keepIds) {
@@ -516,6 +518,7 @@ function init() {
   initProgressHeaders();
   initHome({ showSection, showHub, tabs: TABS, icons: ICONS });
   initStats();
+  initMusicPreferences({ showSection });
   initSplitView();
   initScreenUx({ showSection, showHub });
 

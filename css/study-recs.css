@@ -1,0 +1,313 @@
+/* Genre-aware study recommendations + Music Preferences (GBC screen tiles) */
+
+.home-study-rec {
+  margin: 0 0 18px;
+}
+
+.home-rec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 16px 14px;
+  border-radius: var(--radius-screen, 18px);
+  border: 1px solid rgba(180, 140, 255, 0.28);
+  background:
+    linear-gradient(165deg, rgba(180, 94, 255, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(22, 31, 54, 0.95), rgba(11, 16, 32, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  text-align: left;
+}
+
+.home-rec-kicker {
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.home-rec-title {
+  font-family: var(--font-body, "Pixelify Sans", sans-serif);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.home-rec-cat {
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1.05rem;
+  color: var(--shell-bright, var(--accent2));
+  letter-spacing: 0.04em;
+}
+
+.home-rec-narrative {
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.home-rec-focus-label,
+.home-rec-why-label {
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.5rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent2);
+  margin-top: 4px;
+}
+
+.home-rec-focus {
+  margin: 0;
+  padding-left: 1.2em;
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1.1rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.home-rec-focus li { margin: 0.15em 0; }
+
+.home-rec-reasons {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.home-rec-app {
+  margin-top: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 225, 74, 0.28);
+  background: rgba(255, 225, 74, 0.06);
+  font-size: 0.86rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.home-rec-app strong {
+  display: block;
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.48rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.home-rec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.home-rec-actions .btn { min-height: 40px; }
+
+.home-rec-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--radius-screen, 18px);
+  border: 1px solid var(--border);
+  background: rgba(18, 26, 46, 0.75);
+}
+
+.home-rec-empty-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.home-rec-empty-body {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.home-rec-meta {
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+/* Music Preferences */
+#sec-musicprefs .mp-banner,
+.mp-block {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: var(--radius-screen, 18px);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%),
+    rgba(18, 26, 46, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.mp-banner-kicker,
+.mp-block-title,
+.mp-preview-kicker,
+.mp-genre-group-label {
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.52rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.mp-banner-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.mp-banner-sub,
+.mp-block-help {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.mp-genre-group { margin-bottom: 14px; }
+.mp-genre-group:last-child { margin-bottom: 0; }
+
+.mp-genre-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mp-genre-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(140px, 180px);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: rgba(11, 16, 32, 0.45);
+}
+
+.mp-genre-row.active {
+  border-color: rgba(180, 94, 255, 0.35);
+  background: rgba(180, 94, 255, 0.1);
+}
+
+.mp-genre-name { font-weight: 650; font-size: 0.98rem; }
+.mp-genre-blurb { font-size: 0.8rem; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+
+.mp-priority-select {
+  width: 100%;
+  min-height: 40px;
+  font-family: inherit;
+}
+
+.mp-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mp-chip {
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--border);
+  background: rgba(11, 16, 32, 0.55);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.mp-chip.on {
+  border-color: rgba(255, 225, 74, 0.55);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.mp-chip-mute.on {
+  border-color: rgba(230, 57, 70, 0.45);
+  background: rgba(230, 57, 70, 0.12);
+  color: #ff8b93;
+  text-decoration: line-through;
+}
+
+.mp-balance {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.mp-balance-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(11, 16, 32, 0.5);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mp-balance-card.on {
+  border-color: rgba(255, 225, 74, 0.5);
+  background: linear-gradient(180deg, var(--accent-dim), rgba(18, 26, 46, 0.85));
+}
+
+.mp-balance-label { font-weight: 700; }
+.mp-balance-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.35; }
+
+.mp-preview-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.mp-preview-body,
+.mp-preview-guard,
+.mp-preview-empty {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.mp-preview-reasons {
+  margin: 10px 0;
+  padding-left: 1.2em;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.mp-preview-guard { margin-top: 8px; font-style: italic; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+@media (min-width: 720px) {
+  .mp-balance {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .mp-genre-row {
+    grid-template-columns: 1fr;
+  }
+}

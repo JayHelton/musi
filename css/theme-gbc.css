@@ -514,6 +514,23 @@ textarea,
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 
+.home-rec-kicker,
+.home-rec-focus-label,
+.home-rec-why-label {
+  font-family: var(--font-pixel);
+}
+
+.home-rec-cat,
+.home-rec-focus,
+.home-rec-meta {
+  font-family: var(--font-ui);
+}
+
+.home-rec-card,
+.home-rec-empty {
+  border-radius: var(--radius-screen);
+}
+
 .home-continue-card {
   border: 1px solid rgba(255, 225, 74, 0.35);
   background: linear-gradient(180deg, var(--accent-dim), rgba(22, 31, 54, 0.92));
