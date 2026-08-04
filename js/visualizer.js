@@ -76,12 +76,13 @@ function draw() {
 }
 
 function drawBars(w, h, barW) {
-  ctx.fillStyle = '#ff6b35';
   for (let i = 0; i < BAR_COUNT; i++) {
     const val = smoothed[i];
     if (val < 0.003) continue;
     const barH = val * h * 0.65;
     const x = i * barW;
+    const t = i / BAR_COUNT;
+    ctx.fillStyle = t < 0.55 ? '#ffe14a' : '#b45eff';
     ctx.globalAlpha = 0.3 + val * 0.7;
     ctx.fillRect(x + 1, h - barH, barW - 2, barH);
   }
@@ -106,11 +107,12 @@ function drawIdleWave(w, h, blend) {
 
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#ff6b35';
+  const layerColors = ['#ffe14a', '#b45eff', '#4da3ff'];
 
-  for (const layer of IDLE_WAVE_LAYERS) {
+  IDLE_WAVE_LAYERS.forEach((layer, idx) => {
     const phase = idlePhase * layer.speed;
     const amp = layer.amp * h;
+    ctx.strokeStyle = layerColors[idx % layerColors.length];
     ctx.beginPath();
     for (let x = 0; x <= w; x += IDLE_WAVE_STEP) {
       const t = x / w;
@@ -128,7 +130,7 @@ function drawIdleWave(w, h, blend) {
     ctx.globalAlpha = layer.alpha * blend;
     ctx.lineWidth = layer.width;
     ctx.stroke();
-  }
+  });
   ctx.globalAlpha = 1;
 }
 

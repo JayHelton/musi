@@ -20,7 +20,7 @@
 .sln-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}
 .sln-empty{
   padding:28px 18px;border:1px dashed var(--border);border-radius:14px;text-align:center;
-  color:var(--muted);font-size:.88rem;background:rgba(24,24,24,0.5)
+  color:var(--muted);font-size:.88rem;background:rgba(18,26,46,0.5)
 }
 
 .sln-song-list,.sln-snip-list{display:flex;flex-direction:column;gap:12px}
@@ -51,7 +51,7 @@
 .sln-snip-empty{font-size:.8rem;color:var(--muted)}
 .sln-tab{
   margin:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0d0d0d;
-  color:#c8c8c8;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.68rem;
+  color:#c8c8c8;font-family:var(--font-ui,"VT323",monospace);font-size:.68rem;
   line-height:1.35;overflow:auto;max-height:180px;white-space:pre
 }
 
@@ -108,7 +108,7 @@
 .sln-follow-col.active .sln-follow-cell.hit{
   color:#0a0a0a;background:var(--accent)
 }
-.sln-follow-col.active .sln-follow-cell.drum.hit{background:var(--accent2);color:#0a0a0a}
+.sln-follow-col.active .sln-follow-cell.drum.hit{background:var(--accent2);color:var(--on-accent)}
 .sln-follow-marker{
   position:absolute;top:-22px;left:2px;font-size:.58rem;color:var(--accent);font-weight:700;
   white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis

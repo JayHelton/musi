@@ -17,11 +17,11 @@
 .sw-list-meta{display:flex;align-items:center;gap:8px;margin-top:2px}
 .sw-list-date{font-size:.7rem;color:var(--muted)}
 .sw-list-mic{font-size:.66rem;color:var(--accent);font-weight:600;background:var(--accent-dim);padding:2px 8px;border-radius:999px}
-.sw-empty{padding:20px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted);font-size:.86rem;background:rgba(24,24,24,0.5)}
+.sw-empty{padding:20px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted);font-size:.86rem;background:rgba(18,26,46,0.5)}
 
 /* ---- Editor (right pane) ---- */
 .sw-editor{flex:1;min-width:0}
-.sw-editor-empty{padding:40px 24px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:rgba(24,24,24,0.5)}
+.sw-editor-empty{padding:40px 24px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:rgba(18,26,46,0.5)}
 .sw-editor-empty p{margin-bottom:14px;font-size:.95rem}
 
 .sw-editor-body{display:flex;flex-direction:column;gap:14px}
