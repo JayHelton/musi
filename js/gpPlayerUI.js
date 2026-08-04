@@ -302,6 +302,32 @@ export function mountGpPlayer(host, {
     loopEndSel.value = String(state.loopEnd);
   }
 
+  let stripDragAnchor = null;
+
+  function paintStripSelection() {
+    strip.querySelectorAll('.gpp-bar').forEach((b) => {
+      const i = Number(b.dataset.index);
+      b.classList.toggle('in-loop', state.loopEnabled && i >= state.loopStart && i <= state.loopEnd);
+    });
+    loopToggle.checked = !!state.loopEnabled;
+    loopStartSel.value = String(state.loopStart);
+    loopEndSel.value = String(state.loopEnd);
+  }
+
+  function commitStripSelection({ seek = true, autoplay = false } = {}) {
+    state.loopEnabled = true;
+    paintStripSelection();
+    if (seek) reloadPlayer({ fromMeasure: state.loopStart, autoplay });
+    else {
+      player.load(state.viewModel, {
+        bpm: state.bpm,
+        loopMeasures: [state.loopStart, state.loopEnd],
+        loopRestSec: state.loopRestSec,
+      });
+    }
+    emitPracticeSettings();
+  }
+
   function rebuildStrip() {
     strip.innerHTML = '';
     const measures = state.viewModel?.measures || [];
@@ -314,31 +340,36 @@ export function mountGpPlayer(host, {
         type: 'button',
         text: m.marker ? `${i + 1}\n${m.marker}` : String(i + 1),
         title: m.marker
-          ? `${m.marker} · click to seek, Shift+click to set loop end`
-          : `Bar ${i + 1} · click to seek / set loop start, Shift+click to set loop end`,
-        onClick: (e) => {
-          if (e.shiftKey) {
-            state.loopEnd = Math.max(state.loopStart, i);
-            state.loopEnabled = true;
-            loopToggle.checked = true;
-            loopEndSel.value = String(state.loopEnd);
-            const was = player.playing;
-            player.stop();
-            reloadPlayer({ autoplay: was });
-            emitPracticeSettings();
-            return;
-          }
-          // Click sets loop start (and seeks). Extends end if needed.
-          state.loopStart = i;
-          if (state.loopEnd < i) state.loopEnd = i;
-          loopStartSel.value = String(state.loopStart);
-          loopEndSel.value = String(state.loopEnd);
-          const wasPlaying = player.playing;
-          reloadPlayer({ fromMeasure: i, autoplay: wasPlaying });
-          emitPracticeSettings();
-        },
+          ? `${m.marker} · drag to highlight loop, Shift+click end`
+          : `Bar ${i + 1} · drag to highlight a loop range, Shift+click to set end`,
       });
       btn.dataset.index = String(i);
+      btn.addEventListener('pointerdown', (e) => {
+        if (e.shiftKey) {
+          state.loopEnd = Math.max(state.loopStart, i);
+          commitStripSelection({ seek: true, autoplay: player.playing });
+          return;
+        }
+        e.preventDefault();
+        stripDragAnchor = i;
+        state.loopStart = i;
+        state.loopEnd = i;
+        state.loopEnabled = true;
+        paintStripSelection();
+        try { btn.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      });
+      btn.addEventListener('pointerenter', (e) => {
+        if (stripDragAnchor == null || !(e.buttons & 1)) return;
+        state.loopStart = Math.min(stripDragAnchor, i);
+        state.loopEnd = Math.max(stripDragAnchor, i);
+        paintStripSelection();
+      });
+      btn.addEventListener('pointerup', () => {
+        if (stripDragAnchor == null) return;
+        const was = player.playing;
+        stripDragAnchor = null;
+        commitStripSelection({ seek: true, autoplay: was });
+      });
       strip.appendChild(btn);
     });
   }

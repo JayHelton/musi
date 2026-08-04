@@ -2,6 +2,7 @@
 // (guitar + drums), save them, and practice with a follow-along multi-track player.
 
 import { parseGuitarPro, isGuitarProName, modelToAsciiTab } from './tab/guitarPro.js';
+import { mountGpPlayer } from './gpPlayerUI.js';
 import { buildGpSectionSnippets, sliceGuitarModel } from './drums/gpDrumImport.js';
 import {
   listSongs,
@@ -29,6 +30,14 @@ const state = {
   import: null,
   player: null,
   follow: null,
+  gpMount: null,
+  practice: {
+    measureStart: 0,
+    measureEnd: 0,
+    loopRestSec: 2,
+    preferredTrackIndex: 0,
+    loopEnabled: true,
+  },
   activeSectionId: 'all', // 'all' | section id | 'selection'
   loopEnabled: true,
   loopRestSec: 2,
@@ -36,6 +45,7 @@ const state = {
   scoreBpm: 120,
   selStart: 0, // measure index
   selEnd: 0,
+  dragAnchor: null, // measure drag-select start
 };
 
 function $(id) { return document.getElementById(id); }
@@ -73,11 +83,52 @@ function destroyFollow() {
   }
 }
 
+function destroyGpMount() {
+  if (state.gpMount) {
+    try { state.gpMount.destroy(); } catch (e) { /* ignore */ }
+    state.gpMount = null;
+  }
+}
+
 function stopPlayback() {
   if (state.player) {
     try { state.player.stop(); } catch (e) { /* ignore */ }
   }
+  if (state.gpMount?.player) {
+    try { state.gpMount.player.stop(); } catch (e) { /* ignore */ }
+  }
   syncTransportButtons();
+}
+
+function syncDropVisibility() {
+  const drop = $('sln-drop');
+  if (!drop) return;
+  // Keep the drop zone for library/import; hide it while practicing so the player is primary.
+  drop.hidden = state.view === 'detail';
+}
+
+/** Ensure a tab/perc model has a usable measures[] for the strip (4/4 bars from totalBeats). */
+function ensureMeasures(model) {
+  if (!model) return model;
+  if (Array.isArray(model.measures) && model.measures.length) return model;
+  const total = Number(model.totalBeats);
+  const end = Number.isFinite(total) && total > 0
+    ? total
+    : Math.max(4, ...((model.events || []).map((e) => (Number(e.start) || 0) + (Number(e.duration) || 0.25))), 4);
+  const bars = Math.max(1, Math.ceil(end / 4 - 1e-9));
+  const measures = [];
+  for (let i = 0; i < bars; i++) {
+    measures.push({
+      startSlot: i,
+      endSlot: i + 1,
+      startBeat: i * 4,
+      endBeat: Math.min(end, (i + 1) * 4),
+      marker: null,
+    });
+  }
+  model.measures = measures;
+  if (!Number.isFinite(model.totalBeats) || model.totalBeats < end) model.totalBeats = end;
+  return model;
 }
 
 function ensurePlayer() {
@@ -105,6 +156,8 @@ function ensurePlayer() {
 
 function songMeasures(song) {
   const { guitar, drums } = songModels(song);
+  if (guitar) ensureMeasures(guitar);
+  if (drums) ensureMeasures(drums);
   return guitar?.measures || drums?.measures || [];
 }
 
@@ -231,10 +284,12 @@ function sectionRange(song, sectionId) {
     };
   }
   if (sectionId === 'selection') {
-    const beats = measureBeatRange(measures, state.selStart, state.selEnd);
+    const start = Number.isFinite(state.practice?.measureStart) ? state.practice.measureStart : state.selStart;
+    const end = Number.isFinite(state.practice?.measureEnd) ? state.practice.measureEnd : state.selEnd;
+    const beats = measureBeatRange(measures, start, end);
     return {
       ...beats,
-      loop: state.loopEnabled,
+      loop: state.loopEnabled || !!state.practice?.loopEnabled,
       label: `Bars ${beats.startIdx + 1}–${beats.endIdx + 1}`,
     };
   }
@@ -290,15 +345,32 @@ function highlightActiveBar(idx) {
   });
 }
 
-async function saveSelectionAsExercise(song) {
+function currentSelectionRange(song) {
   const measures = songMeasures(song);
-  if (!measures.length) {
+  const fromPractice = state.practice;
+  let a = Number.isFinite(fromPractice.measureStart) ? fromPractice.measureStart : state.selStart;
+  let b = Number.isFinite(fromPractice.measureEnd) ? fromPractice.measureEnd : state.selEnd;
+  a = Math.min(a, b);
+  b = Math.max(a, b);
+  if (measures.length) {
+    a = Math.max(0, Math.min(measures.length - 1, a));
+    b = Math.max(a, Math.min(measures.length - 1, b));
+  }
+  return { a, b, measures, beats: measureBeatRange(measures, a, b) };
+}
+
+async function saveSelectionAsExercise(song) {
+  const { a, b, measures, beats } = currentSelectionRange(song);
+  if (!measures.length && !song.fullGuitar && !(song.sections || []).some((s) => s.guitar)) {
     setStatus('No measures available to save.', 'error');
     return;
   }
-  const a = Math.min(state.selStart, state.selEnd);
-  const b = Math.max(state.selStart, state.selEnd);
-  const beats = measureBeatRange(measures, a, b);
+  const rest = Number.isFinite(state.practice.loopRestSec)
+    ? state.practice.loopRestSec
+    : state.loopRestSec;
+  const trackIdx = Number.isFinite(state.practice.preferredTrackIndex)
+    ? state.practice.preferredTrackIndex
+    : 0;
   const name = `${song.title} · bars ${a + 1}–${b + 1}`;
   try {
     await ensurePersistentStorage();
@@ -322,22 +394,23 @@ async function saveSelectionAsExercise(song) {
         measureStart: a,
         measureEnd: b,
         loopEnabled: true,
-        loopRestSec: state.loopRestSec,
-        preferredTrackIndex: 0,
+        loopRestSec: rest,
+        preferredTrackIndex: trackIdx,
       });
       setStatus(item
-        ? `Saved “${item.name}” to Exercises (loop bars ${a + 1}–${b + 1}, ${state.loopRestSec}s rest).`
+        ? `Saved “${item.name}” to Exercises (bars ${a + 1}–${b + 1}, ${rest}s rest).`
         : 'Could not add exercise.', item ? '' : 'error');
       return;
     }
 
     // Fallback: store a sliced tab-model snippet when the original GP blob is gone.
-    const { guitar } = songModels(song);
-    if (!guitar) {
+    const { guitar, guitars } = songModels(song);
+    const model = ensureMeasures(guitars?.[trackIdx] || guitar);
+    if (!model) {
       setStatus('No guitar track to save as an exercise.', 'error');
       return;
     }
-    const sliced = sliceGuitarModel(guitar, {
+    const sliced = sliceGuitarModel(model, {
       startBeat: beats.startBeat,
       endBeat: beats.endBeat,
       label: name,
@@ -372,7 +445,7 @@ async function saveSelectionAsExercise(song) {
       measureStart: 0,
       measureEnd: Math.max(0, (sliced.measures || []).length - 1),
       loopEnabled: true,
-      loopRestSec: state.loopRestSec,
+      loopRestSec: rest,
       preferredTrackIndex: 0,
     });
     setStatus(item
@@ -535,7 +608,7 @@ function renderLibrary(root) {
   if (!songs.length) {
     root.appendChild(el('div', {
       class: 'sln-empty',
-      text: 'Import a .gp / .gp5 score to split it into practice snippets for guitar and drums, then play the full song with a follow-along view.',
+      text: 'Import a .gp / .gp5 score to open the practice player, highlight measures, and save loops to Exercises.',
     }));
     return;
   }
@@ -554,12 +627,12 @@ function renderLibrary(root) {
     ]));
     const actions = el('div', { class: 'sln-song-actions' });
     actions.appendChild(el('button', {
-      class: 'btn sm primary', type: 'button', text: 'Open',
+      class: 'btn sm primary', type: 'button', text: 'Practice',
       onClick: () => {
         stopPlayback();
         state.detailId = song.id;
         state._practiceSongId = null; // force practice UI reset
-        state.activeSectionId = 'all';
+        state.activeSectionId = 'selection';
         state.view = 'detail';
         render();
       },
@@ -676,20 +749,7 @@ function renderImport(root) {
   ]));
 }
 
-function renderDetail(root) {
-  const song = getSong(state.detailId);
-  if (!song) { state.view = 'library'; render(); return; }
-  root.innerHTML = '';
-  destroyFollow();
-
-  state.scoreBpm = Number(song.tempo) || 120;
-  if (state._practiceSongId !== song.id) {
-    state._practiceSongId = song.id;
-    state.bpm = state.scoreBpm;
-    state.activeSectionId = 'all';
-    state.selStart = 0;
-    state.selEnd = 0;
-  }
+function renderFallbackMeasurePlayer(host, song) {
   const measures = songMeasures(song);
   if (measures.length) {
     if (state.selEnd === 0 && state.selStart === 0 && state.activeSectionId === 'all') {
@@ -697,44 +757,30 @@ function renderDetail(root) {
     }
     state.selStart = Math.max(0, Math.min(measures.length - 1, state.selStart));
     state.selEnd = Math.max(state.selStart, Math.min(measures.length - 1, state.selEnd));
+    state.practice.measureStart = state.selStart;
+    state.practice.measureEnd = state.selEnd;
   }
 
   const reload = (sectionId = state.activeSectionId, { autoplay = false } = {}) => {
     const was = autoplay || !!state.player?.playing;
+    state.practice.measureStart = state.selStart;
+    state.practice.measureEnd = state.selEnd;
     loadPlayerForSong(song, sectionId);
     if (was) state.player.play();
     syncTransportButtons();
     highlightActiveBar(state.player?.measureIndex ?? state.selStart);
+    const rangeLabel = $('sln-sel-label');
+    if (rangeLabel) {
+      rangeLabel.textContent = `Highlighted bars ${Math.min(state.selStart, state.selEnd) + 1}–${Math.max(state.selStart, state.selEnd) + 1}`;
+    }
   };
 
-  root.appendChild(el('div', { class: 'sln-import-head' }, [
-    el('button', {
-      class: 'btn sm', type: 'button', text: '← Library',
-      onClick: () => {
-        stopPlayback();
-        destroyFollow();
-        state.view = 'library';
-        state.detailId = null;
-        render();
-      },
-    }),
-    el('div', { class: 'sln-import-title', text: song.title }),
-  ]));
-  root.appendChild(el('div', {
-    class: 'sln-song-meta',
-    text: [
-      song.fileName || 'Guitar Pro',
-      `${Math.round(state.scoreBpm)} BPM`,
-      `${song.sections.length} sections`,
-      `${measures.length} bars`,
-      `${(song.fullGuitars || []).length || (song.fullGuitar ? 1 : 0)} guitar + drums`,
-    ].join(' · '),
+  const playerCard = el('div', { class: 'sln-player' });
+  playerCard.appendChild(el('div', {
+    class: 'sln-player-banner',
+    text: 'Practice player — drag across bars to highlight a range, then save it as an Exercise.',
   }));
 
-  // Player shell
-  const playerCard = el('div', { class: 'sln-player' });
-
-  // Transport
   const transport = el('div', { class: 'sln-transport' });
   transport.append(
     el('button', {
@@ -744,7 +790,7 @@ function renderDetail(root) {
         if (player.playing) player.pause();
         else if (player.paused) player.play();
         else {
-          loadPlayerForSong(song, state.activeSectionId);
+          loadPlayerForSong(song, state.activeSectionId === 'all' ? 'selection' : state.activeSectionId);
           player.play();
         }
         syncTransportButtons();
@@ -786,9 +832,7 @@ function renderDetail(root) {
   );
   playerCard.appendChild(transport);
 
-  // Practice controls
   const controls = el('div', { class: 'sln-controls' });
-
   const bpmInput = el('input', {
     type: 'number', class: 'sln-num', min: '40', max: '280', step: '1',
     value: String(Math.round(state.bpm)), 'aria-label': 'BPM',
@@ -796,44 +840,21 @@ function renderDetail(root) {
   bpmInput.onchange = () => {
     state.bpm = Math.max(40, Math.min(280, Number(bpmInput.value) || state.scoreBpm));
     bpmInput.value = String(state.bpm);
-    reload();
+    reload('selection');
   };
-  controls.appendChild(el('div', { class: 'sln-control-block' }, [
-    el('div', { class: 'sln-control-label', text: 'Tempo' }),
-    el('div', { class: 'sln-control-row' }, [
-      bpmInput,
-      el('span', { class: 'sln-unit', text: 'BPM' }),
-      el('button', {
-        class: 'btn sm', type: 'button', text: 'Score',
-        onClick: () => {
-          state.bpm = state.scoreBpm;
-          bpmInput.value = String(Math.round(state.bpm));
-          reload();
-        },
-      }),
-    ]),
-  ]));
-
   const loopChk = el('input', { type: 'checkbox', id: 'sln-loop' });
   loopChk.checked = !!state.loopEnabled;
-  loopChk.onchange = () => {
-    state.loopEnabled = !!loopChk.checked;
-    reload();
-  };
+  loopChk.onchange = () => { state.loopEnabled = !!loopChk.checked; reload('selection'); };
   const restInput = el('input', {
     type: 'number', class: 'sln-num', min: '0', max: '30', step: '0.5',
     value: String(state.loopRestSec), 'aria-label': 'Rest seconds between loops',
   });
   restInput.onchange = () => {
     state.loopRestSec = Math.max(0, Math.min(30, Number(restInput.value) || 0));
+    state.practice.loopRestSec = state.loopRestSec;
     restInput.value = String(state.loopRestSec);
-    if (state.player?.playing) reload(state.activeSectionId, { autoplay: true });
-    else {
-      state.player?.setLoopRestSec?.(state.loopRestSec);
-      loadPlayerForSong(song, state.activeSectionId);
-    }
+    reload('selection', { autoplay: !!state.player?.playing });
   };
-
   const startSel = el('select', { class: 'sln-select sln-bar-sel', 'aria-label': 'Selection start bar' });
   const endSel = el('select', { class: 'sln-select sln-bar-sel', 'aria-label': 'Selection end bar' });
   measures.forEach((m, i) => {
@@ -856,120 +877,261 @@ function renderDetail(root) {
   startSel.onchange = onSelChange;
   endSel.onchange = onSelChange;
 
-  controls.appendChild(el('div', { class: 'sln-control-block' }, [
-    el('div', { class: 'sln-control-label', text: 'Measures' }),
-    el('div', { class: 'sln-control-row' }, [
-      startSel,
-      el('span', { class: 'sln-unit', text: '–' }),
-      endSel,
-      el('button', {
-        class: 'btn sm primary', type: 'button', text: 'Play selection',
-        onClick: () => {
-          state.activeSectionId = 'selection';
-          loadPlayerForSong(song, 'selection');
-          state.player.play();
-          syncTransportButtons();
-        },
-      }),
-    ]),
-  ]));
-
-  controls.appendChild(el('div', { class: 'sln-control-block' }, [
-    el('div', { class: 'sln-control-label', text: 'Loop' }),
-    el('div', { class: 'sln-control-row' }, [
-      el('label', { class: 'sln-check', for: 'sln-loop' }, [
-        loopChk,
-        el('span', { text: 'Enable' }),
+  controls.append(
+    el('div', { class: 'sln-control-block' }, [
+      el('div', { class: 'sln-control-label', text: 'Tempo' }),
+      el('div', { class: 'sln-control-row' }, [
+        bpmInput, el('span', { class: 'sln-unit', text: 'BPM' }),
       ]),
-      el('span', { class: 'sln-unit', text: 'Rest' }),
-      restInput,
-      el('span', { class: 'sln-unit', text: 'sec' }),
     ]),
-  ]));
-
-  controls.appendChild(el('div', { class: 'sln-control-block' }, [
-    el('div', { class: 'sln-control-label', text: 'Exercises' }),
-    el('div', { class: 'sln-control-row' }, [
-      el('button', {
-        class: 'btn sm primary', type: 'button',
-        text: 'Save selection as Exercise',
-        onClick: () => saveSelectionAsExercise(song),
+    el('div', { class: 'sln-control-block' }, [
+      el('div', { class: 'sln-control-label', text: 'Highlighted measures' }),
+      el('div', { class: 'sln-control-row' }, [
+        startSel, el('span', { class: 'sln-unit', text: '–' }), endSel,
+        el('button', {
+          class: 'btn sm primary', type: 'button', text: 'Play highlighted',
+          onClick: () => {
+            state.activeSectionId = 'selection';
+            loadPlayerForSong(song, 'selection');
+            state.player.play();
+            syncTransportButtons();
+          },
+        }),
+      ]),
+      el('div', {
+        class: 'sln-sel-label', id: 'sln-sel-label',
+        text: measures.length
+          ? `Highlighted bars ${state.selStart + 1}–${state.selEnd + 1}`
+          : 'No measures found',
       }),
     ]),
-    el('div', {
-      class: 'sln-control-hint',
-      text: 'Select bars above (or on the strip), then save. Exercises open with this loop and rest.',
-    }),
-  ]));
-
+    el('div', { class: 'sln-control-block' }, [
+      el('div', { class: 'sln-control-label', text: 'Loop' }),
+      el('div', { class: 'sln-control-row' }, [
+        el('label', { class: 'sln-check', for: 'sln-loop' }, [loopChk, el('span', { text: 'Enable' })]),
+        el('span', { class: 'sln-unit', text: 'Rest' }),
+        restInput,
+        el('span', { class: 'sln-unit', text: 'sec' }),
+      ]),
+    ]),
+    el('div', { class: 'sln-control-block' }, [
+      el('div', { class: 'sln-control-label', text: 'Exercises' }),
+      el('div', { class: 'sln-control-row' }, [
+        el('button', {
+          class: 'btn sm primary', type: 'button',
+          text: 'Save highlighted bars as Exercise',
+          onClick: () => saveSelectionAsExercise(song),
+        }),
+      ]),
+    ]),
+  );
   playerCard.appendChild(controls);
 
-  // Measure strip
-  const strip = el('div', { class: 'sln-strip', id: 'sln-strip', 'aria-label': 'Measures' });
+  const strip = el('div', { class: 'sln-strip', id: 'sln-strip', 'aria-label': 'Measures — drag to highlight' });
+  const applyDrag = (i) => {
+    const a = state.dragAnchor == null ? i : state.dragAnchor;
+    state.selStart = Math.min(a, i);
+    state.selEnd = Math.max(a, i);
+    startSel.value = String(state.selStart);
+    endSel.value = String(state.selEnd);
+    state.activeSectionId = 'selection';
+    highlightActiveBar(state.selStart);
+    const rangeLabel = $('sln-sel-label');
+    if (rangeLabel) rangeLabel.textContent = `Highlighted bars ${state.selStart + 1}–${state.selEnd + 1}`;
+  };
   measures.forEach((m, i) => {
     const selected = i >= Math.min(state.selStart, state.selEnd) && i <= Math.max(state.selStart, state.selEnd);
-    strip.appendChild(el('button', {
+    const btn = el('button', {
       class: 'sln-bar' + (m.marker ? ' has-marker' : '') + (selected ? ' selected' : ''),
       type: 'button',
       text: m.marker ? `${i + 1}\n${m.marker}` : String(i + 1),
-      title: m.marker
-        ? `${m.marker} · click start, Shift+click end`
-        : `Bar ${i + 1} · click start, Shift+click end`,
+      title: `Bar ${i + 1} — drag to highlight a range`,
       'data-index': String(i),
-      onClick: (e) => {
-        if (e.shiftKey) {
-          state.selEnd = Math.max(state.selStart, i);
-        } else {
-          state.selStart = i;
-          if (state.selEnd < i) state.selEnd = i;
-        }
-        startSel.value = String(state.selStart);
-        endSel.value = String(state.selEnd);
-        state.activeSectionId = 'selection';
-        reload('selection');
-      },
-    }));
+    });
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      state.dragAnchor = i;
+      applyDrag(i);
+      btn.setPointerCapture?.(e.pointerId);
+    });
+    btn.addEventListener('pointerenter', (e) => {
+      if (state.dragAnchor == null || !(e.buttons & 1)) return;
+      applyDrag(i);
+    });
+    btn.addEventListener('pointerup', () => {
+      if (state.dragAnchor == null) return;
+      state.dragAnchor = null;
+      reload('selection');
+    });
+    strip.appendChild(btn);
+  });
+  strip.addEventListener('pointerup', () => {
+    if (state.dragAnchor == null) return;
+    state.dragAnchor = null;
+    reload('selection');
   });
   playerCard.appendChild(strip);
-
-  // Section chips
-  const chips = el('div', { class: 'sln-sec-chips' });
-  const addChip = (id, label) => {
-    chips.appendChild(el('button', {
-      class: 'sln-chip' + (state.activeSectionId === id ? ' active' : ''),
-      type: 'button',
-      text: label,
-      'data-sln-sec': id,
-      onClick: () => {
-        state.activeSectionId = id;
-        if (id !== 'selection' && id !== 'all') {
-          const range = sectionRange(song, id);
-          state.selStart = range.startIdx ?? state.selStart;
-          state.selEnd = range.endIdx ?? state.selEnd;
-          startSel.value = String(state.selStart);
-          endSel.value = String(state.selEnd);
-        }
-        if (id === 'all' && measures.length) {
-          state.selStart = 0;
-          state.selEnd = measures.length - 1;
-          startSel.value = String(state.selStart);
-          endSel.value = String(state.selEnd);
-        }
-        reload(id);
-      },
-    }));
-  };
-  addChip('all', 'Full song');
-  addChip('selection', 'Selection');
-  song.sections.forEach((sec) => addChip(sec.id, sec.label));
-  playerCard.appendChild(chips);
-
-  // Follow-along visual
   playerCard.appendChild(el('div', { id: 'sln-follow-host', class: 'sln-follow-host' }));
-  root.appendChild(playerCard);
+  host.appendChild(playerCard);
 
-  // Section list (manage / save drums)
+  state.activeSectionId = 'selection';
+  loadPlayerForSong(song, 'selection');
+  syncTransportButtons();
+  highlightActiveBar(state.selStart);
+}
+
+function renderDetail(root) {
+  const song = getSong(state.detailId);
+  if (!song) { state.view = 'library'; render(); return; }
+  root.innerHTML = '';
+  destroyFollow();
+  destroyGpMount();
+
+  state.scoreBpm = Number(song.tempo) || 120;
+  if (state._practiceSongId !== song.id) {
+    state._practiceSongId = song.id;
+    state.bpm = state.scoreBpm;
+    state.activeSectionId = 'selection';
+    state.selStart = 0;
+    state.selEnd = 0;
+    state.practice = {
+      measureStart: 0,
+      measureEnd: 0,
+      loopRestSec: state.loopRestSec,
+      preferredTrackIndex: 0,
+      loopEnabled: true,
+    };
+  }
+  const measures = songMeasures(song);
+  if (measures.length) {
+    if (state.selEnd === 0 && state.selStart === 0) state.selEnd = measures.length - 1;
+    state.selStart = Math.max(0, Math.min(measures.length - 1, state.selStart));
+    state.selEnd = Math.max(state.selStart, Math.min(measures.length - 1, state.selEnd));
+    state.practice.measureStart = state.selStart;
+    state.practice.measureEnd = state.selEnd;
+  }
+
+  root.appendChild(el('div', { class: 'sln-import-head' }, [
+    el('button', {
+      class: 'btn sm', type: 'button', text: '← Library',
+      onClick: () => {
+        stopPlayback();
+        destroyFollow();
+        destroyGpMount();
+        state.view = 'library';
+        state.detailId = null;
+        render();
+      },
+    }),
+    el('div', { class: 'sln-import-title', text: song.title }),
+  ]));
+  root.appendChild(el('div', {
+    class: 'sln-song-meta',
+    text: [
+      song.fileName || 'Guitar Pro',
+      `${Math.round(state.scoreBpm)} BPM`,
+      `${song.sections.length} sections`,
+      `${measures.length} bars`,
+      'highlight measures → save Exercise',
+    ].join(' · '),
+  }));
+
+  // Primary practice player (shared GP player with measure strip)
+  const gpCard = el('div', { class: 'sln-player sln-gp-card' });
+  gpCard.appendChild(el('div', {
+    class: 'sln-player-banner',
+    text: 'Highlight measures on the bar strip (click start, Shift+click end, or use Loop bars). Then save as an Exercise.',
+  }));
+  const saveRow = el('div', { class: 'sln-save-row' });
+  const selLabel = el('div', {
+    class: 'sln-sel-label', id: 'sln-sel-label',
+    text: measures.length
+      ? `Highlighted bars ${state.practice.measureStart + 1}–${state.practice.measureEnd + 1}`
+      : 'Loading player…',
+  });
+  const saveBtn = el('button', {
+    class: 'btn primary', type: 'button',
+    text: 'Save highlighted bars as Exercise',
+    onClick: () => saveSelectionAsExercise(song),
+  });
+  saveRow.append(selLabel, saveBtn);
+  gpCard.appendChild(saveRow);
+  const gpHost = el('div', { class: 'sln-gp-host', id: 'sln-gp-host' });
+  gpHost.appendChild(el('div', { class: 'sln-empty', text: 'Loading practice player…' }));
+  gpCard.appendChild(gpHost);
+  root.appendChild(gpCard);
+
+  // Full-mix follow-along (guitar + drums together)
+  const mixCard = el('div', { class: 'sln-player sln-mix-card' });
+  mixCard.appendChild(el('div', { class: 'sln-control-label', text: 'Full mix · guitar + drums' }));
+  const mixTransport = el('div', { class: 'sln-transport' });
+  mixTransport.append(
+    el('button', {
+      class: 'btn primary', type: 'button', id: 'sln-play', text: 'Play mix',
+      onClick: () => {
+        if (state.gpMount?.player?.playing) state.gpMount.player.pause();
+        const player = ensurePlayer();
+        if (player.playing) player.pause();
+        else if (player.paused) player.play();
+        else {
+          state.activeSectionId = 'selection';
+          loadPlayerForSong(song, 'selection');
+          player.play();
+        }
+        syncTransportButtons();
+      },
+    }),
+    el('button', {
+      class: 'btn', type: 'button', text: 'Stop',
+      onClick: () => {
+        stopPlayback();
+        syncTransportButtons();
+      },
+    }),
+    el('button', {
+      class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-g', text: 'Guitar',
+      onClick: () => {
+        const player = ensurePlayer();
+        player.setMuted({ guitar: !player.muteGuitar });
+        syncTransportButtons();
+      },
+    }),
+    el('button', {
+      class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-d', text: 'Drums',
+      onClick: () => {
+        const player = ensurePlayer();
+        player.setMuted({ drums: !player.muteDrums });
+        syncTransportButtons();
+      },
+    }),
+    el('span', { class: 'sln-time', id: 'sln-time', text: '0:00 / 0:00' }),
+  );
+  mixCard.appendChild(mixTransport);
+  mixCard.appendChild(el('div', { id: 'sln-follow-host', class: 'sln-follow-host' }));
+  root.appendChild(mixCard);
+
+  // Section shortcuts
   if (song.sections.length) {
+    const chips = el('div', { class: 'sln-sec-chips' });
+    song.sections.forEach((sec) => {
+      chips.appendChild(el('button', {
+        class: 'sln-chip', type: 'button', text: sec.label, 'data-sln-sec': sec.id,
+        onClick: () => {
+          const range = sectionRange(song, sec.id);
+          state.selStart = range.startIdx ?? 0;
+          state.selEnd = range.endIdx ?? state.selStart;
+          state.practice.measureStart = state.selStart;
+          state.practice.measureEnd = state.selEnd;
+          state.activeSectionId = 'selection';
+          selLabel.textContent = `Highlighted bars ${state.selStart + 1}–${state.selEnd + 1}`;
+          // Remount GP player focused on this section's bars.
+          void mountDetailGpPlayer(gpHost, song, selLabel);
+          loadPlayerForSong(song, 'selection');
+        },
+      }));
+    });
+    root.appendChild(chips);
+
     const list = el('div', { class: 'sln-snip-list' });
     list.appendChild(el('div', { class: 'sln-control-label', text: 'Saved sections' }));
     song.sections.forEach((sec) => {
@@ -986,30 +1148,13 @@ function renderDetail(root) {
       }));
       const actions = el('div', { class: 'sln-snip-actions' });
       actions.appendChild(el('button', {
-        class: 'btn sm primary', type: 'button', text: 'Play',
-        onClick: () => {
-          state.activeSectionId = sec.id;
-          const range = sectionRange(song, sec.id);
-          state.selStart = range.startIdx ?? state.selStart;
-          state.selEnd = range.endIdx ?? state.selEnd;
-          startSel.value = String(state.selStart);
-          endSel.value = String(state.selEnd);
-          loadPlayerForSong(song, sec.id);
-          state.player.play();
-          syncTransportButtons();
-          highlightActiveBar(state.selStart);
-          document.querySelectorAll('[data-sln-sec]').forEach((btn) => {
-            btn.classList.toggle('active', btn.getAttribute('data-sln-sec') === sec.id);
-          });
-        },
-      }));
-      actions.appendChild(el('button', {
-        class: 'btn sm', type: 'button', text: 'Save as Exercise',
+        class: 'btn sm', type: 'button', text: 'Highlight & save Exercise',
         onClick: () => {
           const range = sectionRange(song, sec.id);
           state.selStart = range.startIdx ?? 0;
           state.selEnd = range.endIdx ?? state.selStart;
-          state.activeSectionId = 'selection';
+          state.practice.measureStart = state.selStart;
+          state.practice.measureEnd = state.selEnd;
           saveSelectionAsExercise(song);
         },
       }));
@@ -1033,7 +1178,6 @@ function renderDetail(root) {
           if (!confirm(`Remove section “${sec.label}”?`)) return;
           stopPlayback();
           removeSection(song.id, sec.id);
-          if (state.activeSectionId === sec.id) state.activeSectionId = 'all';
           render();
         },
       }));
@@ -1043,20 +1187,113 @@ function renderDetail(root) {
     root.appendChild(list);
   }
 
-  loadPlayerForSong(song, state.activeSectionId);
+  // Load mix follow view immediately; mount GP player async from source blob.
+  state.activeSectionId = 'selection';
+  loadPlayerForSong(song, 'selection');
   syncTransportButtons();
-  highlightActiveBar(state.selStart);
+  void mountDetailGpPlayer(gpHost, song, selLabel);
+}
+
+async function mountDetailGpPlayer(host, song, selLabel) {
+  if (!host) return;
+  destroyGpMount();
+  host.innerHTML = '';
+  host.appendChild(el('div', { class: 'sln-empty', text: 'Loading practice player…' }));
+
+  try {
+    const blob = await getSongSourceBlob(song);
+    let gp = null;
+    if (blob) {
+      const buf = await blob.arrayBuffer();
+      gp = await parseGuitarPro(buf);
+    } else if (song.fullGuitar || (song.fullGuitars || []).length) {
+      const models = (song.fullGuitars || []).length
+        ? song.fullGuitars
+        : [song.fullGuitar];
+      gp = {
+        tempo: song.tempo,
+        tracks: models.filter(Boolean).map((model, i) => {
+          const m = ensureMeasures(JSON.parse(JSON.stringify(model)));
+          return {
+            index: i,
+            name: i === 0 ? (song.guitarTrackName || 'Guitar') : `Track ${i + 1}`,
+            tuning: m.tuning || 'Standard',
+            noteCount: (m.events || []).filter((e) => e.midi != null).length,
+            model: m,
+          };
+        }),
+        drumTracks: [],
+        warnings: [],
+      };
+    }
+
+    if (!gp?.tracks?.length) {
+      host.innerHTML = '';
+      renderFallbackMeasurePlayer(host, song);
+      return;
+    }
+
+    // Ensure every track has measures for the strip.
+    gp.tracks.forEach((t) => { if (t.model) ensureMeasures(t.model); });
+
+    host.innerHTML = '';
+    const saveExtra = el('button', {
+      class: 'btn sm primary', type: 'button',
+      text: 'Save bars as Exercise',
+      onClick: () => saveSelectionAsExercise(song),
+    });
+    state.gpMount = mountGpPlayer(host, {
+      gpResult: gp,
+      title: song.title,
+      fileName: song.fileName || song.title,
+      hideTitle: true,
+      preferredTrackIndex: state.practice.preferredTrackIndex || 0,
+      initialLoopEnabled: true,
+      initialLoopStart: state.practice.measureStart,
+      initialLoopEnd: state.practice.measureEnd,
+      loopRestSec: state.practice.loopRestSec,
+      headerExtra: saveExtra,
+      onPracticeSettingsChange: (settings) => {
+        state.practice = { ...state.practice, ...settings };
+        state.selStart = settings.measureStart ?? state.selStart;
+        state.selEnd = settings.measureEnd ?? state.selEnd;
+        state.loopRestSec = settings.loopRestSec ?? state.loopRestSec;
+        if (selLabel) {
+          selLabel.textContent = `Highlighted bars ${(settings.measureStart ?? 0) + 1}–${(settings.measureEnd ?? 0) + 1}`;
+        }
+        // Keep full-mix range in sync with the GP player highlight.
+        state.activeSectionId = 'selection';
+        const was = state.player?.playing;
+        loadPlayerForSong(song, 'selection');
+        if (was) state.player.play();
+      },
+    });
+    if (selLabel) {
+      selLabel.textContent = `Highlighted bars ${state.practice.measureStart + 1}–${state.practice.measureEnd + 1}`;
+    }
+  } catch (err) {
+    host.innerHTML = '';
+    host.appendChild(el('div', {
+      class: 'sln-empty',
+      text: err?.message || 'Could not open the practice player for this song.',
+    }));
+    renderFallbackMeasurePlayer(host, song);
+  }
 }
 
 function render() {
   const root = $('sln-root');
   if (!root) return;
+  if (state.view !== 'detail') {
+    destroyGpMount();
+  }
   if (state.view === 'import') renderImport(root);
   else if (state.view === 'detail') renderDetail(root);
   else {
     destroyFollow();
     renderLibrary(root);
   }
+  syncDropVisibility();
 }
 
 function bind() {
@@ -1102,6 +1339,7 @@ export function initSongLearn() {
 export function stopSongLearn() {
   stopPlayback();
   destroyFollow();
+  destroyGpMount();
 }
 
 export async function importGpBytesToSongLearn(bytes, fileName = 'score.gp') {
