@@ -1,0 +1,96 @@
+/* Track → Sheet */
+
+.tts-layout{display:flex;gap:20px;align-items:flex-start}
+.tts-input-col{width:300px;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
+.tts-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
+
+.tts-drop{
+  background:var(--card);
+  border:1px dashed var(--border);
+  border-radius:16px;
+  padding:22px 16px;
+  text-align:center;
+  transition:border-color .15s ease, background .15s ease;
+}
+.tts-drop.dragover{border-color:var(--accent);background:var(--accent-dim)}
+.tts-drop-title{font-weight:650;margin-bottom:6px}
+.tts-drop-sub{font-size:.78rem;color:var(--muted);line-height:1.4;margin-bottom:14px}
+.tts-file-note{font-size:.76rem;color:var(--muted);min-height:1.2em;margin-top:8px;word-break:break-word}
+.tts-input-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.tts-input-actions .btn{min-height:34px;padding:6px 14px;font-size:.82rem}
+
+.tts-controls{background:var(--card);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 12px rgba(0,0,0,0.5)}
+.tts-control-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tts-control-row label{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.tts-control-row input[type=number],
+.tts-control-row select{width:110px;padding:6px 10px;font-size:.85rem}
+
+.tts-status{
+  font-size:.84rem;
+  color:var(--muted);
+  padding:8px 12px;
+  border-radius:10px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+}
+.tts-status[data-kind=ok]{color:var(--ok);border-color:rgba(46,204,113,0.3)}
+.tts-status[data-kind=warn]{color:var(--warn);border-color:rgba(243,156,18,0.3)}
+.tts-status[data-kind=err]{color:var(--err);border-color:rgba(231,76,60,0.35)}
+
+.tts-progress{width:100%;height:6px;accent-color:var(--accent)}
+
+.tts-score-card{
+  background:var(--card);
+  border-radius:16px;
+  padding:16px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.5);
+  min-height:200px;
+}
+.tts-score-card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.tts-score-card-title{font-size:.72rem;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;color:var(--accent)}
+.tts-score-wrap{overflow-x:auto;min-height:160px}
+.tts-muted{color:var(--muted);font-size:.88rem;line-height:1.45}
+.tts-empty{color:var(--muted);font-size:.9rem;padding:24px 8px;text-align:center}
+
+.tts-score{display:block;max-width:100%;height:auto;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:8px}
+.tts-score .tts-staff-line{stroke:var(--text);stroke-width:1.2;opacity:.78}
+.tts-score .tts-ledger{stroke:var(--text);stroke-width:1.2;opacity:.78}
+.tts-score .tts-barline{stroke:var(--text);stroke-width:1.4;opacity:.7}
+.tts-score .tts-barline.thick{stroke-width:2.4}
+.tts-score .tts-note-head{fill:var(--accent)}
+.tts-score .tts-note-head.open{fill:none;stroke:var(--accent);stroke-width:1.8}
+.tts-score .tts-stem{stroke:var(--accent);stroke-width:1.8;stroke-linecap:round}
+.tts-score .tts-flag{fill:none;stroke:var(--accent);stroke-width:1.6}
+.tts-score .tts-dot{fill:var(--accent)}
+.tts-score .tts-clef{fill:var(--text);font-family:'Bravura','Noto Music',serif}
+.tts-score .tts-rest{fill:var(--text);font-family:'Bravura','Noto Music',serif;font-size:28px}
+.tts-score .tts-accidental{fill:var(--text);font-size:16px;font-family:'Bravura','Noto Music','Segoe UI Symbol',serif}
+.tts-score .tts-timesig{fill:var(--text);font-size:18px;font-weight:700;font-family:inherit}
+.tts-score-meta{margin-top:10px;font-size:.76rem;color:var(--muted)}
+
+.tts-notes-card{
+  background:var(--card);
+  border-radius:16px;
+  padding:14px 16px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.5);
+}
+.tts-note-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-height:160px;overflow-y:auto}
+.tts-note-chip{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:3px 10px;
+  font-size:.78rem;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+
+#tts-player{width:100%;margin-top:4px;height:36px}
+
+body.tts-busy{cursor:progress}
+
+@media (max-width:768px){
+  .tts-layout{flex-direction:column}
+  .tts-input-col{width:100%}
+  .tts-control-row input[type=number],
+  .tts-control-row select{width:130px}
+}
