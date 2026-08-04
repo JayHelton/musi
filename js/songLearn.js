@@ -1,12 +1,8 @@
 // Song Learning: import a Guitar Pro score, split it into section snippets
-// (guitar + drums), save them individually, and practice each part.
+// (guitar + drums), save them, and practice with a follow-along multi-track player.
 
-import { parseGuitarPro, isGuitarProName } from './tab/guitarPro.js';
+import { parseGuitarPro, isGuitarProName, modelToAsciiTab } from './tab/guitarPro.js';
 import { buildGpSectionSnippets } from './drums/gpDrumImport.js';
-import { modelToAsciiTab } from './tab/guitarPro.js';
-import { createTabPlayer } from './tab/tabPlayer.js';
-import { ensureAudio } from './audio.js';
-import * as engine from './drums/drumEngine.js';
 import {
   listSongs,
   getSong,
@@ -17,14 +13,21 @@ import {
   attachmentsSupported,
 } from './songLearnStore.js';
 import { savePattern } from './drums/drumPatternDb.js';
+import {
+  createSongPlayer,
+  buildFollowColumns,
+  mountFollowView,
+} from './songLearnPlayer.js';
 
 const state = {
   bound: false,
   view: 'library', // library | import | detail
   detailId: null,
-  import: null, // { file, fileName, gp, snippets, guitarIdx, drumIdx, selected:Set }
+  import: null,
   player: null,
-  playingSectionId: null,
+  follow: null,
+  activeSectionId: 'all', // 'all' | section id
+  loopSection: true,
 };
 
 function $(id) { return document.getElementById(id); }
@@ -55,12 +58,194 @@ function setStatus(msg, kind = '') {
   box.hidden = !msg;
 }
 
+function destroyFollow() {
+  if (state.follow) {
+    try { state.follow.destroy(); } catch (e) { /* ignore */ }
+    state.follow = null;
+  }
+}
+
 function stopPlayback() {
   if (state.player) {
     try { state.player.stop(); } catch (e) { /* ignore */ }
   }
-  try { engine.stop(); } catch (e) { /* ignore */ }
-  state.playingSectionId = null;
+  syncTransportButtons();
+}
+
+function ensurePlayer() {
+  if (state.player) return state.player;
+  state.player = createSongPlayer({
+    onTick: (info) => {
+      if (state.follow) state.follow.update(info);
+      syncTransportButtons(info);
+    },
+  });
+  return state.player;
+}
+
+function stitchGuitarFromSections(sections) {
+  const parts = (sections || []).filter((s) => s.guitar?.events?.length);
+  if (!parts.length) return null;
+  if (parts.length === 1 && (parts[0].startBeat || 0) === 0) return parts[0].guitar;
+  const base = parts[0].guitar;
+  const events = [];
+  const measures = [];
+  for (const sec of parts) {
+    const offset = Number(sec.startBeat) || 0;
+    for (const ev of sec.guitar.events || []) {
+      events.push({
+        ...ev,
+        techniques: Array.isArray(ev.techniques) ? ev.techniques.slice() : [],
+        start: (Number.isFinite(ev.start) ? ev.start : 0) + offset,
+      });
+    }
+    for (const m of sec.guitar.measures || []) {
+      measures.push({
+        ...m,
+        startBeat: (Number.isFinite(m.startBeat) ? m.startBeat : 0) + offset,
+        endBeat: (Number.isFinite(m.endBeat) ? m.endBeat : 0) + offset,
+        marker: m.marker || sec.label || null,
+      });
+    }
+  }
+  events.sort((a, b) => (a.start - b.start) || (a.stringIndex - b.stringIndex));
+  const totalBeats = Math.max(...measures.map((m) => m.endBeat), ...events.map((e) => e.start + (e.duration || 0)), 0);
+  return {
+    ...base,
+    strings: (base.strings || []).map((s) => ({ ...s })),
+    events,
+    measures,
+    totalBeats,
+  };
+}
+
+function stitchDrumsFromSections(sections, tempo) {
+  // Prefer timed events if a section stored a perc-like model under drums.events.
+  const hits = [];
+  const measures = [];
+  for (const sec of sections || []) {
+    const offset = Number(sec.startBeat) || 0;
+    if (Array.isArray(sec.drums?.events)) {
+      for (const e of sec.drums.events) {
+        hits.push({ ...e, start: (Number.isFinite(e.start) ? e.start : 0) + offset });
+      }
+    } else if (sec.drums?.steps && sec.drums.stepsPerBar) {
+      // Approximate from quantized pattern steps.
+      const spb = ({ '8th': 2, '16th': 4, triplet: 3, sixEight: 2 }[sec.drums.subdivision] || 4);
+      for (const s of sec.drums.steps) {
+        hits.push({
+          start: offset + (s.step / spb),
+          duration: 1 / spb,
+          instrument: s.instrument,
+          velocity: s.velocity ?? 0.78,
+          midi: 0,
+          slot: s.step,
+        });
+      }
+    }
+    measures.push({
+      startSlot: measures.length,
+      endSlot: measures.length + 1,
+      startBeat: offset,
+      endBeat: Number(sec.endBeat) || (offset + 4),
+      marker: sec.label || null,
+    });
+  }
+  if (!hits.length) return null;
+  hits.sort((a, b) => a.start - b.start);
+  return {
+    percussion: true,
+    name: 'Drums',
+    tempo: tempo || 120,
+    events: hits,
+    measures,
+    slots: hits.length,
+    totalBeats: Math.max(...measures.map((m) => m.endBeat), ...hits.map((h) => h.start + 0.25), 0),
+    warnings: [],
+  };
+}
+
+function songModels(song) {
+  let guitar = song.fullGuitar || null;
+  let guitars = Array.isArray(song.fullGuitars) ? song.fullGuitars.filter(Boolean) : [];
+  let drums = song.fullDrums || null;
+  if (!guitar) guitar = stitchGuitarFromSections(song.sections);
+  if (!guitars.length && guitar) guitars = [guitar];
+  if (!drums) drums = stitchDrumsFromSections(song.sections, song.tempo);
+  return { guitar, guitars, drums };
+}
+
+function sectionRange(song, sectionId) {
+  if (!sectionId || sectionId === 'all') {
+    const { guitar, drums } = songModels(song);
+    const end = Math.max(
+      guitar?.totalBeats || 0,
+      drums?.totalBeats || 0,
+      ...(song.sections || []).map((s) => s.endBeat || 0),
+      4
+    );
+    return { startBeat: 0, endBeat: end, loop: false, label: 'Full song' };
+  }
+  const sec = (song.sections || []).find((s) => s.id === sectionId);
+  if (!sec) return sectionRange(song, 'all');
+  return {
+    startBeat: sec.startBeat || 0,
+    endBeat: sec.endBeat || (sec.startBeat + 4),
+    loop: state.loopSection,
+    label: sec.label,
+  };
+}
+
+function loadPlayerForSong(song, sectionId = state.activeSectionId) {
+  const player = ensurePlayer();
+  const { guitar, guitars, drums } = songModels(song);
+  const range = sectionRange(song, sectionId);
+  // Full song mixes every fretted track + drums; section practice uses the primary guitar slice.
+  const mixAll = !sectionId || sectionId === 'all';
+  player.load({
+    guitarModel: guitar,
+    guitarModels: mixAll ? guitars : (guitar ? [guitar] : []),
+    percModel: drums,
+    bpm: song.tempo,
+    startBeat: range.startBeat,
+    endBeat: range.endBeat,
+    loop: range.loop,
+  });
+  remountFollow(song, range);
+  return range;
+}
+
+function remountFollow(song, range) {
+  destroyFollow();
+  const host = $('sln-follow-host');
+  if (!host) return;
+  const { guitar, drums } = songModels(song);
+  const layout = buildFollowColumns({
+    guitarModel: guitar,
+    percModel: drums,
+    startBeat: range.startBeat,
+    endBeat: range.endBeat,
+  });
+  state.follow = mountFollowView(host, layout);
+  state.follow.update({
+    currentSec: state.player?.currentSec || 0,
+    bpm: song.tempo,
+    playing: !!state.player?.playing,
+    durationSec: state.player?.durationSec || 0,
+  });
+}
+
+function syncTransportButtons(info) {
+  const playing = info ? info.playing : !!state.player?.playing;
+  const playBtn = $('sln-play');
+  if (playBtn) playBtn.textContent = playing ? 'Pause' : 'Play';
+  document.querySelectorAll('[data-sln-sec]').forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-sln-sec') === state.activeSectionId);
+  });
+  const gMute = $('sln-mute-g');
+  const dMute = $('sln-mute-d');
+  if (gMute) gMute.classList.toggle('muted', !!state.player?.muteGuitar);
+  if (dMute) dMute.classList.toggle('muted', !!state.player?.muteDrums);
 }
 
 function rebuildSnippets() {
@@ -72,7 +257,6 @@ function rebuildSnippets() {
     includeGuitar: (imp.gp.tracks || []).length > 0,
     includeDrums: (imp.gp.drumTracks || []).length > 0,
   });
-  // Default-select sections that have content.
   imp.selected = new Set(
     imp.snippets.filter((s) => s.hasGuitar || s.hasDrums).map((s) => s.id)
   );
@@ -126,18 +310,31 @@ async function saveImport() {
     return;
   }
   try {
+    const gTrack = imp.gp.tracks?.[imp.guitarIdx] || null;
+    const dTrack = imp.gp.drumTracks?.[imp.drumIdx] || null;
+    // Clone full models for synced playback (primary + every fretted track for full mix).
+    const fullGuitar = gTrack?.model ? JSON.parse(JSON.stringify(gTrack.model)) : null;
+    const fullGuitars = (imp.gp.tracks || [])
+      .map((t) => (t?.model ? JSON.parse(JSON.stringify(t.model)) : null))
+      .filter(Boolean);
+    const fullDrums = dTrack?.model ? JSON.parse(JSON.stringify(dTrack.model)) : null;
+
     const song = await createSongFromGpSnippets({
       file: imp.file,
       fileName: imp.fileName,
       title: imp.fileName.replace(/\.(gp|gp5)$/i, ''),
       tempo: picked[0].tempo,
-      guitarTrackName: imp.gp.tracks?.[imp.guitarIdx]?.name || null,
-      drumTrackName: imp.gp.drumTracks?.[imp.drumIdx]?.name || null,
+      guitarTrackName: gTrack?.name || null,
+      drumTrackName: dTrack?.name || null,
       snippets: picked,
+      fullGuitar,
+      fullGuitars,
+      fullDrums,
       saveDrumsToLibrary: !!imp.saveDrumsToLibrary,
     });
     state.detailId = song.id;
     state.view = 'detail';
+    state.activeSectionId = 'all';
     state.import = null;
     setStatus(`Saved “${song.title}” with ${song.sections.length} section${song.sections.length === 1 ? '' : 's'}.`);
     render();
@@ -146,51 +343,20 @@ async function saveImport() {
   }
 }
 
-function playGuitarSnippet(section) {
-  stopPlayback();
-  if (!section?.guitar?.events?.length) return;
-  ensureAudio();
-  if (!state.player) state.player = createTabPlayer();
-  state.player.load(section.guitar, { bpm: section.tempo || section.guitar.tempo || 120 });
-  state.player.play();
-  state.playingSectionId = section.id + ':g';
-  renderDetailActions();
-}
-
-function playDrumSnippet(section) {
-  stopPlayback();
-  if (!section?.drums?.steps?.length) return;
-  engine.initEngine();
-  engine.schedulePattern(section.drums);
-  engine.setBpm(section.tempo || section.drums.bpmRange?.[0] || 120);
-  engine.setEngineOptions({ looping: true, metronome: false, countIn: false });
-  engine.start();
-  state.playingSectionId = section.id + ':d';
-  renderDetailActions();
-}
-
-function renderDetailActions() {
-  document.querySelectorAll('[data-sln-play]').forEach((btn) => {
-    const key = btn.getAttribute('data-sln-play');
-    btn.textContent = state.playingSectionId === key ? '■ Stop' : btn.dataset.label || 'Play';
-  });
-}
-
 function renderLibrary(root) {
   const songs = listSongs();
   root.innerHTML = '';
-  const tools = el('div', { class: 'sln-tools' }, [
+  root.appendChild(el('div', { class: 'sln-tools' }, [
     el('button', {
       class: 'btn primary', type: 'button', text: '+ Import Guitar Pro',
       onClick: () => $('sln-file')?.click(),
     }),
-  ]);
-  root.appendChild(tools);
+  ]));
 
   if (!songs.length) {
     root.appendChild(el('div', {
       class: 'sln-empty',
-      text: 'Import a .gp / .gp5 score to split it into practice snippets for guitar and drums.',
+      text: 'Import a .gp / .gp5 score to split it into practice snippets for guitar and drums, then play the full song with a follow-along view.',
     }));
     return;
   }
@@ -202,12 +368,21 @@ function renderLibrary(root) {
     const dCount = song.sections.filter((s) => s.hasDrums).length;
     card.appendChild(el('div', { class: 'sln-song-head' }, [
       el('div', { class: 'sln-song-title', text: song.title }),
-      el('div', { class: 'sln-song-meta', text: `${song.sections.length} sections · ${gCount} guitar · ${dCount} drums · ${Math.round(song.tempo)} BPM` }),
+      el('div', {
+        class: 'sln-song-meta',
+        text: `${song.sections.length} sections · ${gCount} guitar · ${dCount} drums · ${Math.round(song.tempo)} BPM`,
+      }),
     ]));
     const actions = el('div', { class: 'sln-song-actions' });
     actions.appendChild(el('button', {
       class: 'btn sm primary', type: 'button', text: 'Open',
-      onClick: () => { state.detailId = song.id; state.view = 'detail'; render(); },
+      onClick: () => {
+        stopPlayback();
+        state.detailId = song.id;
+        state.activeSectionId = 'all';
+        state.view = 'detail';
+        render();
+      },
     }));
     actions.appendChild(el('button', {
       class: 'btn sm', type: 'button', text: 'Rename',
@@ -222,6 +397,7 @@ function renderLibrary(root) {
       class: 'btn sm sln-danger', type: 'button', text: 'Delete',
       onClick: async () => {
         if (!confirm(`Delete “${song.title}” and its snippets?`)) return;
+        stopPlayback();
         await deleteSong(song.id);
         render();
       },
@@ -267,10 +443,7 @@ function renderImport(root) {
   root.appendChild(trackRow);
 
   const opts = el('div', { class: 'sln-import-opts' });
-  const chk = el('input', {
-    type: 'checkbox', id: 'sln-save-drums',
-    checked: imp.saveDrumsToLibrary ? 'checked' : null,
-  });
+  const chk = el('input', { type: 'checkbox', id: 'sln-save-drums' });
   chk.checked = !!imp.saveDrumsToLibrary;
   chk.onchange = () => { imp.saveDrumsToLibrary = !!chk.checked; };
   opts.appendChild(el('label', { class: 'sln-check', for: 'sln-save-drums' }, [
@@ -316,7 +489,8 @@ function renderImport(root) {
 
   root.appendChild(el('div', { class: 'sln-import-actions' }, [
     el('button', {
-      class: 'btn primary', type: 'button', text: `Save ${imp.selected.size} snippet${imp.selected.size === 1 ? '' : 's'}`,
+      class: 'btn primary', type: 'button',
+      text: `Save ${imp.selected.size} snippet${imp.selected.size === 1 ? '' : 's'}`,
       onClick: saveImport,
     }),
   ]));
@@ -326,19 +500,137 @@ function renderDetail(root) {
   const song = getSong(state.detailId);
   if (!song) { state.view = 'library'; render(); return; }
   root.innerHTML = '';
+  destroyFollow();
 
   root.appendChild(el('div', { class: 'sln-import-head' }, [
     el('button', {
       class: 'btn sm', type: 'button', text: '← Library',
-      onClick: () => { stopPlayback(); state.view = 'library'; state.detailId = null; render(); },
+      onClick: () => {
+        stopPlayback();
+        destroyFollow();
+        state.view = 'library';
+        state.detailId = null;
+        render();
+      },
     }),
     el('div', { class: 'sln-import-title', text: song.title }),
   ]));
   root.appendChild(el('div', {
     class: 'sln-song-meta',
-    text: `${song.fileName || 'Guitar Pro'} · ${Math.round(song.tempo)} BPM · ${song.sections.length} sections`,
+    text: [
+      song.fileName || 'Guitar Pro',
+      `${Math.round(song.tempo)} BPM`,
+      `${song.sections.length} sections`,
+      `${(song.fullGuitars || []).length || (song.fullGuitar ? 1 : 0)} guitar track(s) + drums`,
+      'follow-along play',
+    ].join(' · '),
   }));
 
+  // Transport
+  const transport = el('div', { class: 'sln-transport' });
+  const playBtn = el('button', {
+    class: 'btn primary', type: 'button', id: 'sln-play', text: 'Play',
+    onClick: () => {
+      const player = ensurePlayer();
+      if (player.playing) {
+        player.pause();
+      } else if (player.paused) {
+        player.play();
+      } else {
+        loadPlayerForSong(song, state.activeSectionId);
+        player.play();
+      }
+      syncTransportButtons();
+    },
+  });
+  const stopBtn = el('button', {
+    class: 'btn', type: 'button', text: 'Stop',
+    onClick: () => {
+      stopPlayback();
+      if (state.follow) {
+        state.follow.update({
+          currentSec: state.player?.currentSec || 0,
+          bpm: song.tempo,
+          playing: false,
+          durationSec: state.player?.durationSec || 0,
+        });
+      }
+      syncTransportButtons();
+    },
+  });
+  const gMute = el('button', {
+    class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-g', text: 'Guitar',
+    onClick: () => {
+      const player = ensurePlayer();
+      player.setMuted({ guitar: !player.muteGuitar });
+      syncTransportButtons();
+    },
+  });
+  const dMute = el('button', {
+    class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-d', text: 'Drums',
+    onClick: () => {
+      const player = ensurePlayer();
+      player.setMuted({ drums: !player.muteDrums });
+      syncTransportButtons();
+    },
+  });
+  const loopChk = el('input', { type: 'checkbox', id: 'sln-loop' });
+  loopChk.checked = !!state.loopSection;
+  loopChk.onchange = () => {
+    state.loopSection = !!loopChk.checked;
+    const was = state.player?.playing;
+    loadPlayerForSong(song, state.activeSectionId);
+    if (was) state.player.play();
+  };
+  transport.append(
+    playBtn,
+    stopBtn,
+    gMute,
+    dMute,
+    el('label', { class: 'sln-check', for: 'sln-loop' }, [
+      loopChk,
+      el('span', { text: 'Loop section' }),
+    ])
+  );
+  root.appendChild(transport);
+
+  // Section chips
+  const chips = el('div', { class: 'sln-sec-chips' });
+  const allBtn = el('button', {
+    class: 'sln-chip' + (state.activeSectionId === 'all' ? ' active' : ''),
+    type: 'button',
+    text: 'Full song',
+    'data-sln-sec': 'all',
+    onClick: () => {
+      state.activeSectionId = 'all';
+      const was = state.player?.playing;
+      loadPlayerForSong(song, 'all');
+      if (was) state.player.play();
+      syncTransportButtons();
+    },
+  });
+  chips.appendChild(allBtn);
+  song.sections.forEach((sec) => {
+    chips.appendChild(el('button', {
+      class: 'sln-chip' + (state.activeSectionId === sec.id ? ' active' : ''),
+      type: 'button',
+      text: sec.label,
+      'data-sln-sec': sec.id,
+      onClick: () => {
+        state.activeSectionId = sec.id;
+        const was = state.player?.playing;
+        loadPlayerForSong(song, sec.id);
+        if (was) state.player.play();
+        syncTransportButtons();
+      },
+    }));
+  });
+  root.appendChild(chips);
+
+  // Follow-along visual
+  root.appendChild(el('div', { id: 'sln-follow-host', class: 'sln-follow-host' }));
+
+  // Section list (manage / save drums)
   const list = el('div', { class: 'sln-snip-list' });
   song.sections.forEach((sec) => {
     const card = el('div', { class: 'sln-snip-card' });
@@ -347,50 +639,25 @@ function renderDetail(root) {
       class: 'sln-snip-meta',
       text: [
         sec.type,
-        sec.hasGuitar ? `guitar (${sec.guitarTrackName || 'track'})` : null,
-        sec.hasDrums ? `drums (${sec.drumTrackName || 'kit'})` : null,
+        sec.hasGuitar ? 'guitar' : null,
+        sec.hasDrums ? 'drums' : null,
         `${Math.round(sec.tempo || song.tempo)} BPM`,
       ].filter(Boolean).join(' · '),
     }));
-
-    if (sec.hasDrums && sec.drums?.tab) {
-      card.appendChild(el('pre', { class: 'sln-tab', text: sec.drums.tab }));
-    } else if (sec.hasGuitar && sec.guitar) {
-      card.appendChild(el('pre', { class: 'sln-tab', text: modelToAsciiTab(sec.guitar, { maxCols: 72 }) || '' }));
-    }
-
     const actions = el('div', { class: 'sln-snip-actions' });
-    if (sec.hasGuitar) {
-      const gKey = sec.id + ':g';
-      const gBtn = el('button', {
-        class: 'btn sm primary', type: 'button',
-        text: state.playingSectionId === gKey ? '■ Stop' : '▶ Guitar',
-        'data-sln-play': gKey,
-      });
-      gBtn.dataset.label = '▶ Guitar';
-      gBtn.onclick = () => {
-        if (state.playingSectionId === gKey) { stopPlayback(); renderDetailActions(); return; }
-        playGuitarSnippet(sec);
-      };
-      actions.appendChild(gBtn);
-    }
-    if (sec.hasDrums) {
-      const dKey = sec.id + ':d';
-      const dBtn = el('button', {
-        class: 'btn sm primary', type: 'button',
-        text: state.playingSectionId === dKey ? '■ Stop' : '▶ Drums',
-        'data-sln-play': dKey,
-      });
-      dBtn.dataset.label = '▶ Drums';
-      dBtn.onclick = () => {
-        if (state.playingSectionId === dKey) { stopPlayback(); renderDetailActions(); return; }
-        playDrumSnippet(sec);
-      };
-      actions.appendChild(dBtn);
+    actions.appendChild(el('button', {
+      class: 'btn sm primary', type: 'button', text: 'Play section',
+      onClick: () => {
+        state.activeSectionId = sec.id;
+        loadPlayerForSong(song, sec.id);
+        state.player.play();
+        syncTransportButtons();
+      },
+    }));
+    if (sec.hasDrums && sec.drums) {
       actions.appendChild(el('button', {
         class: 'btn sm', type: 'button', text: 'Save to Drums',
         onClick: async () => {
-          if (!sec.drums) return;
           const saved = await savePattern({
             ...sec.drums,
             id: null,
@@ -407,6 +674,7 @@ function renderDetail(root) {
         if (!confirm(`Remove section “${sec.label}”?`)) return;
         stopPlayback();
         removeSection(song.id, sec.id);
+        if (state.activeSectionId === sec.id) state.activeSectionId = 'all';
         render();
       },
     }));
@@ -414,6 +682,10 @@ function renderDetail(root) {
     list.appendChild(card);
   });
   root.appendChild(list);
+
+  // Initial load of follow view (full song)
+  loadPlayerForSong(song, state.activeSectionId);
+  syncTransportButtons();
 }
 
 function render() {
@@ -421,7 +693,10 @@ function render() {
   if (!root) return;
   if (state.view === 'import') renderImport(root);
   else if (state.view === 'detail') renderDetail(root);
-  else renderLibrary(root);
+  else {
+    destroyFollow();
+    renderLibrary(root);
+  }
 }
 
 function bind() {
@@ -466,9 +741,9 @@ export function initSongLearn() {
 
 export function stopSongLearn() {
   stopPlayback();
+  destroyFollow();
 }
 
-/** Open Song Learning directly into an import of the given GP bytes (handoff). */
 export async function importGpBytesToSongLearn(bytes, fileName = 'score.gp') {
   const file = new File([bytes], fileName, { type: 'application/octet-stream' });
   state.view = 'library';
