@@ -1,9 +1,12 @@
-/* Guitar Pro practice player — standalone screen + shared mount (Exercises). */
+/* Guitar Pro practice player — standalone screen + shared mount (Exercises).
+   Styled for Atomic Purple Game Boy Color theme. */
 
 .gpp-layout{display:flex;flex-direction:column;gap:14px;max-width:1100px}
 .gpp-drop{
-  border:1px dashed var(--border);border-radius:16px;background:var(--card);
-  padding:28px 20px;text-align:center;transition:border-color .15s ease,background .15s ease
+  border:1px dashed var(--border);border-radius:var(--radius-screen,18px);
+  background:rgba(22,31,54,0.88);
+  padding:28px 20px;text-align:center;transition:border-color .15s ease,background .15s ease;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28)
 }
 .gpp-drop.is-drag{border-color:var(--accent);background:var(--accent-dim)}
 .gpp-drop-title{font-size:1.05rem;font-weight:650;color:var(--text);margin-bottom:6px}
@@ -12,14 +15,16 @@
 
 .gpp-status{
   font-size:.82rem;color:var(--muted);padding:8px 12px;border:1px solid var(--border);
-  border-radius:10px;background:var(--bg2)
+  border-radius:10px;background:var(--bg2);font-family:var(--font-ui,"VT323",monospace)
 }
-.gpp-status[data-kind="error"]{color:var(--warn);border-color:rgba(243,156,18,0.4)}
+.gpp-status[data-kind="error"]{color:var(--warn);border-color:rgba(255,225,74,0.4)}
 .gpp-status[hidden]{display:none}
 
 .gpp-stage{
-  border:1px solid var(--border);border-radius:16px;background:var(--card);
-  padding:14px 16px 18px;box-shadow:0 2px 12px rgba(0,0,0,0.35)
+  border:1px solid var(--border);border-radius:var(--radius-screen,18px);
+  background:rgba(22,31,54,0.88);
+  padding:14px 16px 18px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28)
 }
 .gpp-stage[hidden]{display:none}
 
@@ -30,19 +35,25 @@
 .gpp-head-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
 
 .gpp-meta{display:flex;flex-direction:column;gap:8px}
-.gpp-info{font-size:.78rem;color:var(--muted);line-height:1.4}
+.gpp-info{font-size:.9rem;color:var(--muted);line-height:1.4;font-family:var(--font-ui,"VT323",monospace)}
 
 .gpp-transport{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .gpp-play{min-width:88px}
-.gpp-time,.gpp-measure{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.gpp-time,.gpp-measure{
+  font-size:.95rem;color:var(--muted);font-variant-numeric:tabular-nums;
+  font-family:var(--font-ui,"VT323",monospace)
+}
 .gpp-measure{margin-left:4px}
 
 .gpp-controls{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;
-  padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg2)
+  padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9)
 }
 .gpp-control-block{display:flex;flex-direction:column;gap:8px}
-.gpp-control-label{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gpp-control-label{
+  font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
+  letter-spacing:1.4px;text-transform:uppercase;color:var(--accent)
+}
 .gpp-control-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .gpp-field{display:flex;flex-direction:column;gap:6px;font-size:.8rem;color:var(--muted)}
 .gpp-select,.gpp-num{
@@ -62,18 +73,19 @@
 }
 .gpp-bar{
   flex:0 0 auto;min-width:36px;min-height:36px;padding:6px 8px;border:1px solid var(--border);
-  border-radius:10px;background:var(--bg);color:var(--muted);font-size:.72rem;font-family:inherit;
+  border-radius:10px;background:var(--bg);color:var(--muted);font-size:.85rem;
+  font-family:var(--font-ui,"VT323",monospace);
   cursor:pointer;line-height:1.15;white-space:pre-line;text-align:center
 }
 .gpp-bar:hover{border-color:var(--accent);color:var(--text)}
-.gpp-bar.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.gpp-bar.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .gpp-bar.in-loop{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.gpp-bar.in-loop:not(.active){color:var(--text);background:rgba(255,255,255,0.03)}
+.gpp-bar.in-loop:not(.active){color:var(--text);background:var(--accent-dim)}
 .gpp-bar.has-marker{font-weight:650}
 
 .gpp-tab{
-  margin:0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#0d0d0d;
-  color:#c8c8c8;font-family:var(--font-ui,"VT323",monospace);font-size:.72rem;
+  margin:0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg);
+  color:var(--accent);font-family:var(--font-ui,"VT323",monospace);font-size:1.05rem;
   line-height:1.35;overflow:auto;max-height:280px;white-space:pre
 }
 
@@ -84,6 +96,6 @@
 
 @media (max-width:768px){
   .gpp-controls{grid-template-columns:1fr}
-  .gpp-tab{font-size:.65rem;max-height:220px}
+  .gpp-tab{font-size:.9rem;max-height:220px}
   .gpp-drop{padding:22px 14px}
 }
