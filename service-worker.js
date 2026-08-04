@@ -1,9 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-<<<<<<< HEAD
-const CACHE_VERSION = "v108-song-ex-loop";
-=======
-const CACHE_VERSION = "v109-triads-gbc-theme";
->>>>>>> origin/main
+const CACHE_VERSION = "v110-song-ex-triads";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
