@@ -44,11 +44,33 @@
   font-family:var(--font-ui,"VT323",monospace)
 }
 .gpp-measure{margin-left:4px}
+.gpp-tempo-chip{margin-left:auto}
+.gpp-head-extra-wrap{display:flex;gap:8px;flex-wrap:wrap}
+
+.gpp-settings{
+  border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9);
+  padding:0;overflow:hidden
+}
+.gpp-settings-summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:10px 12px;user-select:none
+}
+.gpp-settings-summary::-webkit-details-marker{display:none}
+.gpp-settings-summary-label{
+  font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
+  letter-spacing:1.4px;text-transform:uppercase;color:var(--accent)
+}
+.gpp-settings-summary-bpm{
+  font-size:.95rem;color:var(--muted);font-family:var(--font-ui,"VT323",monospace)
+}
+.gpp-settings[open] .gpp-settings-summary{border-bottom:1px solid var(--border)}
+.gpp-settings .gpp-controls{border:0;border-radius:0;background:transparent}
 
 .gpp-controls{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;
   padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9)
 }
+.gpp-drop[hidden]{display:none}
 .gpp-control-block{display:flex;flex-direction:column;gap:8px}
 .gpp-control-label{
   font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;

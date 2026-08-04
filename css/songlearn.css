@@ -72,6 +72,28 @@
   font-family:var(--font-ui,"VT323",monospace)
 }
 .sln-rest-status{color:var(--accent)}
+.sln-tempo-chip{margin-left:auto}
+.sln-drop[hidden]{display:none}
+
+.sln-settings{
+  border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9);
+  padding:0;overflow:hidden
+}
+.sln-settings-summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:10px 12px;user-select:none
+}
+.sln-settings-summary::-webkit-details-marker{display:none}
+.sln-settings-summary-label{
+  font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
+  letter-spacing:1.4px;text-transform:uppercase;color:var(--accent)
+}
+.sln-settings-summary-bpm{
+  font-size:.95rem;color:var(--muted);font-family:var(--font-ui,"VT323",monospace)
+}
+.sln-settings[open] .sln-settings-summary{border-bottom:1px solid var(--border)}
+.sln-settings .sln-controls{border:0;border-radius:0;background:transparent}
+
 .sln-controls{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;
   padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9)
@@ -123,7 +145,7 @@
 }
 .sln-follow-stage{
   position:relative;display:flex;align-items:stretch;overflow:hidden;
-  height:min(360px,52vh);background:var(--bg)
+  height:min(280px,42vh);background:var(--bg)
 }
 .sln-follow-viewport{position:relative;flex:1;min-width:0;overflow:hidden}
 .sln-follow-playhead{

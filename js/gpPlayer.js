@@ -61,7 +61,10 @@ function setStatus(msg, kind = '') {
 
 function setStageVisible(visible) {
   const stage = $('gpp-stage');
+  const drop = $('gpp-drop');
   if (stage) stage.hidden = !visible;
+  // Hide the upload drop while a score is open so the player isn't stacked under a second import UI.
+  if (drop) drop.hidden = !!visible;
 }
 
 function destroyMount() {
@@ -78,14 +81,28 @@ function fmtSize(bytes) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function makeSaveButton() {
+function makeHeaderExtras() {
+  const wrap = document.createElement('div');
+  wrap.className = 'gpp-head-extra-wrap';
+
+  const loadBtn = document.createElement('button');
+  loadBtn.className = 'btn sm';
+  loadBtn.type = 'button';
+  loadBtn.textContent = 'Load another';
+  loadBtn.addEventListener('click', () => {
+    $('gpp-file')?.click();
+  });
+  wrap.appendChild(loadBtn);
+
   const saveBtn = document.createElement('button');
   saveBtn.className = 'btn sm';
   saveBtn.type = 'button';
   saveBtn.textContent = state.exerciseId ? 'In library' : 'Save to Library';
   if (state.exerciseId) saveBtn.disabled = true;
   saveBtn.addEventListener('click', () => saveToLibrary());
-  return saveBtn;
+  wrap.appendChild(saveBtn);
+
+  return wrap;
 }
 
 function mountCurrent() {
@@ -97,7 +114,7 @@ function mountCurrent() {
     gpResult: state.gp,
     title: (state.fileName || 'score').replace(/\.(gp|gp5)$/i, ''),
     fileName: state.fileName,
-    headerExtra: makeSaveButton(),
+    headerExtra: makeHeaderExtras(),
     onAnalyze: () => {
       window.__musiGpHandoff = {
         bytes: state.bytes,
