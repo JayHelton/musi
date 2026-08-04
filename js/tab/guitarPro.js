@@ -22,6 +22,7 @@
 
 import { NOTE_NAMES_SHARP, TUNINGS } from '../theory.js';
 import { parseGp5Tracks } from './gp5.js';
+import { GPIF_NOTE_VALUES, noteValueToQuarters } from './tabModel.js';
 
 const CHUNK = 0x8000;
 
@@ -262,6 +263,68 @@ function isPercussionTrack(trackNode) {
  * @param {string} xml
  * @returns {{ tracks: Array<{index:number, name:string, fretted:boolean, isPercussion:boolean, model:object|null, tuningPitches:number[]}> }}
  */
+/** Read score BPM from MasterTrack automations (Value "120 2" → quarter BPM). */
+function readGpifTempo(gpif) {
+  const masterTrack = firstChild(gpif, 'MasterTrack');
+  const automations = firstChild(masterTrack, 'Automations');
+  if (!automations) return 120;
+  // Prefer the earliest Tempo automation; fall back to any Value "bpm unit" pair.
+  let bestTempo = null;
+  let bestAny = null;
+  for (const auto of childrenNamed(automations, 'Automation')) {
+    const valueTxt = childText(auto, 'Value');
+    if (!valueTxt) continue;
+    const parts = valueTxt.trim().split(/\s+/);
+    const bpm = Number(parts[0]);
+    if (!Number.isFinite(bpm) || bpm <= 0) continue;
+    // Only consider pairs that look like tempo (bpm + beat-unit code).
+    if (parts.length < 2) continue;
+    const unit = Number(parts[1]) || 2; // 2 = quarter
+    const unitToQuarter = { 1: 0.5, 2: 1, 3: 1.5, 4: 2, 5: 3 };
+    if (!(unit in unitToQuarter)) continue;
+    const qBpm = bpm * unitToQuarter[unit];
+    const bar = Number(childText(auto, 'Bar'));
+    const pos = Number(childText(auto, 'Position')) || 0;
+    const rank = (Number.isFinite(bar) ? bar : 999) * 10 + pos;
+    const entry = { bpm: qBpm, rank };
+    const type = childText(auto, 'Type') || '';
+    if (/tempo/i.test(type)) {
+      if (!bestTempo || rank < bestTempo.rank) bestTempo = entry;
+    } else if (!bestAny || rank < bestAny.rank) {
+      bestAny = entry;
+    }
+  }
+  return (bestTempo || bestAny)?.bpm || 120;
+}
+
+/** Build Rhythm id → duration-in-quarters map from <Rhythms>. */
+function readGpifRhythms(gpif) {
+  const map = new Map();
+  const rhythmsNode = firstChild(gpif, 'Rhythms');
+  for (const node of childrenNamed(rhythmsNode, 'Rhythm')) {
+    const id = node.attrs.id;
+    const noteName = childText(node, 'NoteValue') || 'Quarter';
+    const denom = GPIF_NOTE_VALUES[noteName] || 4;
+    const dotNode = firstChild(node, 'AugmentationDot');
+    const dots = dotNode ? (Number(dotNode.attrs.count) || 1) : 0;
+    const tuplet = firstChild(node, 'PrimaryTuplet');
+    const tupletNum = tuplet ? (Number(tuplet.attrs.num) || 0) : 0;
+    const tupletDen = tuplet ? (Number(tuplet.attrs.den) || 0) : 0;
+    map.set(id, noteValueToQuarters(denom, dots, tupletNum, tupletDen));
+  }
+  return map;
+}
+
+function beatDurationQuarters(beat, rhythms) {
+  const rhythmNode = firstChild(beat, 'Rhythm');
+  const ref = rhythmNode ? (rhythmNode.attrs.ref ?? rhythmNode.attrs.id) : null;
+  if (ref != null && rhythms.has(ref)) return rhythms.get(ref);
+  // Some GPIF variants put NoteValue directly on the beat.
+  const direct = childText(beat, 'NoteValue');
+  if (direct && GPIF_NOTE_VALUES[direct]) return noteValueToQuarters(GPIF_NOTE_VALUES[direct]);
+  return 1; // default to a quarter
+}
+
 export function gpifToTracks(xml) {
   const root = parseXml(xml);
   const gpif = firstChild(root, 'GPIF') || root;
@@ -276,6 +339,8 @@ export function gpifToTracks(xml) {
     beats: indexById(firstChild(gpif, 'Beats'), 'Beat'),
     notes: indexById(firstChild(gpif, 'Notes'), 'Note'),
     masterBars: childrenNamed(firstChild(gpif, 'MasterBars'), 'MasterBar'),
+    rhythms: readGpifRhythms(gpif),
+    tempo: readGpifTempo(gpif),
   };
 
   const tracks = trackNodes.map((trackNode, index) => {
@@ -287,12 +352,12 @@ export function gpifToTracks(xml) {
     const model = buildGpifTrackModel(trackNode, index, openMidis, shared);
     return { index, name, fretted: true, isPercussion: false, model, tuningPitches: openMidis };
   });
-  return { tracks };
+  return { tracks, tempo: shared.tempo };
 }
 
 // Build one track's TabModel from the shared GPIF collections.
 function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
-  const { bars, voices, beats, notes, masterBars } = shared;
+  const { bars, voices, beats, notes, masterBars, rhythms, tempo } = shared;
   const strings = openMidis.map((m) => { const s = midiToNoteOct(m); return { note: s.note, oct: s.oct, label: s.note, openMidi: m }; });
   const tuningName = matchTuningName(openMidis) || 'Custom';
 
@@ -303,26 +368,36 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
   const lastFretByString = new Map(); // for hammer/pull direction
 
   let slot = 0;
+  let cursor = 0; // absolute position in quarter-note units
   for (const mb of masterBars) {
     const barRefs = childText(mb, 'Bars').split(/\s+/).filter(Boolean);
     const barId = barRefs[trackIndex] != null ? barRefs[trackIndex] : barRefs[0];
     const bar = bars.get(barId);
     if (!bar) continue;
     const measureStart = slot;
+    const measureStartBeat = cursor;
     // Section markers (rehearsal marks) label song parts: Intro, Verse, Chorus…
     const sectionNode = firstChild(mb, 'Section');
     const marker = sectionNode
       ? (childText(sectionNode, 'Text') || childText(sectionNode, 'Letter') || null)
       : null;
+    const timeTxt = childText(mb, 'Time');
+    let timeSig = null;
+    if (timeTxt) {
+      const parts = timeTxt.split('/').map(Number);
+      if (parts.length === 2 && parts.every((n) => Number.isFinite(n))) timeSig = parts;
+    }
 
     // First playable voice (GP marks empty voices as -1).
     const voiceRefs = childText(bar, 'Voices').split(/\s+/).filter((v) => v && v !== '-1');
     const voice = voiceRefs.map((v) => voices.get(v)).find(Boolean);
+    let advanced = false;
     if (voice) {
       const beatRefs = childText(voice, 'Beats').split(/\s+/).filter(Boolean);
       for (const beatId of beatRefs) {
         const beat = beats.get(beatId);
         if (!beat) continue;
+        const duration = beatDurationQuarters(beat, rhythms);
         const beatTechniques = [];
         if (firstChild(beat, 'Tremolo')) beatTechniques.push('tremolo');
         if (firstChild(beat, 'DeadSlapped')) beatTechniques.push('slap');
@@ -357,18 +432,39 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
 
           for (const t of techniques) techniqueCounts[t] = (techniqueCounts[t] || 0) + 1;
 
+          const base = {
+            slot, stringIndex, start: cursor, duration,
+            techniques, dead: !!(dead || midi == null),
+          };
           if (dead || midi == null) {
-            events.push({ slot, stringIndex, fret: dead ? null : fret, midi: null, pc: null, techniques, dead: true });
+            events.push({ ...base, fret: dead ? null : fret, midi: null, pc: null, dead: true });
           } else {
-            events.push({ slot, stringIndex, fret, midi, pc: ((midi % 12) + 12) % 12, techniques, dead: false });
+            events.push({ ...base, fret, midi, pc: ((midi % 12) + 12) % 12, dead: false });
           }
           placedInSlot = true;
         }
-        if (placedInSlot || noteRefs.length === 0) slot += 1; // rests still advance time
+        // Rests and empty beats still advance musical time.
+        if (placedInSlot || noteRefs.length === 0) {
+          slot += 1;
+          cursor += duration;
+          advanced = true;
+        }
       }
     }
-    if (slot === measureStart) slot += 1; // guarantee forward progress
-    measures.push({ startSlot: measureStart, endSlot: slot, marker });
+    if (!advanced) {
+      // Empty measure: advance one bar of 4/4 (or declared time sig).
+      const beatsInBar = timeSig ? (timeSig[0] * (4 / (timeSig[1] || 4))) : 4;
+      slot += 1;
+      cursor += beatsInBar;
+    }
+    measures.push({
+      startSlot: measureStart,
+      endSlot: slot,
+      startBeat: measureStartBeat,
+      endBeat: cursor,
+      marker,
+      timeSig: timeSig || undefined,
+    });
   }
 
   events.sort((a, b) => (a.slot - b.slot) || (a.stringIndex - b.stringIndex));
@@ -382,6 +478,8 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
     events,
     slots: events.length ? Math.max(...events.map((e) => e.slot)) + 1 : slot,
     measures,
+    tempo: Number.isFinite(tempo) && tempo > 0 ? tempo : 120,
+    totalBeats: cursor,
     techniqueCounts,
     warnings,
   };
@@ -525,8 +623,16 @@ export async function parseGuitarPro(input) {
   const bytes = toUint8(input);
   const fmt = detectGuitarProFormat(bytes);
   if (fmt === 'gp5') {
-    const { tracks } = parseGp5Tracks(bytes);
-    return assembleResult('gp5', tracks, tracks.length);
+    const { tracks, tempo } = parseGp5Tracks(bytes);
+    const result = assembleResult('gp5', tracks, tracks.length);
+    if (Number.isFinite(tempo) && tempo > 0) {
+      result.tempo = tempo;
+      for (const t of result.tracks) {
+        if (t.model && !t.model.tempo) t.model.tempo = tempo;
+      }
+      if (result.model && !result.model.tempo) result.model.tempo = tempo;
+    }
+    return result;
   }
   if (fmt === 'gpx') {
     throw new Error('This is a Guitar Pro 6 (.gpx) file. Open it in Guitar Pro and re-export as “.gp” (Guitar Pro 7/8) or “.gp5” to analyze it.');
@@ -544,6 +650,14 @@ export async function parseGuitarPro(input) {
   if (!gpif) throw new Error('guitarPro: no score.gpif inside the .gp archive');
   const xmlBytes = await readZipEntry(bytes, gpif);
   const xml = bytesToUtf8(xmlBytes);
-  const { tracks } = gpifToTracks(xml);
-  return assembleResult('gp7', tracks, tracks.length);
+  const { tracks, tempo } = gpifToTracks(xml);
+  const result = assembleResult('gp7', tracks, tracks.length);
+  if (Number.isFinite(tempo) && tempo > 0) {
+    result.tempo = tempo;
+    for (const t of result.tracks) {
+      if (t.model && !t.model.tempo) t.model.tempo = tempo;
+    }
+    if (result.model && !result.model.tempo) result.model.tempo = tempo;
+  }
+  return result;
 }

@@ -36,6 +36,7 @@
 <link rel="stylesheet" href="css/practice.css">
 <link rel="stylesheet" href="css/tabanalyzer.css">
 <link rel="stylesheet" href="css/tracktosheet.css">
+<link rel="stylesheet" href="css/gpplayer.css">
 <link rel="stylesheet" href="css/intervalorbit.css">
 <link rel="stylesheet" href="css/selection-sheet.css">
 <link rel="stylesheet" href="css/ux-shell.css">
@@ -1411,7 +1412,7 @@
     <div class="section-head">
       <div class="section-kicker">Tools</div>
       <h2>Exercises</h2>
-      <p>Upload PDFs, images, audio and video, or add lesson links to read and play while you practice.</p>
+      <p>Upload PDFs, images, audio, video, and Guitar Pro <code>.gp</code>/<code>.gp5</code> files, or add lesson links to read and play while you practice.</p>
     </div>
     <div class="quiz-layout ex-layout">
       <aside class="sidebar ex-sidebar">
@@ -1428,7 +1429,7 @@
         <div class="ex-toolbar">
           <div class="ex-toolbar-title" id="ex-current-title">All Exercises</div>
           <div class="ex-toolbar-actions">
-            <input type="file" id="ex-file-input" accept="application/pdf,.pdf,image/*,audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.mov" multiple hidden>
+            <input type="file" id="ex-file-input" accept="application/pdf,.pdf,image/*,audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.mov,.gp,.gp5,application/x-guitar-pro" multiple hidden>
             <button class="btn primary" id="ex-upload-btn" type="button">+ Upload File</button>
             <button class="btn" id="ex-add-link-btn" type="button">+ Add Link</button>
           </div>
@@ -1492,6 +1493,27 @@ E|-------------------|"></textarea>
       <div class="ta-results" id="ta-results">
         <div class="quiz-card"><p class="ta-muted">Paste a tab and hit Analyze.</p></div>
       </div>
+    </div>
+  </section>
+
+  <!-- GUITAR PRO PLAYER -->
+  <section id="sec-gpplayer" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Create</div>
+      <h2>Guitar Pro Player</h2>
+      <p>Open a <code>.gp</code> or <code>.gp5</code> score, pick a track, and practice with tempo, transpose, and tuning controls. Notes rewrite automatically when you change key or tuning.</p>
+    </div>
+    <div class="gpp-layout">
+      <div class="gpp-drop" id="gpp-drop">
+        <div class="gpp-drop-title">Drop a Guitar Pro file</div>
+        <div class="gpp-drop-sub">Supports Guitar Pro 7/8 (<code>.gp</code>) and Guitar Pro 5 (<code>.gp5</code>). Older <code>.gp3</code>/<code>.gp4</code>/<code>.gpx</code> need a re-export.</div>
+        <div class="gpp-drop-actions">
+          <label class="btn primary" for="gpp-file">Choose file</label>
+          <input type="file" id="gpp-file" accept=".gp,.gp5,application/x-guitar-pro" hidden>
+        </div>
+      </div>
+      <div class="gpp-status" id="gpp-status" hidden></div>
+      <div class="gpp-stage" id="gpp-stage" hidden></div>
     </div>
   </section>
 

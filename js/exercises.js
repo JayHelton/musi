@@ -18,6 +18,7 @@ import {
   attachmentsSupported,
   ensurePersistentStorage,
 } from './attachments.js';
+import { isGuitarProName, parseGuitarPro, mountGpPlayer } from './gpPlayerUI.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -303,6 +304,14 @@ function isVideoItem(item) {
   );
 }
 
+function isGpItem(item) {
+  return !!item && (
+    item.type === 'application/x-guitar-pro' ||
+    isGuitarProName(item.fileName || item.name || '') ||
+    /^(gp|gp5)$/i.test(fileExt(item))
+  );
+}
+
 function youtubeEmbedUrl(url) {
   const safe = safeExternalUrl(url);
   if (!safe) return '';
@@ -327,6 +336,7 @@ function youtubeEmbedUrl(url) {
 
 function mediaKind(item) {
   if (item && item.url) return youtubeEmbedUrl(item.url) ? 'youtube' : 'link';
+  if (isGpItem(item)) return 'gp';
   if (isVideoItem(item)) return 'video';
   if (isAudioItem(item)) return 'audio';
   if (isImageItem(item)) return 'image';
@@ -342,6 +352,7 @@ function mediaKindLabel(item) {
     video: 'Video',
     youtube: 'YouTube',
     link: 'Link',
+    gp: 'Guitar Pro',
     file: 'File',
   };
   return labels[mediaKind(item)] || 'File';
@@ -643,6 +654,7 @@ function exerciseIconSvg(item) {
   if (kind === 'audio') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
   if (kind === 'video' || kind === 'youtube') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>';
   if (kind === 'link') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4.93"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19.07"/></svg>';
+  if (kind === 'gp') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9v6l5-3-5-3z"/><path d="M15 9h2M15 12h3M15 15h1"/></svg>';
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>';
 }
 
@@ -665,14 +677,17 @@ async function onUploadFiles() {
   let rejected = 0;
   for (const file of files) {
     const probe = { type: file.type || '', fileName: file.name };
-    const isSupported = isPdfItem(probe) || isImageItem(probe) || isAudioItem(probe) || isVideoItem(probe);
+    const isSupported = isPdfItem(probe) || isImageItem(probe) || isAudioItem(probe)
+      || isVideoItem(probe) || isGpItem(probe);
     if (!isSupported) { rejected++; continue; }
     if (file.size > MAX_FILE_BYTES) { rejected++; continue; }
 
     setStatus(`Uploading "${file.name}"\u2026`);
     const dot = file.name.lastIndexOf('.');
     const base = dot > 0 ? file.name.slice(0, dot) : file.name;
-    const fileType = file.type || (isPdfItem(probe) ? 'application/pdf' : '');
+    const fileType = file.type
+      || (isPdfItem(probe) ? 'application/pdf' : '')
+      || (isGpItem(probe) ? 'application/x-guitar-pro' : '');
     const meta = await saveFile({
       blob: file, name: base || 'Exercise', type: fileType,
       fileName: file.name, size: file.size, source: 'exercise',
@@ -697,7 +712,28 @@ async function onUploadFiles() {
   render();
   if (added && rejected) setStatus(`Added ${added} file${added === 1 ? '' : 's'}. Skipped ${rejected} unsupported or oversized file${rejected === 1 ? '' : 's'}.`, true);
   else if (added) setStatus(`Added ${added} file${added === 1 ? '' : 's'}.`);
-  else if (rejected) setStatus('Only PDF, image, audio or video files up to 250 MB can be uploaded.', true);
+  else if (rejected) setStatus('Only PDF, image, audio, video or Guitar Pro (.gp/.gp5) files up to 250 MB can be uploaded.', true);
+}
+
+/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player). */
+export function addGpExerciseFromAttachment({ attachmentId, name, fileName, type, size, categoryId = '' }) {
+  if (!attachmentId) return null;
+  const store = getStore();
+  const item = {
+    id: uid('ex'),
+    name: clampText(name || 'Guitar Pro', NAME_LIMIT),
+    categoryId: typeof categoryId === 'string' ? categoryId : '',
+    attachmentId,
+    url: '',
+    fileName: fileName || '',
+    type: type || 'application/x-guitar-pro',
+    size: Number.isFinite(Number(size)) ? Number(size) : 0,
+    addedAt: nowISO(),
+  };
+  store.items.unshift(item);
+  persist();
+  if (wired) render();
+  return item;
 }
 
 // --- URL exercise creation --------------------------------------------------
@@ -732,6 +768,7 @@ function addLinkExercise(name, url) {
 
 let viewerRoot = null;
 let viewerURL = null;
+let viewerGpMount = null;
 
 function ensureViewerRoot() {
   if (viewerRoot) return viewerRoot;
@@ -753,7 +790,11 @@ export async function openExerciseViewer(id) {
   const kind = mediaKind(item);
 
   const overlay = el('div', { class: 'ex-viewer-overlay' });
-  const panel = el('div', { class: 'ex-viewer-panel', role: 'dialog', 'aria-label': item.name });
+  const panel = el('div', {
+    class: 'ex-viewer-panel' + (kind === 'gp' ? ' ex-viewer-panel-gp' : ''),
+    role: 'dialog',
+    'aria-label': item.name,
+  });
 
   const head = el('div', { class: 'ex-viewer-head' }, [
     el('div', { class: 'ex-viewer-title', text: item.name, title: item.fileName || item.name }),
@@ -767,10 +808,12 @@ export async function openExerciseViewer(id) {
   }
   if (blob) {
     viewerURL = URL.createObjectURL(blob);
-    headActions.appendChild(el('a', {
-      class: 'btn sm', href: viewerURL, target: '_blank', rel: 'noopener', text: 'Open in tab',
-    }));
-    const ext = kind === 'pdf' ? 'pdf' : '';
+    if (kind !== 'gp') {
+      headActions.appendChild(el('a', {
+        class: 'btn sm', href: viewerURL, target: '_blank', rel: 'noopener', text: 'Open in tab',
+      }));
+    }
+    const ext = kind === 'pdf' ? 'pdf' : (kind === 'gp' ? (fileExt(item) || 'gp') : '');
     const downloadName = item.fileName || (ext ? `${item.name}.${ext}` : item.name);
     headActions.appendChild(el('a', {
       class: 'btn sm', href: viewerURL, download: downloadName, text: 'Download',
@@ -800,6 +843,45 @@ export async function openExerciseViewer(id) {
         text: 'If this site blocks embedding, use Open link.',
       }));
     }
+  } else if (blob && kind === 'gp') {
+    const mountHost = el('div', { class: 'ex-gp-mount' });
+    body.appendChild(mountHost);
+    panel.appendChild(body);
+    overlay.appendChild(panel);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeExerciseViewer(); });
+    viewerRoot.appendChild(overlay);
+    document.body.classList.add('ex-viewer-open');
+    try {
+      const buf = await blob.arrayBuffer();
+      const gp = await parseGuitarPro(buf);
+      viewerGpMount = mountGpPlayer(mountHost, {
+        gpResult: gp,
+        title: item.name,
+        fileName: item.fileName || item.name,
+        hideTitle: true,
+        preferredTrackIndex: Number.isFinite(item.preferredTrackIndex) ? item.preferredTrackIndex : 0,
+        onAnalyze: ({ trackIndex }) => {
+          window.__musiGpHandoff = {
+            bytes: new Uint8Array(buf),
+            name: item.fileName || item.name,
+            trackIndex: trackIndex || 0,
+          };
+          closeExerciseViewer();
+          location.hash = 'tabanalyzer';
+          setTimeout(() => {
+            if (typeof window.__musiLoadGpHandoff === 'function' && window.__musiGpHandoff) {
+              window.__musiLoadGpHandoff(window.__musiGpHandoff);
+            }
+          }, 50);
+        },
+      });
+    } catch (err) {
+      mountHost.appendChild(el('div', {
+        class: 'ex-viewer-missing',
+        text: err?.message || 'Could not open this Guitar Pro file.',
+      }));
+    }
+    return;
   } else if (blob) {
     if (kind === 'image') {
       body.appendChild(el('img', {
@@ -833,6 +915,10 @@ export async function openExerciseViewer(id) {
 }
 
 export function closeExerciseViewer() {
+  if (viewerGpMount) {
+    try { viewerGpMount.destroy(); } catch (e) { /* ignore */ }
+    viewerGpMount = null;
+  }
   if (viewerURL) { try { URL.revokeObjectURL(viewerURL); } catch (e) {} viewerURL = null; }
   if (viewerRoot) viewerRoot.innerHTML = '';
   document.body.classList.remove('ex-viewer-open');
