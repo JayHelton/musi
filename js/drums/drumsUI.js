@@ -282,7 +282,7 @@ function renderLibrary() {
       <button class="btn sm primary" id="dr-import-gp">Import Guitar Pro</button>
       <input type="file" id="dr-import-pdf-file" accept="application/pdf,.pdf" hidden multiple>
       <input type="file" id="dr-import-gp-file" accept=".gp,.gp5,application/x-guitar-pro" hidden>
-      <span class="dr-lib-tools-hint">Add drum tabs, notation PDFs, or Guitar Pro scores. GP sections can also be saved into Song Learning.</span>
+      <span class="dr-lib-tools-hint">Your library starts empty — import Guitar Pro scores or PDFs, or save patterns from the Drum Machine and Fill Generator.</span>
     </div>
     <div class="dr-filters">
       <input type="search" id="dr-search" class="dr-search" placeholder="Search patterns…" value="${escapeAttr(libFilters.search)}">
@@ -411,7 +411,10 @@ function renderCards() {
   $('dr-lib-count').textContent = `${list.length} pattern${list.length === 1 ? '' : 's'}`;
   wrap.innerHTML = '';
   if (!list.length) {
-    wrap.innerHTML = '<div class="dr-empty">No patterns match your filters.</div>';
+    const any = allPatterns().length;
+    wrap.innerHTML = any
+      ? '<div class="dr-empty">No patterns match your filters.</div>'
+      : '<div class="dr-empty">No patterns yet. Import a Guitar Pro file or PDF, or save a beat from the Drum Machine.</div>';
     return;
   }
   list.forEach((p) => wrap.appendChild(buildPatternCard(p)));

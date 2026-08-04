@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v103-song-learn";
+const CACHE_VERSION = "v104-drums-no-builtins";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -135,7 +135,6 @@ const PRECACHE_URLS = [
   "js/drums/pdfTabImport.js",
   "js/drums/tabRenderer.js",
   "js/drums/builtinPatterns.js",
-  "js/drums/lessonPatterns.js",
   "js/drums/drumEngine.js",
   "js/drums/fillGenerator.js",
   "js/drums/drumPatternDb.js",
