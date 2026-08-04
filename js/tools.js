@@ -142,6 +142,15 @@ export const TOOLS = [
     holdRecord: false,
   },
   {
+    id: 'triads',
+    label: 'Triads Reference',
+    short: 'Triads',
+    category: 'reference',
+    description: 'Map every closed triad pattern for a root across any tuning.',
+    title: 'Triads Reference',
+    holdRecord: false,
+  },
+  {
     id: 'circle',
     label: 'Circle of Fifths',
     short: 'Circle',
@@ -274,6 +283,7 @@ export const TOOL_ICONS = {
   sightreading: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 10h18M3 14h18M3 18h18"/><circle cx="8" cy="15" r="2.4" fill="currentColor" stroke="none"/><path d="M10.4 15V7"/></svg>',
   scaleref: CATEGORY_ICONS.reference,
   chords: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg>',
+  triads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4 4 19h16L12 4z"/><circle cx="12" cy="9" r="1.4" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.4" fill="currentColor" stroke="none"/></svg>',
   circle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>',
   keyboard: CATEGORY_ICONS.tools,
   metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L6 22h12L12 2z"/><path d="M12 8v6"/><circle cx="12" cy="16" r="1.5"/></svg>',

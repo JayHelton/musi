@@ -524,6 +524,45 @@ textarea,
 .home-quick-card:nth-child(4n + 3) .hq-icon { color: var(--btn-x); }
 .home-quick-card:nth-child(4n + 4) .hq-icon { color: var(--shell-bright); }
 
+/* Triads Reference — quality colors from GBC face buttons / accent tokens */
+:root {
+  --triad-major: var(--btn-a);
+  --triad-minor: var(--btn-x);
+  --triad-diminished: var(--accent2);
+  --triad-augmented: #6ec6ff;
+  --triad-sus2: var(--accent);
+  --triad-sus4: #ffb020;
+}
+
+#sec-triads .triad-row {
+  background: rgba(18, 26, 46, 0.72);
+  border-color: rgba(180, 140, 255, 0.18);
+  border-radius: var(--radius-screen);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+#sec-triads .triad-info-head h3,
+#sec-triads .ref-fb-title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 400;
+}
+#sec-triads .triad-row-name,
+#sec-triads .triad-symbol {
+  font-family: var(--font-body);
+}
+#sec-triads .triad-row-count,
+#sec-triads .triad-info-blurb,
+#sec-triads .triad-fretnum,
+#sec-triads .triad-strlabel {
+  font-family: var(--font-ui);
+}
+#sec-triads .triad-note-label {
+  fill: var(--on-accent);
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
 .home-cat-link:nth-child(4n + 1) .dock-icon { color: var(--btn-a); }
 .home-cat-link:nth-child(4n + 2) .dock-icon { color: var(--accent); }
 .home-cat-link:nth-child(4n + 3) .dock-icon { color: var(--btn-x); }
