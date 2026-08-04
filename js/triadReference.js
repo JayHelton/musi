@@ -8,6 +8,8 @@ import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio
 // one stacked visual (Major / Minor / Dim / Aug), each row coloured and wired
 // with shape outlines like classic "triads for soloing" charts.
 
+// Quality colors come from CSS custom properties (--triad-*) so the Atomic
+// Purple / GBC theme can re-token them. JS only picks the variable name.
 export const TRIAD_QUALITIES = [
   {
     id: 'major',
@@ -15,7 +17,7 @@ export const TRIAD_QUALITIES = [
     sym: '',
     displaySym: '',
     tones: [[0, 0, 'R'], [2, 4, '3'], [4, 7, '5']],
-    color: '#ff6b9d',
+    colorVar: '--triad-major',
   },
   {
     id: 'minor',
@@ -23,7 +25,7 @@ export const TRIAD_QUALITIES = [
     sym: 'm',
     displaySym: 'm',
     tones: [[0, 0, 'R'], [2, 3, 'b3'], [4, 7, '5']],
-    color: '#4cc9f0',
+    colorVar: '--triad-minor',
   },
   {
     id: 'diminished',
@@ -31,7 +33,7 @@ export const TRIAD_QUALITIES = [
     sym: '°',
     displaySym: '°',
     tones: [[0, 0, 'R'], [2, 3, 'b3'], [4, 6, 'b5']],
-    color: '#c86bfa',
+    colorVar: '--triad-diminished',
   },
   {
     id: 'augmented',
@@ -39,7 +41,7 @@ export const TRIAD_QUALITIES = [
     sym: '+',
     displaySym: '+',
     tones: [[0, 0, 'R'], [2, 4, '3'], [4, 8, '#5']],
-    color: '#06d6a0',
+    colorVar: '--triad-augmented',
   },
   {
     id: 'sus2',
@@ -47,7 +49,7 @@ export const TRIAD_QUALITIES = [
     sym: 'sus2',
     displaySym: 'sus2',
     tones: [[0, 0, 'R'], [1, 2, '2'], [4, 7, '5']],
-    color: '#ffd23f',
+    colorVar: '--triad-sus2',
     optional: true,
   },
   {
@@ -56,10 +58,14 @@ export const TRIAD_QUALITIES = [
     sym: 'sus4',
     displaySym: '4',
     tones: [[0, 0, 'R'], [3, 5, '4'], [4, 7, '5']],
-    color: '#ffa62b',
+    colorVar: '--triad-sus4',
     optional: true,
   },
 ];
+
+function qualityColor(q) {
+  return `var(${q.colorVar})`;
+}
 
 const FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 const MAX_FRET = 24;
@@ -348,8 +354,9 @@ function wireControls() {
 
 /** SVG fretboard row for one quality — notes + connecting shape polygons. */
 function renderQualityRowSvg(quality, voicings, {
-  start, end, color, label,
+  start, end, label,
 }) {
+  const color = qualityColor(quality);
   const fretCount = end - start + 1;
   const labelW = 44;
   const nameW = 72;
@@ -440,7 +447,7 @@ function renderQualityRowSvg(quality, voicings, {
     const isRoot = n.interval === 0;
     const r = isRoot ? 11 : 10;
     svg += `<g class="triad-note${isRoot ? ' root' : ''}" data-fret="${n.fret}" data-string="${n.string}">`;
-    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"${isRoot ? ' stroke="#fff" stroke-width="1.8"' : ''}/>`;
+    svg += `<circle class="triad-note-dot" cx="${cx}" cy="${cy}" r="${r}" fill="${color}"/>`;
     svg += `<text x="${cx}" y="${cy + 3.5}" text-anchor="middle" class="triad-note-label">${escapeHtml(n.label)}</text>`;
     svg += `</g>`;
   }
@@ -484,9 +491,9 @@ function renderTriadMap() {
     }).filter(v => v.minFret >= start && v.maxFret <= end);
 
     const label = chordSymbol(trRoot, q);
-    html += `<div class="triad-row" data-quality="${q.id}" style="--triad-color:${q.color}">`;
+    html += `<div class="triad-row" data-quality="${q.id}" style="--triad-color:${qualityColor(q)}">`;
     html += `<div class="triad-row-scroll">`;
-    html += renderQualityRowSvg(q, voicings, { start, end, color: q.color, label });
+    html += renderQualityRowSvg(q, voicings, { start, end, label });
     html += `</div>`;
     html += `<div class="triad-row-meta">`;
     html += `<button type="button" class="btn sm triad-row-play" data-quality="${q.id}" aria-label="Play ${escapeHtml(label)}">▶</button>`;
@@ -551,9 +558,9 @@ function renderTriadInfo() {
     const count = findClosedTriadVoicings(setOpen, rootP.semi, q.tones, {
       minFret: start, maxFret: end, maxSpan: trMaxSpan,
     }).filter(v => v.minFret >= start && v.maxFret <= end).length;
-    html += `<tr>`;
-    html += `<td><span class="triad-swatch" style="background:${q.color}"></span>${escapeHtml(q.name)}</td>`;
-    html += `<td style="color:${q.color};font-weight:700">${escapeHtml(chordSymbol(trRoot, q))}</td>`;
+    html += `<tr data-quality="${q.id}" style="--triad-color:${qualityColor(q)}">`;
+    html += `<td><span class="triad-swatch"></span>${escapeHtml(q.name)}</td>`;
+    html += `<td class="triad-symbol">${escapeHtml(chordSymbol(trRoot, q))}</td>`;
     html += `<td>${notes.map(n => `<strong>${escapeHtml(n)}</strong>`).join(' · ')}</td>`;
     html += `<td>${escapeHtml(formula)}</td>`;
     html += `<td>${count}</td>`;

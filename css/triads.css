@@ -1,4 +1,15 @@
-/* Triads Reference — stacked closed-voicing maps */
+/* Triads Reference — stacked closed-voicing maps.
+   Quality colors are CSS variables so theme-gbc.css (and future themes) can
+   re-token them without touching the SVG renderer. */
+
+:root {
+  --triad-major: #e63946;
+  --triad-minor: #4da3ff;
+  --triad-diminished: #b45eff;
+  --triad-augmented: #6ec6ff;
+  --triad-sus2: #ffe14a;
+  --triad-sus4: #ffb020;
+}
 
 #sec-triads .ref-fb-card{padding:18px 18px 12px}
 #sec-triads .quiz-main{gap:14px}
@@ -8,9 +19,9 @@
 .triad-row{
   display:flex;align-items:center;gap:10px;
   padding:8px 8px 8px 4px;
-  border-radius:12px;
+  border-radius:var(--radius-screen, 12px);
   background:rgba(255,255,255,0.02);
-  border:1px solid rgba(255,255,255,0.05);
+  border:1px solid var(--border);
 }
 .triad-row-scroll{
   flex:1 1 auto;min-width:0;
@@ -29,14 +40,19 @@
 .triad-board-bg{fill:var(--bg2);stroke:var(--border);stroke-width:1}
 .triad-fretnum{fill:var(--muted);font-size:9px;font-weight:600;font-family:inherit}
 .triad-strlabel{fill:var(--muted);font-size:10px;font-weight:600;font-family:inherit}
-.triad-string{stroke:rgba(255,255,255,0.22);stroke-width:1.4}
-.triad-fretline{stroke:rgba(255,255,255,0.07);stroke-width:1}
+.triad-string{stroke:color-mix(in srgb, var(--text) 28%, transparent);stroke-width:1.4}
+.triad-fretline{stroke:color-mix(in srgb, var(--text) 10%, transparent);stroke-width:1}
 .triad-nut{stroke:var(--muted);stroke-width:3;stroke-linecap:round}
-.triad-inlay{fill:rgba(255,255,255,0.12)}
+.triad-inlay{fill:color-mix(in srgb, var(--text) 16%, transparent)}
 .triad-shape{transition:fill-opacity .15s ease}
 .triad-shape:hover{fill-opacity:0.28}
+.triad-note-dot{filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45))}
+.triad-note.root .triad-note-dot{
+  stroke:var(--text);
+  stroke-width:1.8;
+}
 .triad-note-label{
-  fill:#0a0a0a;font-size:9px;font-weight:800;font-family:inherit;
+  fill:var(--on-accent, #0b1020);font-size:9px;font-weight:800;font-family:inherit;
   pointer-events:none;
 }
 .triad-row-name{
@@ -54,8 +70,10 @@
 .triad-swatch{
   display:inline-block;width:10px;height:10px;border-radius:50%;
   margin-right:8px;vertical-align:middle;
-  box-shadow:0 0 0 1px rgba(0,0,0,0.35);
+  background:var(--triad-color);
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--text) 20%, transparent);
 }
+.triad-symbol{color:var(--triad-color);font-weight:700}
 
 #sl-triad-tuning .sl-item,
 #sl-triad-stringset .sl-item{
