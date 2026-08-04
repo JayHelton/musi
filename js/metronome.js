@@ -668,7 +668,10 @@ function startMetronome() {
   metro._phaseIndex = -1;
   document.getElementById('m-play').textContent = '\u25A0 Stop';
   document.getElementById('m-play').classList.add('playing');
-  showNowPlaying(phaseNowPlayingLabel(), stopMetronome);
+  showNowPlaying(
+    phaseActive() ? phaseNowPlayingLabel() : `Metronome \u2014 ${metro.bpm} BPM`,
+    stopMetronome
+  );
   renderBeatIndicator();
   metro._countInLeft = metro.countIn ? metro.tsNum : 0;
   metro._nextNoteTime = audioCtx.currentTime + 0.05;
