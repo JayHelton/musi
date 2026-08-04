@@ -65,6 +65,19 @@
   padding:14px 16px 10px;display:flex;flex-direction:column;gap:12px;
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28)
 }
+.sln-gp-card{border-color:rgba(255,225,74,0.35)}
+.sln-player-banner{
+  font-size:.85rem;color:var(--text);line-height:1.4;padding:10px 12px;
+  border:1px solid rgba(255,225,74,0.28);border-radius:10px;background:var(--accent-dim)
+}
+.sln-save-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.sln-sel-label{
+  font-family:var(--font-ui,"VT323",monospace);font-size:1.05rem;color:var(--accent);
+  font-variant-numeric:tabular-nums
+}
+.sln-gp-host{min-height:120px}
+.sln-gp-host .gpp-root{gap:10px}
+.sln-mix-card{margin-top:4px}
 .sln-transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sln-mute.muted{opacity:.45;text-decoration:line-through}
 .sln-time,.sln-rest-status{
@@ -72,28 +85,6 @@
   font-family:var(--font-ui,"VT323",monospace)
 }
 .sln-rest-status{color:var(--accent)}
-.sln-tempo-chip{margin-left:auto}
-.sln-drop[hidden]{display:none}
-
-.sln-settings{
-  border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9);
-  padding:0;overflow:hidden
-}
-.sln-settings-summary{
-  list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
-  gap:10px;padding:10px 12px;user-select:none
-}
-.sln-settings-summary::-webkit-details-marker{display:none}
-.sln-settings-summary-label{
-  font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
-  letter-spacing:1.4px;text-transform:uppercase;color:var(--accent)
-}
-.sln-settings-summary-bpm{
-  font-size:.95rem;color:var(--muted);font-family:var(--font-ui,"VT323",monospace)
-}
-.sln-settings[open] .sln-settings-summary{border-bottom:1px solid var(--border)}
-.sln-settings .sln-controls{border:0;border-radius:0;background:transparent}
-
 .sln-controls{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;
   padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9)
@@ -145,7 +136,7 @@
 }
 .sln-follow-stage{
   position:relative;display:flex;align-items:stretch;overflow:hidden;
-  height:min(280px,42vh);background:var(--bg)
+  height:min(360px,52vh);background:var(--bg)
 }
 .sln-follow-viewport{position:relative;flex:1;min-width:0;overflow:hidden}
 .sln-follow-playhead{
