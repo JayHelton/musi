@@ -174,29 +174,16 @@ export function mountGpPlayer(host, {
   meta.appendChild(infoLine);
   host.appendChild(meta);
 
-  // ---- transport (kept adjacent to the follow visual) ----
+  // ---- transport ----
   const transport = el('div', { class: 'gpp-transport' });
   const playBtn = el('button', { class: 'btn primary gpp-play', type: 'button', text: 'Play' });
   const stopBtn = el('button', { class: 'btn', type: 'button', text: 'Stop' });
   const timeLabel = el('span', { class: 'gpp-time', text: '0:00 / 0:00' });
   const measureLabel = el('span', { class: 'gpp-measure', text: '' });
-  const tempoChip = el('button', {
-    class: 'btn sm gpp-tempo-chip', type: 'button',
-    text: `${Math.round(state.bpm)} BPM`,
-    title: 'Tempo & practice settings',
-  });
-  transport.append(playBtn, stopBtn, timeLabel, measureLabel, tempoChip);
+  transport.append(playBtn, stopBtn, timeLabel, measureLabel);
   host.appendChild(transport);
 
-  // ---- measure strip + follow-along visual (directly under transport) ----
-  const strip = el('div', { class: 'gpp-strip', 'aria-label': 'Measures' });
-  host.appendChild(strip);
-  const followHost = el('div', { class: 'gpp-follow-host sln-follow-host' });
-  host.appendChild(followHost);
-  const tabPre = el('pre', { class: 'gpp-tab', text: '', hidden: 'hidden' });
-  host.appendChild(tabPre);
-
-  // ---- collapsible practice settings (tempo / transpose / tuning / loop) ----
+  // ---- controls: BPM / transpose / tuning ----
   const controls = el('div', { class: 'gpp-controls' });
 
   const bpmInput = el('input', {
@@ -268,30 +255,15 @@ export function mountGpPlayer(host, {
     ]),
   ]));
 
-  const settingsBpmLabel = el('span', {
-    class: 'gpp-settings-summary-bpm',
-    text: `${Math.round(state.bpm)} BPM`,
-  });
-  const settings = el('details', { class: 'gpp-settings' }, [
-    el('summary', { class: 'gpp-settings-summary' }, [
-      el('span', { class: 'gpp-settings-summary-label', text: 'Tempo & settings' }),
-      settingsBpmLabel,
-    ]),
-    controls,
-  ]);
-  host.appendChild(settings);
+  host.appendChild(controls);
 
-  function syncTempoLabels() {
-    const label = `${Math.round(state.bpm)} BPM`;
-    tempoChip.textContent = label;
-    settingsBpmLabel.textContent = label;
-  }
-  tempoChip.addEventListener('click', () => {
-    settings.open = !settings.open;
-    if (settings.open) {
-      settings.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
-  });
+  // ---- measure strip + follow-along visual ----
+  const strip = el('div', { class: 'gpp-strip', 'aria-label': 'Measures' });
+  host.appendChild(strip);
+  const followHost = el('div', { class: 'gpp-follow-host sln-follow-host' });
+  host.appendChild(followHost);
+  const tabPre = el('pre', { class: 'gpp-tab', text: '', hidden: 'hidden' });
+  host.appendChild(tabPre);
 
   // ---- wiring ----
   function currentTrack() {
@@ -330,6 +302,32 @@ export function mountGpPlayer(host, {
     loopEndSel.value = String(state.loopEnd);
   }
 
+  let stripDragAnchor = null;
+
+  function paintStripSelection() {
+    strip.querySelectorAll('.gpp-bar').forEach((b) => {
+      const i = Number(b.dataset.index);
+      b.classList.toggle('in-loop', state.loopEnabled && i >= state.loopStart && i <= state.loopEnd);
+    });
+    loopToggle.checked = !!state.loopEnabled;
+    loopStartSel.value = String(state.loopStart);
+    loopEndSel.value = String(state.loopEnd);
+  }
+
+  function commitStripSelection({ seek = true, autoplay = false } = {}) {
+    state.loopEnabled = true;
+    paintStripSelection();
+    if (seek) reloadPlayer({ fromMeasure: state.loopStart, autoplay });
+    else {
+      player.load(state.viewModel, {
+        bpm: state.bpm,
+        loopMeasures: [state.loopStart, state.loopEnd],
+        loopRestSec: state.loopRestSec,
+      });
+    }
+    emitPracticeSettings();
+  }
+
   function rebuildStrip() {
     strip.innerHTML = '';
     const measures = state.viewModel?.measures || [];
@@ -342,31 +340,36 @@ export function mountGpPlayer(host, {
         type: 'button',
         text: m.marker ? `${i + 1}\n${m.marker}` : String(i + 1),
         title: m.marker
-          ? `${m.marker} · click to seek, Shift+click to set loop end`
-          : `Bar ${i + 1} · click to seek / set loop start, Shift+click to set loop end`,
-        onClick: (e) => {
-          if (e.shiftKey) {
-            state.loopEnd = Math.max(state.loopStart, i);
-            state.loopEnabled = true;
-            loopToggle.checked = true;
-            loopEndSel.value = String(state.loopEnd);
-            const was = player.playing;
-            player.stop();
-            reloadPlayer({ autoplay: was });
-            emitPracticeSettings();
-            return;
-          }
-          // Click sets loop start (and seeks). Extends end if needed.
-          state.loopStart = i;
-          if (state.loopEnd < i) state.loopEnd = i;
-          loopStartSel.value = String(state.loopStart);
-          loopEndSel.value = String(state.loopEnd);
-          const wasPlaying = player.playing;
-          reloadPlayer({ fromMeasure: i, autoplay: wasPlaying });
-          emitPracticeSettings();
-        },
+          ? `${m.marker} · drag to highlight loop, Shift+click end`
+          : `Bar ${i + 1} · drag to highlight a loop range, Shift+click to set end`,
       });
       btn.dataset.index = String(i);
+      btn.addEventListener('pointerdown', (e) => {
+        if (e.shiftKey) {
+          state.loopEnd = Math.max(state.loopStart, i);
+          commitStripSelection({ seek: true, autoplay: player.playing });
+          return;
+        }
+        e.preventDefault();
+        stripDragAnchor = i;
+        state.loopStart = i;
+        state.loopEnd = i;
+        state.loopEnabled = true;
+        paintStripSelection();
+        try { btn.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      });
+      btn.addEventListener('pointerenter', (e) => {
+        if (stripDragAnchor == null || !(e.buttons & 1)) return;
+        state.loopStart = Math.min(stripDragAnchor, i);
+        state.loopEnd = Math.max(stripDragAnchor, i);
+        paintStripSelection();
+      });
+      btn.addEventListener('pointerup', () => {
+        if (stripDragAnchor == null) return;
+        const was = player.playing;
+        stripDragAnchor = null;
+        commitStripSelection({ seek: true, autoplay: was });
+      });
       strip.appendChild(btn);
     });
   }
@@ -459,7 +462,6 @@ export function mountGpPlayer(host, {
     state.bpm = Math.max(40, Math.min(280, Math.round(state.scoreBpm * (pct / 100))));
     bpmInput.value = String(state.bpm);
     bpmPct.textContent = `${pct}%`;
-    syncTempoLabels();
   }
 
   // Events
@@ -474,7 +476,6 @@ export function mountGpPlayer(host, {
     bpmInput.value = String(Math.round(state.bpm));
     bpmSlider.value = '100';
     bpmPct.textContent = '100%';
-    syncTempoLabels();
     transposeInput.value = '0';
     player.stop();
     applyTransforms();
@@ -495,7 +496,6 @@ export function mountGpPlayer(host, {
     const pct = state.scoreBpm ? Math.round((state.bpm / state.scoreBpm) * 100) : 100;
     bpmSlider.value = String(Math.max(50, Math.min(150, pct)));
     bpmPct.textContent = `${bpmSlider.value}%`;
-    syncTempoLabels();
     const was = player.playing;
     player.stop();
     reloadPlayer({ autoplay: was });
