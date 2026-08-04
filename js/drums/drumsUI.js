@@ -14,6 +14,8 @@ import { generateFill, FILL_TEMPLATES } from './fillGenerator.js';
 import { listPatterns, savePattern, deletePattern, drumsDbSupported } from './drumPatternDb.js';
 import { extractPdf } from './pdfExtract.js';
 import { pdfToPatterns } from './pdfTabImport.js';
+import { isGuitarProName, parseGuitarPro } from '../tab/guitarPro.js';
+import { buildGpSectionSnippets } from './gpDrumImport.js';
 import * as engine from './drumEngine.js';
 
 // ---- Lane model shared by the sequencer and tab conversion ----------------
@@ -276,9 +278,11 @@ function renderLibrary() {
   const root = $('drums-view-library');
   root.innerHTML = `
     <div class="dr-lib-tools">
-      <button class="btn sm primary" id="dr-import-pdf">📄 Import PDF</button>
+      <button class="btn sm primary" id="dr-import-pdf">Import PDF</button>
+      <button class="btn sm primary" id="dr-import-gp">Import Guitar Pro</button>
       <input type="file" id="dr-import-pdf-file" accept="application/pdf,.pdf" hidden multiple>
-      <span class="dr-lib-tools-hint">Add your own drum tabs or drum-notation PDFs to the library.</span>
+      <input type="file" id="dr-import-gp-file" accept=".gp,.gp5,application/x-guitar-pro" hidden>
+      <span class="dr-lib-tools-hint">Your library starts empty — import Guitar Pro scores or PDFs, or save patterns from the Drum Machine and Fill Generator.</span>
     </div>
     <div class="dr-filters">
       <input type="search" id="dr-search" class="dr-search" placeholder="Search patterns…" value="${escapeAttr(libFilters.search)}">
@@ -323,6 +327,8 @@ function renderLibrary() {
   $('dr-rand-fill').onclick = () => pickRandom('fill');
   $('dr-import-pdf').onclick = () => $('dr-import-pdf-file').click();
   $('dr-import-pdf-file').onchange = handlePdfImport;
+  $('dr-import-gp').onclick = () => $('dr-import-gp-file').click();
+  $('dr-import-gp-file').onchange = handleGpImport;
   renderCards();
 }
 
@@ -405,7 +411,10 @@ function renderCards() {
   $('dr-lib-count').textContent = `${list.length} pattern${list.length === 1 ? '' : 's'}`;
   wrap.innerHTML = '';
   if (!list.length) {
-    wrap.innerHTML = '<div class="dr-empty">No patterns match your filters.</div>';
+    const any = allPatterns().length;
+    wrap.innerHTML = any
+      ? '<div class="dr-empty">No patterns match your filters.</div>'
+      : '<div class="dr-empty">No patterns yet. Import a Guitar Pro file or PDF, or save a beat from the Drum Machine.</div>';
     return;
   }
   list.forEach((p) => wrap.appendChild(buildPatternCard(p)));
@@ -481,6 +490,72 @@ function auditionPattern(p, btn) {
 
 let importPreviewId = null;
 
+let lastGpImport = null; // { bytes, fileName, gp } for Song Learning handoff
+
+async function handleGpImport(e) {
+  const file = e.target && e.target.files && e.target.files[0];
+  if (e.target) e.target.value = '';
+  if (!file) return;
+  if (!isGuitarProName(file.name)) {
+    flashLibraryToast('Choose a .gp or .gp5 file.');
+    return;
+  }
+  openImportModal({ loading: true, files: [file], kind: 'gp' });
+  try {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const gp = await parseGuitarPro(bytes);
+    lastGpImport = { bytes, fileName: file.name, gp, file };
+    if (!(gp.drumTracks || []).length) {
+      openImportModal({
+        entries: [],
+        warnings: [
+          'This Guitar Pro file has no drum/percussion track. Open it in Song Learning to practice guitar sections, or pick a score that includes drums.',
+        ],
+        files: [file],
+        kind: 'gp',
+        gpHandoff: true,
+      });
+      return;
+    }
+    const snippets = buildGpSectionSnippets(gp, {
+      drumTrackIndex: 0,
+      includeGuitar: false,
+      includeDrums: true,
+    });
+    const entries = snippets
+      .filter((s) => s.hasDrums && s.drums)
+      .map((s, i) => ({
+        pid: `gp-${Date.now().toString(36)}-${i}`,
+        pattern: {
+          ...s.drums,
+          title: `${file.name.replace(/\.(gp|gp5)$/i, '')} · ${s.label}`,
+          category: s.type === 'fill' ? 'fill' : 'beat',
+        },
+        checked: true,
+        snippet: s,
+      }));
+    const warnings = [];
+    if ((gp.tracks || []).length) {
+      warnings.push('Guitar parts were detected — use “Save to Song Learning” to keep guitar + drum snippets together.');
+    }
+    openImportModal({
+      entries,
+      warnings,
+      files: [file],
+      kind: 'gp',
+      gpHandoff: true,
+    });
+  } catch (err) {
+    openImportModal({
+      entries: [],
+      warnings: [err?.message || 'Could not read that Guitar Pro file.'],
+      files: [file],
+      kind: 'gp',
+    });
+  }
+}
+
 async function handlePdfImport(e) {
   const files = Array.from((e.target && e.target.files) || []);
   if (e.target) e.target.value = '';
@@ -538,9 +613,10 @@ function openImportModal(state) {
     : '';
 
   if (state.loading) {
+    const kindLabel = state.kind === 'gp' ? 'Guitar Pro' : 'PDF';
     overlay.innerHTML = `
       <div class="modal-dialog dr-import-modal">
-        <div class="modal-title">Importing PDF…</div>
+        <div class="modal-title">Importing ${kindLabel}…</div>
         <div class="modal-body">Reading and parsing ${escapeHtml(fileLabel)}. This runs entirely on your device.</div>
         <div class="dr-import-spinner" aria-hidden="true"></div>
       </div>`;
@@ -560,6 +636,10 @@ function openImportModal(state) {
     ? entries.map((entry, i) => importItemHtml(entry, i)).join('')
     : '<div class="dr-empty">No patterns to import.</div>';
 
+  const songLearnBtn = state.gpHandoff
+    ? '<button class="btn" id="dr-import-songlearn">Save to Song Learning</button>'
+    : '';
+
   overlay.innerHTML = `
     <div class="modal-dialog dr-import-modal">
       <div class="dr-import-head">
@@ -573,6 +653,7 @@ function openImportModal(state) {
       <div class="dr-import-list" id="dr-import-list">${listHtml}</div>
       <div class="modal-actions">
         <button class="btn" id="dr-import-cancel">Cancel</button>
+        ${songLearnBtn}
         ${entries.length ? '<button class="btn primary" id="dr-import-add">Add selected to library</button>' : ''}
       </div>
     </div>`;
@@ -592,6 +673,24 @@ function openImportModal(state) {
 
   const addBtn = $('dr-import-add');
   if (addBtn) addBtn.onclick = () => commitImport(entries);
+
+  const songBtn = $('dr-import-songlearn');
+  if (songBtn) {
+    songBtn.onclick = () => {
+      closeImportModal();
+      if (!lastGpImport) return;
+      window.__musiSongLearnGp = {
+        bytes: lastGpImport.bytes,
+        name: lastGpImport.fileName,
+      };
+      location.hash = 'songlearn';
+      setTimeout(() => {
+        if (typeof window.__musiLoadSongLearnGp === 'function' && window.__musiSongLearnGp) {
+          window.__musiLoadSongLearnGp(window.__musiSongLearnGp);
+        }
+      }, 60);
+    };
+  }
 }
 
 function importItemHtml(entry, i) {

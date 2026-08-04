@@ -11,6 +11,8 @@ import { analyzeModel } from './tab/tabAnalyzer.js';
 import { pdfToText } from './tab/pdfText.js';
 import { parseGuitarPro, isGuitarProName } from './tab/guitarPro.js';
 import { ensureAudio, audioCtx, midiFreq, getAnalyserDestination } from './audio.js';
+import { modelHasRhythm } from './tab/tabModel.js';
+import { createTabPlayer } from './tab/tabPlayer.js';
 
 const ta = {
   tuning: 'Standard',
@@ -23,6 +25,7 @@ const ta = {
   gp: null,        // last-parsed Guitar Pro file: { format, tracks, ... }
   gpIndex: 0,      // selected track index within ta.gp.tracks
   gpName: '',      // source file name
+  tabPlayer: null,
 };
 
 const SAMPLE_TAB = `e|-------------------------------|
@@ -381,6 +384,9 @@ function analyzeFromModel(model) {
 // ---- Playback ------------------------------------------------------------
 
 function stopPlayback() {
+  if (ta.tabPlayer) {
+    ta.tabPlayer.stop();
+  }
   ta.timers.forEach((t) => clearTimeout(t));
   ta.timers = [];
   ta.voices.forEach((v) => { try { v.osc.stop(); } catch (e) {} });
@@ -394,6 +400,17 @@ function play() {
   ensureAudio();
   const pitched = ta.model.events.filter((e) => e.midi != null);
   if (!pitched.length) return;
+
+  // Prefer the tempo-aware scheduler when the model carries rhythm (GP files).
+  if (modelHasRhythm(ta.model)) {
+    if (!ta.tabPlayer) ta.tabPlayer = createTabPlayer();
+    ta.tabPlayer.load(ta.model, { bpm: ta.model.tempo || 120 });
+    ta.playing = true;
+    ta.tabPlayer.setOnTick(({ playing }) => { ta.playing = playing; });
+    ta.tabPlayer.play();
+    return;
+  }
+
   ta.playing = true;
   const slots = [...new Set(pitched.map((e) => e.slot))].sort((a, b) => a - b);
   const slotIndex = new Map(slots.map((s, i) => [s, i]));
@@ -470,8 +487,27 @@ async function handleFile(file) {
 
 // ---- Lifecycle -----------------------------------------------------------
 
+async function loadGpHandoff(handoff) {
+  if (!handoff || !handoff.bytes) return;
+  try {
+    const note = document.getElementById('ta-file-note');
+    if (note) note.textContent = `Reading ${handoff.name || 'Guitar Pro file'}…`;
+    const gp = await parseGuitarPro(handoff.bytes);
+    ta.gp = gp;
+    ta.gpIndex = Math.max(0, Math.min(gp.tracks.length - 1, handoff.trackIndex || 0));
+    ta.gpName = handoff.name || 'score.gp';
+    buildTrackList(gp);
+    loadGpTrack();
+    window.__musiGpHandoff = null;
+  } catch (err) {
+    const note = document.getElementById('ta-file-note');
+    if (note) note.textContent = err?.message || 'Could not open handed-off Guitar Pro file.';
+  }
+}
+
 export function initTabAnalyzer() {
   buildTuningList();
+  window.__musiLoadGpHandoff = loadGpHandoff;
 
   const input = document.getElementById('ta-input');
   if (input && !input.value) {
@@ -479,7 +515,11 @@ export function initTabAnalyzer() {
     if (saved) input.value = saved;
   }
 
-  if (ta.built) { if (ta.report) render(); return; }
+  if (ta.built) {
+    if (ta.report) render();
+    if (window.__musiGpHandoff) loadGpHandoff(window.__musiGpHandoff);
+    return;
+  }
   ta.built = true;
 
   document.getElementById('ta-analyze').onclick = analyze;
@@ -489,6 +529,8 @@ export function initTabAnalyzer() {
   };
   const fileInput = document.getElementById('ta-file');
   if (fileInput) fileInput.onchange = (e) => handleFile(e.target.files[0]);
+
+  if (window.__musiGpHandoff) loadGpHandoff(window.__musiGpHandoff);
 }
 
 export function stopTabAnalyzer() {
