@@ -19,7 +19,8 @@ const metro = {
   restMode: false,
   phasesEnabled: false,
   phasesLoop: false,
-  phases: [],          // [{ seconds, bpm }] — timed tempo phases
+  phases: [],          // [{ seconds, bpm, subdiv }] — timed tempo + subdivision phases
+  subdiv: 'quarter',   // active clicks-per-beat subdivision (from phases or manual)
   _timer: null,
   _nextNoteTime: 0,
   _currentSlot: 0,
@@ -37,6 +38,16 @@ const metro = {
 const PHASE_MIN_BPM = 30;
 const PHASE_MAX_BPM = 300;
 const PHASE_MAX_SECONDS = 180 * 60;
+
+// Subdivision options for practice phases. `perBeat` is how many equal clicks
+// land inside each beat of the current time signature.
+const SUBDIVISIONS = {
+  quarter:   { id: 'quarter',   label: '4ths',     short: '4ths',  perBeat: 1 },
+  eighth:    { id: 'eighth',    label: '8ths',     short: '8ths',  perBeat: 2 },
+  triplet:   { id: 'triplet',   label: 'Triplets', short: 'trips', perBeat: 3 },
+  sixteenth: { id: 'sixteenth', label: '16ths',    short: '16ths', perBeat: 4 },
+};
+const SUBDIV_IDS = Object.keys(SUBDIVISIONS);
 
 let metroSettingsLoaded = false;
 
@@ -78,6 +89,7 @@ function restoreMetronomeSettings() {
   metro.restMode = !!getSetting('metro.restMode', metro.restMode);
   metro.phasesEnabled = !!getSetting('metro.phasesEnabled', metro.phasesEnabled);
   metro.phasesLoop = !!getSetting('metro.phasesLoop', metro.phasesLoop);
+  metro.subdiv = normalizeSubdiv(getSetting('metro.subdiv', metro.subdiv));
 
   const savedPhases = getSetting('metro.phases', null);
   if (Array.isArray(savedPhases)) {
@@ -401,14 +413,28 @@ function resetSessionTimer() {
   renderSessionTimer();
 }
 
-// --- tempo phases ----------------------------------------------------------
-// Phases let the metronome run continuously through timed tempo sections,
-// e.g. 2 minutes at 100 BPM into 5 minutes at 80 BPM, switching BPM on the fly.
+// --- tempo / subdivision phases --------------------------------------------
+// Phases let the metronome run continuously through timed sections that each
+// set a tempo and a subdivision — e.g. 2:00 of quarters at 100 BPM into
+// 2:00 of eighths at 100 BPM into 2:00 of triplets, switching on the fly.
 
 function clampPhaseInt(value, min, max, fallback) {
   const n = Math.round(Number(value));
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, Math.min(max, n));
+}
+
+function normalizeSubdiv(value) {
+  return SUBDIVISIONS[value] ? value : 'quarter';
+}
+
+function subdivInfo(id = metro.subdiv) {
+  return SUBDIVISIONS[normalizeSubdiv(id)];
+}
+
+function setSubdiv(value, { save = false } = {}) {
+  metro.subdiv = normalizeSubdiv(value);
+  if (save) saveSetting('metro.subdiv', metro.subdiv);
 }
 
 function normalizePhases(raw) {
@@ -419,13 +445,17 @@ function normalizePhases(raw) {
     const seconds = clampPhaseInt(p.seconds, 1, PHASE_MAX_SECONDS, null);
     const bpm = clampPhaseInt(p.bpm, PHASE_MIN_BPM, PHASE_MAX_BPM, null);
     if (seconds === null || bpm === null) return;
-    out.push({ seconds, bpm });
+    out.push({ seconds, bpm, subdiv: normalizeSubdiv(p.subdiv) });
   });
   return out;
 }
 
 function savePhases() {
-  saveSetting('metro.phases', metro.phases.map(p => ({ seconds: p.seconds, bpm: p.bpm })));
+  saveSetting('metro.phases', metro.phases.map(p => ({
+    seconds: p.seconds,
+    bpm: p.bpm,
+    subdiv: normalizeSubdiv(p.subdiv),
+  })));
 }
 
 function phasesTotalSeconds() {
@@ -451,11 +481,22 @@ function fmtPhaseDuration(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function addPhase(seconds, bpm) {
+function addPhase(seconds, bpm, subdiv) {
   const sec = clampPhaseInt(seconds, 1, PHASE_MAX_SECONDS, null);
   const b = clampPhaseInt(bpm, PHASE_MIN_BPM, PHASE_MAX_BPM, null);
   if (sec === null || b === null) return;
-  metro.phases.push({ seconds: sec, bpm: b });
+  metro.phases.push({ seconds: sec, bpm: b, subdiv: normalizeSubdiv(subdiv) });
+  savePhases();
+  renderPhases();
+}
+
+function addSubdivisionLadder(secondsPer, bpm) {
+  const sec = clampPhaseInt(secondsPer, 1, PHASE_MAX_SECONDS, null);
+  const b = clampPhaseInt(bpm, PHASE_MIN_BPM, PHASE_MAX_BPM, null);
+  if (sec === null || b === null) return;
+  SUBDIV_IDS.forEach(subdiv => {
+    metro.phases.push({ seconds: sec, bpm: b, subdiv });
+  });
   savePhases();
   renderPhases();
 }
@@ -500,8 +541,14 @@ function renderPhaseStatus() {
   let acc = 0;
   for (let i = 0; i < idx; i++) acc += metro.phases[i].seconds;
   const remaining = Math.max(0, metro.phases[idx].seconds - (elapsed - acc));
-  status.textContent = `Phase ${idx + 1}/${metro.phases.length} \u00B7 ${metro.phases[idx].bpm} BPM \u00B7 ${fmtPhaseDuration(remaining)} left`;
+  const phase = metro.phases[idx];
+  const subLabel = subdivInfo(phase.subdiv).label;
+  status.textContent = `Phase ${idx + 1}/${metro.phases.length} \u00B7 ${phase.bpm} BPM \u00B7 ${subLabel} \u00B7 ${fmtPhaseDuration(remaining)} left`;
   status.classList.add('active');
+}
+
+function phaseNowPlayingLabel(bpm = metro.bpm, subdiv = metro.subdiv) {
+  return `Metronome \u2014 ${bpm} BPM \u00B7 ${subdivInfo(subdiv).label}`;
 }
 
 function renderPhases() {
@@ -521,7 +568,7 @@ function renderPhases() {
     if (!metro.phases.length) {
       const empty = document.createElement('div');
       empty.className = 'm-phase-empty';
-      empty.textContent = 'No phases yet. Add a duration and tempo below.';
+      empty.textContent = 'No phases yet. Add a duration, tempo, and subdivision below.';
       list.appendChild(empty);
     } else {
       const activeIdx = (phaseActive() && metro.playing && metro._phaseStartTime)
@@ -535,9 +582,9 @@ function renderPhases() {
         const dur = document.createElement('span');
         dur.className = 'm-phase-dur';
         dur.textContent = fmtPhaseDuration(p.seconds);
-        const bpm = document.createElement('span');
-        bpm.className = 'm-phase-bpm';
-        bpm.textContent = p.bpm + ' BPM';
+        const meta = document.createElement('span');
+        meta.className = 'm-phase-bpm';
+        meta.textContent = `${p.bpm} BPM \u00B7 ${subdivInfo(p.subdiv).label}`;
         const del = document.createElement('button');
         del.className = 'm-phase-del';
         del.type = 'button';
@@ -546,7 +593,7 @@ function renderPhases() {
         del.onclick = () => removePhase(i);
         row.appendChild(num);
         row.appendChild(dur);
-        row.appendChild(bpm);
+        row.appendChild(meta);
         row.appendChild(del);
         list.appendChild(row);
       });
@@ -555,9 +602,9 @@ function renderPhases() {
   renderPhaseStatus();
 }
 
-// Called from the scheduler for each note being queued so BPM switches land on
-// the phase boundary. Returns false when non-looping phases have finished and
-// the metronome should stop.
+// Called from the scheduler for each note being queued so BPM / subdivision
+// switches land on the phase boundary. Returns false when non-looping phases
+// have finished and the metronome should stop.
 function applyPhaseForScheduleTime(scheduleTime) {
   if (!phaseActive()) return true;
   if (!metro._phaseStartTime) metro._phaseStartTime = scheduleTime;
@@ -574,12 +621,16 @@ function applyPhaseForScheduleTime(scheduleTime) {
     }
   }
   const idx = phaseIndexForElapsed(elapsed);
-  const target = metro.phases[idx].bpm;
-  if (target !== metro.bpm) {
-    setBpm(target);
+  const phase = metro.phases[idx];
+  const targetBpm = phase.bpm;
+  const targetSub = normalizeSubdiv(phase.subdiv);
+  const changed = targetBpm !== metro.bpm || targetSub !== metro.subdiv || metro._phaseIndex !== idx;
+  if (targetBpm !== metro.bpm) setBpm(targetBpm);
+  if (targetSub !== metro.subdiv) setSubdiv(targetSub);
+  if (changed) {
     const delay = Math.max(0, (scheduleTime - audioCtx.currentTime) * 1000);
     setTimeout(() => {
-      if (metro.playing) showNowPlaying(`Metronome \u2014 ${target} BPM`, stopMetronome);
+      if (metro.playing) showNowPlaying(phaseNowPlayingLabel(targetBpm, targetSub), stopMetronome);
     }, delay);
   }
   metro._phaseIndex = idx;
@@ -602,8 +653,14 @@ function stopPhaseStatusTimer() {
 function startMetronome() {
   if (metro.measure.length === 0) setSimpleMeasure();
   ensureAudio();
-  // When phases are active the first phase sets the starting tempo.
-  if (phaseActive()) setBpm(metro.phases[0].bpm);
+  // When phases are active the first phase sets the starting tempo + subdivision.
+  // Otherwise stay on straight beats so the simple metronome behaves as before.
+  if (phaseActive()) {
+    setBpm(metro.phases[0].bpm);
+    setSubdiv(metro.phases[0].subdiv);
+  } else {
+    setSubdiv('quarter');
+  }
   metro.playing = true;
   metro._currentSlot = 0;
   metro._sub16 = 0;
@@ -611,7 +668,7 @@ function startMetronome() {
   metro._phaseIndex = -1;
   document.getElementById('m-play').textContent = '\u25A0 Stop';
   document.getElementById('m-play').classList.add('playing');
-  showNowPlaying(`Metronome \u2014 ${metro.bpm} BPM`, stopMetronome);
+  showNowPlaying(phaseNowPlayingLabel(), stopMetronome);
   renderBeatIndicator();
   metro._countInLeft = metro.countIn ? metro.tsNum : 0;
   metro._nextNoteTime = audioCtx.currentTime + 0.05;
@@ -658,24 +715,33 @@ function metroScheduler() {
       metro._currentSlot = 0;
       continue;
     }
-    if (!slot.rest) {
-      scheduleClick(metro._nextNoteTime, getAccentForSlot(metro._currentSlot));
-    }
     const idx = metro._currentSlot;
     const slotStart = metro._nextNoteTime;
+    const slotBeats = slotDuration(slot);
+    const slotSec = slotBeats * (60 / metro.bpm);
+    // Simple beat slots (the active UI) click `perBeat` equal subdivisions.
+    // Custom measure slots from the advanced builder still click once per note.
+    const perBeat = slot.simple && !slot.rest ? subdivInfo().perBeat : 1;
+    if (!slot.rest) {
+      const accentBeat = getAccentForSlot(metro._currentSlot);
+      for (let c = 0; c < perBeat; c++) {
+        const clickTime = slotStart + (slotSec * c) / perBeat;
+        scheduleClick(clickTime, c === 0 && accentBeat);
+      }
+    }
     const delay = Math.max(0, (slotStart - audioCtx.currentTime) * 1000);
     setTimeout(() => { if (metro.playing) highlightSlot(idx); }, delay);
     // Light up the "1 e & a" subdivision cells at 16th-note resolution even
-    // when no click sounds on the off-beats (clicks follow the note value).
+    // when no click sounds on the off-beats (clicks follow the active subdiv).
     const sixteenthSec = (60 / metro.bpm) * 0.25;
-    const subCount = Math.max(1, Math.round(slotDuration(slot) * 4));
+    const subCount = Math.max(1, Math.round(slotBeats * 4));
     for (let s = 0; s < subCount; s++) {
       const subIdx = metro._sub16 + s;
       const subDelay = Math.max(0, (slotStart + s * sixteenthSec - audioCtx.currentTime) * 1000);
       setTimeout(() => { if (metro.playing) highlightSub(subIdx); }, subDelay);
     }
     metro._sub16 += subCount;
-    metro._nextNoteTime += slotDuration(slot) * (60 / metro.bpm);
+    metro._nextNoteTime += slotSec;
     metro._currentSlot++;
     if (metro._currentSlot >= metro.measure.length) {
       if (metro.looping || phaseActive()) {
@@ -860,9 +926,25 @@ function initMetronome() {
     const min = Number(document.getElementById('m-phase-min')?.value) || 0;
     const sec = Number(document.getElementById('m-phase-sec')?.value) || 0;
     const bpm = Number(document.getElementById('m-phase-bpm')?.value) || metro.bpm;
+    const subdivSel = document.getElementById('m-phase-subdiv');
+    const subdiv = subdivSel?.value || 'quarter';
     const totalSec = Math.round(min * 60 + sec);
     if (totalSec < 1) return;
-    addPhase(totalSec, bpm);
+    addPhase(totalSec, bpm, subdiv);
+    // Advance the subdiv picker so building a 4ths→8ths→trips→16ths plan is quick.
+    if (subdivSel) {
+      const idx = SUBDIV_IDS.indexOf(normalizeSubdiv(subdiv));
+      if (idx >= 0 && idx < SUBDIV_IDS.length - 1) subdivSel.value = SUBDIV_IDS[idx + 1];
+    }
+  };
+  const phaseLadder = document.getElementById('m-phase-ladder');
+  if (phaseLadder) phaseLadder.onclick = () => {
+    const min = Number(document.getElementById('m-phase-min')?.value) || 0;
+    const sec = Number(document.getElementById('m-phase-sec')?.value) || 0;
+    const bpm = Number(document.getElementById('m-phase-bpm')?.value) || metro.bpm;
+    const totalSec = Math.round(min * 60 + sec);
+    if (totalSec < 1) return;
+    addSubdivisionLadder(totalSec, bpm);
   };
   const phaseClear = document.getElementById('m-phase-clear');
   if (phaseClear) phaseClear.onclick = clearPhases;
