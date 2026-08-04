@@ -6,6 +6,7 @@ import { parseGuitarPro, modelToAsciiTab, isGuitarProName } from './tab/guitarPr
 import { transformModel, modelHasRhythm } from './tab/tabModel.js';
 import { createTabPlayer } from './tab/tabPlayer.js';
 import { TUNING_CATALOG } from './tunings.js';
+import { buildFollowColumns, mountFollowView } from './songLearnPlayer.js';
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -79,6 +80,8 @@ export function mountGpPlayer(host, {
     viewModel: null,
   };
 
+  let follow = null;
+
   const player = createTabPlayer({
     onTick: ({ playing, currentSec, measureIndex }) => {
       if (playBtn) playBtn.textContent = playing ? 'Pause' : 'Play';
@@ -92,6 +95,14 @@ export function mountGpPlayer(host, {
           : '';
       }
       highlightMeasure(measureIndex);
+      if (follow) {
+        follow.update({
+          currentSec,
+          bpm: state.bpm,
+          playing,
+          durationSec: player.durationSec,
+        });
+      }
     },
   });
 
@@ -207,10 +218,12 @@ export function mountGpPlayer(host, {
 
   host.appendChild(controls);
 
-  // ---- measure strip + tab ----
+  // ---- measure strip + follow-along visual ----
   const strip = el('div', { class: 'gpp-strip', 'aria-label': 'Measures' });
   host.appendChild(strip);
-  const tabPre = el('pre', { class: 'gpp-tab', text: '' });
+  const followHost = el('div', { class: 'gpp-follow-host sln-follow-host' });
+  host.appendChild(followHost);
+  const tabPre = el('pre', { class: 'gpp-tab', text: '', hidden: 'hidden' });
   host.appendChild(tabPre);
 
   // ---- wiring ----
@@ -313,6 +326,14 @@ export function mountGpPlayer(host, {
       state.transpose ? `transpose ${state.transpose > 0 ? '+' : ''}${state.transpose}` : null,
     ].filter(Boolean).join(' · ');
     rebuildStrip();
+    if (follow) { try { follow.destroy(); } catch (e) { /* ignore */ } follow = null; }
+    const layout = buildFollowColumns({
+      guitarModel: model,
+      startBeat: 0,
+      endBeat: model.totalBeats || null,
+    });
+    follow = mountFollowView(followHost, layout);
+    follow.update({ currentSec: 0, bpm: state.bpm, playing: false, durationSec: player.durationSec });
     if (autoplay) {
       let fromSec = 0;
       if (fromMeasure != null && model.measures?.[fromMeasure]) {
@@ -436,6 +457,7 @@ export function mountGpPlayer(host, {
     getState: () => ({ ...state, viewModel: state.viewModel }),
     destroy() {
       player.stop();
+      if (follow) { try { follow.destroy(); } catch (e) { /* ignore */ } follow = null; }
       host.innerHTML = '';
       host.classList.remove('gpp-root');
     },
