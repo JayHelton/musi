@@ -9,7 +9,7 @@
   --dock-h:calc(62px + env(safe-area-inset-bottom,0px));
   --tap-min:44px;
 }
-body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body{font-family:'Pixelify Sans','VT323',monospace;background:var(--bg);color:var(--text);min-height:100vh;font-size:17px;letter-spacing:0.02em}
 
 /* Thin scrollbars everywhere */
 ::-webkit-scrollbar{width:4px;height:4px}

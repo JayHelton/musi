@@ -1,5 +1,5 @@
 .input-row{display:flex;gap:10px}
-.input-row input{flex:1;font-family:'Courier New',monospace;font-size:1.05rem;letter-spacing:1px}
+.input-row input{flex:1;font-family:var(--font-ui,'VT323',monospace);font-size:1.05rem;letter-spacing:1px}
 
 .feedback{margin-top:16px;padding:14px 18px;border-radius:16px;font-size:.95rem;display:none;transition:all 0.2s ease}
 .feedback.correct{display:block;background:rgba(46,204,113,0.08);border:none;color:var(--ok);animation:pulseGlow 0.6s ease}
@@ -24,13 +24,13 @@
 
 .hint-bar{margin-top:12px;font-size:.85rem;color:var(--muted)}
 .hint-bar button{background:none;border:none;color:var(--accent);cursor:pointer;font-size:.85rem;text-decoration:underline;font-family:inherit}
-.hint-text{margin-top:6px;color:var(--accent);font-family:monospace;font-size:.95rem}
+.hint-text{margin-top:6px;color:var(--accent);font-family:var(--font-ui,"VT323",monospace);font-size:.95rem}
 
 .note-input-display{min-height:44px;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:16px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;transition:box-shadow 0.2s ease}
 .note-input-display:focus-within{box-shadow:0 0 0 2px var(--accent-dim)}
 .note-input-display.empty::after{content:'Click notes below...';color:var(--muted);font-size:.9rem}
 
-.note-chip{padding:4px 12px;background:var(--accent-dim);border:none;border-radius:20px;font-family:monospace;font-size:1rem;color:var(--accent);font-weight:600}
+.note-chip{padding:4px 12px;background:var(--accent-dim);border:none;border-radius:20px;font-family:var(--font-ui,"VT323",monospace);font-size:1rem;color:var(--accent);font-weight:600}
 
 .note-btn-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
 .mod-btn,.letter-btn{min-height:44px;padding:10px 8px;border:none;border-radius:20px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.9rem;text-align:center;transition:all 0.15s ease;min-width:44px;font-family:inherit}

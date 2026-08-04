@@ -52,7 +52,7 @@
 .gauge-bar{position:absolute;bottom:0;left:50%;height:100%;width:1px;background:rgba(255,255,255,0.04);transform:translateX(-50%)}
 .gauge-center{position:absolute;bottom:0;left:50%;width:3px;height:100%;background:var(--accent);transform:translateX(-50%);border-radius:2px;box-shadow:0 0 8px var(--accent-glow)}
 .tuner-needle{position:absolute;bottom:0;left:50%;width:3px;height:90%;background:var(--err);border-radius:3px;transform-origin:bottom center;transition:transform .1s ease}
-.tuner-cents{font-size:2.5rem;font-weight:700;font-family:'Courier New',monospace;margin:8px 0}
+.tuner-cents{font-size:2.5rem;font-weight:700;font-family:var(--font-ui,'VT323',monospace);margin:8px 0}
 .tuner-cents.in-tune{color:var(--ok)}
 .tuner-cents.close{color:var(--warn)}
 .tuner-cents.off{color:var(--err)}
@@ -217,8 +217,8 @@
 .pt-meter-scale{width:34px;position:relative;font-size:.65rem;color:var(--muted)}
 .pt-scale-label{position:absolute;right:4px;transform:translateY(-50%);white-space:nowrap}
 .pt-readout{text-align:center;margin-top:6px}
-.pt-readout-note{font-size:1.3rem;font-weight:700;color:var(--text);font-family:'Courier New',monospace}
-.pt-readout-cents{font-size:.9rem;color:var(--muted);margin-left:8px;font-family:monospace}
+.pt-readout-note{font-size:1.3rem;font-weight:700;color:var(--text);font-family:var(--font-ui,'VT323',monospace)}
+.pt-readout-cents{font-size:.9rem;color:var(--muted);margin-left:8px;font-family:var(--font-ui,"VT323",monospace)}
 .pt-readout-cents.in{color:var(--ok)}
 .pt-readout-cents.close{color:var(--warn)}
 .pt-readout-cents.off{color:var(--err)}

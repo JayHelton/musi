@@ -14,7 +14,7 @@
 .ta-input-card{background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
 .ta-input-actions{display:flex;flex-wrap:wrap;gap:8px}
 .ta-input-actions .btn{min-height:34px;padding:6px 14px;font-size:.82rem}
-.ta-textarea{width:100%;min-height:260px;resize:vertical;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:.82rem;line-height:1.35;white-space:pre;overflow-wrap:normal;overflow-x:auto;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text)}
+.ta-textarea{width:100%;min-height:260px;resize:vertical;font-family:var(--font-ui,'VT323',monospace);font-size:.82rem;line-height:1.35;white-space:pre;overflow-wrap:normal;overflow-x:auto;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text)}
 .ta-textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
 .ta-file-note{font-size:.76rem;color:var(--muted);min-height:1em}
 
@@ -48,13 +48,13 @@
 .ta-scale-row:last-of-type{border-bottom:none}
 .ta-scale-row.top .ta-scale-name{color:var(--accent);font-weight:650}
 .ta-scale-name{min-width:190px;flex-shrink:0}
-.ta-scale-notes{flex:1;color:var(--muted);font-family:monospace;font-size:.82rem}
+.ta-scale-notes{flex:1;color:var(--muted);font-family:var(--font-ui,"VT323",monospace);font-size:.82rem}
 .ta-scale-notes .ta-out{color:var(--err)}
 .ta-scale-fit{color:var(--muted);font-size:.78rem}
 
 /* Fretboard overlay */
 .ta-fb-wrap{overflow-x:auto;margin-top:14px}
-.ta-fretboard{border-collapse:collapse;font-size:.68rem;font-family:monospace}
+.ta-fretboard{border-collapse:collapse;font-size:.68rem;font-family:var(--font-ui,"VT323",monospace)}
 .ta-fretboard th{color:var(--muted);padding:2px 6px;text-align:right;font-weight:600}
 .ta-fretboard td{width:24px;height:20px;text-align:center;border:1px solid var(--border);color:var(--muted)}
 .ta-fretboard .ta-fb-in{background:var(--accent-dim);color:var(--text)}

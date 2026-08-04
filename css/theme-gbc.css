@@ -4,9 +4,10 @@
    ============================================================ */
 
 :root {
-  --font-pixel: "Press Start 2P", ui-monospace, monospace;
-  --font-display: "Archivo Black", "Arial Black", sans-serif;
-  --font-body: "DM Sans", "Segoe UI", sans-serif;
+  --font-pixel: "Press Start 2P", "Pixelify Sans", monospace;
+  --font-display: "Press Start 2P", "Pixelify Sans", monospace;
+  --font-body: "Pixelify Sans", "VT323", monospace;
+  --font-ui: "VT323", "Pixelify Sans", monospace;
   --shell: #6b2d8b;
   --shell-deep: #1a0a2e;
   --shell-mid: #4a1d6e;
@@ -27,6 +28,8 @@ html {
 
 body {
   font-family: var(--font-body);
+  font-size: 17px;
+  letter-spacing: 0.02em;
   background:
     radial-gradient(1200px 700px at 12% -10%, rgba(180, 94, 255, 0.28), transparent 55%),
     radial-gradient(900px 600px at 100% 0%, rgba(107, 45, 139, 0.45), transparent 50%),
@@ -189,11 +192,11 @@ header {
 .gbc-hero-tag {
   position: relative;
   z-index: 1;
-  max-width: 28ch;
-  font-family: var(--font-display);
-  font-size: clamp(1.15rem, 3.2vw, 1.7rem);
-  line-height: 1.15;
-  letter-spacing: 0.02em;
+  max-width: 22ch;
+  font-family: var(--font-pixel);
+  font-size: clamp(0.72rem, 2.2vw, 1.05rem);
+  line-height: 1.45;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--accent);
   animation: gbcBrandPop 0.7s cubic-bezier(.2, .9, .2, 1) both;
@@ -314,18 +317,129 @@ header {
 /* Hide duplicate brand head on home — hero owns the brand */
 #sec-home > .section-head { display: none; }
 
-/* ---- Type hierarchy ---- */
-.section-kicker {
+/* ---- Type hierarchy (all retro) ---- */
+.section-kicker,
+.home-section-label,
+.home-continue-kicker,
+.sl-head,
+.sl-group-label,
+.ph-streak-label,
+.ph-acc-label,
+.context-sheet-title,
+.setup-summary-label,
+.setup-chip-hint,
+.hub-recent-label,
+.hub-pinned-label {
   font-family: var(--font-pixel);
   font-size: 0.52rem;
   letter-spacing: 1.5px;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+.section-kicker,
+.home-continue-kicker,
+.context-sheet-title {
   color: var(--accent);
 }
-.section-head h2 {
+.section-head h2,
+.modal-title,
+.question,
+.home-continue-title,
+.hq-title,
+.ht-title,
+.hub-tool-title {
   font-family: var(--font-display);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 400;
+  line-height: 1.35;
+}
+.section-head h2 { font-size: clamp(0.85rem, 2.4vw, 1.15rem); }
+.question { font-size: clamp(0.78rem, 2vw, 1rem); }
+.hq-title,
+.ht-title,
+.hub-tool-title,
+.home-cat-link {
+  font-family: var(--font-body) !important;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  font-size: 1.05rem;
+}
+
+button,
+.btn,
+input,
+select,
+textarea,
+.seg-btn,
+.diff-btn,
+.oct-btn,
+.subview-tab,
+.dock-item,
+.dock-group-trigger,
+.dock-menu-item,
+.context-pill,
+.command-trigger,
+.home-quick-card,
+.home-cat-link,
+.home-tool-row,
+.hub-tool-row,
+.setup-chip,
+.sl-item,
+.np-label,
+.volume-popover,
+.overflow-menu-item,
+.modal-dialog,
+.compact-progress,
+.progress-header {
+  font-family: var(--font-body) !important;
+}
+
+/* Dense chrome / labels read cleaner in VT323 */
+.dock-item,
+.dock-group-trigger,
+.context-pill,
+.ph-bar-count,
+.home-today,
+.home-continue-setup,
+.section-head p,
+.gbc-hero-support,
+.modal-body,
+.field-label,
+.context-field-label {
+  font-family: var(--font-ui) !important;
+  letter-spacing: 0.04em;
+}
+.dock-item,
+.dock-group-trigger {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+.context-pill { font-size: 0.95rem; }
+.section-head p,
+.gbc-hero-support,
+.modal-body {
+  font-size: 1.2rem;
+  line-height: 1.35;
+}
+.btn,
+.gbc-btn,
+.seg-btn,
+.subview-tab {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+.gbc-btn {
+  font-family: var(--font-body) !important;
+  text-transform: uppercase;
+}
+
+/* Monospace readouts stay retro */
+.dr-tab-pre,
+.dr-cell,
+.info-panel .notes,
+.volume-value {
+  font-family: var(--font-ui) !important;
 }
 
 /* ---- Buttons / pills (hardware-inspired) ---- */

@@ -44,7 +44,7 @@
 .dr-fav{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;line-height:1;padding:2px;transition:color .15s ease}
 .dr-fav:hover,.dr-fav.on{color:var(--accent)}
 .dr-tab-pre-wrap{min-width:0;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--bg);border:1px solid var(--border);border-radius:10px}
-.dr-tab-pre{font-family:'Courier New',monospace;font-size:.82rem;line-height:1.5;color:var(--accent);padding:12px;margin:0;display:inline-block;min-width:100%;box-sizing:border-box;white-space:pre}
+.dr-tab-pre{font-family:var(--font-ui, 'VT323', monospace);font-size:1.05rem;line-height:1.45;color:var(--accent);padding:12px;margin:0;display:inline-block;min-width:100%;box-sizing:border-box;white-space:pre}
 .dr-card-notes{font-size:.8rem;color:var(--muted);line-height:1.5;overflow-wrap:anywhere;word-break:break-word;background:rgba(255,255,255,.035);border:1px solid var(--border);border-radius:10px;padding:10px}
 .dr-card-notes strong{display:block;color:var(--text);font-size:.68rem;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
 .dr-card-notes p{margin:0;font-style:italic}
@@ -78,7 +78,7 @@
 .dr-mini.on.solo{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .dr-lane-vol{width:52px}
 .dr-cells{display:grid;grid-template-columns:repeat(var(--steps),1fr);gap:4px;flex:1;min-width:0}
-.dr-cell{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:.78rem;font-weight:700;cursor:pointer;padding:0;font-family:'Courier New',monospace;transition:background .1s ease,transform .05s ease}
+.dr-cell{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:.95rem;font-weight:700;cursor:pointer;padding:0;font-family:var(--font-ui, 'VT323', monospace);transition:background .1s ease,transform .05s ease}
 .dr-cell:hover{border-color:var(--accent)}
 .dr-cell.beat-start{border-left:2px solid var(--accent-glow)}
 .dr-cell.sym-rest{color:transparent}

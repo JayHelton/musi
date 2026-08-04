@@ -4,7 +4,7 @@
 .rec-live{text-align:center}
 .rec-live-label{font-size:.85rem;color:var(--muted);margin-bottom:8px}
 .rec-note{font-size:2.6rem;font-weight:700;color:var(--accent);line-height:1.1;margin:2px 0}
-.rec-cents{font-size:1.1rem;font-weight:600;font-family:'Courier New',monospace}
+.rec-cents{font-size:1.1rem;font-weight:600;font-family:var(--font-ui,'VT323',monospace)}
 .rec-cents.in-tune{color:var(--ok)}
 .rec-cents.close{color:var(--warn)}
 .rec-cents.off{color:var(--muted)}
@@ -13,7 +13,7 @@
 .rec-meter-wrap{height:8px;border-radius:6px;background:var(--bg2);overflow:hidden;margin:16px 0 10px}
 .rec-meter{height:100%;width:100%;transform:scaleX(0);transform-origin:left center;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:transform .08s linear}
 
-.rec-timer{text-align:center;font-size:1.1rem;font-family:'Courier New',monospace;color:var(--text);margin-bottom:14px}
+.rec-timer{text-align:center;font-size:1.1rem;font-family:var(--font-ui,'VT323',monospace);color:var(--text);margin-bottom:14px}
 
 .rec-options{display:flex;gap:14px;align-items:flex-end;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
 .rec-opt{display:flex;flex-direction:column;gap:5px;font-size:.78rem}
@@ -32,14 +32,14 @@
 .rec-section-label{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px}
 
 .rec-playnote-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:16px}
-.rec-playnote{font-size:1.8rem;font-weight:700;color:var(--accent);font-family:'Courier New',monospace}
+.rec-playnote{font-size:1.8rem;font-weight:700;color:var(--accent);font-family:var(--font-ui,'VT323',monospace)}
 
 .rec-key-block{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:16px 18px;text-align:center}
 .rec-key{font-size:1.9rem;font-weight:700;color:var(--accent);margin:6px 0 4px}
 .rec-key-alt{font-size:.82rem;color:var(--muted)}
 
 .rec-note-seq{display:flex;gap:6px;flex-wrap:wrap;min-height:40px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:14px;align-items:center;align-content:flex-start}
-.rec-seq-chip{padding:5px 12px;background:var(--card);border:1px solid var(--border);border-radius:18px;font-family:monospace;font-size:.9rem;color:var(--text);font-weight:600;transition:all 0.15s ease}
+.rec-seq-chip{padding:5px 12px;background:var(--card);border:1px solid var(--border);border-radius:18px;font-family:var(--font-ui,"VT323",monospace);font-size:.9rem;color:var(--text);font-weight:600;transition:all 0.15s ease}
 .rec-seq-chip.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent);box-shadow:0 0 12px var(--accent-glow);transform:scale(1.06)}
 .rec-seq-empty{color:var(--muted);font-size:.85rem}
 
@@ -51,14 +51,14 @@
 .hold-rec-panel{padding:16px;border-radius:18px;background:rgba(11,16,32,0.94);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,0.5)}
 .hold-rec-live-label{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:center;margin-bottom:6px}
 .hold-rec-note{font-size:2.1rem;font-weight:700;color:var(--accent);text-align:center;line-height:1.1}
-.hold-rec-cents{font-size:.95rem;font-weight:600;font-family:'Courier New',monospace;text-align:center}
+.hold-rec-cents{font-size:.95rem;font-weight:600;font-family:var(--font-ui,'VT323',monospace);text-align:center}
 .hold-rec-cents.in-tune{color:var(--ok)}
 .hold-rec-cents.close{color:var(--warn)}
 .hold-rec-cents.off{color:var(--muted)}
 .hold-rec-freq{font-size:.82rem;color:var(--muted);text-align:center;margin-top:2px}
 .hold-rec-meter-wrap{height:7px;border-radius:6px;background:var(--bg2);overflow:hidden;margin:12px 0 8px}
 .hold-rec-meter{height:100%;width:100%;transform:scaleX(0);transform-origin:left center;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:transform .08s linear}
-.hold-rec-timer{text-align:center;font-size:.95rem;font-family:'Courier New',monospace;color:var(--text);margin-bottom:8px}
+.hold-rec-timer{text-align:center;font-size:.95rem;font-family:var(--font-ui,'VT323',monospace);color:var(--text);margin-bottom:8px}
 .hold-rec-seq-wrap .rec-section-label{margin:10px 0 6px}
 .hold-rec-seq-wrap .rec-note-seq{max-height:96px;overflow:auto;padding:8px;gap:6px}
 
