@@ -15,10 +15,10 @@
 <meta property="og:title" content="Musi">
 <meta property="og:description" content="Music theory tools for rehearsal and reference">
 <meta property="og:image" content="favicon.png">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#1a0a2e">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/quiz.css">
 <link rel="stylesheet" href="css/tools.css">
@@ -42,6 +42,7 @@
 <link rel="stylesheet" href="css/selection-sheet.css">
 <link rel="stylesheet" href="css/ux-shell.css">
 <link rel="stylesheet" href="css/ux-chords-orbit.css">
+<link rel="stylesheet" href="css/theme-gbc.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -108,6 +109,25 @@
     <div class="section-head">
       <div class="section-kicker">Practice</div>
       <h2>musi</h2>
+    </div>
+    <div class="gbc-hero" id="gbc-hero">
+      <div class="gbc-status" aria-hidden="true">
+        <span class="gbc-status-batt">100%</span>
+        <span id="gbc-clock">--:--</span>
+      </div>
+      <div class="gbc-hero-brand">musi</div>
+      <p class="gbc-hero-tag">Pocket theory console</p>
+      <p class="gbc-hero-support">Drill scales, map the fretboard, and train your ear — built for pocket practice sessions.</p>
+      <div class="gbc-hero-cta">
+        <button type="button" class="gbc-btn gbc-btn-primary" id="gbc-cta-primary">
+          <span class="gbc-btn-dot" aria-hidden="true">A</span>
+          <span id="gbc-cta-primary-label">Start practice</span>
+        </button>
+        <button type="button" class="gbc-btn gbc-btn-ghost" id="gbc-cta-browse">
+          <span class="gbc-btn-dot" aria-hidden="true">X</span>
+          Browse tools
+        </button>
+      </div>
     </div>
     <div id="home-continue" class="home-continue"></div>
     <div id="home-quickstart" class="home-section"></div>

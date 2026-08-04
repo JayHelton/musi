@@ -20,7 +20,7 @@
 .sln-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}
 .sln-empty{
   padding:28px 18px;border:1px dashed var(--border);border-radius:14px;text-align:center;
-  color:var(--muted);font-size:.88rem;background:rgba(24,24,24,0.5)
+  color:var(--muted);font-size:.88rem;background:rgba(18,26,46,0.5)
 }
 
 .sln-song-list,.sln-snip-list{display:flex;flex-direction:column;gap:12px}

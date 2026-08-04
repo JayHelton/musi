@@ -7,7 +7,7 @@
   height: 100%;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.11;
+  opacity: 0.16;
 }
 
 /* Now-Playing Bar */
@@ -21,7 +21,7 @@
   align-items: center;
   gap: 12px;
   padding: 8px 20px;
-  background: rgba(20, 20, 20, 0.9);
+  background: rgba(11, 16, 32, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255,255,255,0.06);
@@ -142,7 +142,7 @@
 /* Riff Note Sweep Glow */
 .rn.playing {
   background: linear-gradient(90deg, transparent 0%, var(--accent) 30%, var(--accent) 70%, transparent 100%);
-  color: #000;
+  color: var(--on-accent);
   border-radius: 2px;
   animation: riffSweep 0.3s ease;
 }
