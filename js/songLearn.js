@@ -103,8 +103,10 @@ function stopPlayback() {
 function syncDropVisibility() {
   const drop = $('sln-drop');
   if (!drop) return;
-  // Keep the drop zone for library/import; hide it while practicing so the player is primary.
-  drop.hidden = state.view === 'detail';
+  // Drop zone is only the empty-library importer. A filled library uses the
+  // in-list "+ Import" button; import/detail views hide upload entirely so
+  // the file picker isn't offered twice on the same screen.
+  drop.hidden = !(state.view === 'library' && listSongs().length === 0);
 }
 
 /** Ensure a tab/perc model has a usable measures[] for the strip (4/4 bars from totalBeats). */
@@ -598,20 +600,18 @@ async function saveImport() {
 function renderLibrary(root) {
   const songs = listSongs();
   root.innerHTML = '';
+
+  if (!songs.length) {
+    // Empty-state upload lives in #sln-drop — no second Import CTA or empty card.
+    return;
+  }
+
   root.appendChild(el('div', { class: 'sln-tools' }, [
     el('button', {
       class: 'btn primary', type: 'button', text: '+ Import Guitar Pro',
       onClick: () => $('sln-file')?.click(),
     }),
   ]));
-
-  if (!songs.length) {
-    root.appendChild(el('div', {
-      class: 'sln-empty',
-      text: 'Import a .gp / .gp5 score to open the practice player, highlight measures, and save loops to Exercises.',
-    }));
-    return;
-  }
 
   const list = el('div', { class: 'sln-song-list' });
   songs.forEach((song) => {

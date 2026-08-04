@@ -652,22 +652,31 @@
       </div>
       <div class="quiz-card metro-settings-card m-phases-card" id="m-phases-card">
         <div class="m-phases-head">
-          <div class="metro-card-title">Tempo Phases</div>
+          <div class="metro-card-title">Practice Phases</div>
           <label class="m-phases-switch">
             <input type="checkbox" id="m-phases-toggle">
             <span>Enable</span>
           </label>
         </div>
-        <p class="m-phases-note">Chain timed tempo sections that play back-to-back without stopping &mdash; e.g. 2:00 at 100 BPM into 5:00 at 80 BPM.</p>
+        <p class="m-phases-note">Chain timed sections with their own tempo and subdivision &mdash; e.g. 2:00 of 4ths at 100 BPM, then 2:00 of 8ths, triplets, and 16ths.</p>
         <div class="m-phases-status" id="m-phases-status" aria-live="polite"></div>
         <div class="m-phases-list" id="m-phases-list"></div>
         <div class="m-phases-add">
           <label>Min <input type="number" id="m-phase-min" min="0" max="180" value="2" inputmode="numeric"></label>
           <label>Sec <input type="number" id="m-phase-sec" min="0" max="59" value="0" inputmode="numeric"></label>
           <label>BPM <input type="number" id="m-phase-bpm" min="30" max="300" value="100" inputmode="numeric"></label>
+          <label>Subdiv
+            <select id="m-phase-subdiv" aria-label="Subdivision">
+              <option value="quarter">4ths</option>
+              <option value="eighth">8ths</option>
+              <option value="triplet">Triplets</option>
+              <option value="sixteenth">16ths</option>
+            </select>
+          </label>
           <button class="btn sm" id="m-phase-add">Add phase</button>
         </div>
         <div class="m-phases-actions">
+          <button class="btn sm" id="m-phase-ladder" title="Add 4ths, 8ths, triplets, and 16ths using the duration and BPM above">+ Subdivision ladder</button>
           <button class="btn sm metro-toggle" id="m-phases-loop">Loop phases: Off</button>
           <button class="btn sm" id="m-phase-clear">Clear all</button>
         </div>
