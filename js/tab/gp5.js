@@ -15,6 +15,12 @@
 
 import { NOTE_NAMES_SHARP, TUNINGS } from '../theory.js';
 import { gp5DurationToQuarters } from './tabModel.js';
+import {
+  midiToDrumInstrument,
+  normalizeGp5PercussionMidi,
+  dynamicsToVelocity,
+  makePercussionModel,
+} from './gpPercussion.js';
 
 // ---- low-level cursor ------------------------------------------------------
 
@@ -278,7 +284,8 @@ function readNote(r, ctx, track, number, beatTechniques) {
   const flags = r.u8();
   let type = 1;                     // 1 normal, 2 tie, 3 dead
   if (flags & 0x20) type = r.u8();
-  if (flags & 0x10) r.i8();         // dynamics
+  let dynamics = null;
+  if (flags & 0x10) dynamics = r.i8();
   let fret = null;
   if (flags & 0x20) fret = r.i8();
   if (flags & 0x80) { r.i8(); r.i8(); } // fingering
@@ -291,13 +298,18 @@ function readNote(r, ctx, track, number, beatTechniques) {
     effects.hopo = e.hopo;
   }
   const techniques = [...effects.techniques];
-  if (type === 2) return { number, tie: true, fret: null, midi: null, dead: false, techniques, hopo: effects.hopo };
+  if (type === 2) return { number, tie: true, fret: null, midi: null, dead: false, techniques, hopo: effects.hopo, dynamics };
   const dead = type === 3;
-  if (dead) return { number, fret: null, midi: null, dead: true, techniques, hopo: effects.hopo };
+  if (dead) return { number, fret: null, midi: null, dead: true, techniques, hopo: effects.hopo, dynamics };
   if (fret == null) return null;
+  // Percussion: GP5 stores the kit MIDI (or GS value) in the fret field.
+  if (track.isPercussion) {
+    const midi = normalizeGp5PercussionMidi(fret);
+    return { number, fret, midi, dead: false, techniques, hopo: effects.hopo, dynamics };
+  }
   const open = track.tuning[number - 1];
   const midi = open != null ? open + fret : null;
-  return { number, fret, midi, dead: false, techniques, hopo: effects.hopo };
+  return { number, fret, midi, dead: false, techniques, hopo: effects.hopo, dynamics };
 }
 
 // Read one beat; returns { notes, empty, duration, dotted }.
@@ -410,12 +422,23 @@ export function parseGp5Tracks(input) {
 
     const scoreTempo = Number.isFinite(tempo) && tempo > 0 ? tempo : 120;
     const built = tracks.map((track, i) => {
-      if (track.isPercussion || !track.tuning.length) {
+      if (track.isPercussion) {
+        const model = buildPercussionModel(track, measuresByTrack[i], measureHeaders, scoreTempo);
         return {
           index: i,
           name: track.name || `Track ${i + 1}`,
           fretted: false,
-          isPercussion: track.isPercussion,
+          isPercussion: true,
+          model,
+          tuningPitches: [],
+        };
+      }
+      if (!track.tuning.length) {
+        return {
+          index: i,
+          name: track.name || `Track ${i + 1}`,
+          fretted: false,
+          isPercussion: false,
           model: null,
           tuningPitches: [],
         };
@@ -441,6 +464,67 @@ export function parseGp5(input) {
   if (!fretted.length) throw new Error('gp5: no fretted track to analyze');
   const def = fretted[0];
   return { model: def.model, meta: { trackName: def.name, tracks: tracks.length, tuningPitches: def.tuningPitches, version } };
+}
+
+function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120) {
+  const events = [];
+  const measureSpans = [];
+  const warnings = [];
+  let slot = 0;
+  let cursor = 0;
+  let measureIndex = 0;
+  let currentTimeSig = [4, 4];
+
+  for (const voices of measures) {
+    const measureStart = slot;
+    const measureStartBeat = cursor;
+    const header = measureHeaders[measureIndex] || {};
+    const marker = header.marker || null;
+    if (header.timeSig) currentTimeSig = header.timeSig;
+    measureIndex += 1;
+    const voice = voices.find((bts) => bts.some((b) => b.notes && b.notes.length)) || voices[0] || [];
+    let advanced = false;
+    for (const beat of voice) {
+      const duration = Number.isFinite(beat.duration) && beat.duration > 0 ? beat.duration : 1;
+      for (const n of beat.notes) {
+        if (n.dead || n.tie || n.midi == null) continue;
+        const velocity = dynamicsToVelocity(n.dynamics);
+        const instrument = midiToDrumInstrument(n.midi, { velocity });
+        if (!instrument) continue;
+        events.push({
+          slot, start: cursor, duration,
+          instrument, velocity, midi: n.midi,
+        });
+      }
+      slot += 1;
+      cursor += duration;
+      advanced = true;
+    }
+    if (!advanced) {
+      const beatsInBar = currentTimeSig[0] * (4 / (currentTimeSig[1] || 4));
+      slot += 1;
+      cursor += beatsInBar;
+    }
+    measureSpans.push({
+      startSlot: measureStart,
+      endSlot: slot,
+      startBeat: measureStartBeat,
+      endBeat: cursor,
+      marker,
+      timeSig: currentTimeSig.slice(),
+    });
+  }
+
+  if (!events.length) {
+    warnings.push('The percussion track had no mappable drum hits.');
+  }
+  return makePercussionModel({
+    name: track.name || 'Drums',
+    tempo,
+    events,
+    measures: measureSpans,
+    warnings,
+  });
 }
 
 function buildModel(track, measures, measureHeaders = [], tempo = 120) {

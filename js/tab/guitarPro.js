@@ -23,6 +23,11 @@
 import { NOTE_NAMES_SHARP, TUNINGS } from '../theory.js';
 import { parseGp5Tracks } from './gp5.js';
 import { GPIF_NOTE_VALUES, noteValueToQuarters } from './tabModel.js';
+import {
+  midiToDrumInstrument,
+  dynamicsToVelocity,
+  makePercussionModel,
+} from './gpPercussion.js';
 
 const CHUNK = 0x8000;
 
@@ -346,13 +351,98 @@ export function gpifToTracks(xml) {
   const tracks = trackNodes.map((trackNode, index) => {
     const name = (firstChild(trackNode, 'Name') || {}).text?.trim() || `Track ${index + 1}`;
     const openMidis = tuningPitchesOf(trackNode);
+    if (isPercussionTrack(trackNode)) {
+      const model = buildGpifPercussionModel(trackNode, index, shared, name);
+      return { index, name, fretted: false, isPercussion: true, model, tuningPitches: [] };
+    }
     if (!openMidis.length) {
-      return { index, name, fretted: false, isPercussion: isPercussionTrack(trackNode), model: null, tuningPitches: [] };
+      // Untuned non-drum parts (keys/vocals) stay unanalyzable.
+      return { index, name, fretted: false, isPercussion: false, model: null, tuningPitches: [] };
     }
     const model = buildGpifTrackModel(trackNode, index, openMidis, shared);
     return { index, name, fretted: true, isPercussion: false, model, tuningPitches: openMidis };
   });
   return { tracks, tempo: shared.tempo };
+}
+
+/** Build a PercussionModel for a GPIF drum track (no string tuning). */
+function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
+  const { bars, voices, beats, notes, masterBars, rhythms, tempo } = shared;
+  const events = [];
+  const measures = [];
+  const warnings = [];
+  let slot = 0;
+  let cursor = 0;
+
+  for (const mb of masterBars) {
+    const barRefs = childText(mb, 'Bars').split(/\s+/).filter(Boolean);
+    const barId = barRefs[trackIndex] != null ? barRefs[trackIndex] : barRefs[0];
+    const bar = bars.get(barId);
+    if (!bar) continue;
+    const measureStart = slot;
+    const measureStartBeat = cursor;
+    const sectionNode = firstChild(mb, 'Section');
+    const marker = sectionNode
+      ? (childText(sectionNode, 'Text') || childText(sectionNode, 'Letter') || null)
+      : null;
+    const timeTxt = childText(mb, 'Time');
+    let timeSig = null;
+    if (timeTxt) {
+      const parts = timeTxt.split('/').map(Number);
+      if (parts.length === 2 && parts.every((n) => Number.isFinite(n))) timeSig = parts;
+    }
+
+    const voiceRefs = childText(bar, 'Voices').split(/\s+/).filter((v) => v && v !== '-1');
+    const voice = voiceRefs.map((v) => voices.get(v)).find(Boolean);
+    let advanced = false;
+    if (voice) {
+      const beatRefs = childText(voice, 'Beats').split(/\s+/).filter(Boolean);
+      for (const beatId of beatRefs) {
+        const beat = beats.get(beatId);
+        if (!beat) continue;
+        const duration = beatDurationQuarters(beat, rhythms);
+        const noteRefs = childText(beat, 'Notes').split(/\s+/).filter(Boolean);
+        for (const noteId of noteRefs) {
+          const note = notes.get(noteId);
+          if (!note) continue;
+          const props = firstChild(note, 'Properties');
+          const midiTxt = childText(property(props, 'Midi'), 'Number');
+          let midi = midiTxt === '' ? null : parseInt(midiTxt, 10);
+          // Some GPIF drum notes only carry Element/Variation; treat Element as MIDI-ish.
+          if (midi == null) {
+            const elem = childText(property(props, 'Element'), 'Element')
+              || childText(property(props, 'Element'), 'Number');
+            if (elem !== '') midi = parseInt(elem, 10);
+          }
+          if (midi == null || Number.isNaN(midi)) continue;
+          const dynTxt = childText(note, 'Dynamic') || childText(firstChild(note, 'Dynamic'), 'Value');
+          const velocity = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
+          const instrument = midiToDrumInstrument(midi, { velocity });
+          if (!instrument) continue;
+          events.push({ slot, start: cursor, duration, instrument, velocity, midi });
+        }
+        slot += 1;
+        cursor += duration;
+        advanced = true;
+      }
+    }
+    if (!advanced) {
+      const beatsInBar = timeSig ? (timeSig[0] * (4 / (timeSig[1] || 4))) : 4;
+      slot += 1;
+      cursor += beatsInBar;
+    }
+    measures.push({
+      startSlot: measureStart,
+      endSlot: slot,
+      startBeat: measureStartBeat,
+      endBeat: cursor,
+      marker,
+      timeSig: timeSig || undefined,
+    });
+  }
+
+  if (!events.length) warnings.push('The percussion track had no mappable drum hits.');
+  return makePercussionModel({ name, tempo, events, measures, warnings });
 }
 
 // Build one track's TabModel from the shared GPIF collections.
@@ -554,22 +644,22 @@ export function isGuitarProName(name) {
   return /\.(gp|gpx|gp3|gp4|gp5)$/i.test(String(name || ''));
 }
 
-// Reason a raw track cannot be analyzed as tab (drums have no pitched frets,
-// vocals/piano parts carry no string tuning).
+// Reason a raw track cannot be analyzed as tab (vocals/piano have no frets;
+// drums are imported separately via drumTracks).
 function unanalyzableReason(t) {
-  if (t.isPercussion) return 'Drums / percussion — no fretted notes to analyze';
+  if (t.isPercussion) return 'Drums / percussion — available in Drums & Song Learning';
   return 'No guitar/bass tuning — this part cannot be read as tab';
 }
 
-// Assemble the shared multi-track result from raw per-track entries. Every
-// fretted (tab) track is analyzable and gets a rendered ASCII tab; the first is
-// the default. Non-fretted parts (drums, vocals, keys) are still listed in
-// `parts` so callers can show the full instrument list and explain what can be
-// analyzed. Top-level model/ascii/meta describe the default track.
+// Assemble the shared multi-track result from raw per-track entries. Fretted
+// tracks stay the Tab Analyzer default; percussion tracks are returned as
+// `drumTracks` for the drums / song-learning importers. Top-level model/ascii
+// describe the default fretted track when one exists.
 function assembleResult(format, rawTracks, totalTracks) {
   const fretted = rawTracks.filter((t) => t.fretted && t.model);
-  if (!fretted.length) {
-    throw new Error('This Guitar Pro file has no fretted (tab) part to analyze — it may contain only drums or vocals.');
+  const drumRaw = rawTracks.filter((t) => t.isPercussion && t.model);
+  if (!fretted.length && !drumRaw.length) {
+    throw new Error('This Guitar Pro file has no fretted (tab) or drum part to import.');
   }
   const tracks = fretted.map((t, i) => ({
     index: i,
@@ -581,31 +671,55 @@ function assembleResult(format, rawTracks, totalTracks) {
     ascii: modelToAsciiTab(t.model),
     noteCount: t.model.events.filter((e) => e.fret != null || e.dead).length,
   }));
-  // Index analyzable tracks by their source position for the parts list.
+  const drumTracks = drumRaw.map((t, i) => ({
+    index: i,
+    sourceIndex: t.index,
+    name: t.name,
+    model: t.model,
+    hitCount: (t.model.events || []).length,
+    tempo: t.model.tempo,
+  }));
+  // Index analyzable fretted tracks by their source position for the parts list.
   const analyzableBySource = new Map(tracks.map((t) => [t.sourceIndex, t.index]));
+  const drumBySource = new Map(drumTracks.map((t) => [t.sourceIndex, t.index]));
   const parts = rawTracks.map((t) => {
     const analyzableIndex = analyzableBySource.has(t.index) ? analyzableBySource.get(t.index) : -1;
+    const drumIndex = drumBySource.has(t.index) ? drumBySource.get(t.index) : -1;
     const analyzable = analyzableIndex >= 0;
+    const isDrum = drumIndex >= 0;
     return {
       name: t.name,
       sourceIndex: t.index,
       analyzable,
       analyzableIndex,
-      isPercussion: !!t.isPercussion,
+      isPercussion: !!t.isPercussion || isDrum,
+      drumIndex,
       tuning: analyzable ? tracks[analyzableIndex].tuning : null,
-      noteCount: analyzable ? tracks[analyzableIndex].noteCount : 0,
-      reason: analyzable ? null : unanalyzableReason(t),
+      noteCount: analyzable
+        ? tracks[analyzableIndex].noteCount
+        : (isDrum ? drumTracks[drumIndex].hitCount : 0),
+      reason: analyzable || isDrum ? null : unanalyzableReason(t),
     };
   });
-  const def = tracks[0];
+  const def = tracks[0] || null;
   const meta = {
     format,
     tracks: totalTracks,
     frettedTracks: tracks.length,
-    trackName: def.name,
-    tuningPitches: def.tuningPitches,
+    drumTracks: drumTracks.length,
+    trackName: def ? def.name : (drumTracks[0]?.name || ''),
+    tuningPitches: def ? def.tuningPitches : [],
   };
-  return { format, tracks, parts, defaultIndex: 0, model: def.model, ascii: def.ascii, meta };
+  return {
+    format,
+    tracks,
+    drumTracks,
+    parts,
+    defaultIndex: 0,
+    model: def ? def.model : null,
+    ascii: def ? def.ascii : '',
+    meta,
+  };
 }
 
 /**

@@ -51,6 +51,17 @@ async function loadFile(file) {
     const buf = await file.arrayBuffer();
     const bytes = new Uint8Array(buf);
     const gp = await parseGuitarPro(bytes);
+    if (!(gp.tracks || []).length) {
+      setStageVisible(false);
+      const drumN = (gp.drumTracks || []).length;
+      setStatus(
+        drumN
+          ? 'This file has drum parts but no fretted guitar/bass track. Open it in Song Learning or Drums to practice the kit.'
+          : 'No fretted guitar/bass track found in that file.',
+        'error'
+      );
+      return;
+    }
     state.fileName = file.name;
     state.bytes = bytes;
     state.gp = gp;
