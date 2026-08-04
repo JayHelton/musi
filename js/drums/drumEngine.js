@@ -309,6 +309,13 @@ export function trigger(instrument, velocity = 0.9) {
   triggerVoice(instrument, audioCtx.currentTime + 0.001, velocity);
 }
 
+/** Schedule a kit hit at an absolute AudioContext time (for multi-track sync). */
+export function scheduleHit(instrument, when, velocity = 0.9) {
+  ensureAudio();
+  const t = Math.max(audioCtx.currentTime + 0.001, Number(when) || audioCtx.currentTime);
+  triggerVoice(instrument, t, velocity);
+}
+
 function scheduleStep(step, time) {
   const events = engine.stepMap[step] || [];
   for (const ev of events) {

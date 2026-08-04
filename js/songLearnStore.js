@@ -76,6 +76,13 @@ function normalizeSong(raw) {
     tempo: Number(raw.tempo) || 120,
     guitarTrackName: raw.guitarTrackName || null,
     drumTrackName: raw.drumTrackName || null,
+    // Full tracks for synced full-song playback + follow visual.
+    fullGuitar: raw.fullGuitar && typeof raw.fullGuitar === 'object' ? raw.fullGuitar : null,
+    // Extra fretted tracks mixed in for "full song" playback (rhythm/lead/bass…).
+    fullGuitars: Array.isArray(raw.fullGuitars)
+      ? raw.fullGuitars.filter((m) => m && typeof m === 'object')
+      : (raw.fullGuitar && typeof raw.fullGuitar === 'object' ? [raw.fullGuitar] : []),
+    fullDrums: raw.fullDrums && typeof raw.fullDrums === 'object' ? raw.fullDrums : null,
     sections,
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : nowISO(),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : nowISO(),
@@ -163,6 +170,7 @@ export function removeSection(songId, sectionId) {
  * Persist a GP blob and create a Song Learning entry from section snippets.
  * @param {{ file: Blob|File, fileName: string, title?: string, tempo?: number,
  *   guitarTrackName?: string, drumTrackName?: string, snippets: object[],
+ *   fullGuitar?: object|null, fullGuitars?: object[], fullDrums?: object|null,
  *   saveDrumsToLibrary?: boolean }} opts
  */
 export async function createSongFromGpSnippets(opts) {
@@ -170,6 +178,9 @@ export async function createSongFromGpSnippets(opts) {
     file, fileName, title, tempo = 120,
     guitarTrackName = null, drumTrackName = null,
     snippets = [],
+    fullGuitar = null,
+    fullGuitars = null,
+    fullDrums = null,
     saveDrumsToLibrary = false,
   } = opts || {};
 
@@ -241,6 +252,11 @@ export async function createSongFromGpSnippets(opts) {
     tempo,
     guitarTrackName,
     drumTrackName,
+    fullGuitar,
+    fullGuitars: Array.isArray(fullGuitars) && fullGuitars.length
+      ? fullGuitars
+      : (fullGuitar ? [fullGuitar] : []),
+    fullDrums,
     sections,
     createdAt: nowISO(),
   });
