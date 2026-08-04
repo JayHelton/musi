@@ -237,6 +237,7 @@ function renameExercise(id, name) {
   item.name = clean;
   persist();
   if (item.attachmentId) renameFile(item.attachmentId, clean).catch(() => {});
+  if (wired) render();
   return clean;
 }
 
@@ -257,6 +258,7 @@ async function deleteExercise(id) {
   if (removed && removed.attachmentId) {
     try { await deleteFile(removed.attachmentId); } catch (e) {}
   }
+  if (wired) render();
   return true;
 }
 
@@ -736,8 +738,11 @@ async function onUploadFiles() {
   else if (rejected) setStatus('Only PDF, image, audio, video or Guitar Pro (.gp/.gp5) files up to 250 MB can be uploaded.', true);
 }
 
-/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player / Song Learning). */
-export function addGpExerciseFromAttachment({
+/**
+ * Add any file-backed exercise from an already-saved attachment
+ * (GP Player, Track → Sheet, Song Learning, etc.).
+ */
+export function addExerciseFromAttachment({
   attachmentId,
   name,
   fileName,
@@ -752,14 +757,17 @@ export function addGpExerciseFromAttachment({
 } = {}) {
   if (!attachmentId) return null;
   const store = getStore();
+  const defaultName = isGuitarProName(fileName || name || '')
+    ? 'Guitar Pro'
+    : (fileName || name || 'Exercise');
   const item = normalizeItem({
     id: uid('ex'),
-    name: clampText(name || 'Guitar Pro', NAME_LIMIT),
+    name: clampText(name || defaultName, NAME_LIMIT),
     categoryId: typeof categoryId === 'string' ? categoryId : '',
     attachmentId,
     url: '',
     fileName: fileName || '',
-    type: type || 'application/x-guitar-pro',
+    type: type || '',
     size: Number.isFinite(Number(size)) ? Number(size) : 0,
     addedAt: nowISO(),
     preferredTrackIndex,
@@ -773,6 +781,33 @@ export function addGpExerciseFromAttachment({
   persist();
   if (wired) render();
   return item;
+}
+
+/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player / Song Learning). */
+export function addGpExerciseFromAttachment(opts = {}) {
+  return addExerciseFromAttachment({
+    ...opts,
+    type: opts.type || 'application/x-guitar-pro',
+    name: opts.name || 'Guitar Pro',
+  });
+}
+
+/** Guitar Pro / tab-model items in the Exercises library. */
+export function listGpExercises() {
+  return getExercises().filter(isGpItem);
+}
+
+/** Audio stem items in the Exercises library (Track → Sheet, etc.). */
+export function listAudioExercises() {
+  return getExercises().filter(isAudioItem);
+}
+
+export function renameExerciseItem(id, name) {
+  return renameExercise(id, name);
+}
+
+export async function deleteExerciseItem(id) {
+  return deleteExercise(id);
 }
 
 /** Persist practice-player settings back onto an exercise (tempo loop, rest, track). */

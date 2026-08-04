@@ -1,6 +1,6 @@
 // Track → Sheet: upload an isolated monophonic track, parse pitches, show
 // basic sheet music. No source separation — feed it a single vocal/guitar/bass
-// stem.
+// stem. Saved stems live in the shared Exercises library.
 
 import { ensureAudio } from './audio.js';
 import {
@@ -10,9 +10,25 @@ import {
   suggestClef,
 } from './trackToSheet/transcribe.js';
 import { renderScoreSVG, notesToText } from './trackToSheet/score.js';
+import {
+  saveFile,
+  getFileBlob,
+  attachmentsSupported,
+  ensurePersistentStorage,
+} from './attachments.js';
+import {
+  addExerciseFromAttachment,
+  listAudioExercises,
+  renameExerciseItem,
+  deleteExerciseItem,
+  getExercise,
+} from './exercises.js';
+
+const MAX_FILE_BYTES = 250 * 1024 * 1024;
 
 const state = {
   fileName: null,
+  fileBlob: null,
   audioBuffer: null,
   result: null,
   bpm: 120,
@@ -21,18 +37,44 @@ const state = {
   busy: false,
   objectUrl: null,
   bound: false,
+  exerciseId: null,
 };
 
 function $(id) {
   return document.getElementById(id);
 }
 
+function el(tag, props = {}, children = []) {
+  const node = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => {
+    if (k === 'class') node.className = v;
+    else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on') && typeof v === 'function') node[k.toLowerCase()] = v;
+    else if (v === false || v == null) { /* skip */ }
+    else if (k === 'value') node.value = v;
+    else node.setAttribute(k, v === true ? '' : v);
+  });
+  (Array.isArray(children) ? children : [children]).forEach((c) => {
+    if (c == null) return;
+    node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return node;
+}
+
 function setStatus(msg, kind = '') {
-  const el = $('tts-status');
-  if (!el) return;
-  el.textContent = msg || '';
-  el.dataset.kind = kind;
-  el.hidden = !msg;
+  const box = $('tts-status');
+  if (!box) return;
+  box.textContent = msg || '';
+  box.dataset.kind = kind;
+  box.hidden = !msg;
+}
+
+function syncSaveButton() {
+  const btn = $('tts-save');
+  if (!btn) return;
+  const inLib = !!(state.exerciseId && getExercise(state.exerciseId));
+  btn.disabled = state.busy || !state.fileBlob || inLib;
+  btn.textContent = inLib ? 'In library' : 'Save to Library';
 }
 
 function setBusy(busy) {
@@ -42,16 +84,30 @@ function setBusy(busy) {
   if (btn) btn.disabled = busy || !state.audioBuffer;
   if (input) input.disabled = busy;
   document.body.classList.toggle('tts-busy', busy);
+  syncSaveButton();
+}
+
+function fmtSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function baseName(fileName) {
+  const name = fileName || 'stem';
+  const dot = name.lastIndexOf('.');
+  return (dot > 0 ? name.slice(0, dot) : name) || 'stem';
 }
 
 function renderNoteList(notes) {
-  const el = $('tts-note-list');
-  if (!el) return;
+  const box = $('tts-note-list');
+  if (!box) return;
   if (!notes.length) {
-    el.innerHTML = '<p class="tts-muted">No notes yet.</p>';
+    box.innerHTML = '<p class="tts-muted">No notes yet.</p>';
     return;
   }
-  el.innerHTML = notes.map(n =>
+  box.innerHTML = notes.map(n =>
     `<span class="tts-note-chip" title="${n.startSec.toFixed(2)}s · ${n.durationSec.toFixed(2)}s">${n.label}</span>`
   ).join('');
 }
@@ -79,7 +135,7 @@ function syncControlsFromResult() {
   if (sharpSel) sharpSel.value = state.preferSharps ? 'sharps' : 'flats';
 }
 
-async function onFileChosen(file) {
+async function onFileChosen(file, { exerciseId = null } = {}) {
   if (!file) return;
   setStatus(`Loading ${file.name}…`);
   setBusy(true);
@@ -87,8 +143,10 @@ async function onFileChosen(file) {
     ensureAudio();
     const buf = await decodeAudioFile(file);
     state.fileName = file.name;
+    state.fileBlob = file;
     state.audioBuffer = buf;
     state.result = null;
+    state.exerciseId = exerciseId;
 
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
     state.objectUrl = URL.createObjectURL(file);
@@ -102,15 +160,18 @@ async function onFileChosen(file) {
     if (note) {
       note.textContent = `${file.name} · ${buf.duration.toFixed(1)}s · ${buf.sampleRate} Hz · ${buf.numberOfChannels} ch`;
     }
-    setStatus('Ready to transcribe.');
+    setStatus(exerciseId ? `Loaded “${baseName(file.name)}” from library.` : 'Ready to transcribe.', exerciseId ? 'ok' : '');
     const btn = $('tts-transcribe');
     if (btn) btn.disabled = false;
-    $('tts-score-wrap').innerHTML = '<p class="tts-muted">Hit Transcribe to parse pitches onto the staff.</p>';
+    const wrap = $('tts-score-wrap');
+    if (wrap) wrap.innerHTML = '<p class="tts-muted">Hit Transcribe to parse pitches onto the staff.</p>';
     renderNoteList([]);
+    renderLibrary();
   } catch (err) {
     console.error(err);
     setStatus(`Could not decode audio: ${err.message || err}`, 'err');
     state.audioBuffer = null;
+    state.fileBlob = null;
   } finally {
     setBusy(false);
   }
@@ -176,6 +237,137 @@ function copyNoteList() {
   });
 }
 
+async function saveToLibrary() {
+  if (!state.fileBlob) {
+    setStatus('Load an audio stem first.', 'err');
+    return;
+  }
+  if (state.exerciseId && getExercise(state.exerciseId)) {
+    setStatus('Already in your library.', 'ok');
+    syncSaveButton();
+    renderLibrary();
+    return;
+  }
+  if (!attachmentsSupported()) {
+    setStatus('Browser storage unavailable — cannot save to library.', 'err');
+    return;
+  }
+  if (state.fileBlob.size > MAX_FILE_BYTES) {
+    setStatus('File is too large to save (max 250 MB).', 'err');
+    return;
+  }
+
+  setBusy(true);
+  try {
+    await ensurePersistentStorage();
+    const name = baseName(state.fileName);
+    const fileType = state.fileBlob.type || 'audio/wav';
+    const meta = await saveFile({
+      blob: state.fileBlob,
+      name,
+      type: fileType,
+      fileName: state.fileName || `${name}.wav`,
+      size: state.fileBlob.size,
+      source: 'exercise',
+    });
+    if (!meta) {
+      setStatus('Could not save file to storage.', 'err');
+      return;
+    }
+    const item = addExerciseFromAttachment({
+      attachmentId: meta.id,
+      name,
+      fileName: state.fileName || `${name}.wav`,
+      type: fileType,
+      size: state.fileBlob.size,
+    });
+    if (!item) {
+      setStatus('Saved attachment, but library entry failed.', 'err');
+      return;
+    }
+    state.exerciseId = item.id;
+    renderLibrary();
+    setStatus(`Saved “${name}” to library (Exercises).`, 'ok');
+  } catch (err) {
+    setStatus(err?.message || 'Save failed.', 'err');
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function openLibraryItem(item) {
+  if (!item?.attachmentId) {
+    setStatus('That library item has no file attached.', 'err');
+    return;
+  }
+  setStatus(`Opening “${item.name}”…`);
+  const blob = await getFileBlob(item.attachmentId);
+  if (!blob) {
+    setStatus('This file is missing from storage. Re-upload it or delete the library entry.', 'err');
+    return;
+  }
+  const file = new File([blob], item.fileName || `${item.name}.wav`, {
+    type: item.type || blob.type || 'audio/wav',
+  });
+  await onFileChosen(file, { exerciseId: item.id });
+}
+
+function renderLibrary() {
+  const root = $('tts-library-list');
+  if (!root) return;
+  root.innerHTML = '';
+  const items = listAudioExercises();
+  if (!items.length) {
+    root.appendChild(el('div', {
+      class: 'tts-library-empty',
+      text: 'Saved stems appear here and in Exercises. Load a track, then Save to Library.',
+    }));
+    return;
+  }
+  items.forEach((item) => {
+    const active = item.id === state.exerciseId;
+    const card = el('div', { class: 'tts-library-card' + (active ? ' is-active' : '') });
+    card.appendChild(el('div', { class: 'tts-library-card-head' }, [
+      el('div', { class: 'tts-library-card-title', text: item.name }),
+      el('div', {
+        class: 'tts-library-card-meta',
+        text: `${item.fileName || 'Audio'} · ${fmtSize(item.size)}`,
+      }),
+    ]));
+    const actions = el('div', { class: 'tts-library-card-actions' });
+    actions.appendChild(el('button', {
+      class: 'btn sm primary', type: 'button', text: active ? 'Loaded' : 'Open',
+      disabled: active || state.busy,
+      onClick: () => openLibraryItem(item),
+    }));
+    actions.appendChild(el('button', {
+      class: 'btn sm', type: 'button', text: 'Rename',
+      onClick: () => {
+        const next = prompt('Stem name', item.name);
+        if (next == null) return;
+        renameExerciseItem(item.id, next);
+        renderLibrary();
+      },
+    }));
+    actions.appendChild(el('button', {
+      class: 'btn sm tts-danger', type: 'button', text: 'Delete',
+      onClick: async () => {
+        if (!confirm(`Delete “${item.name}” from the library?`)) return;
+        await deleteExerciseItem(item.id);
+        if (state.exerciseId === item.id) {
+          state.exerciseId = null;
+          syncSaveButton();
+        }
+        renderLibrary();
+        setStatus(`Deleted “${item.name}”.`, 'ok');
+      },
+    }));
+    card.appendChild(actions);
+    root.appendChild(card);
+  });
+  syncSaveButton();
+}
+
 function bind() {
   if (state.bound) return;
   state.bound = true;
@@ -189,6 +381,7 @@ function bind() {
 
   $('tts-transcribe')?.addEventListener('click', runTranscribe);
   $('tts-copy')?.addEventListener('click', copyNoteList);
+  $('tts-save')?.addEventListener('click', saveToLibrary);
 
   $('tts-bpm')?.addEventListener('change', () => {
     const v = Number($('tts-bpm').value);
@@ -228,6 +421,8 @@ export function initTrackToSheet() {
   bind();
   const btn = $('tts-transcribe');
   if (btn) btn.disabled = !state.audioBuffer || state.busy;
+  syncSaveButton();
+  renderLibrary();
 }
 
 export function stopTrackToSheet() {

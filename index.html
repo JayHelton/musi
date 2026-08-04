@@ -1567,7 +1567,7 @@ E|-------------------|"></textarea>
   <!-- SONG LEARNING -->
   <section id="sec-songlearn" class="section">
     <div class="section-head">
-      <div class="section-kicker">Create</div>
+      <div class="section-kicker">Tools</div>
       <h2>Song Learning</h2>
       <p>Import a Guitar Pro score, practice with a follow-along multi-track player, select measures, and save loops to Exercises.</p>
     </div>
@@ -1588,14 +1588,14 @@ E|-------------------|"></textarea>
   <!-- GUITAR PRO PLAYER -->
   <section id="sec-gpplayer" class="section">
     <div class="section-head">
-      <div class="section-kicker">Create</div>
+      <div class="section-kicker">Tools</div>
       <h2>Guitar Pro Player</h2>
       <p>Open a <code>.gp</code> or <code>.gp5</code> score, pick a track, and practice with tempo, transpose, and tuning controls. Notes rewrite automatically when you change key or tuning.</p>
     </div>
     <div class="gpp-layout">
       <div class="gpp-drop" id="gpp-drop">
         <div class="gpp-drop-title">Drop a Guitar Pro file</div>
-        <div class="gpp-drop-sub">Supports Guitar Pro 7/8 (<code>.gp</code>) and Guitar Pro 5 (<code>.gp5</code>). Older <code>.gp3</code>/<code>.gp4</code>/<code>.gpx</code> need a re-export.</div>
+        <div class="gpp-drop-sub">Supports Guitar Pro 7/8 (<code>.gp</code>) and Guitar Pro 5 (<code>.gp5</code>). Older <code>.gp3</code>/<code>.gp4</code>/<code>.gpx</code> need a re-export. Save scores to your library to reopen them later.</div>
         <div class="gpp-drop-actions">
           <label class="btn primary" for="gpp-file">Choose file</label>
           <input type="file" id="gpp-file" accept=".gp,.gp5,application/x-guitar-pro" hidden>
@@ -1603,6 +1603,13 @@ E|-------------------|"></textarea>
       </div>
       <div class="gpp-status" id="gpp-status" hidden></div>
       <div class="gpp-stage" id="gpp-stage" hidden></div>
+      <div class="gpp-library" id="gpp-library">
+        <div class="gpp-library-head">
+          <div class="gpp-library-title">Saved scores</div>
+          <a class="btn sm" href="#exercises">Open Exercises</a>
+        </div>
+        <div class="gpp-library-list" id="gpp-library-list"></div>
+      </div>
     </div>
   </section>
 
@@ -1617,11 +1624,12 @@ E|-------------------|"></textarea>
       <div class="tts-input-col">
         <div class="tts-drop" id="tts-drop">
           <div class="tts-drop-title">Drop an audio stem</div>
-          <div class="tts-drop-sub">WAV, MP3, M4A, OGG, or WebM. One pitched layer at a time.</div>
+          <div class="tts-drop-sub">WAV, MP3, M4A, OGG, or WebM. One pitched layer at a time. Save stems to your library to reopen them later.</div>
           <div class="tts-input-actions">
             <label class="btn" for="tts-file">Choose file</label>
             <input type="file" id="tts-file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm,.aac,.flac" hidden>
             <button class="btn primary" id="tts-transcribe" type="button" disabled>Transcribe</button>
+            <button class="btn" id="tts-save" type="button" disabled>Save to Library</button>
           </div>
           <div class="tts-file-note" id="tts-file-note"></div>
           <audio id="tts-player" controls hidden></audio>
@@ -1650,6 +1658,14 @@ E|-------------------|"></textarea>
 
         <div class="tts-status" id="tts-status" hidden></div>
         <progress class="tts-progress" id="tts-progress" max="1" value="0" hidden></progress>
+
+        <div class="tts-library" id="tts-library">
+          <div class="tts-library-head">
+            <div class="tts-library-title">Saved stems</div>
+            <a class="btn sm" href="#exercises">Open Exercises</a>
+          </div>
+          <div class="tts-library-list" id="tts-library-list"></div>
+        </div>
       </div>
 
       <div class="tts-main">

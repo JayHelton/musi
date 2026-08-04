@@ -174,16 +174,29 @@ export function mountGpPlayer(host, {
   meta.appendChild(infoLine);
   host.appendChild(meta);
 
-  // ---- transport ----
+  // ---- transport (kept adjacent to the follow visual) ----
   const transport = el('div', { class: 'gpp-transport' });
   const playBtn = el('button', { class: 'btn primary gpp-play', type: 'button', text: 'Play' });
   const stopBtn = el('button', { class: 'btn', type: 'button', text: 'Stop' });
   const timeLabel = el('span', { class: 'gpp-time', text: '0:00 / 0:00' });
   const measureLabel = el('span', { class: 'gpp-measure', text: '' });
-  transport.append(playBtn, stopBtn, timeLabel, measureLabel);
+  const tempoChip = el('button', {
+    class: 'btn sm gpp-tempo-chip', type: 'button',
+    text: `${Math.round(state.bpm)} BPM`,
+    title: 'Tempo & practice settings',
+  });
+  transport.append(playBtn, stopBtn, timeLabel, measureLabel, tempoChip);
   host.appendChild(transport);
 
-  // ---- controls: BPM / transpose / tuning ----
+  // ---- measure strip + follow-along visual (directly under transport) ----
+  const strip = el('div', { class: 'gpp-strip', 'aria-label': 'Measures' });
+  host.appendChild(strip);
+  const followHost = el('div', { class: 'gpp-follow-host sln-follow-host' });
+  host.appendChild(followHost);
+  const tabPre = el('pre', { class: 'gpp-tab', text: '', hidden: 'hidden' });
+  host.appendChild(tabPre);
+
+  // ---- collapsible practice settings (tempo / transpose / tuning / loop) ----
   const controls = el('div', { class: 'gpp-controls' });
 
   const bpmInput = el('input', {
@@ -255,15 +268,30 @@ export function mountGpPlayer(host, {
     ]),
   ]));
 
-  host.appendChild(controls);
+  const settingsBpmLabel = el('span', {
+    class: 'gpp-settings-summary-bpm',
+    text: `${Math.round(state.bpm)} BPM`,
+  });
+  const settings = el('details', { class: 'gpp-settings' }, [
+    el('summary', { class: 'gpp-settings-summary' }, [
+      el('span', { class: 'gpp-settings-summary-label', text: 'Tempo & settings' }),
+      settingsBpmLabel,
+    ]),
+    controls,
+  ]);
+  host.appendChild(settings);
 
-  // ---- measure strip + follow-along visual ----
-  const strip = el('div', { class: 'gpp-strip', 'aria-label': 'Measures' });
-  host.appendChild(strip);
-  const followHost = el('div', { class: 'gpp-follow-host sln-follow-host' });
-  host.appendChild(followHost);
-  const tabPre = el('pre', { class: 'gpp-tab', text: '', hidden: 'hidden' });
-  host.appendChild(tabPre);
+  function syncTempoLabels() {
+    const label = `${Math.round(state.bpm)} BPM`;
+    tempoChip.textContent = label;
+    settingsBpmLabel.textContent = label;
+  }
+  tempoChip.addEventListener('click', () => {
+    settings.open = !settings.open;
+    if (settings.open) {
+      settings.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
 
   // ---- wiring ----
   function currentTrack() {
@@ -431,6 +459,7 @@ export function mountGpPlayer(host, {
     state.bpm = Math.max(40, Math.min(280, Math.round(state.scoreBpm * (pct / 100))));
     bpmInput.value = String(state.bpm);
     bpmPct.textContent = `${pct}%`;
+    syncTempoLabels();
   }
 
   // Events
@@ -445,6 +474,7 @@ export function mountGpPlayer(host, {
     bpmInput.value = String(Math.round(state.bpm));
     bpmSlider.value = '100';
     bpmPct.textContent = '100%';
+    syncTempoLabels();
     transposeInput.value = '0';
     player.stop();
     applyTransforms();
@@ -465,6 +495,7 @@ export function mountGpPlayer(host, {
     const pct = state.scoreBpm ? Math.round((state.bpm / state.scoreBpm) * 100) : 100;
     bpmSlider.value = String(Math.max(50, Math.min(150, pct)));
     bpmPct.textContent = `${bpmSlider.value}%`;
+    syncTempoLabels();
     const was = player.playing;
     player.stop();
     reloadPlayer({ autoplay: was });

@@ -44,11 +44,33 @@
   font-family:var(--font-ui,"VT323",monospace)
 }
 .gpp-measure{margin-left:4px}
+.gpp-tempo-chip{margin-left:auto}
+.gpp-head-extra-wrap{display:flex;gap:8px;flex-wrap:wrap}
+
+.gpp-settings{
+  border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9);
+  padding:0;overflow:hidden
+}
+.gpp-settings-summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:10px 12px;user-select:none
+}
+.gpp-settings-summary::-webkit-details-marker{display:none}
+.gpp-settings-summary-label{
+  font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
+  letter-spacing:1.4px;text-transform:uppercase;color:var(--accent)
+}
+.gpp-settings-summary-bpm{
+  font-size:.95rem;color:var(--muted);font-family:var(--font-ui,"VT323",monospace)
+}
+.gpp-settings[open] .gpp-settings-summary{border-bottom:1px solid var(--border)}
+.gpp-settings .gpp-controls{border:0;border-radius:0;background:transparent}
 
 .gpp-controls{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;
   padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9)
 }
+.gpp-drop[hidden]{display:none}
 .gpp-control-block{display:flex;flex-direction:column;gap:8px}
 .gpp-control-label{
   font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
@@ -88,6 +110,35 @@
   color:var(--accent);font-family:var(--font-ui,"VT323",monospace);font-size:1.05rem;
   line-height:1.35;overflow:auto;max-height:280px;white-space:pre
 }
+
+/* Saved scores library (backed by Exercises) */
+.gpp-library{
+  border:1px solid var(--border);border-radius:var(--radius-screen,18px);
+  background:rgba(22,31,54,0.88);padding:14px 16px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28);
+  display:flex;flex-direction:column;gap:12px
+}
+.gpp-library-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.gpp-library-title{
+  font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
+  letter-spacing:1.4px;text-transform:uppercase;color:var(--accent)
+}
+.gpp-library-list{display:flex;flex-direction:column;gap:10px}
+.gpp-library-empty{
+  padding:18px 12px;border:1px dashed var(--border);border-radius:12px;text-align:center;
+  color:var(--muted);font-size:.82rem;background:rgba(18,26,46,0.5)
+}
+.gpp-library-card{
+  border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9);
+  padding:12px 14px;display:flex;flex-direction:column;gap:10px
+}
+.gpp-library-card.is-active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.gpp-library-card-head{display:flex;flex-direction:column;gap:4px;min-width:0}
+.gpp-library-card-title{font-size:.95rem;font-weight:650;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gpp-library-card-meta{font-size:.78rem;color:var(--muted);font-family:var(--font-ui,"VT323",monospace)}
+.gpp-library-card-actions{display:flex;gap:8px;flex-wrap:wrap}
+.gpp-danger{color:var(--err)}
+.gpp-danger:hover{background:rgba(230,57,70,0.12);color:var(--err)}
 
 /* Exercises viewer body for GP */
 .ex-viewer-body-gp{background:var(--bg);padding:12px;overflow:auto}

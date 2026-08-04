@@ -86,6 +86,34 @@
 
 #tts-player{width:100%;margin-top:4px;height:36px}
 
+/* Saved stems library (backed by Exercises) */
+.tts-library{
+  border:1px solid var(--border);border-radius:var(--radius-screen,16px);
+  background:var(--card);padding:12px 14px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.5);
+  display:flex;flex-direction:column;gap:10px
+}
+.tts-library-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.tts-library-title{
+  font-size:.72rem;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;color:var(--accent)
+}
+.tts-library-list{display:flex;flex-direction:column;gap:8px}
+.tts-library-empty{
+  padding:14px 10px;border:1px dashed var(--border);border-radius:12px;text-align:center;
+  color:var(--muted);font-size:.78rem;background:var(--bg2)
+}
+.tts-library-card{
+  border:1px solid var(--border);border-radius:12px;background:var(--bg2);
+  padding:10px 12px;display:flex;flex-direction:column;gap:8px
+}
+.tts-library-card.is-active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.tts-library-card-head{display:flex;flex-direction:column;gap:3px;min-width:0}
+.tts-library-card-title{font-size:.88rem;font-weight:650;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tts-library-card-meta{font-size:.74rem;color:var(--muted);font-family:var(--font-ui,"VT323",monospace)}
+.tts-library-card-actions{display:flex;gap:6px;flex-wrap:wrap}
+.tts-danger{color:var(--err)}
+.tts-danger:hover{background:rgba(230,57,70,0.12);color:var(--err)}
+
 body.tts-busy{cursor:progress}
 
 @media (max-width:768px){

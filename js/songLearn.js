@@ -522,23 +522,34 @@ async function saveImport() {
   }
 }
 
+function syncDropVisibility() {
+  const drop = $('sln-drop');
+  if (!drop) return;
+  // One import surface at a time: big drop only for an empty library.
+  // Detail/import views and non-empty libraries use compact import actions instead.
+  const showDrop = state.view === 'library' && listSongs().length === 0;
+  drop.hidden = !showDrop;
+}
+
 function renderLibrary(root) {
   const songs = listSongs();
   root.innerHTML = '';
-  root.appendChild(el('div', { class: 'sln-tools' }, [
-    el('button', {
-      class: 'btn primary', type: 'button', text: '+ Import Guitar Pro',
-      onClick: () => $('sln-file')?.click(),
-    }),
-  ]));
 
   if (!songs.length) {
+    // Drop zone above (#sln-drop) is the sole import UI when empty.
     root.appendChild(el('div', {
       class: 'sln-empty',
       text: 'Import a .gp / .gp5 score to split it into practice snippets for guitar and drums, then play the full song with a follow-along view.',
     }));
     return;
   }
+
+  root.appendChild(el('div', { class: 'sln-tools' }, [
+    el('button', {
+      class: 'btn primary', type: 'button', text: '+ Import Guitar Pro',
+      onClick: () => $('sln-file')?.click(),
+    }),
+  ]));
 
   const list = el('div', { class: 'sln-song-list' });
   songs.forEach((song) => {
@@ -784,18 +795,118 @@ function renderDetail(root) {
     el('span', { class: 'sln-time', id: 'sln-time', text: '0:00 / 0:00' }),
     el('span', { class: 'sln-rest-status', id: 'sln-rest-status', text: '' }),
   );
+  const tempoChip = el('button', {
+    class: 'btn sm sln-tempo-chip', type: 'button',
+    text: `${Math.round(state.bpm)} BPM`,
+    title: 'Tempo & practice settings',
+  });
+  transport.appendChild(tempoChip);
   playerCard.appendChild(transport);
 
-  // Practice controls
+  // Measure / section selectors used by strip, chips, and collapsible settings
+  const startSel = el('select', { class: 'sln-select sln-bar-sel', 'aria-label': 'Selection start bar' });
+  const endSel = el('select', { class: 'sln-select sln-bar-sel', 'aria-label': 'Selection end bar' });
+  measures.forEach((m, i) => {
+    const label = m.marker ? `${i + 1} · ${m.marker}` : String(i + 1);
+    startSel.appendChild(el('option', { value: String(i), text: label }));
+    endSel.appendChild(el('option', { value: String(i), text: label }));
+  });
+  startSel.value = String(state.selStart);
+  endSel.value = String(state.selEnd);
+  const onSelChange = () => {
+    state.selStart = Number(startSel.value) || 0;
+    state.selEnd = Number(endSel.value) || 0;
+    if (state.selEnd < state.selStart) {
+      state.selEnd = state.selStart;
+      endSel.value = String(state.selEnd);
+    }
+    state.activeSectionId = 'selection';
+    reload('selection');
+  };
+  startSel.onchange = onSelChange;
+  endSel.onchange = onSelChange;
+
+  // Measure strip + section chips + follow visual sit directly under transport
+  const strip = el('div', { class: 'sln-strip', id: 'sln-strip', 'aria-label': 'Measures' });
+  measures.forEach((m, i) => {
+    const selected = i >= Math.min(state.selStart, state.selEnd) && i <= Math.max(state.selStart, state.selEnd);
+    strip.appendChild(el('button', {
+      class: 'sln-bar' + (m.marker ? ' has-marker' : '') + (selected ? ' selected' : ''),
+      type: 'button',
+      text: m.marker ? `${i + 1}\n${m.marker}` : String(i + 1),
+      title: m.marker
+        ? `${m.marker} · click start, Shift+click end`
+        : `Bar ${i + 1} · click start, Shift+click end`,
+      'data-index': String(i),
+      onClick: (e) => {
+        if (e.shiftKey) {
+          state.selEnd = Math.max(state.selStart, i);
+        } else {
+          state.selStart = i;
+          if (state.selEnd < i) state.selEnd = i;
+        }
+        startSel.value = String(state.selStart);
+        endSel.value = String(state.selEnd);
+        state.activeSectionId = 'selection';
+        reload('selection');
+      },
+    }));
+  });
+  playerCard.appendChild(strip);
+
+  const chips = el('div', { class: 'sln-sec-chips' });
+  const addChip = (id, label) => {
+    chips.appendChild(el('button', {
+      class: 'sln-chip' + (state.activeSectionId === id ? ' active' : ''),
+      type: 'button',
+      text: label,
+      'data-sln-sec': id,
+      onClick: () => {
+        state.activeSectionId = id;
+        if (id !== 'selection' && id !== 'all') {
+          const range = sectionRange(song, id);
+          state.selStart = range.startIdx ?? state.selStart;
+          state.selEnd = range.endIdx ?? state.selEnd;
+          startSel.value = String(state.selStart);
+          endSel.value = String(state.selEnd);
+        }
+        if (id === 'all' && measures.length) {
+          state.selStart = 0;
+          state.selEnd = measures.length - 1;
+          startSel.value = String(state.selStart);
+          endSel.value = String(state.selEnd);
+        }
+        reload(id);
+      },
+    }));
+  };
+  addChip('all', 'Full song');
+  addChip('selection', 'Selection');
+  song.sections.forEach((sec) => addChip(sec.id, sec.label));
+  playerCard.appendChild(chips);
+
+  playerCard.appendChild(el('div', { id: 'sln-follow-host', class: 'sln-follow-host' }));
+
+  // Collapsible practice settings below the visual
   const controls = el('div', { class: 'sln-controls' });
 
   const bpmInput = el('input', {
     type: 'number', class: 'sln-num', min: '40', max: '280', step: '1',
     value: String(Math.round(state.bpm)), 'aria-label': 'BPM',
   });
+  const settingsBpmLabel = el('span', {
+    class: 'sln-settings-summary-bpm',
+    text: `${Math.round(state.bpm)} BPM`,
+  });
+  const syncTempoLabels = () => {
+    const label = `${Math.round(state.bpm)} BPM`;
+    tempoChip.textContent = label;
+    settingsBpmLabel.textContent = label;
+  };
   bpmInput.onchange = () => {
     state.bpm = Math.max(40, Math.min(280, Number(bpmInput.value) || state.scoreBpm));
     bpmInput.value = String(state.bpm);
+    syncTempoLabels();
     reload();
   };
   controls.appendChild(el('div', { class: 'sln-control-block' }, [
@@ -808,6 +919,7 @@ function renderDetail(root) {
         onClick: () => {
           state.bpm = state.scoreBpm;
           bpmInput.value = String(Math.round(state.bpm));
+          syncTempoLabels();
           reload();
         },
       }),
@@ -833,28 +945,6 @@ function renderDetail(root) {
       loadPlayerForSong(song, state.activeSectionId);
     }
   };
-
-  const startSel = el('select', { class: 'sln-select sln-bar-sel', 'aria-label': 'Selection start bar' });
-  const endSel = el('select', { class: 'sln-select sln-bar-sel', 'aria-label': 'Selection end bar' });
-  measures.forEach((m, i) => {
-    const label = m.marker ? `${i + 1} · ${m.marker}` : String(i + 1);
-    startSel.appendChild(el('option', { value: String(i), text: label }));
-    endSel.appendChild(el('option', { value: String(i), text: label }));
-  });
-  startSel.value = String(state.selStart);
-  endSel.value = String(state.selEnd);
-  const onSelChange = () => {
-    state.selStart = Number(startSel.value) || 0;
-    state.selEnd = Number(endSel.value) || 0;
-    if (state.selEnd < state.selStart) {
-      state.selEnd = state.selStart;
-      endSel.value = String(state.selEnd);
-    }
-    state.activeSectionId = 'selection';
-    reload('selection');
-  };
-  startSel.onchange = onSelChange;
-  endSel.onchange = onSelChange;
 
   controls.appendChild(el('div', { class: 'sln-control-block' }, [
     el('div', { class: 'sln-control-label', text: 'Measures' }),
@@ -898,74 +988,24 @@ function renderDetail(root) {
     ]),
     el('div', {
       class: 'sln-control-hint',
-      text: 'Select bars above (or on the strip), then save. Exercises open with this loop and rest.',
+      text: 'Select bars on the strip (click start, Shift+click end), then save. Exercises open with this loop and rest.',
     }),
   ]));
 
-  playerCard.appendChild(controls);
-
-  // Measure strip
-  const strip = el('div', { class: 'sln-strip', id: 'sln-strip', 'aria-label': 'Measures' });
-  measures.forEach((m, i) => {
-    const selected = i >= Math.min(state.selStart, state.selEnd) && i <= Math.max(state.selStart, state.selEnd);
-    strip.appendChild(el('button', {
-      class: 'sln-bar' + (m.marker ? ' has-marker' : '') + (selected ? ' selected' : ''),
-      type: 'button',
-      text: m.marker ? `${i + 1}\n${m.marker}` : String(i + 1),
-      title: m.marker
-        ? `${m.marker} · click start, Shift+click end`
-        : `Bar ${i + 1} · click start, Shift+click end`,
-      'data-index': String(i),
-      onClick: (e) => {
-        if (e.shiftKey) {
-          state.selEnd = Math.max(state.selStart, i);
-        } else {
-          state.selStart = i;
-          if (state.selEnd < i) state.selEnd = i;
-        }
-        startSel.value = String(state.selStart);
-        endSel.value = String(state.selEnd);
-        state.activeSectionId = 'selection';
-        reload('selection');
-      },
-    }));
+  const settings = el('details', { class: 'sln-settings' }, [
+    el('summary', { class: 'sln-settings-summary' }, [
+      el('span', { class: 'sln-settings-summary-label', text: 'Tempo & settings' }),
+      settingsBpmLabel,
+    ]),
+    controls,
+  ]);
+  tempoChip.addEventListener('click', () => {
+    settings.open = !settings.open;
+    if (settings.open) {
+      settings.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   });
-  playerCard.appendChild(strip);
-
-  // Section chips
-  const chips = el('div', { class: 'sln-sec-chips' });
-  const addChip = (id, label) => {
-    chips.appendChild(el('button', {
-      class: 'sln-chip' + (state.activeSectionId === id ? ' active' : ''),
-      type: 'button',
-      text: label,
-      'data-sln-sec': id,
-      onClick: () => {
-        state.activeSectionId = id;
-        if (id !== 'selection' && id !== 'all') {
-          const range = sectionRange(song, id);
-          state.selStart = range.startIdx ?? state.selStart;
-          state.selEnd = range.endIdx ?? state.selEnd;
-          startSel.value = String(state.selStart);
-          endSel.value = String(state.selEnd);
-        }
-        if (id === 'all' && measures.length) {
-          state.selStart = 0;
-          state.selEnd = measures.length - 1;
-          startSel.value = String(state.selStart);
-          endSel.value = String(state.selEnd);
-        }
-        reload(id);
-      },
-    }));
-  };
-  addChip('all', 'Full song');
-  addChip('selection', 'Selection');
-  song.sections.forEach((sec) => addChip(sec.id, sec.label));
-  playerCard.appendChild(chips);
-
-  // Follow-along visual
-  playerCard.appendChild(el('div', { id: 'sln-follow-host', class: 'sln-follow-host' }));
+  playerCard.appendChild(settings);
   root.appendChild(playerCard);
 
   // Section list (manage / save drums)
@@ -1057,6 +1097,7 @@ function render() {
     destroyFollow();
     renderLibrary(root);
   }
+  syncDropVisibility();
 }
 
 function bind() {
