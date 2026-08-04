@@ -209,7 +209,7 @@ export const TOOLS = [
     label: 'Metronome',
     short: 'Tempo',
     category: 'tools',
-    description: 'Tempo, meter, tap tempo, and tempo phases.',
+    description: 'Tempo, meter, tap tempo, and practice phases with subdivisions.',
     title: 'Metronome',
     holdRecord: false,
   },
