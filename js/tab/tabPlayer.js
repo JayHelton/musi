@@ -105,7 +105,9 @@ export function createTabPlayer(opts = {}) {
     nextNoteIndex: 0,
     timer: null,
     voices: [],
-    loop: null, // { startSec, endSec } | null
+    loop: null, // { startSec, endSec, restSec } | null
+    inLoopRest: false,
+    loopRestUntil: 0,
     bpm: 120,
     onTick: typeof opts.onTick === 'function' ? opts.onTick : null,
     measureIndex: 0,
@@ -127,7 +129,23 @@ export function createTabPlayer(opts = {}) {
 
   function songTimeNow() {
     if (!state.playing || !audioCtx) return state.pauseAtSec;
+    if (state.inLoopRest) return state.loop?.endSec ?? state.pauseAtSec;
     return state.originSongSec + (audioCtx.currentTime - state.originAudioTime);
+  }
+
+  function restRemaining() {
+    if (!state.playing || !state.inLoopRest || !audioCtx) return 0;
+    return Math.max(0, state.loopRestUntil - audioCtx.currentTime);
+  }
+
+  function resyncCursor(fromSec) {
+    state.nextNoteIndex = 0;
+    while (
+      state.nextNoteIndex < state.notes.length &&
+      state.notes[state.nextNoteIndex].startSec < fromSec - 0.0001
+    ) {
+      state.nextNoteIndex += 1;
+    }
   }
 
   function emitTick() {
@@ -137,30 +155,47 @@ export function createTabPlayer(opts = {}) {
       currentSec: songTimeNow(),
       measureIndex: state.measureIndex,
       bpm: state.bpm,
+      resting: !!state.inLoopRest,
+      restRemaining: restRemaining(),
     });
   }
 
   function scheduler() {
     if (!state.playing || !audioCtx) return;
     const now = audioCtx.currentTime;
-    const songNow = state.originSongSec + (now - state.originAudioTime);
-    const horizon = songNow + SCHEDULE_AHEAD;
 
-    // Loop wrap.
-    if (state.loop && songNow >= state.loop.endSec - 0.001) {
-      const loopLen = Math.max(0.01, state.loop.endSec - state.loop.startSec);
-      const overshoot = songNow - state.loop.startSec;
-      const wrapped = state.loop.startSec + (overshoot % loopLen);
-      state.originSongSec = wrapped;
-      state.originAudioTime = now;
-      // Resync note cursor to first note at/after loop start.
-      state.nextNoteIndex = 0;
-      while (
-        state.nextNoteIndex < state.notes.length &&
-        state.notes[state.nextNoteIndex].startSec < state.loop.startSec - 0.0001
-      ) {
-        state.nextNoteIndex += 1;
+    // Rest gap between loop repeats.
+    if (state.loop && state.inLoopRest) {
+      if (now < state.loopRestUntil - 0.001) {
+        emitTick();
+        state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
+        return;
       }
+      state.inLoopRest = false;
+      state.originSongSec = state.loop.startSec;
+      state.originAudioTime = now + 0.01;
+      resyncCursor(state.loop.startSec);
+      emitTick();
+    }
+
+    const songNow = state.originSongSec + (now - state.originAudioTime);
+
+    // Hit loop end → optional rest, then wrap.
+    if (state.loop && !state.inLoopRest && songNow >= state.loop.endSec - 0.001) {
+      const rest = Math.max(0, Number(state.loop.restSec) || 0);
+      clearVoices();
+      if (rest > 0) {
+        state.inLoopRest = true;
+        state.loopRestUntil = now + rest;
+        state.originSongSec = state.loop.endSec;
+        state.originAudioTime = now;
+        emitTick();
+        state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
+        return;
+      }
+      state.originSongSec = state.loop.startSec;
+      state.originAudioTime = now;
+      resyncCursor(state.loop.startSec);
       emitTick();
     }
 
@@ -191,15 +226,16 @@ export function createTabPlayer(opts = {}) {
 
     emitTick();
     state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
-    void horizon;
   }
 
-  function load(model, { bpm = null, loopMeasures = null } = {}) {
+  function load(model, { bpm = null, loopMeasures = null, loopRestSec = 0 } = {}) {
     stop();
     const tempo = Number(bpm) || Number(model?.tempo) || 120;
     state.bpm = tempo;
     state.notes = buildTimedNotes(model, { bpm: tempo });
     state.loop = null;
+    state.inLoopRest = false;
+    const restSec = Math.max(0, Number(loopRestSec) || 0);
     if (loopMeasures && model?.measures?.length) {
       const [a, b] = loopMeasures;
       const startIdx = Math.max(0, Math.min(model.measures.length - 1, a));
@@ -217,10 +253,11 @@ export function createTabPlayer(opts = {}) {
           state.loop = {
             startSec: inRange[0].startSec,
             endSec: inRange[inRange.length - 1].startSec + inRange[inRange.length - 1].durSec,
+            restSec,
           };
         }
       } else if (endSec > startSec) {
-        state.loop = { startSec, endSec };
+        state.loop = { startSec, endSec, restSec };
       }
     }
   }
@@ -230,16 +267,11 @@ export function createTabPlayer(opts = {}) {
     ensureAudio();
     clearVoices();
     stopTimer();
+    state.inLoopRest = false;
     const startSec = fromSec != null ? fromSec : (state.paused ? state.pauseAtSec : (state.loop ? state.loop.startSec : 0));
     state.originSongSec = startSec;
     state.originAudioTime = audioCtx.currentTime + 0.05;
-    state.nextNoteIndex = 0;
-    while (
-      state.nextNoteIndex < state.notes.length &&
-      state.notes[state.nextNoteIndex].startSec < startSec - 0.0001
-    ) {
-      state.nextNoteIndex += 1;
-    }
+    resyncCursor(startSec);
     state.playing = true;
     state.paused = false;
     state.pauseAtSec = startSec;
@@ -252,6 +284,7 @@ export function createTabPlayer(opts = {}) {
     state.pauseAtSec = songTimeNow();
     state.playing = false;
     state.paused = true;
+    state.inLoopRest = false;
     stopTimer();
     clearVoices();
     emitTick();
@@ -260,6 +293,7 @@ export function createTabPlayer(opts = {}) {
   function stop() {
     state.playing = false;
     state.paused = false;
+    state.inLoopRest = false;
     state.pauseAtSec = state.loop ? state.loop.startSec : 0;
     state.nextNoteIndex = 0;
     state.measureIndex = 0;
@@ -296,7 +330,22 @@ export function createTabPlayer(opts = {}) {
       const last = state.notes[state.notes.length - 1];
       return last.startSec + last.durSec;
     },
-    setLoop(loop) { state.loop = loop; },
+    setLoop(loop) {
+      if (!loop) {
+        state.loop = null;
+        state.inLoopRest = false;
+        return;
+      }
+      state.loop = {
+        startSec: Number(loop.startSec) || 0,
+        endSec: Number(loop.endSec) || 0,
+        restSec: Math.max(0, Number(loop.restSec) || 0),
+      };
+    },
+    setLoopRestSec(sec) {
+      if (!state.loop) return;
+      state.loop.restSec = Math.max(0, Number(sec) || 0);
+    },
     setOnTick(fn) { state.onTick = fn; },
   };
 }

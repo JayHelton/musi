@@ -209,7 +209,7 @@ export const TOOLS = [
     label: 'Song Learning',
     short: 'Songs',
     category: 'create',
-    description: 'Split Guitar Pro songs into guitar and drum practice snippets.',
+    description: 'Practice Guitar Pro songs with follow-along play, and save measure loops to Exercises.',
     title: 'Song Learning',
     holdRecord: false,
   },

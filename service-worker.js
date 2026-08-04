@@ -1,5 +1,9 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
+<<<<<<< HEAD
 const CACHE_VERSION = "v107-gbc-song-follow";
+=======
+const CACHE_VERSION = "v106-song-ex-loop";
+>>>>>>> 1918c59 (Add Song Learning practice player and exercise loop rest)
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the

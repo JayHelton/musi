@@ -61,9 +61,21 @@ export function mountGpPlayer(host, {
   onAnalyze = null,
   headerExtra = null,
   hideTitle = false,
+  initialLoopEnabled = false,
+  initialLoopStart = null,
+  initialLoopEnd = null,
+  loopRestSec = 0,
+  onPracticeSettingsChange = null,
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
   if (!gpResult || !gpResult.tracks?.length) throw new Error('mountGpPlayer: no fretted tracks');
+
+  const measureCount = gpResult.tracks[0]?.model?.measures?.length || 1;
+  const clampBar = (n, fallback) => {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return fallback;
+    return Math.max(0, Math.min(measureCount - 1, Math.floor(v)));
+  };
 
   const state = {
     gp: gpResult,
@@ -73,20 +85,37 @@ export function mountGpPlayer(host, {
     transpose: 0,
     tuning: null, // null = keep file tuning
     preservePitchOnRetune: true,
-    loopStart: 0,
-    loopEnd: Math.max(0, (gpResult.tracks[0]?.model?.measures?.length || 1) - 1),
-    loopEnabled: false,
+    loopStart: clampBar(initialLoopStart, 0),
+    loopEnd: clampBar(initialLoopEnd, Math.max(0, measureCount - 1)),
+    loopEnabled: !!initialLoopEnabled || (initialLoopStart != null && initialLoopEnd != null),
+    loopRestSec: Math.max(0, Number(loopRestSec) || 0),
     baseModel: null,
     viewModel: null,
   };
+  if (state.loopEnd < state.loopStart) state.loopEnd = state.loopStart;
 
   let follow = null;
 
+  function emitPracticeSettings() {
+    if (typeof onPracticeSettingsChange !== 'function') return;
+    onPracticeSettingsChange({
+      preferredTrackIndex: state.trackIndex,
+      loopEnabled: state.loopEnabled,
+      measureStart: state.loopStart,
+      measureEnd: state.loopEnd,
+      loopRestSec: state.loopRestSec,
+      bpm: state.bpm,
+    });
+  }
+
   const player = createTabPlayer({
-    onTick: ({ playing, currentSec, measureIndex }) => {
+    onTick: ({ playing, currentSec, measureIndex, resting, restRemaining }) => {
       if (playBtn) playBtn.textContent = playing ? 'Pause' : 'Play';
       if (timeLabel) {
-        timeLabel.textContent = `${fmtTime(currentSec)} / ${fmtTime(player.durationSec)}`;
+        const restTxt = resting && restRemaining > 0
+          ? ` · rest ${restRemaining.toFixed(1)}s`
+          : '';
+        timeLabel.textContent = `${fmtTime(currentSec)} / ${fmtTime(player.durationSec)}${restTxt}`;
       }
       if (measureLabel) {
         const total = state.viewModel?.measures?.length || 0;
@@ -99,7 +128,7 @@ export function mountGpPlayer(host, {
         follow.update({
           currentSec,
           bpm: state.bpm,
-          playing,
+          playing: playing && !resting,
           durationSec: player.durationSec,
         });
       }
@@ -201,10 +230,15 @@ export function mountGpPlayer(host, {
     ]),
   ]));
 
-  // Loop
+  // Loop + rest between repeats
   const loopToggle = el('input', { type: 'checkbox', id: 'gpp-loop' });
+  if (state.loopEnabled) loopToggle.checked = true;
   const loopStartSel = el('select', { class: 'gpp-select gpp-loop-sel', 'aria-label': 'Loop start bar' });
   const loopEndSel = el('select', { class: 'gpp-select gpp-loop-sel', 'aria-label': 'Loop end bar' });
+  const restInput = el('input', {
+    type: 'number', class: 'gpp-num', min: '0', max: '30', step: '0.5',
+    value: String(state.loopRestSec), 'aria-label': 'Rest seconds between loops',
+  });
   controls.appendChild(el('div', { class: 'gpp-control-block' }, [
     el('div', { class: 'gpp-control-label', text: 'Loop' }),
     el('div', { class: 'gpp-control-row' }, [
@@ -213,6 +247,11 @@ export function mountGpPlayer(host, {
       loopStartSel,
       el('span', { class: 'gpp-unit', text: '–' }),
       loopEndSel,
+    ]),
+    el('div', { class: 'gpp-control-row' }, [
+      el('span', { class: 'gpp-unit', text: 'Rest between loops' }),
+      restInput,
+      el('span', { class: 'gpp-unit', text: 'sec' }),
     ]),
   ]));
 
@@ -249,6 +288,7 @@ export function mountGpPlayer(host, {
 
   function rebuildLoopSelects() {
     const measures = state.viewModel?.measures || [];
+    const last = Math.max(0, measures.length - 1);
     loopStartSel.innerHTML = '';
     loopEndSel.innerHTML = '';
     measures.forEach((m, i) => {
@@ -256,7 +296,8 @@ export function mountGpPlayer(host, {
       loopStartSel.appendChild(el('option', { value: String(i), text: label }));
       loopEndSel.appendChild(el('option', { value: String(i), text: label }));
     });
-    state.loopEnd = Math.max(0, measures.length - 1);
+    state.loopStart = Math.max(0, Math.min(last, state.loopStart));
+    state.loopEnd = Math.max(state.loopStart, Math.min(last, state.loopEnd));
     loopStartSel.value = String(state.loopStart);
     loopEndSel.value = String(state.loopEnd);
   }
@@ -265,15 +306,36 @@ export function mountGpPlayer(host, {
     strip.innerHTML = '';
     const measures = state.viewModel?.measures || [];
     measures.forEach((m, i) => {
+      const inLoop = state.loopEnabled && i >= state.loopStart && i <= state.loopEnd;
       const btn = el('button', {
-        class: 'gpp-bar' + (m.marker ? ' has-marker' : ''),
+        class: 'gpp-bar'
+          + (m.marker ? ' has-marker' : '')
+          + (inLoop ? ' in-loop' : ''),
         type: 'button',
         text: m.marker ? `${i + 1}\n${m.marker}` : String(i + 1),
-        title: m.marker || `Bar ${i + 1}`,
-        onClick: () => {
-          // Seek: restart from this measure.
+        title: m.marker
+          ? `${m.marker} · click to seek, Shift+click to set loop end`
+          : `Bar ${i + 1} · click to seek / set loop start, Shift+click to set loop end`,
+        onClick: (e) => {
+          if (e.shiftKey) {
+            state.loopEnd = Math.max(state.loopStart, i);
+            state.loopEnabled = true;
+            loopToggle.checked = true;
+            loopEndSel.value = String(state.loopEnd);
+            const was = player.playing;
+            player.stop();
+            reloadPlayer({ autoplay: was });
+            emitPracticeSettings();
+            return;
+          }
+          // Click sets loop start (and seeks). Extends end if needed.
+          state.loopStart = i;
+          if (state.loopEnd < i) state.loopEnd = i;
+          loopStartSel.value = String(state.loopStart);
+          loopEndSel.value = String(state.loopEnd);
           const wasPlaying = player.playing;
           reloadPlayer({ fromMeasure: i, autoplay: wasPlaying });
+          emitPracticeSettings();
         },
       });
       btn.dataset.index = String(i);
@@ -283,7 +345,9 @@ export function mountGpPlayer(host, {
 
   function highlightMeasure(idx) {
     strip.querySelectorAll('.gpp-bar').forEach((b) => {
-      b.classList.toggle('active', Number(b.dataset.index) === idx);
+      const i = Number(b.dataset.index);
+      b.classList.toggle('active', i === idx);
+      b.classList.toggle('in-loop', state.loopEnabled && i >= state.loopStart && i <= state.loopEnd);
     });
   }
 
@@ -306,16 +370,21 @@ export function mountGpPlayer(host, {
     applyTransforms();
     const model = state.viewModel;
     if (!model) return;
-    const loopMeasures = state.loopEnabled
-      ? [Number(loopStartSel.value) || 0, Number(loopEndSel.value) || 0]
-      : null;
-    player.load(model, { bpm: state.bpm, loopMeasures });
-    // If loopMeasures path didn't set loop (equal-slot), set manually via load's internal — already handled.
-    if (state.loopEnabled && loopMeasures) {
-      // ensure loop was applied; load() handles it
-    } else {
-      player.setLoop(null);
+    state.loopStart = Number(loopStartSel.value) || 0;
+    state.loopEnd = Number(loopEndSel.value) || 0;
+    if (state.loopEnd < state.loopStart) {
+      state.loopEnd = state.loopStart;
+      loopEndSel.value = String(state.loopEnd);
     }
+    const loopMeasures = state.loopEnabled
+      ? [state.loopStart, state.loopEnd]
+      : null;
+    player.load(model, {
+      bpm: state.bpm,
+      loopMeasures,
+      loopRestSec: state.loopRestSec,
+    });
+    if (!state.loopEnabled) player.setLoop(null);
     tabPre.textContent = modelToAsciiTab(model, { maxCols: 96 }) || '(no notes)';
     infoLine.textContent = [
       model.tuning,
@@ -430,6 +499,7 @@ export function mountGpPlayer(host, {
     const was = player.playing;
     player.stop();
     reloadPlayer({ autoplay: was });
+    emitPracticeSettings();
   });
   const onLoopChange = () => {
     state.loopStart = Number(loopStartSel.value) || 0;
@@ -438,13 +508,32 @@ export function mountGpPlayer(host, {
       state.loopEnd = state.loopStart;
       loopEndSel.value = String(state.loopEnd);
     }
-    if (!state.loopEnabled) return;
+    if (!state.loopEnabled) {
+      rebuildStrip();
+      emitPracticeSettings();
+      return;
+    }
     const was = player.playing;
     player.stop();
     reloadPlayer({ autoplay: was });
+    emitPracticeSettings();
   };
   loopStartSel.addEventListener('change', onLoopChange);
   loopEndSel.addEventListener('change', onLoopChange);
+  restInput.addEventListener('change', () => {
+    state.loopRestSec = Math.max(0, Math.min(30, Number(restInput.value) || 0));
+    restInput.value = String(state.loopRestSec);
+    player.setLoopRestSec(state.loopRestSec);
+    // If loop is armed, refresh loop object with new rest.
+    if (state.loopEnabled) {
+      const was = player.playing;
+      const at = player.currentSec;
+      player.stop();
+      reloadPlayer({ autoplay: false });
+      if (was) player.play({ fromSec: at });
+    }
+    emitPracticeSettings();
+  });
 
   // Initial paint
   applyTransforms();

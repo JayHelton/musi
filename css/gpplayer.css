@@ -67,6 +67,8 @@
 }
 .gpp-bar:hover{border-color:var(--accent);color:var(--text)}
 .gpp-bar.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.gpp-bar.in-loop{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.gpp-bar.in-loop:not(.active){color:var(--text);background:rgba(255,255,255,0.03)}
 .gpp-bar.has-marker{font-weight:650}
 
 .gpp-tab{

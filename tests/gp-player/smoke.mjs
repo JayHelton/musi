@@ -20,7 +20,7 @@ import {
   quantizePercussionToSteps,
 } from '../../js/drums/gpDrumImport.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
-import { buildFollowColumns } from '../../js/songLearnPlayer.js';
+import { buildFollowColumns, createSongPlayer } from '../../js/songLearnPlayer.js';
 
 // ---- duration math ----
 assert.equal(noteValueToQuarters(4), 1);
@@ -222,5 +222,20 @@ assert.ok(layout.columns.length >= 4);
 assert.ok(layout.columns.some((c) => c.frets.some((f) => f != null)));
 assert.ok(layout.columns.some((c) => Object.keys(c.drums).length));
 assert.ok(layout.columns.some((c) => c.barStart && c.marker === 'Intro'));
+
+// ---- loop rest API on song player ----
+const player = createSongPlayer();
+player.load({
+  guitarModel: fakeGp.tracks[0].model,
+  percModel: perc,
+  bpm: 120,
+  startBeat: 0,
+  endBeat: 2,
+  loop: true,
+  loopRestSec: 2.5,
+});
+assert.equal(player.durationSec, 1); // 2 beats at 120 BPM
+player.setLoopRestSec(1);
+assert.ok(!player.playing);
 
 console.log('gp-player smoke: ok');
