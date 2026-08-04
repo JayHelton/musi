@@ -25,6 +25,7 @@ import { initDrums, stopDrums } from './drums/drumsUI.js';
 import { initTabAnalyzer, stopTabAnalyzer } from './tabAnalyzer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
+import { initTriadRef, stopTriadRef } from './triadReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
@@ -47,6 +48,7 @@ const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
   scaleref: () => stopScaleRef(),
+  triads: () => stopTriadRef(),
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); if (chOscillators.length) stopChordRef(); },
   tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); if (runner.running) stopPitchRunner(); },
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
@@ -68,6 +70,7 @@ const TOOL_INITS = {
   keyboard: buildKeyboard,
   metronome: initMetronome,
   scaleref: initScaleRef,
+  triads: initTriadRef,
   chords: () => { initMovableChordCards(); initChordRef(); initChordBuilder(); },
   fretboard: initFretboard,
   intervalorbit: initIntervalOrbit,

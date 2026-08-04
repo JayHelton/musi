@@ -29,14 +29,14 @@ function lastTool() {
 function continueSetupLine(toolId) {
   const c = getContext();
   const bits = [];
-  if (['scaleref', 'chords', 'fretboard', 'intervalorbit', 'chordlab', 'scales', 'tuner'].includes(toolId)) {
+  if (['scaleref', 'chords', 'triads', 'fretboard', 'intervalorbit', 'chordlab', 'scales', 'tuner'].includes(toolId)) {
     bits.push(`${c.root} ${shortScaleName(c.scale)}`);
   }
   if (['metronome', 'timing', 'practice', 'intervalorbit'].includes(toolId)) {
     bits.push(`${c.tempo} BPM`);
   }
   const tuning = getSetting('picker.lastTuning', getSetting('chordref.tuning', getSetting('io.tuning', null)));
-  if (tuning && ['scaleref', 'chords', 'fretboard', 'intervalorbit', 'chordlab', 'tabanalyzer'].includes(toolId)) {
+  if (tuning && ['scaleref', 'chords', 'triads', 'fretboard', 'intervalorbit', 'chordlab', 'tabanalyzer'].includes(toolId)) {
     bits.push(tuning);
   }
   const sub = getSetting(`subview.${toolId}`, null);

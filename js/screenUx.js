@@ -1418,6 +1418,107 @@ function syncCompactProgress(sectionId, prefix) {
   });
 }
 
+/* ── Triads Reference ────────────────────────────────────────── */
+function setupTriads() {
+  const sec = document.getElementById('sec-triads');
+  if (!sec) return;
+  sec.classList.add('has-setup-summary');
+  ensureBackButton(sec);
+
+  const layout = sec.querySelector('.quiz-layout');
+  const main = sec.querySelector('.quiz-main');
+  if (!layout || !main) return;
+
+  const setup = document.createElement('div');
+  setup.id = 'triads-setup';
+  setup.className = 'mobile-setup-first';
+  insertBefore(layout, setup, main);
+
+  // Collapse fret opts into Options details
+  const opts = sec.querySelector('.ref-fb-opts');
+  if (opts && !document.getElementById('triad-fb-options-details')) {
+    const details = document.createElement('details');
+    details.className = 'adv-options';
+    details.id = 'triad-fb-options-details';
+    details.innerHTML = `<summary><span class="adv-gear">⚙</span> Options</summary>`;
+    const body = document.createElement('div');
+    const playBtn = opts.querySelector('#triad-fb-play');
+    [...opts.querySelectorAll('.ref-fb-range, .ref-fb-check')].forEach(el => body.appendChild(el));
+    details.appendChild(body);
+    const fbCard = sec.querySelector('.ref-fb-card');
+    if (fbCard) fbCard.insertBefore(details, document.getElementById('triad-map'));
+    // Keep play button visible in the head
+    if (playBtn && opts) opts.appendChild(playBtn);
+  }
+
+  refreshTriadsSetup();
+  subscribeContext(() => refreshTriadsSetup());
+  document.addEventListener('musi:triadref-change', () => refreshTriadsSetup());
+}
+
+function refreshTriadsSetup() {
+  const el = document.getElementById('triads-setup');
+  if (!el) return;
+  const c = getContext();
+  const tuning = getSetting('triadref.tuning', 'Standard');
+  const stringSet = Number(getSetting('triadref.stringSet', NaN));
+  const setLabel = (() => {
+    const item = document.querySelector(`#sl-triad-stringset .sl-item.active`);
+    return item ? item.querySelector('span')?.textContent || 'String set' : 'String set';
+  })();
+  void stringSet;
+
+  const h2 = document.querySelector('#sec-triads .section-head h2');
+  if (h2) h2.dataset.context = `${c.root} · ${tuning}`;
+
+  renderSetupSummary(el, [
+    {
+      key: 'root', label: 'Root', value: c.root, hint: 'Root',
+      onClick: async () => {
+        const next = await openRootPicker({ value: c.root, source: 'triadref' });
+        if (next) {
+          const item = document.querySelector(`#sl-triad-root .sl-item[data-val="${CSS.escape(next)}"]`);
+          if (item) item.click();
+          refreshTriadsSetup();
+        }
+      },
+    },
+    {
+      key: 'stringset', label: 'Strings', value: setLabel, hint: 'String set',
+      onClick: async () => {
+        const items = [...document.querySelectorAll('#sl-triad-stringset .sl-item')].map(el => ({
+          id: el.dataset.val,
+          label: el.querySelector('span')?.textContent || el.dataset.val,
+        }));
+        if (!items.length) return;
+        const current = document.querySelector('#sl-triad-stringset .sl-item.active')?.dataset.val;
+        const next = await openSelectionSheet({
+          title: 'String set',
+          items,
+          value: current,
+        });
+        if (next != null) {
+          const item = document.querySelector(`#sl-triad-stringset .sl-item[data-val="${CSS.escape(String(next))}"]`);
+          if (item) item.click();
+          refreshTriadsSetup();
+        }
+      },
+    },
+    {
+      key: 'tuning', label: 'Tuning', value: tuning, hint: 'Tuning',
+      onClick: async () => {
+        const next = await openTuningPicker({ value: tuning });
+        if (next && next !== 'Custom') {
+          saveSetting('triadref.tuning', next);
+          const item = document.querySelector(`#sl-triad-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
+          if (item) item.click();
+          refreshTriadsSetup();
+        }
+      },
+    },
+  ]);
+}
+
 /* ── Generic back buttons for remaining tools ────────────────── */
 function ensureAllBackButtons() {
   document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
@@ -1431,6 +1532,7 @@ export function initScreenUx(config = {}) {
   setupScaleQuiz();
   setupScaleRef();
   setupChords();
+  setupTriads();
   setupIntervalOrbit();
   setupPitch();
   setupFretboard();
@@ -1453,5 +1555,6 @@ export function initScreenUx(config = {}) {
   subscribeContext(() => {
     refreshScaleRefSetup();
     refreshChordsSetup();
+    refreshTriadsSetup();
   });
 }

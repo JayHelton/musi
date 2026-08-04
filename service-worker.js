@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v101-track-to-sheet";
+const CACHE_VERSION = "v102-triads-reference";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -34,6 +34,7 @@ const PRECACHE_URLS = [
   "css/selection-sheet.css",
   "css/ux-shell.css",
   "css/ux-chords-orbit.css",
+  "css/triads.css",
   "chord-cards/",
   "chord-cards/index.html",
   "chord-cards/css/cards.css",
@@ -92,6 +93,7 @@ const PRECACHE_URLS = [
   "js/riffGenerator.js",
   "js/scaleQuiz.js",
   "js/scaleReference.js",
+  "js/triadReference.js",
   "js/sweepPatterns.js",
   "js/data/sweepLibrary.js",
   "js/tabAnalyzer.js",

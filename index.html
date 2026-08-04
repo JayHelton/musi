@@ -40,6 +40,7 @@
 <link rel="stylesheet" href="css/selection-sheet.css">
 <link rel="stylesheet" href="css/ux-shell.css">
 <link rel="stylesheet" href="css/ux-chords-orbit.css">
+<link rel="stylesheet" href="css/triads.css">
 </head>
 <body>
 <canvas id="visualizer-canvas"></canvas>
@@ -427,6 +428,52 @@
         <div class="caged-sub" id="caged-sub"></div>
       </div>
       <div class="caged-grid" id="caged-shapes"></div>
+    </div>
+  </section>
+
+  <!-- TRIADS REFERENCE -->
+  <section id="sec-triads" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Reference</div>
+      <h2>Triads Reference</h2>
+      <p>All closed triad patterns for a selected root on any 3-string set — Major, Minor, Diminished, and Augmented — in every tuning Musi supports.</p>
+    </div>
+    <div class="quiz-layout">
+      <div class="sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Root</div>
+          <div class="sl-scroll" id="sl-triad-root"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">String set</div>
+          <div class="sl-scroll" id="sl-triad-stringset" style="max-height:220px"></div>
+        </div>
+        <div class="sidebar-list">
+          <div class="sl-head">Tuning</div>
+          <div class="sl-scroll" id="sl-triad-tuning"></div>
+        </div>
+      </div>
+      <div class="quiz-main">
+        <div class="quiz-card ref-fb-card">
+          <div class="ref-fb-head">
+            <div>
+              <div class="ref-fb-title" id="triad-fb-title">Triad patterns</div>
+              <div class="ref-fb-sub" id="triad-fb-sub"></div>
+            </div>
+            <div class="ref-fb-opts">
+              <button type="button" class="btn sm chord-ref-play" id="triad-fb-play" aria-label="Play all triad qualities">&#9654; Play</button>
+              <label class="ref-fb-range">Fret <input type="number" id="triad-fb-start" min="0" max="24" value="0"></label>
+              <label class="ref-fb-range">– <input type="number" id="triad-fb-end" min="1" max="24" value="15"></label>
+              <label class="ref-fb-range">Span <input type="number" id="triad-fb-span" min="2" max="7" value="4" title="Max fret span for a closed shape"></label>
+              <label class="ref-fb-check"><input type="checkbox" id="triad-show-sus"> Sus 2 / Sus 4</label>
+            </div>
+          </div>
+          <div id="triad-map" class="triad-map" aria-live="polite"></div>
+        </div>
+        <div class="quiz-card" id="triad-info-card">
+          <p style="color:var(--muted)">Pick a root &amp; tuning.</p>
+        </div>
+      </div>
     </div>
   </section>
 
