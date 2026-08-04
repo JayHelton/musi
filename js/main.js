@@ -41,6 +41,7 @@ import {
   asTabs, getTool, isHoldRecordRelevant,
 } from './tools.js';
 import { initScreenUx } from './screenUx.js';
+import { initBootSplash, markBootReady } from './bootSplash.js';
 
 const ICONS = TOOL_ICONS;
 const TABS = asTabs();
@@ -428,6 +429,7 @@ function initNav() {
 }
 
 function init() {
+  initBootSplash();
   initNav();
 
   function buildList(containerId, items, defaultVal) {
@@ -544,6 +546,11 @@ function init() {
     const id = resolveSectionAlias(location.hash.replace('#', ''));
     if (id && isValidSection(id)) showSection(id, true);
     else if (!id) showSection('home', true);
+  });
+
+  // Reveal PRESS START only after nav/hash routing has settled.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => markBootReady());
   });
 }
 

@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v113-gp-player-layout";
+const CACHE_VERSION = "v114-boot-splash";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -38,6 +38,7 @@ const PRECACHE_URLS = [
   "css/ux-chords-orbit.css",
   "css/triads.css",
   "css/theme-gbc.css",
+  "css/boot-splash.css",
   "chord-cards/",
   "chord-cards/index.html",
   "chord-cards/css/cards.css",
@@ -47,6 +48,7 @@ const PRECACHE_URLS = [
   "chord-cards/data/shapes.js",
   "js/movableChordCards.js",
   "js/main.js",
+  "js/bootSplash.js",
   "js/tools.js",
   "js/recents.js",
   "js/selectionSheet.js",
