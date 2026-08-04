@@ -28,6 +28,8 @@ const TOOL_TITLES = {
   practice: 'Practice Timer',
   exercises: 'Exercises',
   drums: 'Drums',
+  gpplayer: 'Guitar Pro Player',
+  songlearn: 'Song Learning',
   tabanalyzer: 'Tab Analyzer',
 };
 
@@ -50,9 +52,11 @@ const TOOL_KEYWORDS = {
   songwriter: 'songwriting lyrics notepad write song demo vocal recording compose',
   notes: 'notes notepad practice notes ideas reminders text journal write',
   practice: 'practice timer countdown stopwatch alarm metronome tempo plan bpm schedule interval session',
-  exercises: 'exercises media library pdf audio video lesson links',
+  exercises: 'exercises media library pdf audio video lesson links guitar pro gp gp5',
   drums: 'drums drum machine beat fill groove rhythm tab sequencer kick snare hihat metal rock punk blast beat practice',
-  tabanalyzer: 'tab analyzer analyser guitar bass tablature key tonal center chord progression scale mode arpeggio technique riff solo pdf import breakdown',
+  gpplayer: 'guitar pro player gp gp5 practice tempo transpose tuning track playback',
+  songlearn: 'song learning guitar pro follow along practice measure loop sections exercises',
+  tabanalyzer: 'tab analyzer analyser guitar bass tablature key tonal center chord progression scale mode arpeggio technique riff solo pdf import breakdown guitar pro',
 };
 
 const MODE_NAMES = new Set([
