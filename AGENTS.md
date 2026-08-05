@@ -21,6 +21,9 @@ distribution.
   user's message or prior main-thread steps.
 - **Model:** use Composer 2.5 (`composer-2.5` or `composer-2.5-fast`) for
   implementation sub-agents unless the user specifies otherwise.
+- **Before opening a PR:** fetch the latest `main` from origin, rebase (or merge)
+  your branch onto it, and resolve all conflicts first. Do not create or update a
+  PR while the branch is behind `main` or has unresolved merge conflicts.
 
 Musi is a **fully static, frontend-only** product — there is no backend, database, or
 API. It ships as two deliverables that share the same music-theory engine in `js/`:
