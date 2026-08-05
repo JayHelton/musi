@@ -21,6 +21,8 @@ import {
 } from '../../js/drums/gpDrumImport.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
 import { buildFollowColumns, createSongPlayer } from '../../js/songLearnPlayer.js';
+import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
+import { scheduleMetronomeClick } from '../../js/tab/metroClick.js';
 
 // ---- duration math ----
 assert.equal(noteValueToQuarters(4), 1);
@@ -243,5 +245,37 @@ player.load({
 assert.equal(player.durationSec, 1); // 2 beats at 120 BPM
 player.setLoopRestSec(1);
 assert.ok(!player.playing);
+
+// ---- multi-track mix player: per-track enable + metronome flag ----
+const guitarB = {
+  tuning: 'Standard',
+  strings: fakeGp.tracks[0].model.strings,
+  events: [
+    { slot: 0, start: 0, duration: 1, stringIndex: 0, fret: 5, midi: 45, pc: 9, techniques: [], dead: false },
+  ],
+  measures: fakeGp.tracks[0].model.measures,
+  tempo: 120,
+  totalBeats: 2,
+};
+const mix = createGpMixPlayer();
+mix.load({
+  guitarModels: [fakeGp.tracks[0].model, guitarB],
+  drumModels: [perc],
+  bpm: 120,
+  enabledGuitars: [true, false],
+  enabledDrums: [true],
+  metronomeEnabled: true,
+});
+assert.equal(mix.enabledGuitars.length, 2);
+assert.equal(mix.enabledDrums.length, 1);
+assert.equal(mix.metronomeEnabled, true);
+assert.ok(mix.events.length >= 4); // first guitar + drums, second guitar muted
+mix.setTrackEnabled('guitar', 1, true);
+assert.ok(mix.events.length >= 5);
+mix.setTrackEnabled('guitar', 0, false);
+assert.ok(mix.events.length >= 1);
+mix.setMetronomeEnabled(false);
+assert.equal(mix.metronomeEnabled, false);
+assert.ok(typeof scheduleMetronomeClick === 'function');
 
 console.log('gp-player smoke: ok');
