@@ -28,13 +28,13 @@
 }
 .gpp-stage[hidden]{display:none}
 
-/* Shared mount root */
-.gpp-root{display:flex;flex-direction:column;gap:12px;min-height:0;color:var(--text)}
+/* Shared mount root — score first, settings tucked away */
+.gpp-root{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0;color:var(--text)}
 .gpp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .gpp-title{font-size:1.05rem;font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gpp-head-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
 
-.gpp-meta{display:flex;flex-direction:column;gap:8px}
+.gpp-meta{display:flex;flex-direction:column;gap:8px;min-width:0}
 .gpp-info{font-size:.9rem;color:var(--muted);line-height:1.4;font-family:var(--font-ui,"VT323",monospace)}
 
 .gpp-transport{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -47,9 +47,12 @@
 .gpp-tempo-chip{margin-left:auto}
 .gpp-head-extra-wrap{display:flex;gap:8px;flex-wrap:wrap}
 
+.gpp-follow-host{order:0;min-width:0}
+.gpp-strip{order:0}
+
 .gpp-settings{
   border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9);
-  padding:0;overflow:hidden
+  padding:0;overflow:hidden;order:2
 }
 .gpp-settings-summary{
   list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
@@ -91,13 +94,14 @@
 .gpp-loop-sel{width:auto;min-width:72px}
 
 .gpp-strip{
-  display:flex;gap:6px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin
+  display:flex;gap:8px;overflow-x:auto;padding:6px 2px 10px;scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch
 }
 .gpp-bar{
-  flex:0 0 auto;min-width:36px;min-height:36px;padding:6px 8px;border:1px solid var(--border);
-  border-radius:10px;background:var(--bg);color:var(--muted);font-size:.85rem;
+  flex:0 0 auto;min-width:44px;min-height:40px;padding:8px 10px;border:1px solid var(--border);
+  border-radius:10px;background:var(--bg);color:var(--muted);font-size:.95rem;
   font-family:var(--font-ui,"VT323",monospace);
-  cursor:pointer;line-height:1.15;white-space:pre-line;text-align:center
+  cursor:pointer;line-height:1.2;white-space:pre-line;text-align:center
 }
 .gpp-bar:hover{border-color:var(--accent);color:var(--text)}
 .gpp-bar.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
@@ -149,4 +153,7 @@
   .gpp-controls{grid-template-columns:1fr}
   .gpp-tab{font-size:.9rem;max-height:220px}
   .gpp-drop{padding:22px 14px}
+  .gpp-stage{padding:12px 12px 16px}
+  .gpp-bar{min-width:40px;min-height:38px}
+  .gpp-root{gap:10px}
 }

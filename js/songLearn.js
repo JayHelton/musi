@@ -1,21 +1,19 @@
-// Song Learning: import a Guitar Pro score, split it into section snippets
-// (guitar + drums), save them, and practice with a follow-along multi-track player.
+// Song Learning: import a Guitar Pro score, practice with the Guitar Pro Player,
+// and save user-selected measure ranges as Exercises. Sections are not auto-detected.
 
-import { parseGuitarPro, isGuitarProName, modelToAsciiTab } from './tab/guitarPro.js';
+import { parseGuitarPro, isGuitarProName } from './tab/guitarPro.js';
 import { mountGpPlayer } from './gpPlayerUI.js';
-import { buildGpSectionSnippets, sliceGuitarModel } from './drums/gpDrumImport.js';
+import { sliceGuitarModel } from './drums/gpDrumImport.js';
 import {
   listSongs,
   getSong,
   deleteSong,
   renameSong,
-  removeSection,
-  createSongFromGpSnippets,
+  createSongFromGp,
   getSongSourceBlob,
   attachmentsSupported,
 } from './songLearnStore.js';
 import { saveFile, ensurePersistentStorage } from './attachments.js';
-import { savePattern } from './drums/drumPatternDb.js';
 import { addGpExerciseFromAttachment } from './exercises.js';
 import {
   createSongPlayer,
@@ -501,20 +499,6 @@ function syncTransportButtons(info) {
   }
 }
 
-function rebuildSnippets() {
-  const imp = state.import;
-  if (!imp?.gp) return;
-  imp.snippets = buildGpSectionSnippets(imp.gp, {
-    guitarTrackIndex: imp.guitarIdx,
-    drumTrackIndex: imp.drumIdx,
-    includeGuitar: (imp.gp.tracks || []).length > 0,
-    includeDrums: (imp.gp.drumTracks || []).length > 0,
-  });
-  imp.selected = new Set(
-    imp.snippets.filter((s) => s.hasGuitar || s.hasDrums).map((s) => s.id)
-  );
-}
-
 async function loadGpFile(file) {
   if (!file || !isGuitarProName(file.name)) {
     setStatus('Choose a Guitar Pro .gp or .gp5 file.', 'error');
@@ -538,15 +522,14 @@ async function loadGpFile(file) {
       gp,
       guitarIdx: 0,
       drumIdx: 0,
-      snippets: [],
-      selected: new Set(),
-      saveDrumsToLibrary: true,
     };
-    rebuildSnippets();
     state.view = 'import';
     const tempo = gp.tempo || gp.tracks?.[0]?.model?.tempo || gp.drumTracks?.[0]?.tempo || 120;
+    const bars = gp.tracks?.[0]?.model?.measures?.length
+      || gp.drumTracks?.[0]?.model?.measures?.length
+      || 0;
     setStatus(
-      `Loaded ${file.name} · ${gp.tracks?.length || 0} guitar · ${gp.drumTracks?.length || 0} drums · ${Math.round(tempo)} BPM`
+      `Loaded ${file.name} · ${gp.tracks?.length || 0} guitar · ${gp.drumTracks?.length || 0} drums · ${bars || '?'} bars · ${Math.round(tempo)} BPM`
     );
     render();
   } catch (err) {
@@ -557,40 +540,39 @@ async function loadGpFile(file) {
 async function saveImport() {
   const imp = state.import;
   if (!imp) return;
-  const picked = imp.snippets.filter((s) => imp.selected.has(s.id) && (s.hasGuitar || s.hasDrums));
-  if (!picked.length) {
-    setStatus('Select at least one section with guitar or drums.', 'error');
-    return;
-  }
   try {
     const gTrack = imp.gp.tracks?.[imp.guitarIdx] || null;
     const dTrack = imp.gp.drumTracks?.[imp.drumIdx] || null;
-    // Clone full models for synced playback (primary + every fretted track for full mix).
     const fullGuitar = gTrack?.model ? JSON.parse(JSON.stringify(gTrack.model)) : null;
     const fullGuitars = (imp.gp.tracks || [])
       .map((t) => (t?.model ? JSON.parse(JSON.stringify(t.model)) : null))
       .filter(Boolean);
     const fullDrums = dTrack?.model ? JSON.parse(JSON.stringify(dTrack.model)) : null;
-
-    const song = await createSongFromGpSnippets({
+    if (!fullGuitar && !fullGuitars.length && !fullDrums) {
+      setStatus('Pick a guitar or drum track to save.', 'error');
+      return;
+    }
+    const tempo = imp.gp.tempo
+      || gTrack?.model?.tempo
+      || dTrack?.model?.tempo
+      || 120;
+    const song = await createSongFromGp({
       file: imp.file,
       fileName: imp.fileName,
       title: imp.fileName.replace(/\.(gp|gp5)$/i, ''),
-      tempo: picked[0].tempo,
+      tempo,
       guitarTrackName: gTrack?.name || null,
       drumTrackName: dTrack?.name || null,
-      snippets: picked,
       fullGuitar,
       fullGuitars,
       fullDrums,
-      saveDrumsToLibrary: !!imp.saveDrumsToLibrary,
     });
     state.detailId = song.id;
     state._practiceSongId = null;
     state.view = 'detail';
-    state.activeSectionId = 'all';
+    state.activeSectionId = 'selection';
     state.import = null;
-    setStatus(`Saved “${song.title}” with ${song.sections.length} section${song.sections.length === 1 ? '' : 's'}.`);
+    setStatus(`Saved “${song.title}”. Highlight measures in the player to turn them into Exercises.`);
     render();
   } catch (err) {
     setStatus(err?.message || 'Save failed.', 'error');
@@ -616,14 +598,16 @@ function renderLibrary(root) {
   const list = el('div', { class: 'sln-song-list' });
   songs.forEach((song) => {
     const card = el('div', { class: 'sln-song-card' });
-    const gCount = song.sections.filter((s) => s.hasGuitar).length;
-    const dCount = song.sections.filter((s) => s.hasDrums).length;
+    const bars = songMeasures(song).length;
+    const parts = [
+      bars ? `${bars} bars` : null,
+      song.fullGuitar || (song.fullGuitars || []).length ? 'guitar' : null,
+      song.fullDrums ? 'drums' : null,
+      `${Math.round(song.tempo)} BPM`,
+    ].filter(Boolean).join(' · ');
     card.appendChild(el('div', { class: 'sln-song-head' }, [
       el('div', { class: 'sln-song-title', text: song.title }),
-      el('div', {
-        class: 'sln-song-meta',
-        text: `${song.sections.length} sections · ${gCount} guitar · ${dCount} drums · ${Math.round(song.tempo)} BPM`,
-      }),
+      el('div', { class: 'sln-song-meta', text: parts }),
     ]));
     const actions = el('div', { class: 'sln-song-actions' });
     actions.appendChild(el('button', {
@@ -649,7 +633,7 @@ function renderLibrary(root) {
     actions.appendChild(el('button', {
       class: 'btn sm sln-danger', type: 'button', text: 'Delete',
       onClick: async () => {
-        if (!confirm(`Delete “${song.title}” and its snippets?`)) return;
+        if (!confirm(`Delete “${song.title}”?`)) return;
         stopPlayback();
         await deleteSong(song.id);
         render();
@@ -674,6 +658,11 @@ function renderImport(root) {
     el('div', { class: 'sln-import-title', text: imp.fileName }),
   ]));
 
+  root.appendChild(el('div', {
+    class: 'sln-player-banner',
+    text: 'Choose tracks, save the song, then highlight measures in the Guitar Pro Player to create Exercises. Nothing is auto-split.',
+  }));
+
   const trackRow = el('div', { class: 'sln-track-row' });
   if ((imp.gp.tracks || []).length) {
     const gSel = el('select', { class: 'sln-select', 'aria-label': 'Guitar track' });
@@ -681,7 +670,7 @@ function renderImport(root) {
       gSel.appendChild(el('option', { value: String(i), text: `Guitar: ${t.name} (${t.noteCount} notes)` }));
     });
     gSel.value = String(imp.guitarIdx);
-    gSel.onchange = () => { imp.guitarIdx = Number(gSel.value) || 0; rebuildSnippets(); render(); };
+    gSel.onchange = () => { imp.guitarIdx = Number(gSel.value) || 0; };
     trackRow.appendChild(el('label', { class: 'sln-field' }, [el('span', { text: 'Guitar track' }), gSel]));
   }
   if ((imp.gp.drumTracks || []).length) {
@@ -690,60 +679,27 @@ function renderImport(root) {
       dSel.appendChild(el('option', { value: String(i), text: `Drums: ${t.name} (${t.hitCount} hits)` }));
     });
     dSel.value = String(imp.drumIdx);
-    dSel.onchange = () => { imp.drumIdx = Number(dSel.value) || 0; rebuildSnippets(); render(); };
+    dSel.onchange = () => { imp.drumIdx = Number(dSel.value) || 0; };
     trackRow.appendChild(el('label', { class: 'sln-field' }, [el('span', { text: 'Drum track' }), dSel]));
   }
   root.appendChild(trackRow);
 
-  const opts = el('div', { class: 'sln-import-opts' });
-  const chk = el('input', { type: 'checkbox', id: 'sln-save-drums' });
-  chk.checked = !!imp.saveDrumsToLibrary;
-  chk.onchange = () => { imp.saveDrumsToLibrary = !!chk.checked; };
-  opts.appendChild(el('label', { class: 'sln-check', for: 'sln-save-drums' }, [
-    chk,
-    el('span', { text: 'Also save drum snippets to the Drums library' }),
-  ]));
-  root.appendChild(opts);
-
-  const list = el('div', { class: 'sln-snip-list' });
-  imp.snippets.forEach((s) => {
-    const row = el('div', { class: 'sln-snip-card' });
-    const head = el('label', { class: 'sln-snip-head' });
-    const box = el('input', { type: 'checkbox' });
-    box.checked = imp.selected.has(s.id);
-    box.onchange = () => {
-      if (box.checked) imp.selected.add(s.id);
-      else imp.selected.delete(s.id);
-    };
-    head.append(box, el('div', {}, [
-      el('div', { class: 'sln-snip-title', text: s.label }),
-      el('div', {
-        class: 'sln-snip-meta',
-        text: [
-          s.type,
-          `bars ${s.measureStart + 1}–${s.measureEnd || '?'}`,
-          s.hasGuitar ? 'guitar' : null,
-          s.hasDrums ? 'drums' : null,
-          `${Math.round(s.tempo)} BPM`,
-        ].filter(Boolean).join(' · '),
-      }),
-    ]));
-    row.appendChild(head);
-    if (s.hasDrums && s.drums?.tab) {
-      row.appendChild(el('pre', { class: 'sln-tab', text: s.drums.tab }));
-    } else if (s.hasGuitar && s.guitar) {
-      row.appendChild(el('pre', { class: 'sln-tab', text: modelToAsciiTab(s.guitar, { maxCols: 72 }) || '(guitar)' }));
-    } else {
-      row.appendChild(el('div', { class: 'sln-snip-empty', text: 'No playable content in this section for the selected tracks.' }));
-    }
-    list.appendChild(row);
-  });
-  root.appendChild(list);
+  const bars = imp.gp.tracks?.[imp.guitarIdx]?.model?.measures?.length
+    || imp.gp.drumTracks?.[imp.drumIdx]?.model?.measures?.length
+    || 0;
+  const tempo = imp.gp.tempo
+    || imp.gp.tracks?.[imp.guitarIdx]?.model?.tempo
+    || imp.gp.drumTracks?.[imp.drumIdx]?.model?.tempo
+    || 120;
+  root.appendChild(el('div', {
+    class: 'sln-song-meta',
+    text: `${bars || '?'} bars · ${Math.round(tempo)} BPM · full score (pick exercises in the player)`,
+  }));
 
   root.appendChild(el('div', { class: 'sln-import-actions' }, [
     el('button', {
       class: 'btn primary', type: 'button',
-      text: `Save ${imp.selected.size} snippet${imp.selected.size === 1 ? '' : 's'}`,
+      text: 'Save song & open player',
       onClick: saveImport,
     }),
   ]));
@@ -986,6 +942,7 @@ function renderDetail(root) {
   root.innerHTML = '';
   destroyFollow();
   destroyGpMount();
+  stopPlayback();
 
   state.scoreBpm = Number(song.tempo) || 120;
   if (state._practiceSongId !== song.id) {
@@ -1030,28 +987,26 @@ function renderDetail(root) {
     text: [
       song.fileName || 'Guitar Pro',
       `${Math.round(state.scoreBpm)} BPM`,
-      `${song.sections.length} sections`,
-      `${measures.length} bars`,
-      'highlight measures → save Exercise',
-    ].join(' · '),
+      measures.length ? `${measures.length} bars` : null,
+    ].filter(Boolean).join(' · '),
   }));
 
-  // Primary practice player (shared GP player with measure strip)
+  // Single Guitar Pro Player — select measures → save as Exercise
   const gpCard = el('div', { class: 'sln-player sln-gp-card' });
   gpCard.appendChild(el('div', {
     class: 'sln-player-banner',
-    text: 'Highlight measures on the bar strip (click start, Shift+click end, or use Loop bars). Then save as an Exercise.',
+    text: 'Drag across the bar strip (or set Loop bars) to select measures, then save them as an Exercise.',
   }));
   const saveRow = el('div', { class: 'sln-save-row' });
   const selLabel = el('div', {
     class: 'sln-sel-label', id: 'sln-sel-label',
     text: measures.length
-      ? `Highlighted bars ${state.practice.measureStart + 1}–${state.practice.measureEnd + 1}`
+      ? `Selected bars ${state.practice.measureStart + 1}–${state.practice.measureEnd + 1}`
       : 'Loading player…',
   });
   const saveBtn = el('button', {
     class: 'btn primary', type: 'button',
-    text: 'Save highlighted bars as Exercise',
+    text: 'Save selected bars as Exercise',
     onClick: () => saveSelectionAsExercise(song),
   });
   saveRow.append(selLabel, saveBtn);
@@ -1061,136 +1016,7 @@ function renderDetail(root) {
   gpCard.appendChild(gpHost);
   root.appendChild(gpCard);
 
-  // Full-mix follow-along (guitar + drums together)
-  const mixCard = el('div', { class: 'sln-player sln-mix-card' });
-  mixCard.appendChild(el('div', { class: 'sln-control-label', text: 'Full mix · guitar + drums' }));
-  const mixTransport = el('div', { class: 'sln-transport' });
-  mixTransport.append(
-    el('button', {
-      class: 'btn primary', type: 'button', id: 'sln-play', text: 'Play mix',
-      onClick: () => {
-        if (state.gpMount?.player?.playing) state.gpMount.player.pause();
-        const player = ensurePlayer();
-        if (player.playing) player.pause();
-        else if (player.paused) player.play();
-        else {
-          state.activeSectionId = 'selection';
-          loadPlayerForSong(song, 'selection');
-          player.play();
-        }
-        syncTransportButtons();
-      },
-    }),
-    el('button', {
-      class: 'btn', type: 'button', text: 'Stop',
-      onClick: () => {
-        stopPlayback();
-        syncTransportButtons();
-      },
-    }),
-    el('button', {
-      class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-g', text: 'Guitar',
-      onClick: () => {
-        const player = ensurePlayer();
-        player.setMuted({ guitar: !player.muteGuitar });
-        syncTransportButtons();
-      },
-    }),
-    el('button', {
-      class: 'btn sm sln-mute', type: 'button', id: 'sln-mute-d', text: 'Drums',
-      onClick: () => {
-        const player = ensurePlayer();
-        player.setMuted({ drums: !player.muteDrums });
-        syncTransportButtons();
-      },
-    }),
-    el('span', { class: 'sln-time', id: 'sln-time', text: '0:00 / 0:00' }),
-  );
-  mixCard.appendChild(mixTransport);
-  mixCard.appendChild(el('div', { id: 'sln-follow-host', class: 'sln-follow-host' }));
-  root.appendChild(mixCard);
-
-  // Section shortcuts
-  if (song.sections.length) {
-    const chips = el('div', { class: 'sln-sec-chips' });
-    song.sections.forEach((sec) => {
-      chips.appendChild(el('button', {
-        class: 'sln-chip', type: 'button', text: sec.label, 'data-sln-sec': sec.id,
-        onClick: () => {
-          const range = sectionRange(song, sec.id);
-          state.selStart = range.startIdx ?? 0;
-          state.selEnd = range.endIdx ?? state.selStart;
-          state.practice.measureStart = state.selStart;
-          state.practice.measureEnd = state.selEnd;
-          state.activeSectionId = 'selection';
-          selLabel.textContent = `Highlighted bars ${state.selStart + 1}–${state.selEnd + 1}`;
-          // Remount GP player focused on this section's bars.
-          void mountDetailGpPlayer(gpHost, song, selLabel);
-          loadPlayerForSong(song, 'selection');
-        },
-      }));
-    });
-    root.appendChild(chips);
-
-    const list = el('div', { class: 'sln-snip-list' });
-    list.appendChild(el('div', { class: 'sln-control-label', text: 'Saved sections' }));
-    song.sections.forEach((sec) => {
-      const card = el('div', { class: 'sln-snip-card' });
-      card.appendChild(el('div', { class: 'sln-snip-title', text: sec.label }));
-      card.appendChild(el('div', {
-        class: 'sln-snip-meta',
-        text: [
-          sec.type,
-          sec.hasGuitar ? 'guitar' : null,
-          sec.hasDrums ? 'drums' : null,
-          `${Math.round(sec.tempo || song.tempo)} BPM`,
-        ].filter(Boolean).join(' · '),
-      }));
-      const actions = el('div', { class: 'sln-snip-actions' });
-      actions.appendChild(el('button', {
-        class: 'btn sm', type: 'button', text: 'Highlight & save Exercise',
-        onClick: () => {
-          const range = sectionRange(song, sec.id);
-          state.selStart = range.startIdx ?? 0;
-          state.selEnd = range.endIdx ?? state.selStart;
-          state.practice.measureStart = state.selStart;
-          state.practice.measureEnd = state.selEnd;
-          saveSelectionAsExercise(song);
-        },
-      }));
-      if (sec.hasDrums && sec.drums) {
-        actions.appendChild(el('button', {
-          class: 'btn sm', type: 'button', text: 'Save to Drums',
-          onClick: async () => {
-            const saved = await savePattern({
-              ...sec.drums,
-              id: null,
-              title: `${song.title} · ${sec.label}`,
-              tags: [...(sec.drums.tags || []), 'song-learn'],
-            });
-            setStatus(saved ? `Saved “${saved.title}” to Drums library.` : 'Could not save drum pattern.', saved ? '' : 'error');
-          },
-        }));
-      }
-      actions.appendChild(el('button', {
-        class: 'btn sm sln-danger', type: 'button', text: 'Remove',
-        onClick: () => {
-          if (!confirm(`Remove section “${sec.label}”?`)) return;
-          stopPlayback();
-          removeSection(song.id, sec.id);
-          render();
-        },
-      }));
-      card.appendChild(actions);
-      list.appendChild(card);
-    });
-    root.appendChild(list);
-  }
-
-  // Load mix follow view immediately; mount GP player async from source blob.
   state.activeSectionId = 'selection';
-  loadPlayerForSong(song, 'selection');
-  syncTransportButtons();
   void mountDetailGpPlayer(gpHost, song, selLabel);
 }
 
@@ -1258,18 +1084,14 @@ async function mountDetailGpPlayer(host, song, selLabel) {
         state.selStart = settings.measureStart ?? state.selStart;
         state.selEnd = settings.measureEnd ?? state.selEnd;
         state.loopRestSec = settings.loopRestSec ?? state.loopRestSec;
-        if (selLabel) {
-          selLabel.textContent = `Highlighted bars ${(settings.measureStart ?? 0) + 1}–${(settings.measureEnd ?? 0) + 1}`;
-        }
-        // Keep full-mix range in sync with the GP player highlight.
         state.activeSectionId = 'selection';
-        const was = state.player?.playing;
-        loadPlayerForSong(song, 'selection');
-        if (was) state.player.play();
+        if (selLabel) {
+          selLabel.textContent = `Selected bars ${(settings.measureStart ?? 0) + 1}–${(settings.measureEnd ?? 0) + 1}`;
+        }
       },
     });
     if (selLabel) {
-      selLabel.textContent = `Highlighted bars ${state.practice.measureStart + 1}–${state.practice.measureEnd + 1}`;
+      selLabel.textContent = `Selected bars ${state.practice.measureStart + 1}–${state.practice.measureEnd + 1}`;
     }
   } catch (err) {
     host.innerHTML = '';

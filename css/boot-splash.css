@@ -213,8 +213,8 @@
 }
 
 @keyframes bootBrandPulse {
-  0%, 100% { text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 24px rgba(180, 94, 255, 0.5), 0 0 40px rgba(255, 225, 74, 0.18); }
-  50% { text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 32px rgba(180, 94, 255, 0.7), 0 0 48px rgba(255, 225, 74, 0.28); }
+  0%, 100% { text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 20px rgba(180, 94, 255, 0.4), 0 0 32px rgba(255, 225, 74, 0.12); }
+  50% { text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 26px rgba(180, 94, 255, 0.55), 0 0 40px rgba(255, 225, 74, 0.2); }
 }
 
 .boot-splash-tag {
@@ -247,10 +247,6 @@
   image-rendering: pixelated;
 }
 
-.boot-splash.is-ready .boot-splash-bar-fill {
-  width: 100%;
-}
-
 .boot-splash-start {
   margin-top: 2px;
   min-height: 44px;
@@ -266,14 +262,15 @@
   opacity: 0;
   transform: translateY(6px);
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .boot-splash.is-ready .boot-splash-start {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
-  animation: bootStartBlink 1.1s step-end infinite;
+  /* Soft pulse — avoid hard on/off blink that reads as a glitch */
+  animation: bootStartPulse 1.6s ease-in-out infinite;
 }
 
 .boot-splash-start:hover,
@@ -281,27 +278,21 @@
   outline: none;
   background: rgba(255, 225, 74, 0.12);
   box-shadow: 0 0 20px rgba(255, 225, 74, 0.25);
+  animation: none;
 }
 
-@keyframes bootStartBlink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0.35; }
+@keyframes bootStartPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
 }
 
+/* Keep the bar visible at 100% when ready — collapsing it caused a layout flash */
 .boot-splash.is-ready .boot-splash-bar {
-  opacity: 0;
-  max-height: 0;
-  height: 0;
-  padding: 0;
-  border: none;
-  margin: -8px 0 0;
-  overflow: hidden;
-  pointer-events: none;
-  transition: opacity 0.2s ease, max-height 0.2s ease, margin 0.2s ease;
+  opacity: 0.85;
 }
 
-.boot-splash.is-ready .boot-splash-bar-fill {
-  width: 100% !important;
+.boot-splash.is-ready .boot-splash-tag {
+  color: var(--accent2, #b45eff);
 }
 
 body.boot-locked {

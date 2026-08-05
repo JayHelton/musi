@@ -167,7 +167,62 @@ export function removeSection(songId, sectionId) {
 }
 
 /**
+ * Persist a GP blob and create a Song Learning entry from the full score.
+ * Sections are not auto-detected — the user picks measure ranges in the
+ * Guitar Pro Player and saves those as Exercises.
+ * @param {{ file: Blob|File, fileName: string, title?: string, tempo?: number,
+ *   guitarTrackName?: string, drumTrackName?: string,
+ *   fullGuitar?: object|null, fullGuitars?: object[], fullDrums?: object|null }} opts
+ */
+export async function createSongFromGp(opts) {
+  const {
+    file, fileName, title, tempo = 120,
+    guitarTrackName = null, drumTrackName = null,
+    fullGuitar = null,
+    fullGuitars = null,
+    fullDrums = null,
+  } = opts || {};
+
+  if (!fullGuitar && !(fullGuitars || []).length && !fullDrums) {
+    throw new Error('No guitar or drum parts to save.');
+  }
+
+  let attachmentId = '';
+  if (file && attachmentsSupported()) {
+    await ensurePersistentStorage();
+    const base = (title || fileName || 'song').replace(/\.(gp|gp5)$/i, '');
+    const meta = await saveFile({
+      blob: file,
+      name: base,
+      type: 'application/x-guitar-pro',
+      fileName: fileName || 'score.gp',
+      size: file.size || 0,
+      source: 'song-learn',
+    });
+    if (meta) attachmentId = meta.id;
+  }
+
+  return saveSong({
+    id: uid('song'),
+    title: clamp(title || (fileName || 'Song').replace(/\.(gp|gp5)$/i, ''), NAME_LIMIT),
+    fileName: fileName || '',
+    attachmentId,
+    tempo,
+    guitarTrackName,
+    drumTrackName,
+    fullGuitar,
+    fullGuitars: Array.isArray(fullGuitars) && fullGuitars.length
+      ? fullGuitars
+      : (fullGuitar ? [fullGuitar] : []),
+    fullDrums,
+    sections: [],
+    createdAt: nowISO(),
+  });
+}
+
+/**
  * Persist a GP blob and create a Song Learning entry from section snippets.
+ * Prefer createSongFromGp + measure selection in the player for new imports.
  * @param {{ file: Blob|File, fileName: string, title?: string, tempo?: number,
  *   guitarTrackName?: string, drumTrackName?: string, snippets: object[],
  *   fullGuitar?: object|null, fullGuitars?: object[], fullDrums?: object|null,

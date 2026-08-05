@@ -1,11 +1,13 @@
 /**
  * Boot splash — covers dynamic nav while the shell initializes.
- * Shows a retro pixel mascot, then PRESS START once ready.
+ * One clear sequence: loading progress → READY → dismiss (tap or short auto).
+ * Skipped for the rest of the session after the first successful boot.
  */
 
-const MIN_VISIBLE_MS = 1100;
-const AUTO_DISMISS_MS = 4200;
-const LEAVE_MS = 480;
+const SESSION_KEY = 'musi.bootSplash.done';
+const MIN_VISIBLE_MS = 700;
+const AUTO_DISMISS_MS = 1600;
+const LEAVE_MS = 380;
 
 let startedAt = 0;
 let ready = false;
@@ -24,14 +26,37 @@ function setTag(text) {
 
 function setProgress(pct) {
   const fill = document.getElementById('boot-splash-bar-fill');
-  if (!fill || ready) return;
-  const clamped = Math.max(8, Math.min(100, pct));
+  if (!fill || ready || dismissed) return;
+  const clamped = Math.max(8, Math.min(96, pct));
   fill.style.width = `${clamped}%`;
+}
+
+function alreadyBootedThisSession() {
+  try {
+    return sessionStorage.getItem(SESSION_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function markSessionBooted() {
+  try {
+    sessionStorage.setItem(SESSION_KEY, '1');
+  } catch (e) { /* private mode */ }
+}
+
+function stripSplash(root) {
+  if (root) root.remove();
+  document.body.classList.remove('boot-locked');
 }
 
 function bindDismiss(root) {
   const startBtn = document.getElementById('boot-splash-start');
-  const go = () => dismiss();
+  const go = () => {
+    // Only dismiss once the shell is ready — avoids flash/half-boot exits.
+    if (!ready || dismissed) return;
+    dismiss();
+  };
 
   root.addEventListener('click', go);
   if (startBtn) {
@@ -56,17 +81,34 @@ export function initBootSplash() {
   const root = el();
   if (!root || dismissed) return;
 
+  // Soft navigations / SW reclaim: don't replay the splash every time.
+  if (alreadyBootedThisSession()) {
+    dismissed = true;
+    ready = true;
+    stripSplash(root);
+    return;
+  }
+
   startedAt = performance.now();
+  ready = false;
   document.body.classList.add('boot-locked');
-  setTag('POWER ON');
+  root.classList.remove('is-ready', 'is-leaving');
+  root.setAttribute('aria-busy', 'true');
+  root.setAttribute('aria-hidden', 'false');
+  setTag('Loading');
   setProgress(12);
+
+  const startBtn = document.getElementById('boot-splash-start');
+  if (startBtn) startBtn.hidden = true;
 
   // Fake progress while modules finish wiring navigation.
   let pct = 12;
+  if (progressTimer) clearInterval(progressTimer);
   progressTimer = window.setInterval(() => {
-    pct = Math.min(88, pct + (pct < 40 ? 10 : pct < 70 ? 6 : 3));
+    if (ready || dismissed) return;
+    pct = Math.min(88, pct + (pct < 40 ? 8 : pct < 70 ? 5 : 2));
     setProgress(pct);
-  }, 140);
+  }, 160);
 
   bindDismiss(root);
 }
@@ -79,20 +121,23 @@ export function markBootReady() {
     clearInterval(progressTimer);
     progressTimer = 0;
   }
-  setProgress(100);
+
+  const fill = document.getElementById('boot-splash-bar-fill');
+  if (fill) fill.style.width = '100%';
+
   ready = true;
   root.classList.add('is-ready');
-  setTag('READY');
+  setTag('Ready');
 
   const startBtn = document.getElementById('boot-splash-start');
   if (startBtn) {
     startBtn.hidden = false;
-    // Defer focus so it doesn't fight hash/nav focus during boot.
     requestAnimationFrame(() => startBtn.focus({ preventScroll: true }));
   }
 
   const elapsed = performance.now() - startedAt;
   const wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
+  if (autoTimer) clearTimeout(autoTimer);
   autoTimer = window.setTimeout(() => dismiss(), wait + AUTO_DISMISS_MS);
 }
 
@@ -100,6 +145,7 @@ export function dismiss() {
   const root = el();
   if (!root || dismissed) return;
   dismissed = true;
+  markSessionBooted();
 
   if (progressTimer) {
     clearInterval(progressTimer);
