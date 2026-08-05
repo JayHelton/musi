@@ -1,6 +1,5 @@
 import { getSetting, saveSetting } from './persistence.js';
 import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory } from './tools.js';
-import { getStatsSnapshot } from './stats.js';
 import { getContext } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
 import {
@@ -103,15 +102,6 @@ function renderQuickStart(host) {
   host.appendChild(grid);
 }
 
-function renderToday(host) {
-  const s = getStatsSnapshot();
-  const acc = s.accuracy === null ? '—' : `${s.accuracy}% accuracy`;
-  host.innerHTML = `
-    <div class="home-today-main">${s.minutesToday} min practiced · ${acc} · ${s.currentStreak} streak</div>
-    <div class="home-today-weak">${s.weakest ? `Weakest: ${s.weakest.label}` : 'Keep training to surface a weakest skill'}</div>
-  `;
-}
-
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -176,15 +166,22 @@ function renderStudyRec(host) {
   host.innerHTML = `
     <article class="home-rec-card" aria-label="Recommended study">
       <div class="home-rec-kicker">Recommended Study</div>
-      <div class="home-rec-title">${escapeHtml(rec.title)}</div>
-      <div class="home-rec-cat">${escapeHtml(rec.categoryLabel)}</div>
-      <p class="home-rec-narrative">${escapeHtml(rec.narrative)}</p>
-      <div class="home-rec-meta">Profile · ${escapeHtml(bundle.genreSummary)}</div>
-      <div class="home-rec-focus-label">Today’s focus</div>
-      <ol class="home-rec-focus">${focus}</ol>
-      <div class="home-rec-why-label">Why this was selected</div>
-      <ul class="home-rec-reasons">${reasons}</ul>
-      ${app}
+      <div class="home-rec-head">
+        <div class="home-rec-title">${escapeHtml(rec.title)}</div>
+        <div class="home-rec-cat">${escapeHtml(rec.categoryLabel)}</div>
+      </div>
+      <details class="home-rec-details">
+        <summary class="home-rec-summary">Session details</summary>
+        <div class="home-rec-body">
+          <p class="home-rec-narrative">${escapeHtml(rec.narrative)}</p>
+          <div class="home-rec-meta">Profile · ${escapeHtml(bundle.genreSummary)}</div>
+          <div class="home-rec-focus-label">Today’s focus</div>
+          <ol class="home-rec-focus">${focus}</ol>
+          <div class="home-rec-why-label">Why this was selected</div>
+          <ul class="home-rec-reasons">${reasons}</ul>
+          ${app}
+        </div>
+      </details>
       <div class="home-rec-actions">
         <button type="button" class="btn primary" data-action="start" data-id="${escapeHtml(rec.id)}">Start study</button>
         <button type="button" class="btn" data-action="done" data-id="${escapeHtml(rec.id)}">Mark reviewed</button>
@@ -285,14 +282,12 @@ function render() {
   const continueHost = document.getElementById('home-continue');
   const recHost = document.getElementById('home-study-rec');
   const quickHost = document.getElementById('home-quickstart');
-  const todayHost = document.getElementById('home-today');
   const catsHost = document.getElementById('home-categories');
   const allPanel = document.getElementById('home-all-panel');
 
   if (continueHost) renderContinue(continueHost);
-  if (recHost) renderStudyRec(recHost);
   if (quickHost) renderQuickStart(quickHost);
-  if (todayHost) renderToday(todayHost);
+  if (recHost) renderStudyRec(recHost);
   if (catsHost) renderCategories(catsHost);
   if (allPanel) {
     allPanel.open = false;

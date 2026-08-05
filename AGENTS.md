@@ -2,6 +2,29 @@
 
 ## Cursor Cloud specific instructions
 
+### Agent workflow (Composer 2.5 sub-agents)
+
+**Sub-agent implementation is required.** Use Composer 2.5 sub-agents for task
+implementation; reserve the main agent thread for planning, coordination, and
+distribution.
+
+- **Main agent thread:** scope the work, break it into concrete subtasks, choose
+  which sub-agents to run (and in what order), review results, and integrate
+  changes. Do not do broad implementation directly on the main thread when a
+  sub-agent can own the work.
+- **Sub-agents:** perform implementation — code changes, file edits, targeted
+  exploration, verification steps, and other execution work assigned by the main
+  agent.
+- **Distribution:** launch sub-agents in parallel when tasks are independent;
+  sequence them when output from one task informs the next. Give each sub-agent a
+  focused prompt with enough context to finish its slice without relying on the
+  user's message or prior main-thread steps.
+- **Model:** use Composer 2.5 (`composer-2.5` or `composer-2.5-fast`) for
+  implementation sub-agents unless the user specifies otherwise.
+- **Before opening a PR:** fetch the latest `main` from origin, rebase (or merge)
+  your branch onto it, and resolve all conflicts first. Do not create or update a
+  PR while the branch is behind `main` or has unresolved merge conflicts.
+
 Musi is a **fully static, frontend-only** product — there is no backend, database, or
 API. It ships as two deliverables that share the same music-theory engine in `js/`:
 
