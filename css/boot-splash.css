@@ -1,6 +1,7 @@
 /* ============================================================
-   Boot splash — Atomic Purple GBC power-on / PRESS START
-   Covers dynamic nav while the app shell boots.
+   Boot splash — Atomic Purple GBC power-on
+   Keep motion subtle; avoid opacity flicker that reads as a glitch.
+   Critical first-paint styles also live inline in index.html.
    ============================================================ */
 
 .boot-splash {
@@ -14,9 +15,19 @@
     radial-gradient(900px 600px at 50% 20%, rgba(180, 94, 255, 0.28), transparent 55%),
     radial-gradient(700px 500px at 80% 90%, rgba(77, 163, 255, 0.12), transparent 50%),
     linear-gradient(165deg, #2a1045 0%, #1a0a2e 45%, #0b1020 100%);
-  color: var(--text, #f4f6ff);
+  color: #f4f6ff;
   overflow: hidden;
-  transition: opacity 0.45s ease, visibility 0.45s ease;
+  opacity: 1;
+  visibility: visible;
+  /* Only transition on leave — not on first paint */
+  transition: none;
+}
+
+.boot-splash.is-leaving {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.32s ease, visibility 0.32s ease;
 }
 
 .boot-splash::before {
@@ -28,8 +39,7 @@
     linear-gradient(rgba(180, 140, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(180, 140, 255, 0.05) 1px, transparent 1px);
   background-size: 24px 24px;
-  opacity: 0.7;
-  animation: bootGridDrift 28s linear infinite;
+  opacity: 0.55;
 }
 
 .boot-splash::after {
@@ -39,24 +49,12 @@
   pointer-events: none;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.03) 0,
-    rgba(255, 255, 255, 0.03) 1px,
+    rgba(255, 255, 255, 0.025) 0,
+    rgba(255, 255, 255, 0.025) 1px,
     transparent 1px,
     transparent 3px
   );
-  opacity: 0.5;
-  mix-blend-mode: soft-light;
-}
-
-@keyframes bootGridDrift {
-  from { background-position: 0 0, 0 0; }
-  to { background-position: 24px 24px, 24px 24px; }
-}
-
-.boot-splash.is-leaving {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
+  opacity: 0.45;
 }
 
 .boot-splash-inner {
@@ -68,12 +66,9 @@
   align-items: center;
   gap: 18px;
   text-align: center;
-  animation: bootPanelIn 0.55s cubic-bezier(.2, .9, .2, 1) both;
-}
-
-@keyframes bootPanelIn {
-  from { opacity: 0; transform: translateY(14px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  /* Visible immediately — no fade-in from opacity 0 (that caused the flash) */
+  opacity: 1;
+  transform: none;
 }
 
 /* ---- Pixel stage ---- */
@@ -96,12 +91,7 @@
   background: rgba(0, 0, 0, 0.35);
   transform: translateX(-50%);
   filter: blur(2px);
-  animation: bootShadowPulse 0.7s ease-in-out infinite;
-}
-
-@keyframes bootShadowPulse {
-  0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.45; }
-  50% { transform: translateX(-50%) scaleX(0.82); opacity: 0.28; }
+  opacity: 0.4;
 }
 
 .boot-pixel-char {
@@ -110,120 +100,70 @@
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   transform-origin: 50% 85%;
-  animation: bootCharBounce 0.7s ease-in-out infinite;
-  filter: drop-shadow(0 0 18px rgba(180, 94, 255, 0.35));
+  /* One gentle idle motion only */
+  animation: bootCharIdle 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(180, 94, 255, 0.3));
 }
 
-@keyframes bootCharBounce {
+@keyframes bootCharIdle {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  50% { transform: translateY(-6px); }
 }
 
-.boot-pixel-char .eye {
-  transform-origin: center;
-  animation: bootBlink 3.2s step-end infinite;
-}
-
-.boot-pixel-char .eye-r {
-  animation-delay: 0.08s;
-}
-
-@keyframes bootBlink {
-  0%, 42%, 46%, 100% { transform: scaleY(1); }
-  44% { transform: scaleY(0.15); }
-}
-
-.boot-pixel-char .arm-l,
-.boot-pixel-char .arm-r {
-  transform-origin: top center;
-  animation: bootWave 1.4s ease-in-out infinite;
-}
-
-.boot-pixel-char .arm-r {
-  animation-delay: 0.12s;
-}
-
-@keyframes bootWave {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-12deg); }
-}
-
-.boot-pixel-char .arm-r {
-  animation-name: bootWaveR;
-}
-
-@keyframes bootWaveR {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(14deg); }
-}
-
+/* Decorative notes — static, no opacity looping */
 .boot-note {
   position: absolute;
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.7rem;
-  color: var(--accent, #ffe14a);
-  text-shadow: 0 0 12px rgba(255, 225, 74, 0.45);
-  opacity: 0;
-  animation: bootNoteFloat 2.4s ease-in-out infinite;
+  font-family: "Press Start 2P", "Courier New", monospace;
+  font-size: 0.65rem;
+  color: #ffe14a;
+  text-shadow: 0 0 10px rgba(255, 225, 74, 0.35);
+  opacity: 0.75;
   pointer-events: none;
 }
 
-.boot-note-1 {
-  left: 12px;
-  top: 36px;
-  animation-delay: 0s;
-}
-
+.boot-note-1 { left: 14px; top: 40px; }
 .boot-note-2 {
-  right: 8px;
-  top: 24px;
-  color: var(--accent2, #b45eff);
-  text-shadow: 0 0 12px rgba(180, 94, 255, 0.5);
-  animation-delay: 0.8s;
+  right: 10px;
+  top: 28px;
+  color: #b45eff;
+  text-shadow: 0 0 10px rgba(180, 94, 255, 0.4);
   font-size: 0.55rem;
 }
-
 .boot-note-3 {
-  left: 28px;
-  top: 12px;
-  color: var(--btn-x, #4da3ff);
-  text-shadow: 0 0 12px rgba(77, 163, 255, 0.45);
-  animation-delay: 1.5s;
+  left: 30px;
+  top: 16px;
+  color: #4da3ff;
+  text-shadow: 0 0 10px rgba(77, 163, 255, 0.35);
   font-size: 0.48rem;
-}
-
-@keyframes bootNoteFloat {
-  0% { opacity: 0; transform: translateY(8px) scale(0.8); }
-  20% { opacity: 1; }
-  80% { opacity: 0.85; }
-  100% { opacity: 0; transform: translateY(-42px) scale(1.1); }
+  opacity: 0.6;
 }
 
 .boot-splash-brand {
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-family: "Press Start 2P", "Courier New", monospace;
   font-size: clamp(1.35rem, 5vw, 1.85rem);
   letter-spacing: 3px;
   text-transform: lowercase;
   color: #fff;
   text-shadow:
     0 2px 0 rgba(0, 0, 0, 0.35),
-    0 0 24px rgba(180, 94, 255, 0.5),
-    0 0 40px rgba(255, 225, 74, 0.18);
-  animation: bootBrandPulse 2.2s ease-in-out infinite;
-}
-
-@keyframes bootBrandPulse {
-  0%, 100% { text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 20px rgba(180, 94, 255, 0.4), 0 0 32px rgba(255, 225, 74, 0.12); }
-  50% { text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 26px rgba(180, 94, 255, 0.55), 0 0 40px rgba(255, 225, 74, 0.2); }
+    0 0 22px rgba(180, 94, 255, 0.45);
+  /* Fixed metrics reduce FOUT jump when web font arrives */
+  line-height: 1.4;
+  min-height: 1.4em;
 }
 
 .boot-splash-tag {
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-family: "Press Start 2P", "Courier New", monospace;
   font-size: 0.55rem;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--accent, #ffe14a);
-  min-height: 1.2em;
+  color: #ffe14a;
+  min-height: 1.3em;
+  line-height: 1.3;
+}
+
+.boot-splash.is-ready .boot-splash-tag {
+  color: #b45eff;
 }
 
 .boot-splash-bar {
@@ -239,12 +179,14 @@
 
 .boot-splash-bar-fill {
   height: 100%;
-  width: 8%;
-  background:
-    linear-gradient(90deg, var(--accent2, #b45eff), var(--accent, #ffe14a));
-  box-shadow: 0 0 10px rgba(255, 225, 74, 0.35);
-  transition: width 0.35s ease;
-  image-rendering: pixelated;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(0.12);
+  background: linear-gradient(90deg, #b45eff, #ffe14a);
+  box-shadow: 0 0 10px rgba(255, 225, 74, 0.3);
+  /* Smooth continuous fill — no stepped width flashes */
+  transition: transform 0.45s linear;
+  will-change: transform;
 }
 
 .boot-splash-start {
@@ -254,63 +196,49 @@
   border: 2px solid rgba(255, 225, 74, 0.55);
   border-radius: 999px;
   background: rgba(11, 16, 32, 0.55);
-  color: var(--accent, #ffe14a);
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  color: #ffe14a;
+  font-family: "Press Start 2P", "Courier New", monospace;
   font-size: 0.58rem;
   letter-spacing: 1px;
   cursor: pointer;
+  /* Keep in layout (no display:none) so Ready state doesn't reflow/flash */
+  visibility: hidden;
   opacity: 0;
-  transform: translateY(6px);
   pointer-events: none;
-  transition: opacity 0.3s ease, transform 0.3s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition: opacity 0.25s ease, background 0.15s ease;
 }
 
 .boot-splash.is-ready .boot-splash-start {
+  visibility: visible;
   opacity: 1;
-  transform: translateY(0);
   pointer-events: auto;
-  /* Soft pulse — avoid hard on/off blink that reads as a glitch */
-  animation: bootStartPulse 1.6s ease-in-out infinite;
 }
 
 .boot-splash-start:hover,
 .boot-splash-start:focus-visible {
   outline: none;
   background: rgba(255, 225, 74, 0.12);
-  box-shadow: 0 0 20px rgba(255, 225, 74, 0.25);
-  animation: none;
+  box-shadow: 0 0 16px rgba(255, 225, 74, 0.22);
 }
 
-@keyframes bootStartPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
-}
-
-/* Keep the bar visible at 100% when ready — collapsing it caused a layout flash */
-.boot-splash.is-ready .boot-splash-bar {
-  opacity: 0.85;
-}
-
-.boot-splash.is-ready .boot-splash-tag {
-  color: var(--accent2, #b45eff);
+/* Hide the rest of the shell until splash is gone — prevents underlay flash */
+html.booting body > :not(#boot-splash) {
+  visibility: hidden !important;
 }
 
 body.boot-locked {
   overflow: hidden;
+  background: #1a0a2e;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .boot-splash::before,
-  .boot-pixel-char,
-  .boot-pixel-ground,
-  .boot-pixel-char .eye,
-  .boot-pixel-char .arm-l,
-  .boot-pixel-char .arm-r,
-  .boot-note,
-  .boot-splash-brand,
-  .boot-splash.is-ready .boot-splash-start {
+  .boot-pixel-char {
     animation: none !important;
   }
-  .boot-note { opacity: 0.7; }
-  .boot-splash-inner { animation: none; }
+  .boot-splash-bar-fill {
+    transition: none;
+  }
+  .boot-splash.is-leaving {
+    transition: none;
+  }
 }
