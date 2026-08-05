@@ -4,6 +4,7 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { quartersToSeconds, modelHasRhythm } from './tab/tabModel.js';
 import { buildTimedNotes } from './tab/tabPlayer.js';
+import { scheduleMetronomeClick } from './tab/metroClick.js';
 import { scheduleHit, initEngine } from './drums/drumEngine.js';
 
 const LOOKAHEAD_MS = 25;
@@ -499,7 +500,48 @@ export function createSongPlayer(opts = {}) {
     percModel: null,
     onTick: typeof opts.onTick === 'function' ? opts.onTick : null,
     measureIndex: 0,
+    measures: [],
+    metronomeEnabled: !!opts.metronomeEnabled,
+    metroNextBeatSec: 0,
   };
+
+  function quarterSec() {
+    return 60 / (state.bpm || 120);
+  }
+
+  function resetMetroCursor(atSec = 0) {
+    const q = quarterSec();
+    state.metroNextBeatSec = Math.ceil(atSec / q) * q;
+  }
+
+  function isAccentBeat(beatQ) {
+    for (const m of state.measures) {
+      const ms = Number.isFinite(m.startBeat) ? m.startBeat : null;
+      if (ms != null && Math.abs(beatQ - ms) < 0.001) return true;
+    }
+    return Math.abs(beatQ % 4) < 0.001;
+  }
+
+  function scheduleMetroClicks(songHorizon, now) {
+    if (!state.metronomeEnabled || state.inLoopRest) return;
+    const q = quarterSec();
+    const loopStart = state.loop?.startSec ?? 0;
+    const loopEnd = state.loop?.endSec ?? Infinity;
+    while (state.metroNextBeatSec < songHorizon) {
+      if (state.loop && state.metroNextBeatSec >= loopEnd - 0.0001) break;
+      if (state.loop && state.metroNextBeatSec < loopStart - 0.0001) {
+        state.metroNextBeatSec = Math.ceil(loopStart / q) * q;
+        if (state.metroNextBeatSec < loopStart) state.metroNextBeatSec += q;
+        continue;
+      }
+      const when = state.originAudioTime + (state.metroNextBeatSec - state.originSongSec);
+      if (when >= now - 0.02) {
+        const beatQ = (state.metroNextBeatSec / 60) * state.bpm;
+        scheduleMetronomeClick(Math.max(now + 0.005, when), isAccentBeat(beatQ));
+      }
+      state.metroNextBeatSec += q;
+    }
+  }
 
   function clearVoices() {
     state.voices.forEach((v) => {
@@ -587,6 +629,7 @@ export function createSongPlayer(opts = {}) {
       state.originSongSec = state.loop.startSec;
       state.originAudioTime = now + 0.01;
       resyncCursor(state.loop.startSec);
+      resetMetroCursor(state.loop.startSec);
       emitTick();
     }
 
@@ -607,11 +650,13 @@ export function createSongPlayer(opts = {}) {
       state.originSongSec = state.loop.startSec;
       state.originAudioTime = now;
       resyncCursor(state.loop.startSec);
+      resetMetroCursor(state.loop.startSec);
       songNow = state.loop.startSec;
       emitTick();
     }
 
     const horizon = state.originSongSec + (now - state.originAudioTime) + SCHEDULE_AHEAD;
+    scheduleMetroClicks(horizon, now);
     while (state.nextIndex < state.events.length) {
       const ev = state.events[state.nextIndex];
       if (state.loop && ev.startSec >= state.loop.endSec - 0.0001) break;
@@ -661,6 +706,7 @@ export function createSongPlayer(opts = {}) {
     // Primary model drives measure markers / follow range when present.
     state.guitarModel = models[0] || guitarModel || null;
     state.percModel = percModel;
+    state.measures = state.guitarModel?.measures || percModel?.measures || [];
     const tempo = Number(bpm)
       || Number(state.guitarModel?.tempo)
       || Number(percModel?.tempo)
@@ -697,6 +743,7 @@ export function createSongPlayer(opts = {}) {
       state.loop = null;
     }
     state.pauseAtSec = startSec;
+    resetMetroCursor(state.loop?.startSec ?? startSec);
   }
 
   function play({ fromSec = null } = {}) {
@@ -722,6 +769,7 @@ export function createSongPlayer(opts = {}) {
     state.playing = true;
     state.paused = false;
     state.pauseAtSec = startSec;
+    resetMetroCursor(startSec);
     scheduler();
     emitTick();
   }
@@ -746,6 +794,7 @@ export function createSongPlayer(opts = {}) {
       : quartersToSeconds(state.range.startBeat || 0, state.bpm);
     state.nextIndex = 0;
     state.measureIndex = 0;
+    resetMetroCursor(state.loop?.startSec ?? quartersToSeconds(state.range.startBeat || 0, state.bpm));
     stopTimer();
     clearVoices();
     emitTick();
@@ -771,6 +820,11 @@ export function createSongPlayer(opts = {}) {
       if (!state.loop) return;
       state.loop.restSec = Math.max(0, Number(sec) || 0);
     },
+    setMetronomeEnabled(enabled) {
+      state.metronomeEnabled = !!enabled;
+      if (state.playing) resetMetroCursor(songTimeNow());
+    },
+    get metronomeEnabled() { return state.metronomeEnabled; },
     setOnTick(fn) { state.onTick = fn; },
     get playing() { return state.playing; },
     get paused() { return state.paused; },

@@ -393,6 +393,8 @@ async function saveSelectionAsExercise(song) {
         size: meta.size || sourceBlob.size || 0,
         measureStart: a,
         measureEnd: b,
+        startBeat: beats?.startBeat,
+        endBeat: beats?.endBeat,
         loopEnabled: true,
         loopRestSec: rest,
         preferredTrackIndex: trackIdx,

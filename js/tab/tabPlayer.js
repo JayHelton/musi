@@ -7,6 +7,7 @@
 
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from '../audio.js';
 import { modelHasRhythm, quartersToSeconds } from './tabModel.js';
+import { scheduleMetronomeClick } from './metroClick.js';
 
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD = 0.12;
@@ -111,7 +112,49 @@ export function createTabPlayer(opts = {}) {
     bpm: 120,
     onTick: typeof opts.onTick === 'function' ? opts.onTick : null,
     measureIndex: 0,
+    measures: [],
+    metronomeEnabled: !!opts.metronomeEnabled,
+    metroNextBeatSec: 0,
   };
+
+  function quarterSec() {
+    return 60 / (state.bpm || 120);
+  }
+
+  function resetMetroCursor(atSec = 0) {
+    const q = quarterSec();
+    state.metroNextBeatSec = Math.ceil(atSec / q) * q;
+  }
+
+  function isAccentBeat(beatQ) {
+    for (const m of state.measures) {
+      const ms = Number.isFinite(m.startBeat) ? m.startBeat : null;
+      if (ms != null && Math.abs(beatQ - ms) < 0.001) return true;
+    }
+    return Math.abs(beatQ % 4) < 0.001;
+  }
+
+  function scheduleMetroClicks(songHorizon, now) {
+    if (!state.metronomeEnabled || state.inLoopRest) return;
+    const q = quarterSec();
+    const loopStart = state.loop?.startSec ?? 0;
+    const loopEnd = state.loop?.endSec ?? Infinity;
+
+    while (state.metroNextBeatSec < songHorizon) {
+      if (state.loop && state.metroNextBeatSec >= loopEnd - 0.0001) break;
+      if (state.loop && state.metroNextBeatSec < loopStart - 0.0001) {
+        state.metroNextBeatSec = Math.ceil(loopStart / q) * q;
+        if (state.metroNextBeatSec < loopStart) state.metroNextBeatSec += q;
+        continue;
+      }
+      const when = state.originAudioTime + (state.metroNextBeatSec - state.originSongSec);
+      if (when >= now - 0.02) {
+        const beatQ = (state.metroNextBeatSec / 60) * state.bpm;
+        scheduleMetronomeClick(Math.max(now + 0.005, when), isAccentBeat(beatQ));
+      }
+      state.metroNextBeatSec += q;
+    }
+  }
 
   function clearVoices() {
     state.voices.forEach((v) => {
@@ -175,6 +218,7 @@ export function createTabPlayer(opts = {}) {
       state.originSongSec = state.loop.startSec;
       state.originAudioTime = now + 0.01;
       resyncCursor(state.loop.startSec);
+      resetMetroCursor(state.loop.startSec);
       emitTick();
     }
 
@@ -196,10 +240,12 @@ export function createTabPlayer(opts = {}) {
       state.originSongSec = state.loop.startSec;
       state.originAudioTime = now;
       resyncCursor(state.loop.startSec);
+      resetMetroCursor(state.loop.startSec);
       emitTick();
     }
 
     const songHorizon = state.originSongSec + (now - state.originAudioTime) + SCHEDULE_AHEAD;
+    scheduleMetroClicks(songHorizon, now);
     while (state.nextNoteIndex < state.notes.length) {
       const note = state.notes[state.nextNoteIndex];
       if (state.loop && note.startSec >= state.loop.endSec - 0.0001) break;
@@ -228,10 +274,12 @@ export function createTabPlayer(opts = {}) {
     state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
   }
 
-  function load(model, { bpm = null, loopMeasures = null, loopRestSec = 0 } = {}) {
+  function load(model, { bpm = null, loopMeasures = null, loopRestSec = 0, metronomeEnabled = null } = {}) {
     stop();
     const tempo = Number(bpm) || Number(model?.tempo) || 120;
     state.bpm = tempo;
+    state.measures = model?.measures || [];
+    if (metronomeEnabled != null) state.metronomeEnabled = !!metronomeEnabled;
     state.notes = buildTimedNotes(model, { bpm: tempo });
     state.loop = null;
     state.inLoopRest = false;
@@ -260,6 +308,7 @@ export function createTabPlayer(opts = {}) {
         state.loop = { startSec, endSec, restSec };
       }
     }
+    resetMetroCursor(state.loop?.startSec ?? 0);
   }
 
   function play({ fromSec = null } = {}) {
@@ -275,6 +324,7 @@ export function createTabPlayer(opts = {}) {
     state.playing = true;
     state.paused = false;
     state.pauseAtSec = startSec;
+    resetMetroCursor(startSec);
     scheduler();
     emitTick();
   }
@@ -297,6 +347,7 @@ export function createTabPlayer(opts = {}) {
     state.pauseAtSec = state.loop ? state.loop.startSec : 0;
     state.nextNoteIndex = 0;
     state.measureIndex = 0;
+    resetMetroCursor(state.loop?.startSec ?? 0);
     stopTimer();
     clearVoices();
     emitTick();
@@ -341,7 +392,13 @@ export function createTabPlayer(opts = {}) {
         endSec: Number(loop.endSec) || 0,
         restSec: Math.max(0, Number(loop.restSec) || 0),
       };
+      resetMetroCursor(state.loop.startSec);
     },
+    setMetronomeEnabled(enabled) {
+      state.metronomeEnabled = !!enabled;
+      if (state.playing) resetMetroCursor(songTimeNow());
+    },
+    get metronomeEnabled() { return state.metronomeEnabled; },
     setLoopRestSec(sec) {
       if (!state.loop) return;
       state.loop.restSec = Math.max(0, Number(sec) || 0);
