@@ -4,6 +4,7 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { quartersToSeconds, modelHasRhythm } from './tab/tabModel.js';
 import { buildTimedNotes } from './tab/tabPlayer.js';
+import { scheduleMetronomeClick } from './tab/metroClick.js';
 import { scheduleHit, initEngine } from './drums/drumEngine.js';
 
 const LOOKAHEAD_MS = 25;
@@ -104,13 +105,29 @@ export function buildFollowColumns({
   }
 
   const measures = guitarModel?.measures || percModel?.measures || [];
-  for (const m of measures) {
+  for (let mi = 0; mi < measures.length; mi++) {
+    const m = measures[mi];
     const ms = Number.isFinite(m.startBeat) ? m.startBeat : 0;
     if (ms < startBeat - 1e-6 || ms >= end - 1e-6) continue;
     const idx = Math.round((ms - startBeat) / colBeat);
     if (columns[idx]) {
       columns[idx].barStart = true;
+      columns[idx].measureIndex = mi;
+      columns[idx].barNumber = mi + 1;
+      columns[idx].beatInBar = 0;
       if (m.marker) columns[idx].marker = m.marker;
+    }
+  }
+
+  for (const col of columns) {
+    if (col.barStart) continue;
+    const frac = col.beat % 1;
+    if (frac < 1e-6 || frac > 1 - 1e-6) {
+      col.beatStart = true;
+      const mi = measureIndexAtBeat(measures, col.beat);
+      const mStart = measures[mi] && Number.isFinite(measures[mi].startBeat)
+        ? measures[mi].startBeat : 0;
+      col.beatInBar = col.beat - mStart;
     }
   }
 
@@ -151,13 +168,38 @@ export function buildFollowColumns({
   return { columns, startBeat, endBeat: end, stringCount, strings, colBeat };
 }
 
+const FOLLOW_SIZES = new Set(['sm', 'md', 'lg']);
+
+function snapBeatToQuarter(beat) {
+  return Math.round(beat);
+}
+
+function beatToColIndex(beat, startBeat, colBeat) {
+  return Math.round((beat - startBeat) / colBeat);
+}
+
 /**
  * Mount a follow-along visual into `host` and return an updater.
+ * @param {object} [options]
+ * @param {'sm'|'md'|'lg'} [options.size='md']
+ * @param {{ startBeat: number, endBeat: number }|null} [options.selection]
+ * @param {(sel: { startBeat: number, endBeat: number }|null) => void} [options.onSelectionChange]
  */
-export function mountFollowView(host, layout) {
-  if (!host) return { update() {}, destroy() {} };
+export function mountFollowView(host, layout, options = {}) {
+  const noop = {
+    update() {},
+    destroy() {},
+    setSize() {},
+    setSelection() {},
+    getSelection() { return null; },
+  };
+  if (!host) return noop;
+
   host.innerHTML = '';
   host.classList.add('sln-follow');
+
+  let size = FOLLOW_SIZES.has(options.size) ? options.size : 'md';
+  host.classList.add(`size-${size}`);
 
   const { columns, stringCount, strings, colBeat, startBeat } = layout;
   const activeDrumLanes = DRUM_LANES.filter((lane) =>
@@ -215,8 +257,18 @@ export function mountFollowView(host, layout) {
 
   columns.forEach((col, i) => {
     const colEl = document.createElement('div');
-    colEl.className = 'sln-follow-col' + (col.barStart ? ' bar-start' : '');
+    let colClass = 'sln-follow-col';
+    if (col.barStart) colClass += ' bar-start';
+    if (col.beatStart) colClass += ' beat-start';
+    colEl.className = colClass;
     colEl.dataset.index = String(i);
+    colEl.dataset.beat = String(col.beat);
+    if (col.barStart && col.barNumber != null) {
+      const bn = document.createElement('div');
+      bn.className = 'sln-follow-bar-num';
+      bn.textContent = String(col.barNumber);
+      colEl.appendChild(bn);
+    }
     if (col.marker) {
       const m = document.createElement('div');
       m.className = 'sln-follow-marker';
@@ -256,8 +308,132 @@ export function mountFollowView(host, layout) {
   host.appendChild(stage);
 
   let lastActive = -1;
+  let isPlaying = false;
+  let userScrolled = false;
+  let selection = null; // { startBeat, endBeat } end exclusive
+  let dragSel = null; // { anchorIdx, currentIdx }
+
+  function colIndexForBeat(beat) {
+    return Math.max(0, Math.min(columns.length - 1, beatToColIndex(beat, startBeat, colBeat)));
+  }
+
+  function beatForColIndex(idx) {
+    return startBeat + idx * colBeat;
+  }
+
+  function snapColIndex(idx) {
+    const colsPerBeat = Math.round(1 / colBeat);
+    return Math.max(0, Math.min(columns.length - 1, Math.round(idx / colsPerBeat) * colsPerBeat));
+  }
+
+  function paintSelection(sel) {
+    colEls.forEach((el) => el.classList.remove('in-selection'));
+    if (!sel) return;
+    const a = colIndexForBeat(sel.startBeat);
+    const b = colIndexForBeat(sel.endBeat - colBeat * 0.5);
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    for (let i = lo; i <= hi; i++) {
+      if (colEls[i]) colEls[i].classList.add('in-selection');
+    }
+  }
+
+  function setSelection(sel, { fire = false } = {}) {
+    selection = sel
+      ? {
+        startBeat: snapBeatToQuarter(sel.startBeat),
+        endBeat: snapBeatToQuarter(sel.endBeat),
+      }
+      : null;
+    if (selection && selection.endBeat <= selection.startBeat) {
+      selection.endBeat = selection.startBeat + 1;
+    }
+    paintSelection(selection);
+    if (fire && typeof options.onSelectionChange === 'function') {
+      options.onSelectionChange(selection ? { ...selection } : null);
+    }
+  }
+
+  function getSelection() {
+    return selection ? { ...selection } : null;
+  }
+
+  function setSize(next) {
+    if (!FOLLOW_SIZES.has(next)) return;
+    host.classList.remove(`size-${size}`);
+    size = next;
+    host.classList.add(`size-${size}`);
+  }
+
+  function scrollToColumn(idx) {
+    const colEl = colEls[idx];
+    if (!colEl) return;
+    const viewW = viewport.clientWidth || 1;
+    const target = colEl.offsetLeft - viewW * 0.28;
+    viewport.scrollLeft = Math.max(0, target);
+  }
+
+  viewport.addEventListener('scroll', () => {
+    if (!isPlaying) userScrolled = true;
+  }, { passive: true });
+
+  viewport.addEventListener('wheel', (e) => {
+    if (!isPlaying) userScrolled = true;
+  }, { passive: true });
+
+  function selectionFromDrag(anchorIdx, currentIdx) {
+    const lo = Math.min(anchorIdx, currentIdx);
+    const hi = Math.max(anchorIdx, currentIdx);
+    const startBeat = beatForColIndex(snapColIndex(lo));
+    const endBeat = beatForColIndex(snapColIndex(hi)) + 1;
+    return { startBeat, endBeat };
+  }
+
+  function onPointerDown(e) {
+    if (isPlaying) return;
+    const col = e.target.closest('.sln-follow-col');
+    if (!col) return;
+    e.preventDefault();
+    const idx = Number(col.dataset.index);
+    if (!Number.isFinite(idx)) return;
+    dragSel = { anchorIdx: snapColIndex(idx), currentIdx: snapColIndex(idx) };
+    const sel = selectionFromDrag(dragSel.anchorIdx, dragSel.currentIdx);
+    setSelection(sel, { fire: false });
+    grid.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e) {
+    if (!dragSel) return;
+    const col = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.sln-follow-col');
+    if (!col) return;
+    const idx = Number(col.dataset.index);
+    if (!Number.isFinite(idx)) return;
+    dragSel.currentIdx = snapColIndex(idx);
+    const sel = selectionFromDrag(dragSel.anchorIdx, dragSel.currentIdx);
+    setSelection(sel, { fire: false });
+  }
+
+  function onPointerUp(e) {
+    if (!dragSel) return;
+    const sel = selectionFromDrag(dragSel.anchorIdx, dragSel.currentIdx);
+    dragSel = null;
+    try { grid.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    setSelection(sel, { fire: true });
+  }
+
+  grid.addEventListener('pointerdown', onPointerDown);
+  grid.addEventListener('pointermove', onPointerMove);
+  grid.addEventListener('pointerup', onPointerUp);
+  grid.addEventListener('pointercancel', onPointerUp);
+
+  if (options.selection) {
+    setSelection(options.selection, { fire: false });
+  }
 
   function update({ currentSec = 0, bpm = 120, playing = false, durationSec = 0 } = {}) {
+    isPlaying = !!playing;
+    if (playing) userScrolled = false;
+
     const beat = (currentSec / 60) * (Number(bpm) || 120);
     const rel = beat - startBeat;
     const idx = Math.max(0, Math.min(columns.length - 1, Math.floor(rel / colBeat + 1e-6)));
@@ -266,16 +442,13 @@ export function mountFollowView(host, layout) {
       if (colEls[idx]) colEls[idx].classList.add('active');
       lastActive = idx;
     }
-    // Keep active column under the fixed playhead (~28% into the viewport).
-    const colEl = colEls[idx];
-    if (colEl) {
-      const viewW = viewport.clientWidth || 1;
-      const target = colEl.offsetLeft - viewW * 0.28;
-      scroller.style.transform = `translateX(${-Math.max(0, target)}px)`;
+    if (playing || !userScrolled) {
+      scrollToColumn(idx);
     }
-    const bar = columns[idx] ? Math.floor(columns[idx].beat / 4) + 1 : 1;
+    const activeCol = columns[idx];
+    const barNum = activeCol?.barNumber ?? (activeCol ? Math.floor(activeCol.beat / 4) + 1 : 1);
     metaLeft.textContent = playing
-      ? `Bar ~${bar} · beat ${columns[idx] ? columns[idx].beat.toFixed(2) : '—'}`
+      ? `Bar ${barNum} · beat ${activeCol ? activeCol.beat.toFixed(2) : '—'}`
       : (currentSec > 0.02 ? 'Paused' : 'Ready');
     const fmt = (s) => {
       const n = Math.max(0, Math.floor(s || 0));
@@ -287,9 +460,16 @@ export function mountFollowView(host, layout) {
   return {
     update,
     destroy() {
+      grid.removeEventListener('pointerdown', onPointerDown);
+      grid.removeEventListener('pointermove', onPointerMove);
+      grid.removeEventListener('pointerup', onPointerUp);
+      grid.removeEventListener('pointercancel', onPointerUp);
       host.innerHTML = '';
-      host.classList.remove('sln-follow');
+      host.classList.remove('sln-follow', `size-${size}`);
     },
+    setSize,
+    setSelection: (sel) => setSelection(sel, { fire: false }),
+    getSelection,
   };
 }
 
@@ -320,7 +500,48 @@ export function createSongPlayer(opts = {}) {
     percModel: null,
     onTick: typeof opts.onTick === 'function' ? opts.onTick : null,
     measureIndex: 0,
+    measures: [],
+    metronomeEnabled: !!opts.metronomeEnabled,
+    metroNextBeatSec: 0,
   };
+
+  function quarterSec() {
+    return 60 / (state.bpm || 120);
+  }
+
+  function resetMetroCursor(atSec = 0) {
+    const q = quarterSec();
+    state.metroNextBeatSec = Math.ceil(atSec / q) * q;
+  }
+
+  function isAccentBeat(beatQ) {
+    for (const m of state.measures) {
+      const ms = Number.isFinite(m.startBeat) ? m.startBeat : null;
+      if (ms != null && Math.abs(beatQ - ms) < 0.001) return true;
+    }
+    return Math.abs(beatQ % 4) < 0.001;
+  }
+
+  function scheduleMetroClicks(songHorizon, now) {
+    if (!state.metronomeEnabled || state.inLoopRest) return;
+    const q = quarterSec();
+    const loopStart = state.loop?.startSec ?? 0;
+    const loopEnd = state.loop?.endSec ?? Infinity;
+    while (state.metroNextBeatSec < songHorizon) {
+      if (state.loop && state.metroNextBeatSec >= loopEnd - 0.0001) break;
+      if (state.loop && state.metroNextBeatSec < loopStart - 0.0001) {
+        state.metroNextBeatSec = Math.ceil(loopStart / q) * q;
+        if (state.metroNextBeatSec < loopStart) state.metroNextBeatSec += q;
+        continue;
+      }
+      const when = state.originAudioTime + (state.metroNextBeatSec - state.originSongSec);
+      if (when >= now - 0.02) {
+        const beatQ = (state.metroNextBeatSec / 60) * state.bpm;
+        scheduleMetronomeClick(Math.max(now + 0.005, when), isAccentBeat(beatQ));
+      }
+      state.metroNextBeatSec += q;
+    }
+  }
 
   function clearVoices() {
     state.voices.forEach((v) => {
@@ -408,6 +629,7 @@ export function createSongPlayer(opts = {}) {
       state.originSongSec = state.loop.startSec;
       state.originAudioTime = now + 0.01;
       resyncCursor(state.loop.startSec);
+      resetMetroCursor(state.loop.startSec);
       emitTick();
     }
 
@@ -428,11 +650,13 @@ export function createSongPlayer(opts = {}) {
       state.originSongSec = state.loop.startSec;
       state.originAudioTime = now;
       resyncCursor(state.loop.startSec);
+      resetMetroCursor(state.loop.startSec);
       songNow = state.loop.startSec;
       emitTick();
     }
 
     const horizon = state.originSongSec + (now - state.originAudioTime) + SCHEDULE_AHEAD;
+    scheduleMetroClicks(horizon, now);
     while (state.nextIndex < state.events.length) {
       const ev = state.events[state.nextIndex];
       if (state.loop && ev.startSec >= state.loop.endSec - 0.0001) break;
@@ -482,6 +706,7 @@ export function createSongPlayer(opts = {}) {
     // Primary model drives measure markers / follow range when present.
     state.guitarModel = models[0] || guitarModel || null;
     state.percModel = percModel;
+    state.measures = state.guitarModel?.measures || percModel?.measures || [];
     const tempo = Number(bpm)
       || Number(state.guitarModel?.tempo)
       || Number(percModel?.tempo)
@@ -518,6 +743,7 @@ export function createSongPlayer(opts = {}) {
       state.loop = null;
     }
     state.pauseAtSec = startSec;
+    resetMetroCursor(state.loop?.startSec ?? startSec);
   }
 
   function play({ fromSec = null } = {}) {
@@ -543,6 +769,7 @@ export function createSongPlayer(opts = {}) {
     state.playing = true;
     state.paused = false;
     state.pauseAtSec = startSec;
+    resetMetroCursor(startSec);
     scheduler();
     emitTick();
   }
@@ -567,6 +794,7 @@ export function createSongPlayer(opts = {}) {
       : quartersToSeconds(state.range.startBeat || 0, state.bpm);
     state.nextIndex = 0;
     state.measureIndex = 0;
+    resetMetroCursor(state.loop?.startSec ?? quartersToSeconds(state.range.startBeat || 0, state.bpm));
     stopTimer();
     clearVoices();
     emitTick();
@@ -592,6 +820,11 @@ export function createSongPlayer(opts = {}) {
       if (!state.loop) return;
       state.loop.restSec = Math.max(0, Number(sec) || 0);
     },
+    setMetronomeEnabled(enabled) {
+      state.metronomeEnabled = !!enabled;
+      if (state.playing) resetMetroCursor(songTimeNow());
+    },
+    get metronomeEnabled() { return state.metronomeEnabled; },
     setOnTick(fn) { state.onTick = fn; },
     get playing() { return state.playing; },
     get paused() { return state.paused; },

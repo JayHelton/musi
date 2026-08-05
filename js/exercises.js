@@ -110,6 +110,8 @@ function normalizeItem(raw) {
   const defaultName = url ? titleFromUrl(url) : 'Exercise';
   const measureStart = Number.isFinite(Number(raw.measureStart)) ? Math.max(0, Math.floor(Number(raw.measureStart))) : null;
   const measureEnd = Number.isFinite(Number(raw.measureEnd)) ? Math.max(0, Math.floor(Number(raw.measureEnd))) : null;
+  const startBeat = Number.isFinite(Number(raw.startBeat)) ? Number(raw.startBeat) : null;
+  const endBeat = Number.isFinite(Number(raw.endBeat)) ? Number(raw.endBeat) : null;
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('ex'),
     name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : defaultName, NAME_LIMIT),
@@ -126,6 +128,8 @@ function normalizeItem(raw) {
       : 0,
     measureStart,
     measureEnd,
+    startBeat,
+    endBeat,
     loopEnabled: raw.loopEnabled == null
       ? (measureStart != null && measureEnd != null)
       : !!raw.loopEnabled,
@@ -752,6 +756,8 @@ export function addExerciseFromAttachment({
   preferredTrackIndex = 0,
   measureStart = null,
   measureEnd = null,
+  startBeat = null,
+  endBeat = null,
   loopEnabled = null,
   loopRestSec = 0,
 } = {}) {
@@ -773,6 +779,8 @@ export function addExerciseFromAttachment({
     preferredTrackIndex,
     measureStart,
     measureEnd,
+    startBeat,
+    endBeat,
     loopEnabled: loopEnabled == null ? (measureStart != null && measureEnd != null) : !!loopEnabled,
     loopRestSec,
   });
@@ -970,6 +978,8 @@ export async function openExerciseViewer(id) {
         initialLoopEnabled: !!item.loopEnabled,
         initialLoopStart: item.measureStart,
         initialLoopEnd: item.measureEnd,
+        initialLoopStartBeat: item.startBeat,
+        initialLoopEndBeat: item.endBeat,
         loopRestSec: item.loopRestSec || 0,
         onPracticeSettingsChange: (settings) => {
           updateExercisePracticeSettings(item.id, settings);

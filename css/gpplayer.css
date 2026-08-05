@@ -37,6 +37,28 @@
 .gpp-meta{display:flex;flex-direction:column;gap:8px;min-width:0}
 .gpp-info{font-size:.9rem;color:var(--muted);line-height:1.4;font-family:var(--font-ui,"VT323",monospace)}
 
+.gpp-mixer{
+  border:1px solid var(--border);border-radius:12px;background:rgba(18,26,46,0.9);
+  padding:8px 10px;display:flex;flex-direction:column;gap:4px;
+  max-height:180px;overflow-y:auto;scrollbar-width:thin
+}
+.gpp-mixer-head{
+  font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
+  letter-spacing:1.4px;text-transform:uppercase;color:var(--accent);padding:2px 4px 6px
+}
+.gpp-mixer-row{
+  display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:8px;
+  padding:5px 6px;border-radius:8px;cursor:pointer;font-size:.82rem;color:var(--text)
+}
+.gpp-mixer-row:hover{background:rgba(255,255,255,0.04)}
+.gpp-mixer-row input[type="checkbox"],.gpp-mixer-row input[type="radio"]{accent-color:var(--accent);margin:0}
+.gpp-mixer-name{
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--font-ui,"VT323",monospace);font-size:.9rem;color:var(--muted)
+}
+.gpp-mixer-drum .gpp-mixer-name{color:var(--text)}
+.gpp-mixer-spacer{width:16px;height:1px}
+
 .gpp-transport{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .gpp-play{min-width:88px}
 .gpp-time,.gpp-measure{
@@ -92,6 +114,21 @@
 .gpp-check{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text);cursor:pointer}
 .gpp-check input{accent-color:var(--accent)}
 .gpp-loop-sel{width:auto;min-width:72px}
+.gpp-metro{margin-left:2px}
+.gpp-follow-toolbar{
+  display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;
+  padding:0 2px 4px
+}
+.gpp-size-label{
+  font-family:var(--font-pixel,"Press Start 2P",monospace);font-size:.48rem;font-weight:400;
+  letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)
+}
+.gpp-size-group{display:flex;gap:4px}
+.gpp-size-btn{
+  min-width:36px;padding:4px 10px;font-family:var(--font-ui,"VT323",monospace);
+  font-size:.9rem;line-height:1.2
+}
+.gpp-size-btn.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 
 .gpp-strip{
   display:flex;gap:8px;overflow-x:auto;padding:6px 2px 10px;scrollbar-width:thin;
