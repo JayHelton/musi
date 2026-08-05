@@ -122,7 +122,7 @@ function mountCurrent() {
     gpResult: state.gp,
     title: (state.fileName || 'score').replace(/\.(gp|gp5)$/i, ''),
     fileName: state.fileName,
-    initialLoopEnabled: exercise ? !!exercise.loopEnabled : true,
+    initialLoopEnabled: exercise ? !!exercise.loopEnabled : false,
     initialLoopStart: exercise?.measureStart,
     initialLoopEnd: exercise?.measureEnd,
     initialLoopStartBeat: exercise?.startBeat,

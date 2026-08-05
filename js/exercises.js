@@ -130,9 +130,7 @@ function normalizeItem(raw) {
     measureEnd,
     startBeat,
     endBeat,
-    loopEnabled: raw.loopEnabled == null
-      ? (measureStart != null && measureEnd != null)
-      : !!raw.loopEnabled,
+    loopEnabled: raw.loopEnabled == null ? false : !!raw.loopEnabled,
     loopRestSec: Math.max(0, Math.min(30, Number(raw.loopRestSec) || 0)),
   };
 }
@@ -781,7 +779,7 @@ export function addExerciseFromAttachment({
     measureEnd,
     startBeat,
     endBeat,
-    loopEnabled: loopEnabled == null ? (measureStart != null && measureEnd != null) : !!loopEnabled,
+    loopEnabled: loopEnabled == null ? false : !!loopEnabled,
     loopRestSec,
   });
   if (!item) return null;
