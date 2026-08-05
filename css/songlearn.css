@@ -126,7 +126,7 @@
 .sln-chip:hover{color:var(--text);border-color:var(--accent)}
 .sln-chip.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);font-weight:650}
 
-/* Follow-along visual — LCD screen tile (roomy columns so notes aren't cramped) */
+/* Follow-along visual — LCD screen tile */
 .sln-follow-host{margin:6px 0 10px;min-width:0}
 .sln-follow{
   border:1px solid var(--border);border-radius:var(--radius-screen,18px);
@@ -140,21 +140,23 @@
 }
 .sln-follow-stage{
   position:relative;display:flex;align-items:stretch;overflow:hidden;
-  height:min(420px,58vh);background:var(--bg)
+  background:var(--bg)
 }
-.sln-follow-viewport{position:relative;flex:1;min-width:0;overflow:hidden}
+.sln-follow-viewport{
+  position:relative;flex:1;min-width:0;
+  overflow-x:auto;overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;touch-action:pan-x;
+  scrollbar-width:thin;scrollbar-color:var(--accent) transparent
+}
 .sln-follow-playhead{
   position:absolute;left:28%;top:0;bottom:0;width:2px;background:var(--accent);
   box-shadow:0 0 10px var(--accent-glow);z-index:3;pointer-events:none
 }
-.sln-follow-scroll{
-  position:absolute;inset:0;display:flex;align-items:stretch;will-change:transform;
-  transition:transform .05s linear
-}
+.sln-follow-scroll{display:inline-flex;align-items:stretch;min-width:100%}
 .sln-follow-labels{
   flex:0 0 42px;display:flex;flex-direction:column;justify-content:center;gap:0;
   padding:32px 6px 10px;background:var(--screen-bezel,rgba(10,8,22,0.55));
-  border-right:1px solid var(--border);z-index:4
+  border-right:1px solid var(--border);z-index:4;flex-shrink:0
 }
 .sln-follow-label{
   height:22px;line-height:22px;font-size:.92rem;color:var(--muted);text-align:right;padding-right:4px;
@@ -162,34 +164,93 @@
 }
 .sln-follow-label.drum{color:var(--accent2)}
 .sln-follow-gap{height:12px}
-.sln-follow-grid{display:flex;align-items:stretch;padding:32px 40vw 10px 0}
+.sln-follow-grid{
+  display:flex;align-items:stretch;padding:32px 40vw 10px 0;
+  touch-action:none;user-select:none
+}
 .sln-follow-col{
   position:relative;flex:0 0 36px;display:flex;flex-direction:column;justify-content:center;
   border-left:1px solid transparent
 }
-.sln-follow-col.bar-start{border-left-color:rgba(180,140,255,0.28)}
+.sln-follow-col.bar-start{
+  border-left:3px solid var(--accent2);
+  box-shadow:-1px 0 8px rgba(180,94,255,0.22)
+}
+.sln-follow-col.beat-start{border-left-color:rgba(180,140,255,0.14)}
+.sln-follow-col.in-selection{background:var(--accent-dim)}
 .sln-follow-col.active .sln-follow-cell.hit{
   color:var(--on-accent);background:var(--accent)
 }
 .sln-follow-col.active .sln-follow-cell.drum.hit{background:var(--accent2);color:var(--on-accent)}
+.sln-follow-bar-num{
+  position:absolute;top:-20px;left:4px;font-size:.72rem;color:var(--accent2);font-weight:700;
+  font-family:var(--font-ui,"VT323",monospace);line-height:1;pointer-events:none
+}
 .sln-follow-marker{
   position:absolute;top:-24px;left:2px;font-size:.78rem;color:var(--accent);font-weight:700;
   white-space:nowrap;max-width:96px;overflow:hidden;text-overflow:ellipsis;
   font-family:var(--font-ui,"VT323",monospace)
 }
+.sln-follow-col.bar-start .sln-follow-marker{left:6px}
 .sln-follow-cell{
-  height:22px;line-height:22px;text-align:center;font-size:.95rem;
+  position:relative;height:22px;line-height:22px;text-align:center;font-size:.95rem;
   font-family:var(--font-ui,"VT323",monospace);color:transparent
 }
-.sln-follow-cell.hit{color:var(--text);font-weight:650}
+.sln-follow-cell.guitar::after{
+  content:'';position:absolute;left:0;right:0;bottom:50%;height:1px;
+  background:rgba(180,140,255,0.32);z-index:0;pointer-events:none
+}
+.sln-follow-cell.guitar.hit{
+  z-index:1;color:var(--text);font-weight:650;
+  text-shadow:0 1px 2px rgba(11,16,32,0.85)
+}
 .sln-follow-cell.drum.hit{color:var(--accent2)}
 .sln-follow-cell.gap{height:12px}
+
+/* Size presets — default md */
+.sln-follow.size-lg .sln-follow-stage{height:min(420px,58vh)}
+.sln-follow.size-lg .sln-follow-col{flex-basis:36px}
+.sln-follow.size-lg .sln-follow-cell,
+.sln-follow.size-lg .sln-follow-label{height:22px;line-height:22px;font-size:.95rem}
+.sln-follow.size-lg .sln-follow-labels{flex-basis:42px;padding-top:32px}
+.sln-follow.size-lg .sln-follow-grid{padding-top:32px}
+
+.sln-follow.size-md .sln-follow-stage{height:min(320px,48vh)}
+.sln-follow.size-md .sln-follow-col{flex-basis:24px}
+.sln-follow.size-md .sln-follow-cell,
+.sln-follow.size-md .sln-follow-label{height:16px;line-height:16px;font-size:.82rem}
+.sln-follow.size-md .sln-follow-labels{flex-basis:36px;padding-top:26px}
+.sln-follow.size-md .sln-follow-grid{padding-top:26px}
+.sln-follow.size-md .sln-follow-bar-num{top:-16px;font-size:.65rem}
+.sln-follow.size-md .sln-follow-marker{top:-20px;font-size:.7rem}
+.sln-follow.size-md .sln-follow-gap,
+.sln-follow.size-md .sln-follow-cell.gap{height:8px}
+
+.sln-follow.size-sm .sln-follow-stage{height:min(260px,42vh)}
+.sln-follow.size-sm .sln-follow-col{flex-basis:17px}
+.sln-follow.size-sm .sln-follow-cell,
+.sln-follow.size-sm .sln-follow-label{height:13px;line-height:13px;font-size:.72rem}
+.sln-follow.size-sm .sln-follow-labels{flex-basis:30px;padding-top:22px;font-size:.7rem}
+.sln-follow.size-sm .sln-follow-grid{padding-top:22px}
+.sln-follow.size-sm .sln-follow-bar-num{top:-14px;font-size:.6rem}
+.sln-follow.size-sm .sln-follow-marker{top:-18px;font-size:.65rem}
+.sln-follow.size-sm .sln-follow-gap,
+.sln-follow.size-sm .sln-follow-cell.gap{height:6px}
 
 @media (max-width:768px){
   .sln-drop{padding:18px 14px}
   .sln-tab{font-size:.9rem}
-  .sln-follow-stage{height:min(340px,52vh)}
-  .sln-follow-col{flex-basis:28px}
-  .sln-follow-cell,.sln-follow-label{height:20px;line-height:20px;font-size:.85rem}
-  .sln-follow-labels{flex-basis:36px}
+  .sln-follow.size-lg .sln-follow-stage{height:min(340px,52vh)}
+  .sln-follow.size-lg .sln-follow-col{flex-basis:28px}
+  .sln-follow.size-lg .sln-follow-cell,
+  .sln-follow.size-lg .sln-follow-label{height:20px;line-height:20px;font-size:.85rem}
+  .sln-follow.size-lg .sln-follow-labels{flex-basis:36px}
+  .sln-follow.size-md .sln-follow-stage{height:min(280px,46vh)}
+  .sln-follow.size-md .sln-follow-col{flex-basis:20px}
+  .sln-follow.size-md .sln-follow-cell,
+  .sln-follow.size-md .sln-follow-label{height:14px;line-height:14px;font-size:.76rem}
+  .sln-follow.size-sm .sln-follow-stage{height:min(220px,38vh)}
+  .sln-follow.size-sm .sln-follow-col{flex-basis:15px}
+  .sln-follow.size-sm .sln-follow-cell,
+  .sln-follow.size-sm .sln-follow-label{height:12px;line-height:12px;font-size:.68rem}
 }

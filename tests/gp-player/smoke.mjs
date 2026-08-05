@@ -222,6 +222,12 @@ assert.ok(layout.columns.length >= 4);
 assert.ok(layout.columns.some((c) => c.frets.some((f) => f != null)));
 assert.ok(layout.columns.some((c) => Object.keys(c.drums).length));
 assert.ok(layout.columns.some((c) => c.barStart && c.marker === 'Intro'));
+const introCol = layout.columns.find((c) => c.barStart && c.marker === 'Intro');
+assert.equal(introCol.barNumber, 1);
+assert.equal(introCol.measureIndex, 0);
+assert.equal(introCol.beatInBar, 0);
+const verseCol = layout.columns.find((c) => c.barStart && c.marker === 'Verse');
+assert.equal(verseCol?.barNumber, 2);
 
 // ---- loop rest API on song player ----
 const player = createSongPlayer();
