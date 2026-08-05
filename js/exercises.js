@@ -130,9 +130,7 @@ function normalizeItem(raw) {
     measureEnd,
     startBeat,
     endBeat,
-    loopEnabled: raw.loopEnabled == null
-      ? (measureStart != null && measureEnd != null)
-      : !!raw.loopEnabled,
+    loopEnabled: raw.loopEnabled == null ? false : !!raw.loopEnabled,
     loopRestSec: Math.max(0, Math.min(30, Number(raw.loopRestSec) || 0)),
   };
 }
@@ -744,7 +742,7 @@ async function onUploadFiles() {
 
 /**
  * Add any file-backed exercise from an already-saved attachment
- * (GP Player, Track → Sheet, Song Learning, etc.).
+ * (GP Player, Track → Sheet, etc.).
  */
 export function addExerciseFromAttachment({
   attachmentId,
@@ -781,7 +779,7 @@ export function addExerciseFromAttachment({
     measureEnd,
     startBeat,
     endBeat,
-    loopEnabled: loopEnabled == null ? (measureStart != null && measureEnd != null) : !!loopEnabled,
+    loopEnabled: loopEnabled == null ? false : !!loopEnabled,
     loopRestSec,
   });
   if (!item) return null;
@@ -791,7 +789,7 @@ export function addExerciseFromAttachment({
   return item;
 }
 
-/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player / Song Learning). */
+/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player). */
 export function addGpExerciseFromAttachment(opts = {}) {
   return addExerciseFromAttachment({
     ...opts,

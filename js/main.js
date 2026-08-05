@@ -25,7 +25,6 @@ import { initDrums, stopDrums } from './drums/drumsUI.js';
 import { initTabAnalyzer, stopTabAnalyzer } from './tabAnalyzer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
-import { initSongLearn, stopSongLearn } from './songLearn.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
 import { initTriadRef, stopTriadRef } from './triadReference.js';
 import { initVisualizer } from './visualizer.js';
@@ -70,7 +69,6 @@ const TOOL_STOPPERS = {
   tabanalyzer: () => stopTabAnalyzer(),
   tracktosheet: () => stopTrackToSheet(),
   gpplayer: () => stopGpPlayer(),
-  songlearn: () => stopSongLearn(),
   studylab: () => stopStudyLab(),
 };
 const TOOL_INITS = {
@@ -96,7 +94,6 @@ const TOOL_INITS = {
   tabanalyzer: initTabAnalyzer,
   tracktosheet: initTrackToSheet,
   gpplayer: initGpPlayer,
-  songlearn: initSongLearn,
   studylab: initStudyLab,
   musicprefs: () => initMusicPreferences({ showSection }),
 };

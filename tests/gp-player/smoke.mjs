@@ -20,7 +20,7 @@ import {
   quantizePercussionToSteps,
 } from '../../js/drums/gpDrumImport.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
-import { buildFollowColumns, createSongPlayer } from '../../js/songLearnPlayer.js';
+import { buildFollowColumns } from '../../js/gpFollowView.js';
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
 import { scheduleMetronomeClick } from '../../js/tab/metroClick.js';
 
@@ -231,20 +231,18 @@ assert.equal(introCol.beatInBar, 0);
 const verseCol = layout.columns.find((c) => c.barStart && c.marker === 'Verse');
 assert.equal(verseCol?.barNumber, 2);
 
-// ---- loop rest API on song player ----
-const player = createSongPlayer();
-player.load({
-  guitarModel: fakeGp.tracks[0].model,
-  percModel: perc,
+// ---- loop rest API on mix player ----
+const mixLoop = createGpMixPlayer();
+mixLoop.load({
+  guitarModels: [fakeGp.tracks[0].model],
+  drumModels: [perc],
   bpm: 120,
-  startBeat: 0,
-  endBeat: 2,
-  loop: true,
+  loopBeats: { startBeat: 0, endBeat: 2 },
   loopRestSec: 2.5,
 });
-assert.equal(player.durationSec, 1); // 2 beats at 120 BPM
-player.setLoopRestSec(1);
-assert.ok(!player.playing);
+assert.equal(mixLoop.durationSec, 1); // 2 beats at 120 BPM
+mixLoop.setLoopRestSec(1);
+assert.ok(!mixLoop.playing);
 
 // ---- multi-track mix player: per-track enable + metronome flag ----
 const guitarB = {

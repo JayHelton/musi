@@ -457,6 +457,30 @@ export function createGpMixPlayer(opts = {}) {
     emitTick();
   }
 
+  /** Jump to a song position without starting playback. */
+  function seek(sec) {
+    const s = Math.max(0, Number(sec) || 0);
+    const was = state.playing;
+    if (was) {
+      clearVoices();
+      stopTimer();
+      state.inLoopRest = false;
+      state.originSongSec = s;
+      state.originAudioTime = audioCtx.currentTime + 0.06;
+      resyncCursor(s);
+      state.pauseAtSec = s;
+      scheduler();
+      emitTick();
+      return;
+    }
+    state.pauseAtSec = s;
+    state.paused = true;
+    resyncCursor(s);
+    const beat = (s / 60) * state.bpm;
+    state.measureIndex = measureIndexAtBeat(state.referenceModel?.measures || [], beat);
+    emitTick();
+  }
+
   function setTrackEnabled(kind, index, enabled) {
     const arr = kind === 'drum' ? state.enabledDrums : state.enabledGuitars;
     if (index < 0 || index >= arr.length) return;
@@ -502,6 +526,7 @@ export function createGpMixPlayer(opts = {}) {
     play,
     pause,
     stop,
+    seek,
     setBpm,
     setTrackEnabled,
     setMetronomeEnabled,
