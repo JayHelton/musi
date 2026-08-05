@@ -1,13 +1,13 @@
 /**
- * Boot splash — covers dynamic nav while the shell initializes.
- * One clear sequence: loading progress → READY → dismiss (tap or short auto).
+ * Boot splash — covers the shell until first paint is ready.
+ * Stable single composition: no tag thrash, no opacity flicker loops.
  * Skipped for the rest of the session after the first successful boot.
  */
 
 const SESSION_KEY = 'musi.bootSplash.done';
-const MIN_VISIBLE_MS = 700;
-const AUTO_DISMISS_MS = 1600;
-const LEAVE_MS = 380;
+const MIN_VISIBLE_MS = 550;
+const READY_HOLD_MS = 700;
+const LEAVE_MS = 320;
 
 let startedAt = 0;
 let ready = false;
@@ -21,14 +21,14 @@ function el() {
 
 function setTag(text) {
   const tag = document.getElementById('boot-splash-tag');
-  if (tag) tag.textContent = text;
+  if (tag && tag.textContent !== text) tag.textContent = text;
 }
 
 function setProgress(pct) {
   const fill = document.getElementById('boot-splash-bar-fill');
-  if (!fill || ready || dismissed) return;
-  const clamped = Math.max(8, Math.min(96, pct));
-  fill.style.width = `${clamped}%`;
+  if (!fill || dismissed) return;
+  const clamped = Math.max(0.08, Math.min(1, pct / 100));
+  fill.style.transform = `scaleX(${clamped})`;
 }
 
 function alreadyBootedThisSession() {
@@ -45,15 +45,19 @@ function markSessionBooted() {
   } catch (e) { /* private mode */ }
 }
 
+function endBootingClass() {
+  document.documentElement.classList.remove('booting');
+  document.body.classList.remove('boot-locked');
+}
+
 function stripSplash(root) {
   if (root) root.remove();
-  document.body.classList.remove('boot-locked');
+  endBootingClass();
 }
 
 function bindDismiss(root) {
   const startBtn = document.getElementById('boot-splash-start');
   const go = () => {
-    // Only dismiss once the shell is ready — avoids flash/half-boot exits.
     if (!ready || dismissed) return;
     dismiss();
   };
@@ -81,6 +85,8 @@ export function initBootSplash() {
   const root = el();
   if (!root || dismissed) return;
 
+  document.documentElement.classList.add('booting');
+
   // Soft navigations / SW reclaim: don't replay the splash every time.
   if (alreadyBootedThisSession()) {
     dismissed = true;
@@ -95,20 +101,24 @@ export function initBootSplash() {
   root.classList.remove('is-ready', 'is-leaving');
   root.setAttribute('aria-busy', 'true');
   root.setAttribute('aria-hidden', 'false');
+  // HTML already says Loading — only set if somehow different
   setTag('Loading');
-  setProgress(12);
+  setProgress(14);
 
   const startBtn = document.getElementById('boot-splash-start');
-  if (startBtn) startBtn.hidden = true;
+  if (startBtn) {
+    startBtn.setAttribute('aria-hidden', 'true');
+    startBtn.tabIndex = -1;
+  }
 
-  // Fake progress while modules finish wiring navigation.
-  let pct = 12;
+  // Smooth fake progress (scaleX) while modules wire up — few large steps.
+  let pct = 14;
   if (progressTimer) clearInterval(progressTimer);
   progressTimer = window.setInterval(() => {
     if (ready || dismissed) return;
-    pct = Math.min(88, pct + (pct < 40 ? 8 : pct < 70 ? 5 : 2));
+    pct = Math.min(82, pct + 9);
     setProgress(pct);
-  }, 160);
+  }, 220);
 
   bindDismiss(root);
 }
@@ -122,23 +132,22 @@ export function markBootReady() {
     progressTimer = 0;
   }
 
-  const fill = document.getElementById('boot-splash-bar-fill');
-  if (fill) fill.style.width = '100%';
-
+  setProgress(100);
   ready = true;
   root.classList.add('is-ready');
   setTag('Ready');
 
   const startBtn = document.getElementById('boot-splash-start');
   if (startBtn) {
-    startBtn.hidden = false;
-    requestAnimationFrame(() => startBtn.focus({ preventScroll: true }));
+    startBtn.setAttribute('aria-hidden', 'false');
+    startBtn.tabIndex = 0;
   }
 
   const elapsed = performance.now() - startedAt;
   const wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
   if (autoTimer) clearTimeout(autoTimer);
-  autoTimer = window.setTimeout(() => dismiss(), wait + AUTO_DISMISS_MS);
+  // Short hold on Ready, then leave — no blinking PRESS START phase.
+  autoTimer = window.setTimeout(() => dismiss(), wait + READY_HOLD_MS);
 }
 
 export function dismiss() {
@@ -163,9 +172,10 @@ export function dismiss() {
   root.classList.add('is-leaving');
   root.setAttribute('aria-busy', 'false');
   root.setAttribute('aria-hidden', 'true');
-  document.body.classList.remove('boot-locked');
+  // Reveal shell under the fade so the handoff is one continuous dark frame
+  endBootingClass();
 
   window.setTimeout(() => {
-    root.remove();
+    if (root.isConnected) root.remove();
   }, LEAVE_MS);
 }
