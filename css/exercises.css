@@ -3,22 +3,66 @@
    video and links. Reuses Musi's design tokens for a consistent look. */
 
 .ex-layout{align-items:flex-start}
-.ex-sidebar{width:220px}
+.ex-sidebar{width:240px;display:flex;flex-direction:column;gap:12px}
 
-/* ---- Category list ---- */
-.ex-cat-item{display:flex;align-items:center;gap:8px}
-.ex-cat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ex-cat-count{font-size:.66rem;color:var(--muted);background:var(--bg2);padding:1px 8px;border-radius:999px;font-weight:600}
+/* ---- Folder / tag filter list (own chrome — don't inherit quiz pill strip) ---- */
+#sec-exercises .ex-sidebar .sidebar-list{
+  background:var(--card);border-radius:var(--radius-screen,16px);overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28);
+  border:1px solid var(--border)
+}
+#sec-exercises .ex-sidebar .sl-head{
+  padding:10px 14px;font-size:.7rem;color:var(--muted);text-transform:uppercase;
+  letter-spacing:1.2px;font-weight:600;border-bottom:1px solid var(--border)
+}
+#sec-exercises .ex-sidebar .sl-scroll,
+#sec-exercises #ex-category-list{
+  display:flex;flex-direction:column;gap:2px;
+  max-height:min(360px,50vh);overflow-x:hidden;overflow-y:auto;
+  padding:6px;scroll-snap-type:none
+}
+
+.ex-cat-item{
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:9px 10px 9px 12px;margin:0;border:none;border-radius:10px;
+  background:transparent;color:var(--text);cursor:pointer;font:inherit;text-align:left;
+  border-left:3px solid transparent;min-height:40px;position:relative
+}
+.ex-cat-item:hover{background:var(--hover)}
+.ex-cat-item.active{
+  color:var(--accent);border-left-color:var(--accent);
+  background:linear-gradient(90deg,var(--accent-dim),transparent)
+}
+.ex-cat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem}
+.ex-cat-count{
+  flex-shrink:0;font-size:.66rem;color:var(--muted);background:var(--bg2);
+  padding:2px 8px;border-radius:999px;font-weight:600;font-variant-numeric:tabular-nums
+}
 .ex-cat-item.active .ex-cat-count{color:var(--accent);background:var(--accent-dim)}
-.ex-cat-tools{display:flex;gap:2px;opacity:0;transition:opacity .15s ease}
-.ex-cat-item:hover .ex-cat-tools{opacity:1}
-.ex-cat-tool{border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;line-height:1;padding:4px;border-radius:6px;font-family:inherit}
+.ex-cat-tools{
+  display:flex;gap:2px;flex-shrink:0;
+  opacity:0;pointer-events:none;transition:opacity .15s ease
+}
+.ex-cat-item:hover .ex-cat-tools,
+.ex-cat-item:focus-within .ex-cat-tools{
+  opacity:1;pointer-events:auto
+}
+.ex-cat-tool{
+  border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;
+  line-height:1;padding:6px;border-radius:6px;font-family:inherit;min-width:28px;min-height:28px
+}
 .ex-cat-tool:hover{color:var(--text);background:var(--hover)}
 .ex-cat-del:hover{color:var(--err);background:rgba(231,76,60,0.12)}
 
-.ex-add-cat{display:flex;gap:8px}
-.ex-add-cat input{flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.85rem;font-family:inherit}
+.ex-add-cat{display:flex;gap:8px;align-items:stretch}
+.ex-add-cat input{
+  flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:12px;
+  background:var(--bg2);color:var(--text);font-size:.85rem;font-family:inherit
+}
 .ex-add-cat input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
+.ex-add-cat .btn{flex-shrink:0}
+
+.ex-folder-bar{margin-bottom:12px}
 
 /* ---- Main column ---- */
 .ex-main{flex:1;min-width:0}
@@ -31,6 +75,7 @@
 .ex-status.error{color:var(--warn);border-color:rgba(243,156,18,0.4)}
 
 .ex-empty{padding:30px 20px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted);font-size:.88rem;background:rgba(18,26,46,0.5)}
+.ex-folder-empty{padding:12px 10px;font-size:.8rem;color:var(--muted);line-height:1.35}
 
 /* ---- Folder groups (by category tag) ---- */
 .ex-folder{border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.35)}
@@ -99,4 +144,14 @@
   .ex-item-actions{width:100%;justify-content:flex-start}
   .ex-viewer-overlay{padding:0}
   .ex-viewer-panel{border-radius:0;max-width:none}
+}
+
+@media(max-width:768px){
+  /* Folder chip bar replaces the desktop list; keep create form usable */
+  #sec-exercises .ex-toolbar-actions{display:none}
+  #sec-exercises .ex-add-cat{
+    padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-screen,14px);
+    background:rgba(22,31,54,0.88)
+  }
+  .ex-cat-tools{opacity:1;pointer-events:auto}
 }

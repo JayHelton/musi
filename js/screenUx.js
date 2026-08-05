@@ -16,6 +16,13 @@ import {
   openOverflowMenu, renderFilterSummary, setEditorNavState, setDrillFocus,
   escapeHtml,
 } from './uxPrimitives.js';
+import {
+  getExerciseFolderOptions,
+  getSelectedExerciseFolder,
+  getSelectedExerciseFolderLabel,
+  selectExerciseFolder,
+  createExerciseFolder,
+} from './exercises.js';
 
 let showSectionFn = null;
 
@@ -1237,67 +1244,106 @@ function setupExercises() {
   const sec = document.getElementById('sec-exercises');
   if (!sec) return;
   ensureBackButton(sec);
-  const catList = document.getElementById('ex-category-list');
-  const sidebar = catList?.closest('.sidebar, .ex-sidebar, aside') || catList?.parentElement;
-  if (!sidebar || document.getElementById('ex-folder-pick')) return;
+  if (document.getElementById('ex-folder-pick')) return;
 
   const bar = document.createElement('div');
   bar.id = 'ex-folder-bar';
-  bar.className = 'setup-summary';
-  bar.innerHTML = `<button type="button" class="setup-chip" id="ex-folder-pick"><span class="setup-chip-value" id="ex-folder-label">All Exercises</span><span class="setup-chip-hint">Folder</span></button>`;
+  bar.className = 'setup-summary ex-folder-bar';
+  bar.innerHTML = `
+    <button type="button" class="setup-chip" id="ex-folder-pick">
+      <span class="setup-chip-value" id="ex-folder-label">${escapeHtml(getSelectedExerciseFolderLabel())}</span>
+      <span class="setup-chip-hint">Folder</span>
+    </button>
+    <button type="button" class="btn sm" id="ex-new-folder-btn">+ Folder</button>
+  `;
   const head = sec.querySelector('.section-head');
   if (head) head.after(bar);
 
+  // Mobile: hide the desktop filter list (broken as horizontal pills) but keep
+  // the add-folder form. Desktop keeps the full sidebar list.
   if (!document.getElementById('ex-folder-style')) {
     const style = document.createElement('style');
     style.id = 'ex-folder-style';
     style.textContent = `
       @media(max-width:768px){
         #sec-exercises .ex-layout{display:flex;flex-direction:column}
-        #sec-exercises #ex-category-list, #sec-exercises .ex-sidebar, #sec-exercises .sidebar{display:none}
+        #sec-exercises .ex-sidebar .sidebar-list{display:none}
+        #sec-exercises .ex-sidebar{display:flex;flex-direction:column;gap:8px;width:100%}
+        #sec-exercises .ex-add-cat{display:flex}
+        #sec-exercises .ex-folder-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+      }
+      @media(min-width:769px){
+        #sec-exercises .ex-folder-bar{display:none}
       }
     `;
     document.head.appendChild(style);
   }
 
-  document.getElementById('ex-folder-pick').onclick = async () => {
-    const items = [...(catList?.querySelectorAll('button, .sl-item, .ex-cat') || [])].map((el, i) => ({
-      id: el.dataset.id || el.dataset.val || String(i),
-      label: el.textContent.trim(),
-      el,
-    }));
-    if (!items.length) return;
-    const next = await openSelectionSheet({
-      title: 'Folder',
-      items: items.map(({ id, label }) => ({ id, label })),
-      search: items.length > 6,
-    });
-    if (next != null) {
-      const match = items.find(it => it.id === next);
-      match?.el?.click();
-      const label = document.getElementById('ex-folder-label');
-      if (label && match) label.textContent = match.label;
+  const promptNewFolder = () => {
+    const name = window.prompt('New folder name');
+    if (name == null) return;
+    const result = createExerciseFolder(name);
+    if (!result.ok && result.reason === 'empty') {
+      window.alert('Enter a folder name.');
+      return;
     }
+    const label = document.getElementById('ex-folder-label');
+    if (label) label.textContent = getSelectedExerciseFolderLabel();
   };
 
-  // Combine upload / add link
-  const upload = document.getElementById('ex-upload') || [...sec.querySelectorAll('button,label')].find(b => /upload/i.test(b.textContent));
-  const addLink = document.getElementById('ex-add-link') || [...sec.querySelectorAll('button')].find(b => /add link|link/i.test(b.textContent));
+  document.getElementById('ex-new-folder-btn')?.addEventListener('click', promptNewFolder);
+
+  document.getElementById('ex-folder-pick').onclick = async () => {
+    const folders = getExerciseFolderOptions();
+    const items = [
+      ...folders.map(f => ({
+        id: f.id,
+        label: f.label,
+        meta: String(f.count),
+      })),
+      { id: '__new__', label: '+ New folder', sub: 'Create a tag for grouping exercises' },
+    ];
+    const next = await openSelectionSheet({
+      title: 'Folder',
+      items,
+      value: getSelectedExerciseFolder(),
+      search: folders.length > 6,
+    });
+    if (next == null) return;
+    if (next === '__new__') {
+      promptNewFolder();
+      return;
+    }
+    selectExerciseFolder(next);
+    const label = document.getElementById('ex-folder-label');
+    if (label) label.textContent = getSelectedExerciseFolderLabel();
+  };
+
+  // Combine upload / add link into one primary on mobile folder bar
+  const upload = document.getElementById('ex-upload-btn')
+    || document.getElementById('ex-upload')
+    || [...sec.querySelectorAll('button,label')].find(b => /upload/i.test(b.textContent));
+  const addLink = document.getElementById('ex-add-link-btn')
+    || document.getElementById('ex-add-link')
+    || [...sec.querySelectorAll('button')].find(b => /add link|link/i.test(b.textContent));
   if ((upload || addLink) && !document.getElementById('ex-add-primary')) {
     const primary = document.createElement('button');
     primary.type = 'button';
     primary.id = 'ex-add-primary';
     primary.className = 'btn primary';
     primary.textContent = 'Add';
-    primary.onclick = (e) => {
+    primary.onclick = () => {
       openOverflowMenu(primary, [
-        upload ? { label: 'Upload file', onClick: () => (upload.tagName === 'LABEL' ? document.getElementById(upload.htmlFor)?.click() : upload.click()) } : null,
+        upload ? {
+          label: 'Upload file',
+          onClick: () => (upload.tagName === 'LABEL'
+            ? document.getElementById(upload.htmlFor)?.click()
+            : upload.click()),
+        } : null,
         addLink ? { label: 'Add link', onClick: () => addLink.click() } : null,
       ].filter(Boolean));
     };
     bar.appendChild(primary);
-    if (upload) upload.hidden = true;
-    if (addLink) addLink.hidden = true;
   }
 }
 
