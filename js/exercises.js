@@ -197,7 +197,7 @@ function categoryName(categoryId) {
   return cat ? cat.name : 'No folder';
 }
 
-function addCategory(name) {
+export function addCategory(name) {
   const clean = clampText((name || '').trim(), CAT_LIMIT);
   if (!clean) return null;
   const store = getStore();
@@ -207,6 +207,70 @@ function addCategory(name) {
   store.categories.push(cat);
   persist();
   return cat;
+}
+
+/** Options for the folder / tag picker (sidebar + mobile sheet). */
+export function getExerciseFolderOptions() {
+  const items = getExercises();
+  const uncategorizedCount = items.filter(it => !it.categoryId).length;
+  const opts = [
+    { id: 'all', label: 'All Exercises', count: items.length },
+  ];
+  getCategories().forEach(cat => {
+    opts.push({
+      id: cat.id,
+      label: cat.name,
+      count: items.filter(it => it.categoryId === cat.id).length,
+    });
+  });
+  if (uncategorizedCount > 0) {
+    opts.push({ id: 'uncategorized', label: 'No folder', count: uncategorizedCount });
+  }
+  return opts;
+}
+
+export function getSelectedExerciseFolder() {
+  return selectedCategory;
+}
+
+export function getSelectedExerciseFolderLabel() {
+  return currentTitleText();
+}
+
+export function selectExerciseFolder(id) {
+  if (id === 'all' || id === 'uncategorized'
+      || getStore().categories.some(c => c.id === id)) {
+    selectedCategory = id;
+  } else {
+    selectedCategory = 'all';
+  }
+  if (wired) render();
+  return selectedCategory;
+}
+
+/** Create a folder/tag and refresh the UI. Stays on All so the new folder is visible. */
+export function createExerciseFolder(name) {
+  const clean = clampText((name || '').trim(), CAT_LIMIT);
+  if (!clean) return { ok: false, reason: 'empty' };
+  const store = getStore();
+  const exists = store.categories.find(c => c.name.toLowerCase() === clean.toLowerCase());
+  if (exists) {
+    selectedCategory = 'all';
+    if (wired) {
+      setStatus(`Folder “${exists.name}” already exists.`);
+      render();
+    }
+    return { ok: true, created: false, category: exists };
+  }
+  const cat = addCategory(clean);
+  selectedCategory = 'all';
+  // Keep new folders closed; user opens them when ready.
+  expandedFolders.delete(cat.id);
+  if (wired) {
+    setStatus(`Created folder “${cat.name}”. Assign exercises with the folder menu on each row.`);
+    render();
+  }
+  return { ok: true, created: true, category: cat };
 }
 
 function renameCategory(id, name) {
@@ -403,8 +467,8 @@ function el(tag, props = {}, children = []) {
 
 let wired = false;
 let selectedCategory = 'all'; // 'all', 'uncategorized', or a category id.
-// Folder sections collapsed in the "All" grouped view (category id or 'uncategorized').
-const collapsedFolders = new Set();
+// Folder sections open in the "All" grouped view. Default closed.
+const expandedFolders = new Set();
 
 let listEl, catListEl, titleEl, statusEl, fileInput, uploadBtn, addLinkBtn, addCatForm, addCatInput;
 
@@ -424,46 +488,60 @@ function visibleItems() {
   return items.filter(it => it.categoryId === selectedCategory);
 }
 
+function syncFolderChipLabel() {
+  const label = document.getElementById('ex-folder-label');
+  if (label) label.textContent = currentTitleText();
+}
+
 function renderCategories() {
   if (!catListEl) return;
   catListEl.innerHTML = '';
-  const store = getStore();
-  const items = getExercises();
-
-  const uncategorizedCount = items.filter(it => !it.categoryId).length;
 
   const makeRow = (key, name, count, opts = {}) => {
-    const row = el('div', { class: 'sl-item ex-cat-item' + (selectedCategory === key ? ' active' : '') });
+    // Use a div row (not <button>) so rename/delete tool buttons aren't nested.
+    const row = el('div', {
+      class: 'ex-cat-item' + (selectedCategory === key ? ' active' : ''),
+      'data-cat': key,
+      role: 'button',
+      tabindex: '0',
+      'aria-pressed': selectedCategory === key ? 'true' : 'false',
+    });
     row.appendChild(el('span', { class: 'ex-cat-name', text: name }));
     row.appendChild(el('span', { class: 'ex-cat-count', text: String(count) }));
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('.ex-cat-tool')) return;
+    const select = () => {
       selectedCategory = key;
       render();
+    };
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.ex-cat-tool')) return;
+      select();
+    });
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        select();
+      }
     });
     if (opts.editable) {
       const tools = el('div', { class: 'ex-cat-tools' });
       tools.appendChild(el('button', {
-        class: 'ex-cat-tool', type: 'button', title: 'Rename folder', 'aria-label': 'Rename folder',
-        html: '&#9998;', onClick: () => onRenameCategory(opts.id, name),
+        class: 'ex-cat-tool', type: 'button', title: 'Rename folder', 'aria-label': `Rename ${name}`,
+        html: '&#9998;', onClick: (e) => { e.stopPropagation(); onRenameCategory(opts.id, name); },
       }));
       tools.appendChild(el('button', {
-        class: 'ex-cat-tool ex-cat-del', type: 'button', title: 'Delete folder', 'aria-label': 'Delete folder',
-        html: '&#10005;', onClick: () => onDeleteCategory(opts.id, name),
+        class: 'ex-cat-tool ex-cat-del', type: 'button', title: 'Delete folder', 'aria-label': `Delete ${name}`,
+        html: '&#10005;', onClick: (e) => { e.stopPropagation(); onDeleteCategory(opts.id, name); },
       }));
       row.appendChild(tools);
     }
     catListEl.appendChild(row);
   };
 
-  makeRow('all', 'All Exercises', items.length);
-  store.categories.forEach(cat => {
-    const count = items.filter(it => it.categoryId === cat.id).length;
-    makeRow(cat.id, cat.name, count, { editable: true, id: cat.id });
+  getExerciseFolderOptions().forEach(opt => {
+    const editable = opt.id !== 'all' && opt.id !== 'uncategorized';
+    makeRow(opt.id, opt.label, opt.count, editable ? { editable: true, id: opt.id } : {});
   });
-  if (uncategorizedCount > 0) {
-    makeRow('uncategorized', 'No folder', uncategorizedCount);
-  }
+  syncFolderChipLabel();
 }
 
 function currentTitleText() {
@@ -554,9 +632,10 @@ function groupItemsByCategory(items) {
   });
 
   const groups = [];
+  // Include empty folders so newly created tags are visible in All.
   store.categories.forEach(cat => {
     const list = byId.get(cat.id) || [];
-    if (list.length) groups.push({ key: cat.id, name: cat.name, items: list });
+    groups.push({ key: cat.id, name: cat.name, items: list });
   });
   if (uncategorized.length) {
     groups.push({ key: 'uncategorized', name: 'Uncategorized', items: uncategorized });
@@ -565,7 +644,7 @@ function groupItemsByCategory(items) {
 }
 
 function buildFolder(group) {
-  const open = !collapsedFolders.has(group.key);
+  const open = expandedFolders.has(group.key);
   const folder = el('div', {
     class: 'ex-folder' + (open ? ' is-open' : ''),
     'data-folder': group.key,
@@ -589,8 +668,8 @@ function buildFolder(group) {
     text: `${group.items.length} exercise${group.items.length === 1 ? '' : 's'}`,
   }));
   head.addEventListener('click', () => {
-    if (collapsedFolders.has(group.key)) collapsedFolders.delete(group.key);
-    else collapsedFolders.add(group.key);
+    if (expandedFolders.has(group.key)) expandedFolders.delete(group.key);
+    else expandedFolders.add(group.key);
     renderList();
   });
   folder.appendChild(head);
@@ -601,7 +680,14 @@ function buildFolder(group) {
     hidden: open ? undefined : true,
   });
   if (open) {
-    group.items.forEach(item => body.appendChild(buildExerciseRow(item, { hideCategory: true })));
+    if (group.items.length) {
+      group.items.forEach(item => body.appendChild(buildExerciseRow(item, { hideCategory: true })));
+    } else {
+      body.appendChild(el('div', {
+        class: 'ex-folder-empty',
+        text: 'Empty folder — move exercises here with the folder menu on each row.',
+      }));
+    }
   }
   folder.appendChild(body);
   return folder;
@@ -625,20 +711,20 @@ function renderList() {
     uploadBtn.disabled = false;
   }
 
-  if (items.length === 0) {
-    const msg = getExercises().length === 0
-      ? 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.'
-      : 'No exercises in this folder yet.';
-    listEl.appendChild(el('div', { class: 'ex-empty', text: msg }));
-    return;
-  }
-
-  // "All" view: group by category tag into collapsible folders. Filtered views
-  // stay a flat list (the sidebar already acts as the folder selection).
+  // "All" view: group by folder tag into collapsible sections (default closed).
+  // Filtered views stay a flat list (the sidebar / chip already picks the folder).
   if (selectedCategory === 'all') {
-    const groups = groupItemsByCategory(items);
+    const groups = groupItemsByCategory(getExercises());
     const tagged = groups.filter(g => g.key !== 'uncategorized');
     const untagged = groups.find(g => g.key === 'uncategorized');
+
+    if (tagged.length === 0 && !untagged) {
+      listEl.appendChild(el('div', {
+        class: 'ex-empty',
+        text: 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.',
+      }));
+      return;
+    }
 
     if (tagged.length === 0 && untagged) {
       // Nothing tagged — keep a simple flat list.
@@ -648,12 +734,19 @@ function renderList() {
 
     tagged.forEach(group => listEl.appendChild(buildFolder(group)));
     if (untagged) {
-      // Untagged items sit outside folders so tags read as optional folders.
       const loose = el('div', { class: 'ex-ungrouped' });
       loose.appendChild(el('div', { class: 'ex-ungrouped-label', text: 'No folder' }));
       untagged.items.forEach(item => loose.appendChild(buildExerciseRow(item)));
       listEl.appendChild(loose);
     }
+    return;
+  }
+
+  if (items.length === 0) {
+    const msg = getExercises().length === 0
+      ? 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.'
+      : 'No exercises in this folder yet. Open All Exercises and move items here, or upload while this folder is selected.';
+    listEl.appendChild(el('div', { class: 'ex-empty', text: msg }));
     return;
   }
 
@@ -1205,8 +1298,14 @@ export function initExercises() {
     if (addCatForm) {
       addCatForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const cat = addCategory(addCatInput.value);
-        if (cat) { addCatInput.value = ''; selectedCategory = cat.id; render(); }
+        const name = addCatInput?.value || '';
+        const result = createExerciseFolder(name);
+        if (result.ok) {
+          if (addCatInput) addCatInput.value = '';
+        } else if (result.reason === 'empty') {
+          setStatus('Enter a folder name.', true);
+          addCatInput?.focus();
+        }
       });
     }
     if (attachmentsSupported()) ensurePersistentStorage();
