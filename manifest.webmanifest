@@ -6,7 +6,7 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#1a0a2e",
+  "background_color": "#0b1020",
   "theme_color": "#1a0a2e",
   "categories": ["music", "productivity"],
   "icons": [
