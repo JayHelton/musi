@@ -2,7 +2,7 @@
 //
 // Pre-shipped beats / fills / lesson packs were removed — the library is now
 // filled by user imports (Guitar Pro, PDF) and patterns saved from the
-// sequencer / fill generator / Song Learning.
+// sequencer / fill generator.
 
 /** @type {import('./types.js').DrumPattern[]} */
 export const BUILTIN_PATTERNS = [];

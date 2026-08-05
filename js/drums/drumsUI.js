@@ -16,6 +16,7 @@ import { extractPdf } from './pdfExtract.js';
 import { pdfToPatterns } from './pdfTabImport.js';
 import { isGuitarProName, parseGuitarPro } from '../tab/guitarPro.js';
 import { buildGpSectionSnippets } from './gpDrumImport.js';
+import { loadGpPlayerBytes } from '../gpPlayer.js';
 import * as engine from './drumEngine.js';
 
 // ---- Lane model shared by the sequencer and tab conversion ----------------
@@ -490,7 +491,7 @@ function auditionPattern(p, btn) {
 
 let importPreviewId = null;
 
-let lastGpImport = null; // { bytes, fileName, gp } for Song Learning handoff
+let lastGpImport = null; // { bytes, fileName, gp } for GP Player handoff
 
 async function handleGpImport(e) {
   const file = e.target && e.target.files && e.target.files[0];
@@ -510,7 +511,7 @@ async function handleGpImport(e) {
       openImportModal({
         entries: [],
         warnings: [
-          'This Guitar Pro file has no drum/percussion track. Open it in Song Learning to practice guitar sections, or pick a score that includes drums.',
+          'This Guitar Pro file has no drum/percussion track. Open it in Guitar Pro Player to practice guitar sections, or pick a score that includes drums.',
         ],
         files: [file],
         kind: 'gp',
@@ -537,7 +538,7 @@ async function handleGpImport(e) {
       }));
     const warnings = [];
     if ((gp.tracks || []).length) {
-      warnings.push('Guitar parts were detected — use “Save to Song Learning” to keep guitar + drum snippets together.');
+      warnings.push('Guitar parts were detected — use “Open in GP Player” to practice guitar + drum sections together.');
     }
     openImportModal({
       entries,
@@ -636,8 +637,8 @@ function openImportModal(state) {
     ? entries.map((entry, i) => importItemHtml(entry, i)).join('')
     : '<div class="dr-empty">No patterns to import.</div>';
 
-  const songLearnBtn = state.gpHandoff
-    ? '<button class="btn" id="dr-import-songlearn">Save to Song Learning</button>'
+  const gpPlayerBtn = state.gpHandoff
+    ? '<button class="btn" id="dr-import-gpplayer">Open in GP Player</button>'
     : '';
 
   overlay.innerHTML = `
@@ -653,7 +654,7 @@ function openImportModal(state) {
       <div class="dr-import-list" id="dr-import-list">${listHtml}</div>
       <div class="modal-actions">
         <button class="btn" id="dr-import-cancel">Cancel</button>
-        ${songLearnBtn}
+        ${gpPlayerBtn}
         ${entries.length ? '<button class="btn primary" id="dr-import-add">Add selected to library</button>' : ''}
       </div>
     </div>`;
@@ -674,20 +675,14 @@ function openImportModal(state) {
   const addBtn = $('dr-import-add');
   if (addBtn) addBtn.onclick = () => commitImport(entries);
 
-  const songBtn = $('dr-import-songlearn');
-  if (songBtn) {
-    songBtn.onclick = () => {
+  const gpBtn = $('dr-import-gpplayer');
+  if (gpBtn) {
+    gpBtn.onclick = () => {
       closeImportModal();
       if (!lastGpImport) return;
-      window.__musiSongLearnGp = {
-        bytes: lastGpImport.bytes,
-        name: lastGpImport.fileName,
-      };
-      location.hash = 'songlearn';
+      location.hash = 'gpplayer';
       setTimeout(() => {
-        if (typeof window.__musiLoadSongLearnGp === 'function' && window.__musiSongLearnGp) {
-          window.__musiLoadSongLearnGp(window.__musiSongLearnGp);
-        }
+        loadGpPlayerBytes(lastGpImport.bytes, lastGpImport.fileName);
       }, 60);
     };
   }

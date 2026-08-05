@@ -162,7 +162,7 @@ async function loadFile(file, { exerciseId = null } = {}) {
       const drumN = (gp.drumTracks || []).length;
       setStatus(
         drumN
-          ? 'This file has drum parts but no fretted guitar/bass track. Open it in Song Learning or Drums to practice the kit.'
+          ? 'This file has drum parts but no fretted guitar/bass track. Open it in Drums to practice the kit.'
           : 'No fretted guitar/bass track found in that file.',
         'error'
       );

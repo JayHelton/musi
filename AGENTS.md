@@ -53,7 +53,7 @@ dark/modern dashboard style.
   motion should stay subtle and purposeful.
 - **Do not** restyle toward purple-on-white SaaS, cream/terracotta editorial, or
   broadsheet newspaper layouts. When adding feature CSS (`css/<feature>.css`), reuse
-  existing tokens/fonts so Song Learning, Exercises, Drums, etc. stay on-theme.
+  existing tokens/fonts so Exercises, Drums, etc. stay on-theme.
 
 ### Running the services
 

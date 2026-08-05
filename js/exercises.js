@@ -744,7 +744,7 @@ async function onUploadFiles() {
 
 /**
  * Add any file-backed exercise from an already-saved attachment
- * (GP Player, Track → Sheet, Song Learning, etc.).
+ * (GP Player, Track → Sheet, etc.).
  */
 export function addExerciseFromAttachment({
   attachmentId,
@@ -791,7 +791,7 @@ export function addExerciseFromAttachment({
   return item;
 }
 
-/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player / Song Learning). */
+/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player). */
 export function addGpExerciseFromAttachment(opts = {}) {
   return addExerciseFromAttachment({
     ...opts,
