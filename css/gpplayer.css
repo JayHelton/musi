@@ -231,6 +231,7 @@
   border-right:1px solid var(--border);z-index:4;flex-shrink:0
 }
 .sln-follow-label{
+  display:flex;align-items:center;justify-content:flex-end;
   height:22px;line-height:22px;font-size:.92rem;color:var(--muted);text-align:right;padding-right:4px;
   font-family:var(--font-ui,"VT323",monospace)
 }
@@ -265,11 +266,12 @@
 }
 .sln-follow-col.bar-start .sln-follow-marker{left:6px}
 .sln-follow-cell{
-  position:relative;height:22px;line-height:22px;text-align:center;font-size:.95rem;
+  position:relative;display:flex;align-items:center;justify-content:center;
+  height:22px;line-height:22px;text-align:center;font-size:.95rem;
   font-family:var(--font-ui,"VT323",monospace);color:transparent
 }
 .sln-follow-cell.guitar::after{
-  content:'';position:absolute;left:0;right:0;bottom:50%;height:1px;
+  content:'';position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:1px;
   background:rgba(180,140,255,0.32);z-index:0;pointer-events:none
 }
 .sln-follow-cell.guitar.hit{
