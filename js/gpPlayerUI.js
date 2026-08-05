@@ -3,10 +3,10 @@
 
 import { TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
 import { parseGuitarPro, modelToAsciiTab, isGuitarProName } from './tab/guitarPro.js';
-import { transformModel, modelHasRhythm } from './tab/tabModel.js';
-import { createTabPlayer } from './tab/tabPlayer.js';
+import { transformModel, modelHasRhythm, quartersToSeconds } from './tab/tabModel.js';
+import { createGpMixPlayer } from './gpMixPlayer.js';
 import { TUNING_CATALOG } from './tunings.js';
-import { buildFollowColumns, mountFollowView } from './songLearnPlayer.js';
+import { buildFollowColumns, mountFollowView } from './gpFollowView.js';
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -33,6 +33,43 @@ function fmtTime(sec) {
   return `${m}:${String(r).padStart(2, '0')}`;
 }
 
+const GP_FOLLOW_SIZE_KEY = 'musi.gpFollowSize';
+
+function readFollowSize() {
+  try {
+    const s = localStorage.getItem(GP_FOLLOW_SIZE_KEY);
+    if (s === 'sm' || s === 'md' || s === 'lg') return s;
+  } catch (e) { /* ignore */ }
+  return 'md';
+}
+
+function beatsFromMeasureRange(measures, startIdx, endIdx) {
+  if (!measures?.length) return { startBeat: 0, endBeat: 4 };
+  const a = Math.max(0, Math.min(measures.length - 1, startIdx));
+  const b = Math.max(a, Math.min(measures.length - 1, endIdx));
+  const startBeat = Number.isFinite(measures[a].startBeat)
+    ? measures[a].startBeat
+    : measures[a].startSlot ?? 0;
+  const endBeat = Number.isFinite(measures[b].endBeat)
+    ? measures[b].endBeat
+    : startBeat + 4;
+  return { startBeat, endBeat };
+}
+
+function measureIndicesForBeats(measures, startBeat, endBeat) {
+  if (!measures?.length) return { startIdx: 0, endIdx: 0 };
+  let startIdx = 0;
+  let endIdx = measures.length - 1;
+  for (let i = 0; i < measures.length; i++) {
+    const ms = Number.isFinite(measures[i].startBeat)
+      ? measures[i].startBeat
+      : measures[i].startSlot ?? 0;
+    if (ms <= startBeat + 1e-6) startIdx = i;
+    if (ms < endBeat - 1e-6) endIdx = i;
+  }
+  return { startIdx, endIdx };
+}
+
 function tuningOptionsFor(stringCount) {
   const names = Object.keys(TUNINGS).filter((n) => TUNINGS[n].length === stringCount);
   // Prefer catalog order when available.
@@ -47,6 +84,18 @@ function tuningOptionsFor(stringCount) {
 
 function stringPitchLabel(str) {
   return `${str.note}${str.oct}`;
+}
+
+function viewKey(kind, index) {
+  return `${kind}:${index}`;
+}
+
+function parseViewKey(key) {
+  const [kind, idx] = String(key || '').split(':');
+  if (kind !== 'guitar' && kind !== 'drum') return null;
+  const index = Number(idx);
+  if (!Number.isFinite(index) || index < 0) return null;
+  return { kind, index };
 }
 
 /**
@@ -64,13 +113,21 @@ export function mountGpPlayer(host, {
   initialLoopEnabled = false,
   initialLoopStart = null,
   initialLoopEnd = null,
+  initialLoopStartBeat = null,
+  initialLoopEndBeat = null,
   loopRestSec = 0,
   onPracticeSettingsChange = null,
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
-  if (!gpResult || !gpResult.tracks?.length) throw new Error('mountGpPlayer: no fretted tracks');
+  const hasFretted = gpResult?.tracks?.length > 0;
+  const hasDrums = gpResult?.drumTracks?.length > 0;
+  if (!gpResult || (!hasFretted && !hasDrums)) {
+    throw new Error('mountGpPlayer: no playable tracks');
+  }
 
-  const measureCount = gpResult.tracks[0]?.model?.measures?.length || 1;
+  const measureCount = gpResult.tracks[0]?.model?.measures?.length
+    || gpResult.drumTracks?.[0]?.model?.measures?.length
+    || 1;
   const clampBar = (n, fallback) => {
     const v = Number(n);
     if (!Number.isFinite(v)) return fallback;
@@ -79,22 +136,60 @@ export function mountGpPlayer(host, {
 
   const state = {
     gp: gpResult,
-    trackIndex: Math.max(0, Math.min(gpResult.tracks.length - 1, preferredTrackIndex || 0)),
-    scoreBpm: Number(gpResult.tempo) || Number(gpResult.tracks[0]?.model?.tempo) || 120,
-    bpm: Number(gpResult.tempo) || Number(gpResult.tracks[0]?.model?.tempo) || 120,
+    trackIndex: hasFretted
+      ? Math.max(0, Math.min(gpResult.tracks.length - 1, preferredTrackIndex || 0))
+      : -1,
+    viewKind: hasFretted ? 'guitar' : 'drum',
+    viewIndex: hasFretted
+      ? Math.max(0, Math.min(gpResult.tracks.length - 1, preferredTrackIndex || 0))
+      : 0,
+    navBar: null,
+    enabledGuitars: gpResult.tracks.map(() => true),
+    enabledDrums: (gpResult.drumTracks || []).map(() => true),
+    metronomeEnabled: false,
+    scoreBpm: Number(gpResult.tempo)
+      || Number(gpResult.tracks[0]?.model?.tempo)
+      || Number(gpResult.drumTracks?.[0]?.model?.tempo)
+      || 120,
+    bpm: Number(gpResult.tempo)
+      || Number(gpResult.tracks[0]?.model?.tempo)
+      || Number(gpResult.drumTracks?.[0]?.model?.tempo)
+      || 120,
     transpose: 0,
     tuning: null, // null = keep file tuning
     preservePitchOnRetune: true,
     loopStart: clampBar(initialLoopStart, 0),
     loopEnd: clampBar(initialLoopEnd, Math.max(0, measureCount - 1)),
-    loopEnabled: !!initialLoopEnabled || (initialLoopStart != null && initialLoopEnd != null),
+    loopEnabled: !!initialLoopEnabled,
     loopRestSec: Math.max(0, Number(loopRestSec) || 0),
     baseModel: null,
     viewModel: null,
   };
   if (state.loopEnd < state.loopStart) state.loopEnd = state.loopStart;
 
+  const initMeasures = gpResult.tracks[0]?.model?.measures
+    || gpResult.drumTracks?.[0]?.model?.measures
+    || [];
+  let loopStartBeat = Number.isFinite(Number(initialLoopStartBeat))
+    ? Number(initialLoopStartBeat)
+    : null;
+  let loopEndBeat = Number.isFinite(Number(initialLoopEndBeat))
+    ? Number(initialLoopEndBeat)
+    : null;
+  if (loopStartBeat == null || loopEndBeat == null) {
+    const initBeats = beatsFromMeasureRange(initMeasures, state.loopStart, state.loopEnd);
+    if (loopStartBeat == null) loopStartBeat = initBeats.startBeat;
+    if (loopEndBeat == null) loopEndBeat = initBeats.endBeat;
+  }
+  state.loopStartBeat = loopStartBeat;
+  state.loopEndBeat = loopEndBeat;
+  state.followSize = readFollowSize();
+
   let follow = null;
+  let metroCheck = null;
+  const sizeBtns = {};
+  let transposeBlock = null;
+  let tuningBlock = null;
 
   function emitPracticeSettings() {
     if (typeof syncSettingsSummary === 'function') syncSettingsSummary();
@@ -104,12 +199,14 @@ export function mountGpPlayer(host, {
       loopEnabled: state.loopEnabled,
       measureStart: state.loopStart,
       measureEnd: state.loopEnd,
+      startBeat: state.loopEnabled ? state.loopStartBeat : null,
+      endBeat: state.loopEnabled ? state.loopEndBeat : null,
       loopRestSec: state.loopRestSec,
       bpm: state.bpm,
     });
   }
 
-  const player = createTabPlayer({
+  const player = createGpMixPlayer({
     onTick: ({ playing, currentSec, measureIndex, resting, restRemaining }) => {
       if (playBtn) playBtn.textContent = playing ? 'Pause' : 'Play';
       if (timeLabel) {
@@ -157,20 +254,73 @@ export function mountGpPlayer(host, {
   head.appendChild(headActions);
   host.appendChild(head);
 
-  // ---- meta / track ----
+  // ---- meta / track mixer ----
   const meta = el('div', { class: 'gpp-meta' });
-  const trackSelect = el('select', { class: 'gpp-select', 'aria-label': 'Track' });
+
+  const viewRow = el('div', { class: 'gpp-view-row' });
+  const viewSelect = el('select', { class: 'gpp-select gpp-view-select', 'aria-label': 'View track' });
   state.gp.tracks.forEach((t, i) => {
-    trackSelect.appendChild(el('option', {
-      value: String(i),
-      text: `${t.name} · ${t.tuning} · ${t.noteCount} notes`,
+    viewSelect.appendChild(el('option', {
+      value: viewKey('guitar', i),
+      text: `🎸 ${t.name}`,
     }));
   });
-  trackSelect.value = String(state.trackIndex);
-  meta.appendChild(el('label', { class: 'gpp-field' }, [
-    el('span', { text: 'Track' }),
-    trackSelect,
-  ]));
+  (state.gp.drumTracks || []).forEach((t, i) => {
+    viewSelect.appendChild(el('option', {
+      value: viewKey('drum', i),
+      text: `🥁 ${t.name}`,
+    }));
+  });
+  viewSelect.value = viewKey(state.viewKind, state.viewIndex);
+  viewRow.append(
+    el('label', { class: 'gpp-view-label', text: 'View track' }),
+    viewSelect,
+  );
+  meta.appendChild(viewRow);
+
+  const mixer = el('div', { class: 'gpp-mixer', 'aria-label': 'Track mixer' });
+  mixer.appendChild(el('div', { class: 'gpp-mixer-head', text: 'Audio mix' }));
+  const mixerRows = [];
+
+  state.gp.tracks.forEach((t, i) => {
+    const enableCb = el('input', {
+      type: 'checkbox',
+      checked: state.enabledGuitars[i] ? 'checked' : false,
+      'aria-label': `Enable ${t.name}`,
+    });
+    const row = el('label', { class: 'gpp-mixer-row gpp-mixer-guitar' }, [
+      enableCb,
+      el('span', { class: 'gpp-mixer-name', text: `${t.name} · ${t.tuning} · ${t.noteCount} notes` }),
+    ]);
+    enableCb.addEventListener('change', () => {
+      state.enabledGuitars[i] = enableCb.checked;
+      player.setTrackEnabled('guitar', i, enableCb.checked);
+      emitPracticeSettings();
+    });
+    mixer.appendChild(row);
+    mixerRows.push({ enableCb, kind: 'guitar', index: i });
+  });
+
+  (state.gp.drumTracks || []).forEach((t, i) => {
+    const enableCb = el('input', {
+      type: 'checkbox',
+      checked: state.enabledDrums[i] ? 'checked' : false,
+      'aria-label': `Enable ${t.name}`,
+    });
+    const row = el('label', { class: 'gpp-mixer-row gpp-mixer-drum' }, [
+      enableCb,
+      el('span', { class: 'gpp-mixer-name', text: `🥁 ${t.name} · ${t.hitCount || 0} hits` }),
+    ]);
+    enableCb.addEventListener('change', () => {
+      state.enabledDrums[i] = enableCb.checked;
+      player.setTrackEnabled('drum', i, enableCb.checked);
+      emitPracticeSettings();
+    });
+    mixer.appendChild(row);
+    mixerRows.push({ enableCb, kind: 'drum', index: i });
+  });
+
+  meta.appendChild(mixer);
   const infoLine = el('div', { class: 'gpp-info' });
   meta.appendChild(infoLine);
   host.appendChild(meta);
@@ -179,14 +329,36 @@ export function mountGpPlayer(host, {
   const transport = el('div', { class: 'gpp-transport' });
   const playBtn = el('button', { class: 'btn primary gpp-play', type: 'button', text: 'Play' });
   const stopBtn = el('button', { class: 'btn', type: 'button', text: 'Stop' });
+  const restartBtn = el('button', { class: 'btn gpp-restart', type: 'button', text: 'Restart', title: 'Jump to beginning' });
+  metroCheck = el('input', { type: 'checkbox', id: 'gpp-metro', 'aria-label': 'Metronome' });
+  const metroLabel = el('label', { class: 'gpp-check gpp-metro', for: 'gpp-metro' }, [
+    metroCheck,
+    el('span', { text: 'Metronome' }),
+  ]);
   const timeLabel = el('span', { class: 'gpp-time', text: '0:00 / 0:00' });
   const measureLabel = el('span', { class: 'gpp-measure', text: '' });
-  transport.append(playBtn, stopBtn, timeLabel, measureLabel);
+  transport.append(playBtn, stopBtn, restartBtn, metroLabel, timeLabel, measureLabel);
   host.appendChild(transport);
 
   // ---- measure strip + follow-along visual (primary surface) ----
   const strip = el('div', { class: 'gpp-strip', 'aria-label': 'Measures' });
   host.appendChild(strip);
+  const followToolbar = el('div', { class: 'gpp-follow-toolbar' });
+  followToolbar.appendChild(el('span', { class: 'gpp-size-label', text: 'Size' }));
+  const sizeGroup = el('div', { class: 'gpp-size-group', 'aria-label': 'Score size' });
+  ['sm', 'md', 'lg'].forEach((sz) => {
+    const btn = el('button', {
+      class: 'btn sm gpp-size-btn' + (state.followSize === sz ? ' active' : ''),
+      type: 'button',
+      text: sz === 'sm' ? 'S' : sz === 'md' ? 'M' : 'L',
+      title: sz === 'sm' ? 'Small' : sz === 'md' ? 'Medium' : 'Large',
+      onClick: () => setFollowSize(sz),
+    });
+    sizeBtns[sz] = btn;
+    sizeGroup.appendChild(btn);
+  });
+  followToolbar.appendChild(sizeGroup);
+  host.appendChild(followToolbar);
   const followHost = el('div', { class: 'gpp-follow-host sln-follow-host' });
   host.appendChild(followHost);
   const tabPre = el('pre', { class: 'gpp-tab', text: '', hidden: 'hidden' });
@@ -226,7 +398,7 @@ export function mountGpPlayer(host, {
     type: 'number', class: 'gpp-num', min: '-12', max: '12', step: '1',
     value: '0', 'aria-label': 'Transpose semitones',
   });
-  controls.appendChild(el('div', { class: 'gpp-control-block' }, [
+  controls.appendChild(el('div', { class: 'gpp-control-block gpp-fret-only' }, [
     el('div', { class: 'gpp-control-label', text: 'Transpose' }),
     el('div', { class: 'gpp-control-row' }, [
       el('button', { class: 'btn sm', type: 'button', text: '−', onClick: () => setTranspose(state.transpose - 1) }),
@@ -235,10 +407,11 @@ export function mountGpPlayer(host, {
       el('span', { class: 'gpp-unit', text: 'semitones' }),
     ]),
   ]));
+  transposeBlock = controls.lastElementChild;
 
   const tuningSelect = el('select', { class: 'gpp-select', 'aria-label': 'Tuning' });
   const preserveCheck = el('input', { type: 'checkbox', checked: 'checked', id: 'gpp-preserve-pitch' });
-  controls.appendChild(el('div', { class: 'gpp-control-block' }, [
+  controls.appendChild(el('div', { class: 'gpp-control-block gpp-fret-only' }, [
     el('div', { class: 'gpp-control-label', text: 'Tuning' }),
     el('div', { class: 'gpp-control-row' }, [tuningSelect]),
     el('label', { class: 'gpp-check', for: 'gpp-preserve-pitch' }, [
@@ -246,6 +419,7 @@ export function mountGpPlayer(host, {
       el('span', { text: 'Keep pitches (rewrite frets)' }),
     ]),
   ]));
+  tuningBlock = controls.lastElementChild;
 
   // Loop + rest between repeats
   const loopToggle = el('input', { type: 'checkbox', id: 'gpp-loop' });
@@ -287,7 +461,38 @@ export function mountGpPlayer(host, {
 
   // ---- wiring ----
   function currentTrack() {
+    if (state.trackIndex < 0) return null;
     return state.gp.tracks[state.trackIndex];
+  }
+
+  function buildGuitarModels() {
+    return state.gp.tracks.map((t, i) => {
+      if (i === state.trackIndex && state.viewModel?.strings) return state.viewModel;
+      return t.model;
+    });
+  }
+
+  function followPercModel() {
+    if (state.viewKind !== 'drum') return null;
+    return state.gp.drumTracks?.[state.viewIndex]?.model || null;
+  }
+
+  function followGuitarModel() {
+    if (state.viewKind !== 'guitar') return null;
+    return state.viewModel;
+  }
+
+  function mixLoadBase() {
+    return {
+      guitarModels: buildGuitarModels(),
+      drumModels: (state.gp.drumTracks || []).map((d) => d.model),
+      bpm: state.bpm,
+      loopRestSec: state.loopRestSec,
+      enabledGuitars: state.enabledGuitars,
+      enabledDrums: state.enabledDrums,
+      metronomeEnabled: !!(metroCheck?.checked),
+      referenceModel: state.viewModel || state.gp.drumTracks?.[0]?.model || null,
+    };
   }
 
   function rebuildTuningSelect() {
@@ -322,30 +527,110 @@ export function mountGpPlayer(host, {
     loopEndSel.value = String(state.loopEnd);
   }
 
-  let stripDragAnchor = null;
-
   function paintStripSelection() {
     strip.querySelectorAll('.gpp-bar').forEach((b) => {
       const i = Number(b.dataset.index);
       b.classList.toggle('in-loop', state.loopEnabled && i >= state.loopStart && i <= state.loopEnd);
+      b.classList.toggle('nav-target', state.navBar != null && i === state.navBar);
     });
     loopToggle.checked = !!state.loopEnabled;
     loopStartSel.value = String(state.loopStart);
     loopEndSel.value = String(state.loopEnd);
   }
 
-  function commitStripSelection({ seek = true, autoplay = false } = {}) {
-    state.loopEnabled = true;
-    paintStripSelection();
-    if (seek) reloadPlayer({ fromMeasure: state.loopStart, autoplay });
-    else {
-      player.load(state.viewModel, {
-        bpm: state.bpm,
-        loopMeasures: [state.loopStart, state.loopEnd],
-        loopRestSec: state.loopRestSec,
-      });
+  function seekToBeat(startBeat, { autoplay = false } = {}) {
+    if (!state.viewModel) return;
+    const startSec = quartersToSeconds(startBeat, state.bpm);
+    const was = autoplay || player.playing;
+    if (was) {
+      player.play({ fromSec: startSec });
+    } else {
+      player.stop();
+      player.seek(startSec);
     }
+    highlightMeasure(measureIndicesForBeats(
+      state.viewModel.measures || [],
+      startBeat,
+      startBeat,
+    ).startIdx);
+  }
+
+  function seekToBar(barIndex, { autoplay = false } = {}) {
+    const measures = state.viewModel?.measures || [];
+    if (!measures.length) return;
+    const i = Math.max(0, Math.min(measures.length - 1, barIndex));
+    state.navBar = i;
+    const beats = beatsFromMeasureRange(measures, i, i);
+    seekToBeat(beats.startBeat, { autoplay });
+    paintStripSelection();
+  }
+
+  function setFollowSize(sz) {
+    if (sz !== 'sm' && sz !== 'md' && sz !== 'lg') return;
+    state.followSize = sz;
+    try { localStorage.setItem(GP_FOLLOW_SIZE_KEY, sz); } catch (e) { /* ignore */ }
+    Object.entries(sizeBtns).forEach(([k, btn]) => btn.classList.toggle('active', k === sz));
+    if (follow) follow.setSize(sz);
+  }
+
+  function syncFollowSelection() {
+    if (!follow) return;
+    if (state.loopStartBeat == null || state.loopEndBeat == null) {
+      follow.setSelection(null);
+      return;
+    }
+    follow.setSelection({ startBeat: state.loopStartBeat, endBeat: state.loopEndBeat });
+  }
+
+  function reloadLoopOnPlayer() {
+    const model = state.viewModel;
+    if (!model) return;
+    const beatLoop = state.loopEnabled
+      && modelHasRhythm(model)
+      && state.loopStartBeat != null
+      && state.loopEndBeat != null;
+    const loadOpts = mixLoadBase();
+    if (state.loopEnabled && !beatLoop) {
+      loadOpts.loopMeasures = [state.loopStart, state.loopEnd];
+    }
+    if (beatLoop) {
+      loadOpts.loopBeats = { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
+    }
+    const was = player.playing;
+    const at = player.currentSec;
+    player.load(loadOpts);
+    if (beatLoop) {
+      const startSec = quartersToSeconds(state.loopStartBeat, state.bpm);
+      const endSec = quartersToSeconds(state.loopEndBeat, state.bpm);
+      if (endSec > startSec) {
+        player.setLoop({ startSec, endSec, restSec: state.loopRestSec });
+      }
+    } else if (!state.loopEnabled) {
+      player.setLoop(null);
+    }
+    if (metroCheck?.checked) player.setMetronomeEnabled(true);
+    if (was) player.play({ fromSec: at });
+    else if (state.navBar != null) {
+      const beats = beatsFromMeasureRange(model.measures || [], state.navBar, state.navBar);
+      player.seek(quartersToSeconds(beats.startBeat, state.bpm));
+    }
+  }
+
+  function applyBeatSelection(startBeat, endBeat, { seek = false, autoplay = false } = {}) {
+    if (!state.viewModel) return;
+    const measures = state.viewModel.measures || [];
+    state.loopStartBeat = startBeat;
+    state.loopEndBeat = endBeat;
+    const { startIdx, endIdx } = measureIndicesForBeats(measures, startBeat, endBeat);
+    state.loopStart = startIdx;
+    state.loopEnd = endIdx;
+    loopStartSel.value = String(state.loopStart);
+    loopEndSel.value = String(state.loopEnd);
+    paintStripSelection();
+    syncFollowSelection();
+    if (state.loopEnabled) reloadLoopOnPlayer();
     emitPracticeSettings();
+    if (seek) seekToBeat(startBeat, { autoplay });
   }
 
   function rebuildStrip() {
@@ -353,42 +638,21 @@ export function mountGpPlayer(host, {
     const measures = state.viewModel?.measures || [];
     measures.forEach((m, i) => {
       const inLoop = state.loopEnabled && i >= state.loopStart && i <= state.loopEnd;
+      const isNav = state.navBar != null && i === state.navBar;
       const btn = el('button', {
         class: 'gpp-bar'
           + (m.marker ? ' has-marker' : '')
-          + (inLoop ? ' in-loop' : ''),
+          + (inLoop ? ' in-loop' : '')
+          + (isNav ? ' nav-target' : ''),
         type: 'button',
         text: m.marker ? `${i + 1}\n${m.marker}` : String(i + 1),
         title: m.marker
-          ? `${m.marker} · drag to highlight loop, Shift+click end`
-          : `Bar ${i + 1} · drag to highlight a loop range, Shift+click to set end`,
+          ? `${m.marker} · click to jump`
+          : `Bar ${i + 1} · click to jump`,
       });
       btn.dataset.index = String(i);
-      btn.addEventListener('pointerdown', (e) => {
-        if (e.shiftKey) {
-          state.loopEnd = Math.max(state.loopStart, i);
-          commitStripSelection({ seek: true, autoplay: player.playing });
-          return;
-        }
-        e.preventDefault();
-        stripDragAnchor = i;
-        state.loopStart = i;
-        state.loopEnd = i;
-        state.loopEnabled = true;
-        paintStripSelection();
-        try { btn.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-      });
-      btn.addEventListener('pointerenter', (e) => {
-        if (stripDragAnchor == null || !(e.buttons & 1)) return;
-        state.loopStart = Math.min(stripDragAnchor, i);
-        state.loopEnd = Math.max(stripDragAnchor, i);
-        paintStripSelection();
-      });
-      btn.addEventListener('pointerup', () => {
-        if (stripDragAnchor == null) return;
-        const was = player.playing;
-        stripDragAnchor = null;
-        commitStripSelection({ seek: true, autoplay: was });
+      btn.addEventListener('click', () => {
+        seekToBar(i, { autoplay: player.playing });
       });
       strip.appendChild(btn);
     });
@@ -399,14 +663,29 @@ export function mountGpPlayer(host, {
       const i = Number(b.dataset.index);
       b.classList.toggle('active', i === idx);
       b.classList.toggle('in-loop', state.loopEnabled && i >= state.loopStart && i <= state.loopEnd);
+      b.classList.toggle('nav-target', state.navBar != null && i === state.navBar && i !== idx);
     });
   }
 
+  function syncFretControlsVisibility() {
+    const show = state.viewKind === 'guitar';
+    if (transposeBlock) transposeBlock.hidden = !show;
+    if (tuningBlock) tuningBlock.hidden = !show;
+  }
+
   function applyTransforms() {
+    if (state.viewKind === 'drum') {
+      state.baseModel = null;
+      state.viewModel = state.gp.drumTracks?.[state.viewIndex]?.model || null;
+      if (state.viewModel) {
+        state.scoreBpm = Number(state.viewModel.tempo) || Number(state.gp.tempo) || state.scoreBpm;
+      }
+      return;
+    }
     const track = currentTrack();
     state.baseModel = track?.model || null;
     if (!state.baseModel) {
-      state.viewModel = null;
+      state.viewModel = state.gp.drumTracks?.[0]?.model || null;
       return;
     }
     const tuning = state.tuning && state.tuning !== '__file__' ? state.tuning : null;
@@ -414,6 +693,34 @@ export function mountGpPlayer(host, {
       transpose: state.transpose,
       tuning,
       preservePitch: state.preservePitchOnRetune,
+    });
+  }
+
+  function mountFollow() {
+    const model = state.viewModel;
+    if (!model) return;
+    if (follow) { try { follow.destroy(); } catch (e) { /* ignore */ } follow = null; }
+    const layout = buildFollowColumns({
+      guitarModel: followGuitarModel(),
+      percModel: followPercModel(),
+      startBeat: 0,
+      endBeat: model.totalBeats || null,
+    });
+    follow = mountFollowView(followHost, layout, {
+      size: state.followSize,
+      selection: state.loopStartBeat != null && state.loopEndBeat != null
+        ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
+        : null,
+      onSelectionChange: (sel) => {
+        if (!sel || !Number.isFinite(sel.startBeat) || !Number.isFinite(sel.endBeat)) return;
+        applyBeatSelection(sel.startBeat, sel.endBeat, { seek: true, autoplay: player.playing });
+      },
+    });
+    follow.update({
+      currentSec: player.currentSec,
+      bpm: state.bpm,
+      playing: player.playing,
+      durationSec: player.durationSec,
     });
   }
 
@@ -430,30 +737,50 @@ export function mountGpPlayer(host, {
     const loopMeasures = state.loopEnabled
       ? [state.loopStart, state.loopEnd]
       : null;
-    player.load(model, {
-      bpm: state.bpm,
-      loopMeasures,
-      loopRestSec: state.loopRestSec,
-    });
-    if (!state.loopEnabled) player.setLoop(null);
-    tabPre.textContent = modelToAsciiTab(model, { maxCols: 96 }) || '(no notes)';
-    infoLine.textContent = [
-      model.tuning,
-      model.strings.map(stringPitchLabel).join(' '),
-      `${Math.round(state.bpm)} BPM`,
-      modelHasRhythm(model) ? 'rhythm' : 'equal slots',
-      `${model.events.filter((e) => e.midi != null).length} notes`,
-      state.transpose ? `transpose ${state.transpose > 0 ? '+' : ''}${state.transpose}` : null,
-    ].filter(Boolean).join(' · ');
+    const beatLoop = state.loopEnabled
+      && modelHasRhythm(model)
+      && state.loopStartBeat != null
+      && state.loopEndBeat != null;
+    const loadOpts = mixLoadBase();
+    if (state.loopEnabled && !beatLoop) loadOpts.loopMeasures = loopMeasures;
+    if (beatLoop) {
+      loadOpts.loopBeats = { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
+    }
+    player.load(loadOpts);
+    if (beatLoop) {
+      const startSec = quartersToSeconds(state.loopStartBeat, state.bpm);
+      const endSec = quartersToSeconds(state.loopEndBeat, state.bpm);
+      if (endSec > startSec) {
+        player.setLoop({ startSec, endSec, restSec: state.loopRestSec });
+      }
+    } else if (!state.loopEnabled) {
+      player.setLoop(null);
+    }
+    if (metroCheck?.checked) player.setMetronomeEnabled(true);
+    if (state.viewKind === 'guitar' && model.strings) {
+      tabPre.textContent = modelToAsciiTab(model, { maxCols: 96 }) || '(no notes)';
+      infoLine.textContent = [
+        model.tuning,
+        model.strings.map(stringPitchLabel).join(' '),
+        `${Math.round(state.bpm)} BPM`,
+        modelHasRhythm(model) ? 'rhythm' : 'equal slots',
+        `${model.events.filter((e) => e.midi != null).length} notes`,
+        state.transpose ? `transpose ${state.transpose > 0 ? '+' : ''}${state.transpose}` : null,
+        `${state.enabledGuitars.filter(Boolean).length}/${state.gp.tracks.length} guitars`,
+        state.gp.drumTracks?.length
+          ? `${state.enabledDrums.filter(Boolean).length}/${state.gp.drumTracks.length} drums`
+          : null,
+      ].filter(Boolean).join(' · ');
+    } else {
+      tabPre.textContent = '';
+      infoLine.textContent = [
+        model.name || 'Drums',
+        `${Math.round(state.bpm)} BPM`,
+        `${state.enabledDrums.filter(Boolean).length}/${state.gp.drumTracks?.length || 0} drums`,
+      ].filter(Boolean).join(' · ');
+    }
     rebuildStrip();
-    if (follow) { try { follow.destroy(); } catch (e) { /* ignore */ } follow = null; }
-    const layout = buildFollowColumns({
-      guitarModel: model,
-      startBeat: 0,
-      endBeat: model.totalBeats || null,
-    });
-    follow = mountFollowView(followHost, layout);
-    follow.update({ currentSec: 0, bpm: state.bpm, playing: false, durationSec: player.durationSec });
+    mountFollow();
     if (autoplay) {
       let fromSec = 0;
       if (fromMeasure != null && model.measures?.[fromMeasure]) {
@@ -461,7 +788,7 @@ export function mountGpPlayer(host, {
         const startBeat = Number.isFinite(m.startBeat) ? m.startBeat : m.startSlot;
         fromSec = (startBeat) * (60 / state.bpm);
         if (!modelHasRhythm(model)) {
-          const note = player.notes.find((n) => n.measureIndex === fromMeasure);
+          const note = player.guitarNotes.find((n) => n.measureIndex === fromMeasure);
           if (note) fromSec = note.startSec;
         }
       }
@@ -485,23 +812,37 @@ export function mountGpPlayer(host, {
   }
 
   // Events
-  trackSelect.addEventListener('change', () => {
-    state.trackIndex = Number(trackSelect.value) || 0;
-    const model = currentTrack()?.model;
-    state.scoreBpm = Number(model?.tempo) || Number(state.gp.tempo) || 120;
-    state.bpm = state.scoreBpm;
-    state.transpose = 0;
-    state.tuning = null;
-    state.loopStart = 0;
-    bpmInput.value = String(Math.round(state.bpm));
-    bpmSlider.value = '100';
-    bpmPct.textContent = '100%';
-    transposeInput.value = '0';
+  function setViewTrack(kind, index) {
+    state.viewKind = kind;
+    state.viewIndex = index;
+    if (kind === 'guitar') {
+      state.trackIndex = index;
+    }
+    viewSelect.value = viewKey(kind, index);
+    syncFretControlsVisibility();
+    const was = player.playing;
     player.stop();
     applyTransforms();
     rebuildTuningSelect();
     rebuildLoopSelects();
-    reloadPlayer();
+    reloadPlayer({ autoplay: was });
+    emitPracticeSettings();
+  }
+
+  function restartPlayback() {
+    state.navBar = 0;
+    const was = player.playing;
+    player.stop();
+    player.seek(0);
+    paintStripSelection();
+    highlightMeasure(0);
+    if (was) player.play({ fromSec: 0 });
+  }
+
+  viewSelect.addEventListener('change', () => {
+    const parsed = parseViewKey(viewSelect.value);
+    if (!parsed) return;
+    setViewTrack(parsed.kind, parsed.index);
   });
 
   playBtn.addEventListener('click', () => {
@@ -509,6 +850,12 @@ export function mountGpPlayer(host, {
     else player.play();
   });
   stopBtn.addEventListener('click', () => player.stop());
+  restartBtn.addEventListener('click', () => restartPlayback());
+
+  metroCheck.addEventListener('change', () => {
+    state.metronomeEnabled = metroCheck.checked;
+    player.setMetronomeEnabled(metroCheck.checked);
+  });
 
   bpmInput.addEventListener('change', () => {
     state.bpm = Math.max(40, Math.min(280, Number(bpmInput.value) || state.scoreBpm));
@@ -553,6 +900,8 @@ export function mountGpPlayer(host, {
     const was = player.playing;
     player.stop();
     reloadPlayer({ autoplay: was });
+    syncFollowSelection();
+    paintStripSelection();
     emitPracticeSettings();
   });
   const onLoopChange = () => {
@@ -562,14 +911,20 @@ export function mountGpPlayer(host, {
       state.loopEnd = state.loopStart;
       loopEndSel.value = String(state.loopEnd);
     }
+    const measures = state.viewModel?.measures || [];
+    const beats = beatsFromMeasureRange(measures, state.loopStart, state.loopEnd);
+    state.loopStartBeat = beats.startBeat;
+    state.loopEndBeat = beats.endBeat;
     if (!state.loopEnabled) {
       rebuildStrip();
+      syncFollowSelection();
       emitPracticeSettings();
       return;
     }
     const was = player.playing;
     player.stop();
     reloadPlayer({ autoplay: was });
+    syncFollowSelection();
     emitPracticeSettings();
   };
   loopStartSel.addEventListener('change', onLoopChange);
@@ -590,6 +945,7 @@ export function mountGpPlayer(host, {
   });
 
   // Initial paint
+  syncFretControlsVisibility();
   applyTransforms();
   rebuildTuningSelect();
   rebuildLoopSelects();
@@ -598,7 +954,13 @@ export function mountGpPlayer(host, {
 
   return {
     player,
-    getState: () => ({ ...state, viewModel: state.viewModel }),
+    getState: () => ({
+      ...state,
+      viewModel: state.viewModel,
+      enabledGuitars: [...state.enabledGuitars],
+      enabledDrums: [...state.enabledDrums],
+      metronomeEnabled: state.metronomeEnabled,
+    }),
     destroy() {
       player.stop();
       if (follow) { try { follow.destroy(); } catch (e) { /* ignore */ } follow = null; }

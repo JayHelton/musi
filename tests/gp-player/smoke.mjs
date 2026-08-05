@@ -20,7 +20,9 @@ import {
   quantizePercussionToSteps,
 } from '../../js/drums/gpDrumImport.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
-import { buildFollowColumns, createSongPlayer } from '../../js/songLearnPlayer.js';
+import { buildFollowColumns } from '../../js/gpFollowView.js';
+import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
+import { scheduleMetronomeClick } from '../../js/tab/metroClick.js';
 
 // ---- duration math ----
 assert.equal(noteValueToQuarters(4), 1);
@@ -222,20 +224,56 @@ assert.ok(layout.columns.length >= 4);
 assert.ok(layout.columns.some((c) => c.frets.some((f) => f != null)));
 assert.ok(layout.columns.some((c) => Object.keys(c.drums).length));
 assert.ok(layout.columns.some((c) => c.barStart && c.marker === 'Intro'));
+const introCol = layout.columns.find((c) => c.barStart && c.marker === 'Intro');
+assert.equal(introCol.barNumber, 1);
+assert.equal(introCol.measureIndex, 0);
+assert.equal(introCol.beatInBar, 0);
+const verseCol = layout.columns.find((c) => c.barStart && c.marker === 'Verse');
+assert.equal(verseCol?.barNumber, 2);
 
-// ---- loop rest API on song player ----
-const player = createSongPlayer();
-player.load({
-  guitarModel: fakeGp.tracks[0].model,
-  percModel: perc,
+// ---- loop rest API on mix player ----
+const mixLoop = createGpMixPlayer();
+mixLoop.load({
+  guitarModels: [fakeGp.tracks[0].model],
+  drumModels: [perc],
   bpm: 120,
-  startBeat: 0,
-  endBeat: 2,
-  loop: true,
+  loopBeats: { startBeat: 0, endBeat: 2 },
   loopRestSec: 2.5,
 });
-assert.equal(player.durationSec, 1); // 2 beats at 120 BPM
-player.setLoopRestSec(1);
-assert.ok(!player.playing);
+assert.equal(mixLoop.durationSec, 1); // 2 beats at 120 BPM
+mixLoop.setLoopRestSec(1);
+assert.ok(!mixLoop.playing);
+
+// ---- multi-track mix player: per-track enable + metronome flag ----
+const guitarB = {
+  tuning: 'Standard',
+  strings: fakeGp.tracks[0].model.strings,
+  events: [
+    { slot: 0, start: 0, duration: 1, stringIndex: 0, fret: 5, midi: 45, pc: 9, techniques: [], dead: false },
+  ],
+  measures: fakeGp.tracks[0].model.measures,
+  tempo: 120,
+  totalBeats: 2,
+};
+const mix = createGpMixPlayer();
+mix.load({
+  guitarModels: [fakeGp.tracks[0].model, guitarB],
+  drumModels: [perc],
+  bpm: 120,
+  enabledGuitars: [true, false],
+  enabledDrums: [true],
+  metronomeEnabled: true,
+});
+assert.equal(mix.enabledGuitars.length, 2);
+assert.equal(mix.enabledDrums.length, 1);
+assert.equal(mix.metronomeEnabled, true);
+assert.ok(mix.events.length >= 4); // first guitar + drums, second guitar muted
+mix.setTrackEnabled('guitar', 1, true);
+assert.ok(mix.events.length >= 5);
+mix.setTrackEnabled('guitar', 0, false);
+assert.ok(mix.events.length >= 1);
+mix.setMetronomeEnabled(false);
+assert.equal(mix.metronomeEnabled, false);
+assert.ok(typeof scheduleMetronomeClick === 'function');
 
 console.log('gp-player smoke: ok');

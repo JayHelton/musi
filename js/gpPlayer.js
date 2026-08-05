@@ -117,11 +117,18 @@ function mountCurrent() {
   if (!stage || !state.gp) return;
   destroyMount();
   setStageVisible(true);
+  const exercise = state.exerciseId ? getExercise(state.exerciseId) : null;
   state.mount = mountGpPlayer(stage, {
     gpResult: state.gp,
     title: (state.fileName || 'score').replace(/\.(gp|gp5)$/i, ''),
     fileName: state.fileName,
-    initialLoopEnabled: true,
+    initialLoopEnabled: exercise ? !!exercise.loopEnabled : false,
+    initialLoopStart: exercise?.measureStart,
+    initialLoopEnd: exercise?.measureEnd,
+    initialLoopStartBeat: exercise?.startBeat,
+    initialLoopEndBeat: exercise?.endBeat,
+    loopRestSec: exercise?.loopRestSec || 0,
+    preferredTrackIndex: exercise?.preferredTrackIndex || 0,
     headerExtra: makeHeaderExtras(),
     onAnalyze: () => {
       window.__musiGpHandoff = {
@@ -155,7 +162,7 @@ async function loadFile(file, { exerciseId = null } = {}) {
       const drumN = (gp.drumTracks || []).length;
       setStatus(
         drumN
-          ? 'This file has drum parts but no fretted guitar/bass track. Open it in Song Learning or Drums to practice the kit.'
+          ? 'This file has drum parts but no fretted guitar/bass track. Open it in Drums to practice the kit.'
           : 'No fretted guitar/bass track found in that file.',
         'error'
       );
@@ -267,6 +274,8 @@ async function saveSelectedBarsAsExercise() {
       size: blob.size,
       measureStart: a,
       measureEnd: b,
+      startBeat: Number.isFinite(st.loopStartBeat) ? st.loopStartBeat : null,
+      endBeat: Number.isFinite(st.loopEndBeat) ? st.loopEndBeat : null,
       loopEnabled: true,
       loopRestSec: Number.isFinite(st.loopRestSec) ? st.loopRestSec : 0,
       preferredTrackIndex: st.trackIndex || 0,

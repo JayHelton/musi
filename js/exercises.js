@@ -110,6 +110,8 @@ function normalizeItem(raw) {
   const defaultName = url ? titleFromUrl(url) : 'Exercise';
   const measureStart = Number.isFinite(Number(raw.measureStart)) ? Math.max(0, Math.floor(Number(raw.measureStart))) : null;
   const measureEnd = Number.isFinite(Number(raw.measureEnd)) ? Math.max(0, Math.floor(Number(raw.measureEnd))) : null;
+  const startBeat = Number.isFinite(Number(raw.startBeat)) ? Number(raw.startBeat) : null;
+  const endBeat = Number.isFinite(Number(raw.endBeat)) ? Number(raw.endBeat) : null;
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('ex'),
     name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : defaultName, NAME_LIMIT),
@@ -126,9 +128,9 @@ function normalizeItem(raw) {
       : 0,
     measureStart,
     measureEnd,
-    loopEnabled: raw.loopEnabled == null
-      ? (measureStart != null && measureEnd != null)
-      : !!raw.loopEnabled,
+    startBeat,
+    endBeat,
+    loopEnabled: raw.loopEnabled == null ? false : !!raw.loopEnabled,
     loopRestSec: Math.max(0, Math.min(30, Number(raw.loopRestSec) || 0)),
   };
 }
@@ -833,7 +835,7 @@ async function onUploadFiles() {
 
 /**
  * Add any file-backed exercise from an already-saved attachment
- * (GP Player, Track → Sheet, Song Learning, etc.).
+ * (GP Player, Track → Sheet, etc.).
  */
 export function addExerciseFromAttachment({
   attachmentId,
@@ -845,6 +847,8 @@ export function addExerciseFromAttachment({
   preferredTrackIndex = 0,
   measureStart = null,
   measureEnd = null,
+  startBeat = null,
+  endBeat = null,
   loopEnabled = null,
   loopRestSec = 0,
 } = {}) {
@@ -866,7 +870,9 @@ export function addExerciseFromAttachment({
     preferredTrackIndex,
     measureStart,
     measureEnd,
-    loopEnabled: loopEnabled == null ? (measureStart != null && measureEnd != null) : !!loopEnabled,
+    startBeat,
+    endBeat,
+    loopEnabled: loopEnabled == null ? false : !!loopEnabled,
     loopRestSec,
   });
   if (!item) return null;
@@ -876,7 +882,7 @@ export function addExerciseFromAttachment({
   return item;
 }
 
-/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player / Song Learning). */
+/** Add a Guitar Pro exercise from an already-saved attachment (e.g. GP Player). */
 export function addGpExerciseFromAttachment(opts = {}) {
   return addExerciseFromAttachment({
     ...opts,
@@ -1063,6 +1069,8 @@ export async function openExerciseViewer(id) {
         initialLoopEnabled: !!item.loopEnabled,
         initialLoopStart: item.measureStart,
         initialLoopEnd: item.measureEnd,
+        initialLoopStartBeat: item.startBeat,
+        initialLoopEndBeat: item.endBeat,
         loopRestSec: item.loopRestSec || 0,
         onPracticeSettingsChange: (settings) => {
           updateExercisePracticeSettings(item.id, settings);

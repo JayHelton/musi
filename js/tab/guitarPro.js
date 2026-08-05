@@ -647,13 +647,13 @@ export function isGuitarProName(name) {
 // Reason a raw track cannot be analyzed as tab (vocals/piano have no frets;
 // drums are imported separately via drumTracks).
 function unanalyzableReason(t) {
-  if (t.isPercussion) return 'Drums / percussion — available in Drums & Song Learning';
+  if (t.isPercussion) return 'Drums / percussion — available in Drums';
   return 'No guitar/bass tuning — this part cannot be read as tab';
 }
 
 // Assemble the shared multi-track result from raw per-track entries. Fretted
 // tracks stay the Tab Analyzer default; percussion tracks are returned as
-// `drumTracks` for the drums / song-learning importers. Top-level model/ascii
+// `drumTracks` for the drums importers. Top-level model/ascii
 // describe the default fretted track when one exists.
 function assembleResult(format, rawTracks, totalTracks) {
   const fretted = rawTracks.filter((t) => t.fretted && t.model);
