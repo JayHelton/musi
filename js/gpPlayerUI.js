@@ -97,6 +97,7 @@ export function mountGpPlayer(host, {
   let follow = null;
 
   function emitPracticeSettings() {
+    if (typeof syncSettingsSummary === 'function') syncSettingsSummary();
     if (typeof onPracticeSettingsChange !== 'function') return;
     onPracticeSettingsChange({
       preferredTrackIndex: state.trackIndex,
@@ -183,7 +184,23 @@ export function mountGpPlayer(host, {
   transport.append(playBtn, stopBtn, timeLabel, measureLabel);
   host.appendChild(transport);
 
-  // ---- controls: BPM / transpose / tuning ----
+  // ---- measure strip + follow-along visual (primary surface) ----
+  const strip = el('div', { class: 'gpp-strip', 'aria-label': 'Measures' });
+  host.appendChild(strip);
+  const followHost = el('div', { class: 'gpp-follow-host sln-follow-host' });
+  host.appendChild(followHost);
+  const tabPre = el('pre', { class: 'gpp-tab', text: '', hidden: 'hidden' });
+  host.appendChild(tabPre);
+
+  // ---- practice settings (collapsed so the score isn't smashed) ----
+  const settings = el('details', { class: 'gpp-settings' });
+  const summary = el('summary', { class: 'gpp-settings-summary' });
+  summary.append(
+    el('span', { class: 'gpp-settings-summary-label', text: 'Practice settings' }),
+    el('span', { class: 'gpp-settings-summary-bpm', text: `${Math.round(state.bpm)} BPM` }),
+  );
+  settings.appendChild(summary);
+
   const controls = el('div', { class: 'gpp-controls' });
 
   const bpmInput = el('input', {
@@ -255,15 +272,18 @@ export function mountGpPlayer(host, {
     ]),
   ]));
 
-  host.appendChild(controls);
+  settings.appendChild(controls);
+  host.appendChild(settings);
 
-  // ---- measure strip + follow-along visual ----
-  const strip = el('div', { class: 'gpp-strip', 'aria-label': 'Measures' });
-  host.appendChild(strip);
-  const followHost = el('div', { class: 'gpp-follow-host sln-follow-host' });
-  host.appendChild(followHost);
-  const tabPre = el('pre', { class: 'gpp-tab', text: '', hidden: 'hidden' });
-  host.appendChild(tabPre);
+  function syncSettingsSummary() {
+    const bpmEl = summary.querySelector('.gpp-settings-summary-bpm');
+    if (bpmEl) {
+      const loopTxt = state.loopEnabled
+        ? ` · bars ${state.loopStart + 1}–${state.loopEnd + 1}`
+        : '';
+      bpmEl.textContent = `${Math.round(state.bpm)} BPM${loopTxt}`;
+    }
+  }
 
   // ---- wiring ----
   function currentTrack() {
@@ -499,15 +519,18 @@ export function mountGpPlayer(host, {
     const was = player.playing;
     player.stop();
     reloadPlayer({ autoplay: was });
+    syncSettingsSummary();
   });
   bpmSlider.addEventListener('input', () => {
     syncBpmFromScorePercent();
+    syncSettingsSummary();
   });
   bpmSlider.addEventListener('change', () => {
     syncBpmFromScorePercent();
     const was = player.playing;
     player.stop();
     reloadPlayer({ autoplay: was });
+    syncSettingsSummary();
   });
 
   transposeInput.addEventListener('change', () => setTranspose(transposeInput.value));
@@ -571,6 +594,7 @@ export function mountGpPlayer(host, {
   rebuildTuningSelect();
   rebuildLoopSelects();
   reloadPlayer();
+  syncSettingsSummary();
 
   return {
     player,

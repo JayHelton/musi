@@ -112,6 +112,10 @@ function initTool(id) {
 
 let splitSecondaryId = null;
 let currentNavId = 'home';
+/** How many in-app pushState entries sit above the boot entry (phone Back pops these). */
+let navPushCount = 0;
+/** True while applying a popstate/hashchange so we don't push another history entry. */
+let applyingHistory = false;
 
 function clearSplitPane() {
   if (!splitSecondaryId) return;
@@ -128,6 +132,11 @@ function isHubId(id) {
 
 function hubCategory(id) {
   return id.replace(/^hub-/, '');
+}
+
+function sectionUrl(id) {
+  if (!id || id === 'home') return location.pathname + location.search;
+  return `${location.pathname}${location.search}#${id}`;
 }
 
 function updateHoldRecordVisibility(id) {
@@ -153,6 +162,23 @@ function showHub(categoryId, skipHash) {
   showSection('hub-' + categoryId, skipHash);
 }
 
+/**
+ * Navigate back through in-app screen history (same as the phone Back button).
+ * Falls back to category hub / home when there is nothing left to pop.
+ */
+function goBack(fallback) {
+  if (navPushCount > 0) {
+    history.back();
+    return true;
+  }
+  if (typeof fallback === 'function') {
+    fallback();
+    return false;
+  }
+  if (currentNavId !== 'home') showSection('home');
+  return false;
+}
+
 function showSection(id, skipHash) {
   if (splitSecondaryId) {
     const sec = document.getElementById('sec-' + splitSecondaryId);
@@ -166,14 +192,24 @@ function showSection(id, skipHash) {
 
   const sec = document.getElementById('sec-' + id);
   if (!sec) return;
+
+  const prevId = currentNavId;
   sec.classList.add('active');
   currentNavId = id;
 
   document.querySelectorAll(`.dock-item[data-s="${id}"]`).forEach(el => el.classList.add('active'));
 
-  if (!skipHash) {
-    if (id === 'home') history.replaceState(null, '', location.pathname + location.search);
-    else history.replaceState(null, '', '#' + id);
+  // Screen history: push on forward nav so phone Back walks Home → hub → tool.
+  // skipHash / applyingHistory only sync the URL+state (boot, popstate, hashchange).
+  if (!applyingHistory) {
+    const url = sectionUrl(id);
+    const histState = { musiNav: id };
+    if (skipHash || prevId === id) {
+      history.replaceState(histState, '', url);
+    } else {
+      history.pushState(histState, '', url);
+      navPushCount += 1;
+    }
   }
 
   if (isHubId(id)) {
@@ -206,11 +242,12 @@ function showSection(id, skipHash) {
     saveSetting('nav.lastCategory', tool.category);
   }
 
-  // Wire back button
+  // Wire back button — same stack as the phone Back button
   const back = sec.querySelector('.tool-back');
   if (back && tool) {
-    back.onclick = () => showHub(tool.category);
-    back.textContent = `← ${CATEGORIES.find(c => c.id === tool.category)?.label || 'Back'}`;
+    const hubLabel = CATEGORIES.find(c => c.id === tool.category)?.label || 'Back';
+    back.onclick = () => goBack(() => showHub(tool.category));
+    back.textContent = `← ${hubLabel}`;
   }
 
   stopOtherTools([id]);
@@ -222,6 +259,7 @@ function showSection(id, skipHash) {
 }
 window.showSection = showSection;
 window.showHub = showHub;
+window.goBack = goBack;
 
 function enterSplit(secondaryId) {
   const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
@@ -544,14 +582,50 @@ function init() {
   if (hashTab && isValidSection(hashTab)) {
     showSection(hashTab, true);
   } else {
+    // Seed history so popstate can restore Home cleanly.
+    history.replaceState({ musiNav: 'home' }, '', sectionUrl('home'));
     updateHeaderChrome('home');
     updateHoldRecordVisibility(null);
   }
 
+  // Phone / browser Back: walk the screen stack instead of leaving the PWA.
+  window.addEventListener('popstate', (e) => {
+    applyingHistory = true;
+    navPushCount = Math.max(0, navPushCount - 1);
+    try {
+      let id = e.state?.musiNav;
+      if (!id) {
+        const fromHash = resolveSectionAlias(location.hash.replace('#', ''));
+        id = fromHash && isValidSection(fromHash) ? fromHash : 'home';
+      } else {
+        id = resolveSectionAlias(id);
+      }
+      if (isValidSection(id)) showSection(id, true);
+      else showSection('home', true);
+    } finally {
+      applyingHistory = false;
+    }
+  });
+
   window.addEventListener('hashchange', () => {
+    // location.hash assignments (and in-page links) create a history entry;
+    // treat them as forward navigation unless we're already applying popstate.
+    if (applyingHistory) return;
     const id = resolveSectionAlias(location.hash.replace('#', ''));
-    if (id && isValidSection(id)) showSection(id, true);
-    else if (!id) showSection('home', true);
+    applyingHistory = true;
+    try {
+      if (id && isValidSection(id)) {
+        // Hash already updated the URL; sync UI without pushing again.
+        // Count this as an in-app step when it differs from the current screen.
+        if (id !== currentNavId) navPushCount += 1;
+        showSection(id, true);
+      } else if (!id) {
+        if (currentNavId !== 'home') navPushCount += 1;
+        showSection('home', true);
+      }
+    } finally {
+      applyingHistory = false;
+    }
   });
 
   // Reveal PRESS START only after nav/hash routing has settled.

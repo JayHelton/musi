@@ -94,10 +94,17 @@ function makeHeaderExtras() {
   });
   wrap.appendChild(loadBtn);
 
+  const saveBarsBtn = document.createElement('button');
+  saveBarsBtn.className = 'btn sm primary';
+  saveBarsBtn.type = 'button';
+  saveBarsBtn.textContent = 'Save selected bars as Exercise';
+  saveBarsBtn.addEventListener('click', () => saveSelectedBarsAsExercise());
+  wrap.appendChild(saveBarsBtn);
+
   const saveBtn = document.createElement('button');
   saveBtn.className = 'btn sm';
   saveBtn.type = 'button';
-  saveBtn.textContent = state.exerciseId ? 'In library' : 'Save to Library';
+  saveBtn.textContent = state.exerciseId ? 'Full score in library' : 'Save full score';
   if (state.exerciseId) saveBtn.disabled = true;
   saveBtn.addEventListener('click', () => saveToLibrary());
   wrap.appendChild(saveBtn);
@@ -114,6 +121,7 @@ function mountCurrent() {
     gpResult: state.gp,
     title: (state.fileName || 'score').replace(/\.(gp|gp5)$/i, ''),
     fileName: state.fileName,
+    initialLoopEnabled: true,
     headerExtra: makeHeaderExtras(),
     onAnalyze: () => {
       window.__musiGpHandoff = {
@@ -211,6 +219,64 @@ async function saveToLibrary() {
     mountCurrent();
     renderLibrary();
     setStatus(`Saved “${name}” to library (Exercises).`);
+  } catch (err) {
+    setStatus(err?.message || 'Save failed.', 'error');
+  }
+}
+
+/** Save the currently highlighted / looped measure range as an Exercise. */
+async function saveSelectedBarsAsExercise() {
+  if (!state.bytes || !state.gp) {
+    setStatus('Load a Guitar Pro file first.', 'error');
+    return;
+  }
+  if (!attachmentsSupported()) {
+    setStatus('Browser storage unavailable — cannot save exercise.', 'error');
+    return;
+  }
+  const st = state.mount?.getState?.() || {};
+  const measureCount = state.gp.tracks?.[st.trackIndex || 0]?.model?.measures?.length
+    || state.gp.tracks?.[0]?.model?.measures?.length
+    || 1;
+  let a = Number.isFinite(st.loopStart) ? st.loopStart : 0;
+  let b = Number.isFinite(st.loopEnd) ? st.loopEnd : Math.max(0, measureCount - 1);
+  a = Math.max(0, Math.min(measureCount - 1, Math.floor(Math.min(a, b))));
+  b = Math.max(a, Math.min(measureCount - 1, Math.floor(Math.max(a, b))));
+  const base = (state.fileName || 'score').replace(/\.(gp|gp5)$/i, '');
+  const name = `${base} · bars ${a + 1}–${b + 1}`;
+  try {
+    await ensurePersistentStorage();
+    const blob = new Blob([state.bytes], { type: 'application/octet-stream' });
+    const meta = await saveFile({
+      blob,
+      name: name.replace(/[^\w\- ]+/g, '').trim() || 'exercise',
+      type: 'application/x-guitar-pro',
+      fileName: state.fileName || `${base}.gp`,
+      size: blob.size,
+      source: 'exercise',
+    });
+    if (!meta) {
+      setStatus('Could not save file to storage.', 'error');
+      return;
+    }
+    const item = addGpExerciseFromAttachment({
+      attachmentId: meta.id,
+      name,
+      fileName: state.fileName || `${base}.gp`,
+      type: 'application/x-guitar-pro',
+      size: blob.size,
+      measureStart: a,
+      measureEnd: b,
+      loopEnabled: true,
+      loopRestSec: Number.isFinite(st.loopRestSec) ? st.loopRestSec : 0,
+      preferredTrackIndex: st.trackIndex || 0,
+    });
+    if (!item) {
+      setStatus('Saved attachment, but library entry failed.', 'error');
+      return;
+    }
+    renderLibrary();
+    setStatus(`Saved “${item.name}” to Exercises (bars ${a + 1}–${b + 1}).`);
   } catch (err) {
     setStatus(err?.message || 'Save failed.', 'error');
   }
