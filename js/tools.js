@@ -169,7 +169,7 @@ export const TOOLS = [
     label: 'Recorder',
     short: 'Record',
     category: 'create',
-    description: 'Capture takes and inspect pitch.',
+    description: 'Capture takes, inspect pitch, and map a sung riff to guitar tab.',
     title: 'Recorder',
     holdRecord: true,
   },

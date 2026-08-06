@@ -10,6 +10,8 @@ import {
   suggestClef,
 } from './trackToSheet/transcribe.js';
 import { renderScoreSVG, notesToText } from './trackToSheet/score.js';
+import { transcriptionToGpResult } from './trackToSheet/toTabModel.js';
+import { loadGpPlayerResult } from './gpPlayer.js';
 import {
   saveFile,
   getFileBlob,
@@ -69,6 +71,28 @@ function setStatus(msg, kind = '') {
   box.hidden = !msg;
 }
 
+function syncGpButton() {
+  const btn = $('tts-open-gp');
+  if (!btn) return;
+  const hasNotes = !!(state.result?.notes?.length);
+  btn.hidden = !hasNotes;
+  btn.disabled = state.busy || !hasNotes;
+}
+
+function openInGpPlayer() {
+  if (!state.result?.notes?.length) return;
+  const gp = transcriptionToGpResult(state.result, {
+    name: baseName(state.fileName),
+    bpm: state.bpm,
+    beatsPerBar: state.result.beatsPerBar ?? 4,
+    offsetSec: state.result.offsetSec ?? 0,
+  });
+  loadGpPlayerResult(gp, {
+    title: baseName(state.fileName),
+    fileName: `${baseName(state.fileName)}.riff`,
+  });
+}
+
 function syncSaveButton() {
   const btn = $('tts-save');
   if (!btn) return;
@@ -85,6 +109,7 @@ function setBusy(busy) {
   if (input) input.disabled = busy;
   document.body.classList.toggle('tts-busy', busy);
   syncSaveButton();
+  syncGpButton();
 }
 
 function fmtSize(bytes) {
@@ -210,6 +235,7 @@ async function runTranscribe() {
         : 'No clear pitches found. Use a dry, isolated monophonic stem.',
       n ? 'ok' : 'warn'
     );
+    syncGpButton();
   } catch (err) {
     console.error(err);
     setStatus(`Transcription failed: ${err.message || err}`, 'err');
@@ -381,6 +407,7 @@ function bind() {
 
   $('tts-transcribe')?.addEventListener('click', runTranscribe);
   $('tts-copy')?.addEventListener('click', copyNoteList);
+  $('tts-open-gp')?.addEventListener('click', openInGpPlayer);
   $('tts-save')?.addEventListener('click', saveToLibrary);
 
   $('tts-bpm')?.addEventListener('change', () => {
@@ -422,6 +449,7 @@ export function initTrackToSheet() {
   const btn = $('tts-transcribe');
   if (btn) btn.disabled = !state.audioBuffer || state.busy;
   syncSaveButton();
+  syncGpButton();
   renderLibrary();
 }
 
