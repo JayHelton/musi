@@ -602,6 +602,8 @@ function rebuildGpResult() {
   }
   const { bpm, beatsPerBar } = getRiffMeta();
   const offsetSec = recorder.transcription.offsetSec ?? 0;
+  recorder.transcription.bpm = bpm;
+  recorder.transcription.beatsPerBar = beatsPerBar;
   recorder.gpResult = transcriptionToGpResult(recorder.transcription, {
     name: 'Vocal riff',
     bpm,

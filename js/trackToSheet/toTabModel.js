@@ -30,20 +30,30 @@ export function chooseOctaveShift(notes, { minMidi = 40, maxMidi = 76 } = {}) {
 export function placeMidiOnStrings(midi, strings, {
   preferStringIndex = null,
   preferFretCenter = 5,
-  maxFret = 24,
+  maxFret = 12,
 } = {}) {
   const target = midi;
-  const candidates = [];
 
-  for (let si = 0; si < strings.length; si++) {
-    const open = strings[si]?.openMidi;
-    if (open == null) continue;
-    const fret = target - open;
-    if (fret < 0 || fret > maxFret) continue;
-    const stringDist = preferStringIndex == null ? 0 : Math.abs(si - preferStringIndex);
-    const fretDist = Math.abs(fret - preferFretCenter);
-    const jump = preferStringIndex == null ? fretDist : stringDist * 3 + fretDist;
-    candidates.push({ stringIndex: si, fret, midi: open + fret, jump });
+  function collectCandidates(fretCeiling) {
+    const candidates = [];
+    for (let si = 0; si < strings.length; si++) {
+      const open = strings[si]?.openMidi;
+      if (open == null) continue;
+      const fret = target - open;
+      if (fret < 0 || fret > fretCeiling) continue;
+      const stringDist = preferStringIndex == null ? 0 : Math.abs(si - preferStringIndex);
+      const fretDist = Math.abs(fret - preferFretCenter);
+      const jump = preferStringIndex == null ? fretDist : stringDist * 3 + fretDist;
+      candidates.push({ stringIndex: si, fret, midi: open + fret, jump });
+    }
+    return candidates;
+  }
+
+  let candidates = collectCandidates(maxFret);
+  let fretCeiling = maxFret;
+  if (!candidates.length && maxFret < 24) {
+    candidates = collectCandidates(24);
+    fretCeiling = 24;
   }
 
   if (!candidates.length) {
@@ -52,7 +62,7 @@ export function placeMidiOnStrings(midi, strings, {
       ? preferStringIndex
       : Math.floor(strings.length / 2);
     const open = strings[si]?.openMidi ?? 40;
-    const fret = Math.max(0, Math.min(maxFret, target - open));
+    const fret = Math.max(0, Math.min(fretCeiling, target - open));
     return { stringIndex: si, fret, midi: open + fret };
   }
 
@@ -121,6 +131,12 @@ export function notesToTabModel(notes, {
     return { n, start: Math.round(rawStart * 4) / 4, rawDur };
   });
   timed.sort((a, b) => a.start - b.start || a.n.startSec - b.n.startSec);
+
+  for (let i = 1; i < timed.length; i++) {
+    if (timed[i].start <= timed[i - 1].start) {
+      timed[i].start = timed[i - 1].start + 0.25;
+    }
+  }
 
   for (let i = 0; i < timed.length; i++) {
     let duration = nearestDuration(timed[i].rawDur).beats;
