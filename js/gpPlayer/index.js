@@ -16,3 +16,6 @@ export { createPlayerState } from './playerState.js';
 export { mountParchmentView } from './parchmentView.js';
 export { createLoopSelectionController } from './loopSelection.js';
 export { mountMeasureNav } from './measureNav.js';
+export { mountTransportDock } from './transportDock.js';
+export { mountTrackMixer } from './trackMixer.js';
+export { mountSettingsDrawer } from './settingsDrawer.js';
