@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v130-metro-wave-ambient";
+const CACHE_VERSION = "v131-metro-wave-ambient";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -115,6 +115,7 @@ const PRECACHE_URLS = [
   "js/tab/tabAnalysisView.js",
   "js/trackToSheet.js",
   "js/trackToSheet/transcribe.js",
+  "js/trackToSheet/toTabModel.js",
   "js/trackToSheet/score.js",
   "js/gpPlayer.js",
   "js/gpPlayerUI.js",

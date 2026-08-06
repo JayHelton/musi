@@ -146,22 +146,166 @@ export function segmentNotes(frames, opts = {}) {
   return notes;
 }
 
+const MIN_BPM = 70;
+const MAX_BPM = 180;
+
+function collectOnsets(notes) {
+  return notes.map((n) => n.startSec).sort((a, b) => a - b);
+}
+
+function collectIoIs(onsets, minSec = 0.05, maxSec = 4) {
+  const iois = [];
+  for (let i = 1; i < onsets.length; i++) {
+    const d = onsets[i] - onsets[i - 1];
+    if (d >= minSec && d <= maxSec) iois.push(d);
+  }
+  return iois;
+}
+
+/** Fold a beat period (seconds) into the 70–180 BPM window via doubling/halving. */
+function normalizeBeatPeriod(periodSec) {
+  if (!periodSec || periodSec <= 0) return 60 / 120;
+  let p = periodSec;
+  let bpm = 60 / p;
+  while (bpm < MIN_BPM) { p /= 2; bpm = 60 / p; }
+  while (bpm > MAX_BPM) { p *= 2; bpm = 60 / p; }
+  return p;
+}
+
+function ioiHistogramPeaks(iois, binWidth = 0.025) {
+  if (!iois.length) return [];
+  const bins = new Map();
+  for (const ioi of iois) {
+    const key = Math.round(ioi / binWidth);
+    bins.set(key, (bins.get(key) || 0) + 1);
+  }
+  const peaks = [...bins.entries()]
+    .map(([k, count]) => ({ ioi: k * binWidth, count }))
+    .sort((a, b) => b.count - a.count);
+  return peaks;
+}
+
+/** Score how well IOIs align to integer multiples of a beat period. */
+function scoreIoIsAgainstPeriod(iois, beatPeriod) {
+  if (!beatPeriod || beatPeriod <= 0) return 0;
+  let score = 0;
+  for (const ioi of iois) {
+    const ratio = ioi / beatPeriod;
+    const nearest = Math.round(ratio);
+    if (nearest >= 1 && nearest <= 12) {
+      const err = Math.abs(ratio - nearest);
+      score += Math.max(0, 1 - err * 2);
+    }
+  }
+  return score;
+}
+
+/** Autocorrelate onsets against a beat period; returns best phase alignment score. */
+function onsetAutocorrScore(onsets, beatPeriod) {
+  if (!onsets.length || !beatPeriod || beatPeriod <= 0) return { score: 0, phase: 0 };
+  const steps = Math.max(8, Math.min(48, Math.round(beatPeriod / 0.01)));
+  let bestScore = 0;
+  let bestPhase = 0;
+  for (let s = 0; s < steps; s++) {
+    const phase = (s / steps) * beatPeriod;
+    let score = 0;
+    const tol = Math.min(0.06, beatPeriod * 0.12);
+    for (const t of onsets) {
+      const pos = (t - phase) / beatPeriod;
+      const nearest = Math.round(pos);
+      const err = Math.abs(pos - nearest) * beatPeriod;
+      if (err <= tol) score += 1 - err / tol;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestPhase = phase;
+    }
+  }
+  return { score: bestScore, phase: bestPhase };
+}
+
+function guessBeatsPerBar(onsets, beatPeriod, phase) {
+  if (!onsets.length || beatPeriod <= 0) return 4;
+  const bar3 = beatPeriod * 3;
+  const bar4 = beatPeriod * 4;
+  let score3 = 0;
+  let score4 = 0;
+  const tol = beatPeriod * 0.15;
+  for (const t of onsets) {
+    const p3 = (t - phase) / bar3;
+    const p4 = (t - phase) / bar4;
+    const e3 = Math.abs(p3 - Math.round(p3)) * bar3;
+    const e4 = Math.abs(p4 - Math.round(p4)) * bar4;
+    if (e3 <= tol) score3 += 1 - e3 / tol;
+    if (e4 <= tol) score4 += 1 - e4 / tol;
+  }
+  // Favor 4/4 unless 3/4 bar energy is clearly stronger.
+  if (score3 > score4 * 1.35 && score3 >= 2) return 3;
+  return 4;
+}
+
+/**
+ * Estimate tempo, meter, and beat-grid phase from note onsets.
+ * @returns {{ bpm:number, beatsPerBar:number, offsetSec:number, offsetBeats:number, confidence:number }}
+ */
+export function estimateTempo(notes, opts = {}) {
+  const fallback = {
+    bpm: 120,
+    beatsPerBar: opts.beatsPerBar ?? 4,
+    offsetSec: 0,
+    offsetBeats: 0,
+    confidence: 0,
+  };
+  if (!notes || notes.length < 2) return fallback;
+
+  const onsets = collectOnsets(notes);
+  const iois = collectIoIs(onsets);
+  if (iois.length < 1) return fallback;
+
+  const peaks = ioiHistogramPeaks(iois);
+  const candidates = new Set();
+  for (const { ioi } of peaks.slice(0, 8)) {
+    for (const mult of [0.25, 0.5, 1, 2, 4]) {
+      const period = normalizeBeatPeriod(ioi * mult);
+      candidates.add(period);
+    }
+  }
+  // Median IOI as a fallback candidate.
+  const sorted = iois.slice().sort((a, b) => a - b);
+  candidates.add(normalizeBeatPeriod(sorted[Math.floor(sorted.length / 2)]));
+
+  let bestPeriod = 60 / 120;
+  let bestScore = -1;
+  let bestPhase = 0;
+  let bestAutocorr = 0;
+
+  for (const period of candidates) {
+    const ioiScore = scoreIoIsAgainstPeriod(iois, period);
+    const { score: acScore, phase } = onsetAutocorrScore(onsets, period);
+    const combined = ioiScore * 0.45 + acScore * 0.55;
+    if (combined > bestScore) {
+      bestScore = combined;
+      bestPeriod = period;
+      bestPhase = phase;
+      bestAutocorr = acScore;
+    }
+  }
+
+  const bpm = Math.round(Math.max(MIN_BPM, Math.min(MAX_BPM, 60 / bestPeriod)));
+  const beatSec = 60 / bpm;
+  const beatsPerBar = opts.beatsPerBar ?? guessBeatsPerBar(onsets, beatSec, bestPhase);
+  const offsetSec = bestPhase;
+  const offsetBeats = offsetSec / beatSec;
+
+  const maxScore = onsets.length * 1.2;
+  const confidence = Math.max(0, Math.min(1, bestAutocorr / Math.max(1, maxScore)));
+
+  return { bpm, beatsPerBar, offsetSec, offsetBeats, confidence };
+}
+
 /** Estimate a rough tempo from inter-onset intervals (IOIs). Falls back to 120. */
 export function estimateBpm(notes) {
-  if (!notes || notes.length < 4) return 120;
-  const iois = [];
-  for (let i = 1; i < notes.length; i++) {
-    const d = notes[i].startSec - notes[i - 1].startSec;
-    if (d > 0.12 && d < 2.5) iois.push(d);
-  }
-  if (iois.length < 3) return 120;
-  iois.sort((a, b) => a - b);
-  const median = iois[Math.floor(iois.length / 2)];
-  // Treat the median IOI as a beat or half-beat.
-  let bpm = 60 / median;
-  while (bpm < 70) bpm *= 2;
-  while (bpm > 160) bpm /= 2;
-  return Math.round(bpm);
+  return estimateTempo(notes).bpm;
 }
 
 const DURATION_VALUES = [
@@ -175,7 +319,7 @@ const DURATION_VALUES = [
   { beats: 0.25, id: 's' },
 ];
 
-function nearestDuration(beats) {
+export function nearestDuration(beats) {
   let best = DURATION_VALUES[DURATION_VALUES.length - 1];
   let bestErr = Infinity;
   for (const d of DURATION_VALUES) {
@@ -223,18 +367,29 @@ function pushDurationEvents(events, type, totalBeats, beatsPerBar, cursorBeat, e
 export function quantizeToScore(notes, bpm = 120, opts = {}) {
   const beatsPerBar = opts.beatsPerBar ?? 4;
   const beatSec = 60 / Math.max(40, Math.min(240, bpm));
+  const offsetSec = opts.offsetSec != null
+    ? opts.offsetSec
+    : (opts.offsetBeats != null ? opts.offsetBeats * beatSec : 0);
   const events = [];
 
   let cursorBeat = 0;
+  let started = false;
 
   for (const n of notes) {
-    const startBeat = n.startSec / beatSec;
-    const endBeat = (n.startSec + n.durationSec) / beatSec;
+    const startBeat = (n.startSec - offsetSec) / beatSec;
+    const endBeat = (n.startSec + n.durationSec - offsetSec) / beatSec;
+
+    if (!started && startBeat < -1e-6) {
+      cursorBeat = startBeat;
+      started = true;
+    }
 
     const gapBeats = startBeat - cursorBeat;
     if (gapBeats >= 0.25) {
       cursorBeat = pushDurationEvents(events, 'rest', gapBeats, beatsPerBar, cursorBeat);
     } else if (gapBeats > 0) {
+      cursorBeat = startBeat;
+    } else if (gapBeats < -1e-6) {
       cursorBeat = startBeat;
     }
 
@@ -249,9 +404,10 @@ export function quantizeToScore(notes, bpm = 120, opts = {}) {
       startSec: n.startSec,
       durationSec: n.durationSec,
     });
+    started = true;
   }
 
-  return { events, bpm, beatsPerBar, cursorBeat };
+  return { events, bpm, beatsPerBar, offsetSec, offsetBeats: offsetSec / beatSec, cursorBeat };
 }
 
 /** Map MIDI → staff position (diatonic value) + accidental. C4 (60) = DV 28. */
@@ -289,12 +445,24 @@ export async function transcribeBuffer(audioBuffer, opts = {}) {
     hopSec: hopSize / sampleRate,
     minNoteSec: opts.minNoteSec,
   });
-  const bpm = opts.bpm || estimateBpm(notes);
-  const score = quantizeToScore(notes, bpm, { beatsPerBar: opts.beatsPerBar ?? 4 });
+  const tempoEst = estimateTempo(notes, { beatsPerBar: opts.beatsPerBar });
+  const bpm = opts.bpm || tempoEst.bpm;
+  const beatsPerBar = opts.beatsPerBar ?? tempoEst.beatsPerBar;
+  const beatSec = 60 / Math.max(40, Math.min(240, bpm));
+  const offsetSec = opts.offsetSec ?? tempoEst.offsetSec;
+  const offsetBeats = opts.offsetBeats ?? (offsetSec / beatSec);
+  const tempoConfidence = (!opts.bpm && !opts.beatsPerBar)
+    ? tempoEst.confidence
+    : tempoEst.confidence;
+  const score = quantizeToScore(notes, bpm, { beatsPerBar, offsetSec, offsetBeats });
   return {
     notes,
     score,
     bpm,
+    beatsPerBar,
+    offsetSec,
+    offsetBeats,
+    tempoConfidence,
     durationSec: audioBuffer.duration,
     sampleRate,
     frameCount: frames.length,

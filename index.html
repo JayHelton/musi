@@ -1368,6 +1368,7 @@
     <div class="section-head">
       <div class="section-kicker">Tools</div>
       <h2>Recorder</h2>
+      <p>Capture a take, spot-check pitch and key, then turn a sung or hummed riff into guitar tab for the GP player.</p>
     </div>
     <div class="recorder-center">
       <div class="quiz-card">
@@ -1432,6 +1433,41 @@
         </div>
         <div class="rec-section-label">Detected pitches</div>
         <div class="rec-note-seq" id="rec-note-seq"></div>
+      </div>
+
+      <div class="quiz-card" id="rec-riff-card" style="display:none">
+        <div class="rec-card-title">Riff → Tab</div>
+        <p class="rec-riff-help">Sing or hum a riff, then map pitches to a guitar tab you can play in the Guitar Pro player.</p>
+        <div class="rec-riff-status" id="rec-riff-status"></div>
+        <progress class="rec-riff-progress" id="rec-riff-progress" max="1" value="0" hidden></progress>
+        <div class="rec-riff-meta">
+          <label class="rec-riff-meta-item">
+            <span class="rec-opt-label">BPM</span>
+            <input type="number" id="rec-riff-bpm" min="40" max="240" step="1" value="120">
+          </label>
+          <label class="rec-riff-meta-item">
+            <span class="rec-opt-label">Meter</span>
+            <select id="rec-riff-meter">
+              <option value="4">4/4</option>
+              <option value="3">3/4</option>
+            </select>
+          </label>
+          <div class="rec-riff-meta-item rec-riff-readout">
+            <span class="rec-opt-label">Bars</span>
+            <span id="rec-riff-bars">--</span>
+          </div>
+          <div class="rec-riff-meta-item rec-riff-readout">
+            <span class="rec-opt-label">Tempo fit</span>
+            <span id="rec-riff-confidence">--</span>
+          </div>
+        </div>
+        <div class="rec-section-label">Recognized notes</div>
+        <div class="rec-note-seq rec-riff-notes" id="rec-riff-notes"></div>
+        <pre id="rec-riff-ascii" class="rec-riff-ascii"></pre>
+        <div class="rec-controls rec-riff-actions">
+          <button class="btn primary" id="rec-riff-recognize" type="button">Recognize riff</button>
+          <button class="btn" id="rec-riff-play-gp" type="button" disabled>Play in Guitar Pro Player</button>
+        </div>
       </div>
     </div>
   </section>
@@ -1736,7 +1772,10 @@
         <div class="tts-score-card">
           <div class="tts-score-card-head">
             <div class="tts-score-card-title">Sheet music</div>
-            <button class="btn sm" id="tts-copy" type="button">Copy note list</button>
+            <div class="tts-score-card-actions">
+              <button class="btn sm" id="tts-open-gp" type="button" hidden>Open in GP Player</button>
+              <button class="btn sm" id="tts-copy" type="button">Copy note list</button>
+            </div>
           </div>
           <div class="tts-score-wrap" id="tts-score-wrap">
             <p class="tts-muted">Upload a stem and hit Transcribe. Notes appear on the staff with approximate rhythm.</p>
