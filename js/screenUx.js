@@ -1040,107 +1040,6 @@ function setupTiming() {
   wireDrillFocus('sec-timing', 'timing');
 }
 
-/* ── Tab Analyzer ────────────────────────────────────────────── */
-function setupTabAnalyzer() {
-  const sec = document.getElementById('sec-tabanalyzer');
-  if (!sec) return;
-  ensureBackButton(sec);
-  sec.classList.add('has-setup-summary');
-
-  const tabs = document.createElement('div');
-  tabs.id = 'ta-tabs';
-  const layout = sec.querySelector('.ta-layout');
-  if (!layout) return;
-  layout.parentNode.insertBefore(tabs, layout);
-
-  const inputCol = sec.querySelector('.ta-input-col');
-  const results = sec.querySelector('.ta-results');
-
-  const setup = document.createElement('div');
-  setup.id = 'ta-setup';
-  if (inputCol) inputCol.insertBefore(setup, inputCol.firstChild);
-
-  wrapAsSubview([inputCol].filter(Boolean), { id: 'input', forTabs: 'ta-tabs', active: true });
-  wrapAsSubview([results].filter(Boolean), { id: 'analysis', forTabs: 'ta-tabs', active: false });
-
-  // Hide tuning sidebar list on mobile — use picker
-  const tunList = document.getElementById('sl-ta-tuning')?.closest('.sidebar-list');
-  if (tunList) tunList.classList.add('ta-tuning-list');
-
-  const controller = initSubviewTabs(tabs, [
-    { id: 'input', label: 'Input' },
-    { id: 'analysis', label: 'Analysis' },
-  ], {
-    settingsKey: 'subview.tabanalyzer',
-    defaultId: 'input',
-  });
-
-  // Auto-switch to analysis after results populate
-  if (results) {
-    const obs = new MutationObserver(() => {
-      if (results.querySelector('.ta-report, .ta-section, h3, .quiz-card:not(:only-child)')) {
-        const muted = results.textContent.includes('Paste a tab and hit Analyze');
-        if (!muted && results.children.length) {
-          controller.setActive('analysis');
-        }
-      }
-    });
-    obs.observe(results, { childList: true, subtree: true });
-  }
-
-  // Edit input action in analysis
-  const analysisPanel = document.querySelector('[data-subview="analysis"][data-subview-for="ta-tabs"]');
-  if (analysisPanel && !document.getElementById('ta-edit-input')) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.id = 'ta-edit-input';
-    btn.className = 'btn sm';
-    btn.textContent = 'Edit Input';
-    btn.style.marginBottom = '10px';
-    btn.onclick = () => controller.setActive('input');
-    analysisPanel.insertBefore(btn, analysisPanel.firstChild);
-  }
-
-  const refresh = () => {
-    const tuning = getSetting('ta.tuning', document.querySelector('#sl-ta-tuning .sl-item.active')?.dataset.val || 'Standard');
-    const track = document.querySelector('#sl-ta-track .sl-item.active')?.textContent?.trim();
-    const fields = [
-      {
-        key: 'tuning', value: tuning, hint: 'Tuning',
-        onClick: async () => {
-          const next = await openTuningPicker({ value: tuning });
-          if (next && next !== 'Custom') {
-            const item = document.querySelector(`#sl-ta-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
-            if (item) item.click();
-            refresh();
-          }
-        },
-      },
-    ];
-    if (track) {
-      fields.push({
-        key: 'track', value: track, hint: 'Track',
-        onClick: () => openIoListPicker('Track', 'sl-ta-track', null),
-      });
-    }
-    renderSetupSummary(setup, fields);
-  };
-  refresh();
-
-  if (!document.getElementById('ta-mobile-style')) {
-    const style = document.createElement('style');
-    style.id = 'ta-mobile-style';
-    style.textContent = `
-      @media(max-width:768px){
-        .ta-tuning-list{display:none}
-        #ta-tabs{margin-bottom:10px}
-        .ta-layout{display:block}
-      }
-    `;
-    document.head.appendChild(style);
-  }
-}
-
 /* ── Songwriting / Notes ─────────────────────────────────────── */
 function setupMasterDetail(sectionId, listSel, editorSel) {
   const sec = document.getElementById(sectionId);
@@ -1588,7 +1487,6 @@ export function initScreenUx(config = {}) {
   setupMetronome();
   setupPracticeTimer();
   setupTiming();
-  setupTabAnalyzer();
   setupSongwriter();
   setupNotes();
   setupExercises();

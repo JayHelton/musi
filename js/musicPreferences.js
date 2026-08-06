@@ -17,6 +17,14 @@ import {
 } from './musicProfile.js';
 import { buildRecommendations } from './studyRecommendations.js';
 import { STUDY_CATALOG } from './studyCatalog.js';
+import {
+  CATEGORIES,
+  TOOLS,
+  TOOL_ICONS,
+  toolsInCategory,
+  setFeatureEnabled,
+  getEnabledFeatureIdsRaw,
+} from './tools.js';
 
 let showSectionFn = null;
 let host = null;
@@ -42,9 +50,9 @@ function render() {
 
   host.innerHTML = `
     <div class="section-head">
-      <div class="section-kicker">Profile</div>
-      <h2>Music Preferences</h2>
-      <p>Genre settings shape study context and priority — not shortcuts. Interval and chord-construction method stays universal.</p>
+      <div class="section-kicker">Settings</div>
+      <h2>Settings & Preferences</h2>
+      <p>Choose which tools appear in the app, and tune genre settings that shape study context and priority — not shortcuts.</p>
     </div>
 
     <div class="mp-banner">
@@ -54,6 +62,12 @@ function render() {
         ? 'Recommendations combine foundation, genre relevance, weakness, and review urgency.'
         : 'Add genres below to personalize recommendations. Foundation studies remain available either way.'}</div>
     </div>
+
+    <section class="mp-block">
+      <h3 class="mp-block-title">Features</h3>
+      <p class="mp-block-help">Choose which tools appear in the toolbar and on Home. Settings stays available so you can turn them back on.</p>
+      <div class="mp-feature-groups" id="mp-features"></div>
+    </section>
 
     <section class="mp-block">
       <h3 class="mp-block-title">Genre priorities</h3>
@@ -91,12 +105,67 @@ function render() {
     </section>
   `;
 
+  paintFeatures();
   paintGenres(profile);
   paintGoals(profile);
   paintBalance(profile);
   paintApps(profile);
   paintExclusions(profile);
   paintPreview(rec);
+}
+
+function paintFeatures() {
+  const root = host.querySelector('#mp-features');
+  if (!root) return;
+  root.innerHTML = '';
+  const stored = getEnabledFeatureIdsRaw();
+  const enabledSet = stored === undefined
+    ? new Set(TOOLS.map(t => t.id))
+    : new Set(stored);
+
+  CATEGORIES.forEach(cat => {
+    const tools = toolsInCategory(cat.id);
+    if (!tools.length) return;
+    const block = document.createElement('div');
+    block.className = 'mp-feature-group';
+    block.innerHTML = `<div class="mp-genre-group-label">${escapeHtml(cat.label)}</div>`;
+    const list = document.createElement('div');
+    list.className = 'mp-feature-list';
+    tools.forEach(tool => {
+      const locked = tool.id === 'musicprefs';
+      const on = locked || enabledSet.has(tool.id);
+      const row = document.createElement('label');
+      row.className = 'mp-feature-row' + (on ? ' on' : '') + (locked ? ' locked' : '');
+      row.innerHTML = `
+        <input type="checkbox" class="mp-feature-check" data-tool="${tool.id}"${on ? ' checked' : ''}${locked ? ' disabled' : ''}>
+        <span class="mp-feature-icon">${TOOL_ICONS[tool.id] || ''}</span>
+        <span class="mp-feature-meta">
+          <span class="mp-feature-name">${escapeHtml(tool.label)}</span>
+          <span class="mp-feature-desc">${escapeHtml(tool.description)}</span>
+        </span>
+        ${locked ? '<span class="mp-feature-lock" aria-hidden="true">Always on</span>' : ''}
+      `;
+      list.appendChild(row);
+    });
+    block.appendChild(list);
+    root.appendChild(block);
+  });
+
+  root.querySelectorAll('.mp-feature-check').forEach(input => {
+    if (input.disabled) return;
+    input.onchange = () => {
+      const id = input.dataset.tool;
+      setFeatureEnabled(id, input.checked);
+      notifyFeaturesChanged();
+      paintFeatures();
+    };
+  });
+}
+
+function notifyFeaturesChanged() {
+  try {
+    window.dispatchEvent(new CustomEvent('musi:features-changed'));
+  } catch (_) { /* ignore */ }
 }
 
 function paintGenres(profile) {

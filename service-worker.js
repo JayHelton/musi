@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v128-exercises-inline-player";
+const CACHE_VERSION = "v129-gp-analyze-features";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -111,7 +111,8 @@ const PRECACHE_URLS = [
   "js/triadReference.js",
   "js/sweepPatterns.js",
   "js/data/sweepLibrary.js",
-  "js/tabAnalyzer.js",
+  "js/tab/tabAnalyzer.js",
+  "js/tab/tabAnalysisView.js",
   "js/trackToSheet.js",
   "js/trackToSheet/transcribe.js",
   "js/trackToSheet/score.js",
@@ -121,7 +122,6 @@ const PRECACHE_URLS = [
   "js/gpFollowView.js",
   "js/tab/tabModel.js",
   "js/tab/tabParser.js",
-  "js/tab/tabAnalyzer.js",
   "js/tab/tabPlayer.js",
   "js/tab/metroClick.js",
   "js/tab/gpPercussion.js",

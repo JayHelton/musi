@@ -2,6 +2,7 @@ import { SCALES } from './scales.js';
 import { ROOTS } from './theory.js';
 import { setContext } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
+import { getTabs } from './tools.js';
 
 // A Raycast/VS Code style global launcher. It indexes tools, scales, modes,
 // keys, chord shortcuts and quick actions so power users can jump anywhere with
@@ -29,7 +30,10 @@ const TOOL_TITLES = {
   exercises: 'Exercises',
   drums: 'Drums',
   gpplayer: 'Guitar Pro Player',
-  tabanalyzer: 'Tab Analyzer',
+  studylab: 'Study Lab',
+  tracktosheet: 'Track → Sheet',
+  chordlab: 'Chord Workout',
+  musicprefs: 'Settings & Preferences',
 };
 
 const TOOL_KEYWORDS = {
@@ -53,8 +57,7 @@ const TOOL_KEYWORDS = {
   practice: 'practice timer countdown stopwatch alarm metronome tempo plan bpm schedule interval session',
   exercises: 'exercises media library pdf audio video lesson links guitar pro gp gp5',
   drums: 'drums drum machine beat fill groove rhythm tab sequencer kick snare hihat metal rock punk blast beat practice',
-  gpplayer: 'guitar pro player gp gp5 practice tempo transpose tuning track playback',
-  tabanalyzer: 'tab analyzer analyser guitar bass tablature key tonal center chord progression scale mode arpeggio technique riff solo pdf import breakdown guitar pro',
+  gpplayer: 'guitar pro player gp gp5 practice tempo transpose tuning track playback analyze tab key chord scale arpeggio technique breakdown',
 };
 
 const MODE_NAMES = new Set([
@@ -253,10 +256,10 @@ function buildDom() {
   });
 }
 
-export function initCommandPalette({ showSection, tabs }) {
+export function initCommandPalette({ showSection }) {
   showSectionFn = showSection;
   buildDom();
-  entries = buildEntries(tabs);
+  entries = buildEntries(getTabs());
   built = true;
 
   const trigger = document.getElementById('command-trigger');
@@ -268,4 +271,10 @@ export function initCommandPalette({ showSection, tabs }) {
       isOpen() ? close() : open();
     }
   });
+}
+
+export function refreshCommandPalette() {
+  if (!built) return;
+  entries = buildEntries(getTabs());
+  if (isOpen()) update();
 }

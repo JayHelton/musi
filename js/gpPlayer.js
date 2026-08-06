@@ -130,19 +130,6 @@ function mountCurrent() {
     loopRestSec: exercise?.loopRestSec || 0,
     preferredTrackIndex: exercise?.preferredTrackIndex || 0,
     headerExtra: makeHeaderExtras(),
-    onAnalyze: () => {
-      window.__musiGpHandoff = {
-        bytes: state.bytes,
-        name: state.fileName,
-        trackIndex: state.mount?.getState()?.trackIndex || 0,
-      };
-      location.hash = 'tabanalyzer';
-      setTimeout(() => {
-        if (window.__musiGpHandoff && typeof window.__musiLoadGpHandoff === 'function') {
-          window.__musiLoadGpHandoff(window.__musiGpHandoff);
-        }
-      }, 50);
-    },
   });
 }
 

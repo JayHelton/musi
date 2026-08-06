@@ -331,3 +331,23 @@
   .sln-follow.size-sm .sln-follow-cell,
   .sln-follow.size-sm .sln-follow-label{height:12px;line-height:12px;font-size:.68rem}
 }
+
+/* Inline analysis panel (reuses ta-* result cards from tabanalyzer.css) */
+.gpp-analysis{
+  border:1px solid var(--border);border-radius:var(--radius-screen,18px);
+  background:rgba(18,26,46,0.9);overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04)
+}
+.gpp-analysis-summary{
+  cursor:pointer;padding:10px 14px;font-family:var(--font-pixel,"Press Start 2P",monospace);
+  font-size:.48rem;font-weight:400;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--accent);list-style:none;user-select:none
+}
+.gpp-analysis-summary::-webkit-details-marker{display:none}
+.gpp-analysis[open] .gpp-analysis-summary{border-bottom:1px solid var(--border)}
+.gpp-analysis-results{
+  padding:12px 14px 16px;display:flex;flex-direction:column;gap:10px;
+  max-height:min(70vh,640px);overflow-y:auto;scrollbar-width:thin
+}
+.gpp-analysis-results .ta-card{margin:0}
+.gpp-analysis-results .ta-fb-wrap{overflow-x:auto}

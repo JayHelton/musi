@@ -340,6 +340,82 @@
 
 .mp-preview-guard { margin-top: 8px; font-style: italic; }
 
+.mp-feature-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mp-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mp-feature-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: rgba(11, 16, 32, 0.45);
+  cursor: pointer;
+}
+
+.mp-feature-row.on {
+  border-color: rgba(180, 94, 255, 0.35);
+  background: rgba(180, 94, 255, 0.08);
+}
+
+.mp-feature-row.locked {
+  cursor: default;
+  opacity: 0.92;
+}
+
+.mp-feature-check {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent, #ffe14a);
+  cursor: pointer;
+}
+
+.mp-feature-row.locked .mp-feature-check {
+  cursor: default;
+}
+
+.mp-feature-icon {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  color: var(--accent2, #b45eff);
+}
+
+.mp-feature-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mp-feature-name {
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+
+.mp-feature-desc {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+  display: block;
+}
+
+.mp-feature-lock {
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
