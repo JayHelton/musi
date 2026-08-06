@@ -174,9 +174,9 @@ export function createPlayerState(gpResult, options = {}) {
   }
 
   function playAll() {
+    state.solo = null;
     state.enabledGuitars = state.enabledGuitars.map(() => true);
     state.enabledDrums = state.enabledDrums.map(() => true);
-    leaveSolo();
   }
 
   function setViewTrack(kind, index) {
@@ -267,8 +267,8 @@ export function createPlayerState(gpResult, options = {}) {
     };
   }
 
-  function isAlive(gen) {
-    return !state.destroyed && gen === state.generation;
+  function isAlive(_gen) {
+    return !state.destroyed;
   }
 
   function destroy() {

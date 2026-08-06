@@ -883,6 +883,7 @@ export function addExerciseFromAttachment({
   endBeat = null,
   loopEnabled = null,
   loopRestSec = 0,
+  bpm = null,
 } = {}) {
   if (!attachmentId) return null;
   const store = getStore();
@@ -906,6 +907,7 @@ export function addExerciseFromAttachment({
     endBeat,
     loopEnabled: loopEnabled == null ? false : !!loopEnabled,
     loopRestSec,
+    bpm,
   });
   if (!item) return null;
   store.items.unshift(item);

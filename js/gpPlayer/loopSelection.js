@@ -1,52 +1,59 @@
 // Loop selection controller — wires loopSelectMode ↔ parchment ↔ state.
 
 /**
- * @param {{ getState: ()=>object, setState: (patch:object)=>void, parchment: object, onLoopChanged?: ()=>void }} opts
+ * @param {{
+ *   getState: ()=>object,
+ *   applyRange?: (startBeat:number, endBeat:number)=>void,
+ *   clearRange?: ()=>void,
+ *   setSelectMode?: (on:boolean)=>void,
+ *   parchment: object,
+ *   onLoopChanged?: ()=>void,
+ * }} opts
  */
-export function createLoopSelectionController({ getState, setState, parchment, onLoopChanged } = {}) {
+export function createLoopSelectionController({
+  getState,
+  applyRange,
+  clearRange,
+  setSelectMode,
+  parchment,
+  onLoopChanged,
+} = {}) {
   let enabled = false;
 
   function syncFromState() {
     const st = getState?.();
     if (!st || !parchment) return;
+    enabled = !!st.loopSelectMode;
     if (st.loopStartBeat != null && st.loopEndBeat != null) {
       parchment.setSelection({ startBeat: st.loopStartBeat, endBeat: st.loopEndBeat });
     } else {
       parchment.setSelection(null);
     }
-    parchment.setLoopSelectMode?.(!!st.loopSelectMode);
+    parchment.setLoopSelectMode?.(enabled);
   }
 
   function enable() {
     enabled = true;
-    setState?.({ loopSelectMode: true });
+    setSelectMode?.(true);
     parchment?.setLoopSelectMode?.(true);
     syncFromState();
   }
 
   function disable() {
     enabled = false;
-    setState?.({ loopSelectMode: false });
+    setSelectMode?.(false);
     parchment?.setLoopSelectMode?.(false);
   }
 
   function clear() {
-    setState?.({
-      loopEnabled: false,
-      loopStartBeat: null,
-      loopEndBeat: null,
-    });
+    clearRange?.();
     parchment?.setSelection?.(null);
     if (typeof onLoopChanged === 'function') onLoopChanged();
   }
 
   function applySelection(sel) {
     if (!sel || !Number.isFinite(sel.startBeat) || !Number.isFinite(sel.endBeat)) return;
-    setState?.({
-      loopStartBeat: sel.startBeat,
-      loopEndBeat: sel.endBeat,
-      loopEnabled: true,
-    });
+    applyRange?.(sel.startBeat, sel.endBeat);
     parchment?.setSelection?.({ startBeat: sel.startBeat, endBeat: sel.endBeat });
     if (typeof onLoopChanged === 'function') onLoopChanged();
   }

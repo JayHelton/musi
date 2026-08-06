@@ -51,11 +51,9 @@ export function mountGpPlayer(host, {
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
 
-  const gen = ++mountGeneration;
-  const isAlive = () => {
-    const ctrl = stateController;
-    return ctrl && ctrl.isAlive(gen);
-  };
+  ++mountGeneration;
+  let alive = true;
+  const isAlive = () => alive && !state.destroyed;
 
   const stateController = createPlayerState(gpResult, {
     preferredTrackIndex,
@@ -407,7 +405,13 @@ export function mountGpPlayer(host, {
 
   loopController = createLoopSelectionController({
     getState: () => state,
-    setState: (patch) => Object.assign(state, patch),
+    applyRange: (startBeat, endBeat) => {
+      if (stateController.setLoopRange(startBeat, endBeat)) {
+        state.loopEnabled = true;
+      }
+    },
+    clearRange: () => stateController.clearLoop(),
+    setSelectMode: (on) => { state.loopSelectMode = !!on; },
     parchment,
     onLoopChanged,
   });
@@ -437,7 +441,8 @@ export function mountGpPlayer(host, {
     getMeasureLabel: () => {
       const total = state.viewModel?.measures?.length || 0;
       const cur = player.measureIndex;
-      return total ? `Bar ${Math.min(total, (cur || 0) + 1)} / ${total}` : '';
+      const m = Math.min(total, (cur || 0) + 1);
+      return total ? `Measure ${m} of ${total}` : '';
     },
     getTimeLabel: () => {
       const restTxt = player.playing && player.currentSec ? '' : '';
@@ -506,7 +511,12 @@ export function mountGpPlayer(host, {
       transport?.sync();
       return;
     }
-    if (state.countInEnabled && !player.paused) {
+    if (player.paused) {
+      player.play();
+      transport?.sync();
+      return;
+    }
+    if (state.countInEnabled) {
       ensureAudio();
       const quarterSec = 60 / state.bpm;
       const prevMetro = state.metronomeEnabled;
@@ -592,7 +602,8 @@ export function mountGpPlayer(host, {
       metronomeEnabled: state.metronomeEnabled,
     }),
     destroy() {
-      if (!stateController.isAlive(gen)) return;
+      if (!alive) return;
+      alive = false;
       clearCountIn();
       stateController.destroy();
       player.stop();

@@ -34,8 +34,8 @@ function injectStyles() {
 .gpp-parch-system{display:flex;gap:0;margin-bottom:14px;align-items:flex-start}
 .gpp-parch-measure{position:relative;flex:1;min-width:0;padding:4px 6px 8px;border-left:2px solid ${PARCH_INK}}
 .gpp-parch-measure:first-child{border-left-width:3px}
-.gpp-parch-measure.active{outline:2px solid #6b4c9a;outline-offset:2px;background:rgba(107,76,154,0.08)}
-.gpp-parch-measure.playing::before{content:"▶";position:absolute;left:4px;top:2px;font-size:10px;color:#6b4c9a;font-weight:700}
+.gpp-parch-measure.is-active{outline:2px solid #6b4c9a;outline-offset:2px;background:rgba(107,76,154,0.08)}
+.gpp-parch-measure.is-active::before{content:"▶";position:absolute;left:4px;top:2px;font-size:10px;color:#6b4c9a;font-weight:700}
 .gpp-parch-bar-num{font-size:10px;font-weight:700;margin-bottom:2px;opacity:0.75}
 .gpp-parch-marker{font-size:9px;opacity:0.65;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gpp-parch-staff{position:relative}
@@ -51,7 +51,7 @@ function injectStyles() {
 .gpp-parch-handle{position:absolute;top:0;bottom:0;width:8px;cursor:ew-resize;z-index:4;touch-action:none}
 .gpp-parch-handle.start{left:-4px}
 .gpp-parch-handle.end{right:-4px}
-.gpp-parch-measure.in-selection{background:rgba(107,76,154,0.06)}
+.gpp-parch-measure.in-loop{background:rgba(107,76,154,0.06)}
 .gpp-parch-measure.selecting{outline:1px dashed #6b4c9a}
 `;
   document.head.appendChild(style);
@@ -351,7 +351,7 @@ export function mountParchmentView(host, {
     if (selOverlayEl) { selOverlayEl.remove(); selOverlayEl = null; }
     if (handleStart) { handleStart.remove(); handleStart = null; }
     if (handleEnd) { handleEnd.remove(); handleEnd = null; }
-    measureEls.forEach((el) => el?.classList.remove('in-selection'));
+    measureEls.forEach((el) => el?.classList.remove('in-loop'));
   }
 
   function paintSelection(nextSel) {
@@ -363,7 +363,7 @@ export function mountParchmentView(host, {
     for (let i = startIdx; i <= endIdx; i++) {
       const el = measureEls[i];
       if (!el) continue;
-      el.classList.add('in-selection');
+      el.classList.add('in-loop');
       if (!firstEl) firstEl = el;
       lastEl = el;
     }
@@ -423,11 +423,10 @@ export function mountParchmentView(host, {
     });
   }
 
-  function paintActive(mi, playing) {
+  function paintActive(mi) {
     measureEls.forEach((el, i) => {
       if (!el) return;
-      el.classList.toggle('active', i === mi);
-      el.classList.toggle('playing', playing && i === mi);
+      el.classList.toggle('is-active', i === mi);
     });
   }
 
@@ -487,10 +486,10 @@ export function mountParchmentView(host, {
     const mi = measureIndex != null ? measureIndex : measureIndexAtBeat(beat);
 
     if (mi !== lastActive) {
-      paintActive(mi, playing);
+      paintActive(mi);
       lastActive = mi;
     } else {
-      paintActive(mi, playing);
+      paintActive(mi);
     }
     positionPlayhead(beat, mi);
 
