@@ -80,15 +80,7 @@ function setupScaleRef() {
   setup.className = 'mobile-setup-first';
   insertBefore(layout, setup, main);
 
-  const tabs = document.createElement('div');
-  tabs.id = 'scaleref-tabs';
-  insertBefore(main, tabs, main.firstChild);
-
-  const scaleControls = document.getElementById('ref-scale-controls');
-  const sweepControls = document.getElementById('ref-sweep-controls');
   const fbCard = document.getElementById('ref-fb-card');
-  const refCard = document.getElementById('ref-card');
-  const modes = document.getElementById('ref-modes');
 
   // Move fret opts into details
   const opts = fbCard?.querySelector('.ref-fb-opts');
@@ -98,73 +90,11 @@ function setupScaleRef() {
     details.id = 'ref-fb-options-details';
     details.innerHTML = `<summary><span class="adv-gear">⚙</span> Options</summary>`;
     const body = document.createElement('div');
-    // Keep view picker outside options — moved to tabs
-    const viewPicker = opts.querySelector('#ref-view-picker');
-    if (viewPicker) viewPicker.style.display = 'none';
     [...opts.querySelectorAll('.ref-fb-range, .ref-fb-check')].forEach(el => body.appendChild(el));
     details.appendChild(body);
     if (fbCard) fbCard.insertBefore(details, fbCard.querySelector('.ref-fb-scroll'));
   }
 
-  // Sweep prev/next controls
-  if (sweepControls && !document.getElementById('ref-sweep-nav')) {
-    const nav = document.createElement('div');
-    nav.id = 'ref-sweep-nav';
-    nav.className = 'setup-summary-fields';
-    nav.style.marginBottom = '10px';
-    nav.innerHTML = `
-      <button type="button" class="btn sm" id="ref-sweep-prev-pat" aria-label="Previous pattern">← Pattern</button>
-      <button type="button" class="btn sm" id="ref-sweep-next-pat" aria-label="Next pattern">Pattern →</button>
-      <button type="button" class="btn sm" id="ref-sweep-prev-inv" aria-label="Previous inversion">← Inv</button>
-      <button type="button" class="btn sm" id="ref-sweep-next-inv" aria-label="Next inversion">Inv →</button>
-    `;
-    sweepControls.parentNode.insertBefore(nav, sweepControls);
-  }
-
-  const scalePanel = wrapAsSubview(
-    [fbCard, refCard, modes].filter(Boolean),
-    { id: 'scale', forTabs: 'scaleref-tabs', active: true }
-  );
-  // Sweep panel: sweep controls + shared fretboard stays in scale for now;
-  // scaleReference.js already toggles visibility. We sync tabs with view picker.
-  const sweepPanel = document.createElement('div');
-  sweepPanel.className = 'subview-panel';
-  sweepPanel.dataset.subview = 'sweeps';
-  sweepPanel.dataset.subviewFor = 'scaleref-tabs';
-  sweepPanel.hidden = true;
-  if (sweepControls) {
-    // Keep sweep controls in DOM where scaleReference expects them;
-    // tab switching will toggle via existing view buttons.
-  }
-
-  initSubviewTabs(tabs, [
-    { id: 'scale', label: 'Scale' },
-    { id: 'sweeps', label: 'Sweeps' },
-  ], {
-    settingsKey: 'subview.scaleref',
-    defaultId: 'scale',
-    onChange: (id) => {
-      const btn = document.querySelector(`.ref-view-btn[data-ref-view="${id === 'sweeps' ? 'sweep' : 'scale'}"]`);
-      if (btn) btn.click();
-      // Show shared fretboard in both; hide scale-only bits
-      if (scaleControls) scaleControls.hidden = id === 'sweeps';
-      if (refCard) refCard.hidden = id === 'sweeps';
-      if (modes) modes.hidden = id === 'sweeps';
-      if (sweepControls) sweepControls.hidden = id !== 'sweeps';
-      const nav = document.getElementById('ref-sweep-nav');
-      if (nav) nav.hidden = id !== 'sweeps';
-      refreshScaleRefSetup();
-    },
-  });
-
-  // Sync initial
-  const initial = getSetting('subview.scaleref', 'scale');
-  if (initial === 'sweeps') {
-    const btn = document.querySelector('.ref-view-btn[data-ref-view="sweep"]');
-    if (btn) btn.click();
-  }
-
-  wireSweepNav();
   refreshScaleRefSetup();
   subscribeContext(() => refreshScaleRefSetup());
 }
@@ -193,25 +123,24 @@ function refreshScaleRefSetup() {
   ]);
 }
 
-function wireSweepNav() {
-  // Prefer the in-panel inversion steppers that scaleReference renders.
-  document.getElementById('ref-sweep-prev-pat')?.addEventListener('click', () => {
-    const btns = [...document.querySelectorAll('#ref-sweep-controls [data-sweep-pattern]')];
+function wireTriadSweepNav() {
+  document.getElementById('triad-sweep-prev-pat')?.addEventListener('click', () => {
+    const btns = [...document.querySelectorAll('#triad-sweep-controls [data-sweep-pattern]')];
     const i = btns.findIndex(b => b.classList.contains('active'));
     if (i < 0 || !btns.length) return;
     btns[(i - 1 + btns.length) % btns.length].click();
   });
-  document.getElementById('ref-sweep-next-pat')?.addEventListener('click', () => {
-    const btns = [...document.querySelectorAll('#ref-sweep-controls [data-sweep-pattern]')];
+  document.getElementById('triad-sweep-next-pat')?.addEventListener('click', () => {
+    const btns = [...document.querySelectorAll('#triad-sweep-controls [data-sweep-pattern]')];
     const i = btns.findIndex(b => b.classList.contains('active'));
     if (i < 0 || !btns.length) return;
     btns[(i + 1) % btns.length].click();
   });
-  document.getElementById('ref-sweep-prev-inv')?.addEventListener('click', () => {
-    document.querySelector('#ref-sweep-controls [data-sweep-inv-dir="-1"]')?.click();
+  document.getElementById('triad-sweep-prev-inv')?.addEventListener('click', () => {
+    document.querySelector('#triad-sweep-controls [data-sweep-inv-dir="-1"]')?.click();
   });
-  document.getElementById('ref-sweep-next-inv')?.addEventListener('click', () => {
-    document.querySelector('#ref-sweep-controls [data-sweep-inv-dir="1"]')?.click();
+  document.getElementById('triad-sweep-next-inv')?.addEventListener('click', () => {
+    document.querySelector('#triad-sweep-controls [data-sweep-inv-dir="1"]')?.click();
   });
 }
 
@@ -1364,6 +1293,8 @@ function syncCompactProgress(sectionId, prefix) {
 }
 
 /* ── Triads Reference ────────────────────────────────────────── */
+let triadsRefTabsApi = null;
+
 function setupTriads() {
   const sec = document.getElementById('sec-triads');
   if (!sec) return;
@@ -1379,6 +1310,18 @@ function setupTriads() {
   setup.className = 'mobile-setup-first';
   insertBefore(layout, setup, main);
 
+  const tabs = document.createElement('div');
+  tabs.id = 'triadsref-tabs';
+  insertBefore(main, tabs, main.firstChild);
+
+  const fbCard = sec.querySelector('.ref-fb-card');
+  const infoCard = document.getElementById('triad-info-card');
+  const triadMap = document.getElementById('triad-map');
+  const sweepPanel = document.getElementById('triad-sweep-panel');
+  const sweepControls = document.getElementById('triad-sweep-controls');
+  const triadOnlyOpts = document.getElementById('triad-only-opts');
+  const stringSetSidebar = document.getElementById('triad-stringset-sidebar');
+
   // Collapse fret opts into Options details
   const opts = sec.querySelector('.ref-fb-opts');
   if (opts && !document.getElementById('triad-fb-options-details')) {
@@ -1388,17 +1331,83 @@ function setupTriads() {
     details.innerHTML = `<summary><span class="adv-gear">⚙</span> Options</summary>`;
     const body = document.createElement('div');
     const playBtn = opts.querySelector('#triad-fb-play');
-    [...opts.querySelectorAll('.ref-fb-range, .ref-fb-check')].forEach(el => body.appendChild(el));
+    const viewPicker = opts.querySelector('#triad-view-picker');
+    if (viewPicker) viewPicker.style.display = 'none';
+    if (triadOnlyOpts) body.appendChild(triadOnlyOpts);
     details.appendChild(body);
-    const fbCard = sec.querySelector('.ref-fb-card');
-    if (fbCard) fbCard.insertBefore(details, document.getElementById('triad-map'));
-    // Keep play button visible in the head
+    if (fbCard) fbCard.insertBefore(details, triadMap || sweepPanel);
     if (playBtn && opts) opts.appendChild(playBtn);
   }
 
+  if (sweepControls && !document.getElementById('triad-sweep-nav')) {
+    const nav = document.createElement('div');
+    nav.id = 'triad-sweep-nav';
+    nav.className = 'setup-summary-fields';
+    nav.style.marginBottom = '10px';
+    nav.hidden = true;
+    nav.innerHTML = `
+      <button type="button" class="btn sm" id="triad-sweep-prev-pat" aria-label="Previous pattern">← Pattern</button>
+      <button type="button" class="btn sm" id="triad-sweep-next-pat" aria-label="Next pattern">Pattern →</button>
+      <button type="button" class="btn sm" id="triad-sweep-prev-inv" aria-label="Previous inversion">← Inv</button>
+      <button type="button" class="btn sm" id="triad-sweep-next-inv" aria-label="Next inversion">Inv →</button>
+    `;
+    sweepControls.parentNode.insertBefore(nav, sweepControls);
+  }
+
+  // Triads/Sweeps share the same cards — toggle inner panels only (do not wrap
+  // fbCard in a subview panel or the Sweeps mobile tab hides the whole fretboard).
+  function syncTriadSubviewVisibility(tabId) {
+    const isSweep = tabId === 'sweeps';
+    if (triadMap) triadMap.hidden = isSweep;
+    if (sweepPanel) sweepPanel.hidden = !isSweep;
+    if (triadOnlyOpts) triadOnlyOpts.hidden = isSweep;
+    if (stringSetSidebar) stringSetSidebar.hidden = isSweep;
+    const nav = document.getElementById('triad-sweep-nav');
+    if (nav) nav.hidden = !isSweep;
+  }
+
+  const legacySubview = getSetting('subview.scaleref', null);
+  const legacyView = getSetting('ref.viewMode', null, ['scale', 'sweep']);
+  let initialSubview = getSetting('subview.triadsref', null);
+  if (!initialSubview && (legacySubview === 'sweeps' || legacyView === 'sweep')) {
+    initialSubview = 'sweeps';
+    saveSetting('subview.triadsref', 'sweeps');
+    if (!getSetting('triadref.viewMode', null, ['triads', 'sweep'])) {
+      saveSetting('triadref.viewMode', 'sweep');
+    }
+  }
+  initialSubview = initialSubview || 'triads';
+
+  triadsRefTabsApi = initSubviewTabs(tabs, [
+    { id: 'triads', label: 'Triads' },
+    { id: 'sweeps', label: 'Sweeps' },
+  ], {
+    settingsKey: 'subview.triadsref',
+    defaultId: initialSubview,
+    onChange: (id) => {
+      const viewMode = id === 'sweeps' ? 'sweep' : 'triads';
+      saveSetting('triadref.viewMode', viewMode);
+      syncTriadSubviewVisibility(id);
+      const btn = document.querySelector(`.ref-view-btn[data-triad-view="${viewMode}"]`);
+      if (btn) btn.click();
+      refreshTriadsSetup();
+    },
+  });
+
+  syncTriadSubviewVisibility(triadsRefTabsApi.active);
+
+  wireTriadSweepNav();
   refreshTriadsSetup();
   subscribeContext(() => refreshTriadsSetup());
-  document.addEventListener('musi:triadref-change', () => refreshTriadsSetup());
+  document.addEventListener('musi:triadref-change', (e) => {
+    const viewMode = e.detail?.viewMode;
+    if (viewMode) {
+      const tabId = viewMode === 'sweep' ? 'sweeps' : 'triads';
+      triadsRefTabsApi?.setActive(tabId, { silent: true });
+      syncTriadSubviewVisibility(tabId);
+    }
+    refreshTriadsSetup();
+  });
 }
 
 function refreshTriadsSetup() {
@@ -1406,6 +1415,7 @@ function refreshTriadsSetup() {
   if (!el) return;
   const c = getContext();
   const tuning = getSetting('triadref.tuning', 'Standard');
+  const viewMode = getSetting('triadref.viewMode', 'triads', ['triads', 'sweep']);
   const stringSet = Number(getSetting('triadref.stringSet', NaN));
   const setLabel = (() => {
     const item = document.querySelector(`#sl-triad-stringset .sl-item.active`);
@@ -1416,7 +1426,7 @@ function refreshTriadsSetup() {
   const h2 = document.querySelector('#sec-triads .section-head h2');
   if (h2) h2.dataset.context = `${c.root} · ${tuning}`;
 
-  renderSetupSummary(el, [
+  const fields = [
     {
       key: 'root', label: 'Root', value: c.root, hint: 'Root',
       onClick: async () => {
@@ -1428,7 +1438,10 @@ function refreshTriadsSetup() {
         }
       },
     },
-    {
+  ];
+
+  if (viewMode !== 'sweep') {
+    fields.push({
       key: 'stringset', label: 'Strings', value: setLabel, hint: 'String set',
       onClick: async () => {
         const items = [...document.querySelectorAll('#sl-triad-stringset .sl-item')].map(el => ({
@@ -1448,20 +1461,23 @@ function refreshTriadsSetup() {
           refreshTriadsSetup();
         }
       },
+    });
+  }
+
+  fields.push({
+    key: 'tuning', label: 'Tuning', value: tuning, hint: viewMode === 'sweep' ? 'Ignored for sweeps' : 'Tuning',
+    onClick: async () => {
+      const next = await openTuningPicker({ value: tuning });
+      if (next && next !== 'Custom') {
+        saveSetting('triadref.tuning', next);
+        const item = document.querySelector(`#sl-triad-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
+        if (item) item.click();
+        refreshTriadsSetup();
+      }
     },
-    {
-      key: 'tuning', label: 'Tuning', value: tuning, hint: 'Tuning',
-      onClick: async () => {
-        const next = await openTuningPicker({ value: tuning });
-        if (next && next !== 'Custom') {
-          saveSetting('triadref.tuning', next);
-          const item = document.querySelector(`#sl-triad-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
-          if (item) item.click();
-          refreshTriadsSetup();
-        }
-      },
-    },
-  ]);
+  });
+
+  renderSetupSummary(el, fields);
 }
 
 /* ── Generic back buttons for remaining tools ────────────────── */
