@@ -40,7 +40,8 @@ export function mountTrackMixer(host, { stateController, onChange, onViewTrack }
   function buildRows() {
     list.innerHTML = '';
     rows = [];
-    const { state, gp } = stateController;
+    const state = stateController.state;
+    const gp = state.gp;
 
     (gp.tracks || []).forEach((track, i) => {
       rows.push(makeRow('guitar', i, track));
@@ -51,6 +52,7 @@ export function mountTrackMixer(host, { stateController, onChange, onViewTrack }
   }
 
   function makeRow(kind, index, track) {
+    const state = stateController.state;
     const isViewing = state.viewKind === kind && state.viewIndex === index;
     const isSolo = state.solo?.kind === kind && state.solo.index === index;
     const enabled = kind === 'guitar'

@@ -33,6 +33,9 @@ import {
   restartTarget,
 } from '../../js/gpPlayer/rangeUtils.js';
 import { createPlayerState } from '../../js/gpPlayer/playerState.js';
+import { mountTrackMixer } from '../../js/gpPlayer/trackMixer.js';
+import { mountSettingsDrawer } from '../../js/gpPlayer/settingsDrawer.js';
+import { mountParchmentView } from '../../js/gpPlayer/parchmentView.js';
 
 // ---- duration math ----
 assert.equal(noteValueToQuarters(4), 1);
@@ -371,5 +374,218 @@ const psInit = createPlayerState(fakeGp, {
 assert.equal(psInit.state.transpose, 3);
 assert.equal(psInit.state.retuneMode, 'pitches');
 psInit.destroy();
+
+// ---- trackMixer mount + mix load regression (no AudioContext) ----
+function installDomShim() {
+  if (typeof document !== 'undefined' && document.querySelector) return;
+
+  function matchesSelector(el, sel) {
+    if (!el || !sel) return false;
+    if (sel.startsWith('.')) {
+      return (el.className || '').split(/\s+/).filter(Boolean).includes(sel.slice(1));
+    }
+    if (sel.startsWith('#')) return el.id === sel.slice(1);
+    if (sel.startsWith('[id$=')) {
+      const suffix = sel.match(/^\[id\$=\"([^\"]+)\"\]$/)?.[1];
+      return suffix ? String(el.id || '').endsWith(suffix) : false;
+    }
+    return el.tagName?.toLowerCase() === sel.toLowerCase();
+  }
+
+  function querySelector(root, sel) {
+    if (matchesSelector(root, sel)) return root;
+    for (const child of root.children || []) {
+      const hit = querySelector(child, sel);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  function querySelectorAll(root, sel) {
+    const out = [];
+    function walk(node) {
+      if (matchesSelector(node, sel)) out.push(node);
+      for (const child of node.children || []) walk(child);
+    }
+    walk(root);
+    return out;
+  }
+
+  function makeEl(tag) {
+    const el = {
+      tagName: String(tag).toUpperCase(),
+      id: '',
+      style: {},
+      dataset: {},
+      children: [],
+      attributes: {},
+      parentElement: null,
+      textContent: '',
+      innerHTML: '',
+      value: '',
+      checked: false,
+      hidden: false,
+      clientWidth: 600,
+      tabIndex: -1,
+      classList: {
+        _classes: new Set(),
+        add(...c) { c.forEach((x) => this._classes.add(x)); el.className = [...this._classes].join(' '); },
+        remove(...c) { c.forEach((x) => this._classes.delete(x)); el.className = [...this._classes].join(' '); },
+        toggle(c, force) {
+          if (force === true) { this.add(c); return true; }
+          if (force === false) { this.remove(c); return false; }
+          if (this.contains(c)) { this.remove(c); return false; }
+          this.add(c);
+          return true;
+        },
+        contains(c) { return this._classes.has(c); },
+      },
+      set className(v) {
+        this._className = v || '';
+        this.classList._classes = new Set(this._className.split(/\s+/).filter(Boolean));
+      },
+      get className() {
+        return this._className || '';
+      },
+      setAttribute(k, v) {
+        this.attributes[k] = v;
+        if (k === 'id') {
+          this.id = v;
+          document._byId.set(v, this);
+        }
+        if (k === 'class') this.className = v;
+      },
+      getAttribute(k) { return this.attributes[k]; },
+      appendChild(c) {
+        if (!c) return c;
+        this.children.push(c);
+        c.parentElement = this;
+        if (c.id) document._byId.set(c.id, c);
+        return c;
+      },
+      append(...nodes) { nodes.flat().forEach((n) => this.appendChild(n)); },
+      insertBefore(c, ref) {
+        const i = this.children.indexOf(ref);
+        if (i >= 0) this.children.splice(i, 0, c);
+        else this.children.push(c);
+        c.parentElement = this;
+        return c;
+      },
+      removeChild(c) {
+        const i = this.children.indexOf(c);
+        if (i >= 0) this.children.splice(i, 1);
+        c.parentElement = null;
+        return c;
+      },
+      querySelector(sel) { return querySelector(this, sel); },
+      querySelectorAll(sel) { return querySelectorAll(this, sel); },
+      closest(sel) {
+        let node = this;
+        while (node) {
+          if (matchesSelector(node, sel)) return node;
+          node = node.parentElement;
+        }
+        return null;
+      },
+      getBoundingClientRect() {
+        return { left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 };
+      },
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    Object.defineProperty(el, 'innerHTML', {
+      get() { return el._innerHTML || ''; },
+      set(v) {
+        el._innerHTML = v;
+        el.children = [];
+      },
+    });
+    return el;
+  }
+
+  const head = makeEl('head');
+  const body = makeEl('body');
+  const root = {
+    head,
+    body,
+    _byId: new Map(),
+    createElement: makeEl,
+    createTextNode(text) { return { nodeType: 3, textContent: text }; },
+    getElementById(id) { return this._byId.get(id) || null; },
+    querySelector(sel) { return querySelector(body, sel) || querySelector(head, sel); },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+
+  globalThis.document = root;
+  globalThis.window = globalThis.window || globalThis;
+  window.matchMedia = window.matchMedia || (() => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  window.ResizeObserver = window.ResizeObserver || class {
+    observe() {}
+    disconnect() {}
+  };
+  window.requestAnimationFrame = window.requestAnimationFrame || (() => 0);
+  window.cancelAnimationFrame = window.cancelAnimationFrame || (() => {});
+}
+
+installDomShim();
+
+const psMix = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
+const mixState = psMix.state;
+psMix.applyTransforms();
+const mixPlayer = createGpMixPlayer();
+const mixLoadOpts = {
+  guitarModels: mixState.gp.tracks.map((t, i) => (
+    i === mixState.trackIndex && mixState.viewModel?.strings ? mixState.viewModel : t.model
+  )),
+  drumModels: (mixState.gp.drumTracks || []).map((d) => d.model),
+  bpm: mixState.bpm,
+  loopRestSec: mixState.loopRestSec,
+  ...psMix.getEffectiveEnabled(),
+  metronomeEnabled: !!mixState.metronomeEnabled,
+  referenceModel: mixState.viewModel || mixState.gp.drumTracks?.[0]?.model || null,
+};
+mixPlayer.load(mixLoadOpts);
+assert.ok(mixPlayer.events.length > 0, 'mix player should have events after load');
+
+const mixerHost = document.createElement('div');
+const mixer = mountTrackMixer(mixerHost, { stateController: psMix });
+assert.ok(typeof mixer.sync === 'function');
+assert.ok(mixerHost.children.length > 0);
+mixer.destroy();
+psMix.destroy();
+
+// ---- settingsDrawer: unique ids per surface + sync ----
+const psSet = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
+const settingsHost = document.createElement('div');
+const settings = mountSettingsDrawer(settingsHost, {
+  stateController: psSet,
+  uidPrefix: 'smoke-set',
+});
+assert.ok(typeof settings.sync === 'function');
+const drawerSections = settingsHost.querySelectorAll('.gpp-drawer-section');
+assert.ok(drawerSections.length >= 2, 'drawer + sheet should each have sections');
+const drawerBpm = settingsHost.querySelector('[id$="-drawer-bpm"]');
+const sheetBpm = settingsHost.querySelector('[id$="-sheet-bpm"]');
+assert.ok(drawerBpm, 'drawer tempo input should exist');
+assert.ok(sheetBpm, 'sheet tempo input should exist');
+assert.notEqual(drawerBpm.id, sheetBpm.id, 'drawer and sheet ids must differ');
+settings.sync();
+settings.destroy();
+psSet.destroy();
+
+// ---- parchment mount: viewport + measures ----
+const parchHost = document.createElement('div');
+const parchment = mountParchmentView(parchHost, {
+  guitarModel: fakeGp.tracks[0].model,
+  percModel: perc,
+});
+assert.ok(parchHost.querySelector('.gpp-parch-viewport'), 'parchment viewport should mount');
+assert.ok(parchHost.querySelectorAll('.gpp-parch-measure').length >= 1, 'parchment should render measures');
+parchment.destroy();
 
 console.log('gp-player smoke: ok');

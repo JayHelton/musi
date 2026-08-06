@@ -90,31 +90,34 @@ export function mountSettingsDrawer(host, {
   );
   host.append(backdrop, drawer, sheet);
 
-  const ids = {
-    metro: `${prefix}-metro`,
-    countIn: `${prefix}-countin`,
-    loop: `${prefix}-loop`,
-    loopStart: `${prefix}-loop-start`,
-    loopEnd: `${prefix}-loop-end`,
-    rest: `${prefix}-rest`,
-    transpose: `${prefix}-transpose`,
-    tuning: `${prefix}-tuning`,
-    retuneFinger: `${prefix}-retune-finger`,
-    retunePitch: `${prefix}-retune-pitch`,
-    zoom: `${prefix}-zoom`,
-    autoFollow: `${prefix}-autofollow`,
-    bpm: `${prefix}-bpm`,
-    bpmSlider: `${prefix}-bpm-slider`,
-  };
-
   const controls = {};
-  const analysisResults = el('div', {
-    class: 'gpp-analysis-results ta-results',
-    html: '<div class="quiz-card"><p class="ta-muted">Click Analyze for key, chord, scale, and technique breakdown.</p></div>',
-  });
 
-  function buildSection(target) {
+  function makeIds(idSuffix) {
+    return {
+      metro: `${prefix}-${idSuffix}-metro`,
+      countIn: `${prefix}-${idSuffix}-countin`,
+      loop: `${prefix}-${idSuffix}-loop`,
+      loopStart: `${prefix}-${idSuffix}-loop-start`,
+      loopEnd: `${prefix}-${idSuffix}-loop-end`,
+      rest: `${prefix}-${idSuffix}-rest`,
+      transpose: `${prefix}-${idSuffix}-transpose`,
+      tuning: `${prefix}-${idSuffix}-tuning`,
+      retuneFinger: `${prefix}-${idSuffix}-retune-finger`,
+      retunePitch: `${prefix}-${idSuffix}-retune-pitch`,
+      zoom: `${prefix}-${idSuffix}-zoom`,
+      autoFollow: `${prefix}-${idSuffix}-autofollow`,
+      bpm: `${prefix}-${idSuffix}-bpm`,
+      bpmSlider: `${prefix}-${idSuffix}-bpm-slider`,
+    };
+  }
+
+  function buildSection(target, idSuffix) {
     target.innerHTML = '';
+    const ids = makeIds(idSuffix);
+    const analysisResults = el('div', {
+      class: 'gpp-analysis-results ta-results',
+      html: '<div class="quiz-card"><p class="ta-muted">Click Analyze for key, chord, scale, and technique breakdown.</p></div>',
+    });
 
     const bpmInput = el('input', {
       type: 'number', class: 'gpp-num', id: ids.bpm, min: '40', max: '280', step: '1',
@@ -153,10 +156,10 @@ export function mountSettingsDrawer(host, {
     });
     const tuningSelect = el('select', { class: 'gpp-select', id: ids.tuning, 'aria-label': 'Tuning' });
     const retuneFinger = el('input', {
-      type: 'radio', name: `${prefix}-retune`, id: ids.retuneFinger, value: 'fingerings', checked: 'checked',
+      type: 'radio', name: `${prefix}-${idSuffix}-retune`, id: ids.retuneFinger, value: 'fingerings', checked: 'checked',
     });
     const retunePitch = el('input', {
-      type: 'radio', name: `${prefix}-retune`, id: ids.retunePitch, value: 'pitches',
+      type: 'radio', name: `${prefix}-${idSuffix}-retune`, id: ids.retunePitch, value: 'pitches',
     });
     const zoomInput = el('input', {
       type: 'range', class: 'gpp-slider', id: ids.zoom, min: '75', max: '150', step: '1',
@@ -230,7 +233,7 @@ export function mountSettingsDrawer(host, {
       el('div', { class: 'gpp-drawer-section' }, [
         el('div', { class: 'gpp-drawer-section-title', text: 'Analysis' }),
         analyzeBtn,
-        analysisResults.cloneNode(true),
+        analysisResults,
       ]),
     ]);
 
@@ -317,8 +320,8 @@ export function mountSettingsDrawer(host, {
     };
   }
 
-  controls.drawer = buildSection(drawerBody);
-  controls.sheet = buildSection(sheetBody);
+  controls.drawer = buildSection(drawerBody, 'drawer');
+  controls.sheet = buildSection(sheetBody, 'sheet');
 
   function applyTranspose(n) {
     stateController.state.transpose = Math.max(-12, Math.min(12, Number(n) || 0));
@@ -384,6 +387,7 @@ export function mountSettingsDrawer(host, {
   }
 
   function syncControlSet(c) {
+    if (!c) return;
     const st = stateController.state;
     syncBpmSliderFromBpm(c.bpmInput, c.bpmSlider, c.bpmPct);
     rebuildTuningSelect(c.tuningSelect);
@@ -399,7 +403,8 @@ export function mountSettingsDrawer(host, {
     c.zoomPct.textContent = `${c.zoomInput.value}%`;
     c.autoFollowCheck.checked = !!st.autoFollow;
     c.loopSelBtn.classList.toggle('is-on', !!st.loopSelectMode);
-    c.tuningSelect.closest('.gpp-fret-only').hidden = st.viewKind !== 'guitar';
+    const fretOnly = c.tuningSelect?.closest?.('.gpp-fret-only');
+    if (fretOnly) fretOnly.hidden = st.viewKind !== 'guitar';
   }
 
   function sync() {
