@@ -1,6 +1,11 @@
 // Centralized tool / category metadata shared by Home, mobile hubs,
 // desktop dock, command palette, and hold-to-record relevance.
 
+import { getSetting, saveSetting } from './persistence.js';
+
+export const FEATURES_ENABLED_KEY = 'features.enabled';
+const LOCKED_FEATURE_IDS = ['musicprefs'];
+
 export const CATEGORIES = [
   {
     id: 'train',
@@ -245,17 +250,8 @@ export const TOOLS = [
     label: 'Guitar Pro Player',
     short: 'GP Player',
     category: 'tools',
-    description: 'Play Guitar Pro tracks, select measure ranges, and save them as Exercises.',
+    description: 'Play Guitar Pro tracks, analyze key/chords/scales inline, select measure ranges, and save them as Exercises.',
     title: 'Guitar Pro Player',
-    holdRecord: false,
-  },
-  {
-    id: 'tabanalyzer',
-    label: 'Tab Analyzer',
-    short: 'Tabs',
-    category: 'tools',
-    description: 'Break down a tab: key, chords, scales, arpeggios.',
-    title: 'Tab Analyzer',
     holdRecord: false,
   },
   {
@@ -270,11 +266,11 @@ export const TOOLS = [
   },
   {
     id: 'musicprefs',
-    label: 'Music Preferences',
-    short: 'Profile',
+    label: 'Settings & Preferences',
+    short: 'Settings',
     category: 'tools',
-    description: 'Genre priorities, learning goals, and study recommendation balance.',
-    title: 'Music Preferences',
+    description: 'Feature visibility, genre priorities, learning goals, and study recommendation balance.',
+    title: 'Settings & Preferences',
     holdRecord: false,
   },
 ];
@@ -311,7 +307,6 @@ export const TOOL_ICONS = {
   practice: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="8"/><path d="M12 14V9.5"/><path d="M9 2h6"/><path d="M18.5 6.5 20 5"/></svg>',
   drums: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="9" ry="3.5"/><path d="M3 8v5c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V8"/><path d="M7 16.5 4 22M17 16.5 20 22M12 17v5"/></svg>',
 
-  tabanalyzer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M7 13h6M7 17h10"/><circle cx="16.5" cy="6" r="1.2" fill="currentColor" stroke="none"/></svg>',
   tracktosheet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/><circle cx="9" cy="15" r="2.2" fill="currentColor" stroke="none"/><path d="M11.2 15V8l5-1v7"/><circle cx="16.2" cy="14" r="2.2" fill="currentColor" stroke="none"/></svg>',
   studylab: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15v-4"/><path d="M12 15V8"/><path d="M16 15v-6"/><circle cx="18" cy="6" r="2"/></svg>',
   musicprefs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.4.7 1.1 1.1 1.9 1.1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
@@ -334,14 +329,58 @@ export function isHoldRecordRelevant(toolId) {
   return !!(tool && tool.holdRecord);
 }
 
-/** Tabs shape used by legacy call sites (command palette, split view). */
+function allToolIds() {
+  return TOOLS.map(t => t.id);
+}
+
+/** Raw enabled IDs from storage; undefined when unset (default-on). */
+export function getEnabledFeatureIdsRaw() {
+  const v = getSetting(FEATURES_ENABLED_KEY, undefined);
+  if (v === undefined) return undefined;
+  if (!Array.isArray(v)) return undefined;
+  return v.filter(id => TOOLS.some(t => t.id === id));
+}
+
+export function isFeatureEnabled(id) {
+  if (LOCKED_FEATURE_IDS.includes(id)) return true;
+  const stored = getEnabledFeatureIdsRaw();
+  if (stored === undefined) return true;
+  return stored.includes(id);
+}
+
+export function getEnabledTools() {
+  return TOOLS.filter(t => isFeatureEnabled(t.id));
+}
+
+export function saveEnabledFeatures(ids) {
+  const set = new Set(ids.filter(id => TOOLS.some(t => t.id === id)));
+  LOCKED_FEATURE_IDS.forEach(id => set.add(id));
+  saveSetting(FEATURES_ENABLED_KEY, [...set]);
+}
+
+export function setFeatureEnabled(id, on) {
+  if (LOCKED_FEATURE_IDS.includes(id)) return;
+  const stored = getEnabledFeatureIdsRaw();
+  const base = stored === undefined ? allToolIds() : [...stored];
+  const set = new Set(base);
+  if (on) set.add(id);
+  else set.delete(id);
+  saveEnabledFeatures([...set]);
+}
+
+/** Tabs shape used by dock, command palette, and split view — enabled tools only. */
 export function asTabs() {
-  return TOOLS.map(t => ({
+  return getEnabledTools().map(t => ({
     id: t.id,
     label: t.short,
     group: categoryLabel(t.category),
     category: t.category,
   }));
+}
+
+/** Read current enabled tabs (prefer over a module-load `asTabs()` snapshot). */
+export function getTabs() {
+  return asTabs();
 }
 
 function categoryLabel(id) {

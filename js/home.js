@@ -1,5 +1,5 @@
 import { getSetting, saveSetting } from './persistence.js';
-import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory } from './tools.js';
+import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory, isFeatureEnabled } from './tools.js';
 import { getContext } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
 import {
@@ -12,14 +12,23 @@ import { startStudyLab } from './studyLab.js';
 let showSectionFn = null;
 let showHubFn = null;
 
-function favorites() {
-  const v = getSetting('home.favorites', []);
-  return Array.isArray(v) ? v.filter(id => TOOLS.some(t => t.id === id)) : [];
+function visibleTool(id) {
+  return getTool(id) && isFeatureEnabled(id);
 }
+
+function storedFavorites() {
+  const v = getSetting('home.favorites', []);
+  return Array.isArray(v) ? v.filter(id => getTool(id)) : [];
+}
+
+function favorites() {
+  return storedFavorites().filter(id => visibleTool(id));
+}
+
 function setFavorites(list) { saveSetting('home.favorites', list); }
 
 function toggleFavorite(id) {
-  const list = favorites();
+  const list = storedFavorites();
   const i = list.indexOf(id);
   if (i >= 0) list.splice(i, 1); else list.push(id);
   setFavorites(list);
@@ -28,7 +37,7 @@ function toggleFavorite(id) {
 
 function lastTool() {
   const id = getSetting('nav.lastTool', null);
-  return id && getTool(id) ? id : null;
+  return id && visibleTool(id) ? id : null;
 }
 
 function continueSetupLine(toolId) {
@@ -41,7 +50,7 @@ function continueSetupLine(toolId) {
     bits.push(`${c.tempo} BPM`);
   }
   const tuning = getSetting('picker.lastTuning', getSetting('chordref.tuning', getSetting('io.tuning', null)));
-  if (tuning && ['scaleref', 'chords', 'triads', 'fretboard', 'intervalorbit', 'chordlab', 'tabanalyzer'].includes(toolId)) {
+  if (tuning && ['scaleref', 'chords', 'triads', 'fretboard', 'intervalorbit', 'chordlab'].includes(toolId)) {
     bits.push(tuning);
   }
   const sub = getSetting(`subview.${toolId}`, null);
@@ -70,7 +79,7 @@ function renderContinue(host) {
 
 function renderQuickStart(host) {
   const fav = favorites().slice(0, 4);
-  const pinned = fav.length ? fav : ['intervalorbit', 'scaleref', 'metronome', 'tuner'].filter(id => getTool(id));
+  const pinned = fav.length ? fav : ['intervalorbit', 'scaleref', 'metronome', 'tuner'].filter(id => visibleTool(id));
   host.innerHTML = '';
   const label = document.createElement('div');
   label.className = 'home-section-label';
@@ -126,7 +135,7 @@ function renderStudyRec(host) {
           harmony, and fretboard contexts — without replacing foundation theory.
         </p>
         <div class="home-rec-actions">
-          <button type="button" class="btn primary" data-action="prefs">Music Preferences</button>
+          <button type="button" class="btn primary" data-action="prefs">Settings</button>
           ${rec ? `<button type="button" class="btn" data-action="start" data-id="${escapeHtml(rec.id)}">Try foundation study</button>` : ''}
         </div>
       </div>
@@ -143,9 +152,9 @@ function renderStudyRec(host) {
       <div class="home-rec-empty">
         <div class="home-rec-kicker">Recommended Study</div>
         <div class="home-rec-empty-title">No study matches current filters</div>
-        <p class="home-rec-empty-body">Clear a paused topic in Music Preferences, or switch study balance.</p>
+        <p class="home-rec-empty-body">Clear a paused topic in Settings, or switch study balance.</p>
         <div class="home-rec-actions">
-          <button type="button" class="btn primary" data-action="prefs">Music Preferences</button>
+          <button type="button" class="btn primary" data-action="prefs">Settings</button>
         </div>
       </div>
     `;
@@ -250,7 +259,7 @@ function renderAllTools(panel) {
   const paint = () => {
     const q = (search.value || '').toLowerCase().trim();
     rows.innerHTML = '';
-    TOOLS.filter(t => {
+    TOOLS.filter(t => isFeatureEnabled(t.id)).filter(t => {
       if (!q) return true;
       return (t.label + ' ' + t.description + ' ' + t.category).toLowerCase().includes(q);
     }).forEach(t => {
@@ -299,7 +308,7 @@ export function renderHub(categoryId, container, { showSection, onFavorite } = {
   if (!container) return;
   const cat = CATEGORIES.find(c => c.id === categoryId);
   if (!cat) return;
-  const tools = toolsInCategory(categoryId);
+  const tools = toolsInCategory(categoryId).filter(t => isFeatureEnabled(t.id));
   const fav = favorites().filter(id => tools.some(t => t.id === id));
   const recentId = lastTool();
   const recentTool = recentId && tools.some(t => t.id === recentId) ? getTool(recentId) : null;
@@ -434,6 +443,12 @@ export function initHome(config) {
   if (!window.__musiProfileListener) {
     window.__musiProfileListener = true;
     window.addEventListener('musi:profile-changed', () => {
+      refreshHome();
+    });
+  }
+  if (!window.__musiFeaturesListener) {
+    window.__musiFeaturesListener = true;
+    window.addEventListener('musi:features-changed', () => {
       refreshHome();
     });
   }

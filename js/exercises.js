@@ -1092,7 +1092,6 @@ async function mountGpExercise(item, mountHost, blob) {
   if (!blob) return null;
   try {
     let gp;
-    let analyzeBytes = null;
     if (isTabModelItem(item)) {
       const raw = JSON.parse(await blob.text());
       const model = raw?.model || raw;
@@ -1111,7 +1110,6 @@ async function mountGpExercise(item, mountHost, blob) {
       };
     } else {
       const buf = await blob.arrayBuffer();
-      analyzeBytes = new Uint8Array(buf);
       gp = await parseGuitarPro(buf);
     }
     return mountGpPlayer(mountHost, {
@@ -1129,20 +1127,6 @@ async function mountGpExercise(item, mountHost, blob) {
       onPracticeSettingsChange: (settings) => {
         updateExercisePracticeSettings(item.id, settings);
       },
-      onAnalyze: analyzeBytes ? ({ trackIndex }) => {
-        window.__musiGpHandoff = {
-          bytes: analyzeBytes,
-          name: item.fileName || item.name,
-          trackIndex: trackIndex || 0,
-        };
-        closeExerciseViewer();
-        location.hash = 'tabanalyzer';
-        setTimeout(() => {
-          if (typeof window.__musiLoadGpHandoff === 'function' && window.__musiGpHandoff) {
-            window.__musiLoadGpHandoff(window.__musiGpHandoff);
-          }
-        }, 50);
-      } : null,
     });
   } catch (err) {
     mountHost.appendChild(el('div', {

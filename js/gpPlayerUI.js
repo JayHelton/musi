@@ -7,6 +7,8 @@ import { transformModel, modelHasRhythm, quartersToSeconds } from './tab/tabMode
 import { createGpMixPlayer } from './gpMixPlayer.js';
 import { TUNING_CATALOG } from './tunings.js';
 import { buildFollowColumns, mountFollowView } from './gpFollowView.js';
+import { analyzeModel } from './tab/tabAnalyzer.js';
+import { renderAnalysisReport } from './tab/tabAnalysisView.js';
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -238,12 +240,8 @@ export function mountGpPlayer(host, {
 
   // ---- header ----
   const headActions = el('div', { class: 'gpp-head-actions' });
-  if (typeof onAnalyze === 'function') {
-    headActions.appendChild(el('button', {
-      class: 'btn sm', type: 'button', text: 'Analyze',
-      onClick: () => onAnalyze({ gp: state.gp, trackIndex: state.trackIndex, model: state.viewModel }),
-    }));
-  }
+  const analyzeBtn = el('button', { class: 'btn sm', type: 'button', text: 'Analyze' });
+  headActions.appendChild(analyzeBtn);
   if (headerExtra) headActions.appendChild(headerExtra);
   const hasHeadActions = headActions.childNodes.length > 0;
   if (!hideTitle || hasHeadActions) {
@@ -449,6 +447,38 @@ export function mountGpPlayer(host, {
 
   settings.appendChild(controls);
   host.appendChild(settings);
+
+  const analysisDetails = el('details', { class: 'gpp-analysis' });
+  const analysisResults = el('div', {
+    class: 'gpp-analysis-results ta-results',
+    html: '<div class="quiz-card"><p class="ta-muted">Click Analyze for a key, chord, scale, and technique breakdown.</p></div>',
+  });
+  analysisDetails.append(
+    el('summary', { class: 'gpp-analysis-summary', text: 'Analysis' }),
+    analysisResults,
+  );
+  host.appendChild(analysisDetails);
+
+  function runAnalysis() {
+    analysisDetails.open = true;
+    const ctx = { gp: state.gp, trackIndex: state.trackIndex, model: state.viewModel };
+    if (state.viewKind !== 'guitar' || !state.viewModel?.strings) {
+      analysisResults.innerHTML = '<div class="quiz-card"><p class="ta-muted">Switch to a guitar or bass track to analyze. Drum parts can\u2019t be analyzed as tab.</p></div>';
+      if (typeof onAnalyze === 'function') onAnalyze({ ...ctx, model: null, report: null });
+      return;
+    }
+    const model = state.viewModel;
+    const pitched = (model.events || []).filter((e) => e.midi != null);
+    if (!pitched.length) {
+      analysisResults.innerHTML = '<div class="quiz-card"><p class="ta-muted">No pitched notes to analyze on this track.</p></div>';
+      if (typeof onAnalyze === 'function') onAnalyze({ ...ctx, report: null });
+      return;
+    }
+    const report = analyzeModel(model);
+    renderAnalysisReport(analysisResults, { model, report }, { showPlayback: false });
+    if (typeof onAnalyze === 'function') onAnalyze({ ...ctx, report });
+  }
+  analyzeBtn.addEventListener('click', runAnalysis);
 
   function syncSettingsSummary() {
     const bpmEl = summary.querySelector('.gpp-settings-summary-bpm');

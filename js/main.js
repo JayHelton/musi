@@ -22,16 +22,15 @@ import { initExercises, stopExercises } from './exercises.js';
 import { initNotes, stopNotes } from './notes.js';
 import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
 import { initDrums, stopDrums } from './drums/drumsUI.js';
-import { initTabAnalyzer, stopTabAnalyzer } from './tabAnalyzer.js';
-import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
+import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
 import { initTriadRef, stopTriadRef } from './triadReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { initContextBar } from './contextBar.js';
-import { initCommandPalette } from './commandPalette.js';
+import { initCommandPalette, refreshCommandPalette } from './commandPalette.js';
 import { initProgressHeaders } from './progressHeader.js';
 import { initHome, refreshHome, renderHub } from './home.js';
 import { initStats, renderStats } from './stats.js';
@@ -39,13 +38,12 @@ import { initMusicPreferences } from './musicPreferences.js';
 import { initStudyLab, stopStudyLab } from './studyLab.js';
 import {
   TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
-  asTabs, getTool, isHoldRecordRelevant,
+  getTabs, getTool, isHoldRecordRelevant, isFeatureEnabled,
 } from './tools.js';
 import { initScreenUx } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
 
 const ICONS = TOOL_ICONS;
-const TABS = asTabs();
 const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
 
 const TOOL_STOPPERS = {
@@ -66,7 +64,6 @@ const TOOL_STOPPERS = {
   notes: () => stopNotes(),
   practice: () => stopPracticeTimer(),
   drums: () => stopDrums(),
-  tabanalyzer: () => stopTabAnalyzer(),
   tracktosheet: () => stopTrackToSheet(),
   gpplayer: () => stopGpPlayer(),
   studylab: () => stopStudyLab(),
@@ -91,7 +88,6 @@ const TOOL_INITS = {
   notes: initNotes,
   practice: initPracticeTimer,
   drums: initDrums,
-  tabanalyzer: initTabAnalyzer,
   tracktosheet: initTrackToSheet,
   gpplayer: initGpPlayer,
   studylab: initStudyLab,
@@ -177,6 +173,12 @@ function goBack(fallback) {
 }
 
 function showSection(id, skipHash) {
+  const toolForGate = getTool(id);
+  if (toolForGate && !isFeatureEnabled(id)) {
+    showSection('home', skipHash);
+    return;
+  }
+
   if (splitSecondaryId) {
     const sec = document.getElementById('sec-' + splitSecondaryId);
     if (sec) sec.classList.remove('active', 'split-secondary');
@@ -263,7 +265,7 @@ function enterSplit(secondaryId) {
   if (isMobileSwipeNav()) return;
   if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || secondaryId === 'home') return;
   if (isHubId(primaryId) || isHubId(secondaryId)) return;
-  if (!TABS.some(t => t.id === secondaryId)) return;
+  if (!getTabs().some(t => t.id === secondaryId)) return;
   splitSecondaryId = secondaryId;
   document.body.classList.add('split-mode');
   const sec = document.getElementById('sec-' + secondaryId);
@@ -293,7 +295,7 @@ function buildSplitMenu() {
   title.className = 'split-menu-title';
   title.textContent = splitSecondaryId ? 'Second tool' : 'Add a second tool';
   splitMenuEl.appendChild(title);
-  TABS.forEach(t => {
+  getTabs().forEach(t => {
     if (t.id === primaryId) return;
     const btn = document.createElement('button');
     btn.className = 'tc-menu-item' + (t.id === splitSecondaryId ? ' active' : '');
@@ -424,16 +426,9 @@ function isMobileSwipeNav() {
 
 function initNav() {
   const nav = document.getElementById('nav');
+  if (!nav) return;
 
-  // Desktop: flat tool list
-  TABS.forEach(t => {
-    const item = document.createElement('button');
-    item.className = 'dock-item dock-desktop';
-    item.dataset.s = t.id;
-    item.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span class="dock-label">${t.label}</span>`;
-    item.onclick = () => showSection(t.id);
-    nav.appendChild(item);
-  });
+  rebuildDesktopDock(nav);
 
   // Mobile: 5 persistent destinations
   const mobileCats = document.createElement('div');
@@ -466,6 +461,35 @@ function initNav() {
     mobileCats.appendChild(btn);
   });
   nav.appendChild(mobileCats);
+}
+
+function rebuildDesktopDock(navEl) {
+  const nav = navEl || document.getElementById('nav');
+  if (!nav) return;
+  nav.querySelectorAll('.dock-item.dock-desktop').forEach(el => el.remove());
+  const mobileCats = nav.querySelector('.dock-mobile-cats');
+  getTabs().forEach(t => {
+    const item = document.createElement('button');
+    item.className = 'dock-item dock-desktop';
+    item.dataset.s = t.id;
+    item.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span class="dock-label">${t.label}</span>`;
+    item.onclick = () => showSection(t.id);
+    if (mobileCats) nav.insertBefore(item, mobileCats);
+    else nav.appendChild(item);
+  });
+  if (currentNavId) {
+    document.querySelectorAll(`.dock-item[data-s="${currentNavId}"]`).forEach(el => el.classList.add('active'));
+  }
+}
+
+function rebuildNav() {
+  rebuildDesktopDock();
+  closeSplitMenu();
+  if (splitSecondaryId && !isFeatureEnabled(splitSecondaryId)) {
+    exitSplit();
+  } else {
+    updateSplitUI();
+  }
 }
 
 function init() {
@@ -552,13 +576,22 @@ function init() {
   initNowPlaying();
   initHoldRecordButton();
   initContextBar();
-  initCommandPalette({ showSection, tabs: TABS, icons: ICONS });
+  initCommandPalette({ showSection });
   initProgressHeaders();
-  initHome({ showSection, showHub, tabs: TABS, icons: ICONS });
+  initHome({ showSection, showHub });
   initStats();
   initMusicPreferences({ showSection });
   initSplitView();
   initScreenUx({ showSection, showHub });
+
+  window.addEventListener('musi:features-changed', () => {
+    rebuildNav();
+    refreshCommandPalette();
+    refreshHome();
+    if (currentNavId && getTool(currentNavId) && !isFeatureEnabled(currentNavId)) {
+      showSection('home');
+    }
+  });
 
   const wordmark = document.getElementById('wordmark-home');
   if (wordmark) {
@@ -566,13 +599,17 @@ function init() {
     wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
   }
 
-  const resolveSectionAlias = (id) => (id === 'intervalmap' ? 'intervalorbit' : id);
+  const resolveSectionAlias = (id) => {
+    if (id === 'intervalmap') return 'intervalorbit';
+    if (id === 'tabanalyzer') return 'gpplayer';
+    return id;
+  };
 
   const isValidSection = (id) => {
     const resolved = resolveSectionAlias(id);
     return resolved === 'home' ||
       isHubId(resolved) && CATEGORIES.some(c => c.id === hubCategory(resolved)) ||
-      TABS.some(t => t.id === resolved);
+      getTabs().some(t => t.id === resolved);
   };
 
   const hashTab = resolveSectionAlias(location.hash.replace('#', ''));
