@@ -352,6 +352,21 @@ export function mountGpPlayer(host, {
     withPreservedPosition(() => {
       stateController.setViewTrack(kind, index);
       stateController.applyTransforms();
+      const model = state.viewModel;
+      if (!model) return;
+      const beatLoop = state.loopEnabled
+        && modelHasRhythm(model)
+        && state.loopStartBeat != null
+        && state.loopEndBeat != null;
+      const loadOpts = mixLoadBase();
+      if (state.loopEnabled && !beatLoop) {
+        loadOpts.loopMeasures = [state.loopStart, state.loopEnd];
+      }
+      if (beatLoop) {
+        loadOpts.loopBeats = { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
+      }
+      player.load(loadOpts);
+      applyLoopToPlayer();
     });
     refreshScoreSurface();
     const measures = state.viewModel?.measures || [];
