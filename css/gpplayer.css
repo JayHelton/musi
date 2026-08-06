@@ -217,6 +217,12 @@
   position: relative;
 }
 
+.gpp-parch-root {
+  min-height: 0;
+  flex: 1;
+  height: 100%;
+}
+
 /* ONLY scroll region for the score */
 .gpp-parch {
   height: 100%;
@@ -234,7 +240,9 @@
 
 .gpp-parch-viewport {
   position: relative;
-  min-height: 100%;
+  min-height: 0;
+  flex: 1;
+  height: 100%;
   padding: 14px 12px 24px;
 }
 

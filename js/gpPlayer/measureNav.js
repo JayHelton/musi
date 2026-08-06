@@ -25,6 +25,9 @@ export function mountMeasureNav(host, { measureCount = 0, markers = [], onSeek }
   let barBtns = [];
   let prevActive = -1;
   let prevNav = -1;
+  let prevLoopEnabled = false;
+  let prevLoopStart = 0;
+  let prevLoopEnd = 0;
   let count = measureCount;
 
   function setLabel(current, total) {
@@ -53,6 +56,9 @@ export function mountMeasureNav(host, { measureCount = 0, markers = [], onSeek }
     }
     prevActive = -1;
     prevNav = -1;
+    prevLoopEnabled = false;
+    prevLoopStart = 0;
+    prevLoopEnd = 0;
     setLabel(null, count);
   }
 
@@ -76,12 +82,20 @@ export function mountMeasureNav(host, { measureCount = 0, markers = [], onSeek }
     prevNav = nav;
     prevActive = active;
 
-    if (loopEnabled) {
-      for (let i = 0; i < barBtns.length; i++) {
-        barBtns[i].classList.toggle('in-loop', i >= loopStart && i <= loopEnd);
+    const loopChanged = loopEnabled !== prevLoopEnabled
+      || loopStart !== prevLoopStart
+      || loopEnd !== prevLoopEnd;
+    if (loopChanged) {
+      if (loopEnabled) {
+        for (let i = 0; i < barBtns.length; i++) {
+          barBtns[i].classList.toggle('in-loop', i >= loopStart && i <= loopEnd);
+        }
+      } else {
+        for (const btn of barBtns) btn.classList.remove('in-loop');
       }
-    } else {
-      for (const btn of barBtns) btn.classList.remove('in-loop');
+      prevLoopEnabled = loopEnabled;
+      prevLoopStart = loopStart;
+      prevLoopEnd = loopEnd;
     }
   }
 

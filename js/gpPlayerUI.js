@@ -47,6 +47,9 @@ export function mountGpPlayer(host, {
   onPracticeSettingsChange = null,
   exerciseScope = false,
   initialBpm = null,
+  initialTranspose = null,
+  initialTuning = null,
+  initialRetuneMode = null,
   disabled = false,
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
@@ -64,6 +67,9 @@ export function mountGpPlayer(host, {
     initialLoopEndBeat,
     loopRestSec,
     exerciseScope,
+    initialTranspose,
+    initialTuning,
+    initialRetuneMode,
   });
   const state = stateController.state;
 
@@ -110,7 +116,7 @@ export function mountGpPlayer(host, {
   const parchmentHost = el('div', { class: 'gpp-parchment-host' });
   scoreBody.append(measureNavHost, parchmentHost);
 
-  const transportHost = el('div', { class: 'gpp-transport-dock-host' });
+  const transportHost = el('div');
   const drawerRoot = el('div', { class: 'gpp-drawer-root' });
   const tracksDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-tracks-drawer-root' });
   const tracksMixerHost = el('div', { class: 'gpp-tracks-drawer-mount' });

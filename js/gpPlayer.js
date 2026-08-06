@@ -100,6 +100,8 @@ function makeHeaderExtras() {
   loadBtn.className = 'btn sm';
   loadBtn.type = 'button';
   loadBtn.textContent = 'Load another';
+  loadBtn.setAttribute('aria-label', 'Load another Guitar Pro file');
+  loadBtn.title = 'Load another Guitar Pro file';
   loadBtn.addEventListener('click', () => {
     if (state.loading) return;
     $('gpp-file')?.click();
@@ -111,6 +113,8 @@ function makeHeaderExtras() {
   saveBarsBtn.className = 'btn sm primary';
   saveBarsBtn.type = 'button';
   saveBarsBtn.textContent = 'Save as Exercise';
+  saveBarsBtn.setAttribute('aria-label', 'Save selected bars as exercise');
+  saveBarsBtn.title = 'Save selected bars as exercise';
   if (noGpBytes) saveBarsBtn.disabled = true;
   saveBarsBtn.addEventListener('click', () => saveSelectedBarsAsExercise());
   wrap.appendChild(saveBarsBtn);
@@ -119,6 +123,8 @@ function makeHeaderExtras() {
   saveBtn.className = 'btn sm';
   saveBtn.type = 'button';
   saveBtn.textContent = state.exerciseId ? 'Full score in library' : 'Save full score';
+  saveBtn.setAttribute('aria-label', state.exerciseId ? 'Full score already in library' : 'Save full score to library');
+  saveBtn.title = state.exerciseId ? 'Full score already in library' : 'Save full score to library';
   if (state.exerciseId || noGpBytes) saveBtn.disabled = true;
   saveBtn.addEventListener('click', () => saveToLibrary());
   wrap.appendChild(saveBtn);
@@ -147,6 +153,9 @@ function mountCurrent() {
     loopRestSec: exercise?.loopRestSec || 0,
     preferredTrackIndex: exercise?.preferredTrackIndex || 0,
     initialBpm: exercise?.bpm,
+    initialTranspose: exercise?.transpose,
+    initialTuning: exercise?.tuning,
+    initialRetuneMode: exercise?.retuneMode,
     exerciseScope: !!hasRange,
     headerExtra: makeHeaderExtras(),
   });
@@ -243,6 +252,9 @@ async function saveToLibrary() {
       size: blob.size,
       preferredTrackIndex: st.trackIndex >= 0 ? st.trackIndex : 0,
       bpm: st.bpm,
+      transpose: Number.isFinite(st.transpose) ? st.transpose : 0,
+      tuning: st.tuning ?? null,
+      retuneMode: st.retuneMode === 'pitches' ? 'pitches' : 'fingerings',
     });
     if (!item) {
       setStatus('Saved attachment, but library entry failed.', 'error');
@@ -317,6 +329,9 @@ async function saveSelectedBarsAsExercise() {
       loopRestSec: Number.isFinite(st.loopRestSec) ? st.loopRestSec : 0,
       preferredTrackIndex: st.trackIndex >= 0 ? st.trackIndex : 0,
       bpm: Number.isFinite(st.bpm) ? st.bpm : null,
+      transpose: Number.isFinite(st.transpose) ? st.transpose : 0,
+      tuning: st.tuning ?? null,
+      retuneMode: st.retuneMode === 'pitches' ? 'pitches' : 'fingerings',
     });
     if (!item) {
       setStatus('Saved attachment, but library entry failed.', 'error');

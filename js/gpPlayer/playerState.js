@@ -101,6 +101,16 @@ export function createPlayerState(gpResult, options = {}) {
 
   if (state.loopEnd < state.loopStart) state.loopEnd = state.loopStart;
 
+  if (Number.isFinite(Number(options.initialTranspose))) {
+    state.transpose = Math.round(Number(options.initialTranspose));
+  }
+  if (options.initialTuning != null && options.initialTuning !== '') {
+    state.tuning = options.initialTuning;
+  }
+  if (options.initialRetuneMode === 'pitches' || options.initialRetuneMode === 'fingerings') {
+    state.retuneMode = options.initialRetuneMode;
+  }
+
   const initMeasures = gpResult.tracks[0]?.model?.measures
     || gpResult.drumTracks?.[0]?.model?.measures
     || [];
@@ -264,6 +274,9 @@ export function createPlayerState(gpResult, options = {}) {
       endBeat: state.loopEnabled ? state.loopEndBeat : null,
       loopRestSec: state.loopRestSec,
       bpm: state.bpm,
+      transpose: state.transpose,
+      tuning: state.tuning,
+      retuneMode: state.retuneMode,
     };
   }
 

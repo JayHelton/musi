@@ -358,4 +358,18 @@ ps.destroy();
 assert.ok(ps.state.destroyed);
 assert.equal(ps.isAlive(1), false);
 
+const psPersist = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
+const persisted = psPersist.toPersistable();
+assert.equal(persisted.retuneMode, 'fingerings');
+psPersist.destroy();
+
+const psInit = createPlayerState(fakeGp, {
+  preferredTrackIndex: 0,
+  initialTranspose: 3,
+  initialRetuneMode: 'pitches',
+});
+assert.equal(psInit.state.transpose, 3);
+assert.equal(psInit.state.retuneMode, 'pitches');
+psInit.destroy();
+
 console.log('gp-player smoke: ok');
