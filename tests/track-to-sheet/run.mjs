@@ -10,9 +10,16 @@ import {
   segmentNotes,
   quantizeToScore,
   estimateBpm,
+  estimateTempo,
   midiToStaff,
   suggestClef,
 } from '../../js/trackToSheet/transcribe.js';
+import {
+  chooseOctaveShift,
+  notesToTabModel,
+  tabModelToGpResult,
+  transcriptionToGpResult,
+} from '../../js/trackToSheet/toTabModel.js';
 import { renderScoreSVG, notesToText } from '../../js/trackToSheet/score.js';
 
 const SR = 44100;
@@ -131,6 +138,92 @@ function synthMelody(events, sampleRate = SR) {
 {
   const empty = renderScoreSVG({ events: [] });
   assert.match(empty, /No pitched notes/);
+}
+
+// ── estimateTempo on synthetic quarter-note melody ─────────────
+{
+  const TRUTH_BPM = 112;
+  const beatSec = 60 / TRUTH_BPM;
+  const melody = [];
+  for (let i = 0; i < 8; i++) {
+    melody.push({
+      midi: 60 + (i % 5),
+      startSec: i * beatSec + 0.05,
+      durationSec: beatSec * 0.85,
+      label: `N${i}`,
+      name: 'C',
+      oct: 4,
+      clarity: 0.9,
+    });
+  }
+  const tempo = estimateTempo(melody);
+  assert.ok(
+    Math.abs(tempo.bpm - TRUTH_BPM) <= 8,
+    `estimateTempo ${tempo.bpm} should be within 8 BPM of ${TRUTH_BPM}`,
+  );
+  assert.ok(tempo.beatsPerBar === 3 || tempo.beatsPerBar === 4);
+  assert.ok(Number.isFinite(tempo.offsetSec));
+  assert.ok(Number.isFinite(tempo.confidence));
+
+  // estimateBpm stays compatible.
+  const bpm = estimateBpm(melody);
+  assert.ok(Math.abs(bpm - TRUTH_BPM) <= 8);
+}
+
+// ── quantizeToScore with offset ────────────────────────────────
+{
+  const beatSec = 0.5; // 120 BPM
+  const notes = [
+    { midi: 60, startSec: 0.25, durationSec: 0.4, name: 'C', oct: 4, label: 'C4', clarity: 1 },
+    { midi: 62, startSec: 0.75, durationSec: 0.4, name: 'D', oct: 4, label: 'D4', clarity: 1 },
+  ];
+  const score = quantizeToScore(notes, 120, { beatsPerBar: 4, offsetSec: 0.25 });
+  assert.ok(score.events.some((e) => e.type === 'note'));
+  assert.equal(score.offsetSec, 0.25);
+}
+
+// ── notesToTabModel + tabModelToGpResult ───────────────────────
+{
+  const beatSec = 60 / 120;
+  const notes = [
+    { midi: 64, startSec: 0, durationSec: beatSec * 0.9, name: 'E', oct: 4, label: 'E4', clarity: 1 },
+    { midi: 67, startSec: beatSec, durationSec: beatSec * 0.9, name: 'G', oct: 4, label: 'G4', clarity: 1 },
+    { midi: 69, startSec: beatSec * 2, durationSec: beatSec * 0.9, name: 'A', oct: 4, label: 'A4', clarity: 1 },
+  ];
+  const model = notesToTabModel(notes, { bpm: 120, beatsPerBar: 4, offsetSec: 0 });
+  assert.equal(model.events.length, 3);
+  for (const ev of model.events) {
+    assert.ok(Number.isFinite(ev.start), 'event needs start');
+    assert.ok(Number.isFinite(ev.duration), 'event needs duration');
+    assert.ok(ev.fret >= 0 && ev.fret <= 24, `fret ${ev.fret} out of range`);
+    assert.ok(ev.stringIndex >= 0 && ev.stringIndex < model.strings.length);
+  }
+  const lastMeasure = model.measures[model.measures.length - 1];
+  assert.ok(lastMeasure.endBeat >= model.totalBeats - 1e-6, 'measures should cover totalBeats');
+
+  const gp = tabModelToGpResult(model, { name: 'Test riff' });
+  assert.ok(gp.tracks[0].model);
+  assert.ok(gp.tracks[0].ascii);
+  assert.equal(gp.tracks[0].name, 'Test riff');
+  assert.equal(gp.format, 'transcription');
+  assert.ok(gp.meta.tuningPitches.length === 6);
+
+  const gp2 = transcriptionToGpResult({ notes, bpm: 120, beatsPerBar: 4, offsetSec: 0 });
+  assert.ok(gp2.tracks[0].model.events.length >= 3);
+}
+
+// ── Octave shift for high vocal notes ──────────────────────────
+{
+  const highNotes = [
+    { midi: 84, startSec: 0, durationSec: 0.4, name: 'C', oct: 6, label: 'C6', clarity: 1 },
+    { midi: 86, startSec: 0.5, durationSec: 0.4, name: 'D', oct: 6, label: 'D6', clarity: 1 },
+  ];
+  const shift = chooseOctaveShift(highNotes, { minMidi: 40, maxMidi: 76 });
+  assert.ok(shift < 0, `expected downward shift, got ${shift}`);
+  const model = notesToTabModel(highNotes, { bpm: 120, octaveShift: shift });
+  for (const ev of model.events) {
+    assert.ok(ev.midi >= 40 && ev.midi <= 88, `midi ${ev.midi} should be guitar-range after shift`);
+  }
 }
 
 console.log('track-to-sheet: all tests passed');
