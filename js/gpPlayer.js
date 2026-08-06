@@ -141,24 +141,31 @@ function mountCurrent() {
   const displayTitle = state.title
     || (state.fileName || 'score').replace(/\.(gp|gp5|riff)$/i, '');
   const hasRange = exercise && (exercise.loopEnabled || exercise.measureStart != null);
-  state.mount = mountGpPlayer(stage, {
-    gpResult: state.gp,
-    title: displayTitle,
-    fileName: state.fileName,
-    initialLoopEnabled: exercise ? !!exercise.loopEnabled : false,
-    initialLoopStart: exercise?.measureStart,
-    initialLoopEnd: exercise?.measureEnd,
-    initialLoopStartBeat: exercise?.startBeat,
-    initialLoopEndBeat: exercise?.endBeat,
-    loopRestSec: exercise?.loopRestSec || 0,
-    preferredTrackIndex: exercise?.preferredTrackIndex || 0,
-    initialBpm: exercise?.bpm,
-    initialTranspose: exercise?.transpose,
-    initialTuning: exercise?.tuning,
-    initialRetuneMode: exercise?.retuneMode,
-    exerciseScope: !!hasRange,
-    headerExtra: makeHeaderExtras(),
-  });
+  try {
+    state.mount = mountGpPlayer(stage, {
+      gpResult: state.gp,
+      title: displayTitle,
+      fileName: state.fileName,
+      initialLoopEnabled: exercise ? !!exercise.loopEnabled : false,
+      initialLoopStart: exercise?.measureStart,
+      initialLoopEnd: exercise?.measureEnd,
+      initialLoopStartBeat: exercise?.startBeat,
+      initialLoopEndBeat: exercise?.endBeat,
+      loopRestSec: exercise?.loopRestSec || 0,
+      preferredTrackIndex: exercise?.preferredTrackIndex || 0,
+      initialBpm: exercise?.bpm,
+      initialTranspose: exercise?.transpose,
+      initialTuning: exercise?.tuning,
+      initialRetuneMode: exercise?.retuneMode,
+      exerciseScope: !!hasRange,
+      headerExtra: makeHeaderExtras(),
+    });
+  } catch (err) {
+    destroyMount();
+    setStageVisible(false);
+    setStatus(err?.message || 'Could not open the player.', 'error');
+    console.error(err);
+  }
 }
 
 function hasPlayableTracks(gp) {
@@ -499,11 +506,19 @@ export function loadGpPlayerResult(gpResult, {
   state.bytes = null;
   state.gp = gpResult;
   state.exerciseId = exerciseId;
-  mountCurrent();
-  const tempo = gpResult.tempo || gpResult.tracks[0]?.model?.tempo || 120;
-  setStatus(
-    `${title} · ${gpResult.tracks.length} track${gpResult.tracks.length === 1 ? '' : 's'} · ${Math.round(tempo)} BPM`
-  );
-  window.showSection?.('gpplayer');
-  return state.mount;
+  try {
+    mountCurrent();
+    if (!state.mount) return null;
+    const tempo = gpResult.tempo || gpResult.tracks[0]?.model?.tempo || 120;
+    setStatus(
+      `${title} · ${gpResult.tracks.length} track${gpResult.tracks.length === 1 ? '' : 's'} · ${Math.round(tempo)} BPM`
+    );
+    window.showSection?.('gpplayer');
+    return state.mount;
+  } catch (err) {
+    setStageVisible(false);
+    setStatus(err?.message || 'Could not open the player.', 'error');
+    console.error(err);
+    return null;
+  }
 }

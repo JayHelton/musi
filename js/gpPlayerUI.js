@@ -94,18 +94,18 @@ export function mountGpPlayer(host, {
 
   const scoreActions = el('div', { class: 'gpp-score-actions' });
   const mixerBtn = el('button', {
-    class: 'gpp-icon-btn',
+    class: 'gpp-icon-btn has-label',
     type: 'button',
     'aria-label': 'Track mixer',
     title: 'Track mixer',
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h14"/></svg>',
+    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h14"/></svg><span class="gpp-btn-label">Tracks</span>',
   });
   const settingsBtn = el('button', {
-    class: 'gpp-icon-btn',
+    class: 'gpp-icon-btn has-label',
     type: 'button',
     'aria-label': 'Practice settings',
     title: 'Practice settings',
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>',
+    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg><span class="gpp-btn-label">Settings</span>',
   });
   scoreActions.append(mixerBtn, settingsBtn);
   if (headerExtra) scoreActions.appendChild(headerExtra);
