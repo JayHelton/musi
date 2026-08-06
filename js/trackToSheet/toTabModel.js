@@ -99,7 +99,7 @@ export function notesToTabModel(notes, {
   beatsPerBar = 4,
   offsetSec = 0,
   tuning = 'Standard',
-  maxFret = 24,
+  maxFret = 12,
   octaveShift = null,
 } = {}) {
   const warnings = [];
@@ -115,15 +115,33 @@ export function notesToTabModel(notes, {
     label: `${NOTE_NAMES_SHARP[(((n.midi + shift) % 12) + 12) % 12]}${Math.floor((n.midi + shift) / 12) - 1}`,
   }));
 
+  const timed = shifted.map((n) => {
+    const rawStart = (n.startSec - offsetSec) / beatSec;
+    const rawDur = Math.max(0.25, n.durationSec / beatSec);
+    return { n, start: Math.round(rawStart * 4) / 4, rawDur };
+  });
+  timed.sort((a, b) => a.start - b.start || a.n.startSec - b.n.startSec);
+
+  for (let i = 0; i < timed.length; i++) {
+    let duration = nearestDuration(timed[i].rawDur).beats;
+    if (i + 1 < timed.length) {
+      const gap = timed[i + 1].start - timed[i].start;
+      duration = Math.min(duration, Math.max(0.25, gap));
+    }
+    timed[i].duration = Math.max(0.25, duration);
+  }
+
+  const minStart = timed.length ? Math.min(...timed.map((t) => t.start)) : 0;
+  if (minStart < 0) {
+    for (const t of timed) t.start -= minStart;
+  }
+
   const events = [];
   let preferString = null;
   let slot = 0;
   let totalBeats = 0;
 
-  for (const n of shifted) {
-    const startBeat = (n.startSec - offsetSec) / beatSec;
-    const rawDur = Math.max(0.25, n.durationSec / beatSec);
-    const duration = nearestDuration(rawDur).beats;
+  for (const { n, start, duration } of timed) {
     const placed = placeMidiOnStrings(n.midi, strings, {
       preferStringIndex: preferString,
       preferFretCenter: 5,
@@ -139,11 +157,11 @@ export function notesToTabModel(notes, {
       pc: ((placed.midi % 12) + 12) % 12,
       techniques: [],
       dead: false,
-      start: startBeat,
+      start,
       duration,
     });
     slot += 1;
-    totalBeats = Math.max(totalBeats, startBeat + duration);
+    totalBeats = Math.max(totalBeats, start + duration);
   }
 
   // Pad to full bar.

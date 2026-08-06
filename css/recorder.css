@@ -43,6 +43,23 @@
 .rec-seq-chip.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent);box-shadow:0 0 12px var(--accent-glow);transform:scale(1.06)}
 .rec-seq-empty{color:var(--muted);font-size:.85rem}
 
+.rec-riff-help{font-size:.85rem;color:var(--muted);margin:-6px 0 12px;line-height:1.45}
+.rec-riff-status{text-align:center;color:var(--muted);font-size:.82rem;margin-bottom:10px;min-height:1.1em}
+.rec-riff-status.is-err{color:var(--err)}
+.rec-riff-status.is-ok{color:var(--ok)}
+.rec-riff-progress{display:block;width:100%;height:6px;margin:0 0 12px;border:none;border-radius:6px;overflow:hidden;background:var(--bg2)}
+.rec-riff-progress::-webkit-progress-bar{background:var(--bg2)}
+.rec-riff-progress::-webkit-progress-value{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.rec-riff-progress::-moz-progress-bar{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.rec-riff-meta{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.rec-riff-meta-item{display:flex;flex-direction:column;gap:5px;font-size:.78rem}
+.rec-riff-meta-item input[type=number],.rec-riff-meta-item select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:.85rem;font-family:inherit;min-width:72px}
+.rec-riff-meta-item input#rec-riff-bpm{color:var(--accent);font-family:var(--font-ui,'VT323',monospace);font-weight:600}
+.rec-riff-readout span:last-child{font-family:var(--font-ui,'VT323',monospace);font-size:1rem;color:var(--text)}
+.rec-riff-notes{max-height:88px;overflow:auto;margin-bottom:10px}
+.rec-riff-ascii{display:block;margin:0 0 14px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:14px;font-family:var(--font-ui,'VT323',monospace);font-size:.82rem;line-height:1.35;color:var(--text);white-space:pre;overflow:auto;max-height:180px}
+.rec-riff-actions{margin-top:4px}
+
 .hold-rec-btn{position:fixed;right:18px;bottom:calc(var(--dock-h) + 18px);z-index:110;width:52px;height:52px;border-radius:50%;border:1px solid rgba(255,255,255,0.08);background:var(--accent);color:var(--on-accent);box-shadow:0 4px 24px rgba(0,0,0,0.45),0 0 16px var(--accent-dim);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;transition:transform .15s ease,box-shadow .15s ease,background .15s ease}
 .hold-rec-btn:active,.hold-rec-btn.recording{transform:scale(1.06);background:var(--err);color:#fff;animation:recPulse 1.2s ease-in-out infinite}
 .hold-rec-btn-icon{font-size:1.35rem;line-height:1}

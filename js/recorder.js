@@ -4,6 +4,9 @@ import { getSetting, saveSetting } from './persistence.js';
 import { detectPitch } from './pitch.js';
 import { saveAudio, attachmentsSupported } from './attachments.js';
 import { detectKey, keyLabel } from './analysis/keyDetect.js';
+import { decodeAudioFile, transcribeBuffer } from './trackToSheet/transcribe.js';
+import { transcriptionToGpResult } from './trackToSheet/toTabModel.js';
+import { loadGpPlayerResult } from './gpPlayer.js';
 
 const recorder = {
   recording: false,
@@ -48,6 +51,10 @@ const recorder = {
   format: 'wav',
   bitDepth: 24,
   normalize: true,
+  // Riff → tab transcription state.
+  transcription: null,
+  gpResult: null,
+  riffBusy: false,
 };
 
 // Confidence-gated pitch detection shared with the vocal trainer. The
@@ -500,6 +507,9 @@ function finalizeRecording() {
 
   renderSequence('rec-note-seq');
   renderKey();
+
+  showRiffCard();
+  recognizeRiff();
 }
 
 function renderKey() {
@@ -514,6 +524,175 @@ function renderKey() {
   keyEl.textContent = keyLabel(ranked[0]);
   const alts = ranked.slice(1, 3).map(k => keyLabel(k)).join(' · ');
   altEl.textContent = alts ? 'Also possible: ' + alts : '';
+}
+
+function setRiffStatus(msg, kind = '') {
+  const el = document.getElementById('rec-riff-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.classList.toggle('is-err', kind === 'err');
+  el.classList.toggle('is-ok', kind === 'ok');
+}
+
+function setRiffBusy(busy) {
+  recorder.riffBusy = busy;
+  const progress = document.getElementById('rec-riff-progress');
+  const recognizeBtn = document.getElementById('rec-riff-recognize');
+  const playBtn = document.getElementById('rec-riff-play-gp');
+  const bpmEl = document.getElementById('rec-riff-bpm');
+  const meterEl = document.getElementById('rec-riff-meter');
+  if (recognizeBtn) recognizeBtn.disabled = busy || !recorder.blob;
+  if (playBtn) playBtn.disabled = busy || !recorder.gpResult;
+  if (bpmEl) bpmEl.disabled = busy;
+  if (meterEl) meterEl.disabled = busy;
+  if (progress) progress.hidden = !busy;
+}
+
+function getRiffMeta() {
+  const bpmEl = document.getElementById('rec-riff-bpm');
+  const meterEl = document.getElementById('rec-riff-meter');
+  const bpm = Math.max(40, Math.min(240, Math.round(Number(bpmEl?.value) || 120)));
+  const beatsPerBar = Number(meterEl?.value) === 3 ? 3 : 4;
+  return { bpm, beatsPerBar };
+}
+
+function renderRiffNotes(notes) {
+  const box = document.getElementById('rec-riff-notes');
+  if (!box) return;
+  if (!notes?.length) {
+    box.innerHTML = '<span class="rec-seq-empty">No clear pitches detected</span>';
+    return;
+  }
+  box.innerHTML = '';
+  notes.forEach((n) => {
+    const chip = document.createElement('span');
+    chip.className = 'rec-seq-chip';
+    chip.title = `${n.startSec.toFixed(2)}s · ${n.durationSec.toFixed(2)}s`;
+    chip.textContent = n.label || `${n.name}${n.oct}`;
+    box.appendChild(chip);
+  });
+}
+
+function renderRiffMeta(model, confidence) {
+  const barsEl = document.getElementById('rec-riff-bars');
+  const confEl = document.getElementById('rec-riff-confidence');
+  if (barsEl) barsEl.textContent = model?.measures?.length ? String(model.measures.length) : '--';
+  if (confEl) {
+    confEl.textContent = Number.isFinite(confidence)
+      ? `${Math.round(confidence * 100)}%`
+      : '--';
+  }
+}
+
+function renderRiffAscii(gpResult) {
+  const pre = document.getElementById('rec-riff-ascii');
+  if (!pre) return;
+  const ascii = gpResult?.ascii || gpResult?.tracks?.[0]?.ascii || '';
+  pre.textContent = ascii || 'Tab preview will appear after recognition.';
+}
+
+function rebuildGpResult() {
+  if (!recorder.transcription?.notes?.length) {
+    recorder.gpResult = null;
+    renderRiffAscii(null);
+    renderRiffMeta(null, recorder.transcription?.tempoConfidence);
+    const playBtn = document.getElementById('rec-riff-play-gp');
+    if (playBtn) playBtn.disabled = true;
+    return;
+  }
+  const { bpm, beatsPerBar } = getRiffMeta();
+  const offsetSec = recorder.transcription.offsetSec ?? 0;
+  recorder.gpResult = transcriptionToGpResult(recorder.transcription, {
+    name: 'Vocal riff',
+    bpm,
+    beatsPerBar,
+    offsetSec,
+    tuning: 'Standard',
+  });
+  renderRiffAscii(recorder.gpResult);
+  renderRiffMeta(recorder.gpResult.model, recorder.transcription.tempoConfidence);
+  const playBtn = document.getElementById('rec-riff-play-gp');
+  if (playBtn) playBtn.disabled = recorder.riffBusy || !recorder.gpResult;
+}
+
+async function recognizeRiff() {
+  if (!recorder.blob || recorder.riffBusy) return;
+  setRiffBusy(true);
+  setRiffStatus('Decoding audio…');
+  const progress = document.getElementById('rec-riff-progress');
+  if (progress) progress.value = 0;
+
+  try {
+    ensureAudio();
+    const buffer = await decodeAudioFile(recorder.blob);
+    setRiffStatus('Detecting pitches…');
+    const result = await transcribeBuffer(buffer, {
+      onProgress: (p) => {
+        if (progress) progress.value = p;
+        setRiffStatus(`Detecting pitches… ${Math.round(p * 100)}%`);
+      },
+    });
+
+    recorder.transcription = result;
+    const bpmEl = document.getElementById('rec-riff-bpm');
+    const meterEl = document.getElementById('rec-riff-meter');
+    if (bpmEl) bpmEl.value = String(result.bpm);
+    if (meterEl) meterEl.value = String(result.beatsPerBar === 3 ? 3 : 4);
+
+    renderRiffNotes(result.notes);
+    rebuildGpResult();
+
+    if (!result.notes.length) {
+      setRiffStatus('No clear pitches found — try a louder, drier take with one note at a time.', 'err');
+      return;
+    }
+    setRiffStatus(
+      `Found ${result.notes.length} notes in ${result.durationSec.toFixed(1)}s (≈${result.bpm} BPM).`,
+      'ok'
+    );
+  } catch (err) {
+    console.error(err);
+    recorder.transcription = null;
+    recorder.gpResult = null;
+    renderRiffNotes([]);
+    renderRiffAscii(null);
+    renderRiffMeta(null, null);
+    setRiffStatus(`Recognition failed: ${err.message || err}`, 'err');
+  } finally {
+    setRiffBusy(false);
+  }
+}
+
+function playRiffInGp() {
+  if (!recorder.gpResult || recorder.riffBusy) return;
+  loadGpPlayerResult(recorder.gpResult, {
+    title: 'Vocal riff',
+    fileName: 'vocal-riff.riff',
+  });
+}
+
+function clearRiffState() {
+  recorder.transcription = null;
+  recorder.gpResult = null;
+  recorder.riffBusy = false;
+  const card = document.getElementById('rec-riff-card');
+  if (card) card.style.display = 'none';
+  setRiffStatus('');
+  renderRiffNotes([]);
+  renderRiffAscii(null);
+  renderRiffMeta(null, null);
+  const progress = document.getElementById('rec-riff-progress');
+  if (progress) {
+    progress.hidden = true;
+    progress.value = 0;
+  }
+  const playBtn = document.getElementById('rec-riff-play-gp');
+  if (playBtn) playBtn.disabled = true;
+}
+
+function showRiffCard() {
+  const card = document.getElementById('rec-riff-card');
+  if (card) card.style.display = 'block';
 }
 
 function setupAudioElement() {
@@ -652,6 +831,7 @@ function clearRecording(skipUi) {
   recorder.pcmChunks = [];
   teardownCaptureGraph();
   resetAnalysis();
+  clearRiffState();
   if (recorder.audioEl) recorder.audioEl.removeAttribute('src');
   if (!skipUi) {
     document.getElementById('rec-playback-card').style.display = 'none';
@@ -718,6 +898,31 @@ function initRecorder() {
     });
   }
   updateDepthVisibility();
+
+  const recognizeBtn = document.getElementById('rec-riff-recognize');
+  if (recognizeBtn && !recognizeBtn.dataset.wired) {
+    recognizeBtn.dataset.wired = '1';
+    recognizeBtn.addEventListener('click', recognizeRiff);
+  }
+  const playGpBtn = document.getElementById('rec-riff-play-gp');
+  if (playGpBtn && !playGpBtn.dataset.wired) {
+    playGpBtn.dataset.wired = '1';
+    playGpBtn.addEventListener('click', playRiffInGp);
+  }
+  const bpmEl = document.getElementById('rec-riff-bpm');
+  if (bpmEl && !bpmEl.dataset.wired) {
+    bpmEl.dataset.wired = '1';
+    bpmEl.addEventListener('change', () => {
+      if (recorder.transcription) rebuildGpResult();
+    });
+  }
+  const meterEl = document.getElementById('rec-riff-meter');
+  if (meterEl && !meterEl.dataset.wired) {
+    meterEl.dataset.wired = '1';
+    meterEl.addEventListener('change', () => {
+      if (recorder.transcription) rebuildGpResult();
+    });
+  }
 }
 
 function initHoldRecordButton() {
@@ -754,5 +959,7 @@ window.togglePlayback = togglePlayback;
 window.saveRecording = saveRecording;
 window.downloadRecording = downloadRecording;
 window.clearRecording = clearRecording;
+window.recognizeRiff = recognizeRiff;
+window.playRiffInGp = playRiffInGp;
 
 export { initRecorder, initHoldRecordButton, stopRecorder, recorder };
