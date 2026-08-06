@@ -23,6 +23,16 @@ import { makePercussionModel } from '../../js/tab/gpPercussion.js';
 import { buildFollowColumns } from '../../js/gpFollowView.js';
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
 import { scheduleMetronomeClick } from '../../js/tab/metroClick.js';
+import {
+  beatsFromMeasureRange,
+  measureIndicesForBeats,
+  normalizeBeatRange,
+  scopeBounds,
+  canPrevMeasure,
+  canNextMeasure,
+  restartTarget,
+} from '../../js/gpPlayer/rangeUtils.js';
+import { createPlayerState } from '../../js/gpPlayer/playerState.js';
 
 // ---- duration math ----
 assert.equal(noteValueToQuarters(4), 1);
@@ -146,6 +156,12 @@ assert.equal(up.events[0].fret, 2);
 const retuned = retuneModel(model, 'Half Step Down', { preservePitch: true });
 assert.equal(retuned.events[0].midi, 40);
 assert.notEqual(retuned.strings[0].openMidi, model.strings[0].openMidi);
+
+// ---- retune keep fingerings (preservePitch false) ----
+const fingered = retuneModel(model, 'Half Step Down', { preservePitch: false });
+assert.equal(fingered.events[0].fret, model.events[0].fret);
+assert.equal(fingered.events[0].stringIndex, model.events[0].stringIndex);
+assert.notEqual(fingered.events[0].midi, model.events[0].midi);
 
 // ---- transform chain ----
 const transformed = transformModel(model, { transpose: 1, tuning: 'D Standard', preservePitch: true });
@@ -275,5 +291,68 @@ assert.ok(mix.events.length >= 1);
 mix.setMetronomeEnabled(false);
 assert.equal(mix.metronomeEnabled, false);
 assert.ok(typeof scheduleMetronomeClick === 'function');
+
+// ---- rangeUtils ----
+const rangeMeasures = [
+  { startBeat: 0, endBeat: 4 },
+  { startBeat: 4, endBeat: 8 },
+  { startBeat: 8, endBeat: 12 },
+];
+const beatRange = beatsFromMeasureRange(rangeMeasures, 1, 2);
+assert.equal(beatRange.startBeat, 4);
+assert.equal(beatRange.endBeat, 12);
+const idxRange = measureIndicesForBeats(rangeMeasures, 5, 9);
+assert.equal(idxRange.startIdx, 1);
+assert.equal(idxRange.endIdx, 2);
+
+const fullScope = scopeBounds({ measureCount: 8 });
+assert.deepEqual(fullScope, { start: 0, end: 7 });
+const loopScope = scopeBounds({ loopEnabled: true, loopStart: 2, loopEnd: 5, measureCount: 8 });
+assert.deepEqual(loopScope, { start: 2, end: 5 });
+const exScope = scopeBounds({ exerciseScope: true, loopStart: 1, loopEnd: 3, measureCount: 8 });
+assert.deepEqual(exScope, { start: 1, end: 3 });
+
+assert.equal(restartTarget({ measureCount: 8 }), 0);
+assert.equal(restartTarget({ loopEnabled: true, loopStart: 2, measureCount: 8 }), 2);
+assert.equal(restartTarget({ exerciseScope: true, loopStart: 1, measureCount: 8 }), 1);
+
+const loopNavScope = { start: 2, end: 5 };
+assert.equal(canPrevMeasure(2, loopNavScope), false);
+assert.equal(canPrevMeasure(3, loopNavScope), true);
+assert.equal(canNextMeasure(5, loopNavScope), false);
+assert.equal(canNextMeasure(4, loopNavScope), true);
+
+const normOk = normalizeBeatRange(2.2, 5.7, { minSpan: 1, songEndBeat: 12 });
+assert.ok(normOk);
+assert.equal(normOk.startBeat, 2);
+assert.equal(normOk.endBeat, 6);
+const normTiny = normalizeBeatRange(5, 5, { minSpan: 1 });
+assert.deepEqual(normTiny, { startBeat: 5, endBeat: 6 });
+assert.equal(normalizeBeatRange(1, 0, { minSpan: 1, songEndBeat: 0 }), null);
+
+// ---- playerState solo / view / playAll ----
+const ps = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
+const origGuitars = [...ps.state.enabledGuitars];
+const origDrums = [...ps.state.enabledDrums];
+ps.setTrackEnabled('guitar', 0, false);
+ps.setTrackEnabled('drum', 0, false);
+ps.enterSolo('guitar', 0);
+const soloMix = ps.getEffectiveEnabled();
+assert.equal(soloMix.enabledGuitars.filter(Boolean).length, 1);
+assert.equal(soloMix.enabledGuitars[0], true);
+assert.equal(soloMix.enabledDrums.filter(Boolean).length, 0);
+ps.leaveSolo();
+assert.deepEqual(ps.state.enabledGuitars, [false]);
+assert.deepEqual(ps.state.enabledDrums, [false]);
+ps.playAll();
+assert.ok(ps.state.enabledGuitars.every(Boolean));
+assert.ok(ps.state.enabledDrums.every(Boolean));
+assert.equal(ps.state.solo, null);
+ps.setViewTrack('drum', 0);
+assert.deepEqual(ps.state.enabledGuitars, origGuitars.map(() => true));
+assert.deepEqual(ps.state.enabledDrums, origDrums.map(() => true));
+ps.destroy();
+assert.ok(ps.state.destroyed);
+assert.equal(ps.isAlive(1), false);
 
 console.log('gp-player smoke: ok');
