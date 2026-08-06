@@ -193,10 +193,10 @@
 .gpp-danger{color:var(--err)}
 .gpp-danger:hover{background:rgba(230,57,70,0.12);color:var(--err)}
 
-/* Exercises viewer body for GP */
-.ex-viewer-body-gp{background:var(--bg);padding:12px;overflow:auto}
-.ex-viewer-body-gp .gpp-root{height:100%}
-.ex-viewer-panel.ex-viewer-panel-gp{max-width:1100px}
+/* Exercises inline player body for GP */
+.ex-player-body-gp{display:flex;flex-direction:column;background:var(--bg);padding:12px;overflow:auto}
+.ex-player-body-gp .ex-gp-mount{flex:1;min-height:0;display:flex;flex-direction:column}
+.ex-player-body-gp .gpp-root{flex:1;min-height:0;display:flex;flex-direction:column}
 
 /* Follow-along visual — LCD screen tile (shared sln-follow-* classes) */
 .sln-follow-host{margin:6px 0 10px;min-width:0}

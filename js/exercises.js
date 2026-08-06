@@ -473,6 +473,12 @@ let selectedCategory = 'all'; // 'all', 'uncategorized', or a category id.
 const expandedFolders = new Set();
 
 let listEl, catListEl, titleEl, statusEl, fileInput, uploadBtn, addLinkBtn, addCatForm, addCatInput;
+let workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
+let activeExerciseId = null;
+let viewerURL = null;
+let viewerGpMount = null;
+let escapeWired = false;
+let openGeneration = 0;
 
 // --- rendering -------------------------------------------------------------
 
@@ -576,8 +582,17 @@ function folderIconSvg(open) {
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
 }
 
+function openActionLabel(item) {
+  const kind = mediaKind(item);
+  if (kind === 'gp' || kind === 'audio' || kind === 'video' || kind === 'youtube') return 'Play';
+  return 'Open';
+}
+
 function buildExerciseRow(item, opts = {}) {
-  const row = el('div', { class: 'ex-item', 'data-id': item.id });
+  const row = el('div', {
+    class: 'ex-item' + (item.id === activeExerciseId ? ' is-active is-playing' : ''),
+    'data-id': item.id,
+  });
 
   const icon = el('div', { class: 'ex-item-icon', html: exerciseIconSvg(item), 'aria-hidden': 'true' });
   row.appendChild(icon);
@@ -602,8 +617,11 @@ function buildExerciseRow(item, opts = {}) {
   const actions = el('div', { class: 'ex-item-actions' });
   actions.appendChild(buildCategorySelect(item));
   actions.appendChild(el('button', {
-    class: 'btn sm primary ex-item-open', type: 'button', text: 'Open',
-    onClick: () => openExerciseViewer(item.id),
+    class: 'btn sm primary ex-item-open', type: 'button', text: openActionLabel(item),
+    onClick: () => {
+      if (item.id === activeExerciseId) closeExerciseViewer();
+      else openExerciseViewer(item.id);
+    },
   }));
   actions.appendChild(el('button', {
     class: 'btn sm ex-item-del', type: 'button', text: 'Delete',
@@ -755,6 +773,15 @@ function renderList() {
   items.forEach(item => listEl.appendChild(buildExerciseRow(item)));
 }
 
+function applyActiveRowHighlight() {
+  if (!listEl || !activeExerciseId) return;
+  listEl.querySelectorAll('.ex-item').forEach((row) => {
+    const on = row.dataset.id === activeExerciseId;
+    row.classList.toggle('is-active', on);
+    row.classList.toggle('is-playing', on);
+  });
+}
+
 function render() {
   // Selected category may have been deleted; fall back to 'all'.
   if (selectedCategory !== 'all' && selectedCategory !== 'uncategorized'
@@ -763,7 +790,11 @@ function render() {
   }
   if (titleEl) titleEl.textContent = currentTitleText();
   renderCategories();
+  if (activeExerciseId && !getExercise(activeExerciseId)) {
+    closeExerciseViewer();
+  }
   renderList();
+  applyActiveRowHighlight();
 }
 
 function exerciseIconSvg(item) {
@@ -949,73 +980,65 @@ function addLinkExercise(name, url) {
   return true;
 }
 
-// --- file/link viewer -------------------------------------------------------
+// --- inline player ---------------------------------------------------------
 
-let viewerRoot = null;
-let viewerURL = null;
-let viewerGpMount = null;
-
-function ensureViewerRoot() {
-  if (viewerRoot) return viewerRoot;
-  viewerRoot = el('div', { id: 'ex-viewer-root' });
-  document.body.appendChild(viewerRoot);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && viewerRoot && viewerRoot.firstChild) closeExerciseViewer();
-  });
-  return viewerRoot;
+function ensurePlayerElements() {
+  workspaceEl = workspaceEl || document.getElementById('ex-workspace');
+  playerPaneEl = playerPaneEl || document.getElementById('ex-player-pane');
+  playerBodyEl = playerBodyEl || document.getElementById('ex-player-body');
+  playerTitleEl = playerTitleEl || document.getElementById('ex-player-title');
+  playerActionsEl = playerActionsEl || document.getElementById('ex-player-actions');
+  playerBackBtn = playerBackBtn || document.getElementById('ex-player-back');
+  return !!(workspaceEl && playerPaneEl && playerBodyEl && playerTitleEl && playerActionsEl);
 }
 
-export async function openExerciseViewer(id) {
-  const item = getExercise(id);
-  if (!item) return;
-  ensureViewerRoot();
-  closeExerciseViewer();
-
-  const blob = item.attachmentId ? await getFileBlob(item.attachmentId) : null;
-  const kind = mediaKind(item);
-
-  const overlay = el('div', { class: 'ex-viewer-overlay' });
-  const panel = el('div', {
-    class: 'ex-viewer-panel' + (kind === 'gp' ? ' ex-viewer-panel-gp' : ''),
-    role: 'dialog',
-    'aria-label': item.name,
+function wirePlayerControls() {
+  if (!playerBackBtn || playerBackBtn.dataset.wired) return;
+  playerBackBtn.dataset.wired = '1';
+  playerBackBtn.addEventListener('click', closeExerciseViewer);
+  if (escapeWired) return;
+  escapeWired = true;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !activeExerciseId) return;
+    const sec = document.getElementById('sec-exercises');
+    if (!sec || !sec.classList.contains('active')) return;
+    closeExerciseViewer();
   });
+}
 
-  const head = el('div', { class: 'ex-viewer-head' }, [
-    el('div', { class: 'ex-viewer-title', text: item.name, title: item.fileName || item.name }),
-  ]);
-  const headActions = el('div', { class: 'ex-viewer-actions' });
+function fillPlayerHead(item, kind, blob) {
+  playerTitleEl.textContent = item.name;
+  playerTitleEl.title = item.fileName || item.name;
+  playerActionsEl.innerHTML = '';
 
   if (item.url) {
-    headActions.appendChild(el('a', {
+    playerActionsEl.appendChild(el('a', {
       class: 'btn sm', href: item.url, target: '_blank', rel: 'noopener noreferrer', text: 'Open link',
     }));
   }
   if (blob) {
     viewerURL = URL.createObjectURL(blob);
     if (kind !== 'gp') {
-      headActions.appendChild(el('a', {
+      playerActionsEl.appendChild(el('a', {
         class: 'btn sm', href: viewerURL, target: '_blank', rel: 'noopener', text: 'Open in tab',
       }));
     }
     const ext = kind === 'pdf' ? 'pdf' : (kind === 'gp' ? (fileExt(item) || 'gp') : '');
     const downloadName = item.fileName || (ext ? `${item.name}.${ext}` : item.name);
-    headActions.appendChild(el('a', {
+    playerActionsEl.appendChild(el('a', {
       class: 'btn sm', href: viewerURL, download: downloadName, text: 'Download',
     }));
   }
-  headActions.appendChild(el('button', {
-    class: 'btn sm ex-viewer-close', type: 'button', text: 'Close', 'aria-label': 'Close viewer',
-    onClick: closeExerciseViewer,
-  }));
-  head.appendChild(headActions);
-  panel.appendChild(head);
+}
 
-  const body = el('div', { class: `ex-viewer-body ex-viewer-body-${kind}` });
+function mountPlayerBody(item, kind, blob) {
+  playerBodyEl.className = `ex-player-body ex-player-body-${kind}`;
+  playerBodyEl.innerHTML = '';
+
   if (item.url) {
     const embedUrl = youtubeEmbedUrl(item.url) || item.url;
-    body.appendChild(el('iframe', {
-      class: 'ex-viewer-frame ex-viewer-link-frame',
+    playerBodyEl.appendChild(el('iframe', {
+      class: 'ex-player-frame ex-player-link-frame',
       src: embedUrl,
       title: item.name,
       allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
@@ -1023,120 +1046,171 @@ export async function openExerciseViewer(id) {
       referrerpolicy: 'strict-origin-when-cross-origin',
     }));
     if (!youtubeEmbedUrl(item.url)) {
-      body.appendChild(el('div', {
-        class: 'ex-viewer-link-note',
+      playerBodyEl.appendChild(el('div', {
+        class: 'ex-player-link-note',
         text: 'If this site blocks embedding, use Open link.',
       }));
     }
-  } else if (blob && kind === 'gp') {
-    const mountHost = el('div', { class: 'ex-gp-mount' });
-    body.appendChild(mountHost);
-    panel.appendChild(body);
-    overlay.appendChild(panel);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeExerciseViewer(); });
-    viewerRoot.appendChild(overlay);
-    document.body.classList.add('ex-viewer-open');
-    try {
-      let gp;
-      let analyzeBytes = null;
-      if (isTabModelItem(item)) {
-        const raw = JSON.parse(await blob.text());
-        const model = raw?.model || raw;
-        if (!model?.events) throw new Error('This exercise snippet is missing tab data.');
-        gp = {
-          tempo: Number(raw.tempo) || Number(model.tempo) || 120,
-          tracks: [{
-            index: 0,
-            name: raw.trackName || item.name || 'Exercise',
-            tuning: model.tuning || 'Standard',
-            noteCount: (model.events || []).filter((e) => e.midi != null).length,
-            model,
-          }],
-          drumTracks: [],
-          warnings: [],
-        };
-      } else {
-        const buf = await blob.arrayBuffer();
-        analyzeBytes = new Uint8Array(buf);
-        gp = await parseGuitarPro(buf);
-      }
-      viewerGpMount = mountGpPlayer(mountHost, {
-        gpResult: gp,
-        title: item.name,
-        fileName: item.fileName || item.name,
-        hideTitle: true,
-        preferredTrackIndex: Number.isFinite(item.preferredTrackIndex) ? item.preferredTrackIndex : 0,
-        initialLoopEnabled: !!item.loopEnabled,
-        initialLoopStart: item.measureStart,
-        initialLoopEnd: item.measureEnd,
-        initialLoopStartBeat: item.startBeat,
-        initialLoopEndBeat: item.endBeat,
-        loopRestSec: item.loopRestSec || 0,
-        onPracticeSettingsChange: (settings) => {
-          updateExercisePracticeSettings(item.id, settings);
-        },
-        onAnalyze: analyzeBytes ? ({ trackIndex }) => {
-          window.__musiGpHandoff = {
-            bytes: analyzeBytes,
-            name: item.fileName || item.name,
-            trackIndex: trackIndex || 0,
-          };
-          closeExerciseViewer();
-          location.hash = 'tabanalyzer';
-          setTimeout(() => {
-            if (typeof window.__musiLoadGpHandoff === 'function' && window.__musiGpHandoff) {
-              window.__musiLoadGpHandoff(window.__musiGpHandoff);
-            }
-          }, 50);
-        } : null,
-      });
-    } catch (err) {
-      mountHost.appendChild(el('div', {
-        class: 'ex-viewer-missing',
-        text: err?.message || 'Could not open this Guitar Pro file.',
-      }));
-    }
     return;
-  } else if (blob) {
+  }
+
+  if (blob && kind === 'gp') {
+    const mountHost = el('div', { class: 'ex-gp-mount' });
+    playerBodyEl.appendChild(mountHost);
+    return mountHost;
+  }
+
+  if (blob) {
     if (kind === 'image') {
-      body.appendChild(el('img', {
-        class: 'ex-viewer-image', src: viewerURL, alt: item.name,
+      playerBodyEl.appendChild(el('img', {
+        class: 'ex-player-image', src: viewerURL, alt: item.name,
       }));
     } else if (kind === 'audio') {
-      body.appendChild(el('audio', {
-        class: 'ex-viewer-media', src: viewerURL, controls: '', preload: 'metadata',
+      playerBodyEl.appendChild(el('audio', {
+        class: 'ex-player-media', src: viewerURL, controls: '', preload: 'metadata',
       }));
     } else if (kind === 'video') {
-      body.appendChild(el('video', {
-        class: 'ex-viewer-media', src: viewerURL, controls: '', preload: 'metadata',
+      playerBodyEl.appendChild(el('video', {
+        class: 'ex-player-media', src: viewerURL, controls: '', preload: 'metadata',
       }));
     } else {
-      body.appendChild(el('iframe', {
-        class: 'ex-viewer-frame', src: viewerURL, title: item.name,
+      playerBodyEl.appendChild(el('iframe', {
+        class: 'ex-player-frame', src: viewerURL, title: item.name,
       }));
     }
-  } else {
-    body.appendChild(el('div', {
-      class: 'ex-viewer-missing',
-      text: 'This file is missing from storage. It may have been cleared by the browser.',
-    }));
+    return null;
   }
-  panel.appendChild(body);
 
-  overlay.appendChild(panel);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeExerciseViewer(); });
-  viewerRoot.appendChild(overlay);
-  document.body.classList.add('ex-viewer-open');
+  playerBodyEl.appendChild(el('div', {
+    class: 'ex-player-missing',
+    text: 'This file is missing from storage. It may have been cleared by the browser.',
+  }));
+  return null;
 }
 
-export function closeExerciseViewer() {
+async function mountGpExercise(item, mountHost, blob) {
+  if (!blob) return null;
+  try {
+    let gp;
+    let analyzeBytes = null;
+    if (isTabModelItem(item)) {
+      const raw = JSON.parse(await blob.text());
+      const model = raw?.model || raw;
+      if (!model?.events) throw new Error('This exercise snippet is missing tab data.');
+      gp = {
+        tempo: Number(raw.tempo) || Number(model.tempo) || 120,
+        tracks: [{
+          index: 0,
+          name: raw.trackName || item.name || 'Exercise',
+          tuning: model.tuning || 'Standard',
+          noteCount: (model.events || []).filter((e) => e.midi != null).length,
+          model,
+        }],
+        drumTracks: [],
+        warnings: [],
+      };
+    } else {
+      const buf = await blob.arrayBuffer();
+      analyzeBytes = new Uint8Array(buf);
+      gp = await parseGuitarPro(buf);
+    }
+    return mountGpPlayer(mountHost, {
+      gpResult: gp,
+      title: item.name,
+      fileName: item.fileName || item.name,
+      hideTitle: true,
+      preferredTrackIndex: Number.isFinite(item.preferredTrackIndex) ? item.preferredTrackIndex : 0,
+      initialLoopEnabled: !!item.loopEnabled,
+      initialLoopStart: item.measureStart,
+      initialLoopEnd: item.measureEnd,
+      initialLoopStartBeat: item.startBeat,
+      initialLoopEndBeat: item.endBeat,
+      loopRestSec: item.loopRestSec || 0,
+      onPracticeSettingsChange: (settings) => {
+        updateExercisePracticeSettings(item.id, settings);
+      },
+      onAnalyze: analyzeBytes ? ({ trackIndex }) => {
+        window.__musiGpHandoff = {
+          bytes: analyzeBytes,
+          name: item.fileName || item.name,
+          trackIndex: trackIndex || 0,
+        };
+        closeExerciseViewer();
+        location.hash = 'tabanalyzer';
+        setTimeout(() => {
+          if (typeof window.__musiLoadGpHandoff === 'function' && window.__musiGpHandoff) {
+            window.__musiLoadGpHandoff(window.__musiGpHandoff);
+          }
+        }, 50);
+      } : null,
+    });
+  } catch (err) {
+    mountHost.appendChild(el('div', {
+      class: 'ex-player-missing',
+      text: err?.message || 'Could not open this Guitar Pro file.',
+    }));
+    return null;
+  }
+}
+
+function teardownPlayer() {
   if (viewerGpMount) {
     try { viewerGpMount.destroy(); } catch (e) { /* ignore */ }
     viewerGpMount = null;
   }
   if (viewerURL) { try { URL.revokeObjectURL(viewerURL); } catch (e) {} viewerURL = null; }
-  if (viewerRoot) viewerRoot.innerHTML = '';
-  document.body.classList.remove('ex-viewer-open');
+  activeExerciseId = null;
+  if (workspaceEl) workspaceEl.classList.remove('is-open');
+  if (playerPaneEl) playerPaneEl.hidden = true;
+  if (playerTitleEl) {
+    playerTitleEl.textContent = '';
+    playerTitleEl.removeAttribute('title');
+  }
+  if (playerActionsEl) playerActionsEl.innerHTML = '';
+  if (playerBodyEl) {
+    playerBodyEl.innerHTML = '';
+    playerBodyEl.className = 'ex-player-body';
+  }
+  applyActiveRowHighlight();
+}
+
+export async function openExerciseViewer(id) {
+  const item = getExercise(id);
+  if (!item || !ensurePlayerElements()) return;
+  wirePlayerControls();
+
+  const gen = ++openGeneration;
+  teardownPlayer();
+
+  const blob = item.attachmentId ? await getFileBlob(item.attachmentId) : null;
+  if (gen !== openGeneration) return;
+
+  const kind = mediaKind(item);
+
+  activeExerciseId = id;
+  workspaceEl.classList.add('is-open');
+  playerPaneEl.hidden = false;
+  fillPlayerHead(item, kind, blob);
+  const gpMount = mountPlayerBody(item, kind, blob);
+  applyActiveRowHighlight();
+
+  if (gpMount) {
+    const mounted = await mountGpExercise(item, gpMount, blob);
+    if (gen !== openGeneration) {
+      if (mounted) {
+        try { mounted.destroy(); } catch (e) { /* ignore */ }
+      }
+      return;
+    }
+    viewerGpMount = mounted;
+  }
+
+  playerPaneEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+export function closeExerciseViewer() {
+  openGeneration += 1;
+  teardownPlayer();
 }
 
 // --- confirm / prompt modals (reuse shared modal styles) -------------------
@@ -1295,6 +1369,12 @@ export function initExercises() {
   addLinkBtn = document.getElementById('ex-add-link-btn');
   addCatForm = document.getElementById('ex-add-cat-form');
   addCatInput = document.getElementById('ex-add-cat-input');
+  workspaceEl = document.getElementById('ex-workspace');
+  playerPaneEl = document.getElementById('ex-player-pane');
+  playerBodyEl = document.getElementById('ex-player-body');
+  playerTitleEl = document.getElementById('ex-player-title');
+  playerActionsEl = document.getElementById('ex-player-actions');
+  playerBackBtn = document.getElementById('ex-player-back');
 
   if (!listEl) return;
 
@@ -1317,6 +1397,7 @@ export function initExercises() {
       });
     }
     if (attachmentsSupported()) ensurePersistentStorage();
+    wirePlayerControls();
   }
 
   setStatus('');

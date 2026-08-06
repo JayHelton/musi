@@ -237,12 +237,6 @@ export function mountGpPlayer(host, {
   host.classList.add('gpp-root');
 
   // ---- header ----
-  const head = el('div', { class: 'gpp-head' });
-  if (!hideTitle) {
-    head.appendChild(el('div', { class: 'gpp-title', text: title, title: fileName || title }));
-  } else {
-    head.appendChild(el('div', { class: 'gpp-title gpp-title-spacer', text: 'Practice player' }));
-  }
   const headActions = el('div', { class: 'gpp-head-actions' });
   if (typeof onAnalyze === 'function') {
     headActions.appendChild(el('button', {
@@ -251,8 +245,15 @@ export function mountGpPlayer(host, {
     }));
   }
   if (headerExtra) headActions.appendChild(headerExtra);
-  head.appendChild(headActions);
-  host.appendChild(head);
+  const hasHeadActions = headActions.childNodes.length > 0;
+  if (!hideTitle || hasHeadActions) {
+    const head = el('div', { class: 'gpp-head' });
+    if (!hideTitle) {
+      head.appendChild(el('div', { class: 'gpp-title', text: title, title: fileName || title }));
+    }
+    if (hasHeadActions) head.appendChild(headActions);
+    host.appendChild(head);
+  }
 
   // ---- meta / track mixer ----
   const meta = el('div', { class: 'gpp-meta' });
