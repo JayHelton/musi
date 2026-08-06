@@ -24,6 +24,7 @@ import {
 const state = {
   bound: false,
   mount: null,
+  title: '',
   fileName: '',
   bytes: null,
   gp: null,
@@ -94,10 +95,12 @@ function makeHeaderExtras() {
   });
   wrap.appendChild(loadBtn);
 
+  const noGpBytes = !state.bytes;
   const saveBarsBtn = document.createElement('button');
   saveBarsBtn.className = 'btn sm primary';
   saveBarsBtn.type = 'button';
   saveBarsBtn.textContent = 'Save selected bars as Exercise';
+  if (noGpBytes) saveBarsBtn.disabled = true;
   saveBarsBtn.addEventListener('click', () => saveSelectedBarsAsExercise());
   wrap.appendChild(saveBarsBtn);
 
@@ -105,7 +108,7 @@ function makeHeaderExtras() {
   saveBtn.className = 'btn sm';
   saveBtn.type = 'button';
   saveBtn.textContent = state.exerciseId ? 'Full score in library' : 'Save full score';
-  if (state.exerciseId) saveBtn.disabled = true;
+  if (state.exerciseId || noGpBytes) saveBtn.disabled = true;
   saveBtn.addEventListener('click', () => saveToLibrary());
   wrap.appendChild(saveBtn);
 
@@ -118,9 +121,11 @@ function mountCurrent() {
   destroyMount();
   setStageVisible(true);
   const exercise = state.exerciseId ? getExercise(state.exerciseId) : null;
+  const displayTitle = state.title
+    || (state.fileName || 'score').replace(/\.(gp|gp5|riff)$/i, '');
   state.mount = mountGpPlayer(stage, {
     gpResult: state.gp,
-    title: (state.fileName || 'score').replace(/\.(gp|gp5)$/i, ''),
+    title: displayTitle,
     fileName: state.fileName,
     initialLoopEnabled: exercise ? !!exercise.loopEnabled : false,
     initialLoopStart: exercise?.measureStart,
@@ -155,6 +160,7 @@ async function loadFile(file, { exerciseId = null } = {}) {
       );
       return;
     }
+    state.title = '';
     state.fileName = file.name;
     state.bytes = bytes;
     state.gp = gp;
@@ -170,7 +176,12 @@ async function loadFile(file, { exerciseId = null } = {}) {
 
 async function saveToLibrary() {
   if (!state.bytes) {
-    setStatus('Load a Guitar Pro file first.', 'error');
+    setStatus(
+      state.gp
+        ? 'This riff was transcribed from audio — saving the full score as a GP file isn\u2019t available yet.'
+        : 'Load a Guitar Pro file first.',
+      'error'
+    );
     return;
   }
   if (state.exerciseId && getExercise(state.exerciseId)) {
@@ -220,8 +231,15 @@ async function saveToLibrary() {
 
 /** Save the currently highlighted / looped measure range as an Exercise. */
 async function saveSelectedBarsAsExercise() {
-  if (!state.bytes || !state.gp) {
+  if (!state.gp) {
     setStatus('Load a Guitar Pro file first.', 'error');
+    return;
+  }
+  if (!state.bytes) {
+    setStatus(
+      'This riff was transcribed from audio — saving selected bars as an exercise isn\u2019t available as a GP file yet.',
+      'error'
+    );
     return;
   }
   if (!attachmentsSupported()) {
@@ -410,4 +428,29 @@ export function stopGpPlayer() {
 export async function loadGpPlayerBytes(bytes, fileName = 'score.gp', opts = {}) {
   const file = new File([bytes], fileName, { type: 'application/octet-stream' });
   await loadFile(file, opts);
+}
+
+/** Open the GP player with an in-memory parse result (no .gp file bytes). */
+export function loadGpPlayerResult(gpResult, {
+  title = 'Vocal riff',
+  fileName = '',
+  exerciseId = null,
+} = {}) {
+  if (!(gpResult?.tracks?.length)) {
+    setStatus('No fretted guitar/bass track in that transcription.', 'error');
+    return;
+  }
+  destroyMount();
+  state.title = title;
+  state.fileName = fileName || `${title}.riff`;
+  state.bytes = null;
+  state.gp = gpResult;
+  state.exerciseId = exerciseId;
+  mountCurrent();
+  const tempo = gpResult.tempo || gpResult.tracks[0]?.model?.tempo || 120;
+  setStatus(
+    `${title} · ${gpResult.tracks.length} track${gpResult.tracks.length === 1 ? '' : 's'} · ${Math.round(tempo)} BPM`
+  );
+  window.showSection?.('gpplayer');
+  return state.mount;
 }
