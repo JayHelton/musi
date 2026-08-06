@@ -3,8 +3,6 @@
 import { DRUM_LANES } from '../gpFollowView.js';
 import { snapBeat, normalizeBeatRange } from './rangeUtils.js';
 
-const PARCH_BG = '#f7efd8';
-const PARCH_INK = '#1a1420';
 const USER_SCROLL_COOLDOWN_MS = 2500;
 
 function measureSpan(m) {
@@ -21,40 +19,6 @@ function beatPctInMeasure(beat, m) {
 function measuresPerSystem(hostWidth, zoom) {
   const base = hostWidth / (220 * zoom);
   return Math.max(1, Math.min(4, Math.round(base) || 2));
-}
-
-function injectStyles() {
-  if (document.getElementById('gpp-parch-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'gpp-parch-styles';
-  style.textContent = `
-.gpp-parch-root{display:flex;flex-direction:column;min-height:0;min-width:0;flex:1}
-.gpp-parch-viewport{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;background:${PARCH_BG};border-radius:10px;border:1px solid rgba(26,20,32,0.15)}
-.gpp-parch-sheet{padding:16px 12px 24px;color:${PARCH_INK};font-family:"Pixelify Sans",ui-monospace,monospace}
-.gpp-parch-system{display:flex;gap:0;margin-bottom:14px;align-items:flex-start}
-.gpp-parch-measure{position:relative;flex:1;min-width:0;padding:4px 6px 8px;border-left:2px solid ${PARCH_INK}}
-.gpp-parch-measure:first-child{border-left-width:3px}
-.gpp-parch-measure.is-active{outline:2px solid #6b4c9a;outline-offset:2px;background:rgba(107,76,154,0.08)}
-.gpp-parch-measure.is-active::before{content:"▶";position:absolute;left:4px;top:2px;font-size:10px;color:#6b4c9a;font-weight:700}
-.gpp-parch-bar-num{font-size:10px;font-weight:700;margin-bottom:2px;opacity:0.75}
-.gpp-parch-marker{font-size:9px;opacity:0.65;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gpp-parch-staff{position:relative}
-.gpp-parch-string{position:relative;height:14px;border-bottom:1px solid rgba(26,20,32,0.35)}
-.gpp-parch-string:last-child{border-bottom-width:2px}
-.gpp-parch-note{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:11px;font-weight:600;line-height:1;pointer-events:none}
-.gpp-parch-note.dead{opacity:0.55}
-.gpp-parch-drum-lane{position:relative;height:12px;border-bottom:1px dashed rgba(26,20,32,0.2)}
-.gpp-parch-drum-lane .gpp-parch-lane-label{position:absolute;left:0;top:50%;transform:translateY(-50%);font-size:8px;opacity:0.5;width:14px}
-.gpp-parch-drum-hit{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:10px}
-.gpp-parch-playhead{position:absolute;top:0;bottom:0;width:2px;background:#6b4c9a;pointer-events:none;z-index:3;opacity:0.85}
-.gpp-parch-sel-overlay{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(107,76,154,0.12),rgba(107,76,154,0.12) 4px,rgba(107,76,154,0.22) 4px,rgba(107,76,154,0.22) 8px);border:1px dashed #6b4c9a;pointer-events:none;z-index:2}
-.gpp-parch-handle{position:absolute;top:0;bottom:0;width:8px;cursor:ew-resize;z-index:4;touch-action:none}
-.gpp-parch-handle.start{left:-4px}
-.gpp-parch-handle.end{right:-4px}
-.gpp-parch-measure.in-loop{background:rgba(107,76,154,0.06)}
-.gpp-parch-measure.selecting{outline:1px dashed #6b4c9a}
-`;
-  document.head.appendChild(style);
 }
 
 /**
@@ -80,7 +44,6 @@ export function mountParchmentView(host, {
   };
   if (!host) return noop;
 
-  injectStyles();
   host.innerHTML = '';
   host.classList.add('gpp-parch-root');
 

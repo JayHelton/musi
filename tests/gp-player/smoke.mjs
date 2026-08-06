@@ -586,6 +586,9 @@ const parchment = mountParchmentView(parchHost, {
 });
 assert.ok(parchHost.querySelector('.gpp-parch-viewport'), 'parchment viewport should mount');
 assert.ok(parchHost.querySelectorAll('.gpp-parch-measure').length >= 1, 'parchment should render measures');
+assert.ok(parchHost.querySelector('.gpp-parch-sheet'), 'parchment sheet should exist');
+assert.ok(parchHost.querySelector('.gpp-parch-system'), 'parchment system row should exist');
+assert.equal(document.getElementById('gpp-parch-styles'), null, 'parchment should not inject inline styles');
 parchment.destroy();
 
 console.log('gp-player smoke: ok');
