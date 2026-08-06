@@ -179,6 +179,10 @@
   flex-direction: column;
 }
 
+.gpp-measure-nav-host {
+  flex-shrink: 0;
+}
+
 .gpp-measure-nav {
   flex-shrink: 0;
   display: flex;
@@ -187,6 +191,24 @@
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   background: rgba(11, 16, 32, 0.55);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.gpp-measure-nav-label {
+  flex-shrink: 0;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.88rem;
+  color: var(--muted);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.gpp-measure-nav-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
@@ -224,6 +246,20 @@
   border-color: var(--accent2);
   box-shadow: inset 0 0 0 1px var(--accent2);
 }
+.gpp-measure-nav-btn.has-marker {
+  white-space: pre-line;
+  line-height: 1.15;
+  min-height: 40px;
+  font-size: 0.78rem;
+}
+
+.gpp-head-extra-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
 
 .gpp-parchment-host {
   display: flex;
@@ -246,21 +282,7 @@
   width: 100%;
 }
 
-/* ONLY scroll region for the score */
-.gpp-parch {
-  height: 100%;
-  min-height: 0;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(58, 42, 24, 0.45) transparent;
-  background:
-    linear-gradient(180deg, rgba(255, 252, 244, 0.55) 0%, transparent 12%),
-    linear-gradient(0deg, rgba(58, 42, 24, 0.06) 0%, transparent 18%),
-    #f4ead4;
-  color: #1e1408;
-}
-
+/* Parchment score — horizontal systems (matches parchmentView.js DOM) */
 .gpp-parch-viewport {
   position: relative;
   flex: 1;
@@ -270,88 +292,137 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(58, 42, 24, 0.45) transparent;
-  background: #f4ead4;
+  background: #f7efd8;
   color: #1e1408;
-  padding: 14px 12px 24px;
+  padding: 16px 12px 24px;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 20, 32, 0.15);
+}
+
+.gpp-parch-sheet {
+  position: relative;
+  color: #1a1420;
+  font-family: var(--font-body, "Pixelify Sans", ui-monospace, monospace);
 }
 
 .gpp-parch-system {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0;
+  margin-bottom: 14px;
 }
 
 .gpp-parch-measure {
   position: relative;
-  border: 1px solid rgba(58, 42, 24, 0.22);
-  border-radius: 6px;
-  padding: 8px 10px 10px 14px;
-  background: rgba(255, 252, 244, 0.35);
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px 8px;
+  border-left: 2px solid #1a1420;
+  transition: background 0.12s ease, outline 0.12s ease;
 }
-.gpp-parch-measure::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: 2px;
-  background: transparent;
+.gpp-parch-measure:first-child {
+  border-left-width: 3px;
 }
 .gpp-parch-measure.is-active {
-  border-color: rgba(58, 42, 24, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(58, 42, 24, 0.18);
+  outline: 2px solid #6b4c9a;
+  outline-offset: 2px;
+  background: rgba(107, 76, 154, 0.08);
 }
 .gpp-parch-measure.is-active::before {
-  background: #3a2a18;
-}
-.gpp-parch-measure.is-active::after {
   content: "▶";
   position: absolute;
-  left: 5px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.62rem;
-  color: #3a2a18;
+  left: 4px;
+  top: 2px;
+  font-size: 10px;
+  color: #6b4c9a;
+  font-weight: 700;
   line-height: 1;
 }
 .gpp-parch-measure.in-loop {
-  background:
-    linear-gradient(135deg, rgba(180, 94, 255, 0.12), rgba(255, 225, 74, 0.14)),
-    rgba(255, 252, 244, 0.5);
-  border-style: dashed;
-  border-color: rgba(107, 45, 139, 0.45);
+  background: rgba(107, 76, 154, 0.06);
+}
+.gpp-parch-measure.in-loop.is-active {
+  background: rgba(107, 76, 154, 0.1);
 }
 .gpp-parch-measure.is-nav:not(.is-active) {
-  border-color: rgba(107, 45, 139, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(107, 45, 139, 0.28);
+  outline: 1px solid rgba(107, 45, 139, 0.55);
+  outline-offset: 1px;
+}
+.gpp-parch-measure.selecting {
+  outline: 1px dashed #6b4c9a;
+  outline-offset: 1px;
 }
 
-.gpp-parch-barnum {
+.gpp-parch-bar-num {
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.82rem;
+  font-size: 10px;
   font-weight: 700;
-  color: rgba(58, 42, 24, 0.72);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  opacity: 0.75;
+  color: rgba(58, 42, 24, 0.85);
+}
+.gpp-parch-marker {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 9px;
+  opacity: 0.65;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(58, 42, 24, 0.75);
+}
+
+.gpp-parch-staff {
+  position: relative;
 }
 
 .gpp-parch-string {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-  min-height: 20px;
-  border-top: 1px solid rgba(58, 42, 24, 0.12);
+  position: relative;
+  height: 14px;
+  border-bottom: 1px solid rgba(26, 20, 32, 0.35);
 }
-.gpp-parch-string:first-of-type { border-top: none; }
+.gpp-parch-string:last-child {
+  border-bottom-width: 2px;
+}
 
 .gpp-parch-note {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
   color: #1e1408;
-  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.gpp-parch-note.dead {
+  opacity: 0.55;
+}
+
+.gpp-parch-drum-lane {
+  position: relative;
+  height: 12px;
+  border-bottom: 1px dashed rgba(26, 20, 32, 0.2);
+}
+.gpp-parch-drum-lane .gpp-parch-lane-label {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 8px;
+  opacity: 0.5;
+  width: 14px;
+}
+.gpp-parch-drum-hit {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 10px;
+  color: #1e1408;
 }
 
 .gpp-parch-playhead {
@@ -359,21 +430,45 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: #6b2d8b;
-  box-shadow: 0 0 8px rgba(107, 45, 139, 0.45);
+  background: #6b4c9a;
+  box-shadow: 0 0 8px rgba(107, 76, 154, 0.45);
   pointer-events: none;
-  z-index: 4;
+  z-index: 3;
+  opacity: 0.85;
 }
-.gpp-parch-loop-handle {
+
+.gpp-parch-sel-overlay {
   position: absolute;
   top: 0;
-  width: 10px;
-  height: 100%;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(107, 76, 154, 0.12),
+    rgba(107, 76, 154, 0.12) 4px,
+    rgba(107, 76, 154, 0.22) 4px,
+    rgba(107, 76, 154, 0.22) 8px
+  );
+  border: 1px dashed #6b4c9a;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.gpp-parch-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
   cursor: ew-resize;
-  z-index: 5;
+  z-index: 4;
   touch-action: none;
 }
-.gpp-parch-loop-handle::after {
+.gpp-parch-handle.start {
+  left: -4px;
+}
+.gpp-parch-handle.end {
+  right: -4px;
+}
+.gpp-parch-handle::after {
   content: "";
   position: absolute;
   top: 8px;
@@ -381,7 +476,7 @@
   left: 3px;
   width: 4px;
   border-radius: 2px;
-  background: rgba(107, 45, 139, 0.65);
+  background: rgba(107, 76, 154, 0.65);
   border: 1px solid rgba(58, 42, 24, 0.35);
 }
 
@@ -479,9 +574,9 @@
   border-radius: 999px;
   background: var(--bg2);
   color: var(--muted);
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.42rem;
-  letter-spacing: 0.08em;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.92rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
 }
@@ -539,8 +634,8 @@
 }
 .gpp-drawer-title {
   font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.48rem;
-  letter-spacing: 1.4px;
+  font-size: 0.58rem;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--accent);
 }
@@ -567,9 +662,9 @@
   padding-bottom: 0;
 }
 .gpp-drawer-section-title {
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.44rem;
-  letter-spacing: 1.2px;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--accent2);
 }
@@ -677,12 +772,12 @@
 }
 .gpp-mix-viewing {
   flex-shrink: 0;
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.38rem;
-  letter-spacing: 0.06em;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--accent2);
-  padding: 3px 6px;
+  padding: 3px 8px;
   border: 1px solid rgba(180, 94, 255, 0.35);
   border-radius: 6px;
 }
@@ -701,9 +796,9 @@
   color: var(--muted);
 }
 .gpp-control-label {
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.44rem;
-  letter-spacing: 1.2px;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--accent);
 }
@@ -806,9 +901,9 @@
 }
 .gpp-library-title {
   font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.48rem;
+  font-size: 0.58rem;
   font-weight: 400;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--accent);
 }
@@ -882,9 +977,9 @@
   cursor: pointer;
   padding: 10px 14px;
   font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.48rem;
+  font-size: 0.58rem;
   font-weight: 400;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--accent);
   list-style: none;
