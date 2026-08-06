@@ -36,6 +36,7 @@ import { createPlayerState } from '../../js/gpPlayer/playerState.js';
 import { mountTrackMixer } from '../../js/gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from '../../js/gpPlayer/settingsDrawer.js';
 import { mountParchmentView } from '../../js/gpPlayer/parchmentView.js';
+import { mountGpPlayer } from '../../js/gpPlayerUI.js';
 
 // ---- duration math ----
 assert.equal(noteValueToQuarters(4), 1);
@@ -389,6 +390,10 @@ function installDomShim() {
       const suffix = sel.match(/^\[id\$=\"([^\"]+)\"\]$/)?.[1];
       return suffix ? String(el.id || '').endsWith(suffix) : false;
     }
+    if (sel.startsWith('[aria-label=')) {
+      const label = sel.match(/^\[aria-label=\"([^\"]+)\"\]$/)?.[1];
+      return label ? el.getAttribute?.('aria-label') === label : false;
+    }
     return el.tagName?.toLowerCase() === sel.toLowerCase();
   }
 
@@ -490,9 +495,24 @@ function installDomShim() {
       getBoundingClientRect() {
         return { left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 };
       },
+      contains(node) {
+        let cur = node;
+        while (cur) {
+          if (cur === el) return true;
+          cur = cur.parentElement;
+        }
+        return false;
+      },
       addEventListener() {},
       removeEventListener() {},
     };
+    if (String(tag).toLowerCase() === 'details') {
+      Object.defineProperty(el, 'open', {
+        get() { return !!el._open; },
+        set(v) { el._open = !!v; },
+        configurable: true,
+      });
+    }
     Object.defineProperty(el, 'innerHTML', {
       get() { return el._innerHTML || ''; },
       set(v) {
@@ -559,7 +579,7 @@ assert.ok(mixerHost.children.length > 0);
 mixer.destroy();
 psMix.destroy();
 
-// ---- settingsDrawer: unique ids per surface + sync ----
+// ---- settingsDrawer: single shared body + collapsible sections ----
 const psSet = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
 const settingsHost = document.createElement('div');
 const settings = mountSettingsDrawer(settingsHost, {
@@ -567,16 +587,29 @@ const settings = mountSettingsDrawer(settingsHost, {
   uidPrefix: 'smoke-set',
 });
 assert.ok(typeof settings.sync === 'function');
-const drawerSections = settingsHost.querySelectorAll('.gpp-drawer-section');
-assert.ok(drawerSections.length >= 2, 'drawer + sheet should each have sections');
-const drawerBpm = settingsHost.querySelector('[id$="-drawer-bpm"]');
-const sheetBpm = settingsHost.querySelector('[id$="-sheet-bpm"]');
-assert.ok(drawerBpm, 'drawer tempo input should exist');
-assert.ok(sheetBpm, 'sheet tempo input should exist');
-assert.notEqual(drawerBpm.id, sheetBpm.id, 'drawer and sheet ids must differ');
+const settingsSections = settingsHost.querySelectorAll('.gpp-settings-section');
+assert.ok(settingsSections.length >= 4, 'settings should have collapsible sections');
+const settingsBodies = settingsHost.querySelectorAll('.gpp-settings-body');
+assert.equal(settingsBodies.length, 1, 'drawer and sheet should share one control body');
+const bpmInput = settingsHost.querySelector('[id$="-bpm"]');
+assert.ok(bpmInput, 'tempo input should exist');
+assert.ok(!settingsHost.querySelector('.gpp-analysis-results'), 'settings drawer must not host analysis');
 settings.sync();
 settings.destroy();
 psSet.destroy();
+
+// ---- mountGpPlayer: inline analysis outside chrome ----
+const gpHost = document.createElement('div');
+const mounted = mountGpPlayer(gpHost, { gpResult: fakeGp, title: 'Smoke GP' });
+assert.ok(gpHost.querySelector('.gpp-chrome'), 'player should wrap chrome');
+const analysisPanel = gpHost.querySelector('.gpp-analysis');
+assert.ok(analysisPanel, 'inline analysis details should exist');
+assert.ok(!gpHost.querySelector('.gpp-chrome .gpp-analysis'), 'analysis must sit outside chrome');
+const analyzeHeaderBtn = [...gpHost.querySelectorAll('button')].find(
+  (b) => b.getAttribute?.('aria-label') === 'Analyze score',
+);
+assert.ok(analyzeHeaderBtn, 'header Analyze button should exist');
+mounted.destroy();
 
 // ---- parchment mount: viewport + measures ----
 const parchHost = document.createElement('div');

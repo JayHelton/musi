@@ -93,6 +93,13 @@ export function mountGpPlayer(host, {
   titles.append(scoreTitle, scoreTrack);
 
   const scoreActions = el('div', { class: 'gpp-score-actions' });
+  const analyzeBtn = el('button', {
+    class: 'gpp-icon-btn has-label',
+    type: 'button',
+    'aria-label': 'Analyze score',
+    title: 'Analyze score',
+    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="gpp-btn-label">Analyze</span>',
+  });
   const mixerBtn = el('button', {
     class: 'gpp-icon-btn has-label',
     type: 'button',
@@ -107,7 +114,7 @@ export function mountGpPlayer(host, {
     title: 'Practice settings',
     html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg><span class="gpp-btn-label">Settings</span>',
   });
-  scoreActions.append(mixerBtn, settingsBtn);
+  scoreActions.append(analyzeBtn, mixerBtn, settingsBtn);
   if (headerExtra) scoreActions.appendChild(headerExtra);
   scoreHeader.append(titles, scoreActions);
 
@@ -116,12 +123,28 @@ export function mountGpPlayer(host, {
   const parchmentHost = el('div', { class: 'gpp-parchment-host' });
   scoreBody.append(measureNavHost, parchmentHost);
 
+  const stagePane = el('div', { class: 'gpp-stage-pane' });
   const transportHost = el('div');
   const drawerRoot = el('div', { class: 'gpp-drawer-root' });
   const tracksDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-tracks-drawer-root' });
   const tracksMixerHost = el('div', { class: 'gpp-tracks-drawer-mount' });
 
-  host.append(scoreHeader, scoreBody, transportHost, drawerRoot, tracksDrawerRoot);
+  stagePane.append(scoreBody, transportHost, drawerRoot, tracksDrawerRoot);
+
+  const chrome = el('div', { class: 'gpp-chrome' });
+  chrome.append(scoreHeader, stagePane);
+
+  const analysisDetails = el('details', { class: 'gpp-analysis' });
+  const analysisResultsEl = el('div', {
+    class: 'gpp-analysis-results ta-results',
+    html: '<div class="quiz-card"><p class="ta-muted">Click Analyze for key, chord, scale, and technique breakdown.</p></div>',
+  });
+  analysisDetails.append(
+    el('summary', { class: 'gpp-analysis-summary', text: 'Analysis' }),
+    analysisResultsEl,
+  );
+
+  host.append(chrome, analysisDetails);
 
   const uidPrefix = uid('gpp');
 
@@ -490,14 +513,25 @@ export function mountGpPlayer(host, {
       stateController,
       uidPrefix,
       onChange: onSettingsChange,
-      onAnalyze: runAnalysis,
     });
   } catch (e) {
     console.error(e);
   }
 
-  mixerBtn.addEventListener('click', () => tracksDrawer.toggle());
-  settingsBtn.addEventListener('click', () => settingsDrawer?.toggle());
+  analyzeBtn.addEventListener('click', () => {
+    analysisDetails.open = true;
+    runAnalysis(analysisResultsEl);
+    if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
+  });
+
+  mixerBtn.addEventListener('click', () => {
+    if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
+    tracksDrawer.toggle();
+  });
+  settingsBtn.addEventListener('click', () => {
+    if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
+    settingsDrawer?.toggle();
+  });
 
   function clearCountIn() {
     if (countInTimer != null) {
