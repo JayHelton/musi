@@ -72,16 +72,24 @@
 .gpp-stage[hidden] { display: none; }
 .gpp-stage .gpp-root { width: 100%; }
 
-/* ── Player root — bounded column; transport stays inside chrome ────────── */
+/* ── Player root — vertical wrapper; chrome holds bounded column ─────────── */
 
 .gpp-root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  color: var(--text);
+}
+
+.gpp-chrome {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: min(70dvh, 640px);
   min-width: 0;
   height: min(calc(100dvh - var(--dock-h) - 120px), 900px);
   max-height: calc(100dvh - var(--dock-h) - 80px);
-  color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-screen, 18px);
   background: rgba(18, 26, 46, 0.94);
@@ -89,9 +97,21 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 
+/* ── Stage pane (score + transport + drawers, below header) ───────────── */
+
+.gpp-stage-pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* ── Score header ─────────────────────────────────────────────────────── */
 
 .gpp-score-header {
+  position: relative;
   flex-shrink: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -589,10 +609,22 @@
 
 /* ── Drawers (desktop) / sheets (mobile) ──────────────────────────────── */
 
-.gpp-drawer-backdrop {
-  position: fixed;
+.gpp-drawer-root {
+  position: absolute;
   inset: 0;
   z-index: 280;
+  pointer-events: none;
+}
+.gpp-drawer-root .gpp-drawer-backdrop.is-open,
+.gpp-drawer-root .gpp-drawer.is-open,
+.gpp-drawer-root .gpp-sheet.is-open {
+  pointer-events: auto;
+}
+
+.gpp-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   background: rgba(0, 0, 0, 0.52);
   opacity: 0;
   pointer-events: none;
@@ -600,16 +632,15 @@
 }
 .gpp-drawer-backdrop.is-open {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .gpp-drawer {
-  position: fixed;
+  position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 290;
-  width: min(360px, 100vw);
+  z-index: 2;
+  width: min(360px, 100%);
   display: flex;
   flex-direction: column;
   background: rgba(18, 26, 46, 0.98);
@@ -669,15 +700,58 @@
   color: var(--accent2);
 }
 
+/* ── Settings accordion sections (collapsible details) ─────────────────── */
+
+.gpp-settings-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+.gpp-settings-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.gpp-settings-section-title {
+  cursor: pointer;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent2);
+  list-style: none;
+  user-select: none;
+  padding: 4px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gpp-settings-section-title::-webkit-details-marker { display: none; }
+.gpp-settings-section-title::before {
+  content: "▸";
+  font-size: 0.85rem;
+  color: var(--accent);
+  transition: transform 0.15s ease;
+}
+.gpp-settings-section[open] > .gpp-settings-section-title::before {
+  transform: rotate(90deg);
+}
+.gpp-settings-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 4px;
+}
+
 .gpp-sheet {
-  position: fixed;
+  position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 290;
+  z-index: 2;
   display: none;
   flex-direction: column;
-  max-height: min(88vh, 720px);
+  max-height: min(88%, 720px);
   background: rgba(18, 26, 46, 0.98);
   border: 1px solid var(--border);
   border-bottom: none;
@@ -967,6 +1041,8 @@
 /* ── Inline analysis panel ──────────────────────────────────────────────── */
 
 .gpp-analysis {
+  flex-shrink: 0;
+  margin-top: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-screen, 18px);
   background: rgba(18, 26, 46, 0.9);
@@ -1192,7 +1268,7 @@
     font-size: 0.85rem;
     gap: 8px;
   }
-  .gpp-root {
+  .gpp-chrome {
     height: min(calc(100dvh - var(--dock-h) - 100px), 820px);
   }
 }

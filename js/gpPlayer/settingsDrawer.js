@@ -26,7 +26,6 @@ export function mountSettingsDrawer(host, {
   stateController,
   onChange,
   uidPrefix = 'gpp',
-  onAnalyze = null,
 } = {}) {
   const noop = {
     open() {},
@@ -90,34 +89,28 @@ export function mountSettingsDrawer(host, {
   );
   host.append(backdrop, drawer, sheet);
 
-  const controls = {};
+  const ids = {
+    metro: `${prefix}-metro`,
+    countIn: `${prefix}-countin`,
+    loop: `${prefix}-loop`,
+    loopStart: `${prefix}-loop-start`,
+    loopEnd: `${prefix}-loop-end`,
+    rest: `${prefix}-rest`,
+    transpose: `${prefix}-transpose`,
+    tuning: `${prefix}-tuning`,
+    retuneFinger: `${prefix}-retune-finger`,
+    retunePitch: `${prefix}-retune-pitch`,
+    zoom: `${prefix}-zoom`,
+    autoFollow: `${prefix}-autofollow`,
+    bpm: `${prefix}-bpm`,
+    bpmSlider: `${prefix}-bpm-slider`,
+  };
 
-  function makeIds(idSuffix) {
-    return {
-      metro: `${prefix}-${idSuffix}-metro`,
-      countIn: `${prefix}-${idSuffix}-countin`,
-      loop: `${prefix}-${idSuffix}-loop`,
-      loopStart: `${prefix}-${idSuffix}-loop-start`,
-      loopEnd: `${prefix}-${idSuffix}-loop-end`,
-      rest: `${prefix}-${idSuffix}-rest`,
-      transpose: `${prefix}-${idSuffix}-transpose`,
-      tuning: `${prefix}-${idSuffix}-tuning`,
-      retuneFinger: `${prefix}-${idSuffix}-retune-finger`,
-      retunePitch: `${prefix}-${idSuffix}-retune-pitch`,
-      zoom: `${prefix}-${idSuffix}-zoom`,
-      autoFollow: `${prefix}-${idSuffix}-autofollow`,
-      bpm: `${prefix}-${idSuffix}-bpm`,
-      bpmSlider: `${prefix}-${idSuffix}-bpm-slider`,
-    };
-  }
+  const controlsBody = el('div', { class: 'gpp-settings-body' });
+  let controls = null;
 
-  function buildSection(target, idSuffix) {
-    target.innerHTML = '';
-    const ids = makeIds(idSuffix);
-    const analysisResults = el('div', {
-      class: 'gpp-analysis-results ta-results',
-      html: '<div class="quiz-card"><p class="ta-muted">Click Analyze for key, chord, scale, and technique breakdown.</p></div>',
-    });
+  function buildControls() {
+    controlsBody.innerHTML = '';
 
     const bpmInput = el('input', {
       type: 'number', class: 'gpp-num', id: ids.bpm, min: '40', max: '280', step: '1',
@@ -156,10 +149,10 @@ export function mountSettingsDrawer(host, {
     });
     const tuningSelect = el('select', { class: 'gpp-select', id: ids.tuning, 'aria-label': 'Tuning' });
     const retuneFinger = el('input', {
-      type: 'radio', name: `${prefix}-${idSuffix}-retune`, id: ids.retuneFinger, value: 'fingerings', checked: 'checked',
+      type: 'radio', name: `${prefix}-retune`, id: ids.retuneFinger, value: 'fingerings', checked: 'checked',
     });
     const retunePitch = el('input', {
-      type: 'radio', name: `${prefix}-${idSuffix}-retune`, id: ids.retunePitch, value: 'pitches',
+      type: 'radio', name: `${prefix}-retune`, id: ids.retunePitch, value: 'pitches',
     });
     const zoomInput = el('input', {
       type: 'range', class: 'gpp-slider', id: ids.zoom, min: '75', max: '150', step: '1',
@@ -176,42 +169,54 @@ export function mountSettingsDrawer(host, {
     const autoFollowCheck = el('input', {
       type: 'checkbox', id: ids.autoFollow, 'aria-label': 'Auto-follow playback',
     });
-    const analyzeBtn = el('button', {
-      class: 'btn sm', type: 'button', text: 'Analyze', 'aria-label': 'Analyze current guitar track',
-    });
 
-    const section = el('div', { class: 'gpp-drawer-section' }, [
-      el('div', { class: 'gpp-drawer-section-title', text: 'Tempo' }),
-      el('div', { class: 'gpp-field' }, [
-        el('div', { class: 'gpp-control-row' }, [bpmInput, el('span', { class: 'gpp-unit', text: 'BPM' }), bpmSlider, bpmPct]),
+    const tempoSection = el('details', { class: 'gpp-settings-section', open: true }, [
+      el('summary', { class: 'gpp-settings-section-title', text: 'Tempo' }),
+      el('div', { class: 'gpp-settings-section-body' }, [
+        el('div', { class: 'gpp-field' }, [
+          el('div', { class: 'gpp-control-row' }, [bpmInput, el('span', { class: 'gpp-unit', text: 'BPM' }), bpmSlider, bpmPct]),
+        ]),
+        el('label', { class: 'gpp-check', for: ids.metro }, [metroCheck, el('span', { text: 'Metronome' })]),
+        el('label', { class: 'gpp-check', for: ids.countIn }, [
+          countInCheck,
+          el('span', { text: 'Count-in (4-beat lead-in metronome before play)' }),
+        ]),
       ]),
-      el('label', { class: 'gpp-check', for: ids.metro }, [metroCheck, el('span', { text: 'Metronome' })]),
-      el('label', { class: 'gpp-check', for: ids.countIn }, [
-        countInCheck,
-        el('span', { text: 'Count-in (4-beat lead-in metronome before play)' }),
+    ]);
+
+    const loopSection = el('details', { class: 'gpp-settings-section', open: true }, [
+      el('summary', { class: 'gpp-settings-section-title', text: 'Loop' }),
+      el('div', { class: 'gpp-settings-section-body' }, [
+        el('label', { class: 'gpp-check', for: ids.loop }, [loopToggle, el('span', { text: 'Enable loop' })]),
+        el('div', { class: 'gpp-control-row' }, [
+          el('span', { class: 'gpp-unit', text: 'Bars' }), loopStartSel,
+          el('span', { class: 'gpp-unit', text: '–' }), loopEndSel,
+        ]),
+        el('div', { class: 'gpp-control-row' }, [
+          el('span', { class: 'gpp-unit', text: 'Rest between loops' }), restInput,
+          el('span', { class: 'gpp-unit', text: 'sec' }),
+        ]),
+        el('div', { class: 'gpp-control-row' }, [loopSelBtn, clearLoopBtn]),
       ]),
-      el('div', { class: 'gpp-drawer-section-title', text: 'Loop' }),
-      el('label', { class: 'gpp-check', for: ids.loop }, [loopToggle, el('span', { text: 'Enable loop' })]),
-      el('div', { class: 'gpp-control-row' }, [
-        el('span', { class: 'gpp-unit', text: 'Bars' }), loopStartSel,
-        el('span', { class: 'gpp-unit', text: '–' }), loopEndSel,
+    ]);
+
+    const scoreSection = el('details', { class: 'gpp-settings-section', open: true }, [
+      el('summary', { class: 'gpp-settings-section-title', text: 'Score' }),
+      el('div', { class: 'gpp-settings-section-body' }, [
+        el('div', { class: 'gpp-field' }, [
+          el('span', { class: 'gpp-control-label', text: 'Zoom' }),
+          el('div', { class: 'gpp-control-row' }, [zoomInput, zoomPct]),
+          zoomPresets,
+        ]),
+        el('label', { class: 'gpp-check', for: ids.autoFollow }, [
+          autoFollowCheck, el('span', { text: 'Auto-follow playback' }),
+        ]),
       ]),
-      el('div', { class: 'gpp-control-row' }, [
-        el('span', { class: 'gpp-unit', text: 'Rest between loops' }), restInput,
-        el('span', { class: 'gpp-unit', text: 'sec' }),
-      ]),
-      el('div', { class: 'gpp-control-row' }, [loopSelBtn, clearLoopBtn]),
-      el('div', { class: 'gpp-drawer-section-title', text: 'Score' }),
-      el('div', { class: 'gpp-field' }, [
-        el('span', { class: 'gpp-control-label', text: 'Zoom' }),
-        el('div', { class: 'gpp-control-row' }, [zoomInput, zoomPct]),
-        zoomPresets,
-      ]),
-      el('label', { class: 'gpp-check', for: ids.autoFollow }, [
-        autoFollowCheck, el('span', { text: 'Auto-follow playback' }),
-      ]),
-      el('div', { class: 'gpp-drawer-section gpp-fret-only' }, [
-        el('div', { class: 'gpp-drawer-section-title', text: 'Pitch & tuning' }),
+    ]);
+
+    const pitchSection = el('details', { class: 'gpp-settings-section gpp-fret-only', open: true }, [
+      el('summary', { class: 'gpp-settings-section-title', text: 'Pitch & tuning' }),
+      el('div', { class: 'gpp-settings-section-body' }, [
         el('div', { class: 'gpp-field' }, [
           el('span', { class: 'gpp-control-label', text: 'Transpose' }),
           el('div', { class: 'gpp-control-row' }, [
@@ -230,14 +235,9 @@ export function mountSettingsDrawer(host, {
           ]),
         ]),
       ]),
-      el('div', { class: 'gpp-drawer-section' }, [
-        el('div', { class: 'gpp-drawer-section-title', text: 'Analysis' }),
-        analyzeBtn,
-        analysisResults,
-      ]),
     ]);
 
-    target.appendChild(section);
+    controlsBody.append(tempoSection, loopSection, scoreSection, pitchSection);
 
     metroCheck.addEventListener('change', () => {
       stateController.state.metronomeEnabled = !!metroCheck.checked;
@@ -309,19 +309,21 @@ export function mountSettingsDrawer(host, {
       syncBpmFromSlider(bpmInput, bpmSlider, bpmPct);
       onChange?.({ reload: true });
     });
-    analyzeBtn.addEventListener('click', () => {
-      if (typeof onAnalyze === 'function') onAnalyze(target.querySelector('.gpp-analysis-results'));
-    });
 
     return {
       bpmInput, bpmSlider, bpmPct, metroCheck, countInCheck, loopToggle,
       loopStartSel, loopEndSel, restInput, loopSelBtn, transposeInput,
       tuningSelect, retuneFinger, retunePitch, zoomInput, zoomPct, autoFollowCheck,
+      pitchSection,
     };
   }
 
-  controls.drawer = buildSection(drawerBody, 'drawer');
-  controls.sheet = buildSection(sheetBody, 'sheet');
+  controls = buildControls();
+
+  function placeBody() {
+    const target = sheetMode ? sheetBody : drawerBody;
+    if (controlsBody.parentElement !== target) target.appendChild(controlsBody);
+  }
 
   function applyTranspose(n) {
     stateController.state.transpose = Math.max(-12, Math.min(12, Number(n) || 0));
@@ -386,30 +388,24 @@ export function mountSettingsDrawer(host, {
     loopEndSel.value = String(st.loopEnd);
   }
 
-  function syncControlSet(c) {
-    if (!c) return;
-    const st = stateController.state;
-    syncBpmSliderFromBpm(c.bpmInput, c.bpmSlider, c.bpmPct);
-    rebuildTuningSelect(c.tuningSelect);
-    rebuildLoopSelects(c.loopStartSel, c.loopEndSel);
-    c.metroCheck.checked = !!st.metronomeEnabled;
-    c.countInCheck.checked = !!st.countInEnabled;
-    c.loopToggle.checked = !!st.loopEnabled;
-    c.restInput.value = String(st.loopRestSec);
-    c.transposeInput.value = String(st.transpose);
-    c.retuneFinger.checked = st.retuneMode !== 'pitches';
-    c.retunePitch.checked = st.retuneMode === 'pitches';
-    c.zoomInput.value = String(Math.round(st.parchmentZoom * 100));
-    c.zoomPct.textContent = `${c.zoomInput.value}%`;
-    c.autoFollowCheck.checked = !!st.autoFollow;
-    c.loopSelBtn.classList.toggle('is-on', !!st.loopSelectMode);
-    const fretOnly = c.tuningSelect?.closest?.('.gpp-fret-only');
-    if (fretOnly) fretOnly.hidden = st.viewKind !== 'guitar';
-  }
-
   function sync() {
-    syncControlSet(controls.drawer);
-    syncControlSet(controls.sheet);
+    if (!controls) return;
+    const st = stateController.state;
+    syncBpmSliderFromBpm(controls.bpmInput, controls.bpmSlider, controls.bpmPct);
+    rebuildTuningSelect(controls.tuningSelect);
+    rebuildLoopSelects(controls.loopStartSel, controls.loopEndSel);
+    controls.metroCheck.checked = !!st.metronomeEnabled;
+    controls.countInCheck.checked = !!st.countInEnabled;
+    controls.loopToggle.checked = !!st.loopEnabled;
+    controls.restInput.value = String(st.loopRestSec);
+    controls.transposeInput.value = String(st.transpose);
+    controls.retuneFinger.checked = st.retuneMode !== 'pitches';
+    controls.retunePitch.checked = st.retuneMode === 'pitches';
+    controls.zoomInput.value = String(Math.round(st.parchmentZoom * 100));
+    controls.zoomPct.textContent = `${controls.zoomInput.value}%`;
+    controls.autoFollowCheck.checked = !!st.autoFollow;
+    controls.loopSelBtn.classList.toggle('is-on', !!st.loopSelectMode);
+    if (controls.pitchSection) controls.pitchSection.hidden = st.viewKind !== 'guitar';
   }
 
   function detectSheetMode() {
@@ -421,6 +417,8 @@ export function mountSettingsDrawer(host, {
   mq.addEventListener?.('change', onMq);
 
   function paintOpen() {
+    detectSheetMode();
+    placeBody();
     backdrop.classList.toggle('is-open', openState);
     drawer.classList.toggle('is-open', openState && !sheetMode);
     sheet.classList.toggle('is-open', openState && sheetMode);
@@ -441,6 +439,7 @@ export function mountSettingsDrawer(host, {
     host.innerHTML = '';
   }
 
+  placeBody();
   sync();
 
   return { open, close, toggle, sync, destroy, isOpen: () => openState };
