@@ -468,28 +468,36 @@ export function mountGpPlayer(host, {
     bodyEl: tracksMixerHost,
   });
 
-  trackMixer = mountTrackMixer(tracksMixerHost, {
-    stateController,
-    onChange: () => {
-      withPreservedPosition(() => {
-        const { enabledGuitars, enabledDrums } = stateController.getEffectiveEnabled();
-        enabledGuitars.forEach((on, i) => player.setTrackEnabled('guitar', i, on));
-        enabledDrums.forEach((on, i) => player.setTrackEnabled('drum', i, on));
-      });
-      emitPracticeSettings();
-    },
-    onViewTrack: (kind, index) => setViewTrack(kind, index),
-  });
+  try {
+    trackMixer = mountTrackMixer(tracksMixerHost, {
+      stateController,
+      onChange: () => {
+        withPreservedPosition(() => {
+          const { enabledGuitars, enabledDrums } = stateController.getEffectiveEnabled();
+          enabledGuitars.forEach((on, i) => player.setTrackEnabled('guitar', i, on));
+          enabledDrums.forEach((on, i) => player.setTrackEnabled('drum', i, on));
+        });
+        emitPracticeSettings();
+      },
+      onViewTrack: (kind, index) => setViewTrack(kind, index),
+    });
+  } catch (e) {
+    console.error(e);
+  }
 
-  settingsDrawer = mountSettingsDrawer(drawerRoot, {
-    stateController,
-    uidPrefix,
-    onChange: onSettingsChange,
-    onAnalyze: runAnalysis,
-  });
+  try {
+    settingsDrawer = mountSettingsDrawer(drawerRoot, {
+      stateController,
+      uidPrefix,
+      onChange: onSettingsChange,
+      onAnalyze: runAnalysis,
+    });
+  } catch (e) {
+    console.error(e);
+  }
 
   mixerBtn.addEventListener('click', () => tracksDrawer.toggle());
-  settingsBtn.addEventListener('click', () => settingsDrawer.toggle());
+  settingsBtn.addEventListener('click', () => settingsDrawer?.toggle());
 
   function clearCountIn() {
     if (countInTimer != null) {

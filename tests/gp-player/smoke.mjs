@@ -33,6 +33,7 @@ import {
   restartTarget,
 } from '../../js/gpPlayer/rangeUtils.js';
 import { createPlayerState } from '../../js/gpPlayer/playerState.js';
+import { mountTrackMixer } from '../../js/gpPlayer/trackMixer.js';
 
 // ---- duration math ----
 assert.equal(noteValueToQuarters(4), 1);
@@ -371,5 +372,67 @@ const psInit = createPlayerState(fakeGp, {
 assert.equal(psInit.state.transpose, 3);
 assert.equal(psInit.state.retuneMode, 'pitches');
 psInit.destroy();
+
+// ---- trackMixer mount + mix load regression (no AudioContext) ----
+if (typeof document === 'undefined') {
+  globalThis.document = {
+    createElement(tag) {
+      const el = {
+        tagName: tag.toUpperCase(),
+        className: '',
+        style: {},
+        children: [],
+        attributes: {},
+        parentElement: null,
+        textContent: '',
+        innerHTML: '',
+        value: '',
+        checked: false,
+        setAttribute(k, v) { this.attributes[k] = v; },
+        getAttribute(k) { return this.attributes[k]; },
+        appendChild(c) { this.children.push(c); c.parentElement = this; return c; },
+        insertBefore(c, ref) {
+          const i = this.children.indexOf(ref);
+          if (i >= 0) this.children.splice(i, 0, c);
+          else this.children.push(c);
+          c.parentElement = this;
+          return c;
+        },
+        addEventListener() {},
+        removeEventListener() {},
+        classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+      };
+      return el;
+    },
+    createTextNode(text) {
+      return { nodeType: 3, textContent: text };
+    },
+  };
+}
+
+const psMix = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
+const mixState = psMix.state;
+psMix.applyTransforms();
+const mixPlayer = createGpMixPlayer();
+const mixLoadOpts = {
+  guitarModels: mixState.gp.tracks.map((t, i) => (
+    i === mixState.trackIndex && mixState.viewModel?.strings ? mixState.viewModel : t.model
+  )),
+  drumModels: (mixState.gp.drumTracks || []).map((d) => d.model),
+  bpm: mixState.bpm,
+  loopRestSec: mixState.loopRestSec,
+  ...psMix.getEffectiveEnabled(),
+  metronomeEnabled: !!mixState.metronomeEnabled,
+  referenceModel: mixState.viewModel || mixState.gp.drumTracks?.[0]?.model || null,
+};
+mixPlayer.load(mixLoadOpts);
+assert.ok(mixPlayer.events.length > 0, 'mix player should have events after load');
+
+const mixerHost = document.createElement('div');
+const mixer = mountTrackMixer(mixerHost, { stateController: psMix });
+assert.ok(typeof mixer.sync === 'function');
+assert.ok(mixerHost.children.length > 0);
+mixer.destroy();
+psMix.destroy();
 
 console.log('gp-player smoke: ok');
