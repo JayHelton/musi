@@ -313,7 +313,12 @@ function scheduleClick(time, accented) {
   osc.start(time);
   osc.stop(time + 0.08);
   const delay = Math.max(0, (time - audioCtx.currentTime) * 1000);
-  setTimeout(() => triggerBeatPulse(accented), delay);
+  setTimeout(() => {
+    triggerBeatPulse(accented);
+    window.dispatchEvent(new CustomEvent('musi:metro-beat', {
+      detail: { accented: !!accented, bpm: metro.bpm }
+    }));
+  }, delay);
 }
 
 function getAccentForSlot(slotIndex) {
