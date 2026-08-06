@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v129-gp-analyze-features";
+const CACHE_VERSION = "v130-sweep-triads";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -109,6 +109,7 @@ const PRECACHE_URLS = [
   "js/scaleQuiz.js",
   "js/scaleReference.js",
   "js/triadReference.js",
+  "js/sweepReference.js",
   "js/sweepPatterns.js",
   "js/data/sweepLibrary.js",
   "js/tab/tabAnalyzer.js",

@@ -14,6 +14,51 @@
 #sec-triads .ref-fb-card{padding:18px 18px 12px}
 #sec-triads .quiz-main{gap:14px}
 
+.triad-only-opts{display:contents}
+.triad-sweep-panel{margin-top:4px}
+.ref-sweep-controls{display:flex;flex-direction:column;gap:10px;margin:0 0 12px}
+
+/* Sweep-picking library (triads reference) */
+.sweep-section{margin:4px 0 6px}
+.sweep-title{font-size:1.02rem;font-weight:650;color:var(--accent)}
+.sweep-sub{margin:4px 0 12px;color:var(--muted);font-size:.82rem;line-height:1.45;max-width:70ch}
+.sweep-picker{display:flex;gap:6px;flex:0 0 auto;flex-wrap:wrap}
+.sweep-btn{min-width:auto;height:34px;padding:0 12px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font:inherit;font-weight:700;font-size:.82rem;cursor:pointer;transition:all 0.15s ease}
+.sweep-btn:hover{background:var(--hover)}
+.sweep-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);box-shadow:0 0 0 1px var(--accent-dim)}
+.sweep-control-row{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.sweep-control-label{flex:0 0 72px;padding-top:8px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:650}
+.sweep-set-hint{align-self:center;color:var(--muted);font-size:.82rem}
+.sweep-set-hint code{color:var(--text);font-size:.8rem}
+.sweep-quality-picker{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.sweep-quality-btn{padding:6px 10px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font:inherit;font-size:.78rem;font-weight:650;cursor:pointer;transition:all 0.15s ease}
+.sweep-quality-btn:hover{background:var(--hover)}
+.sweep-quality-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.sweep-card-title{font-size:.95rem;font-weight:650;color:var(--text);margin-bottom:8px}
+.sweep-formula{color:var(--muted);font-weight:500}
+.sweep-bass-line{color:var(--muted);font-size:.86rem;margin:-2px 0 8px}
+.sweep-inv-toggle{display:flex;align-items:stretch;gap:8px;flex:1;min-width:220px}
+.sweep-inv-step{min-width:42px;font-size:1.25rem;line-height:1}
+.sweep-inv-step:disabled{opacity:.35;cursor:default}
+.sweep-inv-status{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:6px 12px;border:1px solid var(--border);border-radius:11px;background:var(--bg2);min-height:34px}
+.sweep-inv-status strong{color:var(--text);font-size:.9rem}
+.sweep-inv-status span{color:var(--muted);font-size:.78rem;line-height:1.3}
+.sweep-inv-count{margin-top:2px}
+.sweep-tab{margin:10px 0 0;padding:14px 16px}
+.sweep-dim-priority{margin-top:22px;padding-top:16px;border-top:1px solid var(--border)}
+.sweep-dim-priority h4{margin:0 0 12px;color:var(--accent);font-size:.98rem}
+.sweep-dim-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:14px}
+.sweep-dim-block{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px}
+.sweep-dim-kicker{font-size:.84rem;color:var(--muted);line-height:1.4;margin-bottom:8px}
+.sweep-dim-kicker strong{color:var(--text)}
+.sweep-dim-scale{margin:0 0 10px;font-family:var(--font-ui,'VT323',monospace);font-size:.88rem;color:var(--accent);letter-spacing:.5px;white-space:pre-wrap}
+.sweep-dim-label{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px;font-weight:650}
+.sweep-dim-block ul{margin:0;padding-left:1.1rem;color:var(--text);font-size:.88rem;line-height:1.55}
+.sweep-dim-seq{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px}
+.sweep-dim-seq p{margin:8px 0 0;color:var(--muted);font-size:.84rem;line-height:1.45}
+.sweep-card-head{margin:10px 0 4px}
+.sweep-card-head .sweep-card-title{margin:0;flex:1;min-width:0}
+
 .triad-map{margin:0}
 .triad-map-stack{display:flex;flex-direction:column;gap:10px}
 .triad-row{
@@ -86,4 +131,8 @@
   .triad-row{flex-wrap:wrap;padding:8px}
   .triad-row-meta{flex-direction:row;min-width:0;width:100%;justify-content:flex-end}
   .triad-row-name{font-size:13px}
+  .sweep-control-label{flex-basis:100%;padding-top:0}
+  #sec-triads .ref-fb-opts{width:100%}
+  #sec-triads .ref-view-picker{width:100%}
+  #sec-triads .ref-view-btn{flex:1}
 }

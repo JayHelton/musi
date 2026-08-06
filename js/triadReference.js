@@ -2,6 +2,13 @@ import { parseNote, spellNote, ROOTS, TUNINGS } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
+import {
+  initSweepRef,
+  renderSweepRef,
+  playSweepRef,
+  stopSweepRef,
+  syncSweepPlayButton,
+} from './sweepReference.js';
 
 // Triads Reference — maps every closed triad voicing for a selected root on a
 // chosen 3-string set, across every tuning Musi supports. All qualities share
@@ -78,8 +85,10 @@ let trFbStart = 0;
 let trFbEnd = 15;
 let trMaxSpan = DEFAULT_MAX_SPAN;
 let trShowSus = false;
+let trViewMode = 'triads'; // 'triads' | 'sweep'
 let trContextSubscribed = false;
 let trControlsWired = false;
+let trViewWired = false;
 let trOscillators = [];
 
 function escapeHtml(s) {
@@ -216,6 +225,48 @@ function chordSymbol(root, quality) {
   return `${root}${quality.displaySym}`;
 }
 
+function migrateTriadViewMode() {
+  const saved = getSetting('triadref.viewMode', null, ['triads', 'sweep']);
+  if (saved) {
+    trViewMode = saved;
+    return;
+  }
+  const legacyView = getSetting('ref.viewMode', null, ['scale', 'sweep']);
+  const legacySubview = getSetting('subview.scaleref', null);
+  if (legacyView === 'sweep' || legacySubview === 'sweeps') trViewMode = 'sweep';
+}
+
+function syncTriadViewUi() {
+  document.querySelectorAll('#triad-view-picker .ref-view-btn').forEach(btn => {
+    const mode = btn.dataset.triadView === 'sweep' ? 'sweep' : 'triads';
+    btn.classList.toggle('active', mode === trViewMode);
+  });
+  const triadMap = document.getElementById('triad-map');
+  const sweepPanel = document.getElementById('triad-sweep-panel');
+  const triadOnlyOpts = document.getElementById('triad-only-opts');
+  const stringSetSidebar = document.getElementById('triad-stringset-sidebar');
+  if (triadMap) triadMap.hidden = trViewMode === 'sweep';
+  if (sweepPanel) sweepPanel.hidden = trViewMode !== 'sweep';
+  if (triadOnlyOpts) triadOnlyOpts.hidden = trViewMode === 'sweep';
+  if (stringSetSidebar) stringSetSidebar.hidden = trViewMode === 'sweep';
+}
+
+function wireTriadViewPicker() {
+  if (trViewWired) return;
+  const picker = document.getElementById('triad-view-picker');
+  if (!picker) return;
+  trViewWired = true;
+  picker.querySelectorAll('.ref-view-btn').forEach(btn => {
+    btn.onclick = () => {
+      trViewMode = btn.dataset.triadView === 'sweep' ? 'sweep' : 'triads';
+      saveSetting('triadref.viewMode', trViewMode);
+      saveSetting('subview.triadsref', trViewMode === 'sweep' ? 'sweeps' : 'triads');
+      stopTriadRef();
+      renderTriadRef();
+    };
+  });
+}
+
 function syncSelection() {
   document.querySelectorAll('#sl-triad-root .sl-item').forEach(el => {
     el.classList.toggle('active', el.dataset.val === trRoot);
@@ -349,7 +400,17 @@ function wireControls() {
       renderTriadRef();
     };
   }
-  if (playEl) playEl.onclick = () => playAllTriads();
+  if (playEl) {
+    playEl.onclick = () => {
+      if (trViewMode === 'sweep') {
+        const playing = playEl.classList.contains('playing');
+        if (playing) stopSweepRef();
+        else playSweepRef();
+        return;
+      }
+      playAllTriads();
+    };
+  }
 }
 
 /** SVG fretboard row for one quality — notes + connecting shape polygons. */
@@ -584,11 +645,23 @@ function renderHeader() {
 }
 
 function renderTriadRef() {
-  renderHeader();
-  renderTriadMap();
-  renderTriadInfo();
+  syncTriadViewUi();
+  if (trViewMode === 'sweep') {
+    renderSweepRef(trRoot);
+    syncSweepPlayButton();
+  } else {
+    renderHeader();
+    renderTriadMap();
+    renderTriadInfo();
+    const playEl = document.getElementById('triad-fb-play');
+    if (playEl) {
+      playEl.setAttribute('aria-label', 'Play all triad qualities');
+      playEl.innerHTML = '&#9654; Play';
+      playEl.classList.remove('playing');
+    }
+  }
   document.dispatchEvent(new CustomEvent('musi:triadref-change', {
-    detail: { root: trRoot, tuning: trTuning, stringSet: trStringSet },
+    detail: { root: trRoot, tuning: trTuning, stringSet: trStringSet, viewMode: trViewMode },
   }));
 }
 
@@ -682,6 +755,9 @@ export function initTriadRef() {
   const rootScroll = document.getElementById('sl-triad-root');
   if (!rootScroll) return;
 
+  migrateTriadViewMode();
+  initSweepRef({ onChange: () => renderTriadRef() });
+
   const ctx = getContext();
   trRoot = ROOTS.includes(ctx.root) ? ctx.root : getSetting('triadref.root', trRoot, ROOTS);
   const tuningNames = Object.keys(TUNINGS);
@@ -704,6 +780,7 @@ export function initTriadRef() {
   buildTuningList();
   buildStringSetList();
   wireControls();
+  wireTriadViewPicker();
   syncSelection();
   renderTriadRef();
 
@@ -720,4 +797,5 @@ export function initTriadRef() {
 
 export function stopTriadRef() {
   stopTriadAudio();
+  stopSweepRef();
 }

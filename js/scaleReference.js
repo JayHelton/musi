@@ -3,13 +3,6 @@ import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
-import {
-  SWEEP_STRING_SETS,
-  DIMINISHED_PRIORITY,
-  getSweepPattern,
-  patternsForStringSet,
-  inversionOptionsFor,
-} from './sweepPatterns.js';
 
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
 const TRIAD_SUFFIX = ['','m','m','','','m','dim'];
@@ -37,8 +30,6 @@ const DEGREE_LABELS = {
 const REF_FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 // Width of the highlighted "box" position window, in frets (inclusive span).
 const REF_BOX_SPAN = 4;
-// Selectable string-set sizes for the sweep-picking library (3 / 4 / 5 string).
-const SWEEP_SET_OPTIONS = [3, 4, 5];
 
 let refRoot = 'C';
 let refScale = 'Major (Ionian)';
@@ -47,20 +38,13 @@ let refModeIndex = 0;
 let refFbStart = 0;
 let refFbEnd = 15;
 let refBoxOnly = false;
-let refSweepStringSet = 3;
-let refSweepPatternId = 'maj';
-let refSweepInversion = 0;
-let refViewMode = 'scale'; // 'scale' | 'sweep'
 let refContextSubscribed = false;
 let refFbWired = false;
-let refViewWired = false;
 let refPlayWired = false;
 let refVoices = [];
 let refPlayTimers = [];
 let refPlaying = false;
 
-// Open-string MIDI for the Standard neck used by the sweep library (low → high).
-const SWEEP_OPEN_MIDI = { E: 40, A: 45, D: 50, G: 55, B: 59, e: 64 };
 const REF_PLAY_OCTAVE = 3;
 
 function initScaleRef() {
@@ -76,10 +60,6 @@ function initScaleRef() {
   refFbStart = Number(getSetting('ref.fbStart', refFbStart));
   refFbEnd = Number(getSetting('ref.fbEnd', refFbEnd));
   refBoxOnly = getSetting('ref.boxOnly', refBoxOnly, [true, false]);
-  refSweepStringSet = clampSweepSet(Number(getSetting('ref.sweepStringSet', refSweepStringSet)));
-  refSweepPatternId = String(getSetting('ref.sweepPatternId', refSweepPatternId) || 'maj');
-  refSweepInversion = Math.max(0, Number(getSetting('ref.sweepInversion', refSweepInversion)) || 0);
-  refViewMode = getSetting('ref.viewMode', refViewMode, ['scale', 'sweep']);
 
   rootScroll.innerHTML = '';
   ROOTS.forEach(r => {
@@ -100,7 +80,6 @@ function initScaleRef() {
   buildScaleList();
   buildTuningList();
   wireFretboardControls();
-  wireRefViewPicker();
   wireRefPlay();
   renderScaleRef();
 
@@ -126,25 +105,6 @@ function clampModeIndex(idx) {
   return Math.floor(idx);
 }
 
-function clampSweepSet(n) {
-  return SWEEP_SET_OPTIONS.includes(n) ? n : 3;
-}
-
-function wireRefViewPicker() {
-  if (refViewWired) return;
-  const picker = document.getElementById('ref-view-picker');
-  if (!picker) return;
-  refViewWired = true;
-  picker.querySelectorAll('.ref-view-btn').forEach(btn => {
-    btn.onclick = () => {
-      refViewMode = btn.dataset.refView === 'sweep' ? 'sweep' : 'scale';
-      saveSetting('ref.viewMode', refViewMode);
-      stopScaleRef();
-      renderScaleRef();
-    };
-  });
-}
-
 function wireRefPlay() {
   if (refPlayWired) return;
   const btn = document.getElementById('ref-play');
@@ -155,14 +115,13 @@ function wireRefPlay() {
       stopScaleRef();
       return;
     }
-    if (refViewMode === 'sweep') playSweepRef();
-    else playScaleRef();
+    playScaleRef();
   };
 }
 
 function syncRefPlayButton() {
-  const label = refViewMode === 'sweep' ? 'Play sweep' : 'Play scale';
-  document.querySelectorAll('#ref-play, #scale-ref-play, #sweep-ref-play').forEach(btn => {
+  const label = 'Play scale';
+  document.querySelectorAll('#ref-play, #scale-ref-play').forEach(btn => {
     btn.setAttribute('aria-label', refPlaying ? 'Stop playback' : label);
     btn.innerHTML = refPlaying ? 'Stop' : '&#9654; Play';
     btn.classList.toggle('playing', refPlaying);
@@ -231,24 +190,6 @@ function playScaleRef() {
   playRefSequence(midis, beat);
 }
 
-/** Melodic sweep of the selected pattern (up then back down). */
-function playSweepRef() {
-  const selected = selectedSweep();
-  if (!selected?.events?.length) return;
-  const midis = selected.events.map(ev => {
-    const open = SWEEP_OPEN_MIDI[ev.s];
-    return open == null ? null : open + ev.f;
-  }).filter(m => m != null);
-  if (!midis.length) return;
-  // Full sweep: climb the shape, then descend without repeating the peak.
-  const sequence = midis.length > 1
-    ? [...midis, ...midis.slice(0, -1).reverse()]
-    : midis;
-  const { tempo } = getContext();
-  const beat = Math.max(0.18, Math.min(0.55, 60 / ((tempo || 90) * 1.35)));
-  playRefSequence(sequence, beat);
-}
-
 function stopScaleRef() {
   refPlayTimers.forEach(id => clearTimeout(id));
   refPlayTimers = [];
@@ -258,20 +199,6 @@ function stopScaleRef() {
   refVoices = [];
   refPlaying = false;
   syncRefPlayButton();
-}
-
-function syncRefViewPicker() {
-  document.querySelectorAll('#ref-view-picker .ref-view-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.refView === refViewMode);
-  });
-  const scaleControls = document.getElementById('ref-scale-controls');
-  const sweepControls = document.getElementById('ref-sweep-controls');
-  const rangeLabels = document.querySelectorAll('.ref-fb-range');
-  const boxOnly = document.querySelector('.ref-fb-check');
-  if (scaleControls) scaleControls.hidden = refViewMode !== 'scale';
-  if (sweepControls) sweepControls.hidden = refViewMode !== 'sweep';
-  rangeLabels.forEach(el => { el.hidden = refViewMode === 'sweep'; });
-  if (boxOnly) boxOnly.hidden = refViewMode === 'sweep';
 }
 
 function buildTuningList() {
@@ -392,256 +319,6 @@ function compute3NPSFromSemis(rootStr, semis) {
     result.push({ label: labels[s], frets });
   }
   return result;
-}
-
-// ---------------------------------------------------------------------------
-// Sweep-picking library (movable chord-tone exercises)
-// ---------------------------------------------------------------------------
-
-// Map library string labels onto a Standard 6-string neck (low → high).
-const SWEEP_NECK = [
-  { key: 'E', label: 'E2' },
-  { key: 'A', label: 'A2' },
-  { key: 'D', label: 'D3' },
-  { key: 'G', label: 'G3' },
-  { key: 'B', label: 'B3' },
-  { key: 'e', label: 'e4' },
-];
-
-function clampSweepInversion(patternId, stringSet, inv) {
-  const opts = inversionOptionsFor(patternId, stringSet);
-  if (!opts.length) return 0;
-  const max = opts[opts.length - 1].inv;
-  if (!Number.isFinite(inv) || inv < 0) return 0;
-  if (inv > max) return max;
-  return Math.floor(inv);
-}
-
-function selectedSweep() {
-  const qualities = patternsForStringSet(refSweepStringSet);
-  if (!qualities.some(p => p.id === refSweepPatternId)) {
-    refSweepPatternId = qualities[0]?.id || 'maj';
-  }
-  refSweepInversion = clampSweepInversion(
-    refSweepPatternId,
-    refSweepStringSet,
-    refSweepInversion
-  );
-  return getSweepPattern(refRoot, refSweepStringSet, refSweepPatternId, refSweepInversion);
-}
-
-function sweepHitMap(layout) {
-  const map = new Map();
-  if (!layout?.strings) return map;
-  layout.strings.forEach(str => {
-    str.frets.forEach(f => {
-      map.set(`${str.note}:${f.fret}`, f);
-    });
-  });
-  return map;
-}
-
-function renderSweepControls() {
-  const el = document.getElementById('ref-sweep-controls');
-  if (!el) return;
-  const set = SWEEP_STRING_SETS[refSweepStringSet];
-  const qualities = patternsForStringSet(refSweepStringSet);
-  const selected = selectedSweep();
-  const invOpts = selected?.inversions
-    || inversionOptionsFor(refSweepPatternId, refSweepStringSet, refRoot);
-  const invIdx = Math.max(0, invOpts.findIndex(o => o.inv === refSweepInversion));
-  const invMeta = invOpts[invIdx] || invOpts[0];
-  const canPrev = invIdx > 0;
-  const canNext = invIdx < invOpts.length - 1;
-
-  let html = '';
-  html += `<div class="sweep-control-row">`;
-  html += `<span class="sweep-control-label">Strings</span>`;
-  html += `<div class="sweep-picker" role="group" aria-label="String set">`;
-  html += SWEEP_SET_OPTIONS.map(n => {
-    const info = SWEEP_STRING_SETS[n];
-    return `<button type="button" class="sweep-btn${n === refSweepStringSet ? ' active' : ''}" data-sweep-set="${n}" title="${info.used}">${n}-string</button>`;
-  }).join('');
-  html += `</div>`;
-  html += `<span class="sweep-set-hint">Uses <code>${set.used}</code></span>`;
-  html += `</div>`;
-
-  html += `<div class="sweep-control-row">`;
-  html += `<span class="sweep-control-label">Pattern</span>`;
-  html += `<div class="sweep-quality-picker" role="listbox" aria-label="Sweep pattern">`;
-  qualities.forEach(item => {
-    const short = item.join === '' ? `${refRoot}${item.name}` : `${refRoot} ${item.name}`;
-    html += `<button type="button" class="sweep-quality-btn${item.id === refSweepPatternId ? ' active' : ''}" data-sweep-pattern="${item.id}" title="${item.formula}">${short}</button>`;
-  });
-  html += `</div>`;
-  html += `</div>`;
-
-  // Inversion toggle appears after a pattern is chosen.
-  html += `<div class="sweep-control-row sweep-inv-row">`;
-  html += `<span class="sweep-control-label">Inversion</span>`;
-  html += `<div class="sweep-inv-toggle" role="group" aria-label="Toggle inversion">`;
-  html += `<button type="button" class="sweep-btn sweep-inv-step" data-sweep-inv-dir="-1"${canPrev ? '' : ' disabled'} aria-label="Previous inversion">‹</button>`;
-  html += `<div class="sweep-inv-status">`;
-  html += `<strong>${invMeta?.label || 'Root'}</strong>`;
-  if (invMeta?.bassLabel) html += `<span>${invMeta.bassLabel}</span>`;
-  html += `<span class="sweep-inv-count">${invIdx + 1} / ${invOpts.length}</span>`;
-  html += `</div>`;
-  html += `<button type="button" class="sweep-btn sweep-inv-step" data-sweep-inv-dir="1"${canNext ? '' : ' disabled'} aria-label="Next inversion">›</button>`;
-  html += `</div>`;
-  html += `</div>`;
-
-  el.innerHTML = html;
-  el.querySelectorAll('[data-sweep-set]').forEach(btn => {
-    btn.onclick = () => {
-      refSweepStringSet = clampSweepSet(Number(btn.dataset.sweepSet));
-      // Keep the same chord quality when it exists on the new string set.
-      const qualities = patternsForStringSet(refSweepStringSet);
-      if (!qualities.some(p => p.id === refSweepPatternId)) {
-        refSweepPatternId = qualities[0]?.id || 'maj';
-        saveSetting('ref.sweepPatternId', refSweepPatternId);
-      }
-      refSweepInversion = 0;
-      saveSetting('ref.sweepStringSet', refSweepStringSet);
-      saveSetting('ref.sweepInversion', refSweepInversion);
-      renderScaleRef();
-    };
-  });
-  el.querySelectorAll('[data-sweep-pattern]').forEach(btn => {
-    btn.onclick = () => {
-      refSweepPatternId = btn.dataset.sweepPattern || 'maj';
-      refSweepInversion = 0; // start each pattern at root position
-      saveSetting('ref.sweepPatternId', refSweepPatternId);
-      saveSetting('ref.sweepInversion', refSweepInversion);
-      renderScaleRef();
-    };
-  });
-  el.querySelectorAll('[data-sweep-inv-dir]').forEach(btn => {
-    btn.onclick = () => {
-      if (btn.disabled) return;
-      const dir = Number(btn.dataset.sweepInvDir) || 0;
-      const nextIdx = Math.max(0, Math.min(invOpts.length - 1, invIdx + dir));
-      refSweepInversion = invOpts[nextIdx]?.inv ?? 0;
-      saveSetting('ref.sweepInversion', refSweepInversion);
-      renderScaleRef();
-    };
-  });
-}
-
-// Paint the selected sweep onto the main full-neck fretboard (frets 0–24).
-function renderSweepOnMainBoard() {
-  const board = document.getElementById('ref-fretboard');
-  if (!board) return;
-  const selected = selectedSweep();
-  const hits = sweepHitMap(selected?.layout);
-  const start = 0;
-  const end = 24;
-  const count = end - start + 1;
-  const middle = Math.floor(SWEEP_NECK.length / 2);
-
-  board.style.gridTemplateColumns = `34px repeat(${count}, minmax(30px, 1fr))`;
-
-  let html = '<div class="ref-fb-corner"></div>';
-  for (let f = start; f <= end; f++) html += `<div class="ref-fb-fretnum">${f}</div>`;
-
-  for (let s = SWEEP_NECK.length - 1; s >= 0; s--) {
-    const { key, label } = SWEEP_NECK[s];
-    html += `<div class="ref-fb-strlabel">${label}</div>`;
-    for (let f = start; f <= end; f++) {
-      const hit = hits.get(`${key}:${f}`);
-      const cls = ['ref-fb-cell'];
-      if (f === 0) cls.push('nut');
-      if (f > 0 && REF_FB_DOTS.includes(f) && s === middle) cls.push('inlay');
-      let inner = '';
-      if (hit) {
-        const noteCls = ['ref-note', `deg-${hit.interval}`];
-        if (hit.isRoot) noteCls.push('root');
-        const tech = hit.tech ? ` · ${hit.tech}` : '';
-        const title = `${hit.noteName} · ${INTERVAL_LABELS[hit.interval] || hit.interval}${tech} · step ${hit.order + 1}`;
-        inner = `<span class="${noteCls.join(' ')}" title="${title}">${DEGREE_LABELS[hit.interval]}</span>`;
-      }
-      html += `<div class="${cls.join(' ')}">${inner}</div>`;
-    }
-  }
-  board.innerHTML = html;
-
-  const title = document.getElementById('ref-fb-title');
-  const sub = document.getElementById('ref-fb-sub');
-  const set = SWEEP_STRING_SETS[refSweepStringSet];
-  if (title) title.textContent = selected
-    ? `${selected.title} — ${selected.formula}`
-    : `${refRoot} Sweep`;
-  if (sub) {
-    const inv = selected?.inversions?.find(o => o.inv === selected.inversion);
-    sub.innerHTML = selected
-      ? `<strong>${set.label}</strong> · <code>${set.used}</code> · <strong>${inv?.label || 'Root'}</strong>${inv?.bassLabel ? ` — ${inv.bassLabel}` : ''} · full neck 0–24`
-      : 'Pick a sweep pattern';
-  }
-
-  const legend = document.getElementById('ref-fb-legend');
-  if (legend && selected?.layout) {
-    const seen = new Map();
-    selected.layout.strings.forEach(str => str.frets.forEach(f => {
-      if (!seen.has(f.interval)) seen.set(f.interval, f);
-    }));
-    const intervals = [...seen.keys()].sort((a, b) => a - b);
-    legend.innerHTML = intervals.map(iv =>
-      `<span class="ref-leg-item${iv === 0 ? ' root' : ''}">` +
-      `<span class="ref-leg-swatch deg-${iv}"></span>` +
-      `${DEGREE_LABELS[iv]} · ${INTERVAL_LABELS[iv] || iv}</span>`
-    ).join('');
-  } else if (legend) {
-    legend.innerHTML = '';
-  }
-}
-
-// Card body for sweep mode: tab + diminished guidance (fretboard lives above).
-function renderSweepSection() {
-  const selected = selectedSweep();
-  const wh = DIMINISHED_PRIORITY.wholeHalf;
-  const hw = DIMINISHED_PRIORITY.halfWhole;
-  const seq = DIMINISHED_PRIORITY.sequence;
-
-  let html = `<div class="sweep-section">`;
-  html += `<div class="sweep-title">${refRoot}-Centered Sweep-Picking Library</div>`;
-  html += `<p class="sweep-sub">321 authored close-position sweeps (3/4/5-string) with every chord-tone inversion. Pick a pattern on the fretboard above, then step through inversions. Shapes move with the Root tonal center.</p>`;
-
-  if (selected) {
-    const inv = selected.inversions.find(o => o.inv === selected.inversion);
-    html += `<div class="chord-ref-head sweep-card-head">`;
-    html += `<div class="sweep-card-title">${selected.title} <span class="sweep-formula">— ${selected.formula}</span></div>`;
-    html += `<button class="btn sm chord-ref-play" id="sweep-ref-play" type="button">&#9654; Play</button>`;
-    html += `</div>`;
-    if (inv?.bassLabel) {
-      html += `<div class="sweep-bass-line">${inv.label} — ${inv.bassLabel}</div>`;
-    }
-    html += `<div class="guitar-tab-wrap sweep-tab"><div class="tab-title">Sweep tab (h = hammer-on, p = pull-off)</div><pre>${selected.tab}</pre></div>`;
-  }
-
-  html += `<div class="sweep-dim-priority">`;
-  html += `<h4>Diminished-scale priority patterns</h4>`;
-  html += `<div class="sweep-dim-grid">`;
-  html += `<div class="sweep-dim-block">`;
-  html += `<div class="sweep-dim-kicker">For <strong>${refRoot} whole-half diminished</strong> riffs</div>`;
-  html += `<pre class="sweep-dim-scale">${wh.scaleHint(refRoot)}</pre>`;
-  html += `<div class="sweep-dim-label">Prioritize</div>`;
-  html += `<ul>${wh.prioritizeLabels(refRoot).map(x => `<li>${x}</li>`).join('')}</ul>`;
-  html += `</div>`;
-  html += `<div class="sweep-dim-block">`;
-  html += `<div class="sweep-dim-kicker">For <strong>${refRoot} half-whole diminished</strong> dominant riffs</div>`;
-  html += `<pre class="sweep-dim-scale">${hw.scaleHint(refRoot)}</pre>`;
-  html += `<div class="sweep-dim-label">Prioritize</div>`;
-  html += `<ul>${hw.prioritizeLabels(refRoot).map(x => `<li>${x}</li>`).join('')}</ul>`;
-  html += `</div>`;
-  html += `</div>`;
-  html += `<div class="sweep-dim-seq">`;
-  html += `<div class="sweep-dim-label">${seq.title}</div>`;
-  html += `<pre class="sweep-dim-scale">${seq.describe(refRoot)}</pre>`;
-  html += `<p>${seq.note}</p>`;
-  html += `</div>`;
-  html += `</div>`;
-
-  html += `</div>`;
-  return html;
 }
 
 // Finds a SCALES entry whose semitone pattern matches the given list, so each
@@ -954,15 +631,7 @@ function renderRefLegend(pcSet, modalRootSemi) {
 // Renders the full neck for the active tuning: every in-key note is shown and
 // colour-coded by its interval above the selected modal root. The selected
 // mode's initial box position is emphasised while the rest is dimmed.
-// In Sweep view, the same board shows the selected sweep shape instead.
 function renderRefFretboard() {
-  syncRefViewPicker();
-  if (refViewMode === 'sweep') {
-    renderSweepControls();
-    renderSweepOnMainBoard();
-    return;
-  }
-
   const board = document.getElementById('ref-fretboard');
   if (!board) return;
   const rootP = parseNote(refRoot);
@@ -1062,9 +731,7 @@ function renderScaleRef() {
 
   let html = `<div class="chord-ref-head">`;
   html += `<h3 class="chord-ref-name" style="margin:0">${refRoot} ${refScale}</h3>`;
-  if (refViewMode === 'scale') {
-    html += `<button class="btn sm chord-ref-play" id="scale-ref-play" type="button">&#9654; Play</button>`;
-  }
+  html += `<button class="btn sm chord-ref-play" id="scale-ref-play" type="button">&#9654; Play</button>`;
   html += `</div>`;
   html += `<div class="ref-info">Step pattern: <strong>${stepPat}</strong></div>`;
 
@@ -1089,11 +756,7 @@ function renderScaleRef() {
     html += `</span></div>`;
   }
 
-  if (refViewMode === 'scale') {
-    html += renderModalChordVisualizer();
-  } else {
-    html += renderSweepSection();
-  }
+  html += renderModalChordVisualizer();
 
   card.innerHTML = html;
   const scalePlay = document.getElementById('scale-ref-play');
@@ -1101,13 +764,6 @@ function renderScaleRef() {
     scalePlay.onclick = () => {
       if (refPlaying) stopScaleRef();
       else playScaleRef();
-    };
-  }
-  const sweepPlay = document.getElementById('sweep-ref-play');
-  if (sweepPlay) {
-    sweepPlay.onclick = () => {
-      if (refPlaying) stopScaleRef();
-      else playSweepRef();
     };
   }
   renderRefFretboard();

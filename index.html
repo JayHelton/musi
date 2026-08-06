@@ -379,11 +379,7 @@
               <div class="ref-fb-sub" id="ref-fb-sub"></div>
             </div>
             <div class="ref-fb-opts">
-              <button type="button" class="btn sm chord-ref-play" id="ref-play" aria-label="Play scale or sweep">&#9654; Play</button>
-              <div class="ref-view-picker" id="ref-view-picker" role="group" aria-label="Fretboard view">
-                <button type="button" class="ref-view-btn active" data-ref-view="scale">Scale</button>
-                <button type="button" class="ref-view-btn" data-ref-view="sweep">Sweep</button>
-              </div>
+              <button type="button" class="btn sm chord-ref-play" id="ref-play" aria-label="Play scale">&#9654; Play</button>
               <label class="ref-fb-range">Fret <input type="number" id="ref-fb-start" min="0" max="24" value="0"></label>
               <label class="ref-fb-range">– <input type="number" id="ref-fb-end" min="1" max="24" value="15"></label>
               <label class="ref-fb-check"><input type="checkbox" id="ref-fb-boxonly"> Box only</label>
@@ -393,7 +389,6 @@
             <div class="ref-mode-label">Mode / tonal center</div>
             <div class="ref-mode-row" id="ref-mode-row"></div>
           </div>
-          <div id="ref-sweep-controls" class="ref-sweep-controls" hidden></div>
           <div class="ref-fb-scroll"><div class="ref-fretboard" id="ref-fretboard"></div></div>
           <div class="ref-fb-legend" id="ref-fb-legend"></div>
         </div>
@@ -552,7 +547,7 @@
     <div class="section-head">
       <div class="section-kicker">Reference</div>
       <h2>Triads Reference</h2>
-      <p>All closed triad patterns for a selected root on any 3-string set — Major, Minor, Diminished, and Augmented — in every tuning Musi supports.</p>
+      <p>Closed triad patterns and sweep-picking shapes for a selected root — map every movable triad voicing or study authored 3/4/5-string sweeps with inversions.</p>
     </div>
     <div class="quiz-layout">
       <div class="sidebar">
@@ -560,7 +555,7 @@
           <div class="sl-head">Root</div>
           <div class="sl-scroll" id="sl-triad-root"></div>
         </div>
-        <div class="sidebar-list">
+        <div class="sidebar-list" id="triad-stringset-sidebar">
           <div class="sl-head">String set</div>
           <div class="sl-scroll" id="sl-triad-stringset" style="max-height:220px"></div>
         </div>
@@ -578,13 +573,24 @@
             </div>
             <div class="ref-fb-opts">
               <button type="button" class="btn sm chord-ref-play" id="triad-fb-play" aria-label="Play all triad qualities">&#9654; Play</button>
-              <label class="ref-fb-range">Fret <input type="number" id="triad-fb-start" min="0" max="24" value="0"></label>
-              <label class="ref-fb-range">– <input type="number" id="triad-fb-end" min="1" max="24" value="15"></label>
-              <label class="ref-fb-range">Span <input type="number" id="triad-fb-span" min="2" max="7" value="4" title="Max fret span for a closed shape"></label>
-              <label class="ref-fb-check"><input type="checkbox" id="triad-show-sus"> Sus 2 / Sus 4</label>
+              <div class="ref-view-picker" id="triad-view-picker" role="group" aria-label="Triads view">
+                <button type="button" class="ref-view-btn active" data-triad-view="triads">Triads</button>
+                <button type="button" class="ref-view-btn" data-triad-view="sweep">Sweep</button>
+              </div>
+              <div id="triad-only-opts" class="triad-only-opts">
+                <label class="ref-fb-range">Fret <input type="number" id="triad-fb-start" min="0" max="24" value="0"></label>
+                <label class="ref-fb-range">– <input type="number" id="triad-fb-end" min="1" max="24" value="15"></label>
+                <label class="ref-fb-range">Span <input type="number" id="triad-fb-span" min="2" max="7" value="4" title="Max fret span for a closed shape"></label>
+                <label class="ref-fb-check"><input type="checkbox" id="triad-show-sus"> Sus 2 / Sus 4</label>
+              </div>
             </div>
           </div>
           <div id="triad-map" class="triad-map" aria-live="polite"></div>
+          <div id="triad-sweep-panel" class="triad-sweep-panel" hidden>
+            <div id="triad-sweep-controls" class="ref-sweep-controls"></div>
+            <div class="ref-fb-scroll"><div class="ref-fretboard" id="triad-sweep-fretboard"></div></div>
+            <div class="ref-fb-legend" id="triad-sweep-legend"></div>
+          </div>
         </div>
         <div class="quiz-card" id="triad-info-card">
           <p style="color:var(--muted)">Pick a root &amp; tuning.</p>
