@@ -249,6 +249,8 @@ function syncTriadViewUi() {
   if (sweepPanel) sweepPanel.hidden = trViewMode !== 'sweep';
   if (triadOnlyOpts) triadOnlyOpts.hidden = trViewMode === 'sweep';
   if (stringSetSidebar) stringSetSidebar.hidden = trViewMode === 'sweep';
+  const nav = document.getElementById('triad-sweep-nav');
+  if (nav) nav.hidden = trViewMode !== 'sweep';
 }
 
 function wireTriadViewPicker() {

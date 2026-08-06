@@ -1293,6 +1293,8 @@ function syncCompactProgress(sectionId, prefix) {
 }
 
 /* ── Triads Reference ────────────────────────────────────────── */
+let triadsRefTabsApi = null;
+
 function setupTriads() {
   const sec = document.getElementById('sec-triads');
   if (!sec) return;
@@ -1352,44 +1354,60 @@ function setupTriads() {
     sweepControls.parentNode.insertBefore(nav, sweepControls);
   }
 
-  wrapAsSubview([fbCard, infoCard].filter(Boolean), {
-    id: 'triads',
-    forTabs: 'triadsref-tabs',
-    active: true,
-  });
+  // Triads/Sweeps share the same cards — toggle inner panels only (do not wrap
+  // fbCard in a subview panel or the Sweeps mobile tab hides the whole fretboard).
+  function syncTriadSubviewVisibility(tabId) {
+    const isSweep = tabId === 'sweeps';
+    if (triadMap) triadMap.hidden = isSweep;
+    if (sweepPanel) sweepPanel.hidden = !isSweep;
+    if (triadOnlyOpts) triadOnlyOpts.hidden = isSweep;
+    if (stringSetSidebar) stringSetSidebar.hidden = isSweep;
+    const nav = document.getElementById('triad-sweep-nav');
+    if (nav) nav.hidden = !isSweep;
+  }
 
-  initSubviewTabs(tabs, [
+  const legacySubview = getSetting('subview.scaleref', null);
+  const legacyView = getSetting('ref.viewMode', null, ['scale', 'sweep']);
+  let initialSubview = getSetting('subview.triadsref', null);
+  if (!initialSubview && (legacySubview === 'sweeps' || legacyView === 'sweep')) {
+    initialSubview = 'sweeps';
+    saveSetting('subview.triadsref', 'sweeps');
+    if (!getSetting('triadref.viewMode', null, ['triads', 'sweep'])) {
+      saveSetting('triadref.viewMode', 'sweep');
+    }
+  }
+  initialSubview = initialSubview || 'triads';
+
+  triadsRefTabsApi = initSubviewTabs(tabs, [
     { id: 'triads', label: 'Triads' },
     { id: 'sweeps', label: 'Sweeps' },
   ], {
     settingsKey: 'subview.triadsref',
-    defaultId: 'triads',
+    defaultId: initialSubview,
     onChange: (id) => {
-      const btn = document.querySelector(`.ref-view-btn[data-triad-view="${id === 'sweeps' ? 'sweep' : 'triads'}"]`);
+      const viewMode = id === 'sweeps' ? 'sweep' : 'triads';
+      saveSetting('triadref.viewMode', viewMode);
+      syncTriadSubviewVisibility(id);
+      const btn = document.querySelector(`.ref-view-btn[data-triad-view="${viewMode}"]`);
       if (btn) btn.click();
-      if (triadMap) triadMap.hidden = id === 'sweeps';
-      if (sweepPanel) sweepPanel.hidden = id !== 'sweeps';
-      if (triadOnlyOpts) triadOnlyOpts.hidden = id === 'sweeps';
-      if (stringSetSidebar) stringSetSidebar.hidden = id === 'sweeps';
-      const nav = document.getElementById('triad-sweep-nav');
-      if (nav) nav.hidden = id !== 'sweeps';
       refreshTriadsSetup();
     },
   });
 
-  const legacySubview = getSetting('subview.scaleref', null);
-  const legacyView = getSetting('ref.viewMode', null, ['scale', 'sweep']);
-  const initial = getSetting('subview.triadsref', null)
-    || (legacySubview === 'sweeps' || legacyView === 'sweep' ? 'sweeps' : 'triads');
-  if (initial === 'sweeps') {
-    const btn = document.querySelector('.ref-view-btn[data-triad-view="sweep"]');
-    if (btn) btn.click();
-  }
+  syncTriadSubviewVisibility(triadsRefTabsApi.active);
 
   wireTriadSweepNav();
   refreshTriadsSetup();
   subscribeContext(() => refreshTriadsSetup());
-  document.addEventListener('musi:triadref-change', () => refreshTriadsSetup());
+  document.addEventListener('musi:triadref-change', (e) => {
+    const viewMode = e.detail?.viewMode;
+    if (viewMode) {
+      const tabId = viewMode === 'sweep' ? 'sweeps' : 'triads';
+      triadsRefTabsApi?.setActive(tabId, { silent: true });
+      syncTriadSubviewVisibility(tabId);
+    }
+    refreshTriadsSetup();
+  });
 }
 
 function refreshTriadsSetup() {
