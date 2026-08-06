@@ -1,9 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-<<<<<<< HEAD
-const CACHE_VERSION = "v127-gp-follow-align";
-=======
 const CACHE_VERSION = "v128-exercises-inline-player";
->>>>>>> a17568b (Play Exercises inline instead of a full-screen overlay)
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
