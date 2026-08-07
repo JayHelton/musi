@@ -33,7 +33,7 @@ import {
   canNextMeasure,
   restartTarget,
 } from '../../js/gpPlayer/rangeUtils.js';
-import { createPlayerState } from '../../js/gpPlayer/playerState.js';
+import { createPlayerState, resolveInitialBpm } from '../../js/gpPlayer/playerState.js';
 import { mountTrackMixer } from '../../js/gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from '../../js/gpPlayer/settingsDrawer.js';
 import { mountParchmentView } from '../../js/gpPlayer/parchmentView.js';
@@ -308,7 +308,25 @@ const psTempo = createPlayerState({ ...fakeGp, tempo: 140, tracks: [{
 }] }, { preferredTrackIndex: 0 });
 assert.equal(psTempo.state.scoreBpm, 140);
 assert.equal(psTempo.state.bpm, 140);
+assert.equal(psTempo.state.bpmUserOverride, false);
+psTempo.state.bpmUserOverride = true;
+psTempo.state.bpm = 100;
+psTempo.resetBpm();
+assert.equal(psTempo.state.bpm, 140);
+assert.equal(psTempo.state.bpmUserOverride, false);
+const persistedTempo = psTempo.toPersistable();
+assert.equal(persistedTempo.bpm, null);
+psTempo.state.bpmUserOverride = true;
+psTempo.state.bpm = 100;
+assert.equal(psTempo.toPersistable().bpm, 100);
 psTempo.destroy();
+
+assert.deepEqual(resolveInitialBpm(null, 140), { apply: false });
+assert.deepEqual(resolveInitialBpm(undefined, 140), { apply: false });
+assert.deepEqual(resolveInitialBpm(0, 140), { apply: false });
+assert.deepEqual(resolveInitialBpm(160, 140), { apply: true, bpm: 160, bpmUserOverride: true });
+assert.deepEqual(resolveInitialBpm(140, 140), { apply: true, bpm: 140, bpmUserOverride: false });
+assert.deepEqual(resolveInitialBpm(140.4, 140), { apply: true, bpm: 140.4, bpmUserOverride: false });
 
 const snips = buildGpSectionSnippets(fakeGp);
 assert.ok(snips.length >= 2);
@@ -684,9 +702,12 @@ settings.sync();
 settings.destroy();
 psSet.destroy();
 
-// ---- mountGpPlayer: inline analysis outside chrome ----
+// ---- mountGpPlayer: tempo defaults + inline analysis outside chrome ----
 const gpHost = document.createElement('div');
 const mounted = mountGpPlayer(gpHost, { gpResult: fakeGp, title: 'Smoke GP' });
+assert.equal(mounted.getState().bpm, 120);
+assert.equal(mounted.getState().scoreBpm, 120);
+assert.equal(mounted.getState().bpmUserOverride, false);
 assert.ok(gpHost.querySelector('.gpp-chrome'), 'player should wrap chrome');
 const analysisPanel = gpHost.querySelector('.gpp-analysis');
 assert.ok(analysisPanel, 'inline analysis details should exist');
@@ -696,6 +717,19 @@ const analyzeHeaderBtn = [...gpHost.querySelectorAll('button')].find(
 );
 assert.ok(analyzeHeaderBtn, 'header Analyze button should exist');
 mounted.destroy();
+
+const mountedNullBpm = mountGpPlayer(gpHost, { gpResult: fakeGp, title: 'Smoke GP', initialBpm: null });
+assert.equal(mountedNullBpm.getState().bpm, 120);
+assert.equal(mountedNullBpm.getState().bpmUserOverride, false);
+mountedNullBpm.destroy();
+
+const mounted140 = mountGpPlayer(gpHost, {
+  gpResult: { ...fakeGp, tempo: 140, tracks: [{ ...fakeGp.tracks[0], model: { ...fakeGp.tracks[0].model, tempo: 140 } }] },
+  title: 'Smoke GP 140',
+});
+assert.equal(mounted140.getState().bpm, 140);
+assert.equal(mounted140.getState().bpmUserOverride, false);
+mounted140.destroy();
 
 // ---- parchment mount: viewport + measures ----
 const parchHost = document.createElement('div');

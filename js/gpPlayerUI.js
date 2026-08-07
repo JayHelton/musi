@@ -10,7 +10,7 @@ import { audioCtx, ensureAudio } from './audio.js';
 import { scheduleMetronomeClick } from './tab/metroClick.js';
 
 import { el, uid, fmtTime } from './gpPlayer/dom.js';
-import { createPlayerState } from './gpPlayer/playerState.js';
+import { createPlayerState, resolveInitialBpm } from './gpPlayer/playerState.js';
 import {
   beatsFromMeasureRange,
   canPrevMeasure,
@@ -83,9 +83,10 @@ export function mountGpPlayer(host, {
   });
   const state = stateController.state;
 
-  if (Number.isFinite(Number(initialBpm))) {
-    state.bpm = Math.max(40, Math.min(280, Number(initialBpm)));
-    state.bpmUserOverride = true;
+  const resolvedBpm = resolveInitialBpm(initialBpm, state.scoreBpm);
+  if (resolvedBpm.apply) {
+    state.bpm = resolvedBpm.bpm;
+    state.bpmUserOverride = resolvedBpm.bpmUserOverride;
   }
 
   let countInTimer = null;

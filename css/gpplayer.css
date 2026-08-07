@@ -973,6 +973,13 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.gpp-tempo-reset-row {
+  margin-top: 2px;
+}
+.gpp-tempo-reset-row .gpp-reset-bpm[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
 .gpp-select,
 .gpp-num {
   padding: 8px 10px;

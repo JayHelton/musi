@@ -133,7 +133,9 @@ function normalizeItem(raw) {
     endBeat,
     loopEnabled: raw.loopEnabled == null ? false : !!raw.loopEnabled,
     loopRestSec: Math.max(0, Math.min(30, Number(raw.loopRestSec) || 0)),
-    bpm: Number.isFinite(Number(raw.bpm)) ? Math.max(40, Math.min(280, Math.round(Number(raw.bpm)))) : null,
+    bpm: (raw.bpm != null && Number(raw.bpm) > 0 && Number.isFinite(Number(raw.bpm)))
+      ? Math.max(40, Math.min(280, Math.round(Number(raw.bpm))))
+      : null,
     transpose: Number.isFinite(Number(raw.transpose)) ? Math.round(Number(raw.transpose)) : 0,
     tuning: typeof raw.tuning === 'string' && raw.tuning ? raw.tuning : null,
     retuneMode: raw.retuneMode === 'pitches' ? 'pitches' : 'fingerings',

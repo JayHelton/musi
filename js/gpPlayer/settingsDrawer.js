@@ -121,6 +121,12 @@ export function mountSettingsDrawer(host, {
       'aria-label': 'Tempo percent',
     });
     const bpmPct = el('span', { class: 'gpp-pct', text: '100%' });
+    const resetBpmBtn = el('button', {
+      class: 'btn sm gpp-reset-bpm',
+      type: 'button',
+      text: 'Reset to original',
+      'aria-label': 'Reset tempo to score BPM',
+    });
     const metroCheck = el('input', { type: 'checkbox', id: ids.metro, 'aria-label': 'Metronome' });
     const countInCheck = el('input', { type: 'checkbox', id: ids.countIn, 'aria-label': 'Count-in' });
     const loopToggle = el('input', { type: 'checkbox', id: ids.loop });
@@ -175,6 +181,7 @@ export function mountSettingsDrawer(host, {
       el('div', { class: 'gpp-settings-section-body' }, [
         el('div', { class: 'gpp-field' }, [
           el('div', { class: 'gpp-control-row' }, [bpmInput, el('span', { class: 'gpp-unit', text: 'BPM' }), bpmSlider, bpmPct]),
+          el('div', { class: 'gpp-control-row gpp-tempo-reset-row' }, [resetBpmBtn]),
         ]),
         el('label', { class: 'gpp-check', for: ids.metro }, [metroCheck, el('span', { text: 'Metronome' })]),
         el('label', { class: 'gpp-check', for: ids.countIn }, [
@@ -311,9 +318,14 @@ export function mountSettingsDrawer(host, {
       syncBpmFromSlider(bpmInput, bpmSlider, bpmPct);
       onChange?.({ reload: true });
     });
+    resetBpmBtn.addEventListener('click', () => {
+      if (typeof stateController.resetBpm === 'function') stateController.resetBpm();
+      syncBpmSliderFromBpm(bpmInput, bpmSlider, bpmPct);
+      onChange?.({ reload: true });
+    });
 
     return {
-      bpmInput, bpmSlider, bpmPct, metroCheck, countInCheck, loopToggle,
+      bpmInput, bpmSlider, bpmPct, resetBpmBtn, metroCheck, countInCheck, loopToggle,
       loopStartSel, loopEndSel, restInput, loopSelBtn, transposeInput,
       tuningSelect, retuneFinger, retunePitch, zoomInput, zoomPct, autoFollowCheck,
       pitchSection,
@@ -356,6 +368,16 @@ export function mountSettingsDrawer(host, {
     bpmPct.textContent = `${bpmSlider.value}%`;
   }
 
+  function syncResetBpmBtn(resetBpmBtn) {
+    if (!resetBpmBtn) return;
+    const st = stateController.state;
+    const scoreRounded = Math.round(st.scoreBpm);
+    const atScore = !st.bpmUserOverride && Math.round(st.bpm) === scoreRounded;
+    resetBpmBtn.textContent = `Reset to ${scoreRounded} BPM`;
+    resetBpmBtn.disabled = atScore;
+    resetBpmBtn.title = atScore ? 'Already at score tempo' : `Restore score tempo (${scoreRounded} BPM)`;
+  }
+
   function rebuildTuningSelect(tuningSelect) {
     const model = stateController.state.baseModel;
     tuningSelect.innerHTML = '';
@@ -395,6 +417,7 @@ export function mountSettingsDrawer(host, {
     if (!controls) return;
     const st = stateController.state;
     syncBpmSliderFromBpm(controls.bpmInput, controls.bpmSlider, controls.bpmPct);
+    syncResetBpmBtn(controls.resetBpmBtn);
     rebuildTuningSelect(controls.tuningSelect);
     rebuildLoopSelects(controls.loopStartSel, controls.loopEndSel);
     controls.metroCheck.checked = !!st.metronomeEnabled;

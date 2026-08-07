@@ -38,6 +38,23 @@ function writeZoom(z) {
 }
 
 /**
+ * Apply an exercise-saved BPM only when it is a real positive finite value.
+ * @returns {{ apply: false } | { apply: true, bpm: number, bpmUserOverride: boolean }}
+ */
+export function resolveInitialBpm(initialBpm, scoreBpm) {
+  const n = Number(initialBpm);
+  if (!Number.isFinite(n) || n <= 0) return { apply: false };
+  const bpm = Math.max(40, Math.min(280, n));
+  const rounded = Math.round(bpm);
+  const scoreRounded = Math.round(Number(scoreBpm) || 0);
+  return {
+    apply: true,
+    bpm,
+    bpmUserOverride: rounded !== scoreRounded,
+  };
+}
+
+/**
  * @param {object} gpResult parseGuitarPro output
  * @param {object} [options]
  */
@@ -274,6 +291,11 @@ export function createPlayerState(gpResult, options = {}) {
     state.loopEndBeat = beats.endBeat;
   }
 
+  function resetBpm() {
+    state.bpmUserOverride = false;
+    state.bpm = state.scoreBpm;
+  }
+
   function toPersistable() {
     return {
       preferredTrackIndex: state.trackIndex,
@@ -283,7 +305,7 @@ export function createPlayerState(gpResult, options = {}) {
       startBeat: state.loopEnabled ? state.loopStartBeat : null,
       endBeat: state.loopEnabled ? state.loopEndBeat : null,
       loopRestSec: state.loopRestSec,
-      bpm: state.bpm,
+      bpm: state.bpmUserOverride ? state.bpm : null,
       transpose: state.transpose,
       tuning: state.tuning,
       retuneMode: state.retuneMode,
@@ -327,6 +349,7 @@ export function createPlayerState(gpResult, options = {}) {
     setLoopRange,
     clearLoop,
     setLoopMeasures,
+    resetBpm,
     toPersistable,
     isAlive,
     destroy,
