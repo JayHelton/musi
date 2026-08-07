@@ -19,6 +19,7 @@ import {
   ensurePersistentStorage,
 } from './attachments.js';
 import { isGuitarProName, parseGuitarPro, mountGpPlayer } from './gpPlayerUI.js';
+import { resolveScoreKey } from './gpAnnotations.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -1144,6 +1145,10 @@ async function mountGpExercise(item, mountHost, blob) {
       onPracticeSettingsChange: (settings) => {
         updateExercisePracticeSettings(item.id, settings);
       },
+      scoreKey: resolveScoreKey({
+        attachmentId: item.attachmentId,
+        fileName: item.fileName || item.name,
+      }),
     });
   } catch (err) {
     mountHost.appendChild(el('div', {

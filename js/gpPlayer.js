@@ -21,6 +21,7 @@ import {
   getExercise,
   updateExercisePracticeSettings,
 } from './exercises.js';
+import { resolveScoreKey, migrateAnnotations, copyAnnotations } from './gpAnnotations.js';
 
 const state = {
   bound: false,
@@ -30,6 +31,7 @@ const state = {
   bytes: null,
   gp: null,
   exerciseId: null,
+  attachmentId: null,
   loading: false,
 };
 
@@ -150,6 +152,11 @@ function mountCurrent() {
       onOpenFile: () => {
         if (!state.loading) $('gpp-file')?.click();
       },
+      scoreKey: resolveScoreKey({
+        attachmentId: state.attachmentId,
+        fileName: state.fileName,
+        byteLength: state.bytes?.length,
+      }),
     });
   } catch (err) {
     destroyMount();
@@ -163,7 +170,7 @@ function hasPlayableTracks(gp) {
   return (gp?.tracks?.length > 0) || (gp?.drumTracks?.length > 0);
 }
 
-async function loadFile(file, { exerciseId = null } = {}) {
+async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
   if (!file || state.loading) return;
   if (!isGuitarProName(file.name)) {
     setStatus('Choose a Guitar Pro .gp or .gp5 file.', 'error');
@@ -186,6 +193,7 @@ async function loadFile(file, { exerciseId = null } = {}) {
     state.bytes = bytes;
     state.gp = gp;
     state.exerciseId = exerciseId;
+    state.attachmentId = attachmentId;
     mountCurrent();
     const fretted = gp.tracks?.length || 0;
     const drums = gp.drumTracks?.length || 0;
@@ -258,7 +266,18 @@ async function saveToLibrary() {
       setStatus('Saved attachment, but library entry failed.', 'error');
       return;
     }
+    const fromKey = resolveScoreKey({
+      fileName: state.fileName,
+      byteLength: state.bytes?.length,
+    });
+    const toKey = resolveScoreKey({
+      attachmentId: meta.id,
+      fileName: state.fileName,
+      byteLength: state.bytes?.length,
+    });
+    migrateAnnotations(fromKey, toKey);
     state.exerciseId = item.id;
+    state.attachmentId = meta.id;
     mountCurrent();
     renderLibrary();
     setStatus(`Saved “${trimmed}” to library (Exercises).`);
@@ -335,6 +354,17 @@ async function saveSelectedBarsAsExercise() {
       setStatus('Saved attachment, but library entry failed.', 'error');
       return;
     }
+    const fromKey = resolveScoreKey({
+      attachmentId: state.attachmentId,
+      fileName: state.fileName,
+      byteLength: state.bytes?.length,
+    });
+    const toKey = resolveScoreKey({
+      attachmentId: meta.id,
+      fileName: state.fileName,
+      byteLength: state.bytes?.length,
+    });
+    copyAnnotations(fromKey, toKey);
     if (Number.isFinite(st.bpm) && st.bpm !== item.bpm) {
       updateExercisePracticeSettings(item.id, { bpm: st.bpm });
     }
@@ -360,7 +390,7 @@ async function openLibraryItem(item) {
   const file = new File([blob], item.fileName || `${item.name}.gp`, {
     type: item.type || 'application/octet-stream',
   });
-  await loadFile(file, { exerciseId: item.id });
+  await loadFile(file, { exerciseId: item.id, attachmentId: item.attachmentId });
 }
 
 function renderLibrary() {
@@ -429,6 +459,7 @@ function bindDrop() {
     const file = files && files[0];
     if (file) {
       state.exerciseId = null;
+      state.attachmentId = null;
       loadFile(file);
     }
   };

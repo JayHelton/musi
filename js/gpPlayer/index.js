@@ -19,3 +19,4 @@ export { mountMeasureNav } from './measureNav.js';
 export { mountTransportDock } from './transportDock.js';
 export { mountTrackMixer } from './trackMixer.js';
 export { mountSettingsDrawer } from './settingsDrawer.js';
+export { mountAnnotationsDrawer } from './annotationsDrawer.js';
