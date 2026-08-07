@@ -21,7 +21,7 @@ import {
   getExercise,
   updateExercisePracticeSettings,
 } from './exercises.js';
-import { resolveScoreKey } from './gpAnnotations.js';
+import { resolveScoreKey, migrateAnnotations, copyAnnotations } from './gpAnnotations.js';
 
 const state = {
   bound: false,
@@ -266,6 +266,16 @@ async function saveToLibrary() {
       setStatus('Saved attachment, but library entry failed.', 'error');
       return;
     }
+    const fromKey = resolveScoreKey({
+      fileName: state.fileName,
+      byteLength: state.bytes?.length,
+    });
+    const toKey = resolveScoreKey({
+      attachmentId: meta.id,
+      fileName: state.fileName,
+      byteLength: state.bytes?.length,
+    });
+    migrateAnnotations(fromKey, toKey);
     state.exerciseId = item.id;
     state.attachmentId = meta.id;
     mountCurrent();
@@ -344,6 +354,17 @@ async function saveSelectedBarsAsExercise() {
       setStatus('Saved attachment, but library entry failed.', 'error');
       return;
     }
+    const fromKey = resolveScoreKey({
+      attachmentId: state.attachmentId,
+      fileName: state.fileName,
+      byteLength: state.bytes?.length,
+    });
+    const toKey = resolveScoreKey({
+      attachmentId: meta.id,
+      fileName: state.fileName,
+      byteLength: state.bytes?.length,
+    });
+    copyAnnotations(fromKey, toKey);
     if (Number.isFinite(st.bpm) && st.bpm !== item.bpm) {
       updateExercisePracticeSettings(item.id, { bpm: st.bpm });
     }

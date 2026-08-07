@@ -543,7 +543,6 @@ export function mountGpPlayer(host, {
       if (!anno?.id) return;
       selectedAnnoId = anno.id;
       parchment?.setSelectedAnnotation(anno.id);
-      parchment?.setSelection({ startBeat: anno.startBeat, endBeat: anno.endBeat });
       if (!annoDrawer?.isOpen?.()) annoDrawer?.open();
       annoDrawer?.showEditor(anno);
     },
@@ -652,7 +651,7 @@ export function mountGpPlayer(host, {
         });
       },
       onSave: (payload) => {
-        if (!scoreKey) return;
+        if (!scoreKey) return null;
         const measures = state.viewModel?.measures || [];
         let measureStart = payload.measureStart;
         let measureEnd = payload.measureEnd;
@@ -686,6 +685,7 @@ export function mountGpPlayer(host, {
           durationSec: player.durationSec,
           measureIndex: player.measureIndex,
         });
+        return saved;
       },
       onDelete: (id) => {
         if (!scoreKey || !id) return;
@@ -705,9 +705,7 @@ export function mountGpPlayer(host, {
       onSelect: (anno) => {
         selectedAnnoId = anno?.id ?? null;
         parchment?.setSelectedAnnotation(selectedAnnoId);
-        if (anno) {
-          parchment?.setSelection({ startBeat: anno.startBeat, endBeat: anno.endBeat });
-        } else if (!annotateMode) {
+        if (!anno && !annotateMode) {
           loopController?.syncFromState();
         }
       },

@@ -261,3 +261,54 @@ export function clearAnnotations(scoreKey) {
   bucket.annotations = [];
   persistStore();
 }
+
+function annotationTimestamp(anno) {
+  return anno?.updatedAt || anno?.createdAt || '';
+}
+
+function mergeAnnotationLists(targetList, sourceList) {
+  const byId = new Map();
+  (targetList || []).forEach((anno) => byId.set(anno.id, anno));
+  (sourceList || []).forEach((anno) => {
+    const existing = byId.get(anno.id);
+    if (!existing) {
+      byId.set(anno.id, anno);
+      return;
+    }
+    if (annotationTimestamp(anno) >= annotationTimestamp(existing)) {
+      byId.set(anno.id, anno);
+    }
+  });
+  return sortedAnnotations(Array.from(byId.values()));
+}
+
+function mergeScoreBuckets(fromKey, toKey, { deleteSource }) {
+  const from = typeof fromKey === 'string' ? fromKey.trim() : '';
+  const to = typeof toKey === 'string' ? toKey.trim() : '';
+  if (!from || !to || from === to) return;
+
+  const fromBucket = scoreBucket(from, false);
+  const toBucket = scoreBucket(to, true);
+  if (!toBucket) return;
+
+  if (fromBucket?.annotations?.length) {
+    toBucket.annotations = mergeAnnotationLists(toBucket.annotations, fromBucket.annotations);
+  }
+
+  if (deleteSource) {
+    const store = getStore();
+    if (store.byScore[from]) delete store.byScore[from];
+  }
+
+  persistStore();
+}
+
+/** Merge annotations into toKey; delete the fromKey bucket. */
+export function migrateAnnotations(fromKey, toKey) {
+  mergeScoreBuckets(fromKey, toKey, { deleteSource: true });
+}
+
+/** Merge annotations into toKey without removing the fromKey bucket. */
+export function copyAnnotations(fromKey, toKey) {
+  mergeScoreBuckets(fromKey, toKey, { deleteSource: false });
+}

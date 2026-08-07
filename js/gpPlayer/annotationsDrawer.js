@@ -235,10 +235,13 @@ export function mountAnnotationsDrawer(host, {
       title: titleInput.value,
       text: textInput.value,
     };
-    if (typeof onSave === 'function') onSave(payload);
-    editing = null;
-    editorWrap.hidden = true;
-    renderList();
+    const saved = typeof onSave === 'function' ? onSave(payload) : null;
+    if (saved) showEditor(saved);
+    else {
+      editing = null;
+      editorWrap.hidden = true;
+      renderList();
+    }
   }
 
   addNoteBtn.addEventListener('click', () => {
