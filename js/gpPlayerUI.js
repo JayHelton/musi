@@ -16,6 +16,7 @@ import {
   canPrevMeasure,
   canNextMeasure,
   restartTarget,
+  measureIndicesForBeats,
 } from './gpPlayer/rangeUtils.js';
 import { mountParchmentView } from './gpPlayer/parchmentView.js';
 import { createLoopSelectionController } from './gpPlayer/loopSelection.js';
@@ -23,6 +24,13 @@ import { mountMeasureNav } from './gpPlayer/measureNav.js';
 import { mountTransportDock } from './gpPlayer/transportDock.js';
 import { mountTrackMixer } from './gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from './gpPlayer/settingsDrawer.js';
+import { mountAnnotationsDrawer } from './gpPlayer/annotationsDrawer.js';
+import {
+  listAnnotations,
+  addAnnotation,
+  updateAnnotation,
+  removeAnnotation,
+} from './gpAnnotations.js';
 
 let mountGeneration = 0;
 
@@ -52,6 +60,7 @@ export function mountGpPlayer(host, {
   initialTuning = null,
   initialRetuneMode = null,
   disabled = false,
+  scoreKey = '',
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
 
@@ -120,6 +129,13 @@ export function mountGpPlayer(host, {
     title: 'Track mixer',
     html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h14"/></svg><span class="gpp-btn-label">Tracks</span>',
   });
+  const notesBtn = el('button', {
+    class: 'gpp-icon-btn has-label',
+    type: 'button',
+    'aria-label': 'Section notes',
+    title: 'Section notes',
+    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 6h10M8 12h10M8 18h6"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span class="gpp-btn-label">Notes</span>',
+  });
   const settingsBtn = el('button', {
     class: 'gpp-icon-btn has-label',
     type: 'button',
@@ -127,7 +143,7 @@ export function mountGpPlayer(host, {
     title: 'Practice settings',
     html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg><span class="gpp-btn-label">Settings</span>',
   });
-  scoreActions.append(analyzeBtn, mixerBtn, settingsBtn);
+  scoreActions.append(analyzeBtn, notesBtn, mixerBtn, settingsBtn);
   if (headerExtra) scoreActions.appendChild(headerExtra);
   scoreHeader.append(titles, scoreActions);
 
@@ -140,9 +156,10 @@ export function mountGpPlayer(host, {
   const transportHost = el('div');
   const drawerRoot = el('div', { class: 'gpp-drawer-root' });
   const tracksDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-tracks-drawer-root' });
+  const annoDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-anno-drawer-root' });
   const tracksMixerHost = el('div', { class: 'gpp-tracks-drawer-mount' });
 
-  stagePane.append(scoreBody, transportHost, drawerRoot, tracksDrawerRoot);
+  stagePane.append(scoreBody, transportHost, drawerRoot, tracksDrawerRoot, annoDrawerRoot);
 
   const chrome = el('div', { class: 'gpp-chrome' });
   chrome.append(scoreHeader, stagePane);
@@ -168,7 +185,11 @@ export function mountGpPlayer(host, {
   let trackMixer = null;
   let settingsDrawer = null;
   let tracksDrawer = null;
+  let annoDrawer = null;
   let loopController = null;
+  let annotateMode = false;
+  let draftSel = null;
+  let selectedAnnoId = null;
 
   function currentTrackLabel() {
     if (state.viewKind === 'drum') {
@@ -290,6 +311,60 @@ export function mountGpPlayer(host, {
     parchment?.setZoom(state.parchmentZoom);
   }
 
+  function refreshAnnotations() {
+    const list = scoreKey ? listAnnotations(scoreKey) : [];
+    parchment?.setAnnotations(list);
+    annoDrawer?.sync();
+  }
+
+  function exitAnnotateMode({ keepDrawerAnnotateBtn = false } = {}) {
+    if (!annotateMode && !draftSel) {
+      if (!keepDrawerAnnotateBtn) annoDrawer?.setAnnotateMode(false);
+      notesBtn.classList.remove('is-on');
+      return;
+    }
+    annotateMode = false;
+    draftSel = null;
+    notesBtn.classList.remove('is-on');
+    if (!keepDrawerAnnotateBtn) annoDrawer?.setAnnotateMode(false);
+    parchment?.setSelectionKind('loop');
+    if (state.loopSelectMode) {
+      loopController?.enable();
+      parchment?.setLoopSelectMode(true);
+    } else {
+      parchment?.setSelectMode(false);
+      loopController?.syncFromState();
+    }
+  }
+
+  function enterAnnotateMode() {
+    if (!scoreKey) return;
+    if (state.loopSelectMode) {
+      state.loopSelectMode = false;
+      loopController?.disable();
+      settingsDrawer?.sync();
+    }
+    annotateMode = true;
+    draftSel = null;
+    selectedAnnoId = null;
+    parchment?.setSelectedAnnotation(null);
+    parchment?.setSelectionKind('annotate');
+    parchment?.setSelectMode(true);
+    parchment?.setSelection(null);
+    notesBtn.classList.add('is-on');
+    annoDrawer?.setAnnotateMode(true);
+  }
+
+  function parchmentSelection() {
+    if (annotateMode && draftSel) {
+      return { startBeat: draftSel.startBeat, endBeat: draftSel.endBeat };
+    }
+    if (state.loopEnabled && state.loopStartBeat != null && state.loopEndBeat != null) {
+      return { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
+    }
+    return null;
+  }
+
   function syncPlaybackUi({
     playing = false,
     currentSec = 0,
@@ -304,10 +379,9 @@ export function mountGpPlayer(host, {
       bpm: state.bpm,
       playing: playing && !resting,
       measureIndex,
-      selection: state.loopEnabled && state.loopStartBeat != null
-        ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
-        : null,
-      loopSelectMode: state.loopSelectMode,
+      selection: parchmentSelection(),
+      loopSelectMode: annotateMode || state.loopSelectMode,
+      selectionKind: annotateMode ? 'annotate' : 'loop',
       zoom: state.parchmentZoom,
       autoFollow: state.autoFollow,
     });
@@ -354,12 +428,15 @@ export function mountGpPlayer(host, {
       player.setMetronomeEnabled(state.metronomeEnabled);
     } else if (patch.zoom || patch.autoFollow || patch.loopSelectMode) {
       if (patch.loopSelectMode) {
+        if (state.loopSelectMode) exitAnnotateMode();
         if (state.loopSelectMode) loopController?.enable();
         else loopController?.disable();
       }
       loopController?.syncFromState();
       parchment?.update({
-        loopSelectMode: state.loopSelectMode,
+        loopSelectMode: annotateMode || state.loopSelectMode,
+        selectionKind: annotateMode ? 'annotate' : 'loop',
+        selection: parchmentSelection(),
         zoom: state.parchmentZoom,
         autoFollow: state.autoFollow,
       });
@@ -439,11 +516,37 @@ export function mountGpPlayer(host, {
     zoom: state.parchmentZoom,
     autoFollow: state.autoFollow,
     loopSelectMode: state.loopSelectMode,
+    selectionKind: 'loop',
     selection: state.loopEnabled
       ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
       : null,
+    annotations: scoreKey ? listAnnotations(scoreKey) : [],
     onMeasureClick: (mi) => seekToBar(mi, { autoplay: player.playing }),
-    onSelectionChange: (sel) => loopController?.handleSelectionChange(sel),
+    onSelectionChange: (sel) => {
+      if (annotateMode) {
+        if (!sel) return;
+        const measures = state.viewModel?.measures || [];
+        const { startIdx, endIdx } = measureIndicesForBeats(measures, sel.startBeat, sel.endBeat);
+        draftSel = {
+          startBeat: sel.startBeat,
+          endBeat: sel.endBeat,
+          measureStart: startIdx,
+          measureEnd: endIdx,
+        };
+        parchment?.setSelection({ startBeat: sel.startBeat, endBeat: sel.endBeat });
+        annoDrawer?.showEditor(draftSel);
+        return;
+      }
+      loopController?.handleSelectionChange(sel);
+    },
+    onAnnotationClick: (anno) => {
+      if (!anno?.id) return;
+      selectedAnnoId = anno.id;
+      parchment?.setSelectedAnnotation(anno.id);
+      parchment?.setSelection({ startBeat: anno.startBeat, endBeat: anno.endBeat });
+      if (!annoDrawer?.isOpen?.()) annoDrawer?.open();
+      annoDrawer?.showEditor(anno);
+    },
   });
 
   loopController = createLoopSelectionController({
@@ -532,18 +635,111 @@ export function mountGpPlayer(host, {
     console.error(e);
   }
 
+  try {
+    annoDrawer = mountAnnotationsDrawer(annoDrawerRoot, {
+      getScoreKey: () => scoreKey,
+      getAnnotations: () => (scoreKey ? listAnnotations(scoreKey) : []),
+      onStartAnnotate: () => enterAnnotateMode(),
+      onCancelAnnotate: () => {
+        exitAnnotateMode();
+        selectedAnnoId = null;
+        parchment?.setSelectedAnnotation(null);
+        syncPlaybackUi({
+          playing: player.playing,
+          currentSec: player.currentSec,
+          durationSec: player.durationSec,
+          measureIndex: player.measureIndex,
+        });
+      },
+      onSave: (payload) => {
+        if (!scoreKey) return;
+        const measures = state.viewModel?.measures || [];
+        let measureStart = payload.measureStart;
+        let measureEnd = payload.measureEnd;
+        if (measureStart == null || measureEnd == null) {
+          const idx = measureIndicesForBeats(measures, payload.startBeat, payload.endBeat);
+          measureStart = idx.startIdx;
+          measureEnd = idx.endIdx;
+        }
+        const fields = {
+          startBeat: payload.startBeat,
+          endBeat: payload.endBeat,
+          measureStart,
+          measureEnd,
+          title: payload.title,
+          text: payload.text,
+        };
+        let saved;
+        if (payload.id) {
+          saved = updateAnnotation(scoreKey, payload.id, fields);
+        } else {
+          saved = addAnnotation(scoreKey, fields);
+        }
+        if (saved) selectedAnnoId = saved.id;
+        exitAnnotateMode({ keepDrawerAnnotateBtn: true });
+        annoDrawer?.setAnnotateMode(false);
+        refreshAnnotations();
+        parchment?.setSelectedAnnotation(selectedAnnoId);
+        syncPlaybackUi({
+          playing: player.playing,
+          currentSec: player.currentSec,
+          durationSec: player.durationSec,
+          measureIndex: player.measureIndex,
+        });
+      },
+      onDelete: (id) => {
+        if (!scoreKey || !id) return;
+        removeAnnotation(scoreKey, id);
+        if (selectedAnnoId === id) selectedAnnoId = null;
+        exitAnnotateMode({ keepDrawerAnnotateBtn: true });
+        annoDrawer?.setAnnotateMode(false);
+        parchment?.setSelectedAnnotation(null);
+        refreshAnnotations();
+        syncPlaybackUi({
+          playing: player.playing,
+          currentSec: player.currentSec,
+          durationSec: player.durationSec,
+          measureIndex: player.measureIndex,
+        });
+      },
+      onSelect: (anno) => {
+        selectedAnnoId = anno?.id ?? null;
+        parchment?.setSelectedAnnotation(selectedAnnoId);
+        if (anno) {
+          parchment?.setSelection({ startBeat: anno.startBeat, endBeat: anno.endBeat });
+        } else if (!annotateMode) {
+          loopController?.syncFromState();
+        }
+      },
+      uidPrefix: `${uidPrefix}-anno`,
+    });
+  } catch (e) {
+    console.error(e);
+  }
+
+  refreshAnnotations();
+
   analyzeBtn.addEventListener('click', () => {
     analysisDetails.open = true;
     runAnalysis(analysisResultsEl);
     if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
+    if (annoDrawer?.isOpen?.()) annoDrawer.close();
+  });
+
+  notesBtn.addEventListener('click', () => {
+    if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
+    if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
+    annoDrawer?.toggle();
   });
 
   mixerBtn.addEventListener('click', () => {
     if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
+    if (annoDrawer?.isOpen?.()) annoDrawer.close();
     tracksDrawer.toggle();
   });
   settingsBtn.addEventListener('click', () => {
     if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
+    if (annoDrawer?.isOpen?.()) annoDrawer.close();
     settingsDrawer?.toggle();
   });
 
@@ -691,6 +887,7 @@ export function mountGpPlayer(host, {
       transport?.destroy();
       trackMixer?.destroy();
       settingsDrawer?.destroy();
+      annoDrawer?.destroy();
       tracksDrawer?.destroy();
       if (keyHandler) host.removeEventListener('keydown', keyHandler);
       host.innerHTML = '';
