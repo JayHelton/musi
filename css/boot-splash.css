@@ -95,7 +95,7 @@
 }
 
 .boot-pixel-char {
-  width: 102px;
+  width: 100px;
   height: auto;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
