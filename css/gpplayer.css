@@ -113,15 +113,17 @@
 .gpp-score-header {
   position: relative;
   flex-shrink: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   background: rgba(11, 16, 32, 0.72);
+  min-width: 0;
 }
 .gpp-score-header-titles {
+  flex: 1 1 140px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -148,8 +150,24 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 94, 255, 0.55) transparent;
+}
+.gpp-score-actions::-webkit-scrollbar {
+  height: 6px;
+}
+.gpp-score-actions::-webkit-scrollbar-thumb {
+  background: rgba(180, 94, 255, 0.55);
+  border-radius: 3px;
 }
 .gpp-icon-btn {
   display: inline-flex;
@@ -285,7 +303,7 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .gpp-parchment-host {
@@ -1424,15 +1442,7 @@
   .gpp-drop { padding: 22px 14px; }
   .gpp-stage { padding: 8px 8px 10px; }
   .gpp-score-header {
-    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
-  }
-  .gpp-score-actions {
-    justify-content: flex-end;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    max-width: 100%;
-    scrollbar-width: none;
   }
   .gpp-transport-primary {
     gap: 4px;
