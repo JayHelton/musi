@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v146-gp-tempo-reset";
+const CACHE_VERSION = "v147-gp-measure-notes";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -129,7 +129,9 @@ const PRECACHE_URLS = [
   "js/gpPlayer/transportDock.js",
   "js/gpPlayer/trackMixer.js",
   "js/gpPlayer/settingsDrawer.js",
+  "js/gpPlayer/annotationsDrawer.js",
   "js/gpPlayer/index.js",
+  "js/gpAnnotations.js",
   "js/gpMixPlayer.js",
   "js/gpFollowView.js",
   "js/tab/tabModel.js",

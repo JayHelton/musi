@@ -260,6 +260,8 @@ export function mountSettingsDrawer(host, {
     });
     const onLoopMeasures = () => {
       stateController.setLoopMeasures(Number(loopStartSel.value) || 0, Number(loopEndSel.value) || 0);
+      stateController.state.loopEnabled = true;
+      loopToggle.checked = true;
       onChange?.({ reload: true });
     };
     loopStartSel.addEventListener('change', onLoopMeasures);

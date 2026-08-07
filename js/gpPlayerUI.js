@@ -151,13 +151,6 @@ export function mountGpPlayer(host, {
   const scoreBody = el('div', { class: 'gpp-score-body' });
   const measureNavHost = el('div', { class: 'gpp-measure-nav-host' });
   const parchmentHost = el('div', { class: 'gpp-parchment-host' });
-  const annotateHint = el('div', {
-    class: 'gpp-annotate-hint',
-    hidden: true,
-    role: 'status',
-    'aria-live': 'polite',
-    text: 'Drag across bars to select a section',
-  });
   scoreBody.append(measureNavHost, parchmentHost);
 
   const stagePane = el('div', { class: 'gpp-stage-pane' });
@@ -195,9 +188,6 @@ export function mountGpPlayer(host, {
   let tracksDrawer = null;
   let annoDrawer = null;
   let loopController = null;
-  let annotateMode = false;
-  let draftSel = null;
-  let selectedAnnoId = null;
 
   function currentTrackLabel() {
     if (state.viewKind === 'drum') {
@@ -320,61 +310,41 @@ export function mountGpPlayer(host, {
   }
 
   function refreshAnnotations() {
-    const list = scoreKey ? listAnnotations(scoreKey) : [];
-    parchment?.setAnnotations(list);
     annoDrawer?.sync();
   }
 
-  function syncAnnotateHint() {
-    annotateHint.hidden = !(annotateMode && !draftSel);
-  }
-
-  function exitAnnotateMode({ keepDrawerAnnotateBtn = false } = {}) {
-    if (!annotateMode && !draftSel) {
-      if (!keepDrawerAnnotateBtn) annoDrawer?.setAnnotateMode(false);
-      notesBtn.classList.remove('is-on');
-      syncAnnotateHint();
-      return;
+  function getCurrentSelection() {
+    const measures = state.viewModel?.measures || [];
+    if (state.loopEnabled) {
+      if (state.loopStartBeat == null || state.loopEndBeat == null) return null;
+      const { startIdx, endIdx } = measureIndicesForBeats(
+        measures,
+        state.loopStartBeat,
+        state.loopEndBeat,
+      );
+      return {
+        startBeat: state.loopStartBeat,
+        endBeat: state.loopEndBeat,
+        measureStart: startIdx,
+        measureEnd: endIdx,
+      };
     }
-    annotateMode = false;
-    draftSel = null;
-    notesBtn.classList.remove('is-on');
-    if (!keepDrawerAnnotateBtn) annoDrawer?.setAnnotateMode(false);
-    syncAnnotateHint();
-    parchment?.setSelectionKind('loop');
-    if (state.loopSelectMode) {
-      loopController?.enable();
-      parchment?.setLoopSelectMode(true);
-    } else {
-      parchment?.setSelectMode(false);
-      loopController?.syncFromState();
+    if (state.exerciseScope && measures.length) {
+      const last = measures.length - 1;
+      const measureStart = Math.max(0, Math.min(last, state.loopStart));
+      const measureEnd = Math.max(measureStart, Math.min(last, state.loopEnd));
+      const beats = beatsFromMeasureRange(measures, measureStart, measureEnd);
+      return {
+        startBeat: beats.startBeat,
+        endBeat: beats.endBeat,
+        measureStart,
+        measureEnd,
+      };
     }
-  }
-
-  function enterAnnotateMode() {
-    if (!scoreKey) return;
-    if (state.loopSelectMode) {
-      state.loopSelectMode = false;
-      loopController?.disable();
-      settingsDrawer?.sync();
-    }
-    annotateMode = true;
-    draftSel = null;
-    selectedAnnoId = null;
-    parchment?.setSelectedAnnotation(null);
-    parchment?.setSelectionKind('annotate');
-    parchment?.setSelectMode(true);
-    parchment?.setSelection(null);
-    notesBtn.classList.add('is-on');
-    annoDrawer?.setAnnotateMode(true);
-    annoDrawer?.close();
-    syncAnnotateHint();
+    return null;
   }
 
   function parchmentSelection() {
-    if (annotateMode && draftSel) {
-      return { startBeat: draftSel.startBeat, endBeat: draftSel.endBeat };
-    }
     if (state.loopEnabled && state.loopStartBeat != null && state.loopEndBeat != null) {
       return { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
     }
@@ -396,8 +366,7 @@ export function mountGpPlayer(host, {
       playing: playing && !resting,
       measureIndex,
       selection: parchmentSelection(),
-      loopSelectMode: annotateMode || state.loopSelectMode,
-      selectionKind: annotateMode ? 'annotate' : 'loop',
+      loopSelectMode: state.loopSelectMode,
       zoom: state.parchmentZoom,
       autoFollow: state.autoFollow,
     });
@@ -444,14 +413,12 @@ export function mountGpPlayer(host, {
       player.setMetronomeEnabled(state.metronomeEnabled);
     } else if (patch.zoom || patch.autoFollow || patch.loopSelectMode) {
       if (patch.loopSelectMode) {
-        if (state.loopSelectMode) exitAnnotateMode();
         if (state.loopSelectMode) loopController?.enable();
         else loopController?.disable();
       }
       loopController?.syncFromState();
       parchment?.update({
-        loopSelectMode: annotateMode || state.loopSelectMode,
-        selectionKind: annotateMode ? 'annotate' : 'loop',
+        loopSelectMode: state.loopSelectMode,
         selection: parchmentSelection(),
         zoom: state.parchmentZoom,
         autoFollow: state.autoFollow,
@@ -532,40 +499,14 @@ export function mountGpPlayer(host, {
     zoom: state.parchmentZoom,
     autoFollow: state.autoFollow,
     loopSelectMode: state.loopSelectMode,
-    selectionKind: 'loop',
     selection: state.loopEnabled
       ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
       : null,
-    annotations: scoreKey ? listAnnotations(scoreKey) : [],
     onMeasureClick: (mi) => seekToBar(mi, { autoplay: player.playing }),
     onSelectionChange: (sel) => {
-      if (annotateMode) {
-        if (!sel) return;
-        const measures = state.viewModel?.measures || [];
-        const { startIdx, endIdx } = measureIndicesForBeats(measures, sel.startBeat, sel.endBeat);
-        draftSel = {
-          startBeat: sel.startBeat,
-          endBeat: sel.endBeat,
-          measureStart: startIdx,
-          measureEnd: endIdx,
-        };
-        syncAnnotateHint();
-        parchment?.setSelection({ startBeat: sel.startBeat, endBeat: sel.endBeat });
-        annoDrawer?.open();
-        annoDrawer?.showEditor(draftSel);
-        return;
-      }
       loopController?.handleSelectionChange(sel);
     },
-    onAnnotationClick: (anno) => {
-      if (!anno?.id) return;
-      selectedAnnoId = anno.id;
-      parchment?.setSelectedAnnotation(anno.id);
-      if (!annoDrawer?.isOpen?.()) annoDrawer?.open();
-      annoDrawer?.showEditor(anno);
-    },
   });
-  parchmentHost.appendChild(annotateHint);
 
   loopController = createLoopSelectionController({
     getState: () => state,
@@ -657,18 +598,7 @@ export function mountGpPlayer(host, {
     annoDrawer = mountAnnotationsDrawer(annoDrawerRoot, {
       getScoreKey: () => scoreKey,
       getAnnotations: () => (scoreKey ? listAnnotations(scoreKey) : []),
-      onStartAnnotate: () => enterAnnotateMode(),
-      onCancelAnnotate: () => {
-        exitAnnotateMode();
-        selectedAnnoId = null;
-        parchment?.setSelectedAnnotation(null);
-        syncPlaybackUi({
-          playing: player.playing,
-          currentSec: player.currentSec,
-          durationSec: player.durationSec,
-          measureIndex: player.measureIndex,
-        });
-      },
+      getCurrentSelection,
       onSave: (payload) => {
         if (!scoreKey) return null;
         const measures = state.viewModel?.measures || [];
@@ -693,11 +623,7 @@ export function mountGpPlayer(host, {
         } else {
           saved = addAnnotation(scoreKey, fields);
         }
-        if (saved) selectedAnnoId = saved.id;
-        exitAnnotateMode({ keepDrawerAnnotateBtn: true });
-        annoDrawer?.setAnnotateMode(false);
         refreshAnnotations();
-        parchment?.setSelectedAnnotation(selectedAnnoId);
         syncPlaybackUi({
           playing: player.playing,
           currentSec: player.currentSec,
@@ -709,10 +635,6 @@ export function mountGpPlayer(host, {
       onDelete: (id) => {
         if (!scoreKey || !id) return;
         removeAnnotation(scoreKey, id);
-        if (selectedAnnoId === id) selectedAnnoId = null;
-        exitAnnotateMode({ keepDrawerAnnotateBtn: true });
-        annoDrawer?.setAnnotateMode(false);
-        parchment?.setSelectedAnnotation(null);
         refreshAnnotations();
         syncPlaybackUi({
           playing: player.playing,
@@ -721,14 +643,6 @@ export function mountGpPlayer(host, {
           measureIndex: player.measureIndex,
         });
       },
-      onSelect: (anno) => {
-        selectedAnnoId = anno?.id ?? null;
-        parchment?.setSelectedAnnotation(selectedAnnoId);
-        if (!anno && !annotateMode) {
-          loopController?.syncFromState();
-        }
-      },
-      uidPrefix: `${uidPrefix}-anno`,
     });
   } catch (e) {
     console.error(e);

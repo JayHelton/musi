@@ -1,6 +1,6 @@
 // Section notes drawer / bottom sheet for the GP parchment player.
 
-import { el, uid } from './dom.js';
+import { el } from './dom.js';
 
 function formatRange(anno) {
   if (anno.measureStart != null && anno.measureEnd != null) {
@@ -27,12 +27,9 @@ function previewText(text) {
 export function mountAnnotationsDrawer(host, {
   getScoreKey = () => '',
   getAnnotations = () => [],
-  onStartAnnotate = null,
-  onCancelAnnotate = null,
+  getCurrentSelection = () => null,
   onSave = null,
   onDelete = null,
-  onSelect = null,
-  uidPrefix = 'gpp',
 } = {}) {
   const noop = {
     open() {},
@@ -42,14 +39,11 @@ export function mountAnnotationsDrawer(host, {
     destroy() {},
     isOpen: () => false,
     showEditor() {},
-    setAnnotateMode() {},
   };
   if (!host) return noop;
 
-  const prefix = uidPrefix || uid('gpp-anno');
   let openState = false;
   let sheetMode = false;
-  let annotateModeOn = false;
   let selectedId = null;
   let editing = null;
 
@@ -82,9 +76,16 @@ export function mountAnnotationsDrawer(host, {
     text: 'Open from Exercises or save the score so notes persist.',
     hidden: true,
   });
+  const selectHint = el('p', {
+    class: 'gpp-anno-hint gpp-anno-select-hint',
+    text: 'Select measures first (enable Loop or set a bar range in Practice settings), then add a note.',
+    hidden: true,
+    role: 'status',
+    'aria-live': 'polite',
+  });
   const emptyHint = el('p', {
     class: 'gpp-anno-hint',
-    text: 'Highlight a section on the score, then write what you\u2019re studying \u2014 scale, mode, key shifts, etc.',
+    text: 'Select a measure range on the score, then add notes about what you\u2019re practicing \u2014 scale, mode, key shifts, etc.',
   });
   const listEl = el('div', { class: 'gpp-anno-list' });
   const editorWrap = el('div', { class: 'gpp-anno-editor', hidden: true });
@@ -117,6 +118,7 @@ export function mountAnnotationsDrawer(host, {
   const contentBody = el('div', { class: 'gpp-anno-body' }, [
     el('div', { class: 'gpp-anno-toolbar' }, [addNoteBtn]),
     noKeyHint,
+    selectHint,
     emptyHint,
     listEl,
     editorWrap,
@@ -160,22 +162,28 @@ export function mountAnnotationsDrawer(host, {
   function paintAddBtn() {
     const ok = hasScoreKey();
     addNoteBtn.disabled = !ok;
-    addNoteBtn.classList.toggle('is-on', annotateModeOn);
     noKeyHint.hidden = ok;
-    if (!ok) addNoteHintDisable();
   }
 
-  function addNoteHintDisable() {
-    if (annotateModeOn) {
-      annotateModeOn = false;
-      addNoteBtn.classList.remove('is-on');
-    }
+  function updateEmptyHint() {
+    const items = typeof getAnnotations === 'function' ? getAnnotations() : [];
+    emptyHint.hidden = items.length > 0 || editing != null || !selectHint.hidden;
+  }
+
+  function hideSelectHint() {
+    selectHint.hidden = true;
+    updateEmptyHint();
+  }
+
+  function showSelectHint() {
+    selectHint.hidden = false;
+    emptyHint.hidden = true;
   }
 
   function renderList() {
     const items = typeof getAnnotations === 'function' ? getAnnotations() : [];
     listEl.innerHTML = '';
-    emptyHint.hidden = items.length > 0 || editing != null;
+    updateEmptyHint();
     if (!items.length) return;
     items.forEach((anno) => {
       const item = el('button', {
@@ -184,7 +192,7 @@ export function mountAnnotationsDrawer(host, {
         'aria-pressed': anno.id === selectedId ? 'true' : 'false',
         onClick: () => {
           selectedId = anno.id;
-          if (typeof onSelect === 'function') onSelect(anno);
+          hideSelectHint();
           showEditor(anno);
           renderList();
         },
@@ -201,12 +209,13 @@ export function mountAnnotationsDrawer(host, {
     if (!draftOrAnno) {
       editing = null;
       editorWrap.hidden = true;
-      emptyHint.hidden = (getAnnotations()?.length || 0) > 0;
+      updateEmptyHint();
       return;
     }
     editing = { ...draftOrAnno };
     editorWrap.hidden = false;
     emptyHint.hidden = true;
+    hideSelectHint();
     editorMeta.textContent = formatRange(editing);
     titleInput.value = editing.title || '';
     textInput.value = editing.text || '';
@@ -217,11 +226,8 @@ export function mountAnnotationsDrawer(host, {
   }
 
   function cancelEditor() {
-    const wasNew = editing && !editing.id;
     editing = null;
     editorWrap.hidden = true;
-    if (wasNew && typeof onCancelAnnotate === 'function') onCancelAnnotate();
-    else if (typeof onSelect === 'function') onSelect(selectedId ? getAnnotations().find((a) => a.id === selectedId) : null);
     renderList();
   }
 
@@ -247,19 +253,19 @@ export function mountAnnotationsDrawer(host, {
 
   addNoteBtn.addEventListener('click', () => {
     if (!hasScoreKey()) return;
-    if (annotateModeOn) {
-      annotateModeOn = false;
-      addNoteBtn.classList.remove('is-on');
-      if (typeof onCancelAnnotate === 'function') onCancelAnnotate();
+    const sel = typeof getCurrentSelection === 'function' ? getCurrentSelection() : null;
+    if (!sel) {
+      showSelectHint();
       return;
     }
-    annotateModeOn = true;
-    addNoteBtn.classList.add('is-on');
+    hideSelectHint();
     selectedId = null;
-    editing = null;
-    editorWrap.hidden = true;
-    if (typeof onStartAnnotate === 'function') onStartAnnotate();
-    renderList();
+    showEditor({
+      startBeat: sel.startBeat,
+      endBeat: sel.endBeat,
+      measureStart: sel.measureStart,
+      measureEnd: sel.measureEnd,
+    });
   });
   saveBtn.addEventListener('click', () => commitSave());
   cancelBtn.addEventListener('click', () => cancelEditor());
@@ -302,6 +308,7 @@ export function mountAnnotationsDrawer(host, {
   }
   function close() {
     openState = false;
+    hideSelectHint();
     paintOpen();
   }
   function toggle() {
@@ -316,11 +323,6 @@ export function mountAnnotationsDrawer(host, {
       const fresh = getAnnotations().find((a) => a.id === editing.id);
       if (fresh) showEditor(fresh);
     }
-  }
-
-  function setAnnotateMode(on) {
-    annotateModeOn = !!on;
-    addNoteBtn.classList.toggle('is-on', annotateModeOn);
   }
 
   backdrop.addEventListener('click', () => close());
@@ -346,6 +348,5 @@ export function mountAnnotationsDrawer(host, {
     destroy,
     isOpen: () => openState,
     showEditor,
-    setAnnotateMode,
   };
 }

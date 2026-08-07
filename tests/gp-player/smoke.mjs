@@ -37,6 +37,8 @@ import { createPlayerState, resolveInitialBpm } from '../../js/gpPlayer/playerSt
 import { mountTrackMixer } from '../../js/gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from '../../js/gpPlayer/settingsDrawer.js';
 import { mountParchmentView } from '../../js/gpPlayer/parchmentView.js';
+import { mountAnnotationsDrawer } from '../../js/gpPlayer/annotationsDrawer.js';
+import { createLoopSelectionController } from '../../js/gpPlayer/loopSelection.js';
 import { mountGpPlayer } from '../../js/gpPlayerUI.js';
 
 // ---- duration math ----
@@ -558,6 +560,7 @@ function installDomShim() {
       },
       setAttribute(k, v) {
         this.attributes[k] = v;
+        if (k === 'hidden') this.hidden = true;
         if (k === 'id') {
           this.id = v;
           document._byId.set(v, this);
@@ -607,8 +610,20 @@ function installDomShim() {
         }
         return false;
       },
-      addEventListener() {},
-      removeEventListener() {},
+      addEventListener(type, fn) {
+        if (!el._listeners) el._listeners = {};
+        if (!el._listeners[type]) el._listeners[type] = [];
+        el._listeners[type].push(fn);
+      },
+      removeEventListener(type, fn) {
+        if (!el._listeners?.[type]) return;
+        el._listeners[type] = el._listeners[type].filter((h) => h !== fn);
+      },
+      dispatch(type, event = {}) {
+        for (const fn of el._listeners?.[type] || []) fn.call(el, event);
+      },
+      click() { this.dispatch('click'); },
+      change() { this.dispatch('change'); },
     };
     if (String(tag).toLowerCase() === 'details') {
       Object.defineProperty(el, 'open', {
@@ -743,5 +758,119 @@ assert.ok(parchHost.querySelector('.gpp-parch-sheet'), 'parchment sheet should e
 assert.ok(parchHost.querySelector('.gpp-parch-system'), 'parchment system row should exist');
 assert.equal(document.getElementById('gpp-parch-styles'), null, 'parchment should not inject inline styles');
 parchment.destroy();
+
+// ---- loopSelection: syncFromState gates on loopEnabled ----
+const loopParchment = {
+  selection: undefined,
+  loopSelectMode: undefined,
+  setSelection(sel) { this.selection = sel; },
+  setLoopSelectMode(on) { this.loopSelectMode = on; },
+};
+const loopCtrlOff = createLoopSelectionController({
+  getState: () => ({
+    loopEnabled: false,
+    loopSelectMode: false,
+    loopStartBeat: 0,
+    loopEndBeat: 8,
+  }),
+  parchment: loopParchment,
+});
+loopCtrlOff.syncFromState();
+assert.equal(loopParchment.selection, null, 'loop disabled should clear parchment selection');
+
+const loopCtrlOn = createLoopSelectionController({
+  getState: () => ({
+    loopEnabled: true,
+    loopSelectMode: true,
+    loopStartBeat: 0,
+    loopEndBeat: 8,
+  }),
+  parchment: loopParchment,
+});
+loopCtrlOn.syncFromState();
+assert.deepEqual(loopParchment.selection, { startBeat: 0, endBeat: 8 }, 'loop enabled should paint selection');
+assert.equal(loopParchment.loopSelectMode, true, 'loop select mode should sync from state');
+
+// ---- settingsDrawer: bar dropdown enables loop ----
+const psLoopDrop = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
+psLoopDrop.state.loopEnabled = false;
+const loopDropHost = document.createElement('div');
+const loopDropDrawer = mountSettingsDrawer(loopDropHost, {
+  stateController: psLoopDrop,
+  uidPrefix: 'smoke-loop-drop',
+});
+const loopStartSel = loopDropHost.querySelector('[id$="-loop-start"]');
+const loopEndSel = loopDropHost.querySelector('[id$="-loop-end"]');
+assert.ok(loopStartSel && loopEndSel, 'loop bar selects should exist');
+assert.equal(psLoopDrop.state.loopStart, 0, 'default loop start should be first bar');
+assert.equal(psLoopDrop.state.loopEnd, 1, 'fakeGp has two bars (indices 0–1)');
+loopEndSel.value = '0';
+loopEndSel.change();
+assert.equal(psLoopDrop.state.loopEnabled, true, 'changing loop end bar should enable loop');
+assert.equal(psLoopDrop.state.loopStart, 0);
+assert.equal(psLoopDrop.state.loopEnd, 0, 'bar 1 only range');
+assert.equal(psLoopDrop.state.loopStartBeat, 0);
+assert.equal(psLoopDrop.state.loopEndBeat, 1);
+loopDropDrawer.destroy();
+psLoopDrop.destroy();
+
+// ---- annotationsDrawer: Add note hints ----
+const annoHost = document.createElement('div');
+let currentSelection = null;
+const annoDrawer = mountAnnotationsDrawer(annoHost, {
+  getScoreKey: () => 'smoke-score',
+  getAnnotations: () => [],
+  getCurrentSelection: () => currentSelection,
+});
+const addBtn = annoHost.querySelector('.gpp-anno-add-btn');
+const selectHintEl = annoHost.querySelector('.gpp-anno-select-hint');
+const emptyHintEl = [...annoHost.querySelectorAll('.gpp-anno-hint')].find(
+  (n) => !n.className.includes('gpp-anno-select-hint') && !n.className.includes('gpp-anno-no-key'),
+);
+assert.ok(addBtn && selectHintEl && emptyHintEl, 'annotations drawer hints should mount');
+assert.equal(selectHintEl.hidden, true);
+assert.equal(emptyHintEl.hidden, false);
+addBtn.click();
+assert.equal(selectHintEl.hidden, false, 'no selection should show select hint');
+assert.equal(emptyHintEl.hidden, true, 'generic empty hint should hide when select hint shows');
+assert.equal(selectHintEl.getAttribute('role'), 'status');
+assert.equal(selectHintEl.getAttribute('aria-live'), 'polite');
+currentSelection = {
+  startBeat: 0,
+  endBeat: 1,
+  measureStart: 0,
+  measureEnd: 0,
+};
+addBtn.click();
+assert.equal(selectHintEl.hidden, true, 'selection should clear select hint');
+assert.ok(annoHost.querySelector('.gpp-anno-editor')?.hidden === false, 'editor should open with selection');
+annoDrawer.destroy();
+
+// ---- mountGpPlayer: exercise scope supplies note selection without loop ----
+const exHost = document.createElement('div');
+const exPlayer = mountGpPlayer(exHost, {
+  gpResult: fakeGp,
+  title: 'Exercise scope',
+  exerciseScope: true,
+  initialLoopEnabled: false,
+  initialLoopStart: 1,
+  initialLoopEnd: 1,
+  scoreKey: 'smoke-exercise',
+});
+assert.equal(exPlayer.getState().loopEnabled, false);
+assert.equal(exPlayer.getState().exerciseScope, true);
+assert.equal(exPlayer.getState().loopStart, 1);
+const exNotesBtn = [...exHost.querySelectorAll('button')].find(
+  (b) => b.getAttribute?.('aria-label') === 'Section notes',
+);
+assert.ok(exNotesBtn, 'section notes button should exist');
+exNotesBtn.click();
+const exAddBtn = exHost.querySelector('.gpp-anno-add-btn');
+assert.ok(exAddBtn, 'Add note button should mount in annotations drawer');
+exAddBtn.click();
+const exEditorMeta = exHost.querySelector('.gpp-anno-editor-meta');
+assert.equal(exEditorMeta?.textContent, 'Bar 2', 'exercise scope bar 2 should seed editor metadata');
+assert.ok(exHost.querySelector('.gpp-anno-editor')?.hidden === false, 'editor should open with exercise scope selection');
+exPlayer.destroy();
 
 console.log('gp-player smoke: ok');
