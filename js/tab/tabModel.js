@@ -77,14 +77,19 @@ export function resolveTuning(tuning) {
 
 /** Map a GPIF NoteValue name (Whole/Half/Quarter/…) to its denominator. */
 export const GPIF_NOTE_VALUES = {
+  QuadrupleWhole: 0.25,
+  Long: 0.25,
+  DoubleWhole: 0.5,
   Whole: 1,
   Half: 2,
   Quarter: 4,
   Eighth: 8,
   '16th': 16,
+  Sixteenth: 16,
   '32nd': 32,
   '64th': 64,
   '128th': 128,
+  '256th': 256,
 };
 
 /**

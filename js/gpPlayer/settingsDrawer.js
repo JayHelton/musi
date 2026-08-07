@@ -300,12 +300,14 @@ export function mountSettingsDrawer(host, {
     });
     bpmInput.addEventListener('change', () => {
       const st = stateController.state;
+      st.bpmUserOverride = true;
       st.bpm = Math.max(40, Math.min(280, Number(bpmInput.value) || st.scoreBpm));
       syncBpmSliderFromBpm(bpmInput, bpmSlider, bpmPct);
       onChange?.({ reload: true });
     });
     bpmSlider.addEventListener('input', () => syncBpmFromSlider(bpmInput, bpmSlider, bpmPct));
     bpmSlider.addEventListener('change', () => {
+      stateController.state.bpmUserOverride = true;
       syncBpmFromSlider(bpmInput, bpmSlider, bpmPct);
       onChange?.({ reload: true });
     });
@@ -340,6 +342,7 @@ export function mountSettingsDrawer(host, {
   function syncBpmFromSlider(bpmInput, bpmSlider, bpmPct) {
     const st = stateController.state;
     const pct = Number(bpmSlider.value) || 100;
+    st.bpmUserOverride = true;
     st.bpm = Math.max(40, Math.min(280, Math.round(st.scoreBpm * (pct / 100))));
     bpmInput.value = String(Math.round(st.bpm));
     bpmPct.textContent = `${pct}%`;

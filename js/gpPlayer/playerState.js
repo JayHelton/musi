@@ -82,6 +82,7 @@ export function createPlayerState(gpResult, options = {}) {
       || Number(gpResult.tracks[0]?.model?.tempo)
       || Number(gpResult.drumTracks?.[0]?.model?.tempo)
       || 120,
+    bpmUserOverride: false,
     transpose: 0,
     tuning: null,
     retuneMode: 'fingerings',
@@ -202,12 +203,17 @@ export function createPlayerState(gpResult, options = {}) {
       if (state.viewModel) {
         state.scoreBpm = Number(state.viewModel.tempo) || Number(state.gp.tempo) || state.scoreBpm;
       }
+      if (!state.bpmUserOverride) state.bpm = state.scoreBpm;
       return state.viewModel;
     }
     const track = currentTrack();
     state.baseModel = track?.model || null;
     if (!state.baseModel) {
       state.viewModel = state.gp.drumTracks?.[0]?.model || null;
+      if (state.viewModel) {
+        state.scoreBpm = Number(state.viewModel.tempo) || Number(state.gp.tempo) || state.scoreBpm;
+      }
+      if (!state.bpmUserOverride) state.bpm = state.scoreBpm;
       return state.viewModel;
     }
     const tuning = state.tuning && state.tuning !== '__file__' ? state.tuning : null;
@@ -216,6 +222,10 @@ export function createPlayerState(gpResult, options = {}) {
       tuning,
       preservePitch: state.retuneMode === 'pitches',
     });
+    if (state.viewModel) {
+      state.scoreBpm = Number(state.viewModel.tempo) || Number(state.gp.tempo) || state.scoreBpm;
+    }
+    if (!state.bpmUserOverride) state.bpm = state.scoreBpm;
     return state.viewModel;
   }
 
