@@ -95,14 +95,14 @@
 }
 
 .boot-pixel-char {
-  width: 112px;
-  height: 112px;
+  width: 102px;
+  height: auto;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   transform-origin: 50% 85%;
   /* One gentle idle motion only */
   animation: bootCharIdle 1.8s ease-in-out infinite;
-  filter: drop-shadow(0 0 14px rgba(180, 94, 255, 0.3));
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 12px rgba(165, 199, 199, 0.2));
 }
 
 @keyframes bootCharIdle {
