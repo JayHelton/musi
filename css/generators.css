@@ -80,6 +80,7 @@
 
 .ref-fb-scroll{overflow-x:auto;overflow-y:hidden;max-width:100%;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding-bottom:4px}
 .ref-fretboard{display:grid;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;min-width:520px}
+#sec-scaleref .ref-fretboard{min-width:784px}
 .ref-fb-corner{height:22px}
 .ref-fb-fretnum{height:22px;display:flex;align-items:center;justify-content:center;font-size:.62rem;color:var(--muted);font-weight:600}
 .ref-fb-strlabel{display:flex;align-items:center;justify-content:center;font-size:.66rem;color:var(--muted);font-weight:600;background:var(--bg);border-right:2px solid var(--border);border-top:1px solid rgba(255,255,255,0.05)}
@@ -114,9 +115,21 @@
 .deg-10{background:#ffb020}
 .deg-11{background:#d4a1ff}
 
+/* Scale Reference — desktop: setup above chart, full-width fretboard */
+@media (min-width: 769px) {
+  #sec-scaleref .quiz-layout {
+    flex-direction: column;
+  }
+  #sec-scaleref.has-setup-summary .sidebar {
+    display: none;
+  }
+  #sec-scaleref .quiz-main {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 @media(max-width:768px){
-  #sec-scaleref .sidebar{order:1}
-  #sec-scaleref .quiz-main{order:2}
   .ref-fb-cell{height:30px}
   .ref-note{width:22px;height:22px;font-size:.58rem}
   .ref-note.root{width:24px;height:24px}
