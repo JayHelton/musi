@@ -314,20 +314,34 @@ export function mountGpPlayer(host, {
   }
 
   function getCurrentSelection() {
-    if (!state.loopEnabled) return null;
-    if (state.loopStartBeat == null || state.loopEndBeat == null) return null;
     const measures = state.viewModel?.measures || [];
-    const { startIdx, endIdx } = measureIndicesForBeats(
-      measures,
-      state.loopStartBeat,
-      state.loopEndBeat,
-    );
-    return {
-      startBeat: state.loopStartBeat,
-      endBeat: state.loopEndBeat,
-      measureStart: startIdx,
-      measureEnd: endIdx,
-    };
+    if (state.loopEnabled) {
+      if (state.loopStartBeat == null || state.loopEndBeat == null) return null;
+      const { startIdx, endIdx } = measureIndicesForBeats(
+        measures,
+        state.loopStartBeat,
+        state.loopEndBeat,
+      );
+      return {
+        startBeat: state.loopStartBeat,
+        endBeat: state.loopEndBeat,
+        measureStart: startIdx,
+        measureEnd: endIdx,
+      };
+    }
+    if (state.exerciseScope && measures.length) {
+      const last = measures.length - 1;
+      const measureStart = Math.max(0, Math.min(last, state.loopStart));
+      const measureEnd = Math.max(measureStart, Math.min(last, state.loopEnd));
+      const beats = beatsFromMeasureRange(measures, measureStart, measureEnd);
+      return {
+        startBeat: beats.startBeat,
+        endBeat: beats.endBeat,
+        measureStart,
+        measureEnd,
+      };
+    }
+    return null;
   }
 
   function parchmentSelection() {
@@ -629,19 +643,6 @@ export function mountGpPlayer(host, {
           measureIndex: player.measureIndex,
         });
       },
-      onSelect: (anno) => {
-        if (!anno) {
-          loopController?.syncFromState();
-          return;
-        }
-        if (Number.isFinite(anno.startBeat) && Number.isFinite(anno.endBeat)) {
-          loopController?.applySelection({
-            startBeat: anno.startBeat,
-            endBeat: anno.endBeat,
-          });
-        }
-      },
-      uidPrefix: `${uidPrefix}-anno`,
     });
   } catch (e) {
     console.error(e);

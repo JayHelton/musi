@@ -24,7 +24,10 @@ export function createLoopSelectionController({
     const st = getState?.();
     if (!st || !parchment) return;
     enabled = !!st.loopSelectMode;
-    if (st.loopStartBeat != null && st.loopEndBeat != null) {
+    const rangeActive = !!st.loopEnabled
+      && st.loopStartBeat != null
+      && st.loopEndBeat != null;
+    if (rangeActive) {
       parchment.setSelection({ startBeat: st.loopStartBeat, endBeat: st.loopEndBeat });
     } else {
       parchment.setSelection(null);

@@ -34,7 +34,6 @@ export function mountParchmentView(host, {
     setZoom() {},
     setSelection() {},
     setLoopSelectMode() {},
-    setSelectMode() {},
     destroy() {},
   };
   if (!host) return noop;
@@ -500,10 +499,6 @@ export function mountParchmentView(host, {
     rebuild();
   }
 
-  function setSelectMode(on) {
-    setLoopSelectMode(on);
-  }
-
   function destroy() {
     destroyed = true;
     cancelAnimationFrame(rafId);
@@ -523,7 +518,6 @@ export function mountParchmentView(host, {
     setZoom,
     setSelection,
     setLoopSelectMode,
-    setSelectMode,
     destroy,
   };
 }

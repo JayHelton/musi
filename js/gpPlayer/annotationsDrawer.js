@@ -1,6 +1,6 @@
 // Section notes drawer / bottom sheet for the GP parchment player.
 
-import { el, uid } from './dom.js';
+import { el } from './dom.js';
 
 function formatRange(anno) {
   if (anno.measureStart != null && anno.measureEnd != null) {
@@ -30,8 +30,6 @@ export function mountAnnotationsDrawer(host, {
   getCurrentSelection = () => null,
   onSave = null,
   onDelete = null,
-  onSelect = null,
-  uidPrefix = 'gpp',
 } = {}) {
   const noop = {
     open() {},
@@ -44,7 +42,6 @@ export function mountAnnotationsDrawer(host, {
   };
   if (!host) return noop;
 
-  const prefix = uidPrefix || uid('gpp-anno');
   let openState = false;
   let sheetMode = false;
   let selectedId = null;
@@ -81,8 +78,10 @@ export function mountAnnotationsDrawer(host, {
   });
   const selectHint = el('p', {
     class: 'gpp-anno-hint gpp-anno-select-hint',
-    text: 'Select measures first (enable Loop Selection or set a bar range), then add a note.',
+    text: 'Select measures first (enable Loop or set a bar range in Practice settings), then add a note.',
     hidden: true,
+    role: 'status',
+    'aria-live': 'polite',
   });
   const emptyHint = el('p', {
     class: 'gpp-anno-hint',
@@ -166,14 +165,25 @@ export function mountAnnotationsDrawer(host, {
     noKeyHint.hidden = ok;
   }
 
+  function updateEmptyHint() {
+    const items = typeof getAnnotations === 'function' ? getAnnotations() : [];
+    emptyHint.hidden = items.length > 0 || editing != null || !selectHint.hidden;
+  }
+
   function hideSelectHint() {
     selectHint.hidden = true;
+    updateEmptyHint();
+  }
+
+  function showSelectHint() {
+    selectHint.hidden = false;
+    emptyHint.hidden = true;
   }
 
   function renderList() {
     const items = typeof getAnnotations === 'function' ? getAnnotations() : [];
     listEl.innerHTML = '';
-    emptyHint.hidden = items.length > 0 || editing != null;
+    updateEmptyHint();
     if (!items.length) return;
     items.forEach((anno) => {
       const item = el('button', {
@@ -183,7 +193,6 @@ export function mountAnnotationsDrawer(host, {
         onClick: () => {
           selectedId = anno.id;
           hideSelectHint();
-          if (typeof onSelect === 'function') onSelect(anno);
           showEditor(anno);
           renderList();
         },
@@ -200,7 +209,7 @@ export function mountAnnotationsDrawer(host, {
     if (!draftOrAnno) {
       editing = null;
       editorWrap.hidden = true;
-      emptyHint.hidden = (getAnnotations()?.length || 0) > 0;
+      updateEmptyHint();
       return;
     }
     editing = { ...draftOrAnno };
@@ -219,9 +228,6 @@ export function mountAnnotationsDrawer(host, {
   function cancelEditor() {
     editing = null;
     editorWrap.hidden = true;
-    if (typeof onSelect === 'function') {
-      onSelect(selectedId ? getAnnotations().find((a) => a.id === selectedId) : null);
-    }
     renderList();
   }
 
@@ -249,7 +255,7 @@ export function mountAnnotationsDrawer(host, {
     if (!hasScoreKey()) return;
     const sel = typeof getCurrentSelection === 'function' ? getCurrentSelection() : null;
     if (!sel) {
-      selectHint.hidden = false;
+      showSelectHint();
       return;
     }
     hideSelectHint();
