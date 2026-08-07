@@ -463,6 +463,61 @@
   pointer-events: none;
   z-index: 2;
 }
+.gpp-parch-sel-overlay.is-annotate {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--accent-dim, rgba(255, 225, 74, 0.12)),
+    var(--accent-dim, rgba(255, 225, 74, 0.12)) 4px,
+    rgba(255, 225, 74, 0.22) 4px,
+    rgba(255, 225, 74, 0.22) 8px
+  );
+  border-color: var(--accent, #ffe14a);
+}
+
+.gpp-parch-measure.has-annotation {
+  background: var(--accent-dim, rgba(255, 225, 74, 0.1));
+}
+.gpp-parch-measure.has-annotation.is-active {
+  background: rgba(255, 225, 74, 0.16);
+}
+.gpp-parch-measure.is-annotating {
+  outline: 1px dashed var(--accent, #ffe14a);
+  outline-offset: 1px;
+}
+
+.gpp-parch-anno-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 225, 74, 0.14);
+  border: 1px dashed var(--accent, #ffe14a);
+  pointer-events: auto;
+  z-index: 2;
+  cursor: pointer;
+}
+.gpp-parch-anno-overlay.is-selected {
+  background: rgba(255, 225, 74, 0.24);
+  border-width: 2px;
+  border-style: solid;
+  z-index: 3;
+}
+.gpp-parch-anno-label {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  max-width: calc(100% - 8px);
+  padding: 1px 4px;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 9px;
+  line-height: 1.2;
+  color: #1e1408;
+  background: var(--accent, #ffe14a);
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
 
 .gpp-parch-handle {
   position: absolute;

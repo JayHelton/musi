@@ -18,14 +18,26 @@ function measuresPerSystem(hostWidth, zoom) {
 /**
  * @param {HTMLElement} host
  */
+function annotationLabel(anno) {
+  if (anno.title) return anno.title;
+  if (anno.text) {
+    const line = String(anno.text).split('\n')[0];
+    return line.length > 24 ? `${line.slice(0, 22)}…` : line;
+  }
+  return '';
+}
+
 export function mountParchmentView(host, {
   guitarModel = null,
   percModel = null,
   zoom = 1,
   selection = null,
+  annotations = [],
   onMeasureClick = null,
   onSelectionChange = null,
+  onAnnotationClick = null,
   loopSelectMode = false,
+  selectionKind = 'loop',
   autoFollow = true,
 } = {}) {
   const noop = {
@@ -34,6 +46,10 @@ export function mountParchmentView(host, {
     setZoom() {},
     setSelection() {},
     setLoopSelectMode() {},
+    setSelectMode() {},
+    setAnnotations() {},
+    setSelectedAnnotation() {},
+    setSelectionKind() {},
     destroy() {},
   };
   if (!host) return noop;
@@ -45,7 +61,10 @@ export function mountParchmentView(host, {
   let isDrum = !guitarModel && !!percModel;
   let currentZoom = zoom;
   let sel = selection ? { ...selection } : null;
+  let annoList = annotations.map((a) => ({ ...a }));
+  let selectedAnnotationId = null;
   let selectMode = !!loopSelectMode;
+  let kind = selectionKind === 'annotate' ? 'annotate' : 'loop';
   let follow = !!autoFollow;
   let userScrollUntil = 0;
   let destroyed = false;
@@ -54,6 +73,7 @@ export function mountParchmentView(host, {
   let systemEls = [];
   let playheadEl = null;
   let selOverlayEl = null;
+  let annoOverlayEls = [];
   let handleStart = null;
   let handleEnd = null;
   let lastActive = -1;
@@ -220,6 +240,7 @@ export function mountParchmentView(host, {
     sheet.appendChild(playheadEl);
 
     paintSelection(sel);
+    paintAnnotations();
     paintActive(lastActive, false);
   }
 
@@ -279,12 +300,20 @@ export function mountParchmentView(host, {
     const { startIdx, endIdx } = beatToMeasureRange(norm.startBeat, norm.endBeat);
     measureEls.forEach((el, i) => {
       if (!el) return;
-      el.classList.toggle('selecting', i >= startIdx && i <= endIdx);
+      const inRange = i >= startIdx && i <= endIdx;
+      if (kind === 'annotate') {
+        el.classList.toggle('is-annotating', inRange);
+      } else {
+        el.classList.toggle('selecting', inRange);
+      }
     });
   }
 
   function clearSelecting() {
-    measureEls.forEach((el) => el?.classList.remove('selecting'));
+    measureEls.forEach((el) => {
+      el?.classList.remove('selecting');
+      el?.classList.remove('is-annotating');
+    });
   }
 
   function beatToMeasureRange(startBeat, endBeat) {
@@ -306,32 +335,98 @@ export function mountParchmentView(host, {
     measureEls.forEach((el) => el?.classList.remove('in-loop'));
   }
 
+  function removeAnnotationDecor() {
+    annoOverlayEls.forEach((el) => el.remove());
+    annoOverlayEls = [];
+    measureEls.forEach((el) => el?.classList.remove('has-annotation'));
+  }
+
+  function overlayBoundsForMeasureRange(startIdx, endIdx) {
+    let firstEl = null;
+    let lastEl = null;
+    for (let i = startIdx; i <= endIdx; i++) {
+      const el = measureEls[i];
+      if (!el) continue;
+      if (!firstEl) firstEl = el;
+      lastEl = el;
+    }
+    if (!firstEl || !sheet) return null;
+    const sheetRect = sheet.getBoundingClientRect();
+    const a = firstEl.getBoundingClientRect();
+    const b = (lastEl || firstEl).getBoundingClientRect();
+    const left = a.left - sheetRect.left + viewport.scrollLeft;
+    const right = b.right - sheetRect.left + viewport.scrollLeft;
+    return { left, width: Math.max(8, right - left), right };
+  }
+
+  function paintAnnotations() {
+    removeAnnotationDecor();
+    if (!annoList.length || !sheet) return;
+
+    for (const anno of annoList) {
+      const { startIdx, endIdx } = beatToMeasureRange(anno.startBeat, anno.endBeat);
+      for (let i = startIdx; i <= endIdx; i++) {
+        measureEls[i]?.classList.add('has-annotation');
+      }
+      const bounds = overlayBoundsForMeasureRange(startIdx, endIdx);
+      if (!bounds) continue;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'gpp-parch-anno-overlay';
+      if (anno.id != null && anno.id === selectedAnnotationId) {
+        overlay.classList.add('is-selected');
+      }
+      overlay.style.left = `${bounds.left}px`;
+      overlay.style.width = `${bounds.width}px`;
+
+      const label = annotationLabel(anno);
+      if (label) {
+        const chip = document.createElement('span');
+        chip.className = 'gpp-parch-anno-label';
+        chip.textContent = label;
+        overlay.appendChild(chip);
+      }
+
+      overlay.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (typeof onAnnotationClick === 'function') onAnnotationClick({ ...anno });
+      });
+      overlay.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+      sheet.appendChild(overlay);
+      annoOverlayEls.push(overlay);
+    }
+  }
+
   function paintSelection(nextSel) {
     removeSelectionDecor();
     if (!nextSel) return;
     const { startIdx, endIdx } = beatToMeasureRange(nextSel.startBeat, nextSel.endBeat);
     let firstEl = null;
     let lastEl = null;
+    const measureClass = kind === 'annotate' ? null : 'in-loop';
     for (let i = startIdx; i <= endIdx; i++) {
       const el = measureEls[i];
       if (!el) continue;
-      el.classList.add('in-loop');
+      if (measureClass) el.classList.add(measureClass);
       if (!firstEl) firstEl = el;
       lastEl = el;
     }
     if (!firstEl || !sheet) return;
 
-    const sheetRect = sheet.getBoundingClientRect();
-    const a = firstEl.getBoundingClientRect();
-    const b = (lastEl || firstEl).getBoundingClientRect();
-    const left = a.left - sheetRect.left + viewport.scrollLeft;
-    const right = b.right - sheetRect.left + viewport.scrollLeft;
+    const bounds = overlayBoundsForMeasureRange(startIdx, endIdx);
+    if (!bounds) return;
 
     selOverlayEl = document.createElement('div');
-    selOverlayEl.className = 'gpp-parch-sel-overlay';
-    selOverlayEl.style.left = `${left}px`;
-    selOverlayEl.style.width = `${Math.max(8, right - left)}px`;
+    selOverlayEl.className = kind === 'annotate'
+      ? 'gpp-parch-sel-overlay is-annotate'
+      : 'gpp-parch-sel-overlay';
+    selOverlayEl.style.left = `${bounds.left}px`;
+    selOverlayEl.style.width = `${bounds.width}px`;
     sheet.appendChild(selOverlayEl);
+
+    const left = bounds.left;
+    const right = bounds.right;
 
     if (selectMode) {
       handleStart = document.createElement('div');
@@ -417,7 +512,9 @@ export function mountParchmentView(host, {
     playing = false,
     measureIndex = null,
     selection: nextSel = undefined,
+    annotations: nextAnno = undefined,
     loopSelectMode: lsm = undefined,
+    selectionKind: nextKind = undefined,
     zoom: z = undefined,
     autoFollow: af = undefined,
   } = {}) {
@@ -429,6 +526,17 @@ export function mountParchmentView(host, {
     if (lsm != null && !!lsm !== selectMode) {
       selectMode = !!lsm;
       rebuild();
+    }
+    if (nextKind != null) {
+      const k = nextKind === 'annotate' ? 'annotate' : 'loop';
+      if (k !== kind) {
+        kind = k;
+        paintSelection(sel);
+      }
+    }
+    if (nextAnno !== undefined) {
+      annoList = (nextAnno || []).map((a) => ({ ...a }));
+      paintAnnotations();
     }
     if (nextSel !== undefined) {
       sel = nextSel ? { ...nextSel } : null;
@@ -478,6 +586,25 @@ export function mountParchmentView(host, {
     rebuild();
   }
 
+  function setSelectMode(on) {
+    setLoopSelectMode(on);
+  }
+
+  function setAnnotations(list) {
+    annoList = (list || []).map((a) => ({ ...a }));
+    paintAnnotations();
+  }
+
+  function setSelectedAnnotation(id) {
+    selectedAnnotationId = id ?? null;
+    paintAnnotations();
+  }
+
+  function setSelectionKind(nextKind) {
+    kind = nextKind === 'annotate' ? 'annotate' : 'loop';
+    paintSelection(sel);
+  }
+
   function destroy() {
     destroyed = true;
     cancelAnimationFrame(rafId);
@@ -497,6 +624,10 @@ export function mountParchmentView(host, {
     setZoom,
     setSelection,
     setLoopSelectMode,
+    setSelectMode,
+    setAnnotations,
+    setSelectedAnnotation,
+    setSelectionKind,
     destroy,
   };
 }
