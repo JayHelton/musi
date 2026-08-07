@@ -1,5 +1,37 @@
 // Pure beat/measure range helpers for the GP parchment player.
 
+/** Beat span for one measure (robust fallbacks for missing endBeat). */
+export function measureSpan(m) {
+  const start = Number.isFinite(m.startBeat)
+    ? m.startBeat
+    : (Number.isFinite(m.startSlot) ? m.startSlot : 0);
+  const end = Number.isFinite(m.endBeat)
+    ? m.endBeat
+    : (Number.isFinite(m.endSlot) ? m.endSlot : start + 4);
+  return { start, end, len: Math.max(0.25, end - start) };
+}
+
+/**
+ * Map a beat position to a measure index.
+ * Pre-start beats → 0; past end → last index (never "no match → last" for negative beats).
+ */
+export function measureIndexAtBeat(measures, beat) {
+  if (!measures?.length) return 0;
+  const b = Number(beat);
+  if (!Number.isFinite(b)) return 0;
+  const eps = 1e-6;
+  const first = measureSpan(measures[0]);
+  if (b < first.start - eps) return 0;
+  const lastIdx = measures.length - 1;
+  const last = measureSpan(measures[lastIdx]);
+  if (b >= last.end - eps) return lastIdx;
+  for (let i = 0; i < measures.length; i++) {
+    const { start, end } = measureSpan(measures[i]);
+    if (b >= start - eps && b < end - eps) return i;
+  }
+  return lastIdx;
+}
+
 export function beatsFromMeasureRange(measures, startIdx, endIdx) {
   if (!measures?.length) return { startBeat: 0, endBeat: 4 };
   const a = Math.max(0, Math.min(measures.length - 1, startIdx));

@@ -547,6 +547,7 @@ export function mountGpPlayer(host, {
     state.navBar = navIdx;
     const beats = beatsFromMeasureRange(measures, navIdx, navIdx);
     const startSec = quartersToSeconds(beats.startBeat, state.bpm);
+    ensureAudio();
     player.setMetronomeEnabled(!!state.metronomeEnabled);
     player.play({ fromSec: startSec });
   }
@@ -560,6 +561,7 @@ export function mountGpPlayer(host, {
       return;
     }
     if (player.paused) {
+      ensureAudio();
       player.play();
       transport?.sync();
       return;
