@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Musi PWA icons — Atomic Purple GBC pocket buddy (matches boot splash)."""
+"""Generate Musi PWA icons — mint Game Boy music icon (matches boot splash)."""
 
 from __future__ import annotations
 
@@ -10,33 +10,50 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Pixel rects from index.html boot-pixel-char (viewBox 0 0 32 32)
+# Pixel rects from index.html boot-pixel-char (viewBox 0 0 32 44)
 CHAR_RECTS = [
-    (10, 2, 12, 2, "#6b2d8b"),
-    (8, 4, 16, 2, "#6b2d8b"),
-    (7, 6, 18, 16, "#8b3db8"),
-    (7, 6, 18, 2, "#b45eff"),
-    (9, 9, 14, 9, "#0b1020"),
-    (10, 10, 12, 7, "#1a2744"),
-    (12, 12, 2, 3, "#ffe14a"),
-    (18, 12, 2, 3, "#ffe14a"),
-    (14, 16, 4, 1, "#4da3ff"),
-    (9, 20, 2, 2, "#e63946"),
-    (12, 20, 2, 2, "#ffe14a"),
-    (18, 20, 2, 2, "#4da3ff"),
-    (21, 20, 2, 2, "#b45eff"),
-    (3, 12, 4, 3, "#6b2d8b"),
-    (2, 13, 2, 2, "#ffe14a"),
-    (25, 12, 4, 3, "#6b2d8b"),
-    (28, 11, 2, 2, "#4da3ff"),
-    (10, 22, 4, 4, "#4a1d6e"),
-    (18, 22, 4, 4, "#4a1d6e"),
-    (10, 26, 5, 2, "#1a0a2e"),
-    (17, 26, 5, 2, "#1a0a2e"),
-    (15, 0, 2, 2, "#ffe14a"),
+    (10, 4, 12, 1, "#A5C7C7"),
+    (9, 5, 14, 1, "#A5C7C7"),
+    (8, 6, 16, 1, "#A5C7C7"),
+    (7, 7, 18, 34, "#A5C7C7"),
+    (8, 41, 16, 1, "#A5C7C7"),
+    (9, 42, 14, 1, "#A5C7C7"),
+    (10, 43, 12, 1, "#A5C7C7"),
+    (24, 5, 1, 36, "#7FA3A3"),
+    (8, 41, 16, 1, "#7FA3A3"),
+    (9, 42, 14, 1, "#7FA3A3"),
+    (10, 43, 12, 1, "#7FA3A3"),
+    (10, 2, 12, 1, "#C5DDD9"),
+    (9, 3, 14, 1, "#C5DDD9"),
+    (8, 4, 1, 37, "#C5DDD9"),
+    (9, 7, 14, 13, "#2E2E2E"),
+    (10, 8, 12, 11, "#B9E7E7"),
+    (12, 9, 8, 1, "#1A1A1A"),
+    (13, 10, 1, 2, "#1A1A1A"),
+    (18, 10, 1, 2, "#1A1A1A"),
+    (12, 12, 2, 2, "#1A1A1A"),
+    (17, 12, 2, 2, "#1A1A1A"),
+    (10, 23, 2, 5, "#2E2E2E"),
+    (8, 25, 6, 1, "#2E2E2E"),
+    (19, 23, 3, 3, "#D82E2E"),
+    (16, 26, 3, 3, "#D82E2E"),
+    (11, 37, 4, 1, "#2E2E2E"),
+    (17, 37, 4, 1, "#2E2E2E"),
+    (20, 39, 1, 1, "#2E2E2E"),
+    (22, 39, 1, 1, "#2E2E2E"),
+    (21, 40, 1, 1, "#2E2E2E"),
+    (23, 40, 1, 1, "#2E2E2E"),
+    (20, 41, 1, 1, "#2E2E2E"),
+    (22, 41, 1, 1, "#2E2E2E"),
 ]
 
-GRID = 32
+GRID_W = 32
+GRID_H = 44
+
+GLOW_COLORS = {
+    "#D82E2E": (216, 46, 46, 48),
+    "#B9E7E7": (120, 210, 210, 36),
+}
 
 
 def hex_rgb(color: str) -> tuple[int, int, int]:
@@ -70,7 +87,6 @@ def draw_background(size: int, *, maskable: bool = False) -> Image.Image:
             base = lerp_color(mid, bottom, (t - 0.45) / 0.55)
 
         for x in range(size):
-            # Radial purple wash from upper center
             dx = (x - size * 0.5) / size
             dy = (y - size * 0.28) / size
             dist = math.sqrt(dx * dx + dy * dy)
@@ -82,7 +98,6 @@ def draw_background(size: int, *, maskable: bool = False) -> Image.Image:
             px[x, y] = color
 
     if not maskable:
-        # Subtle pixel grid (LCD shell texture)
         grid = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         gpx = grid.load()
         step = max(4, size // 64)
@@ -111,12 +126,13 @@ def draw_character(
         glow_draw = ImageDraw.Draw(glow_layer)
         pad = max(2, scale // 2)
         for x, y, w, h, color in CHAR_RECTS:
-            if color in ("#ffe14a", "#b45eff", "#4da3ff"):
+            accent = GLOW_COLORS.get(color)
+            if accent:
                 gx = offset_x + x * scale - pad
                 gy = offset_y + y * scale - pad
                 gw = w * scale + pad * 2
                 gh = h * scale + pad * 2
-                glow_draw.rectangle([gx, gy, gx + gw, gy + gh], fill=(180, 94, 255, 40))
+                glow_draw.rectangle([gx, gy, gx + gw, gy + gh], fill=accent)
         glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=max(2, scale // 2)))
         img.paste(Image.alpha_composite(img.convert("RGBA"), glow_layer).convert("RGB"))
 
@@ -132,11 +148,10 @@ def draw_character(
 def render_icon(size: int, *, maskable: bool = False) -> Image.Image:
     img = draw_background(size, maskable=maskable)
 
-    # Maskable: keep buddy inside ~72% safe zone; standard: ~78%
     fill = 0.72 if maskable else 0.78
-    scale = max(1, int((size * fill) / GRID))
-    char_w = GRID * scale
-    char_h = GRID * scale
+    scale = max(1, int((size * fill) / max(GRID_W, GRID_H)))
+    char_w = GRID_W * scale
+    char_h = GRID_H * scale
     offset_x = (size - char_w) // 2
     offset_y = (size - char_h) // 2 + int(size * 0.02)
 
