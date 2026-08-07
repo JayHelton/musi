@@ -318,26 +318,6 @@
   min-height: 180px;
 }
 
-.gpp-annotate-hint {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  z-index: 10;
-  max-width: calc(100% - 24px);
-  padding: 8px 14px;
-  border-radius: var(--radius-screen, 18px);
-  background: rgba(18, 26, 46, 0.92);
-  border: 1px solid var(--accent2, #9b6fd4);
-  color: var(--accent, #f5d442);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 1.1rem;
-  line-height: 1.25;
-  text-align: center;
-  pointer-events: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-}
-
 .gpp-parch-root {
   display: flex;
   flex-direction: column;
@@ -506,61 +486,6 @@
   border: 1px dashed #6b4c9a;
   pointer-events: none;
   z-index: 2;
-}
-.gpp-parch-sel-overlay.is-annotate {
-  background: repeating-linear-gradient(
-    45deg,
-    var(--accent-dim, rgba(255, 225, 74, 0.12)),
-    var(--accent-dim, rgba(255, 225, 74, 0.12)) 4px,
-    rgba(255, 225, 74, 0.22) 4px,
-    rgba(255, 225, 74, 0.22) 8px
-  );
-  border-color: var(--accent, #ffe14a);
-}
-
-.gpp-parch-measure.has-annotation {
-  background: var(--accent-dim, rgba(255, 225, 74, 0.1));
-}
-.gpp-parch-measure.has-annotation.is-active {
-  background: rgba(255, 225, 74, 0.16);
-}
-.gpp-parch-measure.is-annotating {
-  outline: 1px dashed var(--accent, #ffe14a);
-  outline-offset: 1px;
-}
-
-.gpp-parch-anno-overlay {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: rgba(255, 225, 74, 0.14);
-  border: 1px dashed var(--accent, #ffe14a);
-  pointer-events: auto;
-  z-index: 2;
-  cursor: pointer;
-}
-.gpp-parch-anno-overlay.is-selected {
-  background: rgba(255, 225, 74, 0.24);
-  border-width: 2px;
-  border-style: solid;
-  z-index: 3;
-}
-.gpp-parch-anno-label {
-  position: absolute;
-  top: 2px;
-  left: 4px;
-  max-width: calc(100% - 8px);
-  padding: 1px 4px;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 9px;
-  line-height: 1.2;
-  color: #1e1408;
-  background: var(--accent, #ffe14a);
-  border-radius: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
 }
 
 .gpp-parch-handle {
@@ -1020,12 +945,6 @@
   align-items: center;
   gap: 8px;
 }
-.gpp-anno-add-btn.is-on {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(255, 225, 74, 0.35);
-}
 .gpp-anno-hint {
   font-family: var(--font-body, "Pixelify Sans", sans-serif);
   font-size: 0.82rem;
@@ -1035,6 +954,9 @@
 }
 .gpp-anno-no-key {
   color: var(--accent2);
+}
+.gpp-anno-select-hint {
+  color: var(--accent);
 }
 .gpp-anno-list {
   display: flex;
