@@ -36,7 +36,7 @@ let refScale = 'Major (Ionian)';
 let refTuning = 'Standard';
 let refModeIndex = 0;
 let refFbStart = 0;
-let refFbEnd = 15;
+let refFbEnd = 24;
 let refBoxOnly = false;
 let refContextSubscribed = false;
 let refFbWired = false;
@@ -234,7 +234,7 @@ function wireFretboardControls() {
 
   const updateRange = () => {
     let s = Math.max(0, Math.min(24, Number(start.value) || 0));
-    let e = Math.max(s + 1, Math.min(24, Number(end.value) || 15));
+    let e = Math.max(s + 1, Math.min(24, Number(end.value) || 24));
     refFbStart = s;
     refFbEnd = e;
     start.value = s;
