@@ -234,7 +234,7 @@ function wireFretboardControls() {
 
   const updateRange = () => {
     let s = Math.max(0, Math.min(24, Number(start.value) || 0));
-    let e = Math.max(s + 1, Math.min(24, Number(end.value) || 15));
+    let e = Math.max(s + 1, Math.min(24, Number(end.value) || 24));
     refFbStart = s;
     refFbEnd = e;
     start.value = s;
