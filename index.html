@@ -1699,12 +1699,12 @@
       <p>Open a <code>.gp</code> or <code>.gp5</code> score in a parchment score view. Mix tracks independently of what you are viewing, use <strong>Loop Selection</strong> to mark a practice range, and save that range as an Exercise. Tempo, transpose, and tuning live under Practice settings.</p>
     </div>
     <div class="gpp-layout">
+      <input type="file" id="gpp-file" accept=".gp,.gp5,application/x-guitar-pro" hidden>
       <div class="gpp-drop" id="gpp-drop">
         <div class="gpp-drop-title">Drop a Guitar Pro file</div>
         <div class="gpp-drop-sub">Supports Guitar Pro 7/8 (<code>.gp</code>) and Guitar Pro 5 (<code>.gp5</code>). Scroll the parchment score, open the track mixer to hear any part while viewing another, turn on Loop Selection to mark a range, then save that range as an Exercise.</div>
         <div class="gpp-drop-actions">
           <label class="btn primary" for="gpp-file">Choose file</label>
-          <input type="file" id="gpp-file" accept=".gp,.gp5,application/x-guitar-pro" hidden>
         </div>
       </div>
       <div class="gpp-status" id="gpp-status" hidden></div>

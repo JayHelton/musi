@@ -152,6 +152,78 @@ assert.ok(timed.length >= 4);
 assert.ok(Math.abs(timed[0].startSec - 0) < 1e-9);
 assert.ok(Math.abs(timed[1].startSec - (60 / 140)) < 1e-9);
 
+// ---- GPIF: single-value tempo (no unit) ----
+const gpifSingleTempo = `<?xml version="1.0" encoding="UTF-8"?>
+<GPIF>
+  <MasterTrack>
+    <Automations>
+      <Automation>
+        <Type>Tempo</Type>
+        <Bar>0</Bar>
+        <Position>0</Position>
+        <Value>140</Value>
+      </Automation>
+    </Automations>
+  </MasterTrack>
+  <MasterBars><MasterBar><Bars>0</Bars><Time>4/4</Time></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0</Beats></Voice></Voices>
+  <Beats><Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat></Beats>
+  <Notes><Note id="0"><Properties>
+    <Property name="Fret"><Fret>0</Fret></Property>
+    <Property name="String"><String>0</String></Property>
+    <Property name="Midi"><Number>40</Number></Property>
+  </Properties></Note></Notes>
+  <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
+  <Tracks><Track id="0"><Name>T</Name><Staves><Staff><Properties>
+    <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+  </Properties></Staff></Staves></Track></Tracks>
+</GPIF>`;
+const singleTempo = gpifToTracks(gpifSingleTempo);
+assert.equal(singleTempo.tempo, 140);
+assert.equal(singleTempo.tracks[0].model.tempo, 140);
+
+// ---- GPIF: Sixteenth NoteValue ----
+const gpifSixteenth = `<?xml version="1.0" encoding="UTF-8"?>
+<GPIF>
+  <MasterBars><MasterBar><Bars>0</Bars><Time>4/4</Time></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0</Beats></Voice></Voices>
+  <Beats><Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat></Beats>
+  <Notes><Note id="0"><Properties>
+    <Property name="Fret"><Fret>0</Fret></Property>
+    <Property name="String"><String>0</String></Property>
+    <Property name="Midi"><Number>40</Number></Property>
+  </Properties></Note></Notes>
+  <Rhythms><Rhythm id="0"><NoteValue>Sixteenth</NoteValue></Rhythm></Rhythms>
+  <Tracks><Track id="0"><Name>T</Name><Staves><Staff><Properties>
+    <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+  </Properties></Staff></Staves></Track></Tracks>
+</GPIF>`;
+const sixteenth = gpifToTracks(gpifSixteenth);
+assert.equal(sixteenth.tracks[0].model.events[0].duration, 0.25);
+
+// ---- GPIF: 3/4 measure with one quarter → padded to 3 beats ----
+const gpif34Pad = `<?xml version="1.0" encoding="UTF-8"?>
+<GPIF>
+  <MasterBars><MasterBar><Bars>0</Bars><Time>3/4</Time></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0</Beats></Voice></Voices>
+  <Beats><Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat></Beats>
+  <Notes><Note id="0"><Properties>
+    <Property name="Fret"><Fret>0</Fret></Property>
+    <Property name="String"><String>0</String></Property>
+    <Property name="Midi"><Number>40</Number></Property>
+  </Properties></Note></Notes>
+  <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
+  <Tracks><Track id="0"><Name>T</Name><Staves><Staff><Properties>
+    <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+  </Properties></Staff></Staves></Track></Tracks>
+</GPIF>`;
+const pad34 = gpifToTracks(gpif34Pad);
+assert.equal(pad34.tracks[0].model.measures[0].endBeat, 3);
+assert.equal(pad34.tracks[0].model.totalBeats, 3);
+
 // ---- transpose ----
 const up = transposeModel(model, 2);
 assert.equal(up.events[0].midi, 42);
@@ -230,6 +302,14 @@ const fakeGp = {
   }],
   drumTracks: [{ index: 0, name: 'Drums', model: perc, hitCount: perc.events.length, tempo: 120 }],
 };
+const psTempo = createPlayerState({ ...fakeGp, tempo: 140, tracks: [{
+  ...fakeGp.tracks[0],
+  model: { ...fakeGp.tracks[0].model, tempo: 140 },
+}] }, { preferredTrackIndex: 0 });
+assert.equal(psTempo.state.scoreBpm, 140);
+assert.equal(psTempo.state.bpm, 140);
+psTempo.destroy();
+
 const snips = buildGpSectionSnippets(fakeGp);
 assert.ok(snips.length >= 2);
 assert.ok(snips.some((s) => s.hasGuitar && s.hasDrums));

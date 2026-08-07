@@ -276,17 +276,19 @@ function readGpifTempo(gpif) {
   // Prefer the earliest Tempo automation; fall back to any Value "bpm unit" pair.
   let bestTempo = null;
   let bestAny = null;
+  const unitToQuarter = { 1: 0.5, 2: 1, 3: 1.5, 4: 2, 5: 3 };
   for (const auto of childrenNamed(automations, 'Automation')) {
     const valueTxt = childText(auto, 'Value');
     if (!valueTxt) continue;
     const parts = valueTxt.trim().split(/\s+/);
     const bpm = Number(parts[0]);
     if (!Number.isFinite(bpm) || bpm <= 0) continue;
-    // Only consider pairs that look like tempo (bpm + beat-unit code).
-    if (parts.length < 2) continue;
-    const unit = Number(parts[1]) || 2; // 2 = quarter
-    const unitToQuarter = { 1: 0.5, 2: 1, 3: 1.5, 4: 2, 5: 3 };
-    if (!(unit in unitToQuarter)) continue;
+    let unit = 2; // single value or unit 0 → quarter-note BPM
+    if (parts.length >= 2) {
+      unit = Number(parts[1]);
+      if (!Number.isFinite(unit) || unit === 0) unit = 2;
+      else if (!(unit in unitToQuarter)) unit = 2;
+    }
     const qBpm = bpm * unitToQuarter[unit];
     const bar = Number(childText(auto, 'Bar'));
     const pos = Number(childText(auto, 'Position')) || 0;
@@ -300,6 +302,30 @@ function readGpifTempo(gpif) {
     }
   }
   return (bestTempo || bestAny)?.bpm || 120;
+}
+
+function readGpifAnacrusis(gpif) {
+  const masterTrack = firstChild(gpif, 'MasterTrack');
+  if (!masterTrack) return false;
+  if (firstChild(masterTrack, 'Anacrusis')) return true;
+  const props = firstChild(masterTrack, 'Properties');
+  return hasEnabledProperty(props, 'Anacrusis');
+}
+
+function padMeasureToTimeSig({
+  cursor,
+  measureStartBeat,
+  timeSig,
+  anacrusis,
+  isFirstMeasure,
+}) {
+  if (!timeSig) return cursor;
+  const beatsInBar = timeSig[0] * (4 / (timeSig[1] || 4));
+  const written = cursor - measureStartBeat;
+  if (written < beatsInBar && !(anacrusis && isFirstMeasure)) {
+    return measureStartBeat + beatsInBar;
+  }
+  return cursor;
 }
 
 /** Build Rhythm id → duration-in-quarters map from <Rhythms>. */
@@ -346,6 +372,7 @@ export function gpifToTracks(xml) {
     masterBars: childrenNamed(firstChild(gpif, 'MasterBars'), 'MasterBar'),
     rhythms: readGpifRhythms(gpif),
     tempo: readGpifTempo(gpif),
+    anacrusis: readGpifAnacrusis(gpif),
   };
 
   const tracks = trackNodes.map((trackNode, index) => {
@@ -367,7 +394,7 @@ export function gpifToTracks(xml) {
 
 /** Build a PercussionModel for a GPIF drum track (no string tuning). */
 function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
-  const { bars, voices, beats, notes, masterBars, rhythms, tempo } = shared;
+  const { bars, voices, beats, notes, masterBars, rhythms, tempo, anacrusis } = shared;
   const events = [];
   const measures = [];
   const warnings = [];
@@ -430,6 +457,14 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
       const beatsInBar = timeSig ? (timeSig[0] * (4 / (timeSig[1] || 4))) : 4;
       slot += 1;
       cursor += beatsInBar;
+    } else {
+      cursor = padMeasureToTimeSig({
+        cursor,
+        measureStartBeat,
+        timeSig,
+        anacrusis,
+        isFirstMeasure: measures.length === 0,
+      });
     }
     measures.push({
       startSlot: measureStart,
@@ -447,7 +482,7 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
 
 // Build one track's TabModel from the shared GPIF collections.
 function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
-  const { bars, voices, beats, notes, masterBars, rhythms, tempo } = shared;
+  const { bars, voices, beats, notes, masterBars, rhythms, tempo, anacrusis } = shared;
   const strings = openMidis.map((m) => { const s = midiToNoteOct(m); return { note: s.note, oct: s.oct, label: s.note, openMidi: m }; });
   const tuningName = matchTuningName(openMidis) || 'Custom';
 
@@ -546,6 +581,14 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
       const beatsInBar = timeSig ? (timeSig[0] * (4 / (timeSig[1] || 4))) : 4;
       slot += 1;
       cursor += beatsInBar;
+    } else {
+      cursor = padMeasureToTimeSig({
+        cursor,
+        measureStartBeat,
+        timeSig,
+        anacrusis,
+        isFirstMeasure: measures.length === 0,
+      });
     }
     measures.push({
       startSlot: measureStart,
@@ -742,9 +785,12 @@ export async function parseGuitarPro(input) {
     if (Number.isFinite(tempo) && tempo > 0) {
       result.tempo = tempo;
       for (const t of result.tracks) {
-        if (t.model && !t.model.tempo) t.model.tempo = tempo;
+        if (t.model) t.model.tempo = tempo;
       }
-      if (result.model && !result.model.tempo) result.model.tempo = tempo;
+      if (result.model) result.model.tempo = tempo;
+      for (const t of (result.drumTracks || [])) {
+        if (t.model) t.model.tempo = tempo;
+      }
     }
     return result;
   }
@@ -769,9 +815,12 @@ export async function parseGuitarPro(input) {
   if (Number.isFinite(tempo) && tempo > 0) {
     result.tempo = tempo;
     for (const t of result.tracks) {
-      if (t.model && !t.model.tempo) t.model.tempo = tempo;
+      if (t.model) t.model.tempo = tempo;
     }
-    if (result.model && !result.model.tempo) result.model.tempo = tempo;
+    if (result.model) result.model.tempo = tempo;
+    for (const t of (result.drumTracks || [])) {
+      if (t.model) t.model.tempo = tempo;
+    }
   }
   return result;
 }

@@ -47,12 +47,22 @@ function buildTimedDrums(percModel, bpm, trackIndex) {
     .sort((a, b) => a.startSec - b.startSec);
 }
 
-function isMeasureStartBeat(measureStarts, beat) {
-  if (!measureStarts.length) return beat % 4 < 1e-6;
-  for (const ms of measureStarts) {
-    if (Math.abs(ms - beat) < 1e-5) return true;
+function isMeasureStartBeat(measureStarts, beat, referenceModel) {
+  if (measureStarts.length) {
+    for (const ms of measureStarts) {
+      if (Math.abs(ms - beat) < 1e-5) return true;
+    }
+    return false;
   }
-  return false;
+  const measures = referenceModel?.measures;
+  if (measures?.length) {
+    const m0 = measures[0];
+    const len = (Number.isFinite(m0.endBeat) && Number.isFinite(m0.startBeat))
+      ? (m0.endBeat - m0.startBeat)
+      : null;
+    if (len && len > 0) return beat % len < 1e-6;
+  }
+  return beat % 4 < 1e-6;
 }
 
 function buildMeasureStarts(model) {
@@ -217,7 +227,7 @@ export function createGpMixPlayer(opts = {}) {
         if (when >= now - 0.02) {
           scheduleMetronomeClick(
             Math.max(now + 0.004, when),
-            isMeasureStartBeat(state.measureStarts, state.nextMetroBeat)
+            isMeasureStartBeat(state.measureStarts, state.nextMetroBeat, state.referenceModel)
           );
         }
       }

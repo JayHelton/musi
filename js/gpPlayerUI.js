@@ -47,6 +47,7 @@ export function mountGpPlayer(host, {
   onPracticeSettingsChange = null,
   exerciseScope = false,
   initialBpm = null,
+  onOpenFile = null,
   initialTranspose = null,
   initialTuning = null,
   initialRetuneMode = null,
@@ -75,6 +76,7 @@ export function mountGpPlayer(host, {
 
   if (Number.isFinite(Number(initialBpm))) {
     state.bpm = Math.max(40, Math.min(280, Number(initialBpm)));
+    state.bpmUserOverride = true;
   }
 
   let countInTimer = null;
@@ -93,6 +95,17 @@ export function mountGpPlayer(host, {
   titles.append(scoreTitle, scoreTrack);
 
   const scoreActions = el('div', { class: 'gpp-score-actions' });
+  if (typeof onOpenFile === 'function') {
+    const openBtn = el('button', {
+      class: 'gpp-icon-btn has-label',
+      type: 'button',
+      'aria-label': 'Open Guitar Pro file',
+      title: 'Open Guitar Pro file',
+      html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/></svg><span class="gpp-btn-label">Open</span>',
+      onClick: () => onOpenFile(),
+    });
+    scoreActions.appendChild(openBtn);
+  }
   const analyzeBtn = el('button', {
     class: 'gpp-icon-btn has-label',
     type: 'button',
@@ -240,6 +253,7 @@ export function mountGpPlayer(host, {
   function reloadModel() {
     if (!isAlive()) return;
     stateController.applyTransforms();
+    if (!state.bpmUserOverride) state.bpm = state.scoreBpm;
     const model = state.viewModel;
     if (!model) return;
 
@@ -552,6 +566,20 @@ export function mountGpPlayer(host, {
     player.play({ fromSec: startSec });
   }
 
+  function countInBeats() {
+    const measures = state.viewModel?.measures || [];
+    const navIdx = navMeasureIndex();
+    const m = measures[navIdx];
+    if (m?.timeSig) {
+      return m.timeSig[0] * (4 / (m.timeSig[1] || 4));
+    }
+    if (m && Number.isFinite(m.startBeat) && Number.isFinite(m.endBeat)) {
+      const span = m.endBeat - m.startBeat;
+      if (span > 0) return span;
+    }
+    return 4;
+  }
+
   function togglePlayPause() {
     if (!isAlive()) return;
     if (player.playing) {
@@ -569,10 +597,11 @@ export function mountGpPlayer(host, {
     if (state.countInEnabled) {
       ensureAudio();
       const quarterSec = 60 / state.bpm;
+      const beats = countInBeats();
       const prevMetro = state.metronomeEnabled;
       player.setMetronomeEnabled(true);
       const now = audioCtx.currentTime;
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < beats; i++) {
         scheduleMetronomeClick(now + 0.06 + i * quarterSec, i === 0);
       }
       countInTimer = setTimeout(() => {
@@ -580,7 +609,7 @@ export function mountGpPlayer(host, {
         if (!isAlive()) return;
         if (!prevMetro) player.setMetronomeEnabled(false);
         startPlayFromNav();
-      }, quarterSec * 4 * 1000 + 40);
+      }, quarterSec * beats * 1000 + 40);
       return;
     }
     startPlayFromNav();

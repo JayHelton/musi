@@ -96,18 +96,6 @@ function makeHeaderExtras() {
   const wrap = document.createElement('div');
   wrap.className = 'gpp-head-extra-wrap';
 
-  const loadBtn = document.createElement('button');
-  loadBtn.className = 'btn sm';
-  loadBtn.type = 'button';
-  loadBtn.textContent = 'Load another';
-  loadBtn.setAttribute('aria-label', 'Load another Guitar Pro file');
-  loadBtn.title = 'Load another Guitar Pro file';
-  loadBtn.addEventListener('click', () => {
-    if (state.loading) return;
-    $('gpp-file')?.click();
-  });
-  wrap.appendChild(loadBtn);
-
   const noGpBytes = !state.bytes;
   const saveBarsBtn = document.createElement('button');
   saveBarsBtn.className = 'btn sm primary';
@@ -159,6 +147,9 @@ function mountCurrent() {
       initialRetuneMode: exercise?.retuneMode,
       exerciseScope: !!hasRange,
       headerExtra: makeHeaderExtras(),
+      onOpenFile: () => {
+        if (!state.loading) $('gpp-file')?.click();
+      },
     });
   } catch (err) {
     destroyMount();
