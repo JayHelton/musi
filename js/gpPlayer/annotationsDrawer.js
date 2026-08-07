@@ -212,6 +212,7 @@ export function mountAnnotationsDrawer(host, {
     textInput.value = editing.text || '';
     deleteBtn.hidden = !editing.id;
     if (editing.id) selectedId = editing.id;
+    open();
     renderList();
   }
 
