@@ -6,6 +6,7 @@ import { quartersToSeconds, modelHasRhythm } from './tab/tabModel.js';
 import { buildTimedNotes } from './tab/tabPlayer.js';
 import { scheduleHit, initEngine } from './drums/drumEngine.js';
 import { scheduleMetronomeClick } from './tab/metroClick.js';
+import { measureIndexAtBeat } from './gpPlayer/rangeUtils.js';
 
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD = 0.14;
@@ -44,17 +45,6 @@ function buildTimedDrums(percModel, bpm, trackIndex) {
       startBeat: Number.isFinite(e.start) ? e.start : 0,
     }))
     .sort((a, b) => a.startSec - b.startSec);
-}
-
-function measureIndexAtBeat(measures, beat) {
-  if (!measures?.length) return 0;
-  for (let i = 0; i < measures.length; i++) {
-    const m = measures[i];
-    const a = Number.isFinite(m.startBeat) ? m.startBeat : 0;
-    const b = Number.isFinite(m.endBeat) ? m.endBeat : a;
-    if (beat >= a && beat < b) return i;
-  }
-  return Math.max(0, measures.length - 1);
 }
 
 function isMeasureStartBeat(measureStarts, beat) {
@@ -151,7 +141,8 @@ export function createGpMixPlayer(opts = {}) {
   function songTimeNow() {
     if (!state.playing || !audioCtx) return state.pauseAtSec;
     if (state.inLoopRest) return state.loop?.endSec ?? state.pauseAtSec;
-    return state.originSongSec + (audioCtx.currentTime - state.originAudioTime);
+    const raw = state.originSongSec + (audioCtx.currentTime - state.originAudioTime);
+    return Math.max(state.originSongSec, raw);
   }
 
   function restRemaining() {
@@ -408,9 +399,12 @@ export function createGpMixPlayer(opts = {}) {
   }
 
   function play({ fromSec = null } = {}) {
-    if (!state.events.length) rebuildEvents();
-    if (!state.events.length && !state.metronomeEnabled) return;
     ensureAudio();
+    if (!state.events.length) rebuildEvents();
+    if (audioCtx?.state === 'suspended') {
+      try { audioCtx.resume(); } catch (e) { /* ignore */ }
+    }
+    if (!state.events.length && !state.metronomeEnabled) return;
     initEngine();
     clearVoices();
     stopTimer();

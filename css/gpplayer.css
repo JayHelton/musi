@@ -349,16 +349,6 @@
   outline-offset: 2px;
   background: rgba(107, 76, 154, 0.08);
 }
-.gpp-parch-measure.is-active::before {
-  content: "▶";
-  position: absolute;
-  left: 4px;
-  top: 2px;
-  font-size: 10px;
-  color: #6b4c9a;
-  font-weight: 700;
-  line-height: 1;
-}
 .gpp-parch-measure.in-loop {
   background: rgba(107, 76, 154, 0.06);
 }
@@ -562,6 +552,7 @@
   color: var(--on-accent);
   font-weight: 650;
   min-width: 56px;
+  font-size: 1.1rem;
 }
 .gpp-transport-btn.is-primary:hover {
   box-shadow: 0 0 16px var(--accent-dim);

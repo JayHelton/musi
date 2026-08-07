@@ -1,15 +1,9 @@
 // Songsterr-like vertical parchment score renderer for the GP player.
 
 import { DRUM_LANES } from '../gpFollowView.js';
-import { snapBeat, normalizeBeatRange } from './rangeUtils.js';
+import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
 const USER_SCROLL_COOLDOWN_MS = 2500;
-
-function measureSpan(m) {
-  const start = Number.isFinite(m.startBeat) ? m.startBeat : m.startSlot ?? 0;
-  const end = Number.isFinite(m.endBeat) ? m.endBeat : start + 4;
-  return { start, end, len: Math.max(0.25, end - start) };
-}
 
 function beatPctInMeasure(beat, m) {
   const { start, len } = measureSpan(m);
@@ -229,13 +223,8 @@ export function mountParchmentView(host, {
     paintActive(lastActive, false);
   }
 
-  function measureIndexAtBeat(beat) {
-    const ms = measures();
-    for (let i = 0; i < ms.length; i++) {
-      const { start, end } = measureSpan(ms[i]);
-      if (beat >= start - 1e-6 && beat < end - 1e-6) return i;
-    }
-    return Math.max(0, ms.length - 1);
+  function measureIndexAtBeatLocal(beat) {
+    return measureIndexAtBeat(measures(), beat);
   }
 
   function beatFromPointer(clientX, clientY) {
@@ -414,8 +403,11 @@ export function mountParchmentView(host, {
     if (!el) return;
     const vRect = viewport.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
-    if (eRect.top < vRect.top + 24 || eRect.bottom > vRect.bottom - 24) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const pad = 24;
+    if (eRect.top < vRect.top + pad) {
+      viewport.scrollTop += eRect.top - vRect.top - pad;
+    } else if (eRect.bottom > vRect.bottom - pad) {
+      viewport.scrollTop += eRect.bottom - vRect.bottom + pad;
     }
   }
 
@@ -446,7 +438,7 @@ export function mountParchmentView(host, {
 
     const beat = (Number(currentSec) || 0) * (Number(bpm) || 120) / 60;
     lastBeat = beat;
-    const mi = measureIndex != null ? measureIndex : measureIndexAtBeat(beat);
+    const mi = measureIndex != null ? measureIndex : measureIndexAtBeatLocal(beat);
 
     if (mi !== lastActive) {
       paintActive(mi);

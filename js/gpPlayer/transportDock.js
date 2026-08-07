@@ -19,16 +19,16 @@ export function mountTransportDock(host, api = {}) {
   const prevBtn = el('button', {
     class: 'gpp-transport-btn',
     type: 'button',
-    text: '◀',
+    text: '‹',
     'aria-label': 'Previous measure',
     title: 'Previous measure',
   });
   const playBtn = el('button', {
     class: 'gpp-transport-btn is-primary',
     type: 'button',
-    text: 'Play',
+    text: '▶',
     'aria-label': 'Play',
-    title: 'Play / Pause',
+    title: 'Play',
   });
   const stopBtn = el('button', {
     class: 'gpp-transport-btn',
@@ -47,7 +47,7 @@ export function mountTransportDock(host, api = {}) {
   const nextBtn = el('button', {
     class: 'gpp-transport-btn',
     type: 'button',
-    text: '▶',
+    text: '›',
     'aria-label': 'Next measure',
     title: 'Next measure',
   });
@@ -69,7 +69,7 @@ export function mountTransportDock(host, api = {}) {
 
   function sync() {
     const playing = !!api.getPlaying?.();
-    playBtn.textContent = playing ? 'Pause' : 'Play';
+    playBtn.textContent = playing ? '⏸' : '▶';
     playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
     playBtn.title = playing ? 'Pause' : 'Play';
 

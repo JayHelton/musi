@@ -26,6 +26,7 @@ import { scheduleMetronomeClick } from '../../js/tab/metroClick.js';
 import {
   beatsFromMeasureRange,
   measureIndicesForBeats,
+  measureIndexAtBeat,
   normalizeBeatRange,
   scopeBounds,
   canPrevMeasure,
@@ -333,6 +334,11 @@ assert.equal(normOk.endBeat, 6);
 const normTiny = normalizeBeatRange(5, 5, { minSpan: 1 });
 assert.deepEqual(normTiny, { startBeat: 5, endBeat: 6 });
 assert.equal(normalizeBeatRange(1, 0, { minSpan: 1, songEndBeat: 0 }), null);
+
+// ---- measureIndexAtBeat (pre-start / in-range / past-end) ----
+assert.equal(measureIndexAtBeat(rangeMeasures, -0.1), 0);
+assert.equal(measureIndexAtBeat(rangeMeasures, 5), 1);
+assert.equal(measureIndexAtBeat(rangeMeasures, 99), 2);
 
 // ---- playerState solo / view / playAll ----
 const ps = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
