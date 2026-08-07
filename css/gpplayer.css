@@ -318,6 +318,26 @@
   min-height: 180px;
 }
 
+.gpp-annotate-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 10;
+  max-width: calc(100% - 24px);
+  padding: 8px 14px;
+  border-radius: var(--radius-screen, 18px);
+  background: rgba(18, 26, 46, 0.92);
+  border: 1px solid var(--accent2, #9b6fd4);
+  color: var(--accent, #f5d442);
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 1.1rem;
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
 .gpp-parch-root {
   display: flex;
   flex-direction: column;

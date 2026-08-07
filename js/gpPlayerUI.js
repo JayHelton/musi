@@ -150,6 +150,13 @@ export function mountGpPlayer(host, {
   const scoreBody = el('div', { class: 'gpp-score-body' });
   const measureNavHost = el('div', { class: 'gpp-measure-nav-host' });
   const parchmentHost = el('div', { class: 'gpp-parchment-host' });
+  const annotateHint = el('div', {
+    class: 'gpp-annotate-hint',
+    hidden: true,
+    role: 'status',
+    'aria-live': 'polite',
+    text: 'Drag across bars to select a section',
+  });
   scoreBody.append(measureNavHost, parchmentHost);
 
   const stagePane = el('div', { class: 'gpp-stage-pane' });
@@ -317,16 +324,22 @@ export function mountGpPlayer(host, {
     annoDrawer?.sync();
   }
 
+  function syncAnnotateHint() {
+    annotateHint.hidden = !(annotateMode && !draftSel);
+  }
+
   function exitAnnotateMode({ keepDrawerAnnotateBtn = false } = {}) {
     if (!annotateMode && !draftSel) {
       if (!keepDrawerAnnotateBtn) annoDrawer?.setAnnotateMode(false);
       notesBtn.classList.remove('is-on');
+      syncAnnotateHint();
       return;
     }
     annotateMode = false;
     draftSel = null;
     notesBtn.classList.remove('is-on');
     if (!keepDrawerAnnotateBtn) annoDrawer?.setAnnotateMode(false);
+    syncAnnotateHint();
     parchment?.setSelectionKind('loop');
     if (state.loopSelectMode) {
       loopController?.enable();
@@ -353,6 +366,8 @@ export function mountGpPlayer(host, {
     parchment?.setSelection(null);
     notesBtn.classList.add('is-on');
     annoDrawer?.setAnnotateMode(true);
+    annoDrawer?.close();
+    syncAnnotateHint();
   }
 
   function parchmentSelection() {
@@ -533,7 +548,9 @@ export function mountGpPlayer(host, {
           measureStart: startIdx,
           measureEnd: endIdx,
         };
+        syncAnnotateHint();
         parchment?.setSelection({ startBeat: sel.startBeat, endBeat: sel.endBeat });
+        annoDrawer?.open();
         annoDrawer?.showEditor(draftSel);
         return;
       }
@@ -547,6 +564,7 @@ export function mountGpPlayer(host, {
       annoDrawer?.showEditor(anno);
     },
   });
+  parchmentHost.appendChild(annotateHint);
 
   loopController = createLoopSelectionController({
     getState: () => state,
