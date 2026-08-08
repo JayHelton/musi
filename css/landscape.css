@@ -1,0 +1,184 @@
+/* Landscape phone shell layer
+   Signal: (orientation: landscape) and (max-height: 500px) — short viewports where
+   width may exceed 768px (e.g. 844×390) but height is phone-like. Tablets in landscape
+   stay >= 768px tall and keep the desktop layout. Feature screens add their own
+   landscape blocks in their CSS files; this file is shell-level chrome/layout only. */
+
+@media (orientation: landscape) and (max-height: 500px) {
+  /* ---- Chrome ---- */
+  :root{--dock-h:calc(46px + env(safe-area-inset-bottom,0px));--tap-min:40px}
+  html,body{overflow-x:clip;max-width:100%}
+  header{padding:4px max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+  .wordmark{font-size:.85rem;letter-spacing:2px}
+  main{max-width:100%;overflow-x:clip;padding:4px max(12px,env(safe-area-inset-right,0px)) calc(var(--dock-h) + 8px) max(12px,env(safe-area-inset-left,0px))}
+  .section{max-width:100%;min-width:0}
+  .section-head{margin-bottom:0}
+  .section-head p{display:none}
+  .section-head h2{font-size:1.1rem;margin-bottom:2px}
+  .section-kicker{font-size:.6rem;margin-bottom:2px}
+
+  /* ---- Compact setup toolbar (back + chips share one row) ---- */
+  .section.has-setup-summary .sidebar:not(.open){display:none!important}
+  .section:has(.setup-toolbar) .section-kicker,
+  .section:has(.setup-toolbar) .section-head h2,
+  .section:has(.setup-toolbar) .section-head p{display:none!important}
+  .section:has(.setup-toolbar) .section-head:not(:has(.tool-back)){display:none!important}
+  .setup-toolbar{display:flex;flex-direction:row;align-items:center;gap:6px;margin:0 0 4px!important;padding:2px 6px;border-radius:10px;border:1px solid var(--border);background:rgba(18,26,46,0.72)}
+  .setup-toolbar .tool-back{margin:0;min-height:36px;padding:0;font-size:.72rem;white-space:nowrap;flex-shrink:0}
+  .setup-toolbar .setup-summary-inner{flex:1;min-width:0;display:flex;flex-direction:row;align-items:center;gap:4px;margin:0;padding:0;border:none;background:transparent;box-shadow:none}
+  .setup-toolbar .setup-summary-label{display:none}
+  .setup-toolbar .setup-summary-fields{display:flex;flex:1;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .setup-toolbar .setup-summary-fields::-webkit-scrollbar{display:none}
+  .setup-toolbar .setup-chip{flex-direction:row;align-items:center;gap:0;min-height:36px;padding:4px 8px;border-radius:8px;white-space:nowrap;flex-shrink:0}
+  .setup-toolbar .setup-chip-hint{display:none}
+  .setup-toolbar .setup-chip-value{font-size:.8rem;font-weight:650;line-height:1.1}
+  .subview-tabs{margin-bottom:4px!important;padding:2px;top:0;position:relative;z-index:1}
+  .subview-tab{min-height:28px;min-width:0;padding:4px 10px;font-size:.72rem!important;border-radius:8px}
+
+  /* ---- Drill action dock: bounded column; card scrolls inside, dock pinned at bottom ---- */
+  .quiz-main:has(> .action-dock){
+    display:flex;flex-direction:column;min-height:0;overflow:hidden;
+    max-height:calc(100dvh - var(--dock-h) - var(--quiz-landscape-top, 96px) - 6px);
+  }
+  #sec-fretboard .quiz-main:has(> .action-dock){--quiz-landscape-top:100px}
+  #sec-ear .quiz-main:has(> .action-dock),
+  #sec-intervals .quiz-main:has(> .action-dock),
+  #sec-sightreading .quiz-main:has(> .action-dock),
+  #sec-scales .quiz-main:has(> .action-dock),
+  #sec-chordlab .quiz-main:has(> .action-dock){--quiz-landscape-top:96px}
+
+  .quiz-main:has(> .action-dock) .progress-header{
+    flex-shrink:0;position:static;gap:6px;padding:5px 10px;margin-bottom:4px;border-radius:12px;
+  }
+  .quiz-main:has(> .action-dock) .ph-streak-label,
+  .quiz-main:has(> .action-dock) .ph-acc-label{display:none}
+  .quiz-main:has(> .action-dock) .ph-streak-val{font-size:1rem}
+  .quiz-main:has(> .action-dock) .ph-bar-track{height:6px}
+  .quiz-main:has(> .action-dock) .ph-bar-count{font-size:.72rem}
+  .quiz-main:has(> .action-dock) .ph-reset{min-height:32px;padding:4px 8px;font-size:.72rem}
+
+  .quiz-main:has(> .action-dock) .adv-options{flex-shrink:0;margin-bottom:4px}
+  .quiz-main:has(> .action-dock) .adv-options>summary{min-height:32px;padding:4px 10px;font-size:.75rem}
+
+  .quiz-main:has(> .action-dock)> .quiz-card{
+    flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-bottom:4px;
+  }
+  #sec-chordlab .quiz-main:has(> .action-dock){
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+  }
+  #sec-chordlab .quiz-main:has(> .action-dock)> .quiz-card{
+    flex:0 0 auto;overflow:visible;margin-bottom:6px;
+  }
+
+  .quiz-main:has(> .action-dock)> .action-dock{
+    flex-shrink:0;position:sticky;bottom:0;z-index:45;margin-top:0;padding:6px 10px;border-radius:14px;
+  }
+  body.hold-rec-relevant .quiz-main:has(> .action-dock) .action-dock{padding-right:56px}
+  body:not(.hold-rec-relevant) .quiz-main:has(> .action-dock) .action-dock{padding-right:10px}
+  .quiz-main:has(> .action-dock) .action-dock .btn,
+  .quiz-main:has(> .action-dock) .action-dock .ear-transport .btn{min-height:40px;padding:8px 12px;font-size:.85rem}
+  .quiz-main:has(> .action-dock) .ear-transport{margin-bottom:0}
+
+  /* ---- Trainer width leaks (desktop max-width caps) ---- */
+  #sec-fretboard .quiz-main{max-width:100%}
+  .tuner-center{max-width:100%}
+  .timing-layout{grid-template-columns:1fr;gap:10px;max-width:100%}
+  .pr-card{max-width:100%}
+
+  /* ---- Dock (5-category mobile bar from initNav) ---- */
+  .dock{min-height:var(--dock-h);justify-content:center;overflow:visible;padding:4px env(safe-area-inset-right,0px) max(4px,env(safe-area-inset-bottom,0px)) env(safe-area-inset-left,0px)}
+  .dock-desktop{display:none!important}
+  .dock-mobile{display:none!important}
+  .dock-mobile-cats{display:flex}
+  .dock-cat-btn{min-height:40px;padding:4px 2px;font-size:.55rem;gap:1px}
+  .dock-cat-btn .dock-icon,.dock-cat-btn .dock-icon svg{width:18px;height:18px}
+
+  /* ---- Header actions ---- */
+  .header-actions{gap:4px}
+  .context-pill{font-size:.7rem!important;padding:4px 10px;max-width:50vw;min-height:32px}
+  .command-trigger{width:32px;height:32px;min-width:32px;min-height:32px}
+  .command-trigger svg{width:16px;height:16px}
+
+  /* ---- Layout (mirror mobile column + pill sidebar) ---- */
+  .quiz-layout{display:flex;flex-direction:column;max-width:100%;min-width:0;gap:4px}
+  .quiz-layout>.setup-summary,.quiz-layout>.subview-tabs,.quiz-layout>.mobile-setup-first{order:-1}
+  .quiz-main{order:1;max-width:100%;min-width:0}
+  .sidebar{order:2;width:100%;flex-direction:column;gap:8px}
+  .sidebar-list{flex:1;min-width:0}
+  .sidebar-list .sl-head{padding:6px 10px;font-size:.65rem}
+  .sidebar-list .sl-scroll{display:flex;gap:8px;max-height:90px;overflow-x:auto;overflow-y:hidden;padding:8px 10px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+  .sl-item{flex:0 0 auto;min-height:36px;display:flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--bg2);padding:6px 12px;white-space:nowrap;scroll-snap-align:start;font-size:.8rem;border-left:1px solid var(--border)}
+  .sl-item.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+  .sl-group-label{flex:0 0 auto;display:flex;align-items:center;padding:0 2px 0 4px;font-size:.55rem;white-space:nowrap}
+  .quiz-card{padding:10px 12px;margin-bottom:8px;border-radius:14px}
+  .quiz-card:hover{transform:none}
+  .question{font-size:1.05rem;min-height:auto;margin-bottom:8px;line-height:1.35}
+  .btn{min-height:var(--tap-min)}
+  .score-bar{flex-wrap:wrap;gap:8px;font-size:.8rem;padding:8px 12px}
+
+  /* ---- Setup summary defaults (non-toolbar sections in landscape) ---- */
+  .setup-summary:not(.setup-toolbar *){gap:4px;margin-bottom:4px;padding:4px 8px;border-radius:10px}
+  .setup-summary:not(.setup-toolbar *) .setup-summary-label{display:none}
+  .setup-summary:not(.setup-toolbar *) .setup-summary-fields{display:flex;flex-wrap:wrap;gap:4px}
+  .setup-summary:not(.setup-toolbar *) .setup-chip{flex-direction:row;align-items:center;gap:4px;min-height:36px;padding:4px 8px;border-radius:8px}
+  .setup-summary:not(.setup-toolbar *) .setup-chip-hint{display:none}
+  .setup-summary:not(.setup-toolbar *) .setup-chip-value{font-size:.8rem;line-height:1.1}
+
+  /* ---- Home hero ---- */
+  .gbc-hero{min-height:0;max-height:45vh;margin:0 0 10px;padding:14px 14px 12px;gap:8px}
+  .gbc-hero-brand{font-size:1.15rem;letter-spacing:1px}
+  .gbc-hero-tag{font-size:.62rem;max-width:28ch;line-height:1.35}
+  .gbc-hero-support{font-size:.82rem;line-height:1.35;max-width:42ch;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .gbc-hero-cta{gap:6px;margin-top:2px}
+  .gbc-btn{min-height:36px;padding:6px 12px;font-size:.8rem}
+
+  /* ---- Overlays ---- */
+  .modal-overlay{padding:8px;align-items:flex-start}
+  .modal-dialog{max-height:calc(100dvh - 16px);overflow-y:auto;padding:14px 16px;border-radius:14px}
+  .sel-sheet.sheet-mobile,.sel-sheet.sheet-desktop{max-height:calc(100dvh - 16px)}
+  .sel-sheet.sheet-mobile{max-height:calc(100dvh - env(safe-area-inset-bottom,0px) - 8px)}
+  .sel-sheet-header{padding:6px 12px 8px}
+  .sel-sheet-title{font-size:.92rem}
+  .sel-sheet-close{width:40px;height:40px}
+  .sel-sheet-search-wrap{padding:0 12px 8px}
+  .sel-sheet-search{min-height:40px;padding:8px 12px;font-size:.92rem}
+  .sel-sheet-body{overflow-y:auto;padding:0 8px 12px}
+  .sel-sheet-item{min-height:40px;padding:8px 10px}
+  .sel-sheet-footer .btn{min-height:40px}
+
+  /* ---- Boot splash ---- */
+  .boot-splash{padding:12px}
+  .boot-splash-inner{gap:10px;width:min(320px,88vw)}
+  .boot-pixel-stage{width:120px;height:120px;margin-bottom:0}
+  .boot-pixel-char{width:70px}
+  .boot-splash-brand{font-size:1.1rem;letter-spacing:2px}
+  .boot-splash-tag{font-size:.48rem}
+  .boot-splash-bar{width:min(180px,60vw);height:8px}
+  .boot-splash-start{min-height:40px;padding:8px 14px;font-size:.52rem}
+}
+
+/* Extra-short landscape (iPhone SE class) */
+@media (orientation: landscape) and (max-height: 380px) {
+  :root{--dock-h:calc(42px + env(safe-area-inset-bottom,0px))}
+  header{padding-top:2px;padding-bottom:2px}
+  .wordmark{font-size:.78rem;letter-spacing:1px}
+  main{padding:6px max(12px,env(safe-area-inset-right,0px)) calc(var(--dock-h) + 8px) max(12px,env(safe-area-inset-left,0px))}
+  .section-head h2{font-size:1rem}
+  .dock-cat-btn{min-height:36px;padding:3px 1px;font-size:.5rem}
+  .dock-cat-btn .dock-icon,.dock-cat-btn .dock-icon svg{width:16px;height:16px}
+  .context-pill{font-size:.65rem!important;padding:3px 8px;min-height:28px;max-width:45vw}
+  .command-trigger{width:28px;height:28px;min-width:28px;min-height:28px}
+  .sidebar-list .sl-scroll{max-height:72px;padding:6px 8px}
+  .sl-item{min-height:32px;padding:5px 10px;font-size:.75rem}
+  .quiz-card{padding:8px 10px;margin-bottom:6px}
+  .question{font-size:.95rem;margin-bottom:6px}
+  .setup-chip,.subview-tab{min-height:32px}
+  .gbc-hero{max-height:40vh;padding:10px 12px 8px;gap:6px;margin-bottom:8px}
+  .gbc-hero-brand{font-size:1rem}
+  .gbc-hero-tag{font-size:.55rem}
+  .gbc-hero-support{font-size:.75rem;-webkit-line-clamp:1}
+  .gbc-btn{min-height:32px;padding:5px 10px;font-size:.75rem}
+  .boot-pixel-stage{width:96px;height:96px}
+  .boot-pixel-char{width:58px}
+  .boot-splash-brand{font-size:.95rem}
+}

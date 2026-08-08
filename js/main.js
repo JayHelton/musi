@@ -40,11 +40,11 @@ import {
   TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
   getTabs, getTool, isHoldRecordRelevant, isFeatureEnabled,
 } from './tools.js';
-import { initScreenUx } from './screenUx.js';
+import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
 
 const ICONS = TOOL_ICONS;
-const MOBILE_SWIPE_QUERY = '(max-width: 768px)';
+const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 
 const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
@@ -255,6 +255,7 @@ function showSection(id, skipHash) {
   updateHeaderChrome(id);
   updateSplitUI();
   refreshHome();
+  syncSetupToolbars();
 }
 window.showSection = showSection;
 window.showHub = showHub;

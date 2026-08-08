@@ -26,6 +26,24 @@ import {
 
 let showSectionFn = null;
 
+const MOBILE_UX_MQ = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
+const LANDSCAPE_PHONE_MQ = '(orientation: landscape) and (max-height: 500px)';
+const NOT_LANDSCAPE_PHONE_MQ = 'not ((orientation: landscape) and (max-height: 500px))';
+
+const SETUP_SHEET_BASE = `
+  display:none;position:fixed;z-index:480;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--card);border:1px solid var(--border);width:auto!important;
+`;
+const SETUP_SHEET_PORTRAIT = `
+  left:0;right:0;bottom:0;max-height:80vh;border-radius:18px 18px 0 0;padding:16px;
+`;
+const SETUP_SHEET_LANDSCAPE = `
+  top:8px;right:max(8px,env(safe-area-inset-right,0px));
+  bottom:calc(var(--dock-h,46px) + 8px);left:auto;
+  width:min(360px,48vw);max-height:calc(100dvh - var(--dock-h,46px) - 16px);
+  border-radius:14px;padding:12px;box-shadow:0 8px 32px rgba(0,0,0,0.45);
+`;
+
 function ensureBackButton(section) {
   if (!section || section.querySelector('.tool-back')) return;
   const head = section.querySelector('.section-head');
@@ -35,6 +53,41 @@ function ensureBackButton(section) {
   btn.className = 'tool-back';
   btn.textContent = '← Back';
   head.insertBefore(btn, head.firstChild);
+}
+
+/** Host + inner wrapper so renderSetupSummary innerHTML does not wipe the back button. */
+function createSetupToolbar(id, extraClass = 'mobile-setup-first') {
+  const host = document.createElement('div');
+  host.id = id;
+  host.className = ['setup-toolbar', extraClass].filter(Boolean).join(' ');
+  const inner = document.createElement('div');
+  inner.className = 'setup-summary-inner';
+  host.appendChild(inner);
+  return { host, inner };
+}
+
+function getSetupSummaryTarget(hostOrId) {
+  const host = typeof hostOrId === 'string' ? document.getElementById(hostOrId) : hostOrId;
+  if (!host) return null;
+  return host.querySelector('.setup-summary-inner') || host;
+}
+
+/** In landscape, park the back button on the setup row; restore to section-head in portrait. */
+export function syncSetupToolbars() {
+  const landscape = window.matchMedia(LANDSCAPE_PHONE_MQ).matches;
+  document.querySelectorAll('.setup-toolbar').forEach((host) => {
+    const section = host.closest('.section');
+    if (!section) return;
+    const back = section.querySelector('.tool-back');
+    const inner = host.querySelector('.setup-summary-inner');
+    const head = section.querySelector('.section-head');
+    if (!back || !inner) return;
+    if (landscape) {
+      if (back.parentElement !== host) host.insertBefore(back, inner);
+    } else if (head && back.parentElement !== head) {
+      head.insertBefore(back, head.firstChild);
+    }
+  });
 }
 
 function insertBefore(parent, node, ref) {
@@ -75,9 +128,7 @@ function setupScaleRef() {
   const main = sec.querySelector('.quiz-main');
   if (!layout || !main) return;
 
-  const setup = document.createElement('div');
-  setup.id = 'scaleref-setup';
-  setup.className = 'mobile-setup-first';
+  const { host: setup } = createSetupToolbar('scaleref-setup');
   insertBefore(layout, setup, main);
 
   const fbCard = document.getElementById('ref-fb-card');
@@ -100,7 +151,7 @@ function setupScaleRef() {
 }
 
 function refreshScaleRefSetup() {
-  const el = document.getElementById('scaleref-setup');
+  const el = getSetupSummaryTarget('scaleref-setup');
   if (!el) return;
   const c = getContext();
   const tuning = getSetting('ref.tuning', getSetting('picker.lastTuning', 'Standard'));
@@ -160,8 +211,7 @@ function setupChords() {
   tabs.id = 'chords-tabs';
   if (layout) layout.parentNode.insertBefore(tabs, layout);
 
-  const setup = document.createElement('div');
-  setup.id = 'chords-setup';
+  const { host: setup } = createSetupToolbar('chords-setup', '');
   if (layout) layout.parentNode.insertBefore(setup, layout);
 
   const mapEls = [layout];
@@ -298,7 +348,7 @@ function wireChordQualityChipSwipe() {
 }
 
 function refreshChordsSetup() {
-  const el = document.getElementById('chords-setup');
+  const el = getSetupSummaryTarget('chords-setup');
   if (!el) return;
   const c = getContext();
   const chord = getSetting('chordref.chord', 'Major');
@@ -371,7 +421,7 @@ function setupChordCardsFilters() {
   toolbar.classList.add('mcc-toolbar-sheet-source');
   const style = document.createElement('style');
   style.textContent = `
-    @media(max-width:768px){
+    @media ${MOBILE_UX_MQ}{
       .mcc-toolbar-sheet-source{display:none}
       .mcc-toolbar-sheet-source.force-show{display:flex;flex-direction:column}
     }
@@ -536,9 +586,7 @@ function setupFretboard() {
   const main = sec.querySelector('.quiz-main');
   if (!layout || !main) return;
 
-  const setup = document.createElement('div');
-  setup.id = 'fb-setup';
-  setup.className = 'mobile-setup-first';
+  const { host: setup } = createSetupToolbar('fb-setup');
   insertBefore(layout, setup, main);
 
   const opts = main.querySelector('details.adv-options') || main.querySelector('.fb-workbench-controls');
@@ -564,7 +612,7 @@ function setupFretboard() {
 }
 
 function refreshFbSetup() {
-  const el = document.getElementById('fb-setup');
+  const el = getSetupSummaryTarget('fb-setup');
   if (!el) return;
   const tuning = getSetting('fb.tuning', document.querySelector('#sl-fb-tuning .sl-item.active')?.dataset.val || 'Standard');
   const mode = getSetting('fb.mode', document.querySelector('#sl-fb-mode .sl-item.active')?.dataset.val || 'notes');
@@ -596,14 +644,12 @@ function setupEar() {
   const main = sec.querySelector('.quiz-main');
   if (!layout || !main) return;
 
-  const setup = document.createElement('div');
-  setup.id = 'ear-setup';
-  setup.className = 'mobile-setup-first';
+  const { host: setup, inner } = createSetupToolbar('ear-setup');
   insertBefore(layout, setup, main);
 
   // Sidebar becomes setup sheet content
   const sidebar = sec.querySelector('.sidebar');
-  renderSetupSummary(setup, [
+  renderSetupSummary(inner, [
     {
       key: 'setup', value: 'Ear setup', hint: 'Change',
       onClick: () => openEarSetupSheet(sidebar),
@@ -619,7 +665,7 @@ function setupEar() {
 }
 
 function refreshEarSetupSummary() {
-  const el = document.getElementById('ear-setup');
+  const el = getSetupSummaryTarget('ear-setup');
   if (!el) return;
   const bits = [];
   ['sl-ear-context', 'sl-ear-pool', 'sl-ear-answer', 'sl-ear-oct'].forEach(id => {
@@ -649,13 +695,18 @@ async function openEarSetupSheet(sidebar) {
     const style = document.createElement('style');
     style.id = 'ear-setup-sheet-style';
     style.textContent = `
-      @media(max-width:768px){
+      @media ${MOBILE_UX_MQ}{
         #sec-ear.has-setup-summary .sidebar.mobile-setup-sheet{
-          display:none; position:fixed; left:0; right:0; bottom:0; z-index:480;
-          max-height:80vh; overflow:auto; background:rgba(18,18,18,.98);
-          border-radius:18px 18px 0 0; padding:16px; border:1px solid var(--border);
+          ${SETUP_SHEET_BASE}
         }
         #sec-ear.has-setup-summary .sidebar.mobile-setup-sheet.open{display:block}
+        #sec-ear.has-setup-summary:has(.sidebar.mobile-setup-sheet.open){transform:none!important}
+      }
+      @media (max-width:768px){
+        #sec-ear.has-setup-summary .sidebar.mobile-setup-sheet{${SETUP_SHEET_PORTRAIT}}
+      }
+      @media ${LANDSCAPE_PHONE_MQ}{
+        #sec-ear.has-setup-summary .sidebar.mobile-setup-sheet{${SETUP_SHEET_LANDSCAPE}}
       }
     `;
     document.head.appendChild(style);
@@ -679,14 +730,12 @@ function setupIntervalsAndSight() {
     const main = sec.querySelector('.quiz-main');
     const sidebar = sec.querySelector('.sidebar');
     if (!layout || !main) return;
-    const setup = document.createElement('div');
-    setup.id = id.replace('sec-', '') + '-setup';
-    setup.className = 'mobile-setup-first';
+    const { host: setup, inner } = createSetupToolbar(id.replace('sec-', '') + '-setup');
     insertBefore(layout, setup, main);
 
     const refresh = () => {
       const bits = [...(sidebar?.querySelectorAll('.sl-item.active') || [])].map(el => el.textContent.trim());
-      renderSetupSummary(setup, [{
+      renderSetupSummary(inner, [{
         key: 'setup',
         value: bits.join(' · ') || 'Setup',
         hint: 'Change',
@@ -714,14 +763,18 @@ function setupIntervalsAndSight() {
     const style = document.createElement('style');
     style.id = 'sidebar-sheet-style';
     style.textContent = `
-      @media(max-width:768px){
+      @media ${MOBILE_UX_MQ}{
         .section.has-setup-summary .sidebar.mobile-setup-sheet{
-          display:none; position:fixed; left:0; right:0; bottom:0; z-index:480;
-          max-height:80vh; overflow:auto; background:rgba(18,18,18,.98);
-          border-radius:18px 18px 0 0; padding:16px; border:1px solid var(--border);
-          width:auto !important;
+          ${SETUP_SHEET_BASE}
         }
         .section.has-setup-summary .sidebar.mobile-setup-sheet.open{display:block}
+        .section.has-setup-summary:has(.sidebar.mobile-setup-sheet.open){transform:none!important}
+      }
+      @media (max-width:768px){
+        .section.has-setup-summary .sidebar.mobile-setup-sheet{${SETUP_SHEET_PORTRAIT}}
+      }
+      @media ${LANDSCAPE_PHONE_MQ}{
+        .section.has-setup-summary .sidebar.mobile-setup-sheet{${SETUP_SHEET_LANDSCAPE}}
       }
     `;
     document.head.appendChild(style);
@@ -733,14 +786,13 @@ function setupChordWorkout() {
   if (!sec) return;
   sec.classList.add('has-setup-summary');
   ensureBackButton(sec);
-  const setup = document.createElement('div');
-  setup.id = 'cw-setup';
+  const { host: setup, inner } = createSetupToolbar('cw-setup', '');
   const head = sec.querySelector('.section-head');
   if (head) head.after(setup);
 
   const refresh = () => {
     const tuning = getSetting('cw.tuning', document.querySelector('#sl-cw-tuning .sl-item.active')?.dataset.val || 'Standard');
-    renderSetupSummary(setup, [{
+    renderSetupSummary(inner, [{
       key: 'tuning', value: tuning, hint: 'Tuning',
       onClick: async () => {
         const next = await openTuningPicker({ value: tuning });
@@ -946,15 +998,14 @@ function setupTiming() {
   const explain = [...sec.querySelectorAll('p')].filter(p => p.closest('.section-head') || /perfect|threshold|early|late/i.test(p.textContent));
   explain.forEach(p => p.classList.add('drill-explain'));
 
-  const setup = document.createElement('div');
-  setup.id = 'timing-setup';
+  const { host: setup, inner } = createSetupToolbar('timing-setup', '');
   const head = sec.querySelector('.section-head');
   if (head) head.after(setup);
 
   const bpm = document.getElementById('td-bpm') || sec.querySelector('input[type=number]');
   const refresh = () => {
     const c = getContext();
-    renderSetupSummary(setup, [
+    renderSetupSummary(inner, [
       {
         key: 'bpm', value: `${bpm?.value || c.tempo} BPM`, hint: 'Tempo',
         onClick: () => {
@@ -1093,14 +1144,14 @@ function setupExercises() {
     const style = document.createElement('style');
     style.id = 'ex-folder-style';
     style.textContent = `
-      @media(max-width:768px){
+      @media ${MOBILE_UX_MQ}{
         #sec-exercises .ex-layout{display:flex;flex-direction:column}
         #sec-exercises .ex-sidebar .sidebar-list{display:none}
         #sec-exercises .ex-sidebar{display:flex;flex-direction:column;gap:8px;width:100%}
         #sec-exercises .ex-add-cat{display:flex}
         #sec-exercises .ex-folder-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
       }
-      @media(min-width:769px){
+      @media (min-width:769px) and ${NOT_LANDSCAPE_PHONE_MQ}{
         #sec-exercises .ex-folder-bar{display:none}
       }
     `;
@@ -1305,9 +1356,7 @@ function setupTriads() {
   const main = sec.querySelector('.quiz-main');
   if (!layout || !main) return;
 
-  const setup = document.createElement('div');
-  setup.id = 'triads-setup';
-  setup.className = 'mobile-setup-first';
+  const { host: setup } = createSetupToolbar('triads-setup');
   insertBefore(layout, setup, main);
 
   const tabs = document.createElement('div');
@@ -1411,7 +1460,7 @@ function setupTriads() {
 }
 
 function refreshTriadsSetup() {
-  const el = document.getElementById('triads-setup');
+  const el = getSetupSummaryTarget('triads-setup');
   if (!el) return;
   const c = getContext();
   const tuning = getSetting('triadref.tuning', 'Standard');
@@ -1510,6 +1559,8 @@ export function initScreenUx(config = {}) {
   setupRecorder();
   setupDrums();
   ensureAllBackButtons();
+  syncSetupToolbars();
+  window.matchMedia(LANDSCAPE_PHONE_MQ).addEventListener('change', syncSetupToolbars);
 
   // Quick scales on scale ref when context changes
   subscribeContext(() => {

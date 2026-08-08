@@ -38,6 +38,7 @@ import { mountTrackMixer } from '../../js/gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from '../../js/gpPlayer/settingsDrawer.js';
 import { mountParchmentView } from '../../js/gpPlayer/parchmentView.js';
 import { mountAnnotationsDrawer } from '../../js/gpPlayer/annotationsDrawer.js';
+import { addAnnotation, listAnnotations } from '../../js/gpAnnotations.js';
 import { createLoopSelectionController } from '../../js/gpPlayer/loopSelection.js';
 import { mountGpPlayer } from '../../js/gpPlayerUI.js';
 import { installDomShim } from './domShim.mjs';
@@ -537,13 +538,19 @@ assert.equal(mounted.getState().bpm, 120);
 assert.equal(mounted.getState().scoreBpm, 120);
 assert.equal(mounted.getState().bpmUserOverride, false);
 assert.ok(gpHost.querySelector('.gpp-chrome'), 'player should wrap chrome');
-const analysisPanel = gpHost.querySelector('.gpp-analysis');
-assert.ok(analysisPanel, 'inline analysis details should exist');
-assert.ok(!gpHost.querySelector('.gpp-chrome .gpp-analysis'), 'analysis must sit outside chrome');
-const analyzeHeaderBtn = [...gpHost.querySelectorAll('button')].find(
+const analysisPane = gpHost.querySelector('.gpp-analysis-pane');
+assert.ok(analysisPane, 'analysis pane should exist inside chrome');
+assert.ok(analysisPane.querySelector('.gpp-analysis-results'), 'analysis results should mount in pane');
+assert.ok(gpHost.dataset.view === 'score', 'default view should be score');
+const viewPicker = gpHost.querySelector('.gpp-view-picker');
+assert.ok(viewPicker, 'view picker should exist');
+assert.equal(viewPicker.querySelectorAll('.gpp-view-btn').length, 3, 'view picker should have three modes');
+const analyzeToolbarBtn = gpHost.querySelector('.gpp-analysis-rerun');
+assert.ok(analyzeToolbarBtn, 'analysis pane should expose re-run control');
+const duplicateAnalyzeBtn = [...gpHost.querySelectorAll('.gpp-score-actions button')].find(
   (b) => b.getAttribute?.('aria-label') === 'Analyze score',
 );
-assert.ok(analyzeHeaderBtn, 'header Analyze button should exist');
+assert.ok(!duplicateAnalyzeBtn, 'toolbar must not duplicate Analyze affordance');
 mounted.destroy();
 
 const mountedNullBpm = mountGpPlayer(gpHost, { gpResult: fakeGp, title: 'Smoke GP', initialBpm: null });
@@ -571,6 +578,79 @@ assert.ok(parchHost.querySelector('.gpp-parch-sheet'), 'parchment sheet should e
 assert.ok(parchHost.querySelector('.gpp-parch-system'), 'parchment system row should exist');
 assert.equal(document.getElementById('gpp-parch-styles'), null, 'parchment should not inject inline styles');
 parchment.destroy();
+
+// ---- parchment: section-note callouts on score ----
+const annoParchHost = document.createElement('div');
+annoParchHost.style.width = '600px';
+const annoParch = mountParchmentView(annoParchHost, {
+  guitarModel: fakeGp.tracks[0].model,
+});
+const testAnnos = [
+  {
+    id: 'anno-1',
+    title: 'Scale run',
+    text: 'C major scale, two octaves',
+    startBeat: 0,
+    endBeat: 1,
+    measureStart: 0,
+    measureEnd: 0,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'anno-2',
+    title: 'Verse riff',
+    text: 'Palm mute throughout',
+    startBeat: 1,
+    endBeat: 2,
+    measureStart: 1,
+    measureEnd: 1,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'anno-3',
+    title: 'Multi-bar',
+    text: 'Bars 5 through 8 practice',
+    startBeat: 0,
+    endBeat: 2,
+    measureStart: 0,
+    measureEnd: 1,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+];
+annoParch.update({ annotations: testAnnos, highlightedAnnotationId: 'anno-2' });
+assert.ok(annoParchHost.querySelector('.gpp-parch-anno-callout'), 'callout should render on score');
+assert.ok(annoParchHost.querySelectorAll('.gpp-parch-anno-callout').length >= 2, 'multiple callouts should render');
+assert.ok(annoParchHost.querySelector('.gpp-parch-anno-span'), 'multi-bar span indicator should render');
+const highlightedCallout = [...annoParchHost.querySelectorAll('.gpp-parch-anno-callout')]
+  .find((el) => (el.className || '').includes('is-highlighted'));
+assert.ok(highlightedCallout, 'highlighted callout should paint');
+const introMeasure = [...annoParchHost.querySelectorAll('.gpp-parch-measure')]
+  .find((el) => el.dataset?.index === '0');
+assert.ok(introMeasure?.querySelector('.gpp-parch-marker'), 'marker should coexist with callout');
+assert.ok(introMeasure?.querySelector('.gpp-parch-anno-callout'), 'callout should sit above marker measure');
+annoParch.destroy();
+
+// ---- mountGpPlayer: score callouts from persisted annotations ----
+addAnnotation('smoke-notes', {
+  startBeat: 0,
+  endBeat: 1,
+  measureStart: 0,
+  measureEnd: 0,
+  title: 'Intro lick',
+  text: 'Hammer-on from open',
+});
+const noteHost = document.createElement('div');
+const notePlayer = mountGpPlayer(noteHost, {
+  gpResult: fakeGp,
+  title: 'Note test',
+  scoreKey: 'smoke-notes',
+});
+assert.ok(noteHost.querySelector('.gpp-parch-anno-callout'), 'callout visible for persisted annotation');
+assert.equal(listAnnotations('smoke-notes').length, 1);
+notePlayer.destroy();
 
 // ---- loopSelection: syncFromState gates on loopEnabled ----
 const loopParchment = {
