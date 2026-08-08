@@ -182,14 +182,14 @@
   #triad-sweep-nav{display:none!important}
   #triad-sweep-controls{
     grid-column:1;grid-row:1/-1;margin:0;gap:3px;display:flex;flex-direction:column;
-    min-width:0;min-height:0;max-height:100%;overflow-y:auto;overflow-x:hidden;
+    min-width:0;min-height:0;max-height:100%;overflow-y:auto;overflow-x:visible;
     -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding-right:2px;
   }
   .sweep-control-row{display:flex;flex-direction:column;gap:2px;align-items:stretch;flex-shrink:0}
   .sweep-control-label{padding:0;font-size:.64rem;flex:none;white-space:nowrap;line-height:1.1}
   .sweep-picker,.sweep-quality-picker,.sweep-inv-toggle{min-width:0;width:100%}
-  .sweep-picker,.sweep-quality-picker{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:3px}
-  .sweep-btn,.sweep-quality-btn{min-height:36px;padding:3px 8px;font-size:.7rem;flex-shrink:0}
+  .sweep-picker,.sweep-quality-picker{flex-wrap:wrap;overflow:visible;gap:3px}
+  .sweep-btn,.sweep-quality-btn{min-height:36px;padding:3px 8px;font-size:.7rem;flex-shrink:0;white-space:nowrap}
   .sweep-inv-toggle{gap:3px;min-width:0}
   .sweep-inv-step{min-width:36px;min-height:36px;padding:0 4px;font-size:1.1rem}
   .sweep-inv-status{min-height:36px;padding:3px 6px;gap:0}
