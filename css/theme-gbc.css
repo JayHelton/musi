@@ -114,7 +114,7 @@ header {
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  padding: 12px 20px;
+  padding: 8px 16px;
 }
 
 .wordmark {
@@ -345,7 +345,6 @@ header {
 .sl-group-label,
 .ph-streak-label,
 .ph-acc-label,
-.context-sheet-title,
 .setup-summary-label,
 .setup-chip-hint,
 .hub-recent-label,
@@ -357,8 +356,7 @@ header {
   text-transform: uppercase;
 }
 .section-kicker,
-.home-continue-kicker,
-.context-sheet-title {
+.home-continue-kicker {
   color: var(--accent);
 }
 .section-head h2,
@@ -398,8 +396,7 @@ textarea,
 .dock-item,
 .dock-group-trigger,
 .dock-menu-item,
-.context-pill,
-.command-trigger,
+.header-icon-btn,
 .home-quick-card,
 .home-cat-link,
 .home-tool-row,
@@ -407,7 +404,6 @@ textarea,
 .setup-chip,
 .sl-item,
 .np-label,
-.volume-popover,
 .overflow-menu-item,
 .modal-dialog,
 .compact-progress,
@@ -418,7 +414,7 @@ textarea,
 /* Dense chrome / labels read cleaner in VT323 */
 .dock-item,
 .dock-group-trigger,
-.context-pill,
+.header-icon-btn,
 .ph-bar-count,
 .home-today,
 .home-continue-setup,
@@ -435,7 +431,6 @@ textarea,
   font-size: 0.78rem;
   letter-spacing: 0.06em;
 }
-.context-pill { font-size: 0.95rem; }
 .section-head p,
 .gbc-hero-support,
 .modal-body {
@@ -605,12 +600,7 @@ textarea,
 .home-cat-link:nth-child(4n + 3) .dock-icon { color: var(--btn-x); }
 .home-cat-link:nth-child(4n + 4) .dock-icon { color: var(--shell-bright); }
 
-.context-pill {
-  background: rgba(180, 94, 255, 0.12);
-  border-color: rgba(180, 140, 255, 0.28);
-  border-radius: var(--radius-pill);
-}
-.command-trigger {
+.header-icon-btn {
   border-radius: 14px;
   background: rgba(18, 26, 46, 0.9);
 }

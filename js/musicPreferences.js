@@ -25,9 +25,26 @@ import {
   setFeatureEnabled,
   getEnabledFeatureIdsRaw,
 } from './tools.js';
+import {
+  getContext,
+  setContext,
+  subscribeContext,
+  TEMPO_MIN,
+  TEMPO_MAX,
+  ITERATION_MODES,
+  getIterationModeLabel,
+} from './musicalContext.js';
+import { shortScaleName } from './scales.js';
+import { openRootPicker, openScalePicker } from './pickers.js';
+import { getMasterVolume, setMasterVolume } from './audio.js';
+import { getSetting, saveSetting } from './persistence.js';
+
+const CONTEXT_SOURCE = 'music-prefs';
+const MODE_ITEMS = ITERATION_MODES.map(m => ({ val: m, label: getIterationModeLabel(m) }));
 
 let showSectionFn = null;
 let host = null;
+let contextUnsub = null;
 
 function groupGenres() {
   const groups = new Map();
@@ -45,6 +62,10 @@ function genrePriority(profile, genreId) {
 
 function render() {
   if (!host) return;
+  if (contextUnsub) {
+    contextUnsub();
+    contextUnsub = null;
+  }
   const profile = getMusicProfile();
   const rec = buildRecommendations({ limit: 1 });
 
@@ -62,6 +83,52 @@ function render() {
         ? 'Recommendations combine foundation, genre relevance, weakness, and review urgency.'
         : 'Add genres below to personalize recommendations. Foundation studies remain available either way.'}</div>
     </div>
+
+    <section class="mp-block" id="mp-context-block">
+      <h3 class="mp-block-title">Musical context</h3>
+      <p class="mp-block-help">Default key, scale, and tempo shared across compatible tools.</p>
+      <div class="context-field">
+        <div class="context-field-label">Key</div>
+        <button type="button" class="setup-chip context-pick-btn" id="mp-ctx-root-btn" aria-label="Change root">
+          <span class="setup-chip-value" id="mp-ctx-root-val">C</span>
+          <span class="setup-chip-hint">Change</span>
+        </button>
+        <div class="context-mode-row">
+          <div class="context-field-label context-mode-label">Key progression</div>
+          <div class="seg-row compact" id="mp-ctx-root-mode"></div>
+        </div>
+      </div>
+      <div class="context-field">
+        <div class="context-field-label">Mode / Scale</div>
+        <button type="button" class="setup-chip context-pick-btn" id="mp-ctx-scale-btn" aria-label="Change scale">
+          <span class="setup-chip-value" id="mp-ctx-scale-val">Major</span>
+          <span class="setup-chip-hint">Change</span>
+        </button>
+        <div class="quick-scale-row" id="mp-ctx-quick-scales" aria-label="Quick scales"></div>
+        <div class="context-mode-row">
+          <div class="context-field-label context-mode-label">Scale progression</div>
+          <div class="seg-row compact" id="mp-ctx-scale-mode"></div>
+        </div>
+      </div>
+      <div class="context-field">
+        <div class="context-field-label">Tempo</div>
+        <div class="context-tempo-row">
+          <button type="button" class="context-step" id="mp-ctx-tempo-down" aria-label="Slower">-</button>
+          <input type="number" id="mp-ctx-tempo" class="context-tempo-input" min="${TEMPO_MIN}" max="${TEMPO_MAX}" inputmode="numeric">
+          <span class="context-tempo-unit">BPM</span>
+          <button type="button" class="context-step" id="mp-ctx-tempo-up" aria-label="Faster">+</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="mp-block" id="mp-volume-block">
+      <h3 class="mp-block-title">Volume</h3>
+      <p class="mp-block-help">Global audio level for trainers, playback, and synth.</p>
+      <div class="mp-volume-row">
+        <input id="mp-volume-slider" type="range" min="0" max="150" step="1" value="100" aria-label="Global volume">
+        <span id="mp-volume-value" class="mp-volume-value">100%</span>
+      </div>
+    </section>
 
     <section class="mp-block">
       <h3 class="mp-block-title">Features</h3>
@@ -105,6 +172,8 @@ function render() {
     </section>
   `;
 
+  paintMusicalContext();
+  paintVolume();
   paintFeatures();
   paintGenres(profile);
   paintGoals(profile);
@@ -112,6 +181,106 @@ function render() {
   paintApps(profile);
   paintExclusions(profile);
   paintPreview(rec);
+}
+
+function buildSegmented(container, items, activeVal, onPick) {
+  container.innerHTML = '';
+  items.forEach(({ val, label }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'seg-btn' + (val === activeVal ? ' active' : '');
+    btn.dataset.val = val;
+    btn.textContent = label;
+    btn.onclick = () => onPick(val);
+    container.appendChild(btn);
+  });
+}
+
+function markSegmentActive(container, val) {
+  container.querySelectorAll('.seg-btn').forEach(el => {
+    el.classList.toggle('active', el.dataset.val === val);
+  });
+}
+
+function syncContextBlock(c) {
+  const rootVal = host?.querySelector('#mp-ctx-root-val');
+  const scaleVal = host?.querySelector('#mp-ctx-scale-val');
+  const tempoInput = host?.querySelector('#mp-ctx-tempo');
+  const rootModeRow = host?.querySelector('#mp-ctx-root-mode');
+  const scaleModeRow = host?.querySelector('#mp-ctx-scale-mode');
+  if (rootVal) rootVal.textContent = c.root;
+  if (scaleVal) scaleVal.textContent = shortScaleName(c.scale);
+  if (tempoInput && Number(tempoInput.value) !== c.tempo) tempoInput.value = c.tempo;
+  if (rootModeRow) markSegmentActive(rootModeRow, c.rootMode);
+  if (scaleModeRow) markSegmentActive(scaleModeRow, c.scaleMode);
+  renderQuickScales();
+}
+
+function renderQuickScales() {
+  const row = host?.querySelector('#mp-ctx-quick-scales');
+  if (!row) return;
+  import('./pickers.js').then(({ getQuickScales }) => {
+    const c = getContext();
+    const scales = getQuickScales(5);
+    row.innerHTML = '';
+    scales.forEach(name => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-scale-chip' + (name === c.scale ? ' active' : '');
+      btn.textContent = shortScaleName(name);
+      btn.onclick = () => setContext({ scale: name }, CONTEXT_SOURCE);
+      row.appendChild(btn);
+    });
+  });
+}
+
+function paintMusicalContext() {
+  const rootModeRow = host?.querySelector('#mp-ctx-root-mode');
+  const scaleModeRow = host?.querySelector('#mp-ctx-scale-mode');
+  const tempoInput = host?.querySelector('#mp-ctx-tempo');
+  if (!rootModeRow || !scaleModeRow || !tempoInput) return;
+
+  const c = getContext();
+  buildSegmented(rootModeRow, MODE_ITEMS, c.rootMode, val => {
+    setContext({ rootMode: val }, CONTEXT_SOURCE);
+  });
+  buildSegmented(scaleModeRow, MODE_ITEMS, c.scaleMode, val => {
+    setContext({ scaleMode: val }, CONTEXT_SOURCE);
+  });
+
+  host.querySelector('#mp-ctx-root-btn').onclick = async () => {
+    await openRootPicker({ value: getContext().root, source: CONTEXT_SOURCE });
+  };
+  host.querySelector('#mp-ctx-scale-btn').onclick = async () => {
+    await openScalePicker({ value: getContext().scale, source: CONTEXT_SOURCE });
+  };
+
+  tempoInput.value = c.tempo;
+  tempoInput.onchange = () => setContext({ tempo: Number(tempoInput.value) }, CONTEXT_SOURCE);
+  host.querySelector('#mp-ctx-tempo-down').onclick = () => setContext({ tempo: getContext().tempo - 1 }, CONTEXT_SOURCE);
+  host.querySelector('#mp-ctx-tempo-up').onclick = () => setContext({ tempo: getContext().tempo + 1 }, CONTEXT_SOURCE);
+
+  renderQuickScales();
+  contextUnsub = subscribeContext((ctx) => syncContextBlock(ctx));
+}
+
+function paintVolume() {
+  const slider = host?.querySelector('#mp-volume-slider');
+  const valueLabel = host?.querySelector('#mp-volume-value');
+  if (!slider) return;
+
+  const saved = Number(getSetting('global.volume', getMasterVolume()));
+  const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
+  setMasterVolume(initial);
+  slider.value = String(Math.round(getMasterVolume() * 100));
+  if (valueLabel) valueLabel.textContent = Math.round(getMasterVolume() * 100) + '%';
+
+  slider.oninput = (e) => {
+    const vol = Number(e.target.value) / 100;
+    setMasterVolume(vol);
+    saveSetting('global.volume', getMasterVolume());
+    if (valueLabel) valueLabel.textContent = Math.round(getMasterVolume() * 100) + '%';
+  };
 }
 
 function paintFeatures() {
@@ -331,6 +500,12 @@ function notifyHome() {
   try {
     window.dispatchEvent(new CustomEvent('musi:profile-changed'));
   } catch (_) { /* ignore */ }
+}
+
+export function initGlobalVolume() {
+  const saved = Number(getSetting('global.volume', getMasterVolume()));
+  const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
+  setMasterVolume(initial);
 }
 
 export function initMusicPreferences({ showSection } = {}) {
