@@ -247,12 +247,12 @@ export function getSelectedExerciseFolderLabel() {
 }
 
 export function selectExerciseFolder(id) {
+  let next = 'all';
   if (id === 'all' || id === 'uncategorized'
       || getStore().categories.some(c => c.id === id)) {
-    selectedCategory = id;
-  } else {
-    selectedCategory = 'all';
+    next = id;
   }
+  setSelectedCategory(next);
   if (wired) render();
   return selectedCategory;
 }
@@ -264,7 +264,7 @@ export function createExerciseFolder(name) {
   const store = getStore();
   const exists = store.categories.find(c => c.name.toLowerCase() === clean.toLowerCase());
   if (exists) {
-    selectedCategory = 'all';
+    setSelectedCategory('all');
     if (wired) {
       setStatus(`Folder “${exists.name}” already exists.`);
       render();
@@ -272,7 +272,7 @@ export function createExerciseFolder(name) {
     return { ok: true, created: false, category: exists };
   }
   const cat = addCategory(clean);
-  selectedCategory = 'all';
+  setSelectedCategory('all');
   // Keep new folders closed; user opens them when ready.
   expandedFolders.delete(cat.id);
   if (wired) {
@@ -344,6 +344,32 @@ async function deleteExercise(id) {
   }
   if (wired) render();
   return true;
+}
+
+async function deleteExercises(ids) {
+  const idSet = new Set(ids);
+  if (!idSet.size) return 0;
+  const store = getStore();
+  const removed = [];
+  store.items = store.items.filter((it) => {
+    if (idSet.has(it.id)) {
+      removed.push(it);
+      return false;
+    }
+    return true;
+  });
+  if (!removed.length) return 0;
+  persist();
+  const attachmentIds = [...new Set(removed.map(it => it.attachmentId).filter(Boolean))];
+  for (const attachmentId of attachmentIds) {
+    try {
+      await releaseAttachment(attachmentId);
+    } catch (e) {
+      /* keep releasing the rest */
+    }
+  }
+  if (wired) render();
+  return removed.length;
 }
 
 // --- formatting helpers ----------------------------------------------------
@@ -489,8 +515,10 @@ let wired = false;
 let selectedCategory = 'all'; // 'all', 'uncategorized', or a category id.
 // Folder sections open in the "All" grouped view. Default closed.
 const expandedFolders = new Set();
+let selectionMode = false;
+const selectedIds = new Set();
 
-let listEl, catListEl, titleEl, statusEl, fileInput, uploadBtn, addLinkBtn, addCatForm, addCatInput;
+let listEl, catListEl, titleEl, statusEl, bulkBarEl, fileInput, uploadBtn, addLinkBtn, addCatForm, addCatInput;
 let workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
 let activeExerciseId = null;
 let viewerURL = null;
@@ -514,6 +542,203 @@ function visibleItems() {
   return items.filter(it => it.categoryId === selectedCategory);
 }
 
+function scopedItems() {
+  return visibleItems();
+}
+
+function setSelectedCategory(next) {
+  if (selectedCategory === next) return false;
+  selectedCategory = next;
+  selectedIds.clear();
+  return true;
+}
+
+function pruneSelectedIds() {
+  const valid = new Set(getExercises().map(it => it.id));
+  selectedIds.forEach((id) => {
+    if (!valid.has(id)) selectedIds.delete(id);
+  });
+}
+
+function exitSelectionMode() {
+  selectionMode = false;
+  selectedIds.clear();
+  if (wired) render();
+  else renderBulkBar();
+}
+
+function enterSelectionMode() {
+  selectionMode = true;
+  if (wired) render();
+  else renderBulkBar();
+}
+
+function pluralExercises(count) {
+  return `${count} exercise${count === 1 ? '' : 's'}`;
+}
+
+function folderKeyForItem(item) {
+  if (!item.categoryId) return 'uncategorized';
+  if (getStore().categories.some(c => c.id === item.categoryId)) return item.categoryId;
+  return 'uncategorized';
+}
+
+function syncFolderCheckbox(groupKey) {
+  if (!listEl || !selectionMode) return;
+  const folder = listEl.querySelector(`.ex-folder[data-folder="${CSS.escape(groupKey)}"]`);
+  if (!folder) return;
+  const check = folder.querySelector('.ex-folder-check');
+  if (!check) return;
+  const group = groupItemsByCategory(getExercises()).find(g => g.key === groupKey);
+  if (!group || !group.items.length) {
+    check.checked = false;
+    check.indeterminate = false;
+    return;
+  }
+  const selected = group.items.filter(it => selectedIds.has(it.id)).length;
+  check.checked = selected === group.items.length;
+  check.indeterminate = selected > 0 && selected < group.items.length;
+}
+
+function syncFolderCheckboxForItem(item) {
+  syncFolderCheckbox(folderKeyForItem(item));
+}
+
+function renderBulkBar() {
+  if (!bulkBarEl) return;
+  const scope = scopedItems();
+  if (!scope.length) {
+    selectionMode = false;
+    selectedIds.clear();
+    bulkBarEl.hidden = true;
+    bulkBarEl.innerHTML = '';
+    return;
+  }
+  bulkBarEl.hidden = false;
+  bulkBarEl.innerHTML = '';
+
+  if (!selectionMode) {
+    const actions = el('div', { class: 'ex-bulk-bar-actions' });
+    actions.appendChild(el('button', {
+      class: 'btn sm', type: 'button', text: 'Select',
+      onClick: () => enterSelectionMode(),
+    }));
+    actions.appendChild(el('button', {
+      class: 'btn sm ex-bulk-del', type: 'button', text: 'Delete All',
+      onClick: () => onDeleteAll(),
+    }));
+    bulkBarEl.appendChild(actions);
+    return;
+  }
+
+  const selectedCount = selectedIds.size;
+  bulkBarEl.appendChild(el('span', {
+    class: 'ex-bulk-count',
+    text: selectedCount ? `${selectedCount} selected` : 'No exercises selected',
+  }));
+
+  const actions = el('div', { class: 'ex-bulk-bar-actions' });
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Select all',
+    onClick: () => {
+      scope.forEach(it => selectedIds.add(it.id));
+      if (listEl) {
+        listEl.querySelectorAll('.ex-item').forEach((row) => {
+          const on = selectedIds.has(row.dataset.id);
+          row.classList.toggle('is-selected', on);
+          const check = row.querySelector('.ex-item-check');
+          if (check) check.checked = on;
+        });
+      }
+      groupItemsByCategory(getExercises()).forEach(g => syncFolderCheckbox(g.key));
+      renderBulkBar();
+    },
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Clear',
+    onClick: () => {
+      selectedIds.clear();
+      if (listEl) {
+        listEl.querySelectorAll('.ex-item').forEach((row) => {
+          row.classList.remove('is-selected');
+          const check = row.querySelector('.ex-item-check');
+          if (check) check.checked = false;
+        });
+      }
+      groupItemsByCategory(getExercises()).forEach(g => syncFolderCheckbox(g.key));
+      renderBulkBar();
+    },
+  }));
+  const deleteLabel = selectedCount
+    ? `Delete Selected (${selectedCount})`
+    : 'Delete Selected';
+  actions.appendChild(el('button', {
+    class: 'btn sm ex-bulk-del',
+    type: 'button',
+    text: deleteLabel,
+    disabled: selectedCount ? undefined : true,
+    onClick: () => onDeleteSelected(),
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Done',
+    onClick: () => exitSelectionMode(),
+  }));
+  bulkBarEl.appendChild(actions);
+}
+
+function onDeleteAll() {
+  const scope = scopedItems();
+  const count = scope.length;
+  if (!count) {
+    setStatus('No exercises to delete in this view.');
+    return;
+  }
+  let title;
+  let body;
+  if (selectedCategory === 'all') {
+    title = `Delete all ${pluralExercises(count)}?`;
+    body = 'This permanently removes every exercise file and link in your library from this device. This cannot be undone.';
+  } else {
+    const folderName = currentTitleText();
+    title = `Delete all ${pluralExercises(count)} in "${folderName}"?`;
+    body = 'Only exercises in this folder are removed. The folder itself stays. This cannot be undone.';
+  }
+  openConfirm(title, body, 'Delete All', async () => {
+    selectionMode = false;
+    selectedIds.clear();
+    const removed = await deleteExercises(scope.map(it => it.id));
+    if (!removed || !wired) {
+      if (wired) render();
+      else renderBulkBar();
+    }
+    setStatus(`Deleted ${pluralExercises(removed)}.`);
+  });
+}
+
+function onDeleteSelected() {
+  const count = selectedIds.size;
+  if (!count) {
+    setStatus('Select one or more exercises to delete.');
+    return;
+  }
+  const ids = [...selectedIds];
+  openConfirm(
+    `Delete ${count} selected exercise${count === 1 ? '' : 's'}?`,
+    'This permanently removes the selected exercise files and links from this device. This cannot be undone.',
+    'Delete',
+    async () => {
+      selectionMode = false;
+      selectedIds.clear();
+      const removed = await deleteExercises(ids);
+      if (!removed || !wired) {
+        if (wired) render();
+        else renderBulkBar();
+      }
+      setStatus(`Deleted ${pluralExercises(removed)}.`);
+    },
+  );
+}
+
 function syncFolderChipLabel() {
   const label = document.getElementById('ex-folder-label');
   if (label) label.textContent = currentTitleText();
@@ -535,7 +760,7 @@ function renderCategories() {
     row.appendChild(el('span', { class: 'ex-cat-name', text: name }));
     row.appendChild(el('span', { class: 'ex-cat-count', text: String(count) }));
     const select = () => {
-      selectedCategory = key;
+      setSelectedCategory(key);
       render();
     };
     row.addEventListener('click', (e) => {
@@ -607,10 +832,36 @@ function openActionLabel(item) {
 }
 
 function buildExerciseRow(item, opts = {}) {
+  const isSelected = selectedIds.has(item.id);
   const row = el('div', {
-    class: 'ex-item' + (item.id === activeExerciseId ? ' is-active is-playing' : ''),
+    class: 'ex-item'
+      + (item.id === activeExerciseId ? ' is-active is-playing' : '')
+      + (selectionMode && isSelected ? ' is-selected' : ''),
     'data-id': item.id,
   });
+
+  if (selectionMode) {
+    const check = el('input', {
+      type: 'checkbox',
+      class: 'ex-item-check',
+      'aria-label': `Select ${item.name}`,
+      checked: isSelected ? true : undefined,
+    });
+    check.addEventListener('change', () => {
+      if (check.checked) selectedIds.add(item.id);
+      else selectedIds.delete(item.id);
+      row.classList.toggle('is-selected', check.checked);
+      syncFolderCheckboxForItem(item);
+      renderBulkBar();
+    });
+    row.appendChild(check);
+    row.addEventListener('click', (e) => {
+      if (!selectionMode) return;
+      if (e.target.closest('input.ex-item-name, select, button, a, input.ex-item-check')) return;
+      check.checked = !check.checked;
+      check.dispatchEvent(new Event('change'));
+    });
+  }
 
   const icon = el('div', { class: 'ex-item-icon', html: exerciseIconSvg(item), 'aria-hidden': 'true' });
   row.appendChild(icon);
@@ -710,7 +961,38 @@ function buildFolder(group) {
     else expandedFolders.add(group.key);
     renderList();
   });
-  folder.appendChild(head);
+
+  if (selectionMode && group.items.length) {
+    const selected = group.items.filter(it => selectedIds.has(it.id)).length;
+    const folderCheck = el('input', {
+      type: 'checkbox',
+      class: 'ex-folder-check',
+      'aria-label': `Select all in ${group.name}`,
+      checked: selected === group.items.length ? true : undefined,
+    });
+    folderCheck.indeterminate = selected > 0 && selected < group.items.length;
+    folderCheck.addEventListener('change', () => {
+      group.items.forEach((it) => {
+        if (folderCheck.checked) selectedIds.add(it.id);
+        else selectedIds.delete(it.id);
+      });
+      group.items.forEach((it) => {
+        const row = listEl && listEl.querySelector(`.ex-item[data-id="${CSS.escape(it.id)}"]`);
+        if (!row) return;
+        const on = selectedIds.has(it.id);
+        row.classList.toggle('is-selected', on);
+        const itemCheck = row.querySelector('.ex-item-check');
+        if (itemCheck) itemCheck.checked = on;
+      });
+      folderCheck.indeterminate = false;
+      renderBulkBar();
+    });
+    folderCheck.addEventListener('click', (e) => e.stopPropagation());
+    const headRow = el('div', { class: 'ex-folder-headrow' }, [folderCheck, head]);
+    folder.appendChild(headRow);
+  } else {
+    folder.appendChild(head);
+  }
 
   const body = el('div', {
     class: 'ex-folder-body',
@@ -804,13 +1086,15 @@ function render() {
   // Selected category may have been deleted; fall back to 'all'.
   if (selectedCategory !== 'all' && selectedCategory !== 'uncategorized'
       && !getStore().categories.some(c => c.id === selectedCategory)) {
-    selectedCategory = 'all';
+    setSelectedCategory('all');
   }
+  pruneSelectedIds();
   if (titleEl) titleEl.textContent = currentTitleText();
   renderCategories();
   if (activeExerciseId && !getExercise(activeExerciseId)) {
     closeExerciseViewer();
   }
+  renderBulkBar();
   renderList();
   applyActiveRowHighlight();
 }
@@ -964,6 +1248,10 @@ export function renameExerciseItem(id, name) {
 
 export async function deleteExerciseItem(id) {
   return deleteExercise(id);
+}
+
+export async function deleteExerciseItems(ids) {
+  return deleteExercises(ids);
 }
 
 /** Persist practice-player settings back onto an exercise (tempo loop, rest, track). */
@@ -1356,7 +1644,7 @@ function onDeleteCategory(id, name) {
     'Delete',
     () => {
       deleteCategory(id);
-      if (selectedCategory === id) selectedCategory = 'all';
+      if (selectedCategory === id) setSelectedCategory('all');
       render();
     },
   );
@@ -1383,6 +1671,7 @@ export function initExercises() {
   catListEl = document.getElementById('ex-category-list');
   titleEl = document.getElementById('ex-current-title');
   statusEl = document.getElementById('ex-status');
+  bulkBarEl = document.getElementById('ex-bulk-bar');
   fileInput = document.getElementById('ex-file-input');
   uploadBtn = document.getElementById('ex-upload-btn');
   addLinkBtn = document.getElementById('ex-add-link-btn');
@@ -1426,4 +1715,5 @@ export function initExercises() {
 // Close the viewer when navigating away from the Exercises section.
 export function stopExercises() {
   closeExerciseViewer();
+  exitSelectionMode();
 }

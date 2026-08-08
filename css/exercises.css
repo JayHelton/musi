@@ -71,6 +71,18 @@
 .ex-toolbar-actions{display:flex;gap:8px}
 .ex-link-name-input{margin-top:10px}
 
+.ex-bulk-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-bottom:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-screen,14px);
+  background:var(--bg2)
+}
+.ex-bulk-bar[hidden]{display:none!important}
+.ex-bulk-bar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ex-bulk-count{font-size:.82rem;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
+.ex-bulk-del{color:var(--err)}
+.ex-bulk-del:hover:not(:disabled){background:rgba(231,76,60,0.12);color:var(--err)}
+.ex-bulk-del:disabled{opacity:.45;cursor:not-allowed}
+
 .ex-status{font-size:.82rem;color:var(--muted);margin-bottom:12px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2)}
 .ex-status.error{color:var(--warn);border-color:rgba(243,156,18,0.4)}
 
@@ -79,6 +91,9 @@
 
 /* ---- Folder groups (by category tag) ---- */
 .ex-folder{border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.35)}
+.ex-folder-headrow{display:flex;align-items:center;gap:8px;padding-left:10px}
+.ex-folder-headrow .ex-folder-head{flex:1;min-width:0}
+.ex-folder-check{flex-shrink:0;width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
 .ex-folder-head{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border:none;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s ease}
 .ex-folder-head:hover{background:var(--hover)}
 .ex-folder-chevron{flex-shrink:0;width:1em;color:var(--muted);font-size:.85rem;line-height:1}
@@ -108,11 +123,25 @@
 .ex-item-cat-select{padding:6px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text);font-size:.8rem;font-family:inherit;max-width:130px}
 .ex-item-del{color:var(--err)}
 .ex-item-del:hover{background:rgba(231,76,60,0.12);color:var(--err)}
+.ex-item-check{
+  flex-shrink:0;width:16px;height:16px;accent-color:var(--accent);cursor:pointer
+}
+.ex-item.is-selected{
+  border-color:var(--accent2);
+  background:linear-gradient(90deg,rgba(180,94,255,0.16),var(--card));
+  box-shadow:inset 0 0 0 1px var(--accent2),0 2px 12px rgba(0,0,0,0.35)
+}
 .ex-item.is-active,
 .ex-item.is-playing{
   border-color:var(--accent);
   background:linear-gradient(90deg,var(--accent-dim),var(--card));
   box-shadow:inset 0 0 0 1px var(--accent),0 2px 12px rgba(0,0,0,0.4)
+}
+.ex-item.is-selected.is-active,
+.ex-item.is-selected.is-playing{
+  border-color:var(--accent);
+  background:linear-gradient(90deg,var(--accent-dim),rgba(180,94,255,0.12),var(--card));
+  box-shadow:inset 0 0 0 1px var(--accent),inset 3px 0 0 var(--accent2),0 2px 12px rgba(0,0,0,0.4)
 }
 
 /* ---- Inline workspace (list + player) ---- */
@@ -202,6 +231,7 @@
 @media(max-width:768px){
   /* Folder chip bar replaces the desktop list; keep create form usable */
   #sec-exercises .ex-toolbar-actions{display:none}
+  .ex-bulk-bar-actions .btn{flex:1 1 auto;min-width:0}
   #sec-exercises .ex-add-cat{
     padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-screen,14px);
     background:rgba(22,31,54,0.88)
