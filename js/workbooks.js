@@ -1381,6 +1381,9 @@ function wireEscape() {
       closePlaylistDrawer();
       return;
     }
+    // The player's own drawers close themselves on Escape; leaving the workbook
+    // in the same keypress would dismiss both at once.
+    if (detailGpMountEl?.querySelector('.is-open')) return;
     if (!openWorkbookId) return;
     const sec = document.getElementById('sec-workbooks');
     if (!sec || !sec.classList.contains('active')) return;
