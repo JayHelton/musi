@@ -22,10 +22,17 @@ import {
   updateExercisePracticeSettings,
   getCategories,
   addCategory,
+  isTabModelItem,
 } from './exercises.js';
 import { resolveScoreKey, migrateAnnotations, copyAnnotations } from './gpAnnotations.js';
 import { beatsFromMeasureRange } from './gpPlayer/rangeUtils.js';
 import { formatBarRange } from './gpPlayer/measureDigest.js';
+import {
+  gpResultFromTabModelJson,
+  serializeExerciseScore,
+  sliceGpResultByBeats,
+  segmentExerciseFileName,
+} from './gpExerciseScore.js';
 
 const state = {
   bound: false,
@@ -109,7 +116,6 @@ function makeHeaderExtras() {
   saveBarsBtn.textContent = 'Save as Exercise';
   saveBarsBtn.setAttribute('aria-label', 'Save selected bars as exercise');
   saveBarsBtn.title = 'Save selected bars as exercise';
-  if (noGpBytes) saveBarsBtn.disabled = true;
   saveBarsBtn.addEventListener('click', () => saveSelectedBarsAsExercise());
   wrap.appendChild(saveBarsBtn);
 
@@ -161,7 +167,7 @@ function mountCurrent() {
         fileName: state.fileName,
         byteLength: state.bytes?.length,
       }),
-      exerciseImport: state.bytes ? {
+      exerciseImport: state.gp ? {
         getFolders: () => getCategories(),
         createFolder: (name) => addCategory(name),
         importSegments: (segments, opts) => importSegmentsAsExercises(segments, opts),
@@ -181,7 +187,8 @@ function hasPlayableTracks(gp) {
 
 async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
   if (!file || state.loading) return;
-  if (!isGuitarProName(file.name)) {
+  const isTab = isTabModelItem({ fileName: file.name, type: file.type });
+  if (!isTab && !isGuitarProName(file.name)) {
     setStatus('Choose a Guitar Pro .gp or .gp5 file.', 'error');
     return;
   }
@@ -189,9 +196,19 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
   setStatus(`Reading ${file.name}…`);
   destroyMount();
   try {
-    const buf = await file.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    const gp = await parseGuitarPro(bytes);
+    let gp;
+    if (isTab) {
+      const raw = JSON.parse(await file.text());
+      gp = gpResultFromTabModelJson(raw, {
+        fallbackName: (file.name || 'Exercise').replace(/\.musi-tab\.json$/i, ''),
+      });
+      state.bytes = null;
+    } else {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      gp = await parseGuitarPro(bytes);
+      state.bytes = bytes;
+    }
     if (!hasPlayableTracks(gp)) {
       setStageVisible(false);
       setStatus('No playable tracks found in that file.', 'error');
@@ -199,7 +216,6 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
     }
     state.title = '';
     state.fileName = file.name;
-    state.bytes = bytes;
     state.gp = gp;
     state.exerciseId = exerciseId;
     state.attachmentId = attachmentId;
@@ -214,7 +230,7 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
   } catch (err) {
     destroyMount();
     setStageVisible(false);
-    setStatus(err?.message || 'Could not read that Guitar Pro file.', 'error');
+    setStatus(err?.message || 'Could not read that file.', 'error');
   } finally {
     setLoading(false);
   }
@@ -306,16 +322,16 @@ async function saveToLibrary() {
   }
 }
 
+function scoreBaseName(fileName) {
+  return (fileName || 'score')
+    .replace(/\.musi-tab\.json$/i, '')
+    .replace(/\.(gp|gp5)$/i, '');
+}
+
 /** Bulk-import measure segments from the split panel into the Exercises library. */
 async function importSegmentsAsExercises(segments, { categoryId = '' } = {}) {
   if (!state.gp) {
     return { ok: false, message: 'Load a Guitar Pro file first.' };
-  }
-  if (!state.bytes) {
-    return {
-      ok: false,
-      message: 'This riff was transcribed from audio — saving selected bars as an exercise isn\u2019t available as a GP file yet.',
-    };
   }
   if (!attachmentsSupported()) {
     return { ok: false, message: 'Browser storage unavailable — cannot save exercises.' };
@@ -325,48 +341,8 @@ async function importSegmentsAsExercises(segments, { categoryId = '' } = {}) {
   }
   try {
     await ensurePersistentStorage();
-    const blob = new Blob([state.bytes], { type: 'application/octet-stream' });
-    const base = (state.fileName || 'score').replace(/\.(gp|gp5)$/i, '');
-    const fileName = state.fileName || `${base}.gp`;
-    const size = blob.size;
-
-    let attachmentId = state.attachmentId;
-    const previousAttachmentId = attachmentId;
-    let createdNewAttachment = false;
-    if (attachmentId) {
-      const existing = await getFileBlob(attachmentId);
-      if (!existing) attachmentId = null;
-    }
-    if (!attachmentId) {
-      const meta = await saveFile({
-        blob,
-        name: base || 'exercise',
-        type: 'application/x-guitar-pro',
-        fileName,
-        size,
-        source: 'exercise',
-      });
-      if (!meta) {
-        return { ok: false, message: 'Could not save file to storage.' };
-      }
-      attachmentId = meta.id;
-      state.attachmentId = attachmentId;
-      createdNewAttachment = true;
-    }
-
-    if (createdNewAttachment) {
-      const fromKey = resolveScoreKey({
-        attachmentId: previousAttachmentId,
-        fileName: state.fileName,
-        byteLength: state.bytes?.length,
-      });
-      const toKey = resolveScoreKey({
-        attachmentId,
-        fileName: state.fileName,
-        byteLength: state.bytes?.length,
-      });
-      copyAnnotations(fromKey, toKey);
-    }
+    const base = scoreBaseName(state.fileName);
+    const sourceFileName = state.fileName || `${base}.gp`;
 
     const st = state.mount?.getState?.() || {};
     const measureCount = state.gp.tracks?.[st.trackIndex >= 0 ? st.trackIndex : 0]?.model?.measures?.length
@@ -379,29 +355,43 @@ async function importSegmentsAsExercises(segments, { categoryId = '' } = {}) {
       || [];
 
     let count = 0;
+    // Reverse so addExercise prepends in score order (library reads top-to-bottom).
     for (const segment of [...segments].reverse()) {
       const rawStart = Number(segment?.startIdx);
       const rawEnd = Number(segment?.endIdx);
       if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd)) continue;
-      let startIdx = Math.max(0, Math.min(measureCount - 1, Math.floor(Math.min(rawStart, rawEnd))));
-      let endIdx = Math.max(startIdx, Math.min(measureCount - 1, Math.floor(Math.max(rawStart, rawEnd))));
+      const startIdx = Math.max(0, Math.min(measureCount - 1, Math.floor(Math.min(rawStart, rawEnd))));
+      const endIdx = Math.max(startIdx, Math.min(measureCount - 1, Math.floor(Math.max(rawStart, rawEnd))));
       const beatFallback = beatsFromMeasureRange(measures, startIdx, endIdx);
       const startBeat = Number.isFinite(segment.startBeat) ? segment.startBeat : beatFallback.startBeat;
       const endBeat = Number.isFinite(segment.endBeat) ? segment.endBeat : beatFallback.endBeat;
       const name = (segment.name || '').trim()
         || formatBarRange(startIdx, endIdx)
         || `bars ${startIdx + 1}–${endIdx + 1}`;
-      const item = addGpExerciseFromAttachment({
-        attachmentId,
-        name,
-        fileName,
-        type: 'application/x-guitar-pro',
-        size,
-        categoryId,
+      const slicedGp = sliceGpResultByBeats(state.gp, { startBeat, endBeat });
+      const json = serializeExerciseScore(slicedGp, {
+        sourceFileName,
         measureStart: startIdx,
         measureEnd: endIdx,
-        startBeat,
-        endBeat,
+      });
+      const blob = new Blob([json], { type: 'application/x-musi-tab-model' });
+      const segFileName = segmentExerciseFileName(base, name);
+      const meta = await saveFile({
+        blob,
+        name: name.replace(/[^\w\- ]+/g, '').trim() || 'exercise',
+        type: 'application/x-musi-tab-model',
+        fileName: segFileName,
+        size: blob.size,
+        source: 'exercise',
+      });
+      if (!meta) continue;
+      const item = addGpExerciseFromAttachment({
+        attachmentId: meta.id,
+        name,
+        fileName: segFileName,
+        type: 'application/x-musi-tab-model',
+        size: blob.size,
+        categoryId,
         loopEnabled: true,
         loopRestSec: Number.isFinite(st.loopRestSec) ? st.loopRestSec : 0,
         preferredTrackIndex: st.trackIndex >= 0 ? st.trackIndex : 0,
@@ -414,7 +404,7 @@ async function importSegmentsAsExercises(segments, { categoryId = '' } = {}) {
     }
 
     if (!count) {
-      return { ok: false, message: 'Saved the file, but no library entries were created.' };
+      return { ok: false, message: 'Could not save any exercise segments.' };
     }
 
     renderLibrary();
@@ -441,13 +431,6 @@ async function saveSelectedBarsAsExercise() {
     setStatus('Load a Guitar Pro file first.', 'error');
     return;
   }
-  if (!state.bytes) {
-    setStatus(
-      'This riff was transcribed from audio — saving selected bars as an exercise isn\u2019t available as a GP file yet.',
-      'error'
-    );
-    return;
-  }
   if (!attachmentsSupported()) {
     setStatus('Browser storage unavailable — cannot save exercise.', 'error');
     return;
@@ -457,26 +440,79 @@ async function saveSelectedBarsAsExercise() {
     || state.gp.tracks?.[0]?.model?.measures?.length
     || state.gp.drumTracks?.[0]?.model?.measures?.length
     || 1;
+  const measures = state.gp.tracks?.[st.trackIndex >= 0 ? st.trackIndex : 0]?.model?.measures
+    || state.gp.tracks?.[0]?.model?.measures
+    || state.gp.drumTracks?.[0]?.model?.measures
+    || [];
   let a = Number.isFinite(st.loopStart) ? st.loopStart : 0;
   let b = Number.isFinite(st.loopEnd) ? st.loopEnd : Math.max(0, measureCount - 1);
   a = Math.max(0, Math.min(measureCount - 1, Math.floor(Math.min(a, b))));
   b = Math.max(a, Math.min(measureCount - 1, Math.floor(Math.max(a, b))));
-  const base = (state.fileName || 'score').replace(/\.(gp|gp5)$/i, '');
+  const base = scoreBaseName(state.fileName);
   const defaultName = `${base} · bars ${a + 1}–${b + 1}`;
   const prompted = prompt('Exercise name', defaultName);
   if (prompted == null) return;
   const name = prompted.trim() || defaultName;
+  const isFullScore = a === 0 && b === measureCount - 1;
+  const saveOriginalGp = isFullScore && state.bytes;
   try {
     await ensurePersistentStorage();
-    const blob = new Blob([state.bytes], { type: 'application/octet-stream' });
-    const meta = await saveFile({
-      blob,
-      name: name.replace(/[^\w\- ]+/g, '').trim() || 'exercise',
-      type: 'application/x-guitar-pro',
-      fileName: state.fileName || `${base}.gp`,
-      size: blob.size,
-      source: 'exercise',
-    });
+    let meta;
+    let exerciseFileName;
+    let exerciseType;
+    let exerciseSize;
+    if (saveOriginalGp) {
+      const blob = new Blob([state.bytes], { type: 'application/octet-stream' });
+      exerciseFileName = state.fileName || `${base}.gp`;
+      exerciseType = 'application/x-guitar-pro';
+      exerciseSize = blob.size;
+      meta = await saveFile({
+        blob,
+        name: name.replace(/[^\w\- ]+/g, '').trim() || 'exercise',
+        type: exerciseType,
+        fileName: exerciseFileName,
+        size: exerciseSize,
+        source: 'exercise',
+      });
+    } else if (isFullScore) {
+      const json = serializeExerciseScore(state.gp, {
+        sourceFileName: state.fileName || `${base}.musi-tab.json`,
+      });
+      const blob = new Blob([json], { type: 'application/x-musi-tab-model' });
+      exerciseFileName = state.fileName || `${base}.musi-tab.json`;
+      exerciseType = 'application/x-musi-tab-model';
+      exerciseSize = blob.size;
+      meta = await saveFile({
+        blob,
+        name: name.replace(/[^\w\- ]+/g, '').trim() || 'exercise',
+        type: exerciseType,
+        fileName: exerciseFileName,
+        size: exerciseSize,
+        source: 'exercise',
+      });
+    } else {
+      const beatFallback = beatsFromMeasureRange(measures, a, b);
+      const startBeat = Number.isFinite(st.loopStartBeat) ? st.loopStartBeat : beatFallback.startBeat;
+      const endBeat = Number.isFinite(st.loopEndBeat) ? st.loopEndBeat : beatFallback.endBeat;
+      const slicedGp = sliceGpResultByBeats(state.gp, { startBeat, endBeat });
+      const json = serializeExerciseScore(slicedGp, {
+        sourceFileName: state.fileName || `${base}.gp`,
+        measureStart: a,
+        measureEnd: b,
+      });
+      const blob = new Blob([json], { type: 'application/x-musi-tab-model' });
+      exerciseFileName = segmentExerciseFileName(base, name);
+      exerciseType = 'application/x-musi-tab-model';
+      exerciseSize = blob.size;
+      meta = await saveFile({
+        blob,
+        name: name.replace(/[^\w\- ]+/g, '').trim() || 'exercise',
+        type: exerciseType,
+        fileName: exerciseFileName,
+        size: exerciseSize,
+        source: 'exercise',
+      });
+    }
     if (!meta) {
       setStatus('Could not save file to storage.', 'error');
       return;
@@ -484,13 +520,9 @@ async function saveSelectedBarsAsExercise() {
     const item = addGpExerciseFromAttachment({
       attachmentId: meta.id,
       name,
-      fileName: state.fileName || `${base}.gp`,
-      type: 'application/x-guitar-pro',
-      size: blob.size,
-      measureStart: a,
-      measureEnd: b,
-      startBeat: Number.isFinite(st.loopStartBeat) ? st.loopStartBeat : null,
-      endBeat: Number.isFinite(st.loopEndBeat) ? st.loopEndBeat : null,
+      fileName: exerciseFileName,
+      type: exerciseType,
+      size: exerciseSize,
       loopEnabled: true,
       loopRestSec: Number.isFinite(st.loopRestSec) ? st.loopRestSec : 0,
       preferredTrackIndex: st.trackIndex >= 0 ? st.trackIndex : 0,
@@ -503,22 +535,25 @@ async function saveSelectedBarsAsExercise() {
       setStatus('Saved attachment, but library entry failed.', 'error');
       return;
     }
-    const fromKey = resolveScoreKey({
-      attachmentId: state.attachmentId,
-      fileName: state.fileName,
-      byteLength: state.bytes?.length,
-    });
-    const toKey = resolveScoreKey({
-      attachmentId: meta.id,
-      fileName: state.fileName,
-      byteLength: state.bytes?.length,
-    });
-    copyAnnotations(fromKey, toKey);
+    if (saveOriginalGp) {
+      const fromKey = resolveScoreKey({
+        attachmentId: state.attachmentId,
+        fileName: state.fileName,
+        byteLength: state.bytes?.length,
+      });
+      const toKey = resolveScoreKey({
+        attachmentId: meta.id,
+        fileName: state.fileName,
+        byteLength: state.bytes?.length,
+      });
+      copyAnnotations(fromKey, toKey);
+    }
     if (Number.isFinite(st.bpm) && st.bpm !== item.bpm) {
       updateExercisePracticeSettings(item.id, { bpm: st.bpm });
     }
     renderLibrary();
-    setStatus(`Saved “${item.name}” to Exercises (bars ${a + 1}–${b + 1}).`);
+    const barMsg = isFullScore ? 'full score' : `bars ${a + 1}–${b + 1}`;
+    setStatus(`Saved “${item.name}” to Exercises (${barMsg}).`);
   } catch (err) {
     setStatus(err?.message || 'Save failed.', 'error');
   }

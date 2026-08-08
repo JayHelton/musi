@@ -21,6 +21,12 @@ import {
 import { isGuitarProName, parseGuitarPro, mountGpPlayer } from './gpPlayerUI.js';
 import { clampBpm } from './gpPlayer/tempoRange.js';
 import { resolveScoreKey } from './gpAnnotations.js';
+import {
+  buildExerciseGpResult,
+  filterPracticeSettingsPatch,
+  gpResultFromTabModelJson,
+  isSegmentExercise,
+} from './gpExerciseScore.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -111,10 +117,14 @@ function normalizeItem(raw) {
   const url = safeExternalUrl(raw.url);
   if (!attachmentId && !url) return null;
   const defaultName = url ? titleFromUrl(url) : 'Exercise';
-  const measureStart = Number.isFinite(Number(raw.measureStart)) ? Math.max(0, Math.floor(Number(raw.measureStart))) : null;
-  const measureEnd = Number.isFinite(Number(raw.measureEnd)) ? Math.max(0, Math.floor(Number(raw.measureEnd))) : null;
-  const startBeat = Number.isFinite(Number(raw.startBeat)) ? Number(raw.startBeat) : null;
-  const endBeat = Number.isFinite(Number(raw.endBeat)) ? Number(raw.endBeat) : null;
+  // null must survive as "unset" — Number(null) is 0, which would silently turn
+  // an absent bar range into a zero-length one at bar 0.
+  const num = (v) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
+  const bar = (v) => (num(v) == null ? null : Math.max(0, Math.floor(num(v))));
+  const measureStart = bar(raw.measureStart);
+  const measureEnd = bar(raw.measureEnd);
+  const startBeat = num(raw.startBeat);
+  const endBeat = num(raw.endBeat);
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('ex'),
     name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : defaultName, NAME_LIMIT),
@@ -1478,45 +1488,40 @@ async function mountGpExercise(item, mountHost, blob) {
     let gp;
     if (isTabModelItem(item)) {
       const raw = JSON.parse(await blob.text());
-      const model = raw?.model || raw;
-      if (!model?.events) throw new Error('This exercise snippet is missing tab data.');
-      gp = {
-        tempo: Number(raw.tempo) || Number(model.tempo) || 120,
-        tracks: [{
-          index: 0,
-          name: raw.trackName || item.name || 'Exercise',
-          tuning: model.tuning || 'Standard',
-          noteCount: (model.events || []).filter((e) => e.midi != null).length,
-          model,
-        }],
-        drumTracks: [],
-        warnings: [],
-      };
+      gp = gpResultFromTabModelJson(raw, { fallbackName: item.name || 'Exercise' });
     } else {
       const buf = await blob.arrayBuffer();
       gp = await parseGuitarPro(buf);
     }
+    const { gp: exerciseGp, sliced } = buildExerciseGpResult(gp, item);
+    const segment = isSegmentExercise(item);
+    const loopRange = segment && !sliced ? {
+      initialLoopStart: item.measureStart,
+      initialLoopEnd: item.measureEnd,
+      initialLoopStartBeat: item.startBeat,
+      initialLoopEndBeat: item.endBeat,
+    } : {};
     return mountGpPlayer(mountHost, {
-      gpResult: gp,
+      gpResult: exerciseGp,
       title: item.name,
       fileName: item.fileName || item.name,
       hideTitle: true,
       preferredTrackIndex: Number.isFinite(item.preferredTrackIndex) ? item.preferredTrackIndex : 0,
       initialLoopEnabled: !!item.loopEnabled,
-      initialLoopStart: item.measureStart,
-      initialLoopEnd: item.measureEnd,
-      initialLoopStartBeat: item.startBeat,
-      initialLoopEndBeat: item.endBeat,
+      ...loopRange,
       loopRestSec: item.loopRestSec || 0,
       initialBpm: item.bpm,
       initialTranspose: item.transpose,
       initialTuning: item.tuning,
       initialRetuneMode: item.retuneMode,
-      exerciseScope: !!(item.loopEnabled || item.measureStart != null),
+      exerciseScope: segment && !sliced,
       onPracticeSettingsChange: (settings) => {
-        updateExercisePracticeSettings(item.id, settings);
+        updateExercisePracticeSettings(
+          item.id,
+          filterPracticeSettingsPatch(settings, { sliced }),
+        );
       },
-      scoreKey: resolveScoreKey({
+      scoreKey: sliced ? undefined : resolveScoreKey({
         attachmentId: item.attachmentId,
         fileName: item.fileName || item.name,
       }),
