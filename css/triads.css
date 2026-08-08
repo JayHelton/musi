@@ -150,36 +150,43 @@
   #sec-triads:not(.has-setup-summary) .sidebar .sl-scroll{max-height:56px!important;overflow-y:auto}
   #sec-triads .sidebar{order:0}
   #sec-triads .quiz-main{order:0;min-width:0;gap:8px}
-  #sec-triads .ref-fb-card{padding:10px 12px}
-  #sec-triads .ref-fb-head{margin-bottom:2px;justify-content:flex-end}
+  #sec-triads .ref-fb-card{
+    display:grid;grid-template-columns:1fr auto;grid-template-rows:auto minmax(0,1fr);
+    gap:2px;padding:5px 10px 6px;align-items:center;
+  }
+  #sec-triads .ref-fb-head{grid-column:1;grid-row:1;margin:0;justify-content:flex-start;min-height:36px}
   #sec-triads .ref-fb-head>div:first-child{display:none}
-  #sec-triads .ref-fb-opts{width:auto;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #sec-triads .ref-fb-opts{width:auto;flex-wrap:nowrap;overflow-x:visible}
   #sec-triads .ref-view-picker{width:auto;flex-shrink:0}
-  #sec-triads .ref-view-btn{flex:0 0 auto;min-height:40px}
-  #triad-map,.triad-map{max-height:172px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;margin:0}
+  #sec-triads .ref-view-btn{flex:0 0 auto;min-height:36px}
+  #sec-triads .adv-options{grid-column:2;grid-row:1;margin:0;align-self:center}
+  #sec-triads .adv-options>summary{padding:4px 8px;min-height:36px;font-size:.72rem;border:none;background:transparent}
+  #triad-map,.triad-map{
+    grid-column:1/-1;grid-row:2;
+    max-height:164px;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;margin:0;
+  }
   .triad-map-stack{gap:6px}
   .triad-row{padding:4px 6px;gap:6px;flex-wrap:nowrap}
   .triad-row-svg{height:76px;width:auto}
   .triad-row-meta{flex-direction:column;min-width:44px;gap:4px;width:auto}
-  .triad-row-play{min-width:40px;min-height:40px;padding:4px 8px}
+  .triad-row-play{min-width:36px;min-height:36px;padding:4px 8px}
   .triad-row-count{font-size:.62rem}
-  #triad-sweep-panel:not([hidden]){display:grid;grid-template-columns:minmax(160px,210px) minmax(0,1fr);column-gap:10px;row-gap:4px;align-items:start;margin-top:0}
-  #triad-sweep-controls{grid-column:1;grid-row:1;margin:0;gap:3px 6px;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center}
+  #triad-sweep-panel:not([hidden]){display:grid;grid-template-columns:minmax(150px,200px) minmax(0,1fr);column-gap:8px;row-gap:2px;align-items:start;margin-top:0;grid-column:1/-1;grid-row:2}
+  #triad-sweep-controls{grid-column:1;grid-row:1;margin:0;gap:2px 4px;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;max-height:76px;overflow:hidden}
   .sweep-control-row{display:contents}
-  .sweep-control-label{grid-column:1;padding:0;font-size:.66rem;flex:none;white-space:nowrap}
+  .sweep-control-label{grid-column:1;padding:0;font-size:.64rem;flex:none;white-space:nowrap;line-height:1.1}
   .sweep-picker,.sweep-quality-picker,.sweep-inv-toggle{grid-column:2;min-width:0}
-  .sweep-picker,.sweep-quality-picker{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:4px}
-  .sweep-btn,.sweep-quality-btn{min-height:40px;padding:4px 9px;font-size:.72rem;flex-shrink:0}
-  .sweep-inv-toggle{gap:4px;min-width:0}
-  .sweep-inv-step{min-width:40px;min-height:40px;padding:0 6px}
-  .sweep-inv-status{min-height:40px;padding:4px 8px;gap:1px}
-  .sweep-inv-status strong{font-size:.8rem}
-  .sweep-inv-status span{font-size:.68rem;line-height:1.2}
-  #triad-sweep-panel>.ref-fb-scroll{grid-column:2;grid-row:1;min-width:0}
-  #triad-sweep-legend{grid-column:1/-1;grid-row:2;margin-top:0}
-  #triad-sweep-nav{margin-bottom:6px!important}
-  #sec-triads .adv-options{margin-bottom:2px}
-  #sec-triads .adv-options>summary{padding:5px 10px;min-height:36px;font-size:.72rem}
+  .sweep-picker,.sweep-quality-picker{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:3px}
+  .sweep-btn,.sweep-quality-btn{min-height:36px;padding:3px 8px;font-size:.7rem;flex-shrink:0}
+  .sweep-inv-toggle{gap:3px;min-width:0}
+  .sweep-inv-step{min-width:36px;min-height:36px;padding:0 4px;font-size:1.1rem}
+  .sweep-inv-status{min-height:36px;padding:3px 6px;gap:0}
+  .sweep-inv-status strong{font-size:.76rem;line-height:1.1}
+  .sweep-inv-status span{font-size:.64rem;line-height:1.15}
+  #triad-sweep-panel>.ref-fb-scroll{grid-column:2;grid-row:1;min-width:0;align-self:start}
+  #triad-sweep-legend{grid-column:1/-1;grid-row:2;margin-top:0;font-size:.64rem;gap:4px 8px}
+  #triad-sweep-nav{margin-bottom:4px!important}
   .triad-info-head h3{font-size:1rem}
   .triad-info-head p,.triad-info-blurb{font-size:.78rem;margin-bottom:8px}
   .sweep-tab{margin:6px 0 0;padding:8px 10px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
