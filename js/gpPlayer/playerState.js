@@ -70,8 +70,11 @@ export function createPlayerState(gpResult, options = {}) {
     || gpResult.drumTracks?.[0]?.model?.measures?.length
     || 1;
 
+  // null/'' must mean "no saved bar", not bar 0 — Number() would coerce both to 0
+  // and silently pin a whole-score loop to the first bar.
+  const isSetBar = (n) => n != null && n !== '' && Number.isFinite(Number(n));
   const clampBar = (n, fallback) => clampMeasureIndex(
-    Number.isFinite(Number(n)) ? Number(n) : fallback,
+    isSetBar(n) ? Number(n) : fallback,
     measureCount,
   );
 
