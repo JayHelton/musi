@@ -72,6 +72,7 @@
 <link rel="stylesheet" href="css/modals.css">
 <link rel="stylesheet" href="css/songwriter.css">
 <link rel="stylesheet" href="css/exercises.css">
+<link rel="stylesheet" href="css/workbooks.css">
 <link rel="stylesheet" href="css/drums.css">
 <link rel="stylesheet" href="css/chordworkout.css">
 <link rel="stylesheet" href="css/notes.css">
@@ -1656,6 +1657,49 @@
               <div class="ex-player-actions" id="ex-player-actions"></div>
             </div>
             <div class="ex-player-body" id="ex-player-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WORKBOOKS -->
+  <section id="sec-workbooks" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tools</div>
+      <h2>Workbooks</h2>
+      <p>Build an ordered workbook from your exercises, play one at a time, loop it or let it advance automatically, and group workbooks into folders.</p>
+    </div>
+    <div class="quiz-layout wb-layout">
+      <aside class="sidebar wb-sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Folders</div>
+          <div class="sl-scroll" id="wb-folder-list"></div>
+        </div>
+        <form class="wb-add-folder" id="wb-add-folder-form">
+          <input type="text" id="wb-add-folder-input" placeholder="New folder name" maxlength="40" aria-label="New folder name" autocomplete="off">
+          <button class="btn sm primary" type="submit">Add</button>
+        </form>
+      </aside>
+      <div class="quiz-main wb-main">
+        <div class="wb-toolbar">
+          <div class="wb-toolbar-title" id="wb-current-title">All Workbooks</div>
+          <div class="wb-toolbar-actions">
+            <button class="btn primary" id="wb-new-btn" type="button">+ New Workbook</button>
+          </div>
+        </div>
+        <div class="wb-status" id="wb-status" style="display:none"></div>
+        <div class="wb-workspace" id="wb-workspace">
+          <div class="wb-list-pane">
+            <div class="wb-list" id="wb-list"></div>
+          </div>
+          <div class="wb-detail-pane" id="wb-detail-pane" hidden>
+            <div class="wb-detail-head">
+              <button class="btn sm" type="button" id="wb-detail-back">← Workbooks</button>
+              <div class="wb-detail-title" id="wb-detail-title"></div>
+              <div class="wb-detail-actions" id="wb-detail-actions"></div>
+            </div>
+            <div class="wb-detail-body" id="wb-detail-body"></div>
           </div>
         </div>
       </div>
