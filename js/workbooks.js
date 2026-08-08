@@ -117,6 +117,67 @@ function isWorkbooksSectionActive() {
   return sec && sec.classList.contains('active');
 }
 
+function syncPracticeMode() {
+  const sec = document.getElementById('sec-workbooks');
+  if (!sec) return;
+  const practicing = !!openWorkbookId;
+  sec.classList.toggle('wb-practicing', practicing);
+  if (practicing) {
+    installWbPracticeMetrics(sec);
+    practiceMetricsHandle?.refresh();
+  } else {
+    destroyWbPracticeMetrics();
+  }
+}
+
+const WB_PRACTICE_GUTTER_PX = 8;
+let practiceMetricsHandle = null;
+
+function installWbPracticeMetrics(section) {
+  destroyWbPracticeMetrics();
+  let raf = 0;
+
+  function measure() {
+    if (!section?.isConnected || !openWorkbookId) return;
+    const top = Math.max(0, Math.round(section.getBoundingClientRect().top));
+    section.style.setProperty('--wb-practice-top', `${top}px`);
+    section.style.setProperty('--wb-practice-gutter', `${WB_PRACTICE_GUTTER_PX}px`);
+  }
+
+  function schedule() {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(measure);
+    });
+  }
+
+  schedule();
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+  window.visualViewport?.addEventListener('resize', schedule);
+
+  practiceMetricsHandle = {
+    refresh: schedule,
+    destroy() {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('orientationchange', schedule);
+      window.visualViewport?.removeEventListener('resize', schedule);
+      section.style.removeProperty('--wb-practice-top');
+      section.style.removeProperty('--wb-practice-gutter');
+      practiceMetricsHandle = null;
+    },
+  };
+}
+
+function destroyWbPracticeMetrics() {
+  practiceMetricsHandle?.destroy();
+}
+
+function refreshPracticeMetrics() {
+  practiceMetricsHandle?.refresh();
+}
+
 function isDetailLoadStale(token, workbookId) {
   return token !== detailLoadToken
     || workbookId !== openWorkbookId
@@ -150,10 +211,10 @@ function getDetailPlayingState() {
 function buildEntryMeta(exercise) {
   if (!exercise) return '';
   const parts = [mediaKindLabel(exercise)];
-  if (exercise.measureStart != null || exercise.measureEnd != null) {
-    const start = exercise.measureStart != null ? exercise.measureStart : 0;
-    const end = exercise.measureEnd != null ? exercise.measureEnd : start;
-    parts.push(formatBarRange(start, end));
+  // Whole-score exercises are saved with measureStart/End of 0, so only a real
+  // span means the exercise is a bar-range segment worth labelling.
+  if (exercise.measureEnd > exercise.measureStart) {
+    parts.push(formatBarRange(exercise.measureStart, exercise.measureEnd));
   }
   if (exercise.bpm != null && Number(exercise.bpm) > 0) {
     parts.push(`${Math.round(Number(exercise.bpm))} BPM`);
@@ -217,12 +278,14 @@ function closeWorkbookDetail() {
   openWorkbookId = null;
   if (workspaceEl) workspaceEl.classList.remove('is-open');
   if (detailPaneEl) detailPaneEl.hidden = true;
+  syncPracticeMode();
 }
 
 function openWorkbookDetail(id) {
   openWorkbookId = id;
   if (workspaceEl) workspaceEl.classList.add('is-open');
   if (detailPaneEl) detailPaneEl.hidden = false;
+  syncPracticeMode();
   render();
 }
 
@@ -360,6 +423,17 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       if (isDetailLoadStale(loadToken, wb.id)) return null;
     }
     if (isDetailLoadStale(loadToken, wb.id)) return null;
+    // Whole-score exercises are saved with measureStart/End of 0. The player
+    // reads a bar range through Number(), which turns null into bar 0, so the
+    // range keys have to be left out entirely rather than nulled out —
+    // otherwise looping a whole exercise would loop only its first bar.
+    const segment = item.measureEnd > item.measureStart;
+    const loopRange = segment ? {
+      initialLoopStart: item.measureStart,
+      initialLoopEnd: item.measureEnd,
+      initialLoopStartBeat: item.startBeat,
+      initialLoopEndBeat: item.endBeat,
+    } : {};
     return mountGpPlayer(host, {
       gpResult: gp,
       title: item.name,
@@ -367,16 +441,13 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       hideTitle: true,
       preferredTrackIndex: Number.isFinite(item.preferredTrackIndex) ? item.preferredTrackIndex : 0,
       initialLoopEnabled: wb.loopEnabled,
-      initialLoopStart: item.measureStart,
-      initialLoopEnd: item.measureEnd,
-      initialLoopStartBeat: item.startBeat,
-      initialLoopEndBeat: item.endBeat,
+      ...loopRange,
       loopRestSec: item.loopRestSec || 0,
       initialBpm: item.bpm,
       initialTranspose: item.transpose,
       initialTuning: item.tuning,
       initialRetuneMode: item.retuneMode,
-      exerciseScope: !!(item.loopEnabled || item.measureStart != null),
+      exerciseScope: segment,
       onPracticeSettingsChange: (settings) => {
         updateExercisePracticeSettings(item.id, settings);
         if (settings.loopEnabled != null) {
@@ -424,6 +495,7 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
   const loadToken = ++detailLoadToken;
   teardownDetailPlayer();
 
+  try {
   const wb = getWorkbook(workbookId);
   if (!wb || isDetailLoadStale(loadToken, workbookId)) return;
 
@@ -520,6 +592,9 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
         text: err?.message || 'Could not load this exercise.',
       }));
     }
+  }
+  } finally {
+    refreshPracticeMetrics();
   }
 }
 
@@ -680,6 +755,7 @@ function renderEntryList(wb) {
 
 function buildDetailShell(wb) {
   const player = el('div', { class: 'wb-player' });
+  const controls = el('div', { class: 'wb-player-controls' });
 
   const head = el('div', { class: 'wb-player-head' });
   detailPlayerNameEl = el('div', { class: 'wb-player-name', text: '' });
@@ -688,7 +764,7 @@ function buildDetailShell(wb) {
   head.appendChild(detailPlayerNameEl);
   head.appendChild(detailPlayerKindEl);
   head.appendChild(detailPositionEl);
-  player.appendChild(head);
+  controls.appendChild(head);
 
   const transport = el('div', { class: 'wb-transport' });
   detailPrevBtn = el('button', {
@@ -700,22 +776,25 @@ function buildDetailShell(wb) {
   transport.appendChild(detailPrevBtn);
   transport.appendChild(detailNextBtn);
 
-  const loopLabel = el('label', { class: 'wb-loop-toggle' });
+  const loopHint = 'Loop on repeats the current exercise; loop off advances to the next one automatically.';
+  const loopLabel = el('label', { class: 'wb-loop-toggle', title: loopHint });
   detailLoopInput = el('input', { type: 'checkbox' });
   detailLoopInput.checked = !!wb.loopEnabled;
   detailLoopInput.addEventListener('change', () => onLoopToggleChange(detailLoopInput.checked));
   loopLabel.appendChild(detailLoopInput);
   loopLabel.appendChild(document.createTextNode(' Loop exercise'));
   transport.appendChild(loopLabel);
-  player.appendChild(transport);
+  transport.appendChild(el('span', {
+    class: 'wb-loop-hint',
+    text: 'On: repeat · Off: auto-advance',
+    title: loopHint,
+  }));
+  controls.appendChild(transport);
+  player.appendChild(controls);
 
   detailGpMountEl = el('div', { class: 'wb-gp-mount' });
   player.appendChild(detailGpMountEl);
 
-  detailBodyEl.appendChild(el('p', {
-    class: 'wb-detail-help',
-    text: 'Loop on repeats the current exercise; loop off advances to the next one automatically.',
-  }));
   detailBodyEl.appendChild(player);
 
   detailEntryListEl = el('div', { class: 'wb-entry-list' });
@@ -1069,6 +1148,7 @@ function renderDetail() {
     syncPlayerHead(fresh);
     syncTransportDisabled(fresh);
   }
+  refreshPracticeMetrics();
 }
 
 function render() {

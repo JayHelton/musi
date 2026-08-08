@@ -502,6 +502,30 @@ assert.equal(psInit.state.transpose, 3);
 assert.equal(psInit.state.retuneMode, 'pitches');
 psInit.destroy();
 
+// An unset bar range must span the whole score, not collapse onto bar 0.
+const lastBar = fakeGp.tracks[0].model.measures.length - 1;
+for (const unset of [undefined, null, '']) {
+  const psRange = createPlayerState(fakeGp, {
+    preferredTrackIndex: 0,
+    initialLoopEnabled: true,
+    initialLoopStart: unset,
+    initialLoopEnd: unset,
+  });
+  assert.equal(psRange.state.loopStart, 0, `loopStart spans from bar 0 for ${JSON.stringify(unset)}`);
+  assert.equal(psRange.state.loopEnd, lastBar, `loopEnd spans to the last bar for ${JSON.stringify(unset)}`);
+  psRange.destroy();
+}
+
+const psExplicitRange = createPlayerState(fakeGp, {
+  preferredTrackIndex: 0,
+  initialLoopEnabled: true,
+  initialLoopStart: lastBar,
+  initialLoopEnd: lastBar,
+});
+assert.equal(psExplicitRange.state.loopStart, lastBar, 'explicit bar range is still honored');
+assert.equal(psExplicitRange.state.loopEnd, lastBar, 'explicit bar range is still honored');
+psExplicitRange.destroy();
+
 // ---- trackMixer mount + mix load regression (no AudioContext) ----
 installDomShim();
 
