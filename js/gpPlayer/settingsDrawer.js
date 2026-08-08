@@ -3,6 +3,14 @@
 import { TUNINGS } from '../theory.js';
 import { TUNING_CATALOG } from '../tunings.js';
 import { el, uid } from './dom.js';
+import {
+  GPP_MIN_BPM,
+  GPP_MAX_BPM,
+  GPP_MIN_TEMPO_PCT,
+  GPP_MAX_TEMPO_PCT,
+  clampBpm,
+  clampTempoPct,
+} from './tempoRange.js';
 
 function tuningOptionsFor(stringCount) {
   const names = Object.keys(TUNINGS).filter((n) => TUNINGS[n].length === stringCount);
@@ -113,11 +121,13 @@ export function mountSettingsDrawer(host, {
     controlsBody.innerHTML = '';
 
     const bpmInput = el('input', {
-      type: 'number', class: 'gpp-num', id: ids.bpm, min: '40', max: '280', step: '1',
+      type: 'number', class: 'gpp-num', id: ids.bpm,
+      min: String(GPP_MIN_BPM), max: String(GPP_MAX_BPM), step: '1',
       'aria-label': 'BPM',
     });
     const bpmSlider = el('input', {
-      type: 'range', class: 'gpp-slider', id: ids.bpmSlider, min: '50', max: '150', step: '1',
+      type: 'range', class: 'gpp-slider', id: ids.bpmSlider,
+      min: String(GPP_MIN_TEMPO_PCT), max: String(GPP_MAX_TEMPO_PCT), step: '1',
       'aria-label': 'Tempo percent',
     });
     const bpmPct = el('span', { class: 'gpp-pct', text: '100%' });
@@ -310,7 +320,7 @@ export function mountSettingsDrawer(host, {
     bpmInput.addEventListener('change', () => {
       const st = stateController.state;
       st.bpmUserOverride = true;
-      st.bpm = Math.max(40, Math.min(280, Number(bpmInput.value) || st.scoreBpm));
+      st.bpm = clampBpm(Number(bpmInput.value) || st.scoreBpm);
       syncBpmSliderFromBpm(bpmInput, bpmSlider, bpmPct);
       onChange?.({ reload: true });
     });
@@ -355,9 +365,9 @@ export function mountSettingsDrawer(host, {
 
   function syncBpmFromSlider(bpmInput, bpmSlider, bpmPct) {
     const st = stateController.state;
-    const pct = Number(bpmSlider.value) || 100;
+    const pct = clampTempoPct(Number(bpmSlider.value) || 100);
     st.bpmUserOverride = true;
-    st.bpm = Math.max(40, Math.min(280, Math.round(st.scoreBpm * (pct / 100))));
+    st.bpm = clampBpm(Math.round(st.scoreBpm * (pct / 100)));
     bpmInput.value = String(Math.round(st.bpm));
     bpmPct.textContent = `${pct}%`;
   }
@@ -366,7 +376,7 @@ export function mountSettingsDrawer(host, {
     const st = stateController.state;
     bpmInput.value = String(Math.round(st.bpm));
     const pct = st.scoreBpm ? Math.round((st.bpm / st.scoreBpm) * 100) : 100;
-    bpmSlider.value = String(Math.max(50, Math.min(150, pct)));
+    bpmSlider.value = String(clampTempoPct(pct));
     bpmPct.textContent = `${bpmSlider.value}%`;
   }
 

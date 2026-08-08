@@ -120,4 +120,48 @@ assert.ok(
   'destroy should remove import panel host from document.body',
 );
 
+// ---- mount handle: external loop control ----
+// Loop-enabled mount paints selection overlays that call Element.remove (missing in shim).
+const _createElement = document.createElement.bind(document);
+document.createElement = (tag) => {
+  const el = _createElement(tag);
+  if (!el.remove) {
+    el.remove = function remove() {
+      if (this.parentElement) this.parentElement.removeChild(this);
+    };
+  }
+  return el;
+};
+
+const loopHost = document.createElement('div');
+const loopMount = mountGpPlayer(loopHost, {
+  gpResult: fakeGp,
+  title: 'Loop control',
+  initialLoopEnabled: true,
+  initialLoopStart: 1,
+  initialLoopEnd: 2,
+});
+assert.equal(typeof loopMount.player, 'object', 'handle exposes player');
+assert.equal(typeof loopMount.getState, 'function', 'handle exposes getState');
+assert.equal(typeof loopMount.destroy, 'function', 'handle exposes destroy');
+assert.equal(typeof loopMount.isLoopEnabled, 'function', 'handle exposes isLoopEnabled');
+assert.equal(typeof loopMount.setLoopEnabled, 'function', 'handle exposes setLoopEnabled');
+assert.equal(typeof loopMount.play, 'function', 'handle exposes play');
+assert.equal(typeof loopMount.stop, 'function', 'handle exposes stop');
+
+assert.equal(loopMount.isLoopEnabled(), true, 'initial loop enabled');
+const beforeLoop = loopMount.getState();
+assert.equal(beforeLoop.loopStart, 1, 'initial loopStart preserved');
+assert.equal(beforeLoop.loopEnd, 2, 'initial loopEnd preserved');
+
+loopMount.setLoopEnabled(false);
+assert.equal(loopMount.isLoopEnabled(), false, 'setLoopEnabled(false) disables loop');
+loopMount.setLoopEnabled(true);
+assert.equal(loopMount.isLoopEnabled(), true, 'setLoopEnabled(true) re-enables loop');
+const afterLoop = loopMount.getState();
+assert.equal(afterLoop.loopStart, beforeLoop.loopStart, 'loopStart restored after toggle');
+assert.equal(afterLoop.loopEnd, beforeLoop.loopEnd, 'loopEnd restored after toggle');
+
+loopMount.destroy();
+
 console.log('gp player wiring: ok');

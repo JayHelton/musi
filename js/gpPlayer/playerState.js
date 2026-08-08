@@ -8,6 +8,7 @@ import {
   normalizeBeatRange,
   scopeBounds,
 } from './rangeUtils.js';
+import { clampBpm } from './tempoRange.js';
 
 const AUTO_FOLLOW_KEY = 'musi.gpAutoFollow';
 const PARCHMENT_ZOOM_KEY = 'musi.gpParchmentZoom';
@@ -44,7 +45,7 @@ function writeZoom(z) {
 export function resolveInitialBpm(initialBpm, scoreBpm) {
   const n = Number(initialBpm);
   if (!Number.isFinite(n) || n <= 0) return { apply: false };
-  const bpm = Math.max(40, Math.min(280, n));
+  const bpm = clampBpm(n);
   const rounded = Math.round(bpm);
   const scoreRounded = Math.round(Number(scoreBpm) || 0);
   return {

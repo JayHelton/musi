@@ -46,7 +46,15 @@ let mountGeneration = 0;
 
 /**
  * Mount a practice player into `host`.
- * @returns {{ destroy:()=>void, player:object, getState:()=>object }}
+ * @returns {{
+ *   destroy:()=>void,
+ *   player:object,
+ *   getState:()=>object,
+ *   isLoopEnabled:()=>boolean,
+ *   setLoopEnabled:(on:boolean)=>void,
+ *   play:()=>void,
+ *   stop:()=>void,
+ * }}
  */
 export function mountGpPlayer(host, {
   gpResult,
@@ -63,6 +71,8 @@ export function mountGpPlayer(host, {
   initialLoopEndBeat = null,
   loopRestSec = 0,
   onPracticeSettingsChange = null,
+  onPlaybackEnd = null,
+  autoPlay = false,
   exerciseScope = false,
   initialBpm = null,
   onOpenFile = null,
@@ -101,6 +111,7 @@ export function mountGpPlayer(host, {
   }
 
   let countInTimer = null;
+  let autoPlayTimer = null;
   let keyHandler = null;
 
   host.innerHTML = '';
@@ -236,6 +247,7 @@ export function mountGpPlayer(host, {
   let annoDrawer = null;
   let importPanel = null;
   let loopSnapshot = null;
+  let externalLoopSnapshot = null;
   let loopController = null;
   let layoutMetrics = null;
   let viewMode = loadViewMode();
@@ -340,9 +352,16 @@ export function mountGpPlayer(host, {
     };
   }
 
+  let prevPlaybackTick = null;
+  let playbackEndFired = false;
+  let lastUserStopAt = 0;
+  const PLAYBACK_END_EPSILON = 0.4;
+  const USER_STOP_SUPPRESS_MS = 300;
+
   const player = createGpMixPlayer({
     onTick: (info) => {
       if (!isAlive()) return;
+      detectNaturalPlaybackEnd(info);
       syncPlaybackUi(info);
     },
   });
@@ -543,6 +562,38 @@ export function mountGpPlayer(host, {
       loopEnd: state.loopEnd,
     });
     transport?.sync();
+  }
+
+  function detectNaturalPlaybackEnd(info) {
+    const cur = {
+      playing: info.playing,
+      currentSec: info.currentSec ?? 0,
+      durationSec: info.durationSec ?? player.durationSec ?? 0,
+      resting: info.resting,
+    };
+    if (!prevPlaybackTick) {
+      prevPlaybackTick = { ...cur };
+      if (cur.playing) playbackEndFired = false;
+      return;
+    }
+    if (cur.playing && !prevPlaybackTick.playing) playbackEndFired = false;
+    const prevDur = prevPlaybackTick.durationSec || cur.durationSec;
+    const nearEnd = prevDur > 0 && prevPlaybackTick.currentSec >= prevDur - PLAYBACK_END_EPSILON;
+    // Ignore stop edges shortly after user pause/stop — same tick signature as natural end.
+    const naturalEnd = prevPlaybackTick.playing
+      && !cur.playing
+      && !cur.resting
+      && !state.loopEnabled
+      && nearEnd
+      && !playbackEndFired
+      && Date.now() - lastUserStopAt > USER_STOP_SUPPRESS_MS;
+    if (naturalEnd && typeof onPlaybackEnd === 'function') {
+      playbackEndFired = true;
+      try {
+        onPlaybackEnd();
+      } catch (_) { /* embedder */ }
+    }
+    prevPlaybackTick = { playing: cur.playing, currentSec: cur.currentSec, durationSec: cur.durationSec };
   }
 
   function navMeasureIndex() {
@@ -980,9 +1031,14 @@ export function mountGpPlayer(host, {
     return 4;
   }
 
+  function startPlayback() {
+    if (!player.playing) togglePlayPause();
+  }
+
   function togglePlayPause() {
     if (!isAlive()) return;
     if (player.playing) {
+      lastUserStopAt = Date.now();
       clearCountIn();
       player.pause();
       transport?.sync();
@@ -1017,6 +1073,7 @@ export function mountGpPlayer(host, {
 
   function stopPlayback() {
     if (!isAlive()) return;
+    lastUserStopAt = Date.now();
     clearCountIn();
     const measures = state.viewModel?.measures || [];
     const navIdx = navMeasureIndex();
@@ -1077,8 +1134,48 @@ export function mountGpPlayer(host, {
   layoutMetrics?.refresh();
   transport?.publishPad?.();
 
+  if (autoPlay) {
+    autoPlayTimer = setTimeout(() => {
+      autoPlayTimer = null;
+      if (!isAlive()) return;
+      startPlayback();
+    }, 0);
+  }
+
+  function reapplyExternalLoop(snap) {
+    state.loopEnabled = true;
+    const beats = snap.loopStartBeat != null
+      && snap.loopEndBeat != null
+      && snap.loopEndBeat > snap.loopStartBeat
+      && stateController.setLoopRange(snap.loopStartBeat, snap.loopEndBeat);
+    if (!beats) stateController.setLoopMeasures(snap.loopStart, snap.loopEnd);
+  }
+
+  function setLoopEnabled(on) {
+    if (!isAlive()) return;
+    const want = !!on;
+    if (state.loopEnabled === want) return;
+    if (!want) {
+      externalLoopSnapshot = snapshotLoopState();
+      stateController.clearLoop();
+    } else if (externalLoopSnapshot) {
+      reapplyExternalLoop(externalLoopSnapshot);
+      externalLoopSnapshot = null;
+    } else {
+      state.loopEnabled = true;
+    }
+    reloadModel();
+    if (!isAlive()) return;
+    settingsDrawer?.sync();
+    loopController?.syncFromState();
+  }
+
   return {
     player,
+    isLoopEnabled: () => !!state.loopEnabled,
+    setLoopEnabled,
+    play: startPlayback,
+    stop: stopPlayback,
     getState: () => ({
       ...state,
       viewModel: state.viewModel,
@@ -1089,6 +1186,10 @@ export function mountGpPlayer(host, {
     destroy() {
       if (!alive) return;
       alive = false;
+      if (autoPlayTimer != null) {
+        clearTimeout(autoPlayTimer);
+        autoPlayTimer = null;
+      }
       clearCountIn();
       stateController.destroy();
       player.stop();
