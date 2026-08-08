@@ -322,6 +322,17 @@ function moveExercise(id, categoryId) {
   return true;
 }
 
+function attachmentStillReferenced(attachmentId) {
+  if (!attachmentId) return false;
+  return getStore().items.some(it => it.attachmentId === attachmentId);
+}
+
+async function releaseAttachment(attachmentId) {
+  if (!attachmentId || attachmentStillReferenced(attachmentId)) return;
+  // Shared score blobs are referenced by multiple bar-range exercises; delete only when none remain.
+  try { await deleteFile(attachmentId); } catch (e) {}
+}
+
 async function deleteExercise(id) {
   const store = getStore();
   const idx = store.items.findIndex(it => it.id === id);
@@ -329,7 +340,7 @@ async function deleteExercise(id) {
   const [removed] = store.items.splice(idx, 1);
   persist();
   if (removed && removed.attachmentId) {
-    try { await deleteFile(removed.attachmentId); } catch (e) {}
+    await releaseAttachment(removed.attachmentId);
   }
   if (wired) render();
   return true;
