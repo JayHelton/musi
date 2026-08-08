@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v149-exercises-bulk-delete";
+const CACHE_VERSION = "v150-landscape-orientation";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -40,6 +40,7 @@ const PRECACHE_URLS = [
   "css/study-recs.css",
   "css/study-lab.css",
   "css/theme-gbc.css",
+  "css/landscape.css",
   "css/boot-splash.css",
   "chord-cards/",
   "chord-cards/index.html",

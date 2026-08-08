@@ -1,5 +1,10 @@
 /* UX shell primitives: setup summary, subview tabs, hubs, progress, overflow */
 
+/* ---- Setup toolbar host (inner holds renderSetupSummary; back relocates in landscape) ---- */
+.setup-toolbar {
+  display: contents;
+}
+
 /* ---- Setup summary ---- */
 .setup-summary {
   display: flex;
@@ -372,6 +377,18 @@
   .section:not(#sec-home):not([id^="sec-hub-"]) .tool-back {
     display: inline-flex;
   }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .section:not(#sec-home):not([id^="sec-hub-"]) .tool-back {
+    display: inline-flex;
+    min-height: 32px;
+    font-size: 0.75rem;
+    margin-bottom: 2px;
+  }
+}
+
+@media (max-width: 768px) {
   header .wordmark {
     font-size: 1rem;
     opacity: 0.55;

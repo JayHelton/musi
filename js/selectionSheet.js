@@ -12,8 +12,10 @@ function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+const MOBILE_SHEET_MQ = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
+
 function isMobile() {
-  return window.matchMedia('(max-width: 768px)').matches;
+  return window.matchMedia(MOBILE_SHEET_MQ).matches;
 }
 
 function trapFocus(container, e) {

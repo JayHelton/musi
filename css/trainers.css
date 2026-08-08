@@ -145,21 +145,22 @@
 .timing-summary b{color:var(--text);font-variant-numeric:tabular-nums}
 .timing-help{color:var(--muted);font-size:.82rem;line-height:1.45}
 
-@media(max-width:768px){
+@media(max-width:768px),(orientation:landscape) and (max-height:500px){
   .fb-wrap{-webkit-overflow-scrolling:touch}
+  #sec-fretboard .quiz-main{max-width:100%}
   .tuner-center{max-width:100%}
   .fb-workbench-controls{gap:8px;font-size:.78rem}
   .fb-workbench-controls .btn{margin-left:auto}
   .int-btn{min-height:44px}
   .sr-staff-wrap{min-height:120px;margin-bottom:10px;padding:8px}
-  .timing-layout{grid-template-columns:1fr;gap:10px}
+  .timing-layout{grid-template-columns:1fr;gap:10px;max-width:100%}
   .timing-controls{grid-template-columns:1fr 1fr}
   .timing-slider-field{grid-column:1 / -1;grid-row:2}
   .timing-score-card{order:2}
   .timing-tap-pad{min-height:190px}
+  .pr-card{max-width:100%}
 }
 @media(max-width:480px){
-  #sec-fretboard .quiz-main{max-width:100%}
   .fb-cell{height:22px;font-size:.52rem}
   .fb-header{height:15px;font-size:.52rem}
   .fb-string-label{height:22px;font-size:.55rem;min-width:20px}
@@ -224,7 +225,7 @@
 .pt-readout-cents.off{color:var(--err)}
 .pt-status{font-size:.85rem;color:var(--muted);text-align:center;margin-top:10px}
 #pt-replay.playing{background:var(--accent-dim);color:var(--accent);box-shadow:0 0 14px var(--accent-dim)}
-@media(max-width:600px){
+@media(max-width:600px),(orientation:landscape) and (max-height:500px){
   .pt-meter{height:220px}
   .pt-controls{flex-direction:column;align-items:stretch}
   .pt-field{align-items:stretch}
@@ -254,7 +255,7 @@
 .pr-judge.miss{color:var(--err)}
 .pr-judge.anim{animation:pr-judge-pop .55s ease-out}
 @keyframes pr-judge-pop{0%{opacity:0;transform:translateX(-50%) scale(.7)}25%{opacity:1;transform:translateX(-50%) scale(1.1)}70%{opacity:1;transform:translateX(-50%) scale(1)}100%{opacity:0;transform:translateX(-50%) scale(1)}}
-@media(max-width:600px){
+@media(max-width:600px),(orientation:landscape) and (max-height:500px){
   .pr-stage{height:260px}
   .pr-hud{gap:16px}
   .pr-toggles{gap:12px}
