@@ -4,6 +4,9 @@
 import { renderTab } from './tabRenderer.js';
 import { stepsPerBeat } from './types.js';
 import { segmentSections } from '../analysis/segments.js';
+import { sliceGuitarModel } from '../tab/tabModel.js';
+
+export { sliceGuitarModel };
 
 function uid(prefix = 'gp') {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -190,51 +193,6 @@ export function sectionRangesFromModel(model, { maxBarsPerChunk = 8 } = {}) {
     });
   }
   return out;
-}
-
-/**
- * Slice fretted TabModel events/measures to a beat range (guitar snippet).
- */
-export function sliceGuitarModel(model, { startBeat = 0, endBeat = null, label = '' } = {}) {
-  if (!model) return null;
-  const end = endBeat == null ? (model.totalBeats || Infinity) : endBeat;
-  const events = (model.events || [])
-    .filter((e) => {
-      const s = Number.isFinite(e.start) ? e.start : 0;
-      return s >= startBeat - 1e-6 && s < end - 1e-6;
-    })
-    .map((e) => ({
-      ...e,
-      techniques: Array.isArray(e.techniques) ? e.techniques.slice() : [],
-      start: (Number.isFinite(e.start) ? e.start : 0) - startBeat,
-      slot: e.slot, // keep original slot for reference
-    }));
-  const measures = (model.measures || [])
-    .filter((m) => {
-      const ms = Number.isFinite(m.startBeat) ? m.startBeat : 0;
-      const me = Number.isFinite(m.endBeat) ? m.endBeat : ms;
-      return me > startBeat + 1e-6 && ms < end - 1e-6;
-    })
-    .map((m, i) => ({
-      ...m,
-      startBeat: Math.max(0, (m.startBeat || 0) - startBeat),
-      endBeat: Math.max(0, (m.endBeat || 0) - startBeat),
-      startSlot: i,
-      endSlot: i + 1,
-      timeSig: m.timeSig ? m.timeSig.slice() : undefined,
-    }));
-  return {
-    tuning: model.tuning,
-    strings: (model.strings || []).map((s) => ({ ...s })),
-    events,
-    measures,
-    tempo: model.tempo,
-    totalBeats: Math.max(0, end - startBeat),
-    slots: events.length ? Math.max(...events.map((e) => e.slot)) + 1 : measures.length,
-    techniqueCounts: { ...(model.techniqueCounts || {}) },
-    warnings: [],
-    label,
-  };
 }
 
 /**

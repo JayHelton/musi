@@ -262,3 +262,54 @@ export function modelHasRhythm(model) {
     (model.events || []).some((e) => Number.isFinite(e.duration) && e.duration > 0)
   ));
 }
+
+/**
+ * Slice a TabModel (fretted or percussion) to a beat window; events and
+ * measures are filtered and rebased to start at beat 0.
+ */
+export function sliceModelByBeats(model, { startBeat = 0, endBeat = null, label = '' } = {}) {
+  if (!model) return null;
+  const end = endBeat == null ? (model.totalBeats || Infinity) : endBeat;
+  const events = (model.events || [])
+    .filter((e) => {
+      const s = Number.isFinite(e.start) ? e.start : 0;
+      return s >= startBeat - 1e-6 && s < end - 1e-6;
+    })
+    .map((e) => ({
+      ...e,
+      techniques: Array.isArray(e.techniques) ? e.techniques.slice() : [],
+      start: (Number.isFinite(e.start) ? e.start : 0) - startBeat,
+      slot: e.slot,
+    }));
+  const measures = (model.measures || [])
+    .filter((m) => {
+      const ms = Number.isFinite(m.startBeat) ? m.startBeat : 0;
+      const me = Number.isFinite(m.endBeat) ? m.endBeat : ms;
+      return me > startBeat + 1e-6 && ms < end - 1e-6;
+    })
+    .map((m, i) => ({
+      ...m,
+      startBeat: Math.max(0, (m.startBeat || 0) - startBeat),
+      endBeat: Math.max(0, (m.endBeat || 0) - startBeat),
+      startSlot: i,
+      endSlot: i + 1,
+      timeSig: m.timeSig ? m.timeSig.slice() : undefined,
+    }));
+  return {
+    tuning: model.tuning,
+    strings: (model.strings || []).map((s) => ({ ...s })),
+    events,
+    measures,
+    tempo: model.tempo,
+    totalBeats: Math.max(0, end - startBeat),
+    slots: events.length ? Math.max(...events.map((e) => e.slot)) + 1 : measures.length,
+    techniqueCounts: { ...(model.techniqueCounts || {}) },
+    warnings: [],
+    label,
+  };
+}
+
+/** Alias kept for drum-import callers. */
+export function sliceGuitarModel(...args) {
+  return sliceModelByBeats(...args);
+}
