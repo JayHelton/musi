@@ -19,6 +19,7 @@ import {
   ensurePersistentStorage,
 } from './attachments.js';
 import { isGuitarProName, parseGuitarPro, mountGpPlayer } from './gpPlayerUI.js';
+import { clampBpm } from './gpPlayer/tempoRange.js';
 import { resolveScoreKey } from './gpAnnotations.js';
 
 const STORAGE_KEY = 'musi.exercises';
@@ -135,7 +136,7 @@ function normalizeItem(raw) {
     loopEnabled: raw.loopEnabled == null ? false : !!raw.loopEnabled,
     loopRestSec: Math.max(0, Math.min(30, Number(raw.loopRestSec) || 0)),
     bpm: (raw.bpm != null && Number(raw.bpm) > 0 && Number.isFinite(Number(raw.bpm)))
-      ? Math.max(40, Math.min(280, Math.round(Number(raw.bpm))))
+      ? Math.round(clampBpm(Number(raw.bpm)))
       : null,
     transpose: Number.isFinite(Number(raw.transpose)) ? Math.round(Number(raw.transpose)) : 0,
     tuning: typeof raw.tuning === 'string' && raw.tuning ? raw.tuning : null,
@@ -429,7 +430,7 @@ function isVideoItem(item) {
   );
 }
 
-function isTabModelItem(item) {
+export function isTabModelItem(item) {
   return !!item && (
     item.type === 'application/x-musi-tab-model' ||
     /\.musi-tab\.json$/i.test(item.fileName || '') ||
@@ -500,7 +501,7 @@ function youtubeEmbedUrl(url) {
   }
 }
 
-function mediaKind(item) {
+export function mediaKind(item) {
   if (item && item.url) return youtubeEmbedUrl(item.url) ? 'youtube' : 'link';
   if (isGpItem(item)) return 'gp';
   if (isVideoItem(item)) return 'video';
@@ -511,7 +512,7 @@ function mediaKind(item) {
   return 'file';
 }
 
-function mediaKindLabel(item) {
+export function mediaKindLabel(item) {
   const labels = {
     pdf: 'PDF',
     doc: 'Doc',
@@ -1134,7 +1135,7 @@ function render() {
   applyActiveRowHighlight();
 }
 
-function exerciseIconSvg(item) {
+export function exerciseIconSvg(item) {
   const kind = mediaKind(item);
   if (kind === 'image') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
   if (kind === 'audio') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';

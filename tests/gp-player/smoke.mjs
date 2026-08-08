@@ -34,6 +34,14 @@ import {
   restartTarget,
 } from '../../js/gpPlayer/rangeUtils.js';
 import { createPlayerState, resolveInitialBpm } from '../../js/gpPlayer/playerState.js';
+import {
+  GPP_MIN_BPM,
+  GPP_MAX_BPM,
+  GPP_MIN_TEMPO_PCT,
+  GPP_MAX_TEMPO_PCT,
+  clampBpm,
+  clampTempoPct,
+} from '../../js/gpPlayer/tempoRange.js';
 import { mountTrackMixer } from '../../js/gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from '../../js/gpPlayer/settingsDrawer.js';
 import { mountParchmentView } from '../../js/gpPlayer/parchmentView.js';
@@ -331,6 +339,16 @@ assert.deepEqual(resolveInitialBpm(0, 140), { apply: false });
 assert.deepEqual(resolveInitialBpm(160, 140), { apply: true, bpm: 160, bpmUserOverride: true });
 assert.deepEqual(resolveInitialBpm(140, 140), { apply: true, bpm: 140, bpmUserOverride: false });
 assert.deepEqual(resolveInitialBpm(140.4, 140), { apply: true, bpm: 140.4, bpmUserOverride: false });
+assert.deepEqual(resolveInitialBpm(240, 120), { apply: true, bpm: 240, bpmUserOverride: true });
+
+// ---- tempoRange ----
+assert.ok(GPP_MAX_BPM >= 225);
+assert.equal(clampBpm(400), GPP_MAX_BPM);
+assert.equal(clampBpm(10), GPP_MIN_BPM);
+assert.equal(clampBpm(225), 225);
+assert.equal(clampBpm(140.4), 140.4);
+assert.equal(clampTempoPct(10), GPP_MIN_TEMPO_PCT);
+assert.equal(clampTempoPct(400), GPP_MAX_TEMPO_PCT);
 
 const snips = buildGpSectionSnippets(fakeGp);
 assert.ok(snips.length >= 2);
@@ -525,7 +543,13 @@ assert.ok(settingsSections.length >= 4, 'settings should have collapsible sectio
 const settingsBodies = settingsHost.querySelectorAll('.gpp-settings-body');
 assert.equal(settingsBodies.length, 1, 'drawer and sheet should share one control body');
 const bpmInput = settingsHost.querySelector('[id$="-bpm"]');
+const bpmSlider = settingsHost.querySelector('[id$="-bpm-slider"]');
 assert.ok(bpmInput, 'tempo input should exist');
+assert.ok(bpmSlider, 'tempo percent slider should exist');
+assert.equal(bpmInput.getAttribute('min'), String(GPP_MIN_BPM));
+assert.equal(bpmInput.getAttribute('max'), String(GPP_MAX_BPM));
+assert.equal(bpmSlider.getAttribute('min'), String(GPP_MIN_TEMPO_PCT));
+assert.equal(bpmSlider.getAttribute('max'), String(GPP_MAX_TEMPO_PCT));
 assert.ok(!settingsHost.querySelector('.gpp-analysis-results'), 'settings drawer must not host analysis');
 settings.sync();
 settings.destroy();

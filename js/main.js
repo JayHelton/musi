@@ -19,6 +19,7 @@ import { initMovableChordCards } from './movableChordCards.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises } from './exercises.js';
+import { initWorkbooks, stopWorkbooks } from './workbooks.js';
 import { initNotes, stopNotes } from './notes.js';
 import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
 import { initDrums, stopDrums } from './drums/drumsUI.js';
@@ -59,6 +60,7 @@ const TOOL_STOPPERS = {
   recorder: () => { if (recorder.playing) stopRecorder(); },
   songwriter: () => stopSongwriter(),
   exercises: () => stopExercises(),
+  workbooks: () => stopWorkbooks(),
   notes: () => stopNotes(),
   practice: () => stopPracticeTimer(),
   drums: () => stopDrums(),
@@ -83,6 +85,7 @@ const TOOL_INITS = {
   recorder: initRecorder,
   songwriter: initSongwriter,
   exercises: initExercises,
+  workbooks: initWorkbooks,
   notes: initNotes,
   practice: initPracticeTimer,
   drums: initDrums,
