@@ -283,11 +283,14 @@ export function mountAnnotationsDrawer(host, {
     if (contentBody.parentElement !== target) target.appendChild(contentBody);
   }
 
+  // Portrait phone sheet; landscape uses side drawer (must match gpplayer.css)
+  const SHEET_MQ = '(max-width: 768px) and (min-height: 501px)';
+
   function detectSheetMode() {
-    sheetMode = window.matchMedia('(max-width: 768px)').matches;
+    sheetMode = window.matchMedia(SHEET_MQ).matches;
   }
 
-  const mq = window.matchMedia('(max-width: 768px)');
+  const mq = window.matchMedia(SHEET_MQ);
   const onMq = () => { detectSheetMode(); if (openState) paintOpen(); };
   mq.addEventListener?.('change', onMq);
 

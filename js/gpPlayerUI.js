@@ -962,8 +962,11 @@ function mountTracksDrawerShell(host, { title = 'Tracks', bodyEl } = {}) {
   sheet.append(makeHead(), sheetBody);
   host.append(backdrop, drawer, sheet);
 
+  // Portrait phone sheet; landscape uses side drawer (must match gpplayer.css)
+  const SHEET_MQ = '(max-width: 768px) and (min-height: 501px)';
+
   function detectSheetMode() {
-    sheetMode = window.matchMedia('(max-width: 768px)').matches;
+    sheetMode = window.matchMedia(SHEET_MQ).matches;
   }
 
   function placeBody() {
@@ -985,7 +988,7 @@ function mountTracksDrawerShell(host, { title = 'Tracks', bodyEl } = {}) {
   function toggle() { if (openState) close(); else open(); }
 
   backdrop.addEventListener('click', () => close());
-  const mq = window.matchMedia('(max-width: 768px)');
+  const mq = window.matchMedia(SHEET_MQ);
   mq.addEventListener?.('change', () => { if (openState) paintOpen(); });
 
   return {

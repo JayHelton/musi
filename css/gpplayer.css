@@ -789,7 +789,7 @@
   background: var(--border);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 768px) and (min-height: 501px) {
   .gpp-drawer {
     display: none;
   }
@@ -798,7 +798,7 @@
   }
 }
 
-@media (min-width: 769px) {
+@media (min-width: 769px), (orientation: landscape) and (max-height: 500px) {
   .gpp-sheet {
     display: none !important;
   }
@@ -1407,6 +1407,247 @@
   }
   .gpp-chrome {
     height: min(calc(100dvh - var(--dock-h) - 100px), 820px);
+  }
+}
+
+/* Landscape phone — full-height score view */
+@media (orientation: landscape) and (max-height: 500px) {
+  #sec-gpplayer .section-head {
+    display: none;
+  }
+  #sec-gpplayer .gpp-layout {
+    gap: 2px;
+    max-height: calc(100dvh - var(--dock-h) - 4px);
+  }
+  #sec-gpplayer .gpp-status:not([data-kind="error"]) {
+    display: none;
+  }
+  #sec-gpplayer .gpp-drop {
+    padding: 12px 14px;
+  }
+  #sec-gpplayer .gpp-stage {
+    flex: 1;
+    min-height: 0;
+    padding: 2px 4px 4px;
+    border-radius: 12px;
+  }
+  #sec-gpplayer .gpp-stage .gpp-root {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    gap: 0;
+  }
+  #sec-gpplayer #gpp-library {
+    display: none;
+  }
+  #sec-gpplayer .gpp-analysis-summary {
+    padding: 6px 10px;
+    font-size: 0.5rem;
+  }
+  #sec-gpplayer .gpp-analysis-results {
+    max-height: 60dvh;
+    padding: 8px 10px 10px;
+  }
+
+  .gpp-chrome {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    flex: 1;
+  }
+
+  #sec-gpplayer .gpp-chrome {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .gpp-score-header {
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 4px 8px;
+  }
+  .gpp-score-header-titles {
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  .gpp-score-title {
+    font-size: 0.82rem;
+  }
+  .gpp-score-track {
+    display: none;
+  }
+  .gpp-score-actions {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .gpp-icon-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 10px;
+  }
+  .gpp-icon-btn.has-label {
+    min-width: 36px;
+    padding: 0 8px;
+  }
+  .gpp-icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  .gpp-head-extra-wrap .btn.sm {
+    min-height: 34px;
+    padding: 0 8px;
+    font-size: 0.72rem;
+  }
+
+  .gpp-measure-nav {
+    padding: 2px 6px;
+    gap: 4px;
+  }
+  .gpp-measure-nav-label {
+    display: none;
+  }
+  .gpp-measure-nav-btn {
+    min-width: 32px;
+    min-height: 28px;
+    padding: 2px 6px;
+    font-size: 0.82rem;
+    border-radius: 6px;
+  }
+  .gpp-measure-nav-btn.has-marker {
+    min-height: 32px;
+    font-size: 0.72rem;
+  }
+
+  .gpp-parchment-host {
+    min-height: 100px;
+  }
+  .gpp-parch-viewport {
+    padding: 8px 8px 12px;
+  }
+
+  .gpp-transport-dock {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  .gpp-transport-primary {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .gpp-transport-secondary {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 6px;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .gpp-transport-secondary::-webkit-scrollbar {
+    display: none;
+  }
+  .gpp-transport-btn {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 6px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+  }
+  .gpp-transport-btn.is-primary {
+    min-width: 44px;
+    font-size: 1rem;
+  }
+  .gpp-loop-select-toggle {
+    min-height: 36px;
+    padding: 0 8px;
+    font-size: 0.82rem;
+  }
+  .gpp-loop-chip {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+  }
+
+  .gpp-drawer {
+    width: min(320px, 62%);
+  }
+  .gpp-sheet {
+    max-height: 100%;
+  }
+  .gpp-drawer-head {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .gpp-drawer-body {
+    padding: 8px 10px 12px;
+  }
+  .gpp-drawer-section {
+    gap: 6px;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+  .gpp-settings-section {
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+  }
+  .gpp-settings-section-title {
+    font-size: 0.92rem;
+    padding: 2px 0 4px;
+  }
+  .gpp-field {
+    gap: 4px;
+    font-size: 0.75rem;
+  }
+  .gpp-control-row {
+    gap: 6px;
+  }
+  .gpp-mix-row {
+    padding: 5px 8px;
+    gap: 6px;
+    font-size: 0.8rem;
+  }
+  .gpp-anno-text-input {
+    min-height: 48px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 380px) {
+  #sec-gpplayer .gpp-layout {
+    max-height: calc(100dvh - var(--dock-h) - 2px);
+  }
+  .gpp-score-header {
+    padding: 2px 6px;
+  }
+  .gpp-icon-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+  }
+  .gpp-icon-btn.has-label {
+    min-width: 34px;
+  }
+  .gpp-measure-nav-btn {
+    min-height: 26px;
+    min-width: 28px;
+  }
+  .gpp-transport-btn {
+    min-width: 34px;
+    min-height: 34px;
+  }
+  .gpp-transport-dock {
+    padding: 2px 6px calc(2px + env(safe-area-inset-bottom, 0px));
+  }
+  .gpp-parchment-host {
+    min-height: 80px;
   }
 }
 

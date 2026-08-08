@@ -238,3 +238,15 @@
   }
   .ex-cat-tools{opacity:1;pointer-events:auto}
 }
+
+/* GP player embed — landscape phone */
+@media (orientation:landscape) and (max-height:500px){
+  .ex-player-pane{min-height:0;flex:1}
+  .ex-player-head{padding:6px 10px;gap:6px;flex-wrap:nowrap}
+  .ex-player-title{font-size:.85rem}
+  .ex-player-actions{flex-wrap:nowrap;gap:6px}
+  .ex-player-body-gp{padding:6px}
+  .ex-player-body-gp .gpp-chrome{
+    flex:1;min-height:0;height:auto;max-height:none
+  }
+}
