@@ -150,6 +150,7 @@
   #sec-triads:not(.has-setup-summary) .sidebar .sl-scroll{max-height:56px!important;overflow-y:auto}
   #sec-triads .sidebar{order:0}
   #sec-triads .quiz-main{order:0;min-width:0;gap:8px}
+  #sec-triads:has(#triad-sweep-panel:not([hidden])) .quiz-main{gap:0;margin-bottom:0;padding-bottom:0}
   #sec-triads .ref-fb-card{
     display:grid;grid-template-columns:1fr auto;grid-template-rows:auto minmax(0,1fr);
     gap:2px;padding:5px 10px 6px;align-items:center;
@@ -161,6 +162,7 @@
   #sec-triads .ref-view-btn{flex:0 0 auto;min-height:36px}
   #sec-triads .adv-options{grid-column:2;grid-row:1;margin:0;align-self:center}
   #sec-triads .adv-options>summary{padding:4px 8px;min-height:36px;font-size:.72rem;border:none;background:transparent}
+  #sec-triads .ref-fb-card:has(#triad-sweep-panel:not([hidden])){padding-bottom:3px}
   #triad-map,.triad-map{
     grid-column:1/-1;grid-row:2;
     max-height:164px;
@@ -172,11 +174,20 @@
   .triad-row-meta{flex-direction:column;min-width:44px;gap:4px;width:auto}
   .triad-row-play{min-width:36px;min-height:36px;padding:4px 8px}
   .triad-row-count{font-size:.62rem}
-  #triad-sweep-panel:not([hidden]){display:grid;grid-template-columns:minmax(150px,200px) minmax(0,1fr);column-gap:8px;row-gap:2px;align-items:start;margin-top:0;grid-column:1/-1;grid-row:2}
-  #triad-sweep-controls{grid-column:1;grid-row:1;margin:0;gap:2px 4px;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;max-height:76px;overflow:hidden}
-  .sweep-control-row{display:contents}
-  .sweep-control-label{grid-column:1;padding:0;font-size:.64rem;flex:none;white-space:nowrap;line-height:1.1}
-  .sweep-picker,.sweep-quality-picker,.sweep-inv-toggle{grid-column:2;min-width:0}
+  #triad-sweep-panel:not([hidden]){
+    display:grid;grid-template-columns:minmax(148px,188px) minmax(0,1fr);
+    grid-template-rows:minmax(0,1fr) auto;column-gap:8px;row-gap:0;
+    align-items:start;margin-top:0;grid-column:1/-1;grid-row:2;min-height:0;max-height:168px;overflow:hidden;
+  }
+  #triad-sweep-nav{display:none!important}
+  #triad-sweep-controls{
+    grid-column:1;grid-row:1/-1;margin:0;gap:3px;display:flex;flex-direction:column;
+    min-width:0;min-height:0;max-height:100%;overflow-y:auto;overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding-right:2px;
+  }
+  .sweep-control-row{display:flex;flex-direction:column;gap:2px;align-items:stretch;flex-shrink:0}
+  .sweep-control-label{padding:0;font-size:.64rem;flex:none;white-space:nowrap;line-height:1.1}
+  .sweep-picker,.sweep-quality-picker,.sweep-inv-toggle{min-width:0;width:100%}
   .sweep-picker,.sweep-quality-picker{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:3px}
   .sweep-btn,.sweep-quality-btn{min-height:36px;padding:3px 8px;font-size:.7rem;flex-shrink:0}
   .sweep-inv-toggle{gap:3px;min-width:0}
@@ -185,8 +196,7 @@
   .sweep-inv-status strong{font-size:.76rem;line-height:1.1}
   .sweep-inv-status span{font-size:.64rem;line-height:1.15}
   #triad-sweep-panel>.ref-fb-scroll{grid-column:2;grid-row:1;min-width:0;align-self:start}
-  #triad-sweep-legend{grid-column:1/-1;grid-row:2;margin-top:0;font-size:.64rem;gap:4px 8px}
-  #triad-sweep-nav{margin-bottom:4px!important}
+  #triad-sweep-legend{grid-column:2;grid-row:2;margin:0;padding-top:2px;font-size:.64rem;gap:4px 8px;line-height:1.1}
   .triad-info-head h3{font-size:1rem}
   .triad-info-head p,.triad-info-blurb{font-size:.78rem;margin-bottom:8px}
   .sweep-tab{margin:6px 0 0;padding:8px 10px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -209,7 +219,7 @@
   #triad-map,.triad-map{max-height:140px}
   .triad-row-svg{height:64px}
   .triad-row{padding:3px 4px;gap:4px}
-  #triad-sweep-panel:not([hidden]){grid-template-columns:minmax(140px,180px) minmax(0,1fr);column-gap:8px}
+  #triad-sweep-panel:not([hidden]){grid-template-columns:minmax(132px,168px) minmax(0,1fr);column-gap:6px;max-height:158px}
   .sweep-btn,.sweep-quality-btn{min-height:36px;padding:3px 7px;font-size:.68rem}
   .sweep-inv-step,.sweep-inv-status{min-height:36px}
 }
