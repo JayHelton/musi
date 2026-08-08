@@ -65,7 +65,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-screen, 18px);
   background: rgba(22, 31, 54, 0.88);
-  padding: 10px 12px 12px;
+  padding: 4px 6px 4px;
   min-height: 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
 }
@@ -116,8 +116,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  padding: 10px 12px;
+  gap: 6px 8px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   background: rgba(11, 16, 32, 0.72);
   min-width: 0;
@@ -149,7 +149,7 @@
 .gpp-score-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex: 0 1 auto;
   margin-left: auto;
   flex-wrap: nowrap;
@@ -161,6 +161,17 @@
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(180, 94, 255, 0.55) transparent;
+}
+.gpp-score-actions .gpp-icon-btn {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+}
+.gpp-score-actions .gpp-icon-btn.has-label {
+  min-width: 40px;
+  padding: 0 8px;
 }
 .gpp-score-actions::-webkit-scrollbar {
   height: 6px;
@@ -232,8 +243,8 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 4px;
+  padding: 2px 6px;
   border-bottom: 1px solid var(--border);
   background: rgba(11, 16, 32, 0.55);
   overflow-x: auto;
@@ -247,6 +258,7 @@
   color: var(--muted);
   padding: 0 4px;
   white-space: nowrap;
+  display: none;
 }
 .gpp-measure-nav-strip {
   display: flex;
@@ -260,15 +272,15 @@
 }
 .gpp-measure-nav-btn {
   flex: 0 0 auto;
-  min-width: 40px;
-  min-height: 36px;
-  padding: 4px 8px;
+  min-width: 36px;
+  min-height: 32px;
+  padding: 2px 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
   color: var(--muted);
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   cursor: pointer;
   line-height: 1.2;
   text-align: center;
@@ -294,8 +306,8 @@
 .gpp-measure-nav-btn.has-marker {
   white-space: pre-line;
   line-height: 1.15;
-  min-height: 40px;
-  font-size: 0.78rem;
+  min-height: 36px;
+  font-size: 0.76rem;
 }
 
 .gpp-head-extra-wrap {
@@ -315,7 +327,7 @@
   flex-shrink: 0;
 }
 .gpp-view-btn {
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: 11px;
   border: 1px solid var(--border);
   background: var(--bg2);
@@ -366,6 +378,7 @@
   overflow: hidden;
   border-top: 1px solid var(--border);
   background: rgba(11, 16, 32, 0.55);
+  position: relative;
 }
 
 .gpp-root.gpp-view-analyze .gpp-score-pane {
@@ -418,8 +431,8 @@
   overflow: hidden;
   position: relative;
   background: #f4ead4;
-  border-radius: 10px;
-  min-height: 180px;
+  border-radius: 8px;
+  min-height: 140px;
 }
 
 .gpp-parch-root {
@@ -443,8 +456,8 @@
   scrollbar-color: rgba(58, 42, 24, 0.45) transparent;
   background: #f7efd8;
   color: #1e1408;
-  padding: 16px 12px 24px;
-  border-radius: 10px;
+  padding: 8px 6px calc(var(--gpp-transport-pad, 68px) + 4px);
+  border-radius: 8px;
   border: 1px solid rgba(26, 20, 32, 0.15);
 }
 
@@ -459,7 +472,7 @@
   flex-direction: row;
   align-items: flex-start;
   gap: 0;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .gpp-parch-measure {
@@ -795,24 +808,45 @@
   }
 }
 
-/* ── Transport dock (GBC chrome, pinned inside root) ──────────────────── */
+/* ── Floating transport (over parchment / analysis) ───────────────────── */
+
+.gpp-transport-anchor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 55;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 0 8px max(6px, env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
 
 .gpp-transport-dock {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(26, 10, 46, 0.92), rgba(11, 16, 32, 0.98));
-  z-index: 50;
+  align-items: center;
+  gap: 4px;
+  max-width: min(100%, 520px);
+  padding: 6px 10px 7px;
+  border-radius: 16px;
+  border: 1px solid rgba(58, 42, 24, 0.38);
+  background: rgba(255, 252, 240, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 4px 18px rgba(26, 20, 32, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  pointer-events: auto;
 }
 
 .gpp-transport-primary {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: nowrap;
 }
 
@@ -820,64 +854,74 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.92rem;
-  color: var(--muted);
+  font-size: 0.82rem;
+  color: rgba(30, 20, 8, 0.78);
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .gpp-transport-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--tap-min, 44px);
-  min-height: var(--tap-min, 44px);
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg2);
-  color: var(--text);
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid rgba(58, 42, 24, 0.35);
+  border-radius: 11px;
+  background: rgba(255, 252, 240, 0.96);
+  color: #1e1408;
   font-family: var(--font-ui, "VT323", monospace);
   font-size: 0.95rem;
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .gpp-transport-btn:hover,
 .gpp-transport-btn:focus-visible {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: #6b4c9a;
+  color: #6b2d8b;
   outline: none;
+  box-shadow: 0 0 0 2px rgba(107, 76, 154, 0.22);
+}
+.gpp-transport-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .gpp-transport-btn.is-primary {
   background: var(--accent);
-  border-color: var(--accent);
+  border-color: rgba(58, 42, 24, 0.45);
   color: var(--on-accent);
   font-weight: 650;
-  min-width: 56px;
+  min-width: 48px;
+  min-height: 44px;
   font-size: 1.1rem;
 }
-.gpp-transport-btn.is-primary:hover {
-  box-shadow: 0 0 16px var(--accent-dim);
+.gpp-transport-btn.is-primary:hover,
+.gpp-transport-btn.is-primary:focus-visible {
+  color: var(--on-accent);
+  border-color: rgba(58, 42, 24, 0.55);
+  box-shadow: 0 0 14px var(--accent-dim);
 }
 
 .gpp-loop-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(180, 94, 255, 0.12);
-  color: var(--text);
-  font-size: 0.82rem;
+  border: 1px solid rgba(58, 42, 24, 0.3);
+  background: rgba(107, 76, 154, 0.12);
+  color: #1e1408;
+  font-size: 0.78rem;
   white-space: nowrap;
 }
 .gpp-loop-chip.is-off {
-  opacity: 0.65;
-  background: transparent;
+  opacity: 0.6;
+  background: rgba(255, 252, 240, 0.5);
 }
 
 .gpp-loop-select-toggle {
@@ -1486,10 +1530,10 @@
 .gpp-analysis-results {
   flex: 1;
   min-height: 0;
-  padding: 12px 14px 16px;
+  padding: 8px 10px calc(var(--gpp-transport-pad, 68px) + 8px);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -1692,7 +1736,7 @@
 #sec-gpplayer.gpp-score-loaded .gpp-stage {
   flex: 1;
   min-height: 0;
-  padding: 2px 4px 4px;
+  padding: 0 2px 2px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -1723,8 +1767,8 @@ html.gpp-player-locked body {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--border);
   background: rgba(11, 16, 32, 0.55);
 }
@@ -1738,9 +1782,9 @@ html.gpp-player-locked body {
 
 @media (max-width: 768px) {
   .gpp-drop { padding: 22px 14px; }
-  .gpp-stage { padding: 8px 8px 10px; }
+  .gpp-stage { padding: 4px 4px 4px; }
   .gpp-score-header {
-    gap: 8px;
+    gap: 6px;
   }
   .gpp-view-picker {
     order: 3;
@@ -1749,21 +1793,21 @@ html.gpp-player-locked body {
   }
   .gpp-view-btn {
     flex: 1;
-    min-height: 40px;
-    padding: 6px 10px;
+    min-height: 36px;
+    padding: 4px 8px;
     font-size: 0.74rem;
   }
   .gpp-transport-primary {
     gap: 4px;
   }
   .gpp-transport-btn {
-    min-width: var(--tap-min, 44px);
-    min-height: var(--tap-min, 44px);
+    min-width: 40px;
+    min-height: 40px;
     padding: 0 8px;
   }
   .gpp-transport-secondary {
-    font-size: 0.85rem;
-    gap: 8px;
+    font-size: 0.78rem;
+    gap: 6px;
   }
   .gpp-chrome {
     height: min(calc(100dvh - var(--dock-h) - 100px), 820px);
@@ -1886,17 +1930,22 @@ html.gpp-player-locked body {
     min-height: 100px;
   }
   .gpp-parch-viewport {
-    padding: 8px 8px 12px;
+    padding: 6px 6px calc(var(--gpp-transport-pad, 60px) + 4px);
   }
 
+  .gpp-transport-anchor {
+    padding: 0 6px max(4px, env(safe-area-inset-bottom, 0px));
+  }
   .gpp-transport-dock {
     flex-direction: row;
     align-items: center;
     gap: 6px;
-    padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
+    padding: 5px 8px;
+    border-radius: 14px;
+    max-width: calc(100% - 8px);
   }
   .gpp-transport-primary {
-    gap: 4px;
+    gap: 3px;
     flex-shrink: 0;
   }
   .gpp-transport-secondary {
@@ -1905,7 +1954,7 @@ html.gpp-player-locked body {
     flex-wrap: nowrap;
     justify-content: flex-start;
     gap: 6px;
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
@@ -1915,14 +1964,15 @@ html.gpp-player-locked body {
     display: none;
   }
   .gpp-transport-btn {
-    min-width: 36px;
-    min-height: 36px;
+    min-width: 40px;
+    min-height: 40px;
     padding: 0 6px;
     border-radius: 10px;
     font-size: 0.88rem;
   }
   .gpp-transport-btn.is-primary {
     min-width: 44px;
+    min-height: 40px;
     font-size: 1rem;
   }
   .gpp-loop-select-toggle {
@@ -2003,11 +2053,14 @@ html.gpp-player-locked body {
     min-width: 28px;
   }
   .gpp-transport-btn {
-    min-width: 34px;
-    min-height: 34px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .gpp-transport-anchor {
+    padding: 0 4px max(2px, env(safe-area-inset-bottom, 0px));
   }
   .gpp-transport-dock {
-    padding: 2px 6px calc(2px + env(safe-area-inset-bottom, 0px));
+    padding: 4px 6px;
   }
   .gpp-parchment-host {
     min-height: 80px;
