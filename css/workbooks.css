@@ -234,72 +234,103 @@
 .wb-picker-count{font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .wb-picker-foot .btn.primary:disabled{opacity:.5;pointer-events:none}
 
-/* ---- Practice mode: the library chrome gives way to the score ---- */
+/* ---- Practice mode: hide library chrome ---- */
 #sec-workbooks.wb-practicing .section-head,
 #sec-workbooks.wb-practicing .wb-sidebar,
 #sec-workbooks.wb-practicing .wb-toolbar{display:none}
 #sec-workbooks.wb-practicing .wb-status{display:none!important}
 #sec-workbooks.wb-practicing .wb-list-pane{display:none!important}
 
-/* ---- Practice mode (desktop): full-width score + flex height chain ---- */
-@media (min-width:901px) and (min-height:501px){
+/* ---- Practice mode: universal height chain + layout ---- */
+#sec-workbooks.wb-practicing.active{
+  display:flex;flex-direction:column;min-height:0;
+  height:calc(100dvh - var(--dock-h) - var(--wb-practice-top, 96px) - var(--wb-practice-gutter, 8px));
+  max-height:calc(100dvh - var(--dock-h) - var(--wb-practice-top, 96px) - var(--wb-practice-gutter, 8px));
+  margin-bottom:calc(-1 * (var(--dock-h) + 18px));
+  overflow:hidden;overflow-x:hidden;max-width:100vw;box-sizing:border-box
+}
+#sec-workbooks.wb-practicing .wb-layout{
+  flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;width:100%
+}
+#sec-workbooks.wb-practicing .wb-main{
+  flex:1;min-height:0;display:flex;flex-direction:column;min-width:0;width:100%
+}
+#sec-workbooks.wb-practicing .wb-workspace.is-open{
+  flex:1;min-height:0;display:flex;flex-direction:column;grid-template-columns:none;gap:0
+}
+#sec-workbooks.wb-practicing .wb-detail-pane{
+  flex:1;min-height:0;display:flex;flex-direction:column;border:none;border-radius:0;
+  background:transparent;box-shadow:none
+}
+#sec-workbooks.wb-practicing .wb-detail-head{
+  flex-shrink:0;display:flex;align-items:center;gap:8px;flex-wrap:nowrap;
+  padding:8px 10px;border-bottom:1px solid var(--border);background:var(--bg2);
+  border-radius:var(--radius-screen,16px) var(--radius-screen,16px) 0 0
+}
+#sec-workbooks.wb-practicing .wb-detail-title{
+  flex:1;min-width:0;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+#sec-workbooks.wb-practicing .wb-detail-actions{
+  flex-shrink:0;display:flex;align-items:center;gap:6px;flex-wrap:nowrap;width:auto
+}
+#sec-workbooks.wb-practicing .wb-detail-actions .btn{
+  flex:0 0 auto;min-height:34px;padding:4px 10px;font-size:.78rem;white-space:nowrap
+}
+#sec-workbooks.wb-practicing .wb-detail-body{
+  flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+  padding:8px 10px 10px;background:var(--card);
+  border:1px solid var(--border);border-top:none;
+  border-radius:0 0 var(--radius-screen,16px) var(--radius-screen,16px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28)
+}
+#sec-workbooks.wb-practicing .wb-player{
+  flex:1;min-height:0;gap:6px;padding:6px 8px;border:none;background:transparent;box-shadow:none
+}
+#sec-workbooks.wb-practicing .wb-player-controls{
+  flex-shrink:0;display:flex;flex-direction:row;align-items:center;gap:6px;flex-wrap:nowrap
+}
+#sec-workbooks.wb-practicing .wb-player-head{
+  flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:nowrap;overflow:hidden
+}
+#sec-workbooks.wb-practicing .wb-player-name{
+  flex:1;min-width:0;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+#sec-workbooks.wb-practicing .wb-player-kind{display:none}
+#sec-workbooks.wb-practicing .wb-position{font-size:.82rem;flex-shrink:0}
+#sec-workbooks.wb-practicing .wb-transport{flex-shrink:0;display:flex;align-items:center;gap:4px;flex-wrap:nowrap}
+#sec-workbooks.wb-practicing .wb-transport .btn{min-height:32px;padding:4px 8px;font-size:.75rem}
+#sec-workbooks.wb-practicing .wb-loop-toggle{font-size:.75rem;gap:4px;white-space:nowrap}
+#sec-workbooks.wb-practicing .wb-loop-hint{display:none}
+#sec-workbooks.wb-practicing .wb-gp-mount{flex:1;min-height:0;border:none;background:transparent;border-radius:0}
+#sec-workbooks.wb-practicing .wb-gp-mount .gpp-chrome{
+  flex:1;min-height:0;height:auto;max-height:none
+}
+#sec-workbooks.wb-practicing .wb-entry-list{
+  flex-shrink:0;max-height:min(24vh,180px);margin-top:6px;overflow-y:auto;
+  -webkit-overflow-scrolling:touch
+}
+
+@media (min-width:901px){
   #sec-workbooks.wb-practicing.active{
-    display:flex;flex-direction:column;min-height:0;
-    height:calc(100dvh - var(--dock-h) - var(--wb-practice-top, 96px) - var(--wb-practice-gutter, 8px));
-    max-height:calc(100dvh - var(--dock-h) - var(--wb-practice-top, 96px) - var(--wb-practice-gutter, 8px));
-    margin-bottom:calc(-1 * (var(--dock-h) + 18px));
-    overflow:hidden;overflow-x:hidden;
-    width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);
-    padding:0 24px;box-sizing:border-box
+    width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding:0 24px
   }
-  #sec-workbooks.wb-practicing .wb-layout{
-    flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;width:100%
-  }
-  #sec-workbooks.wb-practicing .wb-main{
-    flex:1;min-height:0;display:flex;flex-direction:column;min-width:0;width:100%
-  }
-  #sec-workbooks.wb-practicing .wb-workspace.is-open{
-    flex:1;min-height:0;display:flex;flex-direction:column;
-    grid-template-columns:none;gap:0
-  }
-  #sec-workbooks.wb-practicing .wb-detail-pane{
-    flex:1;min-height:0;display:flex;flex-direction:column;border:none;
-    border-radius:0;background:transparent;box-shadow:none
-  }
-  #sec-workbooks.wb-practicing .wb-detail-head{
-    flex-shrink:0;padding:8px 12px;border-bottom:1px solid var(--border);
-    background:var(--bg2);border-radius:var(--radius-screen,16px) var(--radius-screen,16px) 0 0
-  }
-  #sec-workbooks.wb-practicing .wb-detail-body{
-    flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
-    padding:10px 12px 12px;background:var(--card);
-    border:1px solid var(--border);border-top:none;
-    border-radius:0 0 var(--radius-screen,16px) var(--radius-screen,16px);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28)
-  }
-  #sec-workbooks.wb-practicing .wb-player{
-    flex:1;min-height:0;gap:8px;padding:10px;border:none;background:transparent;
-    box-shadow:none
-  }
-  #sec-workbooks.wb-practicing .wb-player-controls{
-    flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap
-  }
-  #sec-workbooks.wb-practicing .wb-player-head{flex:1;min-width:0;flex-wrap:nowrap}
-  #sec-workbooks.wb-practicing .wb-transport{flex-shrink:0;flex-wrap:nowrap}
-  #sec-workbooks.wb-practicing .wb-loop-hint{flex:0 1 auto;max-width:14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #sec-workbooks.wb-practicing .wb-gp-mount{flex:1;min-height:0;border:none;background:transparent;border-radius:0}
-  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-chrome{
-    flex:1;min-height:0;height:auto;max-height:none
-  }
-  #sec-workbooks.wb-practicing .wb-entry-list{
-    flex-shrink:0;max-height:min(16vh,132px);margin-top:8px;overflow-y:auto
+  #sec-workbooks.wb-practicing .wb-detail-head{padding:8px 12px}
+  #sec-workbooks.wb-practicing .wb-detail-body{padding:10px 12px 12px}
+  #sec-workbooks.wb-practicing .wb-player{padding:10px;gap:8px}
+  #sec-workbooks.wb-practicing .wb-player-controls{gap:10px}
+  #sec-workbooks.wb-practicing .wb-player-name{font-size:.92rem}
+  #sec-workbooks.wb-practicing .wb-transport .btn{min-height:34px;padding:4px 10px;font-size:.78rem}
+  #sec-workbooks.wb-practicing .wb-loop-toggle{font-size:.82rem}
+  #sec-workbooks.wb-practicing .wb-loop-hint{
+    display:inline;flex:0 1 auto;max-width:14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
   }
 }
 
-@media (min-width:1100px) and (min-height:501px){
+@media (min-width:700px) and (orientation:landscape),
+(min-width:1000px){
   #sec-workbooks.wb-practicing .wb-detail-body{
-    display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,300px);
-    grid-template-rows:minmax(0,1fr);gap:12px;align-items:stretch
+    display:grid;grid-template-columns:minmax(0,1fr) clamp(180px,24vw,300px);
+    grid-template-rows:minmax(0,1fr);gap:8px;align-items:stretch
   }
   #sec-workbooks.wb-practicing .wb-player{grid-column:1;grid-row:1;min-height:0}
   #sec-workbooks.wb-practicing .wb-entry-list{
@@ -307,56 +338,129 @@
   }
   #sec-workbooks.wb-practicing .wb-entry{
     display:grid;grid-template-columns:auto auto minmax(0,1fr);
-    grid-template-rows:auto auto auto;gap:4px 8px;align-items:center
+    grid-template-rows:auto auto auto;gap:4px 6px;align-items:center;padding:8px
   }
   #sec-workbooks.wb-practicing .wb-entry-index{grid-column:1;grid-row:1}
-  #sec-workbooks.wb-practicing .wb-entry-icon{grid-column:2;grid-row:1}
+  #sec-workbooks.wb-practicing .wb-entry-icon{grid-column:2;grid-row:1;width:28px;height:28px}
+  #sec-workbooks.wb-practicing .wb-entry-icon svg{width:22px;height:22px}
   #sec-workbooks.wb-practicing .wb-entry-name{
     grid-column:3;grid-row:1;flex:none;min-width:0;width:auto;max-width:100%;
-    font-size:.9rem;font-weight:650
+    font-size:.85rem;font-weight:650
   }
   #sec-workbooks.wb-practicing .wb-entry-meta{
     grid-column:1 / -1;grid-row:2;width:100%;max-width:100%;
-    padding-left:calc(1.5em + 40px);font-size:.72rem
+    padding-left:calc(1.5em + 34px);font-size:.68rem
   }
   #sec-workbooks.wb-practicing .wb-entry-actions{
-    grid-column:1 / -1;grid-row:3;width:100%;justify-content:flex-end;gap:4px
+    grid-column:1 / -1;grid-row:3;width:100%;justify-content:flex-end;gap:2px
   }
-  #sec-workbooks.wb-practicing .wb-entry-actions .btn{min-height:34px}
+  #sec-workbooks.wb-practicing .wb-entry-actions .btn{min-height:30px;padding:2px 6px;font-size:.68rem}
+}
+
+@media (max-width:699px){
+  #sec-workbooks.wb-practicing .wb-detail-head{padding:6px 8px;gap:6px}
+  #sec-workbooks.wb-practicing .wb-detail-title{font-size:.82rem}
+  #sec-workbooks.wb-practicing .wb-detail-actions .btn{min-height:32px;padding:4px 8px;font-size:.72rem}
+  #sec-workbooks.wb-practicing .wb-detail-body{padding:6px 8px 8px}
+  #sec-workbooks.wb-practicing .wb-player{padding:4px 6px}
+  #sec-workbooks.wb-practicing .wb-entry-list{max-height:min(20vh,140px)}
+  #sec-workbooks.wb-practicing .wb-entry{flex-wrap:wrap;padding:8px 10px}
+  #sec-workbooks.wb-practicing .wb-entry-meta{max-width:100%;width:100%;order:3;padding-left:2.5em}
+  #sec-workbooks.wb-practicing .wb-entry-actions{width:100%;justify-content:flex-end;order:4}
+}
+
+/* Compact embedded GP chrome so the score keeps vertical room */
+@media (max-width:899px){
+  /* Too narrow to hold the title, view picker and actions on one line — forcing
+     nowrap overlaps them and eats the taps, so let the row wrap. */
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-header{
+    flex-wrap:wrap;gap:4px;padding:3px 6px;min-height:0
+  }
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-header-titles{
+    flex-direction:row;align-items:center;gap:6px;flex:1 1 auto;min-width:0
+  }
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-title{font-size:.78rem}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-track{display:none}
+  #sec-workbooks.wb-practicing .wb-label-tail{display:none}
+  /* Drop the button labels rather than squeezing labelled buttons, which
+     overflows them into each other and swallows the taps. */
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-actions{gap:4px}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-btn-label{display:none}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-icon-btn,
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-actions .gpp-icon-btn,
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-actions .gpp-icon-btn.has-label{
+    width:36px;height:36px;min-width:36px;min-height:36px;padding:0;border-radius:9px;flex-shrink:0
+  }
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-view-picker{gap:2px}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-view-btn{
+    min-height:26px;padding:2px 6px;font-size:.64rem
+  }
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-measure-nav{padding:2px 4px;gap:2px}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-measure-nav-label{display:none}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-measure-nav-btn{
+    min-height:22px;min-width:22px;padding:1px 4px;font-size:.62rem
+  }
+}
+
+@media (orientation:landscape) and (max-height:500px){
+  #sec-workbooks.wb-practicing .wb-detail-head{padding:3px 6px;gap:4px;min-height:32px}
+  #sec-workbooks.wb-practicing .wb-detail-title{font-size:.78rem}
+  #sec-workbooks.wb-practicing .wb-detail-actions .btn{min-height:28px;padding:2px 6px;font-size:.68rem}
+  #sec-workbooks.wb-practicing .wb-detail-body{padding:2px 4px 4px;gap:4px}
+  #sec-workbooks.wb-practicing .wb-player{padding:2px;gap:2px}
+  #sec-workbooks.wb-practicing .wb-player-controls{gap:3px;min-height:24px}
+  #sec-workbooks.wb-practicing .wb-player-name{font-size:.75rem}
+  #sec-workbooks.wb-practicing .wb-position{font-size:.72rem}
+  #sec-workbooks.wb-practicing .wb-transport .btn{min-height:26px;padding:2px 5px;font-size:.66rem}
+  #sec-workbooks.wb-practicing .wb-loop-toggle{font-size:.66rem}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-header{
+    flex-wrap:nowrap;padding:2px 4px;gap:2px
+  }
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-title{font-size:.72rem}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-view-btn{min-height:22px;padding:1px 4px;font-size:.58rem}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-icon-btn,
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-actions .gpp-icon-btn,
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-score-actions .gpp-icon-btn.has-label{
+    width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:8px;flex-shrink:0
+  }
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-measure-nav{padding:1px 2px}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-measure-nav-btn{
+    min-height:18px;min-width:18px;padding:0 3px;font-size:.58rem
+  }
 }
 
 @media(max-width:900px){
-  .wb-gp-mount .gpp-chrome{height:min(48vh,480px);max-height:min(48vh,480px)}
-  .wb-entry{flex-wrap:wrap}
-  .wb-entry-meta{max-width:100%;width:100%;order:3;padding-left:2.5em}
-  .wb-entry-actions{width:100%;justify-content:flex-end;order:4}
+  #sec-workbooks:not(.wb-practicing) .wb-gp-mount .gpp-chrome{height:min(48vh,480px);max-height:min(48vh,480px)}
+  #sec-workbooks:not(.wb-practicing) .wb-entry{flex-wrap:wrap}
+  #sec-workbooks:not(.wb-practicing) .wb-entry-meta{max-width:100%;width:100%;order:3;padding-left:2.5em}
+  #sec-workbooks:not(.wb-practicing) .wb-entry-actions{width:100%;justify-content:flex-end;order:4}
   .wb-detail-actions{width:100%;justify-content:stretch}
   .wb-detail-actions .btn{flex:1}
 }
 
 @media(max-width:768px){
-  .wb-detail-body{padding:12px}
-  .wb-player{padding:10px}
-  .wb-gp-mount .gpp-chrome{height:min(44vh,400px);max-height:min(44vh,400px)}
+  #sec-workbooks:not(.wb-practicing) .wb-detail-body{padding:12px}
+  #sec-workbooks:not(.wb-practicing) .wb-player{padding:10px}
+  #sec-workbooks:not(.wb-practicing) .wb-gp-mount .gpp-chrome{height:min(44vh,400px);max-height:min(44vh,400px)}
 }
 
 @media (orientation:landscape) and (max-height:500px){
-  .wb-player{gap:8px;padding:8px}
-  .wb-gp-mount{min-height:0}
-  .wb-gp-mount .gpp-chrome{height:min(44vh,300px);max-height:min(44vh,300px)}
-  .wb-entry-list{margin-top:8px;gap:6px}
-  .wb-entry{padding:6px 8px;gap:6px}
-  .wb-entry-index{font-size:.78rem}
-  .wb-entry-name{font-size:.8rem}
-  .wb-entry-meta{font-size:.66rem}
-  .wb-entry-actions .btn{min-height:32px;padding:4px 8px;font-size:.72rem}
+  #sec-workbooks:not(.wb-practicing) .wb-player{gap:8px;padding:8px}
+  #sec-workbooks:not(.wb-practicing) .wb-gp-mount{min-height:0}
+  #sec-workbooks:not(.wb-practicing) .wb-gp-mount .gpp-chrome{height:min(44vh,300px);max-height:min(44vh,300px)}
+  #sec-workbooks:not(.wb-practicing) .wb-entry-list{margin-top:8px;gap:6px}
+  #sec-workbooks:not(.wb-practicing) .wb-entry{padding:6px 8px;gap:6px}
+  #sec-workbooks:not(.wb-practicing) .wb-entry-index{font-size:.78rem}
+  #sec-workbooks:not(.wb-practicing) .wb-entry-name{font-size:.8rem}
+  #sec-workbooks:not(.wb-practicing) .wb-entry-meta{font-size:.66rem}
+  #sec-workbooks:not(.wb-practicing) .wb-entry-actions .btn{min-height:32px;padding:4px 8px;font-size:.72rem}
 }
 
 @media(max-width:900px){
-  #sec-workbooks{overflow-x:hidden}
-  #sec-workbooks .wb-layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important;width:100%!important;max-width:100%!important;min-width:0!important}
-  #sec-workbooks .wb-sidebar{width:100%!important;max-width:100%!important;min-width:0!important;order:1!important;grid-column:1!important;grid-row:1!important}
-  #sec-workbooks .wb-main{width:100%!important;max-width:100%!important;min-width:0!important;order:2!important;grid-column:1!important;grid-row:2!important}
+  #sec-workbooks:not(.wb-practicing){overflow-x:hidden}
+  #sec-workbooks:not(.wb-practicing) .wb-layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important;width:100%!important;max-width:100%!important;min-width:0!important}
+  #sec-workbooks:not(.wb-practicing) .wb-sidebar{width:100%!important;max-width:100%!important;min-width:0!important;order:1!important;grid-column:1!important;grid-row:1!important}
+  #sec-workbooks:not(.wb-practicing) .wb-main{width:100%!important;max-width:100%!important;min-width:0!important;order:2!important;grid-column:1!important;grid-row:2!important}
   .wb-toolbar{width:100%!important;max-width:100%!important;min-width:0!important;align-items:stretch}
   .wb-toolbar-title{width:100%}
   .wb-toolbar-actions{width:100%!important;max-width:100%!important;min-width:0!important;display:flex;flex-direction:column}
@@ -364,13 +468,13 @@
   #wb-new-btn{color:var(--on-accent)}
   .wb-card{flex-wrap:wrap}
   .wb-card-actions{width:100%;justify-content:flex-start}
-  .wb-workspace.is-open{grid-template-columns:minmax(0,1fr)}
-  .wb-workspace.is-open .wb-list-pane{display:none}
-  .wb-detail-pane{min-height:min(72vh,680px)}
+  #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open{grid-template-columns:minmax(0,1fr)}
+  #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open .wb-list-pane{display:none}
+  #sec-workbooks:not(.wb-practicing) .wb-detail-pane{min-height:min(72vh,680px)}
 }
 
 @media(max-width:768px){
-  #sec-workbooks .wb-add-folder{
+  #sec-workbooks:not(.wb-practicing) .wb-add-folder{
     padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-screen,14px);
     background:rgba(22,31,54,0.88)
   }
@@ -378,105 +482,105 @@
 }
 
 @media (orientation:landscape) and (max-height:500px){
-  #sec-workbooks.active{
+  #sec-workbooks:not(.wb-practicing).active{
     display:flex;flex-direction:column;min-height:0;max-height:calc(100dvh - var(--dock-h) - 52px)
   }
-  #sec-workbooks .section-head{margin-bottom:2px;flex-shrink:0}
-  #sec-workbooks .section-kicker{display:none}
+  #sec-workbooks:not(.wb-practicing) .section-head{margin-bottom:2px;flex-shrink:0}
+  #sec-workbooks:not(.wb-practicing) .section-kicker{display:none}
 
-  #sec-workbooks .quiz-layout.wb-layout{
+  #sec-workbooks:not(.wb-practicing) .quiz-layout.wb-layout{
     display:flex!important;flex-direction:row!important;align-items:stretch!important;
     flex:1;min-height:0;gap:8px!important;width:100%!important;max-width:100%!important;
     min-width:0!important;grid-template-columns:none!important
   }
-  #sec-workbooks .wb-sidebar{
+  #sec-workbooks:not(.wb-practicing) .wb-sidebar{
     order:0!important;width:168px!important;max-width:168px!important;min-width:140px!important;
     flex-shrink:0!important;display:flex!important;flex-direction:column!important;gap:6px!important;
     grid-column:unset!important;grid-row:unset!important
   }
-  #sec-workbooks .wb-sidebar .sidebar-list{display:block!important;flex:1;min-height:0}
-  #sec-workbooks .wb-sidebar .sl-head{padding:4px 8px;font-size:.58rem}
-  #sec-workbooks .wb-sidebar .sl-scroll,
-  #sec-workbooks #wb-folder-list{
+  #sec-workbooks:not(.wb-practicing) .wb-sidebar .sidebar-list{display:block!important;flex:1;min-height:0}
+  #sec-workbooks:not(.wb-practicing) .wb-sidebar .sl-head{padding:4px 8px;font-size:.58rem}
+  #sec-workbooks:not(.wb-practicing) .wb-sidebar .sl-scroll,
+  #sec-workbooks:not(.wb-practicing) #wb-folder-list{
     display:flex!important;flex-direction:column!important;gap:2px!important;
     max-height:min(116px,30vh)!important;overflow-x:hidden!important;overflow-y:auto!important;
     scroll-snap-type:none!important;padding:4px!important;-webkit-overflow-scrolling:touch
   }
-  #sec-workbooks .wb-folder-item{min-height:36px;padding:6px 8px;border-radius:8px}
-  #sec-workbooks .wb-folder-name{font-size:.78rem}
-  #sec-workbooks .wb-add-folder{padding:0;border:none;background:transparent;flex-shrink:0}
-  #sec-workbooks .wb-add-folder input{font-size:.78rem;padding:6px 8px;min-height:36px}
-  #sec-workbooks .wb-add-folder .btn{min-height:36px;padding:6px 10px;font-size:.78rem}
+  #sec-workbooks:not(.wb-practicing) .wb-folder-item{min-height:36px;padding:6px 8px;border-radius:8px}
+  #sec-workbooks:not(.wb-practicing) .wb-folder-name{font-size:.78rem}
+  #sec-workbooks:not(.wb-practicing) .wb-add-folder{padding:0;border:none;background:transparent;flex-shrink:0}
+  #sec-workbooks:not(.wb-practicing) .wb-add-folder input{font-size:.78rem;padding:6px 8px;min-height:36px}
+  #sec-workbooks:not(.wb-practicing) .wb-add-folder .btn{min-height:36px;padding:6px 10px;font-size:.78rem}
 
-  #sec-workbooks .wb-main{
+  #sec-workbooks:not(.wb-practicing) .wb-main{
     order:1!important;flex:1!important;min-width:0!important;min-height:0!important;
     display:flex!important;flex-direction:column!important;
     grid-column:unset!important;grid-row:unset!important
   }
-  #sec-workbooks .wb-toolbar{
+  #sec-workbooks:not(.wb-practicing) .wb-toolbar{
     width:auto!important;max-width:100%!important;align-items:center!important;
     flex-wrap:nowrap!important;margin-bottom:6px!important;gap:8px!important;flex-shrink:0
   }
-  #sec-workbooks .wb-toolbar-title{
+  #sec-workbooks:not(.wb-practicing) .wb-toolbar-title{
     width:auto!important;flex:1;min-width:0;font-size:.92rem;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis
   }
-  #sec-workbooks .wb-toolbar-actions{
+  #sec-workbooks:not(.wb-practicing) .wb-toolbar-actions{
     display:flex!important;flex-direction:row!important;width:auto!important;
     max-width:none!important;min-width:0!important;flex-shrink:0;gap:6px!important
   }
-  #sec-workbooks .wb-toolbar-actions .btn{
+  #sec-workbooks:not(.wb-practicing) .wb-toolbar-actions .btn{
     display:inline-flex!important;width:auto!important;max-width:none!important;
     min-width:0!important;min-height:36px!important;padding:6px 12px!important;
     font-size:.78rem!important;white-space:nowrap!important;flex-shrink:0;line-height:1.2!important
   }
-  #sec-workbooks #wb-new-btn{color:var(--on-accent)}
-  #sec-workbooks .wb-status{margin-bottom:6px;padding:6px 10px;font-size:.75rem;flex-shrink:0}
-  #sec-workbooks .wb-workspace{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
-  #sec-workbooks .wb-list-pane{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  #sec-workbooks .wb-list{gap:6px}
-  #sec-workbooks .wb-card{padding:8px 10px;gap:8px;flex-wrap:nowrap}
-  #sec-workbooks .wb-card-name{font-size:.82rem}
-  #sec-workbooks .wb-card-meta{font-size:.66rem}
-  #sec-workbooks .wb-card-actions{width:auto!important;flex-wrap:nowrap;gap:4px}
-  #sec-workbooks .wb-card-folder-select{font-size:.72rem;padding:4px 6px;max-width:88px}
-  #sec-workbooks .wb-card-actions .btn{min-height:36px;padding:4px 8px;font-size:.72rem}
+  #sec-workbooks:not(.wb-practicing) #wb-new-btn{color:var(--on-accent)}
+  #sec-workbooks:not(.wb-practicing) .wb-status{margin-bottom:6px;padding:6px 10px;font-size:.75rem;flex-shrink:0}
+  #sec-workbooks:not(.wb-practicing) .wb-workspace{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  #sec-workbooks:not(.wb-practicing) .wb-list-pane{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #sec-workbooks:not(.wb-practicing) .wb-list{gap:6px}
+  #sec-workbooks:not(.wb-practicing) .wb-card{padding:8px 10px;gap:8px;flex-wrap:nowrap}
+  #sec-workbooks:not(.wb-practicing) .wb-card-name{font-size:.82rem}
+  #sec-workbooks:not(.wb-practicing) .wb-card-meta{font-size:.66rem}
+  #sec-workbooks:not(.wb-practicing) .wb-card-actions{width:auto!important;flex-wrap:nowrap;gap:4px}
+  #sec-workbooks:not(.wb-practicing) .wb-card-folder-select{font-size:.72rem;padding:4px 6px;max-width:88px}
+  #sec-workbooks:not(.wb-practicing) .wb-card-actions .btn{min-height:36px;padding:4px 8px;font-size:.72rem}
 
-  #sec-workbooks .wb-workspace.is-open{
+  #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open{
     display:grid!important;grid-template-columns:minmax(0,36%) minmax(0,1fr)!important;
     grid-template-rows:minmax(0,1fr)!important;gap:8px!important;min-height:0;flex:1;
     align-items:stretch!important
   }
-  #sec-workbooks .wb-workspace.is-open .wb-list-pane{
+  #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open .wb-list-pane{
     display:block!important;max-height:none!important;overflow-y:auto;height:auto!important;
     min-height:0!important;align-self:stretch
   }
-  #sec-workbooks .wb-workspace.is-open .wb-card{padding:6px 8px}
+  #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open .wb-card{padding:6px 8px}
 
-  #sec-workbooks .wb-detail-pane{
+  #sec-workbooks:not(.wb-practicing) .wb-detail-pane{
     min-height:0!important;height:auto!important;align-self:stretch!important;
     display:flex!important;flex-direction:column!important
   }
-  #sec-workbooks .wb-workspace.is-open .wb-detail-pane{
+  #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open .wb-detail-pane{
     min-height:min(280px,calc(100dvh - var(--dock-h) - 100px))!important
   }
-  #sec-workbooks .wb-detail-head{padding:6px 10px;gap:6px;flex-wrap:nowrap}
-  #sec-workbooks .wb-detail-title{font-size:.85rem}
-  #sec-workbooks .wb-detail-actions{flex-wrap:nowrap;gap:6px}
-  #sec-workbooks .wb-detail-actions .btn{min-height:36px;padding:4px 8px;font-size:.72rem}
-  #sec-workbooks .wb-detail-body{min-height:0;padding:10px}
+  #sec-workbooks:not(.wb-practicing) .wb-detail-head{padding:6px 10px;gap:6px;flex-wrap:nowrap}
+  #sec-workbooks:not(.wb-practicing) .wb-detail-title{font-size:.85rem}
+  #sec-workbooks:not(.wb-practicing) .wb-detail-actions{flex-wrap:nowrap;gap:6px}
+  #sec-workbooks:not(.wb-practicing) .wb-detail-actions .btn{min-height:36px;padding:4px 8px;font-size:.72rem}
+  #sec-workbooks:not(.wb-practicing) .wb-detail-body{min-height:0;padding:10px}
 }
 
 @media (orientation:landscape) and (max-height:380px){
-  #sec-workbooks.active{max-height:calc(100dvh - var(--dock-h) - 46px)}
-  #sec-workbooks .wb-sidebar{width:148px!important;max-width:148px!important;min-width:128px!important}
-  #sec-workbooks .wb-sidebar .sl-scroll,
-  #sec-workbooks #wb-folder-list{max-height:min(96px,28vh)!important}
-  #sec-workbooks .wb-folder-item{min-height:32px;padding:5px 6px}
-  #sec-workbooks .wb-add-folder input,
-  #sec-workbooks .wb-add-folder .btn,
-  #sec-workbooks .wb-toolbar-actions .btn,
-  #sec-workbooks .wb-card-actions .btn{min-height:32px}
-  #sec-workbooks .wb-toolbar{margin-bottom:4px}
-  #sec-workbooks .wb-card{padding:6px 8px}
+  #sec-workbooks:not(.wb-practicing).active{max-height:calc(100dvh - var(--dock-h) - 46px)}
+  #sec-workbooks:not(.wb-practicing) .wb-sidebar{width:148px!important;max-width:148px!important;min-width:128px!important}
+  #sec-workbooks:not(.wb-practicing) .wb-sidebar .sl-scroll,
+  #sec-workbooks:not(.wb-practicing) #wb-folder-list{max-height:min(96px,28vh)!important}
+  #sec-workbooks:not(.wb-practicing) .wb-folder-item{min-height:32px;padding:5px 6px}
+  #sec-workbooks:not(.wb-practicing) .wb-add-folder input,
+  #sec-workbooks:not(.wb-practicing) .wb-add-folder .btn,
+  #sec-workbooks:not(.wb-practicing) .wb-toolbar-actions .btn,
+  #sec-workbooks:not(.wb-practicing) .wb-card-actions .btn{min-height:32px}
+  #sec-workbooks:not(.wb-practicing) .wb-toolbar{margin-bottom:4px}
+  #sec-workbooks:not(.wb-practicing) .wb-card{padding:6px 8px}
 }
