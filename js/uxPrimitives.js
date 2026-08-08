@@ -113,6 +113,33 @@ export function renderCompactProgress(el, { streak = 0, correct = 0, total = 0, 
 
 /** Overflow / kebab menu. */
 let overflowMenuEl = null;
+let overflowDismissBound = false;
+
+function onOverflowDocClick(e) {
+  if (overflowMenuEl && !overflowMenuEl.contains(e.target)) closeOverflowMenu();
+}
+
+function onOverflowDocKey(e) {
+  if (e.key === 'Escape') closeOverflowMenu();
+}
+
+// The click that opens the menu is still bubbling, so binding the dismiss
+// handler synchronously would let that same click close the menu again.
+function bindOverflowDismiss() {
+  if (overflowDismissBound) return;
+  overflowDismissBound = true;
+  setTimeout(() => {
+    if (!overflowDismissBound) return;
+    document.addEventListener('click', onOverflowDocClick);
+    document.addEventListener('keydown', onOverflowDocKey);
+  }, 0);
+}
+
+function unbindOverflowDismiss() {
+  overflowDismissBound = false;
+  document.removeEventListener('click', onOverflowDocClick);
+  document.removeEventListener('keydown', onOverflowDocKey);
+}
 
 export function openOverflowMenu(anchorEl, items, { x, y } = {}) {
   if (!overflowMenuEl) {
@@ -120,12 +147,6 @@ export function openOverflowMenu(anchorEl, items, { x, y } = {}) {
     overflowMenuEl.className = 'overflow-menu';
     overflowMenuEl.setAttribute('role', 'menu');
     document.body.appendChild(overflowMenuEl);
-    document.addEventListener('click', (e) => {
-      if (overflowMenuEl && !overflowMenuEl.contains(e.target)) closeOverflowMenu();
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeOverflowMenu();
-    });
   }
 
   overflowMenuEl.innerHTML = '';
@@ -162,9 +183,11 @@ export function openOverflowMenu(anchorEl, items, { x, y } = {}) {
   overflowMenuEl.style.left = left + 'px';
   overflowMenuEl.style.top = top + 'px';
   overflowMenuEl.classList.add('open');
+  bindOverflowDismiss();
 }
 
 export function closeOverflowMenu() {
+  unbindOverflowDismiss();
   if (overflowMenuEl) overflowMenuEl.classList.remove('open');
 }
 
