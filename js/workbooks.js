@@ -195,6 +195,7 @@ function teardownDetailPlayer() {
   }
   detailMediaEl = null;
   if (detailGpMountEl) detailGpMountEl.innerHTML = '';
+  setDetailGpChrome(false);
 }
 
 function getDetailPlayingState() {
@@ -222,18 +223,176 @@ function buildEntryMeta(exercise) {
   return parts.join(' · ');
 }
 
+let detailPlaylistBtn = null;
+let detailAddBtnHeader = null;
+let playlistDrawerEl = null;
+let playlistDrawerEsc = null;
+
+function setDetailGpChrome(active) {
+  if (detailPaneEl) detailPaneEl.classList.toggle('wb-has-gp', !!active);
+  if (detailBodyEl) detailBodyEl.classList.toggle('wb-has-gp', !!active);
+  if (!active) closePlaylistDrawer();
+}
+
+function closePlaylistDrawer() {
+  if (!playlistDrawerEl) return;
+  playlistDrawerEl.hidden = true;
+  playlistDrawerEl.classList.remove('is-open');
+  if (playlistDrawerEsc) {
+    document.removeEventListener('keydown', playlistDrawerEsc);
+    playlistDrawerEsc = null;
+  }
+}
+
+function openPlaylistDrawer(wb) {
+  if (!playlistDrawerEl || !wb) return;
+  renderEntryList(wb);
+  syncEntryHighlights(wb);
+  playlistDrawerEl.hidden = false;
+  playlistDrawerEl.classList.add('is-open');
+  if (!playlistDrawerEsc) {
+    playlistDrawerEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      if (dialogRoot?.children.length) return;
+      closePlaylistDrawer();
+    };
+    document.addEventListener('keydown', playlistDrawerEsc);
+  }
+}
+
+function syncPlaylistLabel(wb) {
+  if (!detailPlaylistBtn) return;
+  const label = detailPlaylistBtn.querySelector('.gpp-btn-label') || detailPlaylistBtn;
+  if (!wb || !wb.entries.length) {
+    label.textContent = 'Playlist';
+    detailPlaylistBtn.setAttribute('aria-label', 'Open playlist');
+    detailPlaylistBtn.title = 'Open playlist';
+    return;
+  }
+  const active = getActiveWorkbookEntry(wb.id);
+  const idx = active ? active.index + 1 : 1;
+  const text = `Playlist ${idx}/${wb.entries.length}`;
+  label.textContent = text;
+  detailPlaylistBtn.setAttribute('aria-label', text);
+  detailPlaylistBtn.title = text;
+}
+
+// Header controls carry an icon as well as a label: narrow screens hide the
+// label, and a label-only button would collapse to an empty square.
+const HEAD_ICONS = {
+  back: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
+  prev: '<path d="M19 20 9 12l10-8z"/><path d="M5 19V5"/>',
+  next: '<path d="m5 4 10 8-10 8z"/><path d="M19 5v14"/>',
+  playlist: '<path d="M8 6h13M8 12h13M8 18h9"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>',
+  add: '<path d="M12 5v14M5 12h14"/>',
+};
+
+function headIcon(name) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${HEAD_ICONS[name]}</svg>`;
+}
+
+function buildGpHeaderExtra(wb) {
+  const wrap = el('div', { class: 'wb-gpp-head-extra' });
+
+  wrap.appendChild(el('button', {
+    class: 'gpp-icon-btn has-label wb-head-back',
+    type: 'button',
+    'aria-label': 'Back to workbooks',
+    title: 'Back to workbooks',
+    html: `${headIcon('back')}<span class="gpp-btn-label">Workbooks</span>`,
+    onClick: (e) => {
+      e.stopPropagation();
+      closeWorkbookDetail();
+      render();
+    },
+  }));
+
+  detailPositionEl = el('span', { class: 'wb-head-position', 'aria-live': 'polite' });
+
+  detailPrevBtn = el('button', {
+    class: 'gpp-icon-btn has-label',
+    type: 'button',
+    'aria-label': 'Previous exercise',
+    title: 'Previous exercise',
+    html: `${headIcon('prev')}<span class="gpp-btn-label">Prev</span>`,
+    onClick: (e) => { e.stopPropagation(); goPrev(); },
+  });
+
+  detailNextBtn = el('button', {
+    class: 'gpp-icon-btn has-label',
+    type: 'button',
+    'aria-label': 'Next exercise',
+    title: 'Next exercise',
+    html: `${headIcon('next')}<span class="gpp-btn-label">Next</span>`,
+    onClick: (e) => { e.stopPropagation(); advance(); },
+  });
+
+  const loopHint = 'Loop on repeats the current exercise; loop off advances to the next one automatically.';
+  const loopLabel = el('label', {
+    class: 'wb-head-loop gpp-icon-btn has-label', title: loopHint, 'aria-label': 'Loop exercise',
+  });
+  detailLoopInput = el('input', { type: 'checkbox' });
+  detailLoopInput.checked = !!wb.loopEnabled;
+  detailLoopInput.addEventListener('change', () => onLoopToggleChange(detailLoopInput.checked));
+  loopLabel.appendChild(detailLoopInput);
+  loopLabel.appendChild(el('span', { class: 'gpp-btn-label', text: 'Loop' }));
+
+  detailPlaylistBtn = el('button', {
+    class: 'gpp-icon-btn has-label wb-head-playlist',
+    type: 'button',
+    'aria-label': 'Open playlist',
+    title: 'Open playlist',
+    html: `${headIcon('playlist')}<span class="gpp-btn-label">Playlist</span>`,
+    onClick: (e) => {
+      e.stopPropagation();
+      const fresh = getWorkbook(openWorkbookId);
+      if (fresh) openPlaylistDrawer(fresh);
+    },
+  });
+
+  detailAddBtnHeader = el('button', {
+    class: 'gpp-icon-btn has-label wb-head-add',
+    type: 'button',
+    'aria-label': 'Add exercises',
+    title: 'Add exercises',
+    html: `${headIcon('add')}<span class="gpp-btn-label">Add</span>`,
+    onClick: (e) => {
+      e.stopPropagation();
+      openAddExercisesPicker(wb);
+    },
+  });
+
+  wrap.append(
+    detailPositionEl,
+    detailPrevBtn,
+    detailNextBtn,
+    loopLabel,
+    detailPlaylistBtn,
+    detailAddBtnHeader,
+  );
+
+  syncPositionReadout(wb);
+  syncLoopToggle(wb);
+  syncTransportDisabled(wb);
+  syncPlaylistLabel(wb);
+  return wrap;
+}
+
 function syncPositionReadout(wb) {
   if (!detailPositionEl) return;
   if (!wb || !wb.entries.length) {
     detailPositionEl.textContent = '';
+    syncPlaylistLabel(wb);
     return;
   }
   const active = getActiveWorkbookEntry(wb.id);
   if (!active) {
     detailPositionEl.textContent = '';
+    syncPlaylistLabel(wb);
     return;
   }
   detailPositionEl.textContent = `${active.index + 1} / ${wb.entries.length}`;
+  syncPlaylistLabel(wb);
 }
 
 function syncEntryHighlights(wb) {
@@ -448,6 +607,7 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       initialTuning: item.tuning,
       initialRetuneMode: item.retuneMode,
       exerciseScope: segment,
+      headerExtra: buildGpHeaderExtra(wb),
       onPracticeSettingsChange: (settings) => {
         updateExercisePracticeSettings(item.id, settings);
         if (settings.loopEnabled != null) {
@@ -547,8 +707,11 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
         return;
       }
       detailMountHandle = handle;
+      setDetailGpChrome(true);
       return;
     }
+
+    setDetailGpChrome(false);
 
     if (kind === 'audio' || kind === 'video') {
       const blob = exercise.attachmentId ? await getFileBlob(exercise.attachmentId) : null;
@@ -693,6 +856,7 @@ function buildEntryRow(wb, entry, index) {
     syncEntryHighlights(fresh);
     syncPositionReadout(fresh);
     syncPlayerHead(fresh);
+    closePlaylistDrawer();
     loadCurrentExercise({ autoPlay: false });
   });
 
@@ -798,8 +962,21 @@ function buildDetailShell(wb) {
 
   detailBodyEl.appendChild(player);
 
+  playlistDrawerEl = el('div', { class: 'wb-playlist-drawer', hidden: true });
+  const backdrop = el('div', { class: 'wb-playlist-backdrop' });
+  backdrop.addEventListener('click', closePlaylistDrawer);
+  const panel = el('div', { class: 'wb-playlist-panel' });
+  const panelHead = el('div', { class: 'wb-playlist-panel-head' });
+  panelHead.appendChild(el('h3', { class: 'wb-playlist-panel-title', text: 'Playlist' }));
+  panelHead.appendChild(el('button', {
+    class: 'btn sm wb-playlist-close', type: 'button', 'aria-label': 'Close playlist', text: '×',
+    onClick: closePlaylistDrawer,
+  }));
+  panel.appendChild(panelHead);
   detailEntryListEl = el('div', { class: 'wb-entry-list' });
-  detailBodyEl.appendChild(detailEntryListEl);
+  panel.appendChild(detailEntryListEl);
+  playlistDrawerEl.append(backdrop, panel);
+  detailBodyEl.appendChild(playlistDrawerEl);
 
   renderEntryList(wb);
   syncTransportDisabled(wb);
@@ -1209,6 +1386,10 @@ function wireEscape() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (dialogRoot && dialogRoot.children.length) return;
+    if (playlistDrawerEl && !playlistDrawerEl.hidden) {
+      closePlaylistDrawer();
+      return;
+    }
     if (!openWorkbookId) return;
     const sec = document.getElementById('sec-workbooks');
     if (!sec || !sec.classList.contains('active')) return;
