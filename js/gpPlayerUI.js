@@ -213,8 +213,9 @@ export function mountGpPlayer(host, {
   const stageContent = el('div', { class: 'gpp-stage-content' }, [scorePane, analysisPane]);
 
   const stagePane = el('div', { class: 'gpp-stage-pane' });
-  const transportHost = el('div');
-  stagePane.append(stageContent, transportHost);
+  const transportHost = el('div', { class: 'gpp-transport-anchor' });
+  scorePane.appendChild(transportHost);
+  stagePane.append(stageContent);
 
   const chrome = el('div', { class: 'gpp-chrome' });
   chrome.append(scoreHeader, stagePane);
@@ -266,6 +267,12 @@ export function mountGpPlayer(host, {
     runAnalysis(analysisResultsEl);
   }
 
+  function placeTransport() {
+    const target = viewMode === 'analyze' ? analysisPane : scorePane;
+    if (transportHost.parentElement !== target) target.appendChild(transportHost);
+    transport?.publishPad?.();
+  }
+
   function setViewMode(mode, { runAnalysis: shouldAnalyze = true } = {}) {
     if (!GPP_VIEW_MODES.includes(mode)) mode = 'score';
     if (viewMode === mode && !shouldAnalyze) {
@@ -276,15 +283,18 @@ export function mountGpPlayer(host, {
     persistViewMode(mode);
     applyViewModeClasses(host, mode);
     syncViewPicker();
+    placeTransport();
     if (shouldAnalyze && viewModeNeedsAnalysis(mode)) maybeRunAnalysis({ force: true });
     requestAnimationFrame(() => {
       refreshScoreSurface();
       layoutMetrics?.refresh();
+      transport?.publishPad?.();
     });
   }
 
   applyViewModeClasses(host, viewMode);
   syncViewPicker();
+  placeTransport();
 
   function currentTrackLabel() {
     if (state.viewKind === 'drum') {
@@ -1065,6 +1075,7 @@ export function mountGpPlayer(host, {
     layoutMetrics = installGppLayoutMetrics({ host, chrome, section: standaloneSection });
   }
   layoutMetrics?.refresh();
+  transport?.publishPad?.();
 
   return {
     player,

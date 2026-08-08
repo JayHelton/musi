@@ -7,11 +7,14 @@ import { el } from './dom.js';
  * @param {object} api
  */
 export function mountTransportDock(host, api = {}) {
-  const noop = { sync() {}, destroy() {} };
+  const noop = { sync() {}, publishPad() {}, destroy() {} };
   if (!host) return noop;
 
   host.innerHTML = '';
-  host.classList.add('gpp-transport-dock');
+  host.classList.add('gpp-transport-anchor');
+
+  const dock = el('div', { class: 'gpp-transport-dock' });
+  host.appendChild(dock);
 
   const primary = el('div', { class: 'gpp-transport-primary' });
   const secondary = el('div', { class: 'gpp-transport-secondary' });
@@ -59,13 +62,23 @@ export function mountTransportDock(host, api = {}) {
   const loopChip = el('span', { class: 'gpp-loop-chip is-off', text: 'Loop off' });
 
   secondary.append(measureEl, timeEl, loopChip);
-  host.append(primary, secondary);
+  dock.append(primary, secondary);
 
   prevBtn.addEventListener('click', () => api.onPrev?.());
   nextBtn.addEventListener('click', () => api.onNext?.());
   playBtn.addEventListener('click', () => api.onPlayPause?.());
   stopBtn.addEventListener('click', () => api.onStop?.());
   restartBtn.addEventListener('click', () => api.onRestart?.());
+
+  let ro = null;
+
+  function publishPad() {
+    const root = host.closest('.gpp-root');
+    if (!root) return;
+    const h = Math.ceil(dock.getBoundingClientRect().height);
+    const gap = 10;
+    root.style.setProperty('--gpp-transport-pad', `${h + gap}px`);
+  }
 
   function sync() {
     const playing = !!api.getPlaying?.();
@@ -87,14 +100,25 @@ export function mountTransportDock(host, api = {}) {
 
     prevBtn.disabled = api.canPrev?.() === false;
     nextBtn.disabled = api.canNext?.() === false;
+    publishPad();
   }
 
   function destroy() {
+    ro?.disconnect();
+    ro = null;
+    const root = host.closest('.gpp-root');
+    root?.style.removeProperty('--gpp-transport-pad');
     host.innerHTML = '';
-    host.classList.remove('gpp-transport-dock');
+    host.classList.remove('gpp-transport-anchor');
+  }
+
+  if (typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => publishPad());
+    ro.observe(dock);
   }
 
   sync();
+  requestAnimationFrame(publishPad);
 
-  return { sync, destroy };
+  return { sync, publishPad, destroy };
 }
