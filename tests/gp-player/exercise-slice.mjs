@@ -7,6 +7,10 @@ import {
   isSegmentExercise,
   buildExerciseGpResult,
   filterPracticeSettingsPatch,
+  serializeExerciseScore,
+  gpResultFromTabModelJson,
+  sliceGpResultByBeats,
+  segmentExerciseFileName,
 } from '../../js/gpExerciseScore.js';
 
 function make16BarModel() {
@@ -212,5 +216,132 @@ assert.equal(segmentStored.measureEnd, 7);
 assert.equal(segmentStored.startBeat, 8);
 assert.equal(segmentStored.endBeat, 16);
 assert.equal(isSegmentExercise(segmentStored), true);
+
+// ---- serializeExerciseScore / gpResultFromTabModelJson round-trip ----
+function makeSecondGuitarModel() {
+  const model = make16BarModel();
+  model.events = model.events.map((e) => ({ ...e, fret: (e.fret + 2) % 12 }));
+  return model;
+}
+
+const multiGp = {
+  tempo: 120,
+  warnings: ['warn-b'],
+  tracks: [
+    {
+      index: 0,
+      name: 'Guitar 1',
+      tuning: 'Standard',
+      noteCount: fullModel.events.length,
+      model: fullModel,
+    },
+    {
+      index: 1,
+      name: 'Guitar 2',
+      tuning: 'Drop D',
+      noteCount: makeSecondGuitarModel().events.length,
+      model: makeSecondGuitarModel(),
+    },
+  ],
+  drumTracks: [{
+    index: 0,
+    name: 'Drums',
+    model: percModel,
+  }],
+};
+
+const serialized = serializeExerciseScore(multiGp, {
+  sourceFileName: 'solo.gp',
+  measureStart: 4,
+  measureEnd: 7,
+});
+const parsed = JSON.parse(serialized);
+assert.equal(parsed.format, 'musi-tab-model');
+assert.equal(parsed.version, 2);
+assert.equal(parsed.tempo, 120);
+assert.equal(parsed.tracks.length, 2);
+assert.equal(parsed.drumTracks.length, 1);
+assert.deepEqual(parsed.source, { fileName: 'solo.gp', measureStart: 4, measureEnd: 7 });
+assert.equal(parsed.tracks[0].name, 'Guitar 1');
+assert.equal(parsed.tracks[1].tuning, 'Drop D');
+assert.equal(parsed.drumTracks[0].name, 'Drums');
+
+const roundTrip = gpResultFromTabModelJson(parsed);
+assert.equal(roundTrip.tempo, 120);
+assert.deepEqual(roundTrip.warnings, ['warn-b']);
+assert.equal(roundTrip.tracks.length, 2);
+assert.equal(roundTrip.tracks[0].name, 'Guitar 1');
+assert.equal(roundTrip.tracks[1].name, 'Guitar 2');
+assert.equal(roundTrip.tracks[0].tuning, 'Standard');
+assert.equal(roundTrip.tracks[1].tuning, 'Drop D');
+assert.equal(roundTrip.tracks[0].noteCount, fullModel.events.length);
+assert.equal(roundTrip.drumTracks.length, 1);
+assert.equal(roundTrip.drumTracks[0].name, 'Drums');
+assert.equal(roundTrip.tracks[0].model.measures.length, 16);
+assert.equal(roundTrip.drumTracks[0].model.measures.length, 16);
+
+// bars 5–8 slice: only 4 measures, no events outside window
+const slicedMulti = sliceGpResultByBeats(multiGp, { startBeat: 8, endBeat: 16 });
+const sliceJson = serializeExerciseScore(slicedMulti, {
+  sourceFileName: 'solo.gp',
+  measureStart: 4,
+  measureEnd: 7,
+});
+const slicePayload = JSON.parse(sliceJson);
+assert.equal(slicePayload.tracks[0].model.measures.length, 4);
+assert.equal(slicePayload.tracks[1].model.measures.length, 4);
+assert.equal(slicePayload.drumTracks[0].model.measures.length, 4);
+for (const track of slicePayload.tracks) {
+  assert.ok(track.model.events.every((e) => e.start >= -1e-6 && e.start < 8));
+  assert.ok(!track.model.events.some((e) => e.start + 8 < 8 - 1e-6));
+}
+const sliceGp = gpResultFromTabModelJson(slicePayload);
+assert.equal(sliceGp.tracks[0].model.measures.length, 4);
+assert.equal(sliceGp.tracks[0].model.events[0].fret, 4 % 7);
+
+// legacy single-track payload
+const legacy = {
+  tempo: 90,
+  trackName: 'Lead',
+  model: fullModel,
+};
+const legacyGp = gpResultFromTabModelJson(legacy);
+assert.equal(legacyGp.tempo, 90);
+assert.equal(legacyGp.tracks.length, 1);
+assert.equal(legacyGp.tracks[0].name, 'Lead');
+assert.equal(legacyGp.drumTracks.length, 0);
+
+// bare model
+const bareGp = gpResultFromTabModelJson(fullModel, { fallbackName: 'Bare' });
+assert.equal(bareGp.tracks[0].name, 'Bare');
+
+// junk throws documented error
+assert.throws(
+  () => gpResultFromTabModelJson({ tempo: 120 }),
+  /This exercise snippet is missing tab data\./,
+);
+assert.throws(
+  () => gpResultFromTabModelJson(null),
+  /This exercise snippet is missing tab data\./,
+);
+
+// segment file names
+assert.equal(segmentExerciseFileName('solo.gp', 'Bars 5-8'), 'solo - Bars 5-8.musi-tab.json');
+assert.equal(segmentExerciseFileName('my/song!.gp5', 'Part A'), 'my song - Part A.musi-tab.json');
+// An en dash must fold to a hyphen, not vanish — "Bars 9–12" becoming
+// "Bars 912" reads like bar 912.
+assert.equal(
+  segmentExerciseFileName('seed.musi-tab.json', 'Bars 9\u201312'),
+  'seed - Bars 9-12.musi-tab.json',
+);
+assert.equal(
+  segmentExerciseFileName('solo.gp', 'Verse \u00b7 Bars 5\u20138'),
+  'solo - Verse Bars 5-8.musi-tab.json',
+);
+const fnA = segmentExerciseFileName('score', 'Bars 1-4');
+const fnB = segmentExerciseFileName('score', 'Bars 5-8');
+assert.notEqual(fnA, fnB);
+assert.ok(fnA.endsWith('.musi-tab.json'));
+assert.ok(fnB.endsWith('.musi-tab.json'));
 
 console.log('gp exercise slice: ok');

@@ -24,6 +24,7 @@ import { resolveScoreKey } from './gpAnnotations.js';
 import {
   buildExerciseGpResult,
   filterPracticeSettingsPatch,
+  gpResultFromTabModelJson,
   isSegmentExercise,
 } from './gpExerciseScore.js';
 
@@ -1487,20 +1488,7 @@ async function mountGpExercise(item, mountHost, blob) {
     let gp;
     if (isTabModelItem(item)) {
       const raw = JSON.parse(await blob.text());
-      const model = raw?.model || raw;
-      if (!model?.events) throw new Error('This exercise snippet is missing tab data.');
-      gp = {
-        tempo: Number(raw.tempo) || Number(model.tempo) || 120,
-        tracks: [{
-          index: 0,
-          name: raw.trackName || item.name || 'Exercise',
-          tuning: model.tuning || 'Standard',
-          noteCount: (model.events || []).filter((e) => e.midi != null).length,
-          model,
-        }],
-        drumTracks: [],
-        warnings: [],
-      };
+      gp = gpResultFromTabModelJson(raw, { fallbackName: item.name || 'Exercise' });
     } else {
       const buf = await blob.arrayBuffer();
       gp = await parseGuitarPro(buf);
