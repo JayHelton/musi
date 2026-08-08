@@ -782,7 +782,8 @@ function buildDetailShell(wb) {
   detailLoopInput.checked = !!wb.loopEnabled;
   detailLoopInput.addEventListener('change', () => onLoopToggleChange(detailLoopInput.checked));
   loopLabel.appendChild(detailLoopInput);
-  loopLabel.appendChild(document.createTextNode(' Loop exercise'));
+  loopLabel.appendChild(document.createTextNode(' Loop'));
+  loopLabel.appendChild(el('span', { class: 'wb-label-tail', text: ' exercise' }));
   transport.appendChild(loopLabel);
   transport.appendChild(el('span', {
     class: 'wb-loop-hint',
@@ -809,12 +810,17 @@ function buildDetailShell(wb) {
 function renderDetailActions(wb) {
   if (!detailActionsEl) return;
   detailActionsEl.innerHTML = '';
-  detailActionsEl.appendChild(el('button', {
-    class: 'btn sm primary', type: 'button', text: '+ Add exercises',
+  const addBtn = el('button', {
+    class: 'btn sm primary wb-detail-add-btn', type: 'button',
+    title: 'Add exercises', 'aria-label': 'Add exercises',
     onClick: () => openAddExercisesPicker(wb),
-  }));
+  });
+  addBtn.appendChild(document.createTextNode('+ Add'));
+  addBtn.appendChild(el('span', { class: 'wb-label-tail', text: ' exercises' }));
+  detailActionsEl.appendChild(addBtn);
   detailActionsEl.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: 'Rename',
+    class: 'btn sm wb-detail-rename-btn', type: 'button', text: 'Rename',
+    title: 'Rename workbook',
     onClick: () => {
       openPrompt('Rename workbook', wb.name, 'Save', (name) => {
         if (renameWorkbook(wb.id, name)) {
