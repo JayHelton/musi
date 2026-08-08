@@ -537,13 +537,19 @@ assert.equal(mounted.getState().bpm, 120);
 assert.equal(mounted.getState().scoreBpm, 120);
 assert.equal(mounted.getState().bpmUserOverride, false);
 assert.ok(gpHost.querySelector('.gpp-chrome'), 'player should wrap chrome');
-const analysisPanel = gpHost.querySelector('.gpp-analysis');
-assert.ok(analysisPanel, 'inline analysis details should exist');
-assert.ok(!gpHost.querySelector('.gpp-chrome .gpp-analysis'), 'analysis must sit outside chrome');
-const analyzeHeaderBtn = [...gpHost.querySelectorAll('button')].find(
+const analysisPane = gpHost.querySelector('.gpp-analysis-pane');
+assert.ok(analysisPane, 'analysis pane should exist inside chrome');
+assert.ok(analysisPane.querySelector('.gpp-analysis-results'), 'analysis results should mount in pane');
+assert.ok(gpHost.dataset.view === 'score', 'default view should be score');
+const viewPicker = gpHost.querySelector('.gpp-view-picker');
+assert.ok(viewPicker, 'view picker should exist');
+assert.equal(viewPicker.querySelectorAll('.gpp-view-btn').length, 3, 'view picker should have three modes');
+const analyzeToolbarBtn = gpHost.querySelector('.gpp-analysis-rerun');
+assert.ok(analyzeToolbarBtn, 'analysis pane should expose re-run control');
+const duplicateAnalyzeBtn = [...gpHost.querySelectorAll('.gpp-score-actions button')].find(
   (b) => b.getAttribute?.('aria-label') === 'Analyze score',
 );
-assert.ok(analyzeHeaderBtn, 'header Analyze button should exist');
+assert.ok(!duplicateAnalyzeBtn, 'toolbar must not duplicate Analyze affordance');
 mounted.destroy();
 
 const mountedNullBpm = mountGpPlayer(gpHost, { gpResult: fakeGp, title: 'Smoke GP', initialBpm: null });
