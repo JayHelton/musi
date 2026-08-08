@@ -30,6 +30,7 @@ export function mountAnnotationsDrawer(host, {
   getCurrentSelection = () => null,
   onSave = null,
   onDelete = null,
+  onNavigate = null,
 } = {}) {
   const noop = {
     open() {},
@@ -78,14 +79,14 @@ export function mountAnnotationsDrawer(host, {
   });
   const selectHint = el('p', {
     class: 'gpp-anno-hint gpp-anno-select-hint',
-    text: 'Select measures first (enable Loop or set a bar range in Practice settings), then add a note.',
+    text: 'Long-press a bar on the score, or drag across bars while this panel is open.',
     hidden: true,
     role: 'status',
     'aria-live': 'polite',
   });
   const emptyHint = el('p', {
     class: 'gpp-anno-hint',
-    text: 'Select a measure range on the score, then add notes about what you\u2019re practicing \u2014 scale, mode, key shifts, etc.',
+    text: 'Long-press any bar to add a note, or drag a range on the score while this panel is open.',
   });
   const listEl = el('div', { class: 'gpp-anno-list' });
   const editorWrap = el('div', { class: 'gpp-anno-editor', hidden: true });
@@ -193,6 +194,7 @@ export function mountAnnotationsDrawer(host, {
         onClick: () => {
           selectedId = anno.id;
           hideSelectHint();
+          if (typeof onNavigate === 'function') onNavigate(anno);
           showEditor(anno);
           renderList();
         },
@@ -308,11 +310,13 @@ export function mountAnnotationsDrawer(host, {
     openState = true;
     sync();
     paintOpen();
+    if (typeof onNavigate === 'function') onNavigate(null, { noteSelectMode: true });
   }
   function close() {
     openState = false;
     hideSelectHint();
     paintOpen();
+    if (typeof onNavigate === 'function') onNavigate(null, { noteSelectMode: false });
   }
   function toggle() {
     if (openState) close();

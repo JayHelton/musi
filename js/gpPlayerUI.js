@@ -239,6 +239,9 @@ export function mountGpPlayer(host, {
   let layoutMetrics = null;
   let viewMode = loadViewMode();
   let analysisTrackKey = '';
+  let noteDraftSelection = null;
+  let highlightedAnnoId = null;
+  let noteSelectActive = false;
 
   function trackAnalysisKey() {
     return `${state.viewKind}:${state.viewIndex}`;
@@ -405,9 +408,61 @@ export function mountGpPlayer(host, {
 
   function refreshAnnotations() {
     annoDrawer?.sync();
+    syncPlaybackUi({
+      playing: player.playing,
+      currentSec: player.currentSec,
+      durationSec: player.durationSec,
+      measureIndex: player.measureIndex,
+    });
+  }
+
+  function measureSelectionFromIndices(measureStart, measureEnd) {
+    const measures = state.viewModel?.measures || [];
+    const beats = beatsFromMeasureRange(measures, measureStart, measureEnd);
+    return {
+      startBeat: beats.startBeat,
+      endBeat: beats.endBeat,
+      measureStart,
+      measureEnd,
+    };
+  }
+
+  function openNoteEditorForMeasure(mi) {
+    if (!scoreKey) return;
+    const sel = measureSelectionFromIndices(mi, mi);
+    noteDraftSelection = sel;
+    highlightedAnnoId = null;
+    annoDrawer?.open();
+    annoDrawer?.showEditor({ ...sel });
+    syncNoteSelectMode();
+  }
+
+  function openNoteEditorForAnno(anno) {
+    if (!anno) return;
+    highlightedAnnoId = anno.id;
+    const startMi = anno.measureStart ?? 0;
+    parchment?.scrollToMeasure(startMi);
+    annoDrawer?.showEditor(anno);
+    syncPlaybackUi({
+      playing: player.playing,
+      currentSec: player.currentSec,
+      durationSec: player.durationSec,
+      measureIndex: player.measureIndex,
+    });
+  }
+
+  function syncNoteSelectMode() {
+    const active = !!(annoDrawer?.isOpen?.() && scoreKey);
+    if (active === noteSelectActive) {
+      parchment?.update({ noteSelectMode: active });
+      return;
+    }
+    noteSelectActive = active;
+    parchment?.setNoteSelectMode?.(active);
   }
 
   function getCurrentSelection() {
+    if (noteDraftSelection) return { ...noteDraftSelection };
     const measures = state.viewModel?.measures || [];
     if (state.loopEnabled) {
       if (state.loopStartBeat == null || state.loopEndBeat == null) return null;
@@ -460,9 +515,15 @@ export function mountGpPlayer(host, {
       playing: playing && !resting,
       measureIndex,
       selection: parchmentSelection(),
+      noteDraft: noteDraftSelection
+        ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }
+        : null,
       loopSelectMode: state.loopSelectMode,
+      noteSelectMode: noteSelectActive,
       zoom: state.parchmentZoom,
       autoFollow: state.autoFollow,
+      annotations: scoreKey ? listAnnotations(scoreKey) : [],
+      highlightedAnnotationId: highlightedAnnoId,
     });
     measureNav?.update({
       measureIndex,
@@ -639,6 +700,26 @@ export function mountGpPlayer(host, {
       ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
       : null,
     onMeasureClick: (mi) => seekToBar(mi, { autoplay: player.playing }),
+    onMeasureLongPress: (mi) => {
+      if (!scoreKey) {
+        annoDrawer?.open();
+        return;
+      }
+      openNoteEditorForMeasure(mi);
+    },
+    onAnnotationClick: (anno) => openNoteEditorForAnno(anno),
+    onNoteSelectionChange: (sel) => {
+      if (!scoreKey || !sel) return;
+      const measures = state.viewModel?.measures || [];
+      const { startIdx, endIdx } = measureIndicesForBeats(measures, sel.startBeat, sel.endBeat);
+      noteDraftSelection = {
+        startBeat: sel.startBeat,
+        endBeat: sel.endBeat,
+        measureStart: startIdx,
+        measureEnd: endIdx,
+      };
+      annoDrawer?.showEditor({ ...noteDraftSelection });
+    },
     onSelectionChange: (sel) => {
       loopController?.handleSelectionChange(sel);
     },
@@ -735,6 +816,15 @@ export function mountGpPlayer(host, {
       getScoreKey: () => scoreKey,
       getAnnotations: () => (scoreKey ? listAnnotations(scoreKey) : []),
       getCurrentSelection,
+      onNavigate: (anno, opts) => {
+        if (opts?.noteSelectMode != null) {
+          noteSelectActive = !!opts.noteSelectMode;
+          syncNoteSelectMode();
+          if (!opts.noteSelectMode) noteDraftSelection = null;
+          return;
+        }
+        if (anno) openNoteEditorForAnno(anno);
+      },
       onSave: (payload) => {
         if (!scoreKey) return null;
         const measures = state.viewModel?.measures || [];
@@ -759,25 +849,17 @@ export function mountGpPlayer(host, {
         } else {
           saved = addAnnotation(scoreKey, fields);
         }
+        noteDraftSelection = null;
+        if (saved) highlightedAnnoId = saved.id;
         refreshAnnotations();
-        syncPlaybackUi({
-          playing: player.playing,
-          currentSec: player.currentSec,
-          durationSec: player.durationSec,
-          measureIndex: player.measureIndex,
-        });
         return saved;
       },
       onDelete: (id) => {
         if (!scoreKey || !id) return;
         removeAnnotation(scoreKey, id);
+        if (highlightedAnnoId === id) highlightedAnnoId = null;
+        noteDraftSelection = null;
         refreshAnnotations();
-        syncPlaybackUi({
-          playing: player.playing,
-          currentSec: player.currentSec,
-          durationSec: player.durationSec,
-          measureIndex: player.measureIndex,
-        });
       },
     });
   } catch (e) {

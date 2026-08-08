@@ -619,6 +619,182 @@
   border: 1px solid rgba(58, 42, 24, 0.35);
 }
 
+.gpp-parch-notes-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 3px;
+  min-height: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.gpp-parch-measure.has-anno-start {
+  padding-top: 2px;
+}
+
+.gpp-parch-measure.has-anno-start .gpp-parch-bar-num,
+.gpp-parch-measure.has-anno-start .gpp-parch-marker {
+  margin-top: 0;
+}
+
+.gpp-parch-anno-callout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  max-width: 100%;
+  padding: 3px 6px;
+  border: 1px solid rgba(58, 42, 24, 0.45);
+  border-radius: 6px;
+  background: rgba(255, 252, 240, 0.95);
+  box-shadow: 0 1px 3px rgba(26, 20, 32, 0.12);
+  color: #1e1408;
+  font-family: var(--font-body, "Pixelify Sans", sans-serif);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+.gpp-parch-anno-callout:hover,
+.gpp-parch-anno-callout:focus-visible {
+  border-color: #6b4c9a;
+  background: #fffef8;
+  outline: none;
+  box-shadow: 0 2px 6px rgba(107, 76, 154, 0.2);
+}
+.gpp-parch-anno-callout.is-highlighted {
+  border-color: #6b4c9a;
+  background: rgba(107, 76, 154, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(107, 76, 154, 0.35);
+}
+.gpp-parch-anno-callout.is-stacked {
+  margin-top: 0;
+}
+
+.gpp-parch-anno-title {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1e1408;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.gpp-parch-anno-preview {
+  font-size: 9px;
+  line-height: 1.3;
+  color: rgba(30, 20, 8, 0.78);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.gpp-parch-anno-range {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: rgba(107, 76, 154, 0.9);
+  text-transform: uppercase;
+}
+
+.gpp-parch-anno-span {
+  position: absolute;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    rgba(107, 76, 154, 0.55),
+    rgba(107, 76, 154, 0.25) 60%,
+    rgba(107, 76, 154, 0.55)
+  );
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+.gpp-parch-anno-span.is-highlighted {
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(107, 76, 154, 0.75),
+    rgba(107, 76, 154, 0.4) 60%,
+    rgba(107, 76, 154, 0.75)
+  );
+}
+
+.gpp-parch-measure.in-anno-span {
+  background: rgba(107, 76, 154, 0.04);
+}
+.gpp-parch-measure.in-anno-span.is-active {
+  background: rgba(107, 76, 154, 0.1);
+}
+.gpp-parch-measure.in-anno-span.in-loop.is-active {
+  background: rgba(107, 76, 154, 0.12);
+}
+
+.gpp-parch-note-draft {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 1px dashed rgba(107, 76, 154, 0.65);
+  background: rgba(107, 76, 154, 0.08);
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 4px;
+}
+
+.gpp-parch-measure.note-selecting {
+  outline: 1px dashed rgba(107, 76, 154, 0.7);
+  outline-offset: 1px;
+  background: rgba(107, 76, 154, 0.06);
+}
+
+.gpp-parch-measure.is-active .gpp-parch-anno-callout {
+  border-color: rgba(107, 76, 154, 0.65);
+}
+.gpp-parch-measure.in-loop .gpp-parch-anno-callout {
+  background: rgba(255, 252, 240, 0.92);
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .gpp-parch-notes-rail {
+    gap: 2px;
+    margin-bottom: 2px;
+  }
+  .gpp-parch-anno-callout {
+    padding: 2px 5px;
+    border-radius: 4px;
+  }
+  .gpp-parch-anno-callout:not(.is-expanded) .gpp-parch-anno-preview {
+    display: none;
+  }
+  .gpp-parch-anno-callout:not(.is-expanded) .gpp-parch-anno-range {
+    display: none;
+  }
+  .gpp-parch-anno-callout:not(.is-expanded) .gpp-parch-anno-title {
+    font-size: 9px;
+    max-width: 72px;
+  }
+  .gpp-parch-anno-callout.is-expanded {
+    position: relative;
+    z-index: 5;
+    box-shadow: 0 3px 10px rgba(26, 20, 32, 0.2);
+  }
+  .gpp-parch-anno-callout.is-expanded .gpp-parch-anno-preview {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+  }
+  .gpp-parch-anno-span {
+    height: 2px;
+  }
+}
+
 /* ── Transport dock (GBC chrome, pinned inside root) ──────────────────── */
 
 .gpp-transport-dock {

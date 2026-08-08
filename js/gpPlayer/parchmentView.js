@@ -4,6 +4,22 @@ import { DRUM_LANES } from '../gpFollowView.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
 const USER_SCROLL_COOLDOWN_MS = 2500;
+const LONG_PRESS_MS = 450;
+
+function previewAnnoText(text, max = 56) {
+  const t = (text || '').trim().replace(/\s+/g, ' ');
+  if (!t) return '';
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+function formatAnnoRange(anno) {
+  if (anno.measureStart != null && anno.measureEnd != null) {
+    const a = anno.measureStart + 1;
+    const b = anno.measureEnd + 1;
+    return a === b ? `Bar ${a}` : `Bars ${a}–${b}`;
+  }
+  return 'Section';
+}
 
 function beatPctInMeasure(beat, m) {
   const { start, len } = measureSpan(m);
@@ -24,8 +40,12 @@ export function mountParchmentView(host, {
   zoom = 1,
   selection = null,
   onMeasureClick = null,
+  onMeasureLongPress = null,
   onSelectionChange = null,
+  onNoteSelectionChange = null,
+  onAnnotationClick = null,
   loopSelectMode = false,
+  noteSelectMode = false,
   autoFollow = true,
 } = {}) {
   const noop = {
@@ -34,6 +54,8 @@ export function mountParchmentView(host, {
     setZoom() {},
     setSelection() {},
     setLoopSelectMode() {},
+    setNoteSelectMode() {},
+    scrollToMeasure() {},
     destroy() {},
   };
   if (!host) return noop;
@@ -45,7 +67,11 @@ export function mountParchmentView(host, {
   let isDrum = !guitarModel && !!percModel;
   let currentZoom = zoom;
   let sel = selection ? { ...selection } : null;
+  let noteSel = null;
+  let annotations = [];
+  let highlightedAnnoId = null;
   let selectMode = !!loopSelectMode;
+  let noteMode = !!noteSelectMode;
   let follow = !!autoFollow;
   let userScrollUntil = 0;
   let destroyed = false;
@@ -54,6 +80,8 @@ export function mountParchmentView(host, {
   let systemEls = [];
   let playheadEl = null;
   let selOverlayEl = null;
+  let noteOverlayEl = null;
+  let annoSpanEls = [];
   let handleStart = null;
   let handleEnd = null;
   let lastActive = -1;
@@ -61,7 +89,11 @@ export function mountParchmentView(host, {
   let rafId = 0;
   let mps = 2;
   let drag = null;
+  let noteDrag = null;
   let resizeDrag = null;
+  let longPressTimer = null;
+  let longPressTarget = null;
+  let suppressClickUntil = 0;
 
   const viewport = document.createElement('div');
   viewport.className = 'gpp-parch-viewport';
@@ -100,6 +132,10 @@ export function mountParchmentView(host, {
     const wrap = document.createElement('div');
     wrap.className = 'gpp-parch-measure';
     wrap.dataset.index = String(mi);
+
+    const notesRail = document.createElement('div');
+    notesRail.className = 'gpp-parch-notes-rail';
+    wrap.appendChild(notesRail);
 
     const barNum = document.createElement('div');
     barNum.className = 'gpp-parch-bar-num';
@@ -172,13 +208,22 @@ export function mountParchmentView(host, {
     wrap.appendChild(staff);
 
     wrap.addEventListener('click', (e) => {
-      if (selectMode || resizeDrag || drag) return;
+      if (Date.now() < suppressClickUntil) return;
+      if (e.target.closest('.gpp-parch-anno-callout')) return;
+      if (selectMode || resizeDrag || drag || noteDrag) return;
       if (typeof onMeasureClick === 'function') onMeasureClick(mi);
     });
 
-    if (selectMode) {
+    if (selectMode || noteMode) {
       wrap.style.touchAction = 'pan-y';
       wrap.addEventListener('pointerdown', onPointerDown);
+    }
+
+    if (typeof onMeasureLongPress === 'function') {
+      wrap.addEventListener('pointerdown', onLongPressDown);
+      wrap.addEventListener('pointerup', onLongPressUp);
+      wrap.addEventListener('pointercancel', onLongPressUp);
+      wrap.addEventListener('pointermove', onLongPressMove);
     }
 
     return wrap;
@@ -220,6 +265,8 @@ export function mountParchmentView(host, {
     sheet.appendChild(playheadEl);
 
     paintSelection(sel);
+    paintNoteDraft(noteSel);
+    paintAnnotations(annotations, highlightedAnnoId);
     paintActive(lastActive, false);
   }
 
@@ -239,20 +286,71 @@ export function mountParchmentView(host, {
     return snapBeat(start + frac * len);
   }
 
+  function onLongPressDown(e) {
+    if (e.button !== 0 || selectMode || noteMode || resizeDrag) return;
+    if (e.target.closest('.gpp-parch-anno-callout')) return;
+    clearLongPress();
+    longPressTarget = e.currentTarget;
+    const mi = Number(longPressTarget.dataset.index);
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      suppressClickUntil = Date.now() + 400;
+      if (typeof onMeasureLongPress === 'function') onMeasureLongPress(mi);
+    }, LONG_PRESS_MS);
+  }
+
+  function onLongPressUp(e) {
+    if (longPressTarget && e.currentTarget === longPressTarget) clearLongPress();
+  }
+
+  function onLongPressMove(e) {
+    if (!longPressTimer || !longPressTarget) return;
+    const rect = longPressTarget.getBoundingClientRect();
+    const dx = e.clientX - (rect.left + rect.width / 2);
+    const dy = e.clientY - (rect.top + rect.height / 2);
+    if (Math.hypot(dx, dy) > 12) clearLongPress();
+  }
+
+  function clearLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+    longPressTarget = null;
+  }
+
   function fireSelection(selObj) {
     if (typeof onSelectionChange === 'function') onSelectionChange(selObj ? { ...selObj } : null);
   }
 
   function onPointerDown(e) {
-    if (!selectMode || e.button !== 0) return;
+    if (e.button !== 0) return;
     const beat = beatFromPointer(e.clientX, e.clientY);
     if (beat == null) return;
+    if (noteMode && !selectMode) {
+      noteDrag = { anchorBeat: beat, pointerId: e.pointerId, moved: false };
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+    if (!selectMode) return;
     drag = { anchorBeat: beat, pointerId: e.pointerId, moved: false };
     e.currentTarget.setPointerCapture?.(e.pointerId);
     e.preventDefault();
   }
 
   function onPointerMove(e) {
+    if (noteDrag && noteDrag.pointerId === e.pointerId) {
+      const beat = beatFromPointer(e.clientX, e.clientY);
+      if (beat == null) return;
+      if (Math.abs(beat - noteDrag.anchorBeat) > 0.01) noteDrag.moved = true;
+      const norm = normalizeBeatRange(noteDrag.anchorBeat, beat, { minSpan: 1, songEndBeat: totalBeats() });
+      if (!norm) return;
+      noteSel = norm;
+      paintNoteDraft(noteSel);
+      highlightNoteSelecting(norm);
+      return;
+    }
     if (!drag || drag.pointerId !== e.pointerId) return;
     const beat = beatFromPointer(e.clientX, e.clientY);
     if (beat == null) return;
@@ -265,6 +363,14 @@ export function mountParchmentView(host, {
   }
 
   function onPointerUp(e) {
+    if (noteDrag && noteDrag.pointerId === e.pointerId) {
+      if (noteDrag.moved && noteSel && typeof onNoteSelectionChange === 'function') {
+        onNoteSelectionChange({ ...noteSel });
+      }
+      noteDrag = null;
+      clearNoteSelecting();
+      return;
+    }
     if (!drag || drag.pointerId !== e.pointerId) return;
     if (drag.moved && sel) fireSelection(sel);
     drag = null;
@@ -274,6 +380,18 @@ export function mountParchmentView(host, {
   host.addEventListener('pointermove', onPointerMove);
   host.addEventListener('pointerup', onPointerUp);
   host.addEventListener('pointercancel', onPointerUp);
+
+  function highlightNoteSelecting(norm) {
+    const { startIdx, endIdx } = beatToMeasureRange(norm.startBeat, norm.endBeat);
+    measureEls.forEach((el, i) => {
+      if (!el) return;
+      el.classList.toggle('note-selecting', i >= startIdx && i <= endIdx);
+    });
+  }
+
+  function clearNoteSelecting() {
+    measureEls.forEach((el) => el?.classList.remove('note-selecting'));
+  }
 
   function highlightSelecting(norm) {
     const { startIdx, endIdx } = beatToMeasureRange(norm.startBeat, norm.endBeat);
@@ -307,6 +425,116 @@ export function mountParchmentView(host, {
     if (handleStart) { handleStart.remove(); handleStart = null; }
     if (handleEnd) { handleEnd.remove(); handleEnd = null; }
     measureEls.forEach((el) => el?.classList.remove('in-loop'));
+  }
+
+  function removeNoteDraftDecor() {
+    if (noteOverlayEl) { noteOverlayEl.remove(); noteOverlayEl = null; }
+    clearNoteSelecting();
+  }
+
+  function removeAnnotationDecor() {
+    measureEls.forEach((el) => {
+      if (!el) return;
+      el.classList.remove('in-anno-span', 'has-anno-start');
+      const rail = el.querySelector('.gpp-parch-notes-rail');
+      if (rail) rail.innerHTML = '';
+    });
+    annoSpanEls.forEach((el) => el.remove());
+    annoSpanEls = [];
+  }
+
+  function paintNoteDraft(draft) {
+    removeNoteDraftDecor();
+    if (!draft) return;
+    const { startIdx, endIdx } = beatToMeasureRange(draft.startBeat, draft.endBeat);
+    const bounds = overlayBoundsForMeasureRange(startIdx, endIdx);
+    if (!bounds) return;
+    noteOverlayEl = document.createElement('div');
+    noteOverlayEl.className = 'gpp-parch-note-draft';
+    noteOverlayEl.style.left = `${bounds.left}px`;
+    noteOverlayEl.style.width = `${bounds.width}px`;
+    sheet.appendChild(noteOverlayEl);
+    for (let i = startIdx; i <= endIdx; i++) {
+      measureEls[i]?.classList.add('note-selecting');
+    }
+  }
+
+  function paintAnnotations(annos, highlightId) {
+    removeAnnotationDecor();
+    if (!annos?.length) return;
+
+    const byStart = new Map();
+    for (const anno of annos) {
+      const startMi = anno.measureStart != null
+        ? anno.measureStart
+        : beatToMeasureRange(anno.startBeat, anno.endBeat).startIdx;
+      if (!byStart.has(startMi)) byStart.set(startMi, []);
+      byStart.get(startMi).push(anno);
+    }
+
+    for (const [startMi, group] of byStart) {
+      const el = measureEls[startMi];
+      if (!el) continue;
+      const rail = el.querySelector('.gpp-parch-notes-rail');
+      if (!rail) continue;
+      el.classList.add('has-anno-start');
+      group.forEach((anno, slot) => {
+        const callout = document.createElement('button');
+        callout.type = 'button';
+        callout.className = 'gpp-parch-anno-callout'
+          + (anno.id === highlightId ? ' is-highlighted' : '')
+          + (slot > 0 ? ' is-stacked' : '');
+        callout.dataset.annoId = anno.id;
+        callout.setAttribute('aria-label', `${anno.title || 'Note'}: ${formatAnnoRange(anno)}`);
+
+        const title = document.createElement('span');
+        title.className = 'gpp-parch-anno-title';
+        title.textContent = anno.title || 'Note';
+
+        const preview = document.createElement('span');
+        preview.className = 'gpp-parch-anno-preview';
+        preview.textContent = previewAnnoText(anno.text);
+
+        const range = document.createElement('span');
+        range.className = 'gpp-parch-anno-range';
+        range.textContent = formatAnnoRange(anno);
+
+        callout.append(title, preview, range);
+        callout.addEventListener('click', (e) => {
+          e.stopPropagation();
+          suppressClickUntil = Date.now() + 300;
+          callout.classList.toggle('is-expanded');
+          if (typeof onAnnotationClick === 'function') onAnnotationClick(anno);
+        });
+        rail.appendChild(callout);
+      });
+    }
+
+    for (const anno of annos) {
+      const startMi = anno.measureStart != null
+        ? anno.measureStart
+        : beatToMeasureRange(anno.startBeat, anno.endBeat).startIdx;
+      const endMi = anno.measureEnd != null
+        ? anno.measureEnd
+        : beatToMeasureRange(anno.startBeat, anno.endBeat).endIdx;
+      if (endMi <= startMi) continue;
+
+      const bounds = overlayBoundsForMeasureRange(startMi, endMi);
+      if (!bounds) continue;
+
+      for (let i = startMi + 1; i <= endMi; i++) {
+        measureEls[i]?.classList.add('in-anno-span');
+      }
+
+      const spanEl = document.createElement('div');
+      spanEl.className = 'gpp-parch-anno-span'
+        + (anno.id === highlightId ? ' is-highlighted' : '');
+      spanEl.dataset.annoId = anno.id;
+      spanEl.style.left = `${bounds.left}px`;
+      spanEl.style.width = `${bounds.width}px`;
+      sheet.appendChild(spanEl);
+      annoSpanEls.push(spanEl);
+    }
   }
 
   function overlayBoundsForMeasureRange(startIdx, endIdx) {
@@ -432,28 +660,61 @@ export function mountParchmentView(host, {
     }
   }
 
+  function scrollToMeasure(mi) {
+    const el = measureEls[mi];
+    if (!el) return;
+    const vRect = viewport.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    const pad = 32;
+    if (eRect.top < vRect.top + pad) {
+      viewport.scrollTop += eRect.top - vRect.top - pad;
+    } else if (eRect.bottom > vRect.bottom - pad) {
+      viewport.scrollTop += eRect.bottom - vRect.bottom + pad;
+    }
+    const hPad = 16;
+    if (eRect.left < vRect.left + hPad) {
+      viewport.scrollLeft += eRect.left - vRect.left - hPad;
+    } else if (eRect.right > vRect.right - hPad) {
+      viewport.scrollLeft += eRect.right - vRect.right + hPad;
+    }
+  }
+
   function update({
     currentSec = 0,
     bpm = 120,
     playing = false,
     measureIndex = null,
     selection: nextSel = undefined,
+    noteDraft: nextNoteDraft = undefined,
     loopSelectMode: lsm = undefined,
+    noteSelectMode: nsm = undefined,
     zoom: z = undefined,
     autoFollow: af = undefined,
+    annotations: nextAnnos = undefined,
+    highlightedAnnotationId: highlightId = undefined,
   } = {}) {
     if (destroyed) return;
     if (z != null && z !== currentZoom) {
       currentZoom = z;
       rebuild();
     }
-    if (lsm != null && !!lsm !== selectMode) {
-      selectMode = !!lsm;
-      rebuild();
-    }
+    const modeChanged = (lsm != null && !!lsm !== selectMode)
+      || (nsm != null && !!nsm !== noteMode);
+    if (lsm != null) selectMode = !!lsm;
+    if (nsm != null) noteMode = !!nsm;
+    if (modeChanged) rebuild();
     if (nextSel !== undefined) {
       sel = nextSel ? { ...nextSel } : null;
       paintSelection(sel);
+    }
+    if (nextNoteDraft !== undefined) {
+      noteSel = nextNoteDraft ? { ...nextNoteDraft } : null;
+      paintNoteDraft(noteSel);
+    }
+    if (nextAnnos !== undefined || highlightId !== undefined) {
+      if (nextAnnos !== undefined) annotations = nextAnnos.slice();
+      if (highlightId !== undefined) highlightedAnnoId = highlightId;
+      paintAnnotations(annotations, highlightedAnnoId);
     }
     if (af != null) follow = !!af;
 
@@ -499,8 +760,19 @@ export function mountParchmentView(host, {
     rebuild();
   }
 
+  function setNoteSelectMode(on) {
+    if (!!on === noteMode) return;
+    noteMode = !!on;
+    if (!noteMode) {
+      noteSel = null;
+      removeNoteDraftDecor();
+    }
+    rebuild();
+  }
+
   function destroy() {
     destroyed = true;
+    clearLongPress();
     cancelAnimationFrame(rafId);
     if (ro) ro.disconnect();
     host.removeEventListener('pointermove', onPointerMove);
@@ -518,6 +790,8 @@ export function mountParchmentView(host, {
     setZoom,
     setSelection,
     setLoopSelectMode,
+    setNoteSelectMode,
+    scrollToMeasure,
     destroy,
   };
 }
