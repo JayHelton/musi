@@ -193,6 +193,27 @@ grace as zero/steal-from-next and ignore repeats/alt endings (linear play).
 - “Save to Exercises” from Tab Analyzer after a GP upload (closes Phase 5
   export idea from `docs/tab-analyzer-roadmap.md` for this path).
 
+### Phase 4 — Split one score into many exercises (shipped)
+
+The GP Player header has a **Split** button that opens a full-screen studio for
+carving a loaded score into several named exercises in one pass (e.g. bars 1–5,
+6–7, 8–10).
+
+| Piece | Where |
+| ----- | ----- |
+| Per-measure summary (marker, time signature, note count, fret range, techniques, drum hits, beat sparkline, repeated-bar detection) | `js/gpPlayer/measureDigest.js` |
+| Segment list model (add / rename / nudge, overlap trimming, coverage, auto-split by marker / every N bars / from section notes) | `js/gpPlayer/exerciseSegments.js` |
+| Bar-map + segment-list UI, drag & keyboard range selection, per-segment loop preview | `js/gpPlayer/exerciseImportPanel.js`, `css/gpimport.css` |
+| Mount + loop-state snapshot/restore for previews | `js/gpPlayerUI.js` (`exerciseImport` option) |
+| Bulk save into the library | `js/gpPlayer.js` (`importSegmentsAsExercises`) |
+
+Every exercise created from one score **shares a single stored `.gp` blob**
+instead of a copy per bar range, so `js/exercises.js` releases an attachment
+only when the last item referencing it is deleted.
+
+The panel is only offered where the score exists as `.gp` bytes — the Exercises
+inline viewer and audio-transcribed riffs do not show it.
+
 ### Later / out of scope until needed
 
 - `.gp3` / `.gp4` / `.gpx` readers.

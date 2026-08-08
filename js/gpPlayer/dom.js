@@ -11,7 +11,16 @@ export function el(tag, props = {}, children = []) {
     if (k === 'class') node.className = v;
     else if (k === 'text') node.textContent = v;
     else if (k === 'html') node.innerHTML = v;
-    else if (k.startsWith('on') && typeof v === 'function') node[k.toLowerCase()] = v;
+    else if (k === 'style') {
+      if (typeof v === 'string') node.setAttribute('style', v);
+      else if (v && typeof v === 'object') {
+        Object.entries(v).forEach(([prop, val]) => {
+          if (val == null || val === false) return;
+          if (prop.startsWith('--')) node.style.setProperty(prop, String(val));
+          else node.style[prop] = String(val);
+        });
+      }
+    } else if (k.startsWith('on') && typeof v === 'function') node[k.toLowerCase()] = v;
     else if (v === false || v == null) { /* skip */ }
     else if (k === 'value') node.value = v;
     else node.setAttribute(k, v === true ? '' : v);

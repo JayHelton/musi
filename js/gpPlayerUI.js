@@ -25,6 +25,8 @@ import { mountTransportDock } from './gpPlayer/transportDock.js';
 import { mountTrackMixer } from './gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from './gpPlayer/settingsDrawer.js';
 import { mountAnnotationsDrawer } from './gpPlayer/annotationsDrawer.js';
+import { buildMeasureDigests } from './gpPlayer/measureDigest.js';
+import { mountExerciseImportPanel } from './gpPlayer/exerciseImportPanel.js';
 import {
   listAnnotations,
   addAnnotation,
@@ -61,6 +63,7 @@ export function mountGpPlayer(host, {
   initialRetuneMode = null,
   disabled = false,
   scoreKey = '',
+  exerciseImport = null,
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
 
@@ -137,6 +140,14 @@ export function mountGpPlayer(host, {
     title: 'Section notes',
     html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 6h10M8 12h10M8 18h6"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span class="gpp-btn-label">Notes</span>',
   });
+  const exerciseImportCapable = exerciseImport && typeof exerciseImport.importSegments === 'function';
+  const splitBtn = exerciseImportCapable ? el('button', {
+    class: 'gpp-icon-btn has-label',
+    type: 'button',
+    'aria-label': 'Split score into exercises',
+    title: 'Split score into exercises',
+    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8.5L20 20"/><path d="M8.5 15.5L20 4"/></svg><span class="gpp-btn-label">Split</span>',
+  }) : null;
   const settingsBtn = el('button', {
     class: 'gpp-icon-btn has-label',
     type: 'button',
@@ -144,7 +155,8 @@ export function mountGpPlayer(host, {
     title: 'Practice settings',
     html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg><span class="gpp-btn-label">Settings</span>',
   });
-  scoreActions.append(analyzeBtn, notesBtn, mixerBtn, settingsBtn);
+  if (splitBtn) scoreActions.append(analyzeBtn, notesBtn, splitBtn, mixerBtn, settingsBtn);
+  else scoreActions.append(analyzeBtn, notesBtn, mixerBtn, settingsBtn);
   if (headerExtra) scoreActions.appendChild(headerExtra);
   scoreHeader.append(titles, scoreActions);
 
@@ -175,7 +187,9 @@ export function mountGpPlayer(host, {
     analysisResultsEl,
   );
 
+  const exerciseImportRoot = exerciseImportCapable ? el('div', { class: 'gpi-mount' }) : null;
   host.append(chrome, analysisDetails);
+  if (exerciseImportRoot) document.body.appendChild(exerciseImportRoot);
 
   const uidPrefix = uid('gpp');
 
@@ -187,6 +201,8 @@ export function mountGpPlayer(host, {
   let settingsDrawer = null;
   let tracksDrawer = null;
   let annoDrawer = null;
+  let importPanel = null;
+  let loopSnapshot = null;
   let loopController = null;
 
   function currentTrackLabel() {
@@ -491,6 +507,47 @@ export function mountGpPlayer(host, {
     settingsDrawer?.sync();
   }
 
+  function snapshotLoopState() {
+    return {
+      loopEnabled: state.loopEnabled,
+      loopStart: state.loopStart,
+      loopEnd: state.loopEnd,
+      loopStartBeat: state.loopStartBeat,
+      loopEndBeat: state.loopEndBeat,
+    };
+  }
+
+  function restoreLoopState(snap) {
+    if (!snap) return;
+    if (!snap.loopEnabled) {
+      stateController.clearLoop();
+      return;
+    }
+    state.loopEnabled = true;
+    if (snap.loopStartBeat != null && snap.loopEndBeat != null) {
+      state.loopStartBeat = snap.loopStartBeat;
+      state.loopEndBeat = snap.loopEndBeat;
+      stateController.setLoopRange(snap.loopStartBeat, snap.loopEndBeat);
+    } else {
+      stateController.setLoopMeasures(snap.loopStart, snap.loopEnd);
+    }
+  }
+
+  function restoreAfterImportPanel() {
+    stopPlayback();
+    restoreLoopState(loopSnapshot);
+    loopSnapshot = null;
+    reloadModel();
+    loopController?.syncFromState();
+    settingsDrawer?.sync();
+    syncPlaybackUi({
+      playing: player.playing,
+      currentSec: player.currentSec,
+      durationSec: player.durationSec,
+      measureIndex: player.measureIndex,
+    });
+  }
+
   // ---- mount UI modules ----
   const { guitar, perc } = parchmentModels();
   parchment = mountParchmentView(parchmentHost, {
@@ -648,6 +705,36 @@ export function mountGpPlayer(host, {
     console.error(e);
   }
 
+  if (exerciseImportCapable && exerciseImportRoot) {
+    try {
+      importPanel = mountExerciseImportPanel(exerciseImportRoot, {
+        getDigests: () => {
+          const { guitar, perc } = parchmentModels();
+          return buildMeasureDigests({ guitarModel: guitar, percModel: perc });
+        },
+        getScoreTitle: () => title,
+        getTrackLabel: () => currentTrackLabel(),
+        getBpm: () => state.bpm,
+        getAnnotations: () => (scoreKey ? listAnnotations(scoreKey) : []),
+        getFolders: () => exerciseImport.getFolders?.() ?? [],
+        onCreateFolder: typeof exerciseImport.createFolder === 'function'
+          ? (name) => exerciseImport.createFolder(name)
+          : null,
+        onPreview: (startIdx, endIdx) => {
+          stateController.setLoopMeasures(startIdx, endIdx);
+          state.loopEnabled = true;
+          onLoopChanged();
+          seekToBar(startIdx, { autoplay: true });
+        },
+        onStopPreview: () => stopPlayback(),
+        onImport: (segments, opts) => exerciseImport.importSegments(segments, opts),
+        onClose: () => restoreAfterImportPanel(),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   refreshAnnotations();
 
   analyzeBtn.addEventListener('click', () => {
@@ -661,6 +748,14 @@ export function mountGpPlayer(host, {
     if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
     if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
     annoDrawer?.toggle();
+  });
+
+  splitBtn?.addEventListener('click', () => {
+    if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
+    if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
+    if (annoDrawer?.isOpen?.()) annoDrawer.close();
+    if (!importPanel?.isOpen?.()) loopSnapshot = snapshotLoopState();
+    importPanel?.open();
   });
 
   mixerBtn.addEventListener('click', () => {
@@ -819,6 +914,10 @@ export function mountGpPlayer(host, {
       trackMixer?.destroy();
       settingsDrawer?.destroy();
       annoDrawer?.destroy();
+      importPanel?.destroy();
+      if (exerciseImportRoot?.parentElement) {
+        exerciseImportRoot.parentElement.removeChild(exerciseImportRoot);
+      }
       tracksDrawer?.destroy();
       if (keyHandler) host.removeEventListener('keydown', keyHandler);
       host.innerHTML = '';
