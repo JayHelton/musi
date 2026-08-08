@@ -26,6 +26,7 @@ const NAME_LIMIT = 120;
 const CAT_LIMIT = 40;
 const URL_LIMIT = 2000;
 const MAX_FILE_BYTES = 250 * 1024 * 1024; // 250 MB upload guard for video.
+const UPLOAD_ACCEPT_MSG = 'Only PDF, documents (doc, docx, txt, rtf, odt, md, pages, csv), images, audio, video, and Guitar Pro (.gp/.gp5) files up to 250 MB can be uploaded.';
 
 // --- storage helpers (defensive) -------------------------------------------
 
@@ -445,6 +446,38 @@ function isGpItem(item) {
   );
 }
 
+function isDocItem(item) {
+  if (!item) return false;
+  if (/^(docx?|txt|rtf|odt|md|pages|csv)$/i.test(fileExt(item))) return true;
+  const t = item.type || '';
+  return (
+    t === 'application/msword' ||
+    t === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    t === 'application/rtf' || t === 'text/rtf' ||
+    t === 'application/vnd.oasis.opendocument.text' ||
+    t === 'application/vnd.apple.pages' ||
+    t === 'text/plain' || t === 'text/markdown' || t === 'text/csv'
+  );
+}
+
+function isInlineDocItem(item) {
+  return isDocItem(item) && /^(txt|md|csv)$/i.test(fileExt(item));
+}
+
+function docMimeFromExt(ext) {
+  const map = {
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    txt: 'text/plain',
+    rtf: 'application/rtf',
+    odt: 'application/vnd.oasis.opendocument.text',
+    md: 'text/markdown',
+    pages: 'application/vnd.apple.pages',
+    csv: 'text/csv',
+  };
+  return map[(ext || '').toLowerCase()] || '';
+}
+
 function youtubeEmbedUrl(url) {
   const safe = safeExternalUrl(url);
   if (!safe) return '';
@@ -474,12 +507,14 @@ function mediaKind(item) {
   if (isAudioItem(item)) return 'audio';
   if (isImageItem(item)) return 'image';
   if (isPdfItem(item)) return 'pdf';
+  if (isDocItem(item)) return 'doc';
   return 'file';
 }
 
 function mediaKindLabel(item) {
   const labels = {
     pdf: 'PDF',
+    doc: 'Doc',
     image: 'Image',
     audio: 'Audio',
     video: 'Video',
@@ -1106,6 +1141,7 @@ function exerciseIconSvg(item) {
   if (kind === 'video' || kind === 'youtube') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>';
   if (kind === 'link') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4.93"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19.07"/></svg>';
   if (kind === 'gp') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9v6l5-3-5-3z"/><path d="M15 9h2M15 12h3M15 15h1"/></svg>';
+  if (kind === 'doc' || kind === 'pdf') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>';
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>';
 }
 
@@ -1128,8 +1164,8 @@ async function onUploadFiles() {
   let rejected = 0;
   for (const file of files) {
     const probe = { type: file.type || '', fileName: file.name };
-    const isSupported = isPdfItem(probe) || isImageItem(probe) || isAudioItem(probe)
-      || isVideoItem(probe) || isGpItem(probe);
+    const isSupported = isPdfItem(probe) || isDocItem(probe) || isImageItem(probe)
+      || isAudioItem(probe) || isVideoItem(probe) || isGpItem(probe);
     if (!isSupported) { rejected++; continue; }
     if (file.size > MAX_FILE_BYTES) { rejected++; continue; }
 
@@ -1138,7 +1174,8 @@ async function onUploadFiles() {
     const base = dot > 0 ? file.name.slice(0, dot) : file.name;
     const fileType = file.type
       || (isPdfItem(probe) ? 'application/pdf' : '')
-      || (isGpItem(probe) ? 'application/x-guitar-pro' : '');
+      || (isGpItem(probe) ? 'application/x-guitar-pro' : '')
+      || docMimeFromExt(fileExt(probe));
     const meta = await saveFile({
       blob: file, name: base || 'Exercise', type: fileType,
       fileName: file.name, size: file.size, source: 'exercise',
@@ -1163,7 +1200,7 @@ async function onUploadFiles() {
   render();
   if (added && rejected) setStatus(`Added ${added} file${added === 1 ? '' : 's'}. Skipped ${rejected} unsupported or oversized file${rejected === 1 ? '' : 's'}.`, true);
   else if (added) setStatus(`Added ${added} file${added === 1 ? '' : 's'}.`);
-  else if (rejected) setStatus('Only PDF, image, audio, video or Guitar Pro (.gp/.gp5) files up to 250 MB can be uploaded.', true);
+  else if (rejected) setStatus(UPLOAD_ACCEPT_MSG, true);
 }
 
 /**
@@ -1337,12 +1374,42 @@ function fillPlayerHead(item, kind, blob) {
         class: 'btn sm', href: viewerURL, target: '_blank', rel: 'noopener', text: 'Open in tab',
       }));
     }
-    const ext = kind === 'pdf' ? 'pdf' : (kind === 'gp' ? (fileExt(item) || 'gp') : '');
+    const ext = fileExt(item) || (kind === 'pdf' ? 'pdf' : (kind === 'gp' ? 'gp' : ''));
     const downloadName = item.fileName || (ext ? `${item.name}.${ext}` : item.name);
     playerActionsEl.appendChild(el('a', {
       class: 'btn sm', href: viewerURL, download: downloadName, text: 'Download',
     }));
   }
+}
+
+function mountDocFallbackCard(item) {
+  const card = el('div', { class: 'ex-player-doc-card' });
+  card.appendChild(el('div', {
+    class: 'ex-player-doc-icon', html: exerciseIconSvg(item), 'aria-hidden': 'true',
+  }));
+  card.appendChild(el('div', {
+    class: 'ex-player-doc-name', text: item.fileName || item.name,
+  }));
+  card.appendChild(el('div', {
+    class: 'ex-player-doc-meta',
+    text: `${mediaKindLabel(item)} · ${fmtSize(item.size)}`,
+  }));
+  card.appendChild(el('p', {
+    class: 'ex-player-doc-note',
+    text: 'This document cannot be previewed here. Open or download it to view.',
+  }));
+  const actions = el('div', { class: 'ex-player-doc-actions' });
+  if (viewerURL) {
+    const downloadName = item.fileName || item.name;
+    actions.appendChild(el('a', {
+      class: 'btn primary', href: viewerURL, target: '_blank', rel: 'noopener', text: 'Open in tab',
+    }));
+    actions.appendChild(el('a', {
+      class: 'btn', href: viewerURL, download: downloadName, text: 'Download',
+    }));
+  }
+  card.appendChild(actions);
+  playerBodyEl.appendChild(el('div', { class: 'ex-player-doc-fallback' }, card));
 }
 
 function mountPlayerBody(item, kind, blob) {
@@ -1387,6 +1454,8 @@ function mountPlayerBody(item, kind, blob) {
       playerBodyEl.appendChild(el('video', {
         class: 'ex-player-media', src: viewerURL, controls: '', preload: 'metadata',
       }));
+    } else if (kind === 'doc' && !isInlineDocItem(item)) {
+      mountDocFallbackCard(item);
     } else {
       playerBodyEl.appendChild(el('iframe', {
         class: 'ex-player-frame', src: viewerURL, title: item.name,
