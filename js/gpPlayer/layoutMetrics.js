@@ -1,4 +1,4 @@
-const GUTTER_PX = 6;
+const GUTTER_PX = 4;
 
 /**
  * Measure chrome offset from the viewport top and publish CSS vars so the player

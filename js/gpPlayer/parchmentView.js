@@ -647,16 +647,25 @@ export function mountParchmentView(host, {
     playheadEl.hidden = false;
   }
 
+  function transportBottomPad() {
+    const root = host.closest('.gpp-root');
+    if (!root) return 72;
+    const raw = getComputedStyle(root).getPropertyValue('--gpp-transport-pad').trim();
+    const n = parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n + 8 : 72;
+  }
+
   function scrollActiveIntoView(mi) {
     const el = measureEls[mi];
     if (!el) return;
     const vRect = viewport.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
-    const pad = 24;
-    if (eRect.top < vRect.top + pad) {
-      viewport.scrollTop += eRect.top - vRect.top - pad;
-    } else if (eRect.bottom > vRect.bottom - pad) {
-      viewport.scrollTop += eRect.bottom - vRect.bottom + pad;
+    const topPad = 16;
+    const bottomPad = transportBottomPad();
+    if (eRect.top < vRect.top + topPad) {
+      viewport.scrollTop += eRect.top - vRect.top - topPad;
+    } else if (eRect.bottom > vRect.bottom - bottomPad) {
+      viewport.scrollTop += eRect.bottom - vRect.bottom + bottomPad;
     }
   }
 
@@ -665,13 +674,14 @@ export function mountParchmentView(host, {
     if (!el) return;
     const vRect = viewport.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
-    const pad = 32;
-    if (eRect.top < vRect.top + pad) {
-      viewport.scrollTop += eRect.top - vRect.top - pad;
-    } else if (eRect.bottom > vRect.bottom - pad) {
-      viewport.scrollTop += eRect.bottom - vRect.bottom + pad;
+    const topPad = 20;
+    const bottomPad = transportBottomPad();
+    if (eRect.top < vRect.top + topPad) {
+      viewport.scrollTop += eRect.top - vRect.top - topPad;
+    } else if (eRect.bottom > vRect.bottom - bottomPad) {
+      viewport.scrollTop += eRect.bottom - vRect.bottom + bottomPad;
     }
-    const hPad = 16;
+    const hPad = 12;
     if (eRect.left < vRect.left + hPad) {
       viewport.scrollLeft += eRect.left - vRect.left - hPad;
     } else if (eRect.right > vRect.right - hPad) {

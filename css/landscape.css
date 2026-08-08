@@ -93,11 +93,8 @@
   .dock-cat-btn{min-height:40px;padding:4px 2px;font-size:.55rem;gap:1px}
   .dock-cat-btn .dock-icon,.dock-cat-btn .dock-icon svg{width:18px;height:18px}
 
-  /* ---- Header actions ---- */
-  .header-actions{gap:4px}
-  .context-pill{font-size:.7rem!important;padding:4px 10px;max-width:50vw;min-height:32px}
-  .command-trigger{width:32px;height:32px;min-width:32px;min-height:32px}
-  .command-trigger svg{width:16px;height:16px}
+  /* ---- Header (split view only on desktop) ---- */
+  .header-actions{display:none}
 
   /* ---- Layout (mirror mobile column + pill sidebar) ---- */
   .quiz-layout{display:flex;flex-direction:column;max-width:100%;min-width:0;gap:4px}
@@ -166,8 +163,6 @@
   .section-head h2{font-size:1rem}
   .dock-cat-btn{min-height:36px;padding:3px 1px;font-size:.5rem}
   .dock-cat-btn .dock-icon,.dock-cat-btn .dock-icon svg{width:16px;height:16px}
-  .context-pill{font-size:.65rem!important;padding:3px 8px;min-height:28px;max-width:45vw}
-  .command-trigger{width:28px;height:28px;min-width:28px;min-height:28px}
   .sidebar-list .sl-scroll{max-height:72px;padding:6px 8px}
   .sl-item{min-height:32px;padding:5px 10px;font-size:.75rem}
   .quiz-card{padding:8px 10px;margin-bottom:6px}

@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v150-landscape-orientation";
+const CACHE_VERSION = "v151-header-simplify";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -61,8 +61,6 @@ const PRECACHE_URLS = [
   "js/attachments.js",
   "js/audio.js",
   "js/musicalContext.js",
-  "js/contextBar.js",
-  "js/commandPalette.js",
   "js/home.js",
   "js/genreProfiles.js",
   "js/musicProfile.js",

@@ -1,4 +1,4 @@
-import { audioCtx, setMasterVolume, getMasterVolume } from './audio.js';
+import { audioCtx } from './audio.js';
 import { S, buildNoteButtons, selectItem } from './scaleQuiz.js';
 import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
@@ -29,12 +29,10 @@ import { initTriadRef, stopTriadRef } from './triadReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
-import { initContextBar } from './contextBar.js';
-import { initCommandPalette, refreshCommandPalette } from './commandPalette.js';
 import { initProgressHeaders } from './progressHeader.js';
 import { initHome, refreshHome, renderHub } from './home.js';
 import { initStats, renderStats } from './stats.js';
-import { initMusicPreferences } from './musicPreferences.js';
+import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
 import { initStudyLab, stopStudyLab } from './studyLab.js';
 import {
   TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
@@ -350,54 +348,6 @@ function updateSplitUI() {
   trigger.classList.toggle('active', !!splitSecondaryId);
 }
 
-function initVolumeControl() {
-  const trigger = document.getElementById('volume-trigger');
-  const popover = document.getElementById('volume-popover');
-  const slider = document.getElementById('volume-slider');
-  const valueLabel = document.getElementById('volume-value');
-  if (!trigger || !popover || !slider) return;
-
-  const saved = Number(getSetting('global.volume', getMasterVolume()));
-  const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
-  setMasterVolume(initial);
-  const syncUI = (vol) => {
-    slider.value = String(Math.round(vol * 100));
-    if (valueLabel) valueLabel.textContent = Math.round(vol * 100) + '%';
-  };
-  syncUI(getMasterVolume());
-
-  const openPopover = () => {
-    popover.hidden = false;
-    trigger.classList.add('active');
-    trigger.setAttribute('aria-expanded', 'true');
-  };
-  const closePopover = () => {
-    popover.hidden = true;
-    trigger.classList.remove('active');
-    trigger.setAttribute('aria-expanded', 'false');
-  };
-
-  trigger.onclick = (e) => {
-    e.stopPropagation();
-    if (popover.hidden) openPopover();
-    else closePopover();
-  };
-  slider.oninput = (e) => {
-    const vol = Number(e.target.value) / 100;
-    setMasterVolume(vol);
-    saveSetting('global.volume', getMasterVolume());
-    if (valueLabel) valueLabel.textContent = Math.round(getMasterVolume() * 100) + '%';
-  };
-  document.addEventListener('click', (e) => {
-    if (!popover.hidden && !popover.contains(e.target) && e.target !== trigger && !trigger.contains(e.target)) {
-      closePopover();
-    }
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !popover.hidden) closePopover();
-  });
-}
-
 function initSplitView() {
   splitMenuEl = document.createElement('div');
   splitMenuEl.className = 'tc-menu split-menu';
@@ -571,13 +521,11 @@ function init() {
   buildNoteButtons('sq-notes', 'scale');
   buildNoteButtons('iq-notes', 'interval');
 
-  initVolumeControl();
+  initGlobalVolume();
   initMetronome();
   initVisualizer();
   initNowPlaying();
   initHoldRecordButton();
-  initContextBar();
-  initCommandPalette({ showSection });
   initProgressHeaders();
   initHome({ showSection, showHub });
   initStats();
@@ -587,7 +535,6 @@ function init() {
 
   window.addEventListener('musi:features-changed', () => {
     rebuildNav();
-    refreshCommandPalette();
     refreshHome();
     if (currentNavId && getTool(currentNavId) && !isFeatureEnabled(currentNavId)) {
       showSection('home');
