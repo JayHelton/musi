@@ -132,6 +132,7 @@
   background:var(--card);box-shadow:inset 0 1px 0 rgba(255,255,255,0.04)
 }
 .wb-player-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.wb-player-controls{display:flex;flex-direction:column;gap:10px;flex-shrink:0}
 .wb-player-name{
   flex:1;min-width:0;font-size:.92rem;font-weight:650;color:var(--text);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap
@@ -143,13 +144,13 @@
   font-family:var(--font-body);cursor:pointer;user-select:none
 }
 .wb-loop-toggle input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+.wb-loop-hint{font-size:.72rem;color:var(--muted);line-height:1.3;flex:1;min-width:8em}
 .wb-position{
   font-family:var(--font-ui);font-size:.9rem;color:var(--muted);
   flex-shrink:0;font-variant-numeric:tabular-nums
 }
 .wb-gp-mount{
-  min-height:200px;border:1px solid var(--border);border-radius:var(--radius-screen,12px);
-  background:var(--bg2);display:flex;flex-direction:column;overflow:hidden
+  display:flex;flex-direction:column;overflow:hidden;min-height:0
 }
 .wb-gp-mount .gpp-root{
   flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;height:auto;max-height:none
@@ -233,6 +234,97 @@
 .wb-picker-count{font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .wb-picker-foot .btn.primary:disabled{opacity:.5;pointer-events:none}
 
+/* ---- Practice mode: the library chrome gives way to the score ---- */
+#sec-workbooks.wb-practicing .section-head,
+#sec-workbooks.wb-practicing .wb-sidebar,
+#sec-workbooks.wb-practicing .wb-toolbar{display:none}
+#sec-workbooks.wb-practicing .wb-status{display:none!important}
+#sec-workbooks.wb-practicing .wb-list-pane{display:none!important}
+
+/* ---- Practice mode (desktop): full-width score + flex height chain ---- */
+@media (min-width:901px) and (min-height:501px){
+  #sec-workbooks.wb-practicing.active{
+    display:flex;flex-direction:column;min-height:0;
+    height:calc(100dvh - var(--dock-h) - var(--wb-practice-top, 96px) - var(--wb-practice-gutter, 8px));
+    max-height:calc(100dvh - var(--dock-h) - var(--wb-practice-top, 96px) - var(--wb-practice-gutter, 8px));
+    margin-bottom:calc(-1 * (var(--dock-h) + 18px));
+    overflow:hidden;overflow-x:hidden;
+    width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);
+    padding:0 24px;box-sizing:border-box
+  }
+  #sec-workbooks.wb-practicing .wb-layout{
+    flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;width:100%
+  }
+  #sec-workbooks.wb-practicing .wb-main{
+    flex:1;min-height:0;display:flex;flex-direction:column;min-width:0;width:100%
+  }
+  #sec-workbooks.wb-practicing .wb-workspace.is-open{
+    flex:1;min-height:0;display:flex;flex-direction:column;
+    grid-template-columns:none;gap:0
+  }
+  #sec-workbooks.wb-practicing .wb-detail-pane{
+    flex:1;min-height:0;display:flex;flex-direction:column;border:none;
+    border-radius:0;background:transparent;box-shadow:none
+  }
+  #sec-workbooks.wb-practicing .wb-detail-head{
+    flex-shrink:0;padding:8px 12px;border-bottom:1px solid var(--border);
+    background:var(--bg2);border-radius:var(--radius-screen,16px) var(--radius-screen,16px) 0 0
+  }
+  #sec-workbooks.wb-practicing .wb-detail-body{
+    flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+    padding:10px 12px 12px;background:var(--card);
+    border:1px solid var(--border);border-top:none;
+    border-radius:0 0 var(--radius-screen,16px) var(--radius-screen,16px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28)
+  }
+  #sec-workbooks.wb-practicing .wb-player{
+    flex:1;min-height:0;gap:8px;padding:10px;border:none;background:transparent;
+    box-shadow:none
+  }
+  #sec-workbooks.wb-practicing .wb-player-controls{
+    flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap
+  }
+  #sec-workbooks.wb-practicing .wb-player-head{flex:1;min-width:0;flex-wrap:nowrap}
+  #sec-workbooks.wb-practicing .wb-transport{flex-shrink:0;flex-wrap:nowrap}
+  #sec-workbooks.wb-practicing .wb-loop-hint{flex:0 1 auto;max-width:14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #sec-workbooks.wb-practicing .wb-gp-mount{flex:1;min-height:0;border:none;background:transparent;border-radius:0}
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-chrome{
+    flex:1;min-height:0;height:auto;max-height:none
+  }
+  #sec-workbooks.wb-practicing .wb-entry-list{
+    flex-shrink:0;max-height:min(16vh,132px);margin-top:8px;overflow-y:auto
+  }
+}
+
+@media (min-width:1100px) and (min-height:501px){
+  #sec-workbooks.wb-practicing .wb-detail-body{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,300px);
+    grid-template-rows:minmax(0,1fr);gap:12px;align-items:stretch
+  }
+  #sec-workbooks.wb-practicing .wb-player{grid-column:1;grid-row:1;min-height:0}
+  #sec-workbooks.wb-practicing .wb-entry-list{
+    grid-column:2;grid-row:1;margin-top:0;max-height:none;min-height:0;overflow-y:auto
+  }
+  #sec-workbooks.wb-practicing .wb-entry{
+    display:grid;grid-template-columns:auto auto minmax(0,1fr);
+    grid-template-rows:auto auto auto;gap:4px 8px;align-items:center
+  }
+  #sec-workbooks.wb-practicing .wb-entry-index{grid-column:1;grid-row:1}
+  #sec-workbooks.wb-practicing .wb-entry-icon{grid-column:2;grid-row:1}
+  #sec-workbooks.wb-practicing .wb-entry-name{
+    grid-column:3;grid-row:1;flex:none;min-width:0;width:auto;max-width:100%;
+    font-size:.9rem;font-weight:650
+  }
+  #sec-workbooks.wb-practicing .wb-entry-meta{
+    grid-column:1 / -1;grid-row:2;width:100%;max-width:100%;
+    padding-left:calc(1.5em + 40px);font-size:.72rem
+  }
+  #sec-workbooks.wb-practicing .wb-entry-actions{
+    grid-column:1 / -1;grid-row:3;width:100%;justify-content:flex-end;gap:4px
+  }
+  #sec-workbooks.wb-practicing .wb-entry-actions .btn{min-height:34px}
+}
+
 @media(max-width:900px){
   .wb-gp-mount .gpp-chrome{height:min(48vh,480px);max-height:min(48vh,480px)}
   .wb-entry{flex-wrap:wrap}
@@ -249,10 +341,9 @@
 }
 
 @media (orientation:landscape) and (max-height:500px){
-  .wb-detail-help{margin-bottom:8px;padding:6px 10px;font-size:.72rem}
   .wb-player{gap:8px;padding:8px}
-  .wb-gp-mount{min-height:120px}
-  .wb-gp-mount .gpp-chrome{height:min(36vh,280px);max-height:min(36vh,280px)}
+  .wb-gp-mount{min-height:0}
+  .wb-gp-mount .gpp-chrome{height:min(44vh,300px);max-height:min(44vh,300px)}
   .wb-entry-list{margin-top:8px;gap:6px}
   .wb-entry{padding:6px 8px;gap:6px}
   .wb-entry-index{font-size:.78rem}
