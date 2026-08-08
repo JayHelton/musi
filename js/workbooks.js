@@ -14,6 +14,11 @@ import {
 import { getFileBlob } from './attachments.js';
 import { parseGuitarPro, mountGpPlayer } from './gpPlayerUI.js';
 import { resolveScoreKey } from './gpAnnotations.js';
+import {
+  buildExerciseGpResult,
+  filterPracticeSettingsPatch,
+  isSegmentExercise,
+} from './gpExerciseScore.js';
 import { formatBarRange } from './gpPlayer/measureDigest.js';
 import {
   createWorkbookFolder,
@@ -423,19 +428,16 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       if (isDetailLoadStale(loadToken, wb.id)) return null;
     }
     if (isDetailLoadStale(loadToken, wb.id)) return null;
-    // Whole-score exercises are saved with measureStart/End of 0. The player
-    // reads a bar range through Number(), which turns null into bar 0, so the
-    // range keys have to be left out entirely rather than nulled out —
-    // otherwise looping a whole exercise would loop only its first bar.
-    const segment = item.measureEnd > item.measureStart;
-    const loopRange = segment ? {
+    const { gp: exerciseGp, sliced } = buildExerciseGpResult(gp, item);
+    const segment = isSegmentExercise(item);
+    const loopRange = segment && !sliced ? {
       initialLoopStart: item.measureStart,
       initialLoopEnd: item.measureEnd,
       initialLoopStartBeat: item.startBeat,
       initialLoopEndBeat: item.endBeat,
     } : {};
     return mountGpPlayer(host, {
-      gpResult: gp,
+      gpResult: exerciseGp,
       title: item.name,
       fileName: item.fileName || item.name,
       hideTitle: true,
@@ -447,16 +449,17 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       initialTranspose: item.transpose,
       initialTuning: item.tuning,
       initialRetuneMode: item.retuneMode,
-      exerciseScope: segment,
+      exerciseScope: segment && !sliced,
       onPracticeSettingsChange: (settings) => {
-        updateExercisePracticeSettings(item.id, settings);
-        if (settings.loopEnabled != null) {
-          const enabled = !!settings.loopEnabled;
+        const patch = filterPracticeSettingsPatch(settings, { sliced });
+        updateExercisePracticeSettings(item.id, patch);
+        if (patch.loopEnabled != null) {
+          const enabled = !!patch.loopEnabled;
           setWorkbookLoop(wb.id, enabled);
           if (detailLoopInput) detailLoopInput.checked = enabled;
         }
       },
-      scoreKey: resolveScoreKey({
+      scoreKey: sliced ? undefined : resolveScoreKey({
         attachmentId: item.attachmentId,
         fileName: item.fileName || item.name,
       }),
