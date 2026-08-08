@@ -165,7 +165,7 @@
   #sec-triads .ref-fb-card:has(#triad-sweep-panel:not([hidden])){padding-bottom:3px}
   #triad-map,.triad-map{
     grid-column:1/-1;grid-row:2;
-    max-height:164px;
+    min-height:0;max-height:none;height:100%;
     overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;margin:0;
   }
   .triad-map-stack{gap:6px}
@@ -177,7 +177,7 @@
   #triad-sweep-panel:not([hidden]){
     display:grid;grid-template-columns:minmax(148px,188px) minmax(0,1fr);
     grid-template-rows:minmax(0,1fr) auto;column-gap:8px;row-gap:0;
-    align-items:start;margin-top:0;grid-column:1/-1;grid-row:2;min-height:0;max-height:168px;overflow:hidden;
+    align-items:start;margin-top:0;grid-column:1/-1;grid-row:2;min-height:0;height:100%;overflow:hidden;
   }
   #triad-sweep-nav{display:none!important}
   #triad-sweep-controls{
@@ -195,8 +195,8 @@
   .sweep-inv-status{min-height:36px;padding:3px 6px;gap:0}
   .sweep-inv-status strong{font-size:.76rem;line-height:1.1}
   .sweep-inv-status span{font-size:.64rem;line-height:1.15}
-  #triad-sweep-panel>.ref-fb-scroll{grid-column:2;grid-row:1;min-width:0;align-self:start}
-  #triad-sweep-legend{grid-column:2;grid-row:2;margin:0;padding-top:2px;font-size:.64rem;gap:4px 8px;line-height:1.1}
+  #triad-sweep-panel>.ref-fb-scroll{grid-column:2;grid-row:1;min-width:0;min-height:0;align-self:stretch;overflow:auto;-webkit-overflow-scrolling:touch}
+  #triad-sweep-legend{grid-column:2;grid-row:2;margin:0;padding-top:2px;font-size:.64rem;gap:4px 8px;line-height:1.1;flex-shrink:0}
   .triad-info-head h3{font-size:1rem}
   .triad-info-head p,.triad-info-blurb{font-size:.78rem;margin-bottom:8px}
   .sweep-tab{margin:6px 0 0;padding:8px 10px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -216,10 +216,10 @@
 }
 
 @media (orientation: landscape) and (max-height: 380px) {
-  #triad-map,.triad-map{max-height:140px}
+  #triad-map,.triad-map{max-height:none}
   .triad-row-svg{height:64px}
   .triad-row{padding:3px 4px;gap:4px}
-  #triad-sweep-panel:not([hidden]){grid-template-columns:minmax(132px,168px) minmax(0,1fr);column-gap:6px;max-height:158px}
+  #triad-sweep-panel:not([hidden]){grid-template-columns:minmax(132px,168px) minmax(0,1fr);column-gap:6px}
   .sweep-btn,.sweep-quality-btn{min-height:36px;padding:3px 7px;font-size:.68rem}
   .sweep-inv-step,.sweep-inv-status{min-height:36px}
 }
