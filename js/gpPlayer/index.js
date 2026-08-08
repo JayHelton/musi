@@ -20,3 +20,20 @@ export { mountTransportDock } from './transportDock.js';
 export { mountTrackMixer } from './trackMixer.js';
 export { mountSettingsDrawer } from './settingsDrawer.js';
 export { mountAnnotationsDrawer } from './annotationsDrawer.js';
+export { buildMeasureDigests, formatBarRange, describeMeasure } from './measureDigest.js';
+export {
+  defaultSegmentName,
+  addSegment,
+  removeSegment,
+  updateSegmentRange,
+  renameSegment,
+  sortSegments,
+  assignmentMap,
+  coverageStats,
+  autoSplitByMarkers,
+  autoSplitEveryN,
+  autoSplitFromAnnotations,
+  segmentBeats,
+  estimateSeconds,
+} from './exerciseSegments.js';
+export { mountExerciseImportPanel } from './exerciseImportPanel.js';

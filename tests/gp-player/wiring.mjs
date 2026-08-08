@@ -1,0 +1,123 @@
+// Wiring checks for GP player exercise-import panel integration.
+// Run: node tests/gp-player/wiring.mjs
+
+import assert from 'node:assert/strict';
+import { installDomShim } from './domShim.mjs';
+import { makePercussionModel } from '../../js/tab/gpPercussion.js';
+import { mountGpPlayer } from '../../js/gpPlayerUI.js';
+
+installDomShim();
+
+const perc = makePercussionModel({
+  name: 'Kit',
+  tempo: 120,
+  events: [
+    { slot: 0, start: 0, duration: 0.25, instrument: 'kick', velocity: 0.9, midi: 36 },
+    { slot: 2, start: 2, duration: 0.25, instrument: 'snare', velocity: 0.9, midi: 38 },
+    { slot: 4, start: 4, duration: 0.25, instrument: 'kick', velocity: 0.9, midi: 36 },
+    { slot: 6, start: 6, duration: 0.25, instrument: 'snare', velocity: 0.9, midi: 38 },
+    { slot: 8, start: 8, duration: 0.25, instrument: 'crash', velocity: 0.9, midi: 49 },
+    { slot: 10, start: 10, duration: 0.25, instrument: 'kick', velocity: 0.9, midi: 36 },
+    { slot: 12, start: 12, duration: 0.25, instrument: 'snare', velocity: 0.9, midi: 38 },
+    { slot: 14, start: 14, duration: 0.25, instrument: 'kick', velocity: 0.9, midi: 36 },
+  ],
+  measures: [
+    { startSlot: 0, endSlot: 4, startBeat: 0, endBeat: 4, marker: 'Intro' },
+    { startSlot: 4, endSlot: 8, startBeat: 4, endBeat: 8, marker: 'Verse' },
+    { startSlot: 8, endSlot: 12, startBeat: 8, endBeat: 12, marker: 'Chorus' },
+    { startSlot: 12, endSlot: 16, startBeat: 12, endBeat: 16, marker: 'Outro' },
+  ],
+});
+
+const fakeGp = {
+  tempo: 120,
+  tracks: [{
+    index: 0, name: 'Guitar', tuning: 'Standard', noteCount: 4,
+    model: {
+      tuning: 'Standard',
+      strings: [
+        { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+        { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+        { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+        { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+        { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+        { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+      ],
+      events: [
+        { slot: 0, start: 0, duration: 1, stringIndex: 0, fret: 0, midi: 40, pc: 4, techniques: [], dead: false },
+        { slot: 1, start: 1, duration: 1, stringIndex: 0, fret: 3, midi: 43, pc: 7, techniques: [], dead: false },
+        { slot: 4, start: 4, duration: 1, stringIndex: 0, fret: 5, midi: 45, pc: 9, techniques: [], dead: false },
+        { slot: 5, start: 5, duration: 1, stringIndex: 0, fret: 7, midi: 47, pc: 11, techniques: [], dead: false },
+        { slot: 8, start: 8, duration: 1, stringIndex: 0, fret: 3, midi: 43, pc: 7, techniques: [], dead: false },
+        { slot: 9, start: 9, duration: 1, stringIndex: 0, fret: 5, midi: 45, pc: 9, techniques: [], dead: false },
+        { slot: 12, start: 12, duration: 1, stringIndex: 0, fret: 0, midi: 40, pc: 4, techniques: [], dead: false },
+        { slot: 13, start: 13, duration: 1, stringIndex: 0, fret: 2, midi: 42, pc: 6, techniques: [], dead: false },
+      ],
+      measures: [
+        { startSlot: 0, endSlot: 2, startBeat: 0, endBeat: 4, marker: 'Intro' },
+        { startSlot: 4, endSlot: 6, startBeat: 4, endBeat: 8, marker: 'Verse' },
+        { startSlot: 8, endSlot: 10, startBeat: 8, endBeat: 12, marker: 'Chorus' },
+        { startSlot: 12, endSlot: 14, startBeat: 12, endBeat: 16, marker: 'Outro' },
+      ],
+      tempo: 120,
+      totalBeats: 16,
+    },
+  }],
+  drumTracks: [{ index: 0, name: 'Drums', model: perc, hitCount: perc.events.length, tempo: 120 }],
+};
+
+// ---- regression: inline viewer without exerciseImport ----
+const plainHost = document.createElement('div');
+const plainMount = mountGpPlayer(plainHost, { gpResult: fakeGp, title: 'Inline viewer' });
+const plainSplitBtn = [...plainHost.querySelectorAll('button')].find(
+  (b) => b.getAttribute?.('aria-label') === 'Split score into exercises',
+);
+assert.ok(!plainSplitBtn, 'inline viewer must not show Split button');
+assert.ok(!plainHost.querySelector('.gpi-root'), 'inline viewer must not mount import panel host');
+plainMount.destroy();
+assert.equal(plainHost.innerHTML, '', 'destroy should clear host');
+assert.equal(plainHost.children.length, 0, 'destroy should leave host empty');
+
+// ---- standalone wiring with exerciseImport ----
+const host = document.createElement('div');
+const mounted = mountGpPlayer(host, {
+  gpResult: fakeGp,
+  title: 'Wiring GP',
+  exerciseImport: {
+    getFolders: () => [],
+    createFolder: () => null,
+    importSegments: async () => ({ ok: true, count: 2 }),
+  },
+});
+
+const splitBtn = [...host.querySelectorAll('button')].find(
+  (b) => b.getAttribute?.('aria-label') === 'Split score into exercises',
+);
+assert.ok(splitBtn, 'Split header button should exist when exerciseImport is provided');
+
+const chrome = host.querySelector('.gpp-chrome');
+const importRoot = [...document.body.children].find(
+  (c) => (c.className || '').includes('gpi-mount') && c.parentElement === document.body,
+);
+assert.ok(chrome, 'chrome should mount');
+assert.ok(importRoot, 'import panel host should mount on document.body');
+assert.equal(importRoot.parentElement, document.body, 'gpi-mount should be direct child of document.body');
+assert.notEqual(importRoot.parentElement, chrome, 'gpi-mount should not be inside chrome');
+
+splitBtn.click();
+const barChips = importRoot.querySelectorAll('.gpi-bar');
+if (barChips.length >= 1) {
+  assert.ok(barChips.length >= 4, 'panel should render a bar chip per measure');
+} else {
+  assert.ok(importRoot.children.length > 0, 'panel host should receive children when opened');
+}
+
+mounted.destroy();
+assert.equal(host.innerHTML, '', 'destroy should clear host after import wiring');
+assert.equal(host.children.length, 0, 'destroy should leave host empty');
+assert.ok(
+  ![...document.body.children].some((c) => (c.className || '').includes('gpi-mount')),
+  'destroy should remove import panel host from document.body',
+);
+
+console.log('gp player wiring: ok');
