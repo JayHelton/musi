@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v159-migration-sync";
+const CACHE_VERSION = "v160-analysis-panel";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -129,6 +129,9 @@ const PRECACHE_URLS = [
   "js/tab/tabAnalyzer.js",
   "js/tab/tabAnalysisView.js",
   "js/trackToSheet.js",
+  "js/trackToSheet/analysisOptions.js",
+  "js/trackToSheet/analysisPanel.js",
+  "js/trackToSheet/dsp.js",
   "js/trackToSheet/transcribe.js",
   "js/trackToSheet/toTabModel.js",
   "js/trackToSheet/score.js",

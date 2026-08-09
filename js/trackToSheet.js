@@ -25,6 +25,7 @@ import {
   deleteExerciseItem,
   getExercise,
 } from './exercises.js';
+import { createAnalysisPanel } from './trackToSheet/analysisPanel.js';
 
 const MAX_FILE_BYTES = 250 * 1024 * 1024;
 
@@ -40,6 +41,7 @@ const state = {
   objectUrl: null,
   bound: false,
   exerciseId: null,
+  analysisPanel: null,
 };
 
 function $(id) {
@@ -108,6 +110,7 @@ function setBusy(busy) {
   if (btn) btn.disabled = busy || !state.audioBuffer;
   if (input) input.disabled = busy;
   document.body.classList.toggle('tts-busy', busy);
+  state.analysisPanel?.setBusy(busy);
   syncSaveButton();
   syncGpButton();
 }
@@ -152,12 +155,78 @@ function paintScore(events, bpm, beatsPerBar) {
 }
 
 function syncControlsFromResult() {
-  const bpmInput = $('tts-bpm');
-  if (bpmInput) bpmInput.value = String(state.bpm);
   const clefSel = $('tts-clef');
   if (clefSel) clefSel.value = state.clef;
   const sharpSel = $('tts-accidentals');
   if (sharpSel) sharpSel.value = state.preferSharps ? 'sharps' : 'flats';
+}
+
+function syncTtsBpmInput(opts) {
+  const bpmInput = $('tts-bpm');
+  if (!bpmInput) return;
+  const bpm = opts?.tempoMode === 'manual' && opts.bpm != null
+    ? opts.bpm
+    : (state.result?.bpm ?? opts?.bpm ?? state.bpm);
+  bpmInput.value = String(bpm);
+  state.bpm = Math.round(Number(bpm) || 120);
+}
+
+function syncPanelFromTtsBpm() {
+  const bpmInput = $('tts-bpm');
+  if (!state.analysisPanel || !bpmInput) return;
+  const bpm = Math.max(40, Math.min(240, Math.round(Number(bpmInput.value) || 120)));
+  state.analysisPanel.setOptions({ tempoMode: 'manual', bpm });
+  state.bpm = bpm;
+}
+
+function renderDiagnostics(result) {
+  const readouts = $('tts-readouts');
+  const gridEl = $('tts-grid');
+  const qualityEl = $('tts-quality');
+  const fitEl = $('tts-tempo-fit');
+  if (!result) {
+    if (readouts) readouts.hidden = true;
+    if (gridEl) gridEl.textContent = '--';
+    if (qualityEl) qualityEl.textContent = '--';
+    if (fitEl) fitEl.textContent = '--';
+    return;
+  }
+  if (readouts) readouts.hidden = false;
+  if (gridEl) gridEl.textContent = result.grid?.label || '--';
+  if (qualityEl) {
+    const diag = result.diagnostics;
+    if (!diag) qualityEl.textContent = '--';
+    else {
+      const voiced = Math.round((diag.voicedRatio ?? 0) * 100);
+      const count = diag.noteCount ?? result.notes?.length ?? 0;
+      qualityEl.textContent = `${voiced}% voiced · ${count} notes`;
+    }
+  }
+  if (fitEl) {
+    fitEl.textContent = Number.isFinite(result.tempoConfidence)
+      ? `${Math.round(result.tempoConfidence * 100)}%`
+      : '--';
+  }
+}
+
+function applyTranscriptionResult(result) {
+  state.result = result;
+  state.bpm = result.bpm;
+  state.clef = suggestClef(result.notes);
+
+  const panelOpts = state.analysisPanel?.getOptions();
+  const nextOpts = { ...panelOpts };
+  if (!panelOpts || panelOpts.tempoMode !== 'manual') {
+    nextOpts.bpm = result.bpm;
+    nextOpts.beatsPerBar = result.beatsPerBar;
+  }
+  state.analysisPanel?.setOptions(nextOpts);
+  syncTtsBpmInput(state.analysisPanel?.getOptions() ?? nextOpts);
+  syncControlsFromResult();
+  renderNoteList(result.notes);
+  paintScore(result.score.events, result.score.bpm, result.score.beatsPerBar);
+  renderDiagnostics(result);
+  syncGpButton();
 }
 
 async function onFileChosen(file, { exerciseId = null } = {}) {
@@ -191,6 +260,7 @@ async function onFileChosen(file, { exerciseId = null } = {}) {
     const wrap = $('tts-score-wrap');
     if (wrap) wrap.innerHTML = '<p class="tts-muted">Hit Transcribe to parse pitches onto the staff.</p>';
     renderNoteList([]);
+    renderDiagnostics(null);
     renderLibrary();
   } catch (err) {
     console.error(err);
@@ -213,29 +283,28 @@ async function runTranscribe() {
   }
 
   try {
-    // Always estimate tempo from onsets first; the BPM field can re-quantize after.
-    const result = await transcribeBuffer(state.audioBuffer, {
+    const options = {
+      ...state.analysisPanel?.getOptions(),
       onProgress: (p) => {
         if (progress) progress.value = p;
         setStatus(`Detecting pitches… ${Math.round(p * 100)}%`);
       },
-    });
+    };
 
-    state.result = result;
-    state.bpm = result.bpm;
-    state.clef = suggestClef(result.notes);
-    syncControlsFromResult();
-    renderNoteList(result.notes);
-    paintScore(result.score.events, result.score.bpm, result.score.beatsPerBar);
+    const result = await transcribeBuffer(state.audioBuffer, options);
+    applyTranscriptionResult(result);
 
     const n = result.notes.length;
-    setStatus(
-      n
-        ? `Found ${n} notes in ${result.durationSec.toFixed(1)}s (≈${result.bpm} BPM).`
-        : 'No clear pitches found. Use a dry, isolated monophonic stem.',
-      n ? 'ok' : 'warn'
-    );
-    syncGpButton();
+    const diag = result.diagnostics;
+    let statusMsg = n
+      ? `Found ${n} notes in ${result.durationSec.toFixed(1)}s (≈${result.bpm} BPM).`
+      : 'No clear pitches found. Open Analysis settings and try the Sensitive preset.';
+    if (n && (diag?.voicedRatio ?? 1) < 0.15) {
+      statusMsg += ' Low voiced ratio — raise Pitch sensitivity or use Sensitive preset.';
+    } else if (n && result.durationSec > 0 && n / result.durationSec > 8) {
+      statusMsg += ' Many short notes — try Strict preset or lower Onset sensitivity.';
+    }
+    setStatus(statusMsg, n ? 'ok' : 'warn');
   } catch (err) {
     console.error(err);
     setStatus(`Transcription failed: ${err.message || err}`, 'err');
@@ -413,7 +482,7 @@ function bind() {
   $('tts-bpm')?.addEventListener('change', () => {
     const v = Number($('tts-bpm').value);
     if (v >= 40 && v <= 240) {
-      state.bpm = Math.round(v);
+      syncPanelFromTtsBpm();
       requantizeAndPaint();
     }
   });
@@ -446,6 +515,20 @@ function bind() {
 
 export function initTrackToSheet() {
   bind();
+  const mount = $('tts-analysis-mount');
+  if (mount && !mount.dataset.wired) {
+    mount.dataset.wired = '1';
+    state.analysisPanel = createAnalysisPanel({
+      mount,
+      storageKey: 'ttsAnalysisOptions',
+      idPrefix: 'tts-analysis',
+      onReanalyze: () => runTranscribe(),
+      onChange: (opts) => {
+        syncTtsBpmInput(opts);
+        if (state.result && !state.busy) requantizeAndPaint();
+      },
+    });
+  }
   const btn = $('tts-transcribe');
   if (btn) btn.disabled = !state.audioBuffer || state.busy;
   syncSaveButton();

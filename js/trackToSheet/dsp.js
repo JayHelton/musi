@@ -356,12 +356,22 @@ export function createPitchDetector({ windowSize, sampleRate, minFreq = 55, maxF
     }));
 
     const threshold = peakRatio * globalMax;
-    let chosen = peaks[0];
-    for (const p of peaks) {
-      if (p.clarity >= threshold) {
-        chosen = p;
-        break;
+    const qualifying = peaks.filter((p) => p.clarity >= threshold);
+    let chosen;
+    if (qualifying.length) {
+      qualifying.sort((a, b) => b.clarity - a.clarity || a.lag - b.lag);
+      let best = qualifying[0];
+      for (const p of qualifying) {
+        if (p.clarity > best.clarity * 1.08) best = p;
       }
+      const close = qualifying.filter((p) => p.clarity >= best.clarity * 0.92);
+      const preferHigh = close.some((p) => sampleRate / p.lag > 700);
+      chosen = close.reduce((a, b) => {
+        if (preferHigh) return a.lag < b.lag ? a : b;
+        return a.clarity >= b.clarity ? a : b;
+      });
+    } else {
+      chosen = peaks[0];
     }
 
     if (chosen.clarity < minClarity) {

@@ -6,6 +6,7 @@ import { saveAudio, attachmentsSupported } from './attachments.js';
 import { detectKey, keyLabel } from './analysis/keyDetect.js';
 import { decodeAudioFile, transcribeBuffer } from './trackToSheet/transcribe.js';
 import { transcriptionToGpResult } from './trackToSheet/toTabModel.js';
+import { createAnalysisPanel } from './trackToSheet/analysisPanel.js';
 import { loadGpPlayerResult } from './gpPlayer.js';
 
 const recorder = {
@@ -55,7 +56,10 @@ const recorder = {
   transcription: null,
   gpResult: null,
   riffBusy: false,
+  audioBuffer: null,
 };
+
+let riffAnalysisPanel = null;
 
 // Confidence-gated pitch detection shared with the vocal trainer. The
 // `clarity` score rejects breath/room noise so spurious notes don't enter the
@@ -546,9 +550,41 @@ function setRiffBusy(busy) {
   if (bpmEl) bpmEl.disabled = busy;
   if (meterEl) meterEl.disabled = busy;
   if (progress) progress.hidden = !busy;
+  riffAnalysisPanel?.setBusy(busy);
+}
+
+function syncRiffTempoInputs(opts) {
+  const bpmEl = document.getElementById('rec-riff-bpm');
+  const meterEl = document.getElementById('rec-riff-meter');
+  const bpm = opts?.tempoMode === 'manual' && opts.bpm != null
+    ? opts.bpm
+    : (recorder.transcription?.bpm ?? opts?.bpm ?? 120);
+  const beats = opts?.beatsPerBar ?? recorder.transcription?.beatsPerBar ?? 4;
+  if (bpmEl) bpmEl.value = String(bpm);
+  if (meterEl) meterEl.value = String(Number(beats) === 3 ? 3 : 4);
+}
+
+function syncPanelFromRiffInputs() {
+  const bpmEl = document.getElementById('rec-riff-bpm');
+  const meterEl = document.getElementById('rec-riff-meter');
+  if (!riffAnalysisPanel || !bpmEl || !meterEl) return;
+  const bpm = Math.max(40, Math.min(240, Math.round(Number(bpmEl.value) || 120)));
+  const beatsPerBar = Number(meterEl.value) === 3 ? 3 : 4;
+  riffAnalysisPanel.setOptions({ tempoMode: 'manual', bpm, beatsPerBar });
 }
 
 function getRiffMeta() {
+  const opts = riffAnalysisPanel?.getOptions();
+  if (opts) {
+    const bpm = opts.tempoMode === 'manual' && opts.bpm != null
+      ? opts.bpm
+      : (recorder.transcription?.bpm ?? opts.bpm ?? 120);
+    const beatsPerBar = opts.beatsPerBar ?? recorder.transcription?.beatsPerBar ?? 4;
+    return {
+      bpm: Math.max(40, Math.min(240, Math.round(Number(bpm) || 120))),
+      beatsPerBar: Number(beatsPerBar) === 3 ? 3 : 4,
+    };
+  }
   const bpmEl = document.getElementById('rec-riff-bpm');
   const meterEl = document.getElementById('rec-riff-meter');
   const bpm = Math.max(40, Math.min(240, Math.round(Number(bpmEl?.value) || 120)));
@@ -581,6 +617,36 @@ function renderRiffMeta(model, confidence) {
     confEl.textContent = Number.isFinite(confidence)
       ? `${Math.round(confidence * 100)}%`
       : '--';
+  }
+}
+
+function renderRiffDiagnostics(result) {
+  const gridEl = document.getElementById('rec-riff-grid');
+  const qualityEl = document.getElementById('rec-riff-quality');
+  const guidanceEl = document.getElementById('rec-riff-guidance');
+  const grid = result?.grid;
+  const diag = result?.diagnostics;
+  if (gridEl) gridEl.textContent = grid?.label || '--';
+  if (qualityEl) {
+    if (!diag) qualityEl.textContent = '--';
+    else {
+      const voiced = Math.round((diag.voicedRatio ?? 0) * 100);
+      const count = diag.noteCount ?? result?.notes?.length ?? 0;
+      qualityEl.textContent = `${voiced}% voiced · ${count} notes`;
+    }
+  }
+  if (guidanceEl) {
+    const notes = result?.notes ?? [];
+    const duration = result?.durationSec ?? 0;
+    const voicedRatio = diag?.voicedRatio ?? 0;
+    let msg = '';
+    if (!notes.length || voicedRatio < 0.15) {
+      msg = 'Low pitch detection — open Analysis settings, try the Sensitive preset, or raise Pitch sensitivity.';
+    } else if (duration > 0 && notes.length / duration > 8) {
+      msg = 'Many short notes detected — try the Strict preset or lower Onset sensitivity.';
+    }
+    guidanceEl.textContent = msg;
+    guidanceEl.hidden = !msg;
   }
 }
 
@@ -617,35 +683,57 @@ function rebuildGpResult() {
   if (playBtn) playBtn.disabled = recorder.riffBusy || !recorder.gpResult;
 }
 
-async function recognizeRiff() {
-  if (!recorder.blob || recorder.riffBusy) return;
+function applyTranscriptionResult(result) {
+  recorder.transcription = result;
+
+  const panelOpts = riffAnalysisPanel?.getOptions();
+  const nextOpts = { ...panelOpts };
+  if (!panelOpts || panelOpts.tempoMode !== 'manual') {
+    nextOpts.bpm = result.bpm;
+    nextOpts.beatsPerBar = result.beatsPerBar;
+  }
+  riffAnalysisPanel?.setOptions(nextOpts);
+  syncRiffTempoInputs(riffAnalysisPanel?.getOptions() ?? nextOpts);
+
+  renderRiffNotes(result.notes);
+  renderRiffDiagnostics(result);
+  rebuildGpResult();
+}
+
+async function runRiffAnalysis({ decodeFirst = false } = {}) {
+  if (recorder.riffBusy) return;
+  if (decodeFirst && !recorder.blob) return;
+  if (!decodeFirst && !recorder.audioBuffer && !recorder.blob) return;
+
   setRiffBusy(true);
-  setRiffStatus('Decoding audio…');
   const progress = document.getElementById('rec-riff-progress');
-  if (progress) progress.value = 0;
+  if (progress) {
+    progress.hidden = false;
+    progress.value = 0;
+  }
 
   try {
     ensureAudio();
-    const buffer = await decodeAudioFile(recorder.blob);
-    setRiffStatus('Detecting pitches…');
-    const result = await transcribeBuffer(buffer, {
+    if (decodeFirst || !recorder.audioBuffer) {
+      if (!recorder.blob) return;
+      setRiffStatus('Decoding audio…');
+      recorder.audioBuffer = await decodeAudioFile(recorder.blob);
+    }
+
+    const options = {
+      ...riffAnalysisPanel?.getOptions(),
       onProgress: (p) => {
         if (progress) progress.value = p;
         setRiffStatus(`Detecting pitches… ${Math.round(p * 100)}%`);
       },
-    });
+    };
 
-    recorder.transcription = result;
-    const bpmEl = document.getElementById('rec-riff-bpm');
-    const meterEl = document.getElementById('rec-riff-meter');
-    if (bpmEl) bpmEl.value = String(result.bpm);
-    if (meterEl) meterEl.value = String(result.beatsPerBar === 3 ? 3 : 4);
-
-    renderRiffNotes(result.notes);
-    rebuildGpResult();
+    setRiffStatus('Detecting pitches…');
+    const result = await transcribeBuffer(recorder.audioBuffer, options);
+    applyTranscriptionResult(result);
 
     if (!result.notes.length) {
-      setRiffStatus('No clear pitches found — try a louder, drier take with one note at a time.', 'err');
+      setRiffStatus('No clear pitches found — try Analysis settings (Sensitive preset) or a louder take.', 'err');
       return;
     }
     setRiffStatus(
@@ -659,10 +747,15 @@ async function recognizeRiff() {
     renderRiffNotes([]);
     renderRiffAscii(null);
     renderRiffMeta(null, null);
+    renderRiffDiagnostics(null);
     setRiffStatus(`Recognition failed: ${err.message || err}`, 'err');
   } finally {
     setRiffBusy(false);
   }
+}
+
+async function recognizeRiff() {
+  await runRiffAnalysis({ decodeFirst: true });
 }
 
 function playRiffInGp() {
@@ -676,6 +769,7 @@ function playRiffInGp() {
 function clearRiffState() {
   recorder.transcription = null;
   recorder.gpResult = null;
+  recorder.audioBuffer = null;
   recorder.riffBusy = false;
   const card = document.getElementById('rec-riff-card');
   if (card) card.style.display = 'none';
@@ -683,6 +777,12 @@ function clearRiffState() {
   renderRiffNotes([]);
   renderRiffAscii(null);
   renderRiffMeta(null, null);
+  renderRiffDiagnostics(null);
+  const guidanceEl = document.getElementById('rec-riff-guidance');
+  if (guidanceEl) {
+    guidanceEl.textContent = '';
+    guidanceEl.hidden = true;
+  }
   const progress = document.getElementById('rec-riff-progress');
   if (progress) {
     progress.hidden = true;
@@ -915,6 +1015,7 @@ function initRecorder() {
   if (bpmEl && !bpmEl.dataset.wired) {
     bpmEl.dataset.wired = '1';
     bpmEl.addEventListener('change', () => {
+      syncPanelFromRiffInputs();
       if (recorder.transcription) rebuildGpResult();
     });
   }
@@ -922,7 +1023,23 @@ function initRecorder() {
   if (meterEl && !meterEl.dataset.wired) {
     meterEl.dataset.wired = '1';
     meterEl.addEventListener('change', () => {
+      syncPanelFromRiffInputs();
       if (recorder.transcription) rebuildGpResult();
+    });
+  }
+
+  const riffMount = document.getElementById('rec-riff-analysis-mount');
+  if (riffMount && !riffMount.dataset.wired) {
+    riffMount.dataset.wired = '1';
+    riffAnalysisPanel = createAnalysisPanel({
+      mount: riffMount,
+      storageKey: 'recRiffAnalysisOptions',
+      idPrefix: 'rec-riff-analysis',
+      onReanalyze: () => runRiffAnalysis({ decodeFirst: false }),
+      onChange: (opts) => {
+        syncRiffTempoInputs(opts);
+        if (recorder.transcription && !recorder.riffBusy) rebuildGpResult();
+      },
     });
   }
 }

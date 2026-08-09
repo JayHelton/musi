@@ -59,6 +59,17 @@
 .rec-riff-notes{max-height:88px;overflow:auto;margin-bottom:10px}
 .rec-riff-ascii{display:block;margin:0 0 14px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:14px;font-family:var(--font-ui,'VT323',monospace);font-size:.82rem;line-height:1.35;color:var(--text);white-space:pre;overflow:auto;max-height:180px}
 .rec-riff-actions{margin-top:4px}
+.rec-riff-analysis-mount{margin-bottom:10px}
+.rec-riff-guidance{
+  font-size:.8rem;
+  color:var(--warn);
+  background:rgba(243,156,18,0.08);
+  border:1px solid rgba(243,156,18,0.25);
+  border-radius:12px;
+  padding:8px 12px;
+  margin:-4px 0 12px;
+  line-height:1.4;
+}
 
 .hold-rec-btn{position:fixed;right:18px;bottom:calc(var(--dock-h) + 18px);z-index:110;width:52px;height:52px;border-radius:50%;border:1px solid rgba(255,255,255,0.08);background:var(--accent);color:var(--on-accent);box-shadow:0 4px 24px rgba(0,0,0,0.45),0 0 16px var(--accent-dim);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;transition:transform .15s ease,box-shadow .15s ease,background .15s ease}
 .hold-rec-btn:active,.hold-rec-btn.recording{transform:scale(1.06);background:var(--err);color:#fff;animation:recPulse 1.2s ease-in-out infinite}

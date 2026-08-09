@@ -179,6 +179,16 @@ export async function extractPitchFrames(mono, sampleRate, opts = {}) {
   return frames;
 }
 
+function trimmedWeightedMedian(midis, weights, trimFrac = 0.12) {
+  if (!midis.length) return 60;
+  const pairs = midis.map((m, i) => ({ m, w: Math.max(0, weights[i]) }));
+  pairs.sort((a, b) => a.m - b.m);
+  const trim = Math.floor(pairs.length * trimFrac);
+  const slice = pairs.slice(trim, Math.max(trim + 1, pairs.length - trim));
+  if (!slice.length) return weightedMedian(midis, weights);
+  return weightedMedian(slice.map((p) => p.m), slice.map((p) => p.w));
+}
+
 /**
  * Viterbi path over per-frame NSDF candidates to fix octave errors.
  * Transition cost grows with semitone distance; a weak pull anchors to the
@@ -195,7 +205,7 @@ function correctOctaveErrors(frames) {
     midis.push(freqToMidi(cands[0].freq));
     weights.push(cands[0].clarity * f.rms);
   }
-  const globalMidi = midis.length ? weightedMedian(midis, weights) : 60;
+  const globalMidi = midis.length ? trimmedWeightedMedian(midis, weights) : 60;
 
   const frameCands = frames.map((f) => {
     const raw = f.candidates?.length
@@ -254,8 +264,20 @@ function correctOctaveErrors(frames) {
 
   return frames.map((f, t) => {
     const chosen = path[t];
+    const primary = frameCands[t][0];
     if (!chosen || chosen.freq <= 0) {
       return { ...f, freq: -1, midi: -1, midiFloat: -1 };
+    }
+    if (primary && primary.freq > 0) {
+      const semi = Math.abs(12 * Math.log2(chosen.freq / primary.freq));
+      if (semi > 7 && primary.clarity >= 0.52) {
+        return {
+          ...f,
+          freq: primary.freq,
+          midi: Math.round(primary.midi),
+          midiFloat: primary.midi,
+        };
+      }
     }
     return {
       ...f,
@@ -271,13 +293,31 @@ function emissionScore(c) {
   return Math.log(0.02 + c.clarity);
 }
 
+function nearestOctaveNeighbor(midi, anchor) {
+  if (!Number.isFinite(midi) || !Number.isFinite(anchor)) return anchor;
+  let best = anchor;
+  let bestDist = Math.abs(midi - anchor);
+  for (const shift of [-24, -12, 0, 12, 24]) {
+    const candidate = anchor + shift;
+    const dist = Math.abs(midi - candidate);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
 function transitionScore(ci, cj, globalMidi) {
   if (!ci || ci.freq <= 0) return cj.freq > 0 ? -0.2 : 0;
   if (!cj || cj.freq <= 0) return -0.2;
   const semi = Math.abs(12 * Math.log2(cj.freq / ci.freq));
   const jumpCost = 0.025 * semi * semi;
-  const octaveCost = semi >= 11 ? 2.5 : 0;
-  const globalPull = 0.04 * Math.abs(cj.midi - globalMidi);
+  const octaveMod = semi % 12;
+  const isOctaveJump = semi >= 10.5 && (octaveMod < 1.5 || octaveMod > 10.5);
+  const octaveCost = isOctaveJump ? 5.5 : (semi >= 11 ? 2.5 : 0);
+  const anchor = nearestOctaveNeighbor(cj.midi, globalMidi);
+  const globalPull = 0.03 * Math.abs(cj.midi - anchor);
   return -(jumpCost + octaveCost + globalPull);
 }
 
@@ -293,7 +333,9 @@ function smoothVoicedMidi(frames, radius = 2) {
   );
   return frames.map((f, i) => {
     if (f.midiFloat <= 0) return f;
-    return { ...f, midiFloat: smoothed[i], midi: Math.round(smoothed[i]) };
+    const s = smoothed[i];
+    const corrected = Math.abs(s - f.midiFloat) > 1.5 ? s : (s * 0.65 + f.midiFloat * 0.35);
+    return { ...f, midiFloat: corrected, midi: Math.round(corrected) };
   });
 }
 
@@ -301,8 +343,10 @@ function centsDiff(a, b) {
   return Math.abs(1200 * Math.log2(a / b));
 }
 
-function mergeSemitoneBlips(notes, onsets) {
+function mergeSemitoneBlips(notes, onsets, minNoteSec = 0.08) {
   if (notes.length < 2) return notes;
+  const shortPairSec = Math.max(0.09, minNoteSec * 1.35);
+  const gapSec = Math.max(0.04, minNoteSec * 0.55);
   const sorted = notes.slice().sort((a, b) => a.startSec - b.startSec);
   const out = [sorted[0]];
   for (let i = 1; i < sorted.length; i++) {
@@ -310,11 +354,11 @@ function mergeSemitoneBlips(notes, onsets) {
     const cur = sorted[i];
     const gap = cur.startSec - (prev.startSec + prev.durationSec);
     const onsetBetween = onsets.some((o) => o.strength >= 0.45
-      && o.time > prev.startSec + 0.03
-      && o.time < cur.startSec - 0.03);
+      && o.time > prev.startSec + minNoteSec * 0.3
+      && o.time < cur.startSec - minNoteSec * 0.3);
     const semiApart = Math.abs(cur.midi - prev.midi) === 1;
-    const shortPair = prev.durationSec < 0.14 || cur.durationSec < 0.14;
-    if (!onsetBetween && gap < 0.06 && semiApart && shortPair) {
+    const shortPair = prev.durationSec < shortPairSec || cur.durationSec < shortPairSec;
+    if (!onsetBetween && gap < gapSec && semiApart && shortPair) {
       const keep = prev.clarity >= cur.clarity ? { ...prev } : { ...cur };
       keep.startSec = prev.startSec;
       keep.durationSec = cur.startSec + cur.durationSec - prev.startSec;
@@ -328,8 +372,10 @@ function mergeSemitoneBlips(notes, onsets) {
   return out;
 }
 
-function mergeMicroNotes(notes, onsets, maxGap = 0.04) {
+function mergeMicroNotes(notes, onsets, minNoteSec = 0.08) {
   if (notes.length < 2) return notes;
+  const maxGap = Math.max(0.03, minNoteSec * 0.45);
+  const shortBlipSec = Math.max(0.07, minNoteSec * 0.95);
   const sorted = notes.slice().sort((a, b) => a.startSec - b.startSec);
   const out = [sorted[0]];
   for (let i = 1; i < sorted.length; i++) {
@@ -337,9 +383,9 @@ function mergeMicroNotes(notes, onsets, maxGap = 0.04) {
     const cur = sorted[i];
     const gap = cur.startSec - (prev.startSec + prev.durationSec);
     const onsetBetween = onsets.some((o) => o.strength >= 0.4
-      && o.time > prev.startSec + 0.02
-      && o.time < cur.startSec - 0.02);
-    const shortBlip = prev.durationSec < 0.09 || cur.durationSec < 0.09;
+      && o.time > prev.startSec + minNoteSec * 0.2
+      && o.time < cur.startSec - minNoteSec * 0.2);
+    const shortBlip = prev.durationSec < shortBlipSec || cur.durationSec < shortBlipSec;
     if (!onsetBetween
       && gap < maxGap
       && Math.abs(cur.midi - prev.midi) <= 1
@@ -360,18 +406,20 @@ function mergeMicroNotes(notes, onsets, maxGap = 0.04) {
   return out;
 }
 
-function pruneSpuriousNotes(notes) {
+function pruneSpuriousNotes(notes, minNoteSec = 0.08) {
   if (notes.length < 2) return notes;
+  const shortSec = Math.max(0.08, minNoteSec * 1.1);
+  const blipSec = Math.max(0.1, minNoteSec * 1.35);
   const out = [];
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
     const prev = out[out.length - 1];
     const next = notes[i + 1];
-    const short = n.durationSec < 0.12;
+    const short = n.durationSec < shortSec;
     const weak = (n.confidence ?? n.clarity) < 0.72;
     if (prev && next && prev.midi === next.midi
       && Math.abs(n.midi - prev.midi) === 1
-      && n.durationSec < 0.14
+      && n.durationSec < blipSec
       && (n.confidence ?? n.clarity) < 0.82) continue;
     if (short && weak) {
       const nearPrev = prev && Math.abs(n.midi - prev.midi) <= 1;
@@ -386,10 +434,71 @@ function pruneSpuriousNotes(notes) {
     const last = out[out.length - 1];
     const prev = out[out.length - 2];
     const weak = (last.confidence ?? last.clarity) < 0.75;
-    const short = last.durationSec < 0.14;
+    const short = last.durationSec < blipSec;
     const semiOff = Math.abs(last.midi - prev.midi) === 1;
     if (weak && short && semiOff) out.pop();
     else break;
+  }
+  return out;
+}
+
+/** Extend note ends using RMS energy so release tails are not cut at the pitch gate. */
+function refineNoteDurations(notes, frames, onsets, hopSec, derived) {
+  if (!notes.length || !frames.length) return notes;
+  const minRms = (derived.minRms ?? 0.008) * 0.42;
+  const minNoteSec = derived.minNoteSec ?? 0.08;
+  const sorted = notes.slice().sort((a, b) => a.startSec - b.startSec);
+
+  for (let i = 0; i < sorted.length; i++) {
+    const note = sorted[i];
+    const nextNote = sorted[i + 1];
+    const ioi = nextNote
+      ? nextNote.startSec - note.startSec
+      : frames[frames.length - 1].t + hopSec - note.startSec;
+
+    if (note.durationSec >= ioi * 0.68) continue;
+
+    const articulation = 0.9;
+    let limit = note.startSec + ioi * articulation;
+    if (nextNote) {
+      limit = Math.min(limit, nextNote.startSec - hopSec * 0.5);
+    } else {
+      limit = Math.min(limit, frames[frames.length - 1].t + hopSec);
+    }
+
+    let endSec = note.startSec + note.durationSec;
+    for (const f of frames) {
+      if (f.t < note.startSec + hopSec * 0.5) continue;
+      if (f.t > limit) break;
+      if (f.rms >= minRms) endSec = f.t + hopSec;
+    }
+    const rmsDur = endSec - note.startSec;
+    const targetDur = Math.min(ioi * articulation, limit - note.startSec);
+    note.durationSec = Math.max(note.durationSec, rmsDur, targetDur);
+    note.durationSec = Math.min(note.durationSec, Math.max(hopSec, limit - note.startSec));
+  }
+  return sorted;
+}
+
+function collapseBoundarySemitoneBlips(notes, minNoteSec = 0.08) {
+  if (notes.length < 2) return notes;
+  const out = [];
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    const prev = out[out.length - 1];
+    const next = notes[i + 1];
+    const weak = (n.confidence ?? n.clarity) < 0.7;
+    const isBlip = weak && n.durationSec < minNoteSec * 2.1;
+    if (!isBlip) {
+      out.push(n);
+      continue;
+    }
+    if (prev && !next && Math.abs(n.midi - prev.midi) <= 2) continue;
+    if (prev && next
+      && Math.abs(n.midi - prev.midi) <= 1
+      && Math.abs(next.midi - prev.midi) <= 4
+      && Math.abs(next.midi - n.midi) <= 4) continue;
+    out.push(n);
   }
   return out;
 }
@@ -475,7 +584,12 @@ export function segmentNotes(frames, opts = {}) {
     notes = splitNotesAtOnsets(notes, onsets, minNoteSec);
   }
 
-  notes = pruneSpuriousNotes(notes);
+  notes = refineNoteDurations(notes, frames, onsets, hopSec, {
+    minRms: derived.minRms,
+    minNoteSec,
+  });
+
+  notes = pruneSpuriousNotes(notes, minNoteSec);
 
   notes = notes.filter((n) => {
     if (n.durationSec < minNoteSec) return false;
@@ -485,8 +599,9 @@ export function segmentNotes(frames, opts = {}) {
   });
 
   notes = mergeAdjacentNotes(notes, onsets);
-  notes = mergeSemitoneBlips(notes, onsets);
-  notes = mergeMicroNotes(notes, onsets);
+  notes = mergeSemitoneBlips(notes, onsets, minNoteSec);
+  notes = mergeMicroNotes(notes, onsets, minNoteSec);
+  notes = collapseBoundarySemitoneBlips(notes, minNoteSec);
 
   return notes.map(({ voicedFrames, ...n }) => n);
 }
@@ -548,7 +663,7 @@ function splitNotesAtOnsets(notes, onsets, minNoteSec) {
       continue;
     }
     const interior = strongOnsets
-      .filter((o) => o.strength >= 0.48
+      .filter((o) => o.strength >= Math.max(0.55, maxStrength * 0.72)
         && o.time > note.startSec + note.durationSec * 0.38
         && o.time < end - note.durationSec * 0.38)
       .sort((a, b) => a.time - b.time);
@@ -682,6 +797,34 @@ function scoreTempoWithBestGrid(bpm, phaseSec, onsetTimes, gridDivisions, weight
     }
   }
   return { score: bestScore, gridUnit: bestGrid };
+}
+
+function ioiMedianBpm(iois) {
+  if (!iois.length) return null;
+  const med = median(iois);
+  let bestBpm = null;
+  let bestScore = 0;
+  for (const n of [1, 0.5, 0.25, 2, 4, 8]) {
+    const bpm = (60 * n) / med;
+    if (bpm < MIN_BPM || bpm > MAX_BPM) continue;
+    const beatSec = 60 / bpm;
+    let hits = 0;
+    for (const ioi of iois) {
+      for (const div of [1, 0.5, 0.25, 1 / 3, 1 / 6]) {
+        const target = beatSec * div;
+        if (Math.abs(ioi - target) <= target * 0.14) {
+          hits++;
+          break;
+        }
+      }
+    }
+    const score = (hits / iois.length) * tempoPrior(bpm);
+    if (score > bestScore + 1e-6 || (Math.abs(score - bestScore) <= 0.03 && bpm > (bestBpm ?? 0))) {
+      bestScore = score;
+      bestBpm = bpm;
+    }
+  }
+  return bestBpm;
 }
 
 function ioiBeatCandidates(iois) {
@@ -870,6 +1013,10 @@ export function estimateTempo(notes, opts = {}) {
 
   const iois = collectIoIs(onsetTimes);
   for (const b of ioiBeatCandidates(iois)) candidateBpms.add(b);
+  const ioiMedBpm = ioiMedianBpm(iois);
+  if (ioiMedBpm != null) {
+    candidateBpms.add(ioiMedBpm);
+  }
 
   if (opts.bpm) candidateBpms.add(opts.bpm);
   if (!candidateBpms.size) candidateBpms.add(120);
@@ -893,7 +1040,8 @@ export function estimateTempo(notes, opts = {}) {
         const { score: align, gridUnit } = scoreTempoWithBestGrid(
           bpm, phase, onsetTimes, gridUnits, weights,
         );
-        const score = align * tempoPrior(bpm) * envelopeBoost(bpm, envelopeCandidates);
+        let score = align * tempoPrior(bpm) * envelopeBoost(bpm, envelopeCandidates);
+        if (ioiMedBpm != null && Math.abs(bpm / ioiMedBpm - 1) < 0.05) score *= 1.2;
         scored.push({ bpm, phase, score, gridUnit });
         if (score > best.score) best = { bpm, phase, score, gridUnit, align };
       }
@@ -929,6 +1077,28 @@ export function estimateTempo(notes, opts = {}) {
     best = resolveCloseEnvelopePeaks(
       best, envelopeCandidates, onsetTimes, gridUnits, weights,
     );
+  }
+
+  if (!opts.bpm && ioiMedBpm != null) {
+    const beatSec = 60 / ioiMedBpm;
+    let peak = 0;
+    let peakPhase = 0;
+    let peakGrid = best.gridUnit;
+    for (let ps = 0; ps < 32; ps++) {
+      const phase = (ps / 32) * beatSec;
+      const { score: align, gridUnit } = scoreTempoWithBestGrid(
+        ioiMedBpm, phase, onsetTimes, gridUnits, weights,
+      );
+      const score = align * tempoPrior(ioiMedBpm) * envelopeBoost(ioiMedBpm, envelopeCandidates);
+      if (score > peak) {
+        peak = score;
+        peakPhase = phase;
+        peakGrid = gridUnit;
+      }
+    }
+    if (peak >= best.score * 0.96 && Math.abs(ioiMedBpm - best.bpm) / best.bpm > 0.12) {
+      best = { bpm: ioiMedBpm, phase: peakPhase, score: peak, gridUnit: peakGrid };
+    }
   }
 
   scored.sort((a, b) => b.score - a.score);
@@ -1031,6 +1201,10 @@ export function quantizeNotes(notes, {
     return { n, startBeat, durationBeats };
   });
 
+  const minDurBeats = raw.length
+    ? Math.min(...raw.map((r) => r.durationBeats))
+    : 1;
+
   let bestDiv = divisions[divisions.length - 1] || 0.25;
   let bestFit = -1;
   const isTripletDiv = (d) => Math.abs(d - 1 / 3) < 0.02 || Math.abs(d - 1 / 6) < 0.02;
@@ -1043,6 +1217,8 @@ export function quantizeNotes(notes, {
       if (Math.abs(startBeat - nearestStart) < div * 0.45) fit += 1;
       if (Math.abs(durationBeats - nearestDur) < div * 0.45) fit += 0.75;
     }
+    if (minDurBeats <= 0.32 && div <= 0.25) fit += 0.4;
+    else if (minDurBeats <= 0.55 && div <= 0.5) fit += 0.2;
     if (isTripletDiv(div)) fit *= 0.88;
     if (fit > bestFit + 0.05 || (fit > bestFit - 0.02 && !isTripletDiv(div) && isTripletDiv(bestDiv))) {
       bestFit = fit;
@@ -1205,7 +1381,11 @@ export async function analyzeMono(mono, sampleRate, options = {}) {
   });
 
   frames = correctOctaveErrors(frames);
-  frames = smoothVoicedMidi(frames, 2);
+  const heavyVibratoSmooth = resolved.vibratoCents > 75 && resolved.sensitivity <= 0.55;
+  const smoothRadius = heavyVibratoSmooth
+    ? Math.max(4, Math.min(14, Math.round(derived.pitchTolCents / 6)))
+    : Math.max(2, Math.min(6, Math.round(derived.pitchTolCents / 15)));
+  frames = smoothVoicedMidi(frames, smoothRadius);
 
   const onsetEnv = computeOnsetEnvelope(processed, sampleRate, {
     fftSize: nextPow2(Math.min(2048, Math.round(1024 * sampleRate / REF_SAMPLE_RATE))),

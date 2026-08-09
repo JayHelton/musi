@@ -1436,6 +1436,7 @@
         <p class="rec-riff-help">Sing or hum a riff, then map pitches to a guitar tab you can play in the Guitar Pro player.</p>
         <div class="rec-riff-status" id="rec-riff-status"></div>
         <progress class="rec-riff-progress" id="rec-riff-progress" max="1" value="0" hidden></progress>
+        <div id="rec-riff-analysis-mount" class="rec-riff-analysis-mount"></div>
         <div class="rec-riff-meta">
           <label class="rec-riff-meta-item">
             <span class="rec-opt-label">BPM</span>
@@ -1456,7 +1457,16 @@
             <span class="rec-opt-label">Tempo fit</span>
             <span id="rec-riff-confidence">--</span>
           </div>
+          <div class="rec-riff-meta-item rec-riff-readout">
+            <span class="rec-opt-label">Grid</span>
+            <span id="rec-riff-grid">--</span>
+          </div>
+          <div class="rec-riff-meta-item rec-riff-readout">
+            <span class="rec-opt-label">Quality</span>
+            <span id="rec-riff-quality">--</span>
+          </div>
         </div>
+        <p class="rec-riff-guidance" id="rec-riff-guidance" hidden></p>
         <div class="rec-section-label">Recognized notes</div>
         <div class="rec-note-seq rec-riff-notes" id="rec-riff-notes"></div>
         <pre id="rec-riff-ascii" class="rec-riff-ascii"></pre>
@@ -1775,6 +1785,23 @@
           </div>
           <div class="tts-file-note" id="tts-file-note"></div>
           <audio id="tts-player" controls hidden></audio>
+        </div>
+
+        <div id="tts-analysis-mount" class="tts-analysis-mount"></div>
+
+        <div class="tts-readouts" id="tts-readouts" hidden>
+          <div class="tts-readout">
+            <span class="tts-readout-label">Grid</span>
+            <span class="tts-readout-value" id="tts-grid">--</span>
+          </div>
+          <div class="tts-readout">
+            <span class="tts-readout-label">Quality</span>
+            <span class="tts-readout-value" id="tts-quality">--</span>
+          </div>
+          <div class="tts-readout">
+            <span class="tts-readout-label">Tempo fit</span>
+            <span class="tts-readout-value" id="tts-tempo-fit">--</span>
+          </div>
         </div>
 
         <div class="tts-controls">
