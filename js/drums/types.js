@@ -117,3 +117,32 @@ export function defaultVelocity(instrument) {
   const glyph = INSTRUMENT_TAB_GLYPH[instrument] || 'x';
   return VELOCITY_BY_SYMBOL[glyph] ?? 0.72;
 }
+
+// Lanes merged for tab display: hi-hat row folds open (`O`), snare row folds ghost/flam.
+export const DRUM_TAB_LANES = [
+  { label: 'C', instruments: ['crash'] },
+  { label: 'R', instruments: ['ride'] },
+  { label: 'H', instruments: ['hihatClosed', 'hihatOpen'] },
+  { label: 'S', instruments: ['snare', 'snareGhost', 'snareFlam'] },
+  { label: 'T1', instruments: ['tomHigh'] },
+  { label: 'T2', instruments: ['tomMid'] },
+  { label: 'FT', instruments: ['tomFloor'] },
+  { label: 'K', instruments: ['kick'] },
+];
+
+// Priority when several instruments in a lane land on the same step (flam beats
+// ghost beats a normal hit; an open hat beats a closed one).
+export const DRUM_LANE_PRIORITY = {
+  snareFlam: 3, snareGhost: 1, snare: 2,
+  hihatOpen: 2, hihatClosed: 1,
+};
+
+/** Tab glyph for a drum hit (accent-aware unless instrument has a fixed glyph). */
+export function drumTabGlyph(instrument, velocity) {
+  if (instrument === 'hihatOpen') return 'O';
+  if (instrument === 'snareGhost') return 'g';
+  if (instrument === 'snareFlam') return 'f';
+  if (velocity >= 0.9) return 'X';
+  if (velocity >= 0.6) return 'x';
+  return 'o';
+}

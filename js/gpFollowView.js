@@ -1,18 +1,20 @@
 // Follow-along visual for Guitar Pro practice: tab columns + drum lanes + playhead.
 // Shared by the Guitar Pro Player (extracted from Song Learning).
 
+import { DRUM_TAB_LANES, DRUM_LANE_PRIORITY, drumTabGlyph } from './drums/types.js';
+
 const COL_BEAT = 0.25; // visual column = 16th note
 
-export const DRUM_LANES = [
-  { key: 'crash', instruments: ['crash'], label: 'C' },
-  { key: 'ride', instruments: ['ride'], label: 'R' },
-  { key: 'hihat', instruments: ['hihatClosed', 'hihatOpen'], label: 'H' },
-  { key: 'snare', instruments: ['snare', 'snareGhost', 'snareFlam'], label: 'S' },
-  { key: 'tomHigh', instruments: ['tomHigh'], label: 'T1' },
-  { key: 'tomMid', instruments: ['tomMid'], label: 'T2' },
-  { key: 'tomFloor', instruments: ['tomFloor'], label: 'FT' },
-  { key: 'kick', instruments: ['kick'], label: 'K' },
-];
+function drumLaneKey(lane) {
+  if (lane.instruments.includes('hihatClosed')) return 'hihat';
+  return lane.instruments[0];
+}
+
+export const DRUM_LANES = DRUM_TAB_LANES.map((lane) => ({
+  key: drumLaneKey(lane),
+  instruments: lane.instruments,
+  label: lane.label,
+}));
 
 function measureIndexAtBeat(measures, beat) {
   if (!measures?.length) return 0;
@@ -109,14 +111,13 @@ export function buildFollowColumns({
       if (!col || !ev.instrument) continue;
       const lane = DRUM_LANES.find((l) => l.instruments.includes(ev.instrument));
       if (!lane) continue;
-      const pri = ev.instrument === 'hihatOpen' || ev.instrument === 'snareFlam' ? 2 : 1;
-      if (!col.drums[lane.key] || pri >= (col.drums[lane.key].pri || 0)) {
+      const pri = DRUM_LANE_PRIORITY[ev.instrument] ?? 2;
+      const glyph = drumTabGlyph(ev.instrument, ev.velocity ?? 0.72);
+      if (!col.drums[lane.key] || pri > (col.drums[lane.key].pri || 0)) {
         col.drums[lane.key] = {
           instrument: ev.instrument,
           pri,
-          glyph: ev.instrument === 'hihatOpen' ? 'O'
-            : ev.instrument === 'snareGhost' ? 'g'
-              : ev.instrument === 'snareFlam' ? 'f' : '●',
+          glyph,
         };
       }
     }

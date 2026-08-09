@@ -1,6 +1,6 @@
 // Songsterr-like vertical parchment score renderer for the GP player.
 
-import { DRUM_LANES } from '../gpFollowView.js';
+import { DRUM_TAB_LANES, DRUM_LANE_PRIORITY, drumTabGlyph } from '../drums/types.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
@@ -85,6 +85,7 @@ export function mountParchmentView(host, {
   let annoSpanEls = [];
   let handleStart = null;
   let handleEnd = null;
+  let laneCache = [];
   let lastActive = -1;
   let lastBeat = 0;
   let rafId = 0;
@@ -126,10 +127,74 @@ export function mountParchmentView(host, {
     if (!percModel && !isDrum) return [];
     const m = isDrum ? model : percModel;
     const insts = new Set((m?.events || []).map((e) => e.instrument).filter(Boolean));
-    return DRUM_LANES.filter((lane) => lane.instruments.some((i) => insts.has(i)));
+    return DRUM_TAB_LANES.filter((lane) => lane.instruments.some((i) => insts.has(i)));
   }
 
-  function renderMeasure(mi, m) {
+  function snapBeatKey(beats, beat) {
+    for (const k of beats) {
+      if (Math.abs(k - beat) < 1e-6) return k;
+    }
+    return beat;
+  }
+
+  function strongestLaneHits(evts, lane) {
+    const byBeat = new Map();
+    for (const ev of evts) {
+      if (!lane.instruments.includes(ev.instrument)) continue;
+      const beat = Number(ev.start);
+      const key = snapBeatKey([...byBeat.keys()], beat);
+      const pri = DRUM_LANE_PRIORITY[ev.instrument] ?? 2;
+      const glyph = drumTabGlyph(ev.instrument, ev.velocity ?? 0.72);
+      const cur = byBeat.get(key);
+      if (!cur || pri > cur.pri) {
+        byBeat.set(key, { beat, pri, glyph });
+      }
+    }
+    return byBeat;
+  }
+
+  function renderMarkerSpacer() {
+    const mk = document.createElement('div');
+    mk.className = 'gpp-parch-marker gpp-parch-marker-spacer';
+    mk.setAttribute('aria-hidden', 'true');
+    mk.textContent = '\u00a0';
+    return mk;
+  }
+
+  function renderDrumLabelGutter(lanes, { markerSpacer = false } = {}) {
+    const gutter = document.createElement('div');
+    gutter.className = 'gpp-parch-drum-gutter';
+
+    const railSpacer = document.createElement('div');
+    railSpacer.className = 'gpp-parch-gutter-rail';
+    gutter.appendChild(railSpacer);
+
+    const barSpacer = document.createElement('div');
+    barSpacer.className = 'gpp-parch-gutter-bar-num';
+    barSpacer.textContent = '\u00a0';
+    gutter.appendChild(barSpacer);
+
+    if (markerSpacer) {
+      gutter.appendChild(renderMarkerSpacer());
+    }
+
+    const labelsWrap = document.createElement('div');
+    labelsWrap.className = 'gpp-parch-gutter-labels';
+    for (const lane of lanes) {
+      const lab = document.createElement('div');
+      lab.className = 'gpp-parch-lane-label';
+      const text = document.createElement('span');
+      text.className = 'gpp-parch-lane-label-text';
+      text.textContent = lane.label;
+      lab.appendChild(text);
+      labelsWrap.appendChild(lab);
+    }
+    gutter.appendChild(labelsWrap);
+
+    return gutter;
+  }
+
+  function renderMeasure(mi, m, { markerSpacer = false } = {}) {
     const wrap = document.createElement('div');
     wrap.className = 'gpp-parch-measure';
     wrap.dataset.index = String(mi);
@@ -148,6 +213,8 @@ export function mountParchmentView(host, {
       mk.className = 'gpp-parch-marker';
       mk.textContent = m.marker;
       wrap.appendChild(mk);
+    } else if (markerSpacer) {
+      wrap.appendChild(renderMarkerSpacer());
     }
 
     const staff = document.createElement('div');
@@ -174,7 +241,7 @@ export function mountParchmentView(host, {
         staff.appendChild(row);
       }
     } else {
-      const lanes = activeDrumLanes();
+      const lanes = laneCache;
       const evts = (model?.events || []).filter((ev) => {
         const b = Number(ev.start);
         return b >= mStart - 1e-6 && b < mEnd - 1e-6;
@@ -182,18 +249,12 @@ export function mountParchmentView(host, {
       for (const lane of lanes) {
         const row = document.createElement('div');
         row.className = 'gpp-parch-drum-lane';
-        const lab = document.createElement('span');
-        lab.className = 'gpp-parch-lane-label';
-        lab.textContent = lane.label;
-        row.appendChild(lab);
-        for (const ev of evts) {
-          if (!lane.instruments.includes(ev.instrument)) continue;
+        const hits = strongestLaneHits(evts, lane);
+        for (const { beat, glyph } of hits.values()) {
           const hit = document.createElement('span');
           hit.className = 'gpp-parch-drum-hit';
-          hit.style.left = `${beatPctInMeasure(ev.start, m)}%`;
-          hit.textContent = ev.instrument === 'hihatOpen' ? 'O'
-            : ev.instrument === 'snareGhost' ? 'g'
-              : ev.instrument === 'snareFlam' ? 'f' : '●';
+          hit.style.left = `${beatPctInMeasure(beat, m)}%`;
+          hit.textContent = glyph;
           row.appendChild(hit);
         }
         staff.appendChild(row);
@@ -245,14 +306,22 @@ export function mountParchmentView(host, {
 
     mps = measuresPerSystem(host.clientWidth || 600, currentZoom);
     sheet.style.fontSize = `${Math.round(12 * currentZoom)}px`;
+    // Scanning every event for occupied lanes is per-model work, not per-measure.
+    laneCache = isDrum ? activeDrumLanes() : [];
 
     for (let i = 0; i < ms.length; i += mps) {
       const sys = document.createElement('div');
       sys.className = 'gpp-parch-system';
       sys.style.gap = `${Math.round(4 * currentZoom)}px`;
       const chunk = ms.slice(i, i + mps);
+      const systemHasMarker = chunk.some((m) => m.marker);
+      if (laneCache.length) {
+        sys.appendChild(renderDrumLabelGutter(laneCache, { markerSpacer: systemHasMarker }));
+      }
       chunk.forEach((m, j) => {
-        const el = renderMeasure(i + j, m);
+        const el = renderMeasure(i + j, m, {
+          markerSpacer: systemHasMarker && !m.marker,
+        });
         sys.appendChild(el);
         measureEls[i + j] = el;
       });
