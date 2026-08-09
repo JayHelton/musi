@@ -13,6 +13,21 @@ const USER_SCROLL_COOLDOWN_MS = 2500;
 const LONG_PRESS_MS = 450;
 const NOTE_PAD_START = 9;
 const NOTE_PAD_END = 7;
+const BEAT_EPS = 1e-4;
+const CHAR_WIDTH = 7;
+const COLUMN_GAP = 4;
+const NOMINAL_MEASURE_WIDTH = 220;
+const MEASURE_WIDTH_FLOOR = 48;
+const MAX_MEASURES_PER_SYSTEM = 8;
+const VIEWPORT_PAD_H = 12;
+const GUTTER_BASIS = 20;
+
+const AUTO_SCALE_WIDTH_900 = 900;
+const AUTO_SCALE_WIDTH_1200 = 1200;
+const AUTO_SCALE_WIDTH_1600 = 1600;
+const AUTO_SCALE_AT_900 = 1.2;
+const AUTO_SCALE_AT_1200 = 1.35;
+const AUTO_SCALE_AT_1600 = 1.5;
 
 function previewAnnoText(text, max = 56) {
   const t = (text || '').trim().replace(/\s+/g, ' ');
@@ -34,11 +49,76 @@ function beatPctInMeasure(beat, m) {
   return Math.max(0, Math.min(100, ((beat - start) / len) * 100));
 }
 
-// Measures share the row width, so the divisor targets ~220px per measure at
-// zoom 1; the ceiling keeps very wide screens from packing rows too densely.
-function measuresPerSystem(hostWidth, zoom) {
-  const base = hostWidth / (220 * zoom);
-  return Math.max(1, Math.min(8, Math.round(base) || 2));
+function autoScaleForHostWidth(hostWidth) {
+  if (hostWidth >= AUTO_SCALE_WIDTH_1600) return AUTO_SCALE_AT_1600;
+  if (hostWidth >= AUTO_SCALE_WIDTH_1200) return AUTO_SCALE_AT_1200;
+  if (hostWidth >= AUTO_SCALE_WIDTH_900) return AUTO_SCALE_AT_900;
+  return 1;
+}
+
+function effectiveScale(hostWidth, userZoom) {
+  return autoScaleForHostWidth(hostWidth) * userZoom;
+}
+
+function glyphLabel(ev, isDrum) {
+  if (isDrum) return drumTabGlyph(ev);
+  if (ev.dead) return 'x';
+  if (ev.fret != null) return String(ev.fret);
+  return '';
+}
+
+function measureRhythmicInfo(m, model, isDrum) {
+  const { start: mStart, end: mEnd } = measureSpan(m);
+  const events = (model?.events || []).filter((ev) => {
+    const b = Number(ev.start);
+    return b >= mStart - BEAT_EPS && b < mEnd - BEAT_EPS;
+  });
+  const beatCols = [];
+  let maxChars = 1;
+  for (const ev of events) {
+    const b = Number(ev.start);
+    if (!beatCols.some((x) => Math.abs(x - b) < BEAT_EPS)) beatCols.push(b);
+    const label = glyphLabel(ev, isDrum);
+    if (label.length) maxChars = Math.max(maxChars, label.length);
+  }
+  return { columns: Math.max(1, beatCols.length), maxChars };
+}
+
+function measureWidthRequirements(info) {
+  const content = info.columns * (info.maxChars * CHAR_WIDTH + COLUMN_GAP);
+  const baseMin = Math.max(MEASURE_WIDTH_FLOOR, content + NOTE_PAD_START + NOTE_PAD_END);
+  const baseNominal = Math.max(NOMINAL_MEASURE_WIDTH, baseMin);
+  return { baseMin, baseNominal };
+}
+
+function packMeasuresIntoSystems(specs, availableWidth, scale) {
+  const systems = [];
+  const nominalTolerance = (NOMINAL_MEASURE_WIDTH / 2) * scale;
+  let i = 0;
+  while (i < specs.length) {
+    const row = [];
+    let sumMin = 0;
+    let sumNominal = 0;
+    while (i < specs.length && row.length < MAX_MEASURES_PER_SYSTEM) {
+      const spec = specs[i];
+      const nextMin = sumMin + spec.minWidth;
+      const nextNominal = sumNominal + spec.nominalWidth;
+      if (row.length > 0) {
+        if (nextMin > availableWidth) break;
+        if (nextNominal > availableWidth + nominalTolerance) break;
+      }
+      row.push(spec);
+      sumMin = nextMin;
+      sumNominal = nextNominal;
+      i++;
+    }
+    if (!row.length) {
+      row.push(specs[i]);
+      i++;
+    }
+    systems.push(row);
+  }
+  return systems;
 }
 
 /**
@@ -98,7 +178,7 @@ export function mountParchmentView(host, {
   let lastActive = -1;
   let lastBeat = 0;
   let rafId = 0;
-  let mps = 2;
+  let measureSystemIndex = [];
   let drag = null;
   let noteDrag = null;
   let resizeDrag = null;
@@ -222,10 +302,14 @@ export function mountParchmentView(host, {
     return measureEl?.getBoundingClientRect() ?? null;
   }
 
-  function renderMeasure(mi, m) {
+  function renderMeasure(mi, m, widthSpec) {
     const wrap = document.createElement('div');
     wrap.className = 'gpp-parch-measure';
     wrap.dataset.index = String(mi);
+    if (widthSpec) {
+      wrap.style.flexGrow = String(widthSpec.flexGrow);
+      wrap.style.minWidth = `${widthSpec.minWidth}px`;
+    }
 
     const notesRail = document.createElement('div');
     notesRail.className = 'gpp-parch-notes-rail';
@@ -345,10 +429,28 @@ export function mountParchmentView(host, {
     const ms = measures();
     if (!ms.length) return;
 
-    mps = measuresPerSystem(host.clientWidth || 600, currentZoom);
-    sheet.style.fontSize = `${Math.round(12 * currentZoom)}px`;
-    sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * currentZoom))}px`);
-    sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * currentZoom))}px`);
+    const hostW = host.clientWidth || 600;
+    const scale = effectiveScale(hostW, currentZoom);
+    sheet.style.setProperty('--gpp-scale', String(scale));
+    sheet.style.fontSize = `${Math.round(12 * scale)}px`;
+    sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * scale))}px`);
+    sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * scale))}px`);
+
+    const gutterWidth = GUTTER_BASIS * scale;
+    const vpW = viewport.clientWidth || hostW;
+    const availableWidth = Math.max(0, vpW - VIEWPORT_PAD_H - gutterWidth);
+
+    const widthSpecs = ms.map((m, mi) => {
+      const info = measureRhythmicInfo(m, model, isDrum);
+      const { baseMin, baseNominal } = measureWidthRequirements(info);
+      return {
+        mi,
+        minWidth: baseMin * scale,
+        nominalWidth: baseNominal * scale,
+      };
+    });
+    const packed = packMeasuresIntoSystems(widthSpecs, availableWidth, scale);
+    measureSystemIndex = new Array(ms.length);
 
     const captionText = tuningCaptionText();
     if (captionText) {
@@ -358,19 +460,23 @@ export function mountParchmentView(host, {
       sheet.appendChild(caption);
     }
 
-    for (let i = 0; i < ms.length; i += mps) {
+    packed.forEach((row, si) => {
       const sys = document.createElement('div');
       sys.className = 'gpp-parch-system';
       sys.appendChild(renderGutter());
-      const chunk = ms.slice(i, i + mps);
-      chunk.forEach((m, j) => {
-        const el = renderMeasure(i + j, m);
+      const nominalSum = row.reduce((s, spec) => s + spec.nominalWidth, 0) || 1;
+      row.forEach((spec) => {
+        const el = renderMeasure(spec.mi, ms[spec.mi], {
+          flexGrow: spec.nominalWidth / nominalSum,
+          minWidth: spec.minWidth,
+        });
         sys.appendChild(el);
-        measureEls[i + j] = el;
+        measureEls[spec.mi] = el;
+        measureSystemIndex[spec.mi] = si;
       });
       sheet.appendChild(sys);
       systemEls.push(sys);
-    }
+    });
 
     playheadEl = document.createElement('div');
     playheadEl.className = 'gpp-parch-playhead';
@@ -787,8 +893,8 @@ export function mountParchmentView(host, {
   }
 
   function systemForMeasure(mi) {
-    const idx = Math.floor(mi / mps);
-    return systemEls[idx] ?? null;
+    const idx = measureSystemIndex[mi];
+    return idx != null ? systemEls[idx] ?? null : null;
   }
 
   function pinSystemToViewportTop(mi, topPad) {

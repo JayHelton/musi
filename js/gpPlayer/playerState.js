@@ -25,7 +25,7 @@ function readBool(key, fallback) {
 function readZoom() {
   try {
     const v = parseFloat(localStorage.getItem(PARCHMENT_ZOOM_KEY));
-    if (Number.isFinite(v) && v >= 0.75 && v <= 1.5) return v;
+    if (Number.isFinite(v) && v >= 0.75 && v <= 2.5) return v;
   } catch (e) { /* ignore */ }
   return 1;
 }
@@ -335,7 +335,7 @@ export function createPlayerState(gpResult, options = {}) {
   }
 
   function setParchmentZoom(z) {
-    const v = Math.max(0.75, Math.min(1.5, Number(z) || 1));
+    const v = Math.max(0.75, Math.min(2.5, Number(z) || 1));
     state.parchmentZoom = v;
     writeZoom(v);
   }

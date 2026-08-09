@@ -689,6 +689,10 @@ for (const measure of parchHost.querySelectorAll('.gpp-parch-measure')) {
 }
 
 const parchSheet = parchHost.querySelector('.gpp-parch-sheet');
+assert.equal(parseFloat(parchSheet.style.getPropertyValue('--gpp-scale')), 1, 'sheet should publish --gpp-scale at default zoom on narrow host');
+const firstMeasure = parchHost.querySelector('.gpp-parch-measure');
+assert.ok(firstMeasure?.style?.minWidth, 'measures should get inline min-width from density packing');
+assert.ok(firstMeasure?.style?.flexGrow, 'measures should get inline flex-grow from nominal width');
 const padStartZoom1 = parseInt(parchSheet.style.getPropertyValue('--gpp-note-pad-start'), 10);
 const padEndZoom1 = parseInt(parchSheet.style.getPropertyValue('--gpp-note-pad-end'), 10);
 assert.ok(padStartZoom1 > 0, 'sheet should set --gpp-note-pad-start at zoom 1');

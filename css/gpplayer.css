@@ -501,6 +501,7 @@
   position: relative;
   color: #1a1420;
   font-family: var(--font-body, "Pixelify Sans", ui-monospace, monospace);
+  --gpp-scale: 1;
 }
 
 .gpp-parch-system {
@@ -512,7 +513,7 @@
 
 .gpp-parch-tuning-caption {
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 11px;
+  font-size: calc(11px * min(var(--gpp-scale, 1), 1.6));
   line-height: 1.2;
   color: rgba(58, 42, 24, 0.7);
   margin: 0 0 6px;
@@ -523,8 +524,8 @@
 }
 
 .gpp-parch-gutter {
-  flex: 0 0 20px;
-  min-width: 16px;
+  flex: 0 0 calc(20px * var(--gpp-scale, 1));
+  min-width: calc(16px * var(--gpp-scale, 1));
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -542,7 +543,7 @@
   top: 50%;
   transform: translateY(-50%);
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 10px;
+  font-size: calc(10px * var(--gpp-scale, 1));
   font-weight: 700;
   line-height: 1;
   opacity: 0.75;
@@ -556,7 +557,7 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   padding: 4px 0 8px;
   border-left: 2px solid #1a1420;
@@ -588,19 +589,19 @@
 
 .gpp-parch-bar-num {
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 10px;
+  font-size: calc(10px * var(--gpp-scale, 1));
   font-weight: 700;
   margin-bottom: 2px;
-  padding-left: 6px;
+  padding-left: calc(6px * var(--gpp-scale, 1));
   opacity: 0.75;
   color: rgba(58, 42, 24, 0.85);
 }
 .gpp-parch-marker {
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 9px;
+  font-size: calc(9px * var(--gpp-scale, 1));
   opacity: 0.65;
   margin-bottom: 2px;
-  padding-left: 6px;
+  padding-left: calc(6px * var(--gpp-scale, 1));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -613,7 +614,7 @@
 
 .gpp-parch-string {
   position: relative;
-  height: 14px;
+  height: calc(14px * var(--gpp-scale, 1));
   border-bottom: 1px solid rgba(26, 20, 32, 0.35);
 }
 .gpp-parch-string:last-child {
@@ -633,7 +634,7 @@
   top: 50%;
   transform: translate(-50%, -50%);
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 11px;
+  font-size: calc(11px * var(--gpp-scale, 1));
   font-weight: 600;
   line-height: 1;
   color: #1e1408;
@@ -645,7 +646,7 @@
 
 .gpp-parch-drum-lane {
   position: relative;
-  height: 12px;
+  height: calc(12px * var(--gpp-scale, 1));
   border-bottom: 1px dashed rgba(26, 20, 32, 0.2);
 }
 .gpp-parch-drum-hit {
@@ -653,7 +654,7 @@
   top: 50%;
   transform: translate(-50%, -50%);
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 10px;
+  font-size: calc(10px * var(--gpp-scale, 1));
   color: #1e1408;
   z-index: 1;
 }
@@ -679,7 +680,7 @@
   margin: 6px 2px 0;
   padding: 4px 4px 2px;
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 9px;
+  font-size: calc(9px * min(var(--gpp-scale, 1), 1.6));
   line-height: 1.3;
   color: rgba(26, 20, 32, 0.55);
 }
@@ -763,7 +764,7 @@
   gap: 3px;
   margin-bottom: 3px;
   min-height: 0;
-  padding-left: 6px;
+  padding-left: calc(6px * var(--gpp-scale, 1));
   position: relative;
   z-index: 2;
 }
@@ -906,12 +907,12 @@
     display: none;
   }
   .gpp-parch-gutter {
-    flex-basis: 16px;
-    min-width: 14px;
+    flex-basis: calc(16px * var(--gpp-scale, 1));
+    min-width: calc(14px * var(--gpp-scale, 1));
     padding-bottom: 6px;
   }
   .gpp-parch-gutter-label {
-    font-size: 9px;
+    font-size: calc(9px * var(--gpp-scale, 1));
     right: 2px;
   }
   .gpp-parch-notes-rail {

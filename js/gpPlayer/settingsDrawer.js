@@ -171,12 +171,12 @@ export function mountSettingsDrawer(host, {
       type: 'radio', name: `${prefix}-retune`, id: ids.retunePitch, value: 'pitches',
     });
     const zoomInput = el('input', {
-      type: 'range', class: 'gpp-slider', id: ids.zoom, min: '75', max: '150', step: '1',
+      type: 'range', class: 'gpp-slider', id: ids.zoom, min: '75', max: '250', step: '1',
       'aria-label': 'Score zoom percent',
     });
     const zoomPct = el('span', { class: 'gpp-pct', text: '100%' });
     const zoomPresets = el('div', { class: 'gpp-control-row' });
-    [80, 100, 125].forEach((pct) => {
+    [100, 150, 200].forEach((pct) => {
       zoomPresets.appendChild(el('button', {
         class: 'btn sm', type: 'button', text: `${pct}%`,
         onClick: () => setZoomPct(pct),
