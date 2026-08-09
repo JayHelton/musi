@@ -49,6 +49,11 @@ function beatPctInMeasure(beat, m) {
   return Math.max(0, Math.min(100, ((beat - start) / len) * 100));
 }
 
+// Sheet-positioned overlays; viewport scroll is already in client rect deltas.
+function xOffsetInSheet(clientLeft, sheetRect) {
+  return clientLeft - sheetRect.left;
+}
+
 function autoScaleForHostWidth(hostWidth) {
   if (hostWidth >= AUTO_SCALE_WIDTH_1600) return AUTO_SCALE_AT_1600;
   if (hostWidth >= AUTO_SCALE_WIDTH_1200) return AUTO_SCALE_AT_1200;
@@ -791,8 +796,8 @@ export function mountParchmentView(host, {
     const sheetRect = sheet.getBoundingClientRect();
     const a = firstEl.getBoundingClientRect();
     const b = (lastEl || firstEl).getBoundingClientRect();
-    const left = a.left - sheetRect.left + viewport.scrollLeft;
-    const right = b.right - sheetRect.left + viewport.scrollLeft;
+    const left = xOffsetInSheet(a.left, sheetRect);
+    const right = xOffsetInSheet(b.right, sheetRect);
     return { left, width: Math.max(8, right - left), right };
   }
 
@@ -887,7 +892,7 @@ export function mountParchmentView(host, {
     }
     const m = measures()[mi];
     const pct = beatPctInMeasure(beat, m) / 100;
-    const x = rect.left - sheetRect.left + viewport.scrollLeft + rect.width * pct;
+    const x = xOffsetInSheet(rect.left, sheetRect) + rect.width * pct;
     playheadEl.style.left = `${x}px`;
     playheadEl.hidden = false;
   }
