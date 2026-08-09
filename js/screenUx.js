@@ -1202,10 +1202,12 @@ function setupExercises() {
   const upload = document.getElementById('ex-upload-btn')
     || document.getElementById('ex-upload')
     || [...sec.querySelectorAll('button,label')].find(b => /upload/i.test(b.textContent));
+  const bulkUpload = document.getElementById('ex-bulk-upload-btn');
+  const bulkFileInput = document.getElementById('ex-bulk-file-input');
   const addLink = document.getElementById('ex-add-link-btn')
     || document.getElementById('ex-add-link')
     || [...sec.querySelectorAll('button')].find(b => /add link|link/i.test(b.textContent));
-  if ((upload || addLink) && !document.getElementById('ex-add-primary')) {
+  if ((upload || bulkUpload || addLink) && !document.getElementById('ex-add-primary')) {
     const primary = document.createElement('button');
     primary.type = 'button';
     primary.id = 'ex-add-primary';
@@ -1218,6 +1220,10 @@ function setupExercises() {
           onClick: () => (upload.tagName === 'LABEL'
             ? document.getElementById(upload.htmlFor)?.click()
             : upload.click()),
+        } : null,
+        bulkUpload ? {
+          label: 'Bulk upload',
+          onClick: () => (bulkFileInput ? bulkFileInput.click() : bulkUpload.click()),
         } : null,
         addLink ? { label: 'Add link', onClick: () => addLink.click() } : null,
       ].filter(Boolean));

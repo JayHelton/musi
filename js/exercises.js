@@ -27,6 +27,8 @@ import {
   gpResultFromTabModelJson,
   isSegmentExercise,
 } from './gpExerciseScore.js';
+import { BULK_ACCEPT_ATTR } from './exercisesBulk.js';
+import { openBulkUploadDialog, closeBulkUploadDialog } from './exercisesBulkUI.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -564,7 +566,7 @@ const expandedFolders = new Set();
 let selectionMode = false;
 const selectedIds = new Set();
 
-let listEl, catListEl, titleEl, statusEl, bulkBarEl, fileInput, uploadBtn, addLinkBtn, addCatForm, addCatInput;
+let listEl, catListEl, titleEl, statusEl, bulkBarEl, fileInput, bulkFileInput, uploadBtn, bulkUploadBtn, addLinkBtn, addCatForm, addCatInput;
 let workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
 let activeExerciseId = null;
 let viewerURL = null;
@@ -1214,6 +1216,33 @@ async function onUploadFiles() {
   else if (rejected) setStatus(UPLOAD_ACCEPT_MSG, true);
 }
 
+async function onBulkUploadFiles() {
+  const files = Array.from(bulkFileInput?.files || []);
+  if (bulkFileInput) bulkFileInput.value = '';
+  if (!files.length) return;
+
+  if (!attachmentsSupported()) {
+    setStatus('Uploading needs browser storage, which is unavailable here.', true);
+    return;
+  }
+
+  const defaultCategoryId = (selectedCategory !== 'all' && selectedCategory !== 'uncategorized')
+    ? selectedCategory : '';
+
+  openBulkUploadDialog({
+    files,
+    folders: getCategories(),
+    defaultCategoryId,
+    createFolder: addCategory,
+    addGpExercise: addGpExerciseFromAttachment,
+    addMediaExercise: addExerciseFromAttachment,
+    onDone: (result) => {
+      render();
+      setStatus(result.message, !result.ok);
+    },
+  });
+}
+
 /**
  * Add any file-backed exercise from an already-saved attachment
  * (GP Player, Track → Sheet, etc.).
@@ -1748,7 +1777,9 @@ export function initExercises() {
   statusEl = document.getElementById('ex-status');
   bulkBarEl = document.getElementById('ex-bulk-bar');
   fileInput = document.getElementById('ex-file-input');
+  bulkFileInput = document.getElementById('ex-bulk-file-input');
   uploadBtn = document.getElementById('ex-upload-btn');
+  bulkUploadBtn = document.getElementById('ex-bulk-upload-btn');
   addLinkBtn = document.getElementById('ex-add-link-btn');
   addCatForm = document.getElementById('ex-add-cat-form');
   addCatInput = document.getElementById('ex-add-cat-input');
@@ -1764,6 +1795,11 @@ export function initExercises() {
   if (!wired) {
     wired = true;
     if (uploadBtn && fileInput) uploadBtn.onclick = () => fileInput.click();
+    if (bulkUploadBtn && bulkFileInput) {
+      bulkFileInput.setAttribute('accept', BULK_ACCEPT_ATTR);
+      bulkUploadBtn.onclick = () => bulkFileInput.click();
+      bulkFileInput.addEventListener('change', onBulkUploadFiles);
+    }
     if (addLinkBtn) addLinkBtn.onclick = openLinkDialog;
     if (fileInput) fileInput.addEventListener('change', onUploadFiles);
     if (addCatForm) {
@@ -1789,6 +1825,7 @@ export function initExercises() {
 
 // Close the viewer when navigating away from the Exercises section.
 export function stopExercises() {
+  closeBulkUploadDialog();
   closeExerciseViewer();
   exitSelectionMode();
 }
