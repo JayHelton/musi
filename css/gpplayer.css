@@ -575,6 +575,51 @@
   font-family: var(--font-ui, "VT323", monospace);
   font-size: 10px;
   color: #1e1408;
+  z-index: 1;
+}
+.gpp-parch-drum-hit[data-glyph="X"],
+.gpp-parch-drum-hit[data-glyph="O"] {
+  font-weight: 700;
+  color: #120a04;
+}
+.gpp-parch-drum-hit[data-glyph="g"] {
+  opacity: 0.45;
+}
+.gpp-parch-drum-hit[data-glyph="+"],
+.gpp-parch-drum-hit[data-glyph="b"],
+.gpp-parch-drum-hit[data-glyph="@"] {
+  color: #6b4c9a;
+}
+
+.gpp-parch-drum-legend {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 6px 2px 0;
+  padding: 4px 4px 2px;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 9px;
+  line-height: 1.3;
+  color: rgba(26, 20, 32, 0.55);
+}
+.gpp-parch-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(26, 20, 32, 0.06);
+  border: 1px solid rgba(26, 20, 32, 0.1);
+}
+.gpp-parch-legend-glyph {
+  font-weight: 700;
+  color: #1e1408;
+  min-width: 0.6em;
+  text-align: center;
+}
+.gpp-parch-legend-text {
+  opacity: 0.85;
 }
 
 .gpp-parch-playhead {
@@ -1697,13 +1742,42 @@
   z-index: 0;
   pointer-events: none;
 }
+.sln-follow-cell.drum::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 1px;
+  background: rgba(180, 140, 255, 0.16);
+  z-index: 0;
+  pointer-events: none;
+}
 .sln-follow-cell.guitar.hit {
   z-index: 1;
   color: var(--text);
   font-weight: 650;
   text-shadow: 0 1px 2px rgba(11, 16, 32, 0.85);
 }
-.sln-follow-cell.drum.hit { color: var(--accent2); }
+.sln-follow-cell.drum.hit {
+  z-index: 1;
+  color: var(--accent2);
+  font-family: var(--font-ui, "VT323", monospace);
+}
+.sln-follow-cell.drum.hit[data-glyph="X"],
+.sln-follow-cell.drum.hit[data-glyph="O"] {
+  font-weight: 700;
+  color: var(--accent);
+}
+.sln-follow-cell.drum.hit[data-glyph="g"] {
+  opacity: 0.5;
+}
+.sln-follow-cell.drum.hit[data-glyph="+"],
+.sln-follow-cell.drum.hit[data-glyph="b"],
+.sln-follow-cell.drum.hit[data-glyph="@"] {
+  color: var(--accent2);
+}
 .sln-follow-cell.gap { height: 12px; }
 
 /* ── Standalone GP screen: full-bleed score when loaded ─────────────────── */

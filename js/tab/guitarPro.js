@@ -304,11 +304,15 @@ function readPercussionArticulations(trackNode) {
  * Priority: InstrumentArticulation → GP6 Element/Variation → Midi property.
  * @param {object} noteNode
  * @param {{ list: object[], byInputMidi: Map<number, number> }} articulations
- * @returns {{ midi: number, ghost: boolean }|null}
+ * @returns {{ midi: number, ghost: boolean, accent: boolean }|null}
  */
 function resolveGpifPercussionNote(noteNode, articulations) {
   const { list, byInputMidi } = articulations;
   const ghost = /normal/i.test(childText(noteNode, 'AntiAccent'));
+  const accentTxt = childText(noteNode, 'Accent');
+  const accentVal = accentTxt !== '' ? parseInt(accentTxt, 10) : NaN;
+  // Only the normal (0x04) and heavy (0x08) accent bits count — other bits are unrelated.
+  const accent = Number.isFinite(accentVal) && (accentVal & 0x0c) !== 0;
   const props = firstChild(noteNode, 'Properties');
 
   const resolveInput = (input) => {
@@ -321,9 +325,9 @@ function resolveGpifPercussionNote(noteNode, articulations) {
   if (artTxt !== '') {
     const idx = parseInt(artTxt, 10);
     if (Number.isFinite(idx)) {
-      if (list[idx]) return { midi: list[idx].outputMidi, ghost };
+      if (list[idx]) return { midi: list[idx].outputMidi, ghost, accent };
       const midi = resolveInput(idx);
-      if (midi != null) return { midi, ghost };
+      if (midi != null) return { midi, ghost, accent };
     }
   }
 
@@ -336,13 +340,13 @@ function resolveGpifPercussionNote(noteNode, articulations) {
     const variation = varTxt !== '' ? parseInt(varTxt, 10) : 0;
     const input = gp6ElementVariationToMidi(element, variation);
     const midi = resolveInput(input);
-    if (midi != null) return { midi, ghost };
+    if (midi != null) return { midi, ghost, accent };
   }
 
   const midiTxt = childText(property(props, 'Midi'), 'Number');
   if (midiTxt !== '') {
     const midi = normalizePercussionMidi(parseInt(midiTxt, 10));
-    if (midi != null) return { midi, ghost };
+    if (midi != null) return { midi, ghost, accent };
   }
 
   return null;
@@ -540,6 +544,7 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
             instrument,
             velocity,
             midi: resolved.midi,
+            accent: resolved.accent,
           });
         }
         voiceCursor += duration;

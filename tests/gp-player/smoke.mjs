@@ -372,6 +372,19 @@ assert.equal(introCol.beatInBar, 0);
 const verseCol = layout.columns.find((c) => c.barStart && c.marker === 'Verse');
 assert.equal(verseCol?.barNumber, 2);
 
+for (const col of layout.columns) {
+  for (const hit of Object.values(col.drums)) {
+    assert.notEqual(hit.glyph, '●', 'drum glyphs must be tab symbols, not bullets');
+    assert.ok('label' in hit, 'drum entry should carry label');
+  }
+}
+const kickCol = layout.columns.find((c) => c.drums.kick);
+assert.equal(kickCol?.drums.kick?.glyph, 'O');
+assert.equal(kickCol?.drums.hihat?.glyph, 'x');
+const snareCol = layout.columns.find((c) => c.drums.snare);
+assert.equal(snareCol?.drums.snare?.glyph, 'O');
+assert.equal(snareCol?.drums.hihat?.glyph, 'x');
+
 // ---- loop rest API on mix player ----
 const mixLoop = createGpMixPlayer();
 mixLoop.load({
@@ -626,6 +639,22 @@ assert.ok(parchHost.querySelector('.gpp-parch-sheet'), 'parchment sheet should e
 assert.ok(parchHost.querySelector('.gpp-parch-system'), 'parchment system row should exist');
 assert.equal(document.getElementById('gpp-parch-styles'), null, 'parchment should not inject inline styles');
 parchment.destroy();
+
+const drumParchHost = document.createElement('div');
+const drumParchment = mountParchmentView(drumParchHost, { percModel: perc });
+const drumHits = drumParchHost.querySelectorAll('.gpp-parch-drum-hit');
+assert.ok(drumHits.length > 0, 'drums-only parchment should render drum hits');
+for (const hit of drumHits) {
+  assert.notEqual(hit.textContent, '●', 'parchment drum hit must be a tab glyph');
+  assert.ok(hit.dataset?.glyph, 'parchment drum hit should carry data-glyph');
+  assert.ok(hit.title, 'parchment drum hit should carry title');
+}
+assert.ok(drumParchHost.querySelector('.gpp-parch-drum-legend'), 'drums-only parchment should render legend');
+assert.ok(
+  drumParchHost.querySelectorAll('.gpp-parch-legend-item').length >= 1,
+  'drum legend should list at least one glyph',
+);
+drumParchment.destroy();
 
 // ---- parchment: section-note callouts on score ----
 const annoParchHost = document.createElement('div');

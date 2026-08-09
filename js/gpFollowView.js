@@ -1,18 +1,15 @@
 // Follow-along visual for Guitar Pro practice: tab columns + drum lanes + playhead.
 // Shared by the Guitar Pro Player (extracted from Song Learning).
 
-const COL_BEAT = 0.25; // visual column = 16th note
+import {
+  DRUM_TAB_LANES,
+  drumLaneFor,
+  drumTabGlyph,
+  drumHitLabel,
+  drumHitPriority,
+} from './drums/notation.js';
 
-export const DRUM_LANES = [
-  { key: 'crash', instruments: ['crash'], label: 'C' },
-  { key: 'ride', instruments: ['ride'], label: 'R' },
-  { key: 'hihat', instruments: ['hihatClosed', 'hihatOpen'], label: 'H' },
-  { key: 'snare', instruments: ['snare', 'snareGhost', 'snareFlam'], label: 'S' },
-  { key: 'tomHigh', instruments: ['tomHigh'], label: 'T1' },
-  { key: 'tomMid', instruments: ['tomMid'], label: 'T2' },
-  { key: 'tomFloor', instruments: ['tomFloor'], label: 'FT' },
-  { key: 'kick', instruments: ['kick'], label: 'K' },
-];
+const COL_BEAT = 0.25; // visual column = 16th note
 
 function measureIndexAtBeat(measures, beat) {
   if (!measures?.length) return 0;
@@ -107,16 +104,15 @@ export function buildFollowColumns({
       const idx = Math.round((b - startBeat) / colBeat);
       const col = columns[idx];
       if (!col || !ev.instrument) continue;
-      const lane = DRUM_LANES.find((l) => l.instruments.includes(ev.instrument));
+      const lane = drumLaneFor(ev.instrument);
       if (!lane) continue;
-      const pri = ev.instrument === 'hihatOpen' || ev.instrument === 'snareFlam' ? 2 : 1;
+      const pri = drumHitPriority(ev.instrument);
       if (!col.drums[lane.key] || pri >= (col.drums[lane.key].pri || 0)) {
         col.drums[lane.key] = {
           instrument: ev.instrument,
           pri,
-          glyph: ev.instrument === 'hihatOpen' ? 'O'
-            : ev.instrument === 'snareGhost' ? 'g'
-              : ev.instrument === 'snareFlam' ? 'f' : '●',
+          glyph: drumTabGlyph(ev),
+          label: drumHitLabel(ev),
         };
       }
     }
@@ -159,7 +155,7 @@ export function mountFollowView(host, layout, options = {}) {
   host.classList.add(`size-${size}`);
 
   const { columns, stringCount, strings, colBeat, startBeat } = layout;
-  const activeDrumLanes = DRUM_LANES.filter((lane) =>
+  const activeDrumLanes = DRUM_TAB_LANES.filter((lane) =>
     columns.some((c) => c.drums[lane.key])
   );
 
@@ -195,6 +191,7 @@ export function mountFollowView(host, layout, options = {}) {
     const lab = document.createElement('div');
     lab.className = 'sln-follow-label drum';
     lab.textContent = lane.label;
+    lab.title = lane.title;
     labels.appendChild(lab);
   });
   stage.appendChild(labels);
@@ -252,6 +249,8 @@ export function mountFollowView(host, layout, options = {}) {
       if (hit) {
         cell.textContent = hit.glyph;
         cell.classList.add('hit', hit.instrument);
+        cell.dataset.glyph = hit.glyph;
+        cell.title = hit.label;
       }
       colEl.appendChild(cell);
     });
