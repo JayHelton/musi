@@ -26,7 +26,11 @@ import { GPIF_NOTE_VALUES, noteValueToQuarters } from './tabModel.js';
 import {
   midiToDrumInstrument,
   dynamicsToVelocity,
+  normalizePercussionMidi,
+  gp6ElementVariationToMidi,
   makePercussionModel,
+  assignPercussionSlots,
+  deriveMeasureSlotSpans,
 } from './gpPercussion.js';
 
 const CHUNK = 0x8000;
@@ -257,7 +261,91 @@ function tuningPitchesOf(trackNode) {
 function isPercussionTrack(trackNode) {
   const set = firstChild(trackNode, 'InstrumentSet');
   const type = childText(set, 'Type');
-  return /drum|perc/i.test(type);
+  if (/drum|perc/i.test(type)) return true;
+  if (tuningPitchesOf(trackNode).length > 0) return false;
+  const midiConn = firstChild(trackNode, 'MidiConnection');
+  const channel = childText(midiConn, 'PrimaryChannel') || childText(trackNode, 'PrimaryChannel');
+  if (channel === '9') return true;
+  return readPercussionArticulations(trackNode).list.length > 0;
+}
+
+/**
+ * Flatten InstrumentSet articulations in GPIF document order.
+ * @param {object} trackNode
+ * @returns {{ list: Array<{ outputMidi: number, inputMidis: number[] }>, byInputMidi: Map<number, number> }}
+ */
+function readPercussionArticulations(trackNode) {
+  const list = [];
+  const byInputMidi = new Map();
+  const set = firstChild(trackNode, 'InstrumentSet');
+  const elements = firstChild(set, 'Elements');
+  for (const element of childrenNamed(elements, 'Element')) {
+    // Pitched tracks get a placeholder articulation in GPIF; skip those elements.
+    if (firstChild(element, 'Pitched')) continue;
+    const elemType = childText(element, 'Type');
+    if (/^pitched$/i.test(elemType)) continue;
+    const articulations = firstChild(element, 'Articulations');
+    for (const art of childrenNamed(articulations, 'Articulation')) {
+      const inputTxt = childText(art, 'InputMidiNumbers');
+      const inputMidis = inputTxt.split(/\s+/).map(Number).filter((n) => Number.isFinite(n));
+      const outputTxt = childText(art, 'OutputMidiNumber');
+      let outputMidi = outputTxt !== '' ? parseInt(outputTxt, 10) : NaN;
+      if (!Number.isFinite(outputMidi)) outputMidi = inputMidis.length ? inputMidis[0] : NaN;
+      if (!Number.isFinite(outputMidi)) continue;
+      list.push({ outputMidi, inputMidis });
+      for (const n of inputMidis) byInputMidi.set(n, outputMidi);
+    }
+  }
+  return { list, byInputMidi };
+}
+
+/**
+ * Resolve one GPIF drum note to a GM kit number (or null).
+ * Priority: InstrumentArticulation → GP6 Element/Variation → Midi property.
+ * @param {object} noteNode
+ * @param {{ list: object[], byInputMidi: Map<number, number> }} articulations
+ * @returns {{ midi: number, ghost: boolean }|null}
+ */
+function resolveGpifPercussionNote(noteNode, articulations) {
+  const { list, byInputMidi } = articulations;
+  const ghost = /normal/i.test(childText(noteNode, 'AntiAccent'));
+  const props = firstChild(noteNode, 'Properties');
+
+  const resolveInput = (input) => {
+    if (!Number.isFinite(input)) return null;
+    if (byInputMidi.has(input)) return byInputMidi.get(input);
+    return normalizePercussionMidi(input);
+  };
+
+  const artTxt = childText(noteNode, 'InstrumentArticulation');
+  if (artTxt !== '') {
+    const idx = parseInt(artTxt, 10);
+    if (Number.isFinite(idx)) {
+      if (list[idx]) return { midi: list[idx].outputMidi, ghost };
+      const midi = resolveInput(idx);
+      if (midi != null) return { midi, ghost };
+    }
+  }
+
+  const elemTxt = childText(property(props, 'Element'), 'Element')
+    || childText(property(props, 'Element'), 'Number');
+  if (elemTxt !== '') {
+    const element = parseInt(elemTxt, 10);
+    const varTxt = childText(property(props, 'Variation'), 'Variation')
+      || childText(property(props, 'Variation'), 'Number');
+    const variation = varTxt !== '' ? parseInt(varTxt, 10) : 0;
+    const input = gp6ElementVariationToMidi(element, variation);
+    const midi = resolveInput(input);
+    if (midi != null) return { midi, ghost };
+  }
+
+  const midiTxt = childText(property(props, 'Midi'), 'Number');
+  if (midiTxt !== '') {
+    const midi = normalizePercussionMidi(parseInt(midiTxt, 10));
+    if (midi != null) return { midi, ghost };
+  }
+
+  return null;
 }
 
 /**
@@ -395,10 +483,10 @@ export function gpifToTracks(xml) {
 /** Build a PercussionModel for a GPIF drum track (no string tuning). */
 function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
   const { bars, voices, beats, notes, masterBars, rhythms, tempo, anacrusis } = shared;
-  const events = [];
-  const measures = [];
+  const articulations = readPercussionArticulations(trackNode);
+  const rawEvents = [];
+  const measureBeats = [];
   const warnings = [];
-  let slot = 0;
   let cursor = 0;
 
   for (const mb of masterBars) {
@@ -406,7 +494,6 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
     const barId = barRefs[trackIndex] != null ? barRefs[trackIndex] : barRefs[0];
     const bar = bars.get(barId);
     if (!bar) continue;
-    const measureStart = slot;
     const measureStartBeat = cursor;
     const sectionNode = firstChild(mb, 'Section');
     const marker = sectionNode
@@ -420,61 +507,69 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
     }
 
     const voiceRefs = childText(bar, 'Voices').split(/\s+/).filter((v) => v && v !== '-1');
-    const voice = voiceRefs.map((v) => voices.get(v)).find(Boolean);
+    let measureCursor = measureStartBeat;
     let advanced = false;
-    if (voice) {
+    for (const voiceRef of voiceRefs) {
+      const voice = voices.get(voiceRef);
+      if (!voice) continue;
+      let voiceCursor = measureStartBeat;
       const beatRefs = childText(voice, 'Beats').split(/\s+/).filter(Boolean);
       for (const beatId of beatRefs) {
         const beat = beats.get(beatId);
         if (!beat) continue;
         const duration = beatDurationQuarters(beat, rhythms);
+        const beatDyn = childText(beat, 'Dynamic');
         const noteRefs = childText(beat, 'Notes').split(/\s+/).filter(Boolean);
         for (const noteId of noteRefs) {
           const note = notes.get(noteId);
           if (!note) continue;
-          const props = firstChild(note, 'Properties');
-          const midiTxt = childText(property(props, 'Midi'), 'Number');
-          let midi = midiTxt === '' ? null : parseInt(midiTxt, 10);
-          // Some GPIF drum notes only carry Element/Variation; treat Element as MIDI-ish.
-          if (midi == null) {
-            const elem = childText(property(props, 'Element'), 'Element')
-              || childText(property(props, 'Element'), 'Number');
-            if (elem !== '') midi = parseInt(elem, 10);
-          }
-          if (midi == null || Number.isNaN(midi)) continue;
-          const dynTxt = childText(note, 'Dynamic') || childText(firstChild(note, 'Dynamic'), 'Value');
+          const resolved = resolveGpifPercussionNote(note, articulations);
+          if (!resolved) continue;
+          const dynTxt = beatDyn
+            || childText(note, 'Dynamic')
+            || childText(firstChild(note, 'Dynamic'), 'Value');
           const velocity = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
-          const instrument = midiToDrumInstrument(midi, { velocity });
+          const instrument = midiToDrumInstrument(resolved.midi, {
+            velocity,
+            ghost: resolved.ghost,
+          });
           if (!instrument) continue;
-          events.push({ slot, start: cursor, duration, instrument, velocity, midi });
+          rawEvents.push({
+            start: voiceCursor,
+            duration,
+            instrument,
+            velocity,
+            midi: resolved.midi,
+          });
         }
-        slot += 1;
-        cursor += duration;
+        voiceCursor += duration;
         advanced = true;
       }
+      if (voiceCursor > measureCursor) measureCursor = voiceCursor;
     }
     if (!advanced) {
       const beatsInBar = timeSig ? (timeSig[0] * (4 / (timeSig[1] || 4))) : 4;
-      slot += 1;
-      cursor += beatsInBar;
+      measureCursor = measureStartBeat + beatsInBar;
     } else {
-      cursor = padMeasureToTimeSig({
-        cursor,
+      measureCursor = padMeasureToTimeSig({
+        cursor: measureCursor,
         measureStartBeat,
         timeSig,
         anacrusis,
-        isFirstMeasure: measures.length === 0,
+        isFirstMeasure: measureBeats.length === 0,
       });
     }
-    measures.push({
-      startSlot: measureStart,
-      endSlot: slot,
+    measureBeats.push({
       startBeat: measureStartBeat,
-      endBeat: cursor,
+      endBeat: measureCursor,
       marker,
       timeSig: timeSig || undefined,
     });
+    cursor = measureCursor;
   }
+
+  const events = assignPercussionSlots(rawEvents);
+  const measures = deriveMeasureSlotSpans(measureBeats, events);
 
   if (!events.length) warnings.push('The percussion track had no mappable drum hits.');
   return makePercussionModel({ name, tempo, events, measures, warnings });

@@ -1,6 +1,27 @@
 const GUTTER_PX = 4;
 
 /**
+ * Scroll offset that pins `targetTop` to the top of the viewport.
+ * @param {{ scrollTop: number, viewportTop: number, targetTop: number, pad?: number, maxScrollTop?: number, epsilon?: number }} opts
+ * @returns {number|null} the new scrollTop, or null when already pinned within epsilon
+ */
+export function pinnedScrollTop({
+  scrollTop,
+  viewportTop,
+  targetTop,
+  pad = 0,
+  maxScrollTop = Infinity,
+  epsilon = 1,
+}) {
+  const desired = scrollTop + (targetTop - viewportTop - pad);
+  // A viewport that has not been laid out yet reports no scroll extent.
+  const limit = Number.isFinite(maxScrollTop) ? maxScrollTop : Infinity;
+  const clamped = Math.max(0, Math.min(limit, desired));
+  if (Math.abs(clamped - scrollTop) <= epsilon) return null;
+  return clamped;
+}
+
+/**
  * Measure chrome offset from the viewport top and publish CSS vars so the player
  * fits above the app dock. Recomputes on resize / orientation change.
  */
