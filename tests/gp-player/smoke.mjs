@@ -705,6 +705,191 @@ assert.ok(padEndZoom2 > padEndZoom1, 'note pad end should grow when zoom increas
 
 parchment.destroy();
 
+// ---- parchment: density-aware measure sizing + system packing ----
+const parchStrings = fakeGp.tracks[0].model.strings;
+
+function makeParchGuitarModel({ name, events, measures, totalBeats }) {
+  return {
+    tuning: 'Standard',
+    strings: parchStrings,
+    events,
+    measures,
+    tempo: 120,
+    totalBeats,
+  };
+}
+
+const quarterBarModel = makeParchGuitarModel({
+  name: 'quarterBar',
+  events: [{ start: 0, stringIndex: 0, fret: 3, dead: false }],
+  measures: [{ startBeat: 0, endBeat: 4 }],
+  totalBeats: 4,
+});
+
+const sixteenthBarModel = makeParchGuitarModel({
+  name: 'sixteenthBar',
+  events: Array.from({ length: 16 }, (_, i) => ({
+    start: i * 0.25,
+    stringIndex: 0,
+    fret: 3,
+    dead: false,
+  })),
+  measures: [{ startBeat: 0, endBeat: 4 }],
+  totalBeats: 4,
+});
+
+const singleDigitRhythmModel = makeParchGuitarModel({
+  name: 'singleDigitRhythm',
+  events: [0, 1, 2, 3].map((beat) => ({
+    start: beat,
+    stringIndex: 0,
+    fret: beat % 2 === 0 ? 3 : 5,
+    dead: false,
+  })),
+  measures: [{ startBeat: 0, endBeat: 4 }],
+  totalBeats: 4,
+});
+
+const twoDigitRhythmModel = makeParchGuitarModel({
+  name: 'twoDigitRhythm',
+  events: [0, 1, 2, 3].map((beat) => ({
+    start: beat,
+    stringIndex: 0,
+    fret: beat % 2 === 0 ? 12 : 17,
+    dead: false,
+  })),
+  measures: [{ startBeat: 0, endBeat: 4 }],
+  totalBeats: 4,
+});
+
+function sparseFourBarModel() {
+  return makeParchGuitarModel({
+    name: 'sparseFourBar',
+    events: [0, 1, 2, 3].map((beat) => ({
+      start: beat,
+      stringIndex: 0,
+      fret: 3,
+      dead: false,
+    })),
+    measures: [0, 1, 2, 3].map((beat) => ({ startBeat: beat, endBeat: beat + 1 })),
+    totalBeats: 4,
+  });
+}
+
+function denseFourBarModel() {
+  const events = [];
+  for (let bar = 0; bar < 4; bar++) {
+    for (let i = 0; i < 16; i++) {
+      events.push({
+        start: bar * 4 + i * 0.25,
+        stringIndex: 0,
+        fret: 12,
+        dead: false,
+      });
+    }
+  }
+  return makeParchGuitarModel({
+    name: 'denseFourBar',
+    events,
+    measures: [0, 1, 2, 3].map((bar) => ({
+      startBeat: bar * 4,
+      endBeat: (bar + 1) * 4,
+    })),
+    totalBeats: 16,
+  });
+}
+
+function measureMinWidth(host, index = 0) {
+  const el = [...host.querySelectorAll('.gpp-parch-measure')].find(
+    (m) => m.dataset?.index === String(index),
+  );
+  return parseFloat(el?.style?.minWidth || '0');
+}
+
+function systemMeasureCount(sys) {
+  return sys.querySelectorAll('.gpp-parch-measure').length;
+}
+
+const rhythmHost = document.createElement('div');
+const quarterParch = mountParchmentView(rhythmHost, { guitarModel: quarterBarModel });
+const sixteenthHost = document.createElement('div');
+const sixteenthParch = mountParchmentView(sixteenthHost, { guitarModel: sixteenthBarModel });
+const quarterMinW = measureMinWidth(rhythmHost, 0);
+const sixteenthMinW = measureMinWidth(sixteenthHost, 0);
+assert.ok(
+  sixteenthMinW > quarterMinW,
+  `sixteenth bar min-width (${sixteenthMinW}) should exceed quarter bar (${quarterMinW})`,
+);
+quarterParch.destroy();
+sixteenthParch.destroy();
+
+const digitHost = document.createElement('div');
+const singleDigitParch = mountParchmentView(digitHost, { guitarModel: singleDigitRhythmModel });
+const twoDigitHost = document.createElement('div');
+const twoDigitParch = mountParchmentView(twoDigitHost, { guitarModel: twoDigitRhythmModel });
+const singleDigitMinW = measureMinWidth(digitHost, 0);
+const twoDigitMinW = measureMinWidth(twoDigitHost, 0);
+assert.ok(
+  twoDigitMinW > singleDigitMinW,
+  `two-digit fret bar min-width (${twoDigitMinW}) should exceed single-digit (${singleDigitMinW})`,
+);
+singleDigitParch.destroy();
+twoDigitParch.destroy();
+
+const sparseHost = document.createElement('div');
+const sparseParch = mountParchmentView(sparseHost, { guitarModel: sparseFourBarModel() });
+const denseHost = document.createElement('div');
+const denseParch = mountParchmentView(denseHost, { guitarModel: denseFourBarModel() });
+const sparseSystemCount = sparseHost.querySelectorAll('.gpp-parch-system').length;
+const denseSystemCount = denseHost.querySelectorAll('.gpp-parch-system').length;
+assert.ok(
+  denseSystemCount > sparseSystemCount,
+  `dense score should use more systems (${denseSystemCount}) than sparse (${sparseSystemCount})`,
+);
+const soloDenseSystem = [...denseHost.querySelectorAll('.gpp-parch-system')].find(
+  (sys) => systemMeasureCount(sys) === 1,
+);
+assert.ok(soloDenseSystem, 'at least one dense bar should occupy its own system row');
+sparseParch.destroy();
+denseParch.destroy();
+
+const followHost = document.createElement('div');
+const followParch = mountParchmentView(followHost, {
+  guitarModel: denseFourBarModel(),
+  autoFollow: true,
+});
+assert.doesNotThrow(
+  () => followParch.scrollToMeasure(3),
+  'scrollToMeasure should not throw for a measure in a later system',
+);
+assert.doesNotThrow(
+  () => followParch.update({ playing: true, measureIndex: 3, autoFollow: true }),
+  'update with auto-follow should not throw across variable-length systems',
+);
+followParch.destroy();
+
+const zoomHost = document.createElement('div');
+const zoomParch = mountParchmentView(zoomHost, { guitarModel: quarterBarModel, zoom: 1 });
+const zoomSheet = zoomHost.querySelector('.gpp-parch-sheet');
+assert.equal(
+  parseFloat(zoomSheet.style.getPropertyValue('--gpp-scale')),
+  1,
+  '--gpp-scale should equal user zoom when auto width factor is 1',
+);
+zoomParch.setZoom(1.5);
+assert.equal(
+  parseFloat(zoomSheet.style.getPropertyValue('--gpp-scale')),
+  1.5,
+  '--gpp-scale should track setZoom(1.5)',
+);
+zoomParch.setZoom(2);
+assert.equal(
+  parseFloat(zoomSheet.style.getPropertyValue('--gpp-scale')),
+  2,
+  '--gpp-scale should track setZoom(2)',
+);
+zoomParch.destroy();
+
 const drumParchHost = document.createElement('div');
 const drumParchment = mountParchmentView(drumParchHost, { percModel: perc });
 const drumHits = drumParchHost.querySelectorAll('.gpp-parch-drum-hit');
