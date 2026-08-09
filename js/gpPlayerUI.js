@@ -55,6 +55,8 @@ let mountGeneration = 0;
  *   setLoopEnabled:(on:boolean)=>void,
  *   play:()=>void,
  *   stop:()=>void,
+ *   togglePlayPause:()=>void,
+ *   stepBpm:(delta:number)=>void,
  * }}
  */
 export function mountGpPlayer(host, {
@@ -83,6 +85,7 @@ export function mountGpPlayer(host, {
   disabled = false,
   scoreKey = '',
   exerciseImport = null,
+  enableHostKeyboard = true,
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
 
@@ -843,11 +846,7 @@ export function mountGpPlayer(host, {
     },
     canPrev: () => canPrevMeasure(navMeasureIndex(), stateController.getScope()),
     canNext: () => canNextMeasure(navMeasureIndex(), stateController.getScope()),
-    onBpmStep: (delta) => {
-      state.bpmUserOverride = true;
-      state.bpm = clampBpm(state.bpm + delta);
-      onSettingsChange({ reload: true });
-    },
+    onBpmStep: (delta) => stepBpm(delta),
     onBpmInput: (value) => {
       state.bpmUserOverride = true;
       state.bpm = clampBpm(Number(value) || state.scoreBpm);
@@ -1061,6 +1060,13 @@ export function mountGpPlayer(host, {
     if (!player.playing) togglePlayPause();
   }
 
+  function stepBpm(delta) {
+    if (!isAlive()) return;
+    state.bpmUserOverride = true;
+    state.bpm = clampBpm(state.bpm + delta);
+    onSettingsChange({ reload: true });
+  }
+
   function togglePlayPause() {
     if (!isAlive()) return;
     if (player.playing) {
@@ -1124,29 +1130,31 @@ export function mountGpPlayer(host, {
     seekToBar(target, { autoplay: player.playing });
   }
 
-  keyHandler = (e) => {
-    if (!isAlive()) return;
-    const tag = e.target?.tagName;
-    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-    const section = host.closest('.section.active');
-    if (!section && !host.contains(document.activeElement)) return;
-    if (e.code === 'Space') {
-      e.preventDefault();
-      togglePlayPause();
-    } else if (e.code === 'ArrowLeft') {
-      e.preventDefault();
-      transport && transport.sync();
-      const scope = stateController.getScope();
-      const cur = navMeasureIndex();
-      if (canPrevMeasure(cur, scope)) seekToBar(cur - 1, { autoplay: player.playing });
-    } else if (e.code === 'ArrowRight') {
-      e.preventDefault();
-      const scope = stateController.getScope();
-      const cur = navMeasureIndex();
-      if (canNextMeasure(cur, scope)) seekToBar(cur + 1, { autoplay: player.playing });
-    }
-  };
-  host.addEventListener('keydown', keyHandler);
+  if (enableHostKeyboard) {
+    keyHandler = (e) => {
+      if (!isAlive()) return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      const section = host.closest('.section.active');
+      if (!section && !host.contains(document.activeElement)) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        transport && transport.sync();
+        const scope = stateController.getScope();
+        const cur = navMeasureIndex();
+        if (canPrevMeasure(cur, scope)) seekToBar(cur - 1, { autoplay: player.playing });
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        const scope = stateController.getScope();
+        const cur = navMeasureIndex();
+        if (canNextMeasure(cur, scope)) seekToBar(cur + 1, { autoplay: player.playing });
+      }
+    };
+    host.addEventListener('keydown', keyHandler);
+  }
 
   // Initial load
   host.classList.remove('is-loading');
@@ -1202,6 +1210,8 @@ export function mountGpPlayer(host, {
     setLoopEnabled,
     play: startPlayback,
     stop: stopPlayback,
+    togglePlayPause,
+    stepBpm,
     getState: () => ({
       ...state,
       viewModel: state.viewModel,

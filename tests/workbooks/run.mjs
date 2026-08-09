@@ -31,6 +31,12 @@ import {
   getActiveWorkbookEntry,
   pruneMissingExercises,
 } from '../../js/workbookModel.js';
+import {
+  WB_KEY_ACTIONS,
+  isWorkbookShortcutTargetBlocked,
+  nodeInBlockedShortcutZone,
+  resolveWorkbookShortcutAction,
+} from '../../js/workbookKeyboard.js';
 
 let passed = 0;
 
@@ -286,6 +292,66 @@ test('listWorkbooks folder filtering and updatedAt sort order', () => {
 
   const allFilter = listWorkbooks({ folderId: 'all' });
   assert.ok(allFilter.length >= all.length);
+});
+
+function makeEl(tag, { className = '', parent = null, role = null } = {}) {
+  const el = {
+    tagName: String(tag).toUpperCase(),
+    isContentEditable: false,
+    parentElement: parent,
+    getAttribute(name) { return name === 'role' ? role : null; },
+    classList: {
+      _set: new Set(className.split(/\s+/).filter(Boolean)),
+      contains(c) { return this._set.has(c); },
+    },
+  };
+  if (parent) parent.children = parent.children || [];
+  if (parent?.children) parent.children.push(el);
+  return el;
+}
+
+test('resolveWorkbookShortcutAction maps keys when workbook detail is active', () => {
+  const ctx = { openWorkbookId: 'wb-1', sectionActive: true, dialogOpen: false };
+  const body = { tagName: 'BODY' };
+  assert.equal(resolveWorkbookShortcutAction({ code: 'ArrowLeft', target: body }, ctx), WB_KEY_ACTIONS.PREV);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'ArrowRight', target: body }, ctx), WB_KEY_ACTIONS.NEXT);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'Space', repeat: false, target: body }, ctx), WB_KEY_ACTIONS.TOGGLE_PLAY);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'KeyA', target: body }, ctx), WB_KEY_ACTIONS.BPM_UP);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'KeyD', target: body }, ctx), WB_KEY_ACTIONS.BPM_DOWN);
+});
+
+test('resolveWorkbookShortcutAction ignores inactive, dialog, modifiers, and repeat Space', () => {
+  const body = { tagName: 'BODY' };
+  const active = { openWorkbookId: 'wb-1', sectionActive: true, dialogOpen: false };
+  assert.equal(resolveWorkbookShortcutAction({ code: 'ArrowLeft', target: body }, { sectionActive: true }), null);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'ArrowLeft', target: body }, { ...active, sectionActive: false }), null);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'ArrowLeft', target: body }, { ...active, dialogOpen: true }), null);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'Space', repeat: true, target: body }, active), null);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'ArrowLeft', ctrlKey: true, target: body }, active), null);
+  assert.equal(resolveWorkbookShortcutAction({ code: 'KeyA', metaKey: true, target: body }, active), null);
+});
+
+test('isWorkbookShortcutTargetBlocked skips form controls and modal zones', () => {
+  assert.ok(isWorkbookShortcutTargetBlocked({ tagName: 'INPUT' }));
+  assert.ok(isWorkbookShortcutTargetBlocked({ tagName: 'SELECT' }));
+  assert.ok(isWorkbookShortcutTargetBlocked({ tagName: 'TEXTAREA' }));
+  assert.ok(isWorkbookShortcutTargetBlocked({ tagName: 'BUTTON' }));
+  assert.ok(isWorkbookShortcutTargetBlocked({ tagName: 'DIV', isContentEditable: true }));
+
+  const modal = makeEl('div', { className: 'modal-dialog' });
+  const inner = makeEl('span', { parent: modal });
+  assert.ok(isWorkbookShortcutTargetBlocked(inner));
+
+  const drawer = makeEl('div', { className: 'wb-playlist-drawer is-open' });
+  const row = makeEl('div', { parent: drawer });
+  assert.ok(isWorkbookShortcutTargetBlocked(row));
+  assert.ok(!isWorkbookShortcutTargetBlocked({ tagName: 'DIV' }));
+});
+
+test('nodeInBlockedShortcutZone detects role=button ancestors', () => {
+  const host = makeEl('div', { role: 'button' });
+  const child = makeEl('span', { parent: host });
+  assert.ok(nodeInBlockedShortcutZone(child));
 });
 
 console.log(`\n${passed} tests passed`);

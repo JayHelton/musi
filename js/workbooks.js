@@ -45,6 +45,8 @@ import {
   prevWorkbookEntry,
   pruneMissingExercises,
 } from './workbookModel.js';
+import { resolveWorkbookShortcutAction, WB_KEY_ACTIONS } from './workbookKeyboard.js';
+import { GPP_TRANSPORT_BPM_STEP } from './gpPlayer/transportDock.js';
 
 const NAME_LIMIT = 120;
 const FOLDER_LIMIT = 40;
@@ -70,6 +72,7 @@ let pendingWorkbookOpenId = null;
 let selectedFolder = 'all';
 let openWorkbookId = null;
 let escapeWired = false;
+let shortcutWired = false;
 
 let folderListEl, titleEl, statusEl, listEl, workspaceEl, detailPaneEl, detailTitleEl;
 let detailActionsEl, detailBodyEl, detailBackBtn, newBtn, addFolderForm, addFolderInput;
@@ -190,6 +193,76 @@ function isDetailLoadStale(token, workbookId) {
   return token !== detailLoadToken
     || workbookId !== openWorkbookId
     || !isWorkbooksSectionActive();
+}
+
+function isWorkbookShortcutDialogOpen() {
+  if (dialogRoot?.children.length) return true;
+  if (playlistDrawerEl && !playlistDrawerEl.hidden) return true;
+  if (detailGpMountEl?.querySelector('.gpp-drawer.is-open, .gpp-sheet.is-open')) return true;
+  return false;
+}
+
+function toggleDetailPlayback() {
+  if (detailMountHandle?.togglePlayPause) {
+    try { detailMountHandle.togglePlayPause(); } catch (e) { /* ignore */ }
+    return;
+  }
+  if (detailMediaEl) {
+    if (detailMediaEl.paused || detailMediaEl.ended) {
+      detailMediaEl.play().catch(() => {});
+    } else {
+      detailMediaEl.pause();
+    }
+  }
+}
+
+function stepDetailBpm(delta) {
+  if (!detailMountHandle?.stepBpm) return;
+  try { detailMountHandle.stepBpm(delta); } catch (e) { /* ignore */ }
+}
+
+function onWorkbookShortcutKeydown(e) {
+  const action = resolveWorkbookShortcutAction(e, {
+    openWorkbookId,
+    sectionActive: isWorkbooksSectionActive(),
+    dialogOpen: isWorkbookShortcutDialogOpen(),
+  });
+  if (!action) return;
+
+  const wb = getWorkbook(openWorkbookId);
+  if ((action === WB_KEY_ACTIONS.PREV || action === WB_KEY_ACTIONS.NEXT)
+      && (!wb || !wb.entries.length)) {
+    return;
+  }
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  switch (action) {
+    case WB_KEY_ACTIONS.PREV:
+      goPrev();
+      break;
+    case WB_KEY_ACTIONS.NEXT:
+      advance();
+      break;
+    case WB_KEY_ACTIONS.TOGGLE_PLAY:
+      toggleDetailPlayback();
+      break;
+    case WB_KEY_ACTIONS.BPM_UP:
+      stepDetailBpm(GPP_TRANSPORT_BPM_STEP);
+      break;
+    case WB_KEY_ACTIONS.BPM_DOWN:
+      stepDetailBpm(-GPP_TRANSPORT_BPM_STEP);
+      break;
+    default:
+      break;
+  }
+}
+
+function wireWorkbookShortcuts() {
+  if (shortcutWired) return;
+  shortcutWired = true;
+  document.addEventListener('keydown', onWorkbookShortcutKeydown, true);
 }
 
 function teardownDetailPlayer() {
@@ -658,6 +731,7 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       }),
       onPlaybackEnd,
       autoPlay,
+      enableHostKeyboard: false,
     });
   } catch (err) {
     if (!isDetailLoadStale(loadToken, wb.id)) {
@@ -1504,6 +1578,7 @@ export function initWorkbooks() {
       });
     }
     wireEscape();
+    wireWorkbookShortcuts();
   }
 
   setStatus('');
