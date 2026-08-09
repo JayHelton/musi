@@ -4,9 +4,42 @@
 import assert from 'node:assert/strict';
 import { installDomShim } from './domShim.mjs';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
+import { pinnedScrollTop } from '../../js/gpPlayer/layoutMetrics.js';
 import { mountGpPlayer } from '../../js/gpPlayerUI.js';
 
 installDomShim();
+
+// ---- pinnedScrollTop ----
+assert.equal(
+  pinnedScrollTop({ scrollTop: 100, viewportTop: 0, targetTop: 250, pad: 16 }),
+  334,
+  'a row below the viewport top scrolls down until it sits under the pad',
+);
+assert.equal(
+  pinnedScrollTop({ scrollTop: 200, viewportTop: 0, targetTop: -30, pad: 16 }),
+  154,
+  'a row above the viewport top scrolls back up to it',
+);
+assert.equal(
+  pinnedScrollTop({ scrollTop: 40, viewportTop: 0, targetTop: 100, maxScrollTop: NaN }),
+  140,
+  'an unmeasured viewport imposes no scroll limit',
+);
+assert.equal(
+  pinnedScrollTop({ scrollTop: 10, viewportTop: 0, targetTop: -20, pad: 0 }),
+  0,
+  'result never goes negative',
+);
+assert.equal(
+  pinnedScrollTop({ scrollTop: 900, viewportTop: 0, targetTop: 2000, pad: 0, maxScrollTop: 950 }),
+  950,
+  'result clamps to maxScrollTop',
+);
+assert.equal(
+  pinnedScrollTop({ scrollTop: 100, viewportTop: 0, targetTop: 16, pad: 16, epsilon: 1 }),
+  null,
+  'returns null when already pinned within epsilon',
+);
 
 const perc = makePercussionModel({
   name: 'Kit',

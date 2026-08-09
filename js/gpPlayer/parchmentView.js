@@ -1,6 +1,7 @@
 // Songsterr-like vertical parchment score renderer for the GP player.
 
 import { DRUM_LANES } from '../gpFollowView.js';
+import { pinnedScrollTop } from './layoutMetrics.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
 const USER_SCROLL_COOLDOWN_MS = 2500;
@@ -647,40 +648,39 @@ export function mountParchmentView(host, {
     playheadEl.hidden = false;
   }
 
-  function transportBottomPad() {
-    const root = host.closest('.gpp-root');
-    if (!root) return 72;
-    const raw = getComputedStyle(root).getPropertyValue('--gpp-transport-pad').trim();
-    const n = parseFloat(raw);
-    return Number.isFinite(n) && n > 0 ? n + 8 : 72;
+  function systemForMeasure(mi) {
+    const idx = Math.floor(mi / mps);
+    return systemEls[idx] ?? null;
+  }
+
+  function pinSystemToViewportTop(mi, topPad) {
+    const el = measureEls[mi];
+    if (!el) return;
+    const sys = systemForMeasure(mi);
+    const target = sys || el;
+    const vRect = viewport.getBoundingClientRect();
+    const tRect = target.getBoundingClientRect();
+    const maxScroll = viewport.scrollHeight - viewport.clientHeight;
+    const next = pinnedScrollTop({
+      scrollTop: viewport.scrollTop,
+      viewportTop: vRect.top,
+      targetTop: tRect.top,
+      pad: topPad,
+      maxScrollTop: maxScroll,
+    });
+    if (next != null) viewport.scrollTop = next;
   }
 
   function scrollActiveIntoView(mi) {
-    const el = measureEls[mi];
-    if (!el) return;
-    const vRect = viewport.getBoundingClientRect();
-    const eRect = el.getBoundingClientRect();
-    const topPad = 16;
-    const bottomPad = transportBottomPad();
-    if (eRect.top < vRect.top + topPad) {
-      viewport.scrollTop += eRect.top - vRect.top - topPad;
-    } else if (eRect.bottom > vRect.bottom - bottomPad) {
-      viewport.scrollTop += eRect.bottom - vRect.bottom + bottomPad;
-    }
+    pinSystemToViewportTop(mi, 16);
   }
 
   function scrollToMeasure(mi) {
     const el = measureEls[mi];
     if (!el) return;
+    pinSystemToViewportTop(mi, 20);
     const vRect = viewport.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
-    const topPad = 20;
-    const bottomPad = transportBottomPad();
-    if (eRect.top < vRect.top + topPad) {
-      viewport.scrollTop += eRect.top - vRect.top - topPad;
-    } else if (eRect.bottom > vRect.bottom - bottomPad) {
-      viewport.scrollTop += eRect.bottom - vRect.bottom + bottomPad;
-    }
     const hPad = 12;
     if (eRect.left < vRect.left + hPad) {
       viewport.scrollLeft += eRect.left - vRect.left - hPad;
