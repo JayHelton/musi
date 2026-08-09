@@ -129,6 +129,10 @@ function persistSongs() {
   writeKey(STORAGE_KEY, JSON.stringify(songsCache));
 }
 
+export function invalidateSongsCache() {
+  songsCache = null;
+}
+
 function getSong(id) {
   return getSongs().find(s => s.id === id) || null;
 }

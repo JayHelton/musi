@@ -200,6 +200,10 @@ function persist() {
   writeKey(STORAGE_KEY, JSON.stringify(storeCache));
 }
 
+export function invalidateExercisesCache() {
+  storeCache = null;
+}
+
 // --- public data API (synchronous metadata; Blobs fetched on demand) -------
 
 export function getCategories() {

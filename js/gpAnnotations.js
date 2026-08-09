@@ -156,6 +156,10 @@ function persistStore() {
   writeKey(STORAGE_KEY, JSON.stringify(storeCache));
 }
 
+export function invalidateGpAnnotationsCache() {
+  storeCache = null;
+}
+
 function scoreBucket(scoreKey, create) {
   const key = typeof scoreKey === 'string' ? scoreKey.trim() : '';
   if (!key) return null;

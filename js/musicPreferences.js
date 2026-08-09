@@ -130,6 +130,27 @@ function render() {
       </div>
     </section>
 
+    <section class="mp-block" id="mp-sync-block">
+      <h3 class="mp-block-title">Device sync</h3>
+      <p class="mp-block-help">Move settings, progress, and saved content between devices — no account and no internet required.</p>
+      <div class="sync-scopes-label">What to include</div>
+      <div class="sync-scope-list" id="mp-sync-scopes"></div>
+      <div class="sync-estimate" id="mp-sync-estimate" aria-live="polite">Calculating…</div>
+      <div class="sync-section-label">File transfer</div>
+      <p class="sync-hint">Use Quick Share, a USB cable, or Drive to move the file between your Android phone and Windows PC.</p>
+      <div class="sync-btn-row">
+        <button type="button" class="btn sm" id="mp-sync-export">Export file</button>
+        <button type="button" class="btn sm" id="mp-sync-import">Import file</button>
+      </div>
+      <input type="file" id="mp-sync-file-input" class="sync-file-input" accept="application/json,.json" hidden>
+      <div class="sync-section-label">QR transfer</div>
+      <p class="sync-hint">The receiving device needs a camera. Desktop scanning is slower than on a phone.</p>
+      <div class="sync-btn-row">
+        <button type="button" class="btn sm" id="mp-sync-beam">Beam via QR</button>
+        <button type="button" class="btn sm" id="mp-sync-receive">Receive via QR</button>
+      </div>
+    </section>
+
     <section class="mp-block">
       <h3 class="mp-block-title">Features</h3>
       <p class="mp-block-help">Choose which tools appear in the toolbar and on Home. Settings stays available so you can turn them back on.</p>
@@ -174,6 +195,7 @@ function render() {
 
   paintMusicalContext();
   paintVolume();
+  paintDeviceSync();
   paintFeatures();
   paintGenres(profile);
   paintGoals(profile);
@@ -262,6 +284,144 @@ function paintMusicalContext() {
 
   renderQuickScales();
   contextUnsub = subscribeContext((ctx) => syncContextBlock(ctx));
+}
+
+let syncEstimateTimer = null;
+let syncEstimateGen = 0;
+
+function getSelectedSyncScopes(defaultIds) {
+  const saved = getSetting('sync.scopes', null);
+  if (Array.isArray(saved) && saved.length) {
+    return saved.filter((id) => defaultIds.includes(id));
+  }
+  return [...defaultIds];
+}
+
+function scheduleSyncEstimate(scopes) {
+  clearTimeout(syncEstimateTimer);
+  syncEstimateTimer = setTimeout(() => updateSyncEstimate(scopes), 300);
+}
+
+async function updateSyncEstimate(scopes) {
+  const gen = ++syncEstimateGen;
+  const el = host?.querySelector('#mp-sync-estimate');
+  if (!el) return;
+  el.textContent = 'Calculating…';
+  try {
+    const { buildSnapshot } = await import('./sync/syncProfile.js');
+    const { encodePayload, estimateTransfer } = await import('./sync/frames.js');
+    const { DEFAULT_BEAM_FPS, formatPayloadBeamEstimate } = await import('./sync/syncUI.js');
+    const snapshot = buildSnapshot({ scopes });
+    const bytes = await encodePayload(snapshot);
+    if (gen !== syncEstimateGen) return;
+    const est = estimateTransfer(bytes.length, { fps: DEFAULT_BEAM_FPS });
+    el.textContent = formatPayloadBeamEstimate(bytes.length, est, { prefixAbout: true });
+  } catch (_) {
+    if (gen !== syncEstimateGen) return;
+    el.textContent = 'Could not estimate payload size.';
+  }
+}
+
+function paintDeviceSync() {
+  const scopeRoot = host?.querySelector('#mp-sync-scopes');
+  if (!scopeRoot) return;
+
+  import('./sync/syncProfile.js').then(({ SYNC_SCOPES }) => {
+    const allIds = SYNC_SCOPES.map((s) => s.id);
+    const selected = getSelectedSyncScopes(allIds);
+    if (!selected.length) selected.push(...allIds);
+
+    scopeRoot.innerHTML = '';
+    SYNC_SCOPES.forEach((scope) => {
+      const row = document.createElement('label');
+      row.className = 'sync-scope-row';
+      const checked = selected.includes(scope.id);
+      row.innerHTML = `
+        <input type="checkbox" class="sync-scope-check" data-sync-scope="${scope.id}"${checked ? ' checked' : ''}>
+        <span class="sync-scope-meta">
+          <span class="sync-scope-label">${escapeHtml(scope.label)}</span>
+          <span class="sync-scope-desc">${escapeHtml(scope.description)}</span>
+        </span>
+      `;
+      scopeRoot.appendChild(row);
+    });
+
+    const readScopes = () => {
+      const boxes = scopeRoot.querySelectorAll('[data-sync-scope]');
+      const ids = [];
+      boxes.forEach((box) => {
+        if (box.checked) ids.push(box.dataset.syncScope);
+      });
+      return ids.length ? ids : [...allIds];
+    };
+
+    scopeRoot.querySelectorAll('[data-sync-scope]').forEach((box) => {
+      box.onchange = () => {
+        const ids = readScopes();
+        saveSetting('sync.scopes', ids);
+        scheduleSyncEstimate(ids);
+      };
+    });
+
+    scheduleSyncEstimate(readScopes());
+
+    const exportBtn = host.querySelector('#mp-sync-export');
+    const importBtn = host.querySelector('#mp-sync-import');
+    const fileInput = host.querySelector('#mp-sync-file-input');
+    const beamBtn = host.querySelector('#mp-sync-beam');
+    const receiveBtn = host.querySelector('#mp-sync-receive');
+
+    if (exportBtn) {
+      exportBtn.onclick = () => {
+        const scopes = readScopes();
+        import('./sync/syncProfile.js').then(({ buildSnapshot, serializeSnapshot, snapshotFilename }) => {
+          const snapshot = buildSnapshot({ scopes });
+          const text = serializeSnapshot(snapshot);
+          const blob = new Blob([text], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = snapshotFilename(snapshot);
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        }).catch(() => { /* ignore */ });
+      };
+    }
+
+    if (importBtn && fileInput) {
+      importBtn.onclick = () => fileInput.click();
+      fileInput.onchange = async () => {
+        const file = fileInput.files && fileInput.files[0];
+        fileInput.value = '';
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const { importFromText } = await import('./sync/syncUI.js');
+          await importFromText(text);
+        } catch (_) { /* ignore */ }
+      };
+    }
+
+    if (beamBtn) {
+      beamBtn.onclick = async () => {
+        const scopes = readScopes();
+        const { openBeamDialog } = await import('./sync/syncUI.js');
+        await openBeamDialog({ scopes, trigger: beamBtn });
+      };
+    }
+
+    if (receiveBtn) {
+      receiveBtn.onclick = async () => {
+        const { openReceiveDialog } = await import('./sync/syncUI.js');
+        await openReceiveDialog({ trigger: receiveBtn });
+      };
+    }
+  }).catch(() => {
+    const el = host?.querySelector('#mp-sync-estimate');
+    if (el) el.textContent = 'Device sync is not available.';
+  });
 }
 
 function paintVolume() {

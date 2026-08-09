@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>sync roundtrip</title></head>
+<!--
+  Browser harness for the parts of device sync that Node cannot cover: canvas QR
+  rendering, pixel read-back, and CompressionStream. Serve the repo root over
+  HTTP and open /tests/sync/roundtrip.html; the page prints RESULT: PASS or FAIL.
+-->
+<body>
+<div id="out">running</div>
+<canvas id="c"></canvas>
+<script type="module">
+const log = [];
+function say(s) { log.push(s); document.getElementById('out').textContent = log.join('\n'); }
+
+try {
+  const { encodeQrMatrix, drawQrToCanvas } = await import('../../js/qr/qrEncode.js');
+  const { decodeQrFromImageData } = await import('../../js/qr/qrDecode.js');
+  const { encodePayload, decodePayload, buildFrames, createFrameCollector, estimateTransfer } = await import('../../js/sync/frames.js');
+
+  // A realistic snapshot-shaped payload.
+  const snapshot = {
+    app: 'musi', kind: 'musi-profile-snapshot', version: 1,
+    createdAt: new Date().toISOString(),
+    scopes: ['settings', 'progress', 'content'],
+    data: {
+      'musi:settings': JSON.stringify({ 'global.volume': 0.8, 'context.root': 'F#' }),
+      'musi.notes': JSON.stringify(
+        Array.from({ length: 40 }, (_, i) => ({ id: 'n' + i, title: 'Note ' + i, body: 'Practice ideas '.repeat(12), updatedAt: '2026-08-0' + (i % 9 + 1) }))
+      ),
+    },
+  };
+
+  const bytes = await encodePayload(snapshot);
+  say('compressed bytes: ' + bytes.length);
+  const est = estimateTransfer(bytes.length, { fps: 5 });
+  say('estimate frames: ' + est.frames + ' seconds: ' + est.seconds.toFixed(1));
+
+  const { frames, total } = buildFrames(bytes);
+  say('built frames: ' + total);
+
+  // Render each frame to a canvas, read the pixels back, and decode it the way
+  // a camera would, feeding results into the collector out of order.
+  const canvas = document.getElementById('c');
+  const order = frames.map((_, i) => i).reverse();
+  const collector = createFrameCollector();
+  let decoded = 0;
+  for (const i of order) {
+    const m = encodeQrMatrix(frames[i], { ecc: 'M', maxVersion: 25 });
+    if (!m) throw new Error('frame ' + i + ' failed to encode');
+    drawQrToCanvas(canvas, m, { moduleSize: 4, quietZone: 4 });
+    const ctx = canvas.getContext('2d');
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const text = decodeQrFromImageData(img);
+    if (text !== frames[i]) throw new Error('frame ' + i + ' decode mismatch (v' + m.version + ')');
+    decoded++;
+    collector.accept(text);
+  }
+  say('decoded frames from canvas pixels: ' + decoded);
+
+  const result = collector.result();
+  if (!result) throw new Error('collector incomplete: missing ' + collector.missing().join(','));
+  const back = await decodePayload(result);
+  const same = JSON.stringify(back) === JSON.stringify(snapshot);
+  say('payload round trip identical: ' + same);
+  if (!same) throw new Error('payload mismatch');
+  say('RESULT: PASS');
+} catch (e) {
+  say('RESULT: FAIL ' + (e && e.message ? e.message : e));
+}
+</script>
+</body>
+</html>

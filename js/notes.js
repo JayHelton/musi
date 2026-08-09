@@ -89,6 +89,10 @@ function persistNotes() {
   writeKey(STORAGE_KEY, JSON.stringify(notesCache));
 }
 
+export function invalidateNotesCache() {
+  notesCache = null;
+}
+
 function sortedNotes() {
   return getNotes().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
 }

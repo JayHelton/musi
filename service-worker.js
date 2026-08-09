@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v156-gbc-icons";
+const CACHE_VERSION = "v157-profile-sync";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -44,6 +44,7 @@ const PRECACHE_URLS = [
   "css/triads.css",
   "css/study-recs.css",
   "css/study-lab.css",
+  "css/sync.css",
   "css/theme-gbc.css",
   "css/landscape.css",
   "css/boot-splash.css",
@@ -76,6 +77,12 @@ const PRECACHE_URLS = [
   "js/studyLabMic.js",
   "js/studyLab.js",
   "js/musicPreferences.js",
+  "js/sync/syncProfile.js",
+  "js/sync/frames.js",
+  "js/sync/camera.js",
+  "js/sync/syncUI.js",
+  "js/qr/qrEncode.js",
+  "js/qr/qrDecode.js",
   "js/progressHeader.js",
   "js/backingTrack.js",
   "js/chordBuilder.js",

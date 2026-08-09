@@ -53,3 +53,7 @@ export function saveSetting(id, value) {
 export function saveSettings(values) {
   writeSettings({ ...readSettings(), ...values });
 }
+
+export function invalidateSettingsCache() {
+  settingsCache = null;
+}
