@@ -20,6 +20,7 @@ import {
   quantizePercussionToSteps,
 } from '../../js/drums/gpDrumImport.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
+import { DRUM_TAB_LANES } from '../../js/drums/notation.js';
 import { buildFollowColumns } from '../../js/gpFollowView.js';
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
 import { scheduleMetronomeClick } from '../../js/tab/metroClick.js';
@@ -638,6 +639,66 @@ assert.ok(parchHost.querySelectorAll('.gpp-parch-measure').length >= 1, 'parchme
 assert.ok(parchHost.querySelector('.gpp-parch-sheet'), 'parchment sheet should exist');
 assert.ok(parchHost.querySelector('.gpp-parch-system'), 'parchment system row should exist');
 assert.equal(document.getElementById('gpp-parch-styles'), null, 'parchment should not inject inline styles');
+
+const guitarModel = fakeGp.tracks[0].model;
+const gutterLabelsHighToLow = [];
+for (let si = guitarModel.strings.length - 1; si >= 0; si--) {
+  const s = guitarModel.strings[si];
+  gutterLabelsHighToLow.push(s.label || s.note || String(si + 1));
+}
+const openStringsLowToHigh = guitarModel.strings.map((s) => s.label || s.note || '');
+
+for (const sys of parchHost.querySelectorAll('.gpp-parch-system')) {
+  const gutters = sys.querySelectorAll('.gpp-parch-gutter');
+  assert.equal(gutters.length, 1, 'each parchment system should have one gutter');
+  assert.ok(
+    (sys.firstChild?.className || '').includes('gpp-parch-gutter'),
+    'gutter should be the first child of each system',
+  );
+  const labels = gutters[0].querySelectorAll('.gpp-parch-gutter-label').map((el) => el.textContent);
+  assert.equal(labels.length, guitarModel.strings.length, 'gutter label count should match string count');
+  assert.deepEqual(labels, gutterLabelsHighToLow, 'gutter labels should run high string to low');
+}
+
+const tuningCaption = parchHost.querySelector('.gpp-parch-tuning-caption');
+assert.ok(tuningCaption, 'fretted parchment should render tuning caption');
+assert.ok(
+  tuningCaption.textContent.includes(guitarModel.tuning),
+  'tuning caption should name the tuning',
+);
+assert.ok(
+  tuningCaption.textContent.includes(openStringsLowToHigh.join(' ')),
+  'tuning caption should list open strings low to high',
+);
+
+for (const note of parchHost.querySelectorAll('.gpp-parch-note')) {
+  assert.ok(note.closest('.gpp-parch-lane-notes'), 'each note should sit inside a lane-notes box');
+}
+for (const measure of parchHost.querySelectorAll('.gpp-parch-measure')) {
+  const staff = measure.querySelector('.gpp-parch-staff');
+  if (!staff) continue;
+  for (const row of staff.children) {
+    if (row.querySelectorAll('.gpp-parch-note').length > 0) {
+      assert.equal(
+        row.querySelectorAll('.gpp-parch-lane-notes').length,
+        1,
+        'staff rows with notes should have exactly one lane-notes box',
+      );
+    }
+  }
+}
+
+const parchSheet = parchHost.querySelector('.gpp-parch-sheet');
+const padStartZoom1 = parseInt(parchSheet.style.getPropertyValue('--gpp-note-pad-start'), 10);
+const padEndZoom1 = parseInt(parchSheet.style.getPropertyValue('--gpp-note-pad-end'), 10);
+assert.ok(padStartZoom1 > 0, 'sheet should set --gpp-note-pad-start at zoom 1');
+assert.ok(padEndZoom1 > 0, 'sheet should set --gpp-note-pad-end at zoom 1');
+parchment.setZoom(2);
+const padStartZoom2 = parseInt(parchSheet.style.getPropertyValue('--gpp-note-pad-start'), 10);
+const padEndZoom2 = parseInt(parchSheet.style.getPropertyValue('--gpp-note-pad-end'), 10);
+assert.ok(padStartZoom2 > padStartZoom1, 'note pad start should grow when zoom increases');
+assert.ok(padEndZoom2 > padEndZoom1, 'note pad end should grow when zoom increases');
+
 parchment.destroy();
 
 const drumParchHost = document.createElement('div');
@@ -654,6 +715,47 @@ assert.ok(
   drumParchHost.querySelectorAll('.gpp-parch-legend-item').length >= 1,
   'drum legend should list at least one glyph',
 );
+
+assert.equal(
+  drumParchHost.querySelector('.gpp-parch-tuning-caption'),
+  null,
+  'drums-only parchment should not render tuning caption',
+);
+assert.equal(
+  drumParchHost.querySelectorAll('.gpp-parch-lane-label').length,
+  0,
+  'per-measure lane labels should be removed',
+);
+
+const percInsts = new Set(perc.events.map((e) => e.instrument).filter(Boolean));
+const activeLaneLabels = DRUM_TAB_LANES
+  .filter((lane) => lane.instruments.some((i) => percInsts.has(i)))
+  .map((lane) => lane.label);
+
+for (const sys of drumParchHost.querySelectorAll('.gpp-parch-system')) {
+  const gutter = sys.querySelector('.gpp-parch-gutter');
+  assert.ok(gutter, 'drum system should have gutter');
+  const labels = gutter.querySelectorAll('.gpp-parch-gutter-label').map((el) => el.textContent);
+  assert.deepEqual(labels, activeLaneLabels, 'drum gutter labels should match active lanes in order');
+}
+
+for (const hit of drumHits) {
+  assert.ok(hit.closest('.gpp-parch-lane-notes'), 'each drum hit should sit inside a lane-notes box');
+}
+for (const measure of drumParchHost.querySelectorAll('.gpp-parch-measure')) {
+  const staff = measure.querySelector('.gpp-parch-staff');
+  if (!staff) continue;
+  for (const row of staff.children) {
+    if (row.querySelectorAll('.gpp-parch-drum-hit').length > 0) {
+      assert.equal(
+        row.querySelectorAll('.gpp-parch-lane-notes').length,
+        1,
+        'drum rows with hits should have exactly one lane-notes box',
+      );
+    }
+  }
+}
+
 drumParchment.destroy();
 
 // ---- parchment: section-note callouts on score ----
