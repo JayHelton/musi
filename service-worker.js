@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v160-analysis-panel";
+const CACHE_VERSION = "v161-routines";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -29,6 +29,7 @@ const PRECACHE_URLS = [
   "css/songwriter.css",
   "css/exercises.css",
   "css/workbooks.css",
+  "css/routines.css",
   "css/drums.css",
   "css/chordworkout.css",
   "css/notes.css",
@@ -120,6 +121,9 @@ const PRECACHE_URLS = [
   "js/recorder.js",
   "js/recorderWorklet.js",
   "js/riffGenerator.js",
+  "js/routineMetronome.js",
+  "js/routineModel.js",
+  "js/routines.js",
   "js/scaleQuiz.js",
   "js/scaleReference.js",
   "js/triadReference.js",

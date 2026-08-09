@@ -66,6 +66,7 @@ function el(tag, props = {}, children = []) {
 }
 
 let bound = false;
+let pendingWorkbookOpenId = null;
 let selectedFolder = 'all';
 let openWorkbookId = null;
 let escapeWired = false;
@@ -445,6 +446,10 @@ function closeWorkbookDetail() {
   if (workspaceEl) workspaceEl.classList.remove('is-open');
   if (detailPaneEl) detailPaneEl.hidden = true;
   syncPracticeMode();
+}
+
+export function requestWorkbookOpen(id) {
+  if (typeof id === 'string' && id) pendingWorkbookOpenId = id;
 }
 
 function openWorkbookDetail(id) {
@@ -1502,6 +1507,14 @@ export function initWorkbooks() {
   }
 
   setStatus('');
+  if (pendingWorkbookOpenId) {
+    const pendingId = pendingWorkbookOpenId;
+    pendingWorkbookOpenId = null;
+    if (getWorkbook(pendingId)) {
+      openWorkbookDetail(pendingId);
+      return;
+    }
+  }
   render();
 }
 

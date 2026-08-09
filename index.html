@@ -75,6 +75,7 @@
 <link rel="stylesheet" href="css/songwriter.css">
 <link rel="stylesheet" href="css/exercises.css">
 <link rel="stylesheet" href="css/workbooks.css">
+<link rel="stylesheet" href="css/routines.css">
 <link rel="stylesheet" href="css/drums.css">
 <link rel="stylesheet" href="css/chordworkout.css">
 <link rel="stylesheet" href="css/notes.css">
@@ -1715,6 +1716,50 @@
               <div class="wb-detail-actions" id="wb-detail-actions"></div>
             </div>
             <div class="wb-detail-body" id="wb-detail-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROUTINES -->
+  <section id="sec-routines" class="section">
+    <div class="section-head">
+      <div class="section-kicker">Tools</div>
+      <h2>Routines</h2>
+      <p>Plan practice as a run of sessions. Each session attaches workbooks, keeps its own metronome tempo and subdivision, and carries its own notes. Export a routine to a file to back it up or share it, and import one back on any device.</p>
+    </div>
+    <div class="quiz-layout rt-layout">
+      <aside class="sidebar rt-sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Routines</div>
+          <div class="sl-scroll" id="rt-routine-list"></div>
+        </div>
+        <div class="rt-sidebar-actions">
+          <button class="btn sm primary" id="rt-new-btn" type="button">+ New Routine</button>
+          <button class="btn sm" id="rt-import-btn" type="button">Import</button>
+          <button class="btn sm" id="rt-export-all-btn" type="button">Export all</button>
+        </div>
+        <input type="file" id="rt-import-file" accept="application/json,.json" hidden>
+      </aside>
+      <div class="quiz-main rt-main">
+        <div class="rt-toolbar">
+          <div class="rt-toolbar-title" id="rt-current-title">Routines</div>
+          <div class="rt-toolbar-actions" id="rt-toolbar-actions"></div>
+        </div>
+        <div class="rt-status" id="rt-status" style="display:none"></div>
+        <div class="rt-workspace" id="rt-workspace">
+          <div class="rt-overview-pane" id="rt-overview-pane">
+            <div class="rt-overview" id="rt-overview"></div>
+            <div class="rt-session-list" id="rt-session-list"></div>
+          </div>
+          <div class="rt-session-pane" id="rt-session-pane" hidden>
+            <div class="rt-session-head">
+              <button class="btn sm" type="button" id="rt-session-back">← Sessions</button>
+              <div class="rt-session-title" id="rt-session-title"></div>
+              <div class="rt-session-actions" id="rt-session-actions"></div>
+            </div>
+            <div class="rt-session-body" id="rt-session-body"></div>
           </div>
         </div>
       </div>

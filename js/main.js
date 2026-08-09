@@ -20,6 +20,7 @@ import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './re
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises } from './exercises.js';
 import { initWorkbooks, stopWorkbooks } from './workbooks.js';
+import { initRoutines, stopRoutines } from './routines.js';
 import { initNotes, stopNotes } from './notes.js';
 import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
 import { initDrums, stopDrums } from './drums/drumsUI.js';
@@ -61,6 +62,7 @@ const TOOL_STOPPERS = {
   songwriter: () => stopSongwriter(),
   exercises: () => stopExercises(),
   workbooks: () => stopWorkbooks(),
+  routines: () => stopRoutines(),
   notes: () => stopNotes(),
   practice: () => stopPracticeTimer(),
   drums: () => stopDrums(),
@@ -86,6 +88,7 @@ const TOOL_INITS = {
   songwriter: initSongwriter,
   exercises: initExercises,
   workbooks: initWorkbooks,
+  routines: initRoutines,
   notes: initNotes,
   practice: initPracticeTimer,
   drums: initDrums,
