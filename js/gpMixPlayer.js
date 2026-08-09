@@ -373,8 +373,14 @@ export function createGpMixPlayer(opts = {}) {
     let startBeat = 0;
     let endBeat = null;
     if (loopBeats) {
-      startBeat = Number(loopBeats.startBeat) || 0;
-      endBeat = loopBeats.endBeat != null ? Number(loopBeats.endBeat) : null;
+      const lbStart = Number(loopBeats.startBeat);
+      const lbEnd = loopBeats.endBeat != null ? Number(loopBeats.endBeat) : null;
+      // An empty window would filter out every note and leave nothing to play.
+      const usable = Number.isFinite(lbStart) && (lbEnd == null || lbEnd > lbStart);
+      if (usable) {
+        startBeat = lbStart;
+        endBeat = lbEnd;
+      }
     }
     state.range = { startBeat, endBeat };
 

@@ -352,6 +352,14 @@ export function mountGpPlayer(host, {
     };
   }
 
+  function hasBeatLoop() {
+    const model = state.viewModel;
+    if (!state.loopEnabled || !model || !modelHasRhythm(model)) return false;
+    const start = state.loopStartBeat;
+    const end = state.loopEndBeat;
+    return Number.isFinite(start) && Number.isFinite(end) && end > start;
+  }
+
   let prevPlaybackTick = null;
   let playbackEndFired = false;
   let lastUserStopAt = 0;
@@ -379,10 +387,7 @@ export function mountGpPlayer(host, {
   function applyLoopToPlayer() {
     const model = state.viewModel;
     if (!model) return;
-    const beatLoop = state.loopEnabled
-      && modelHasRhythm(model)
-      && state.loopStartBeat != null
-      && state.loopEndBeat != null;
+    const beatLoop = hasBeatLoop();
     if (beatLoop) {
       const startSec = quartersToSeconds(state.loopStartBeat, state.bpm);
       const endSec = quartersToSeconds(state.loopEndBeat, state.bpm);
@@ -402,10 +407,7 @@ export function mountGpPlayer(host, {
     const model = state.viewModel;
     if (!model) return;
 
-    const beatLoop = state.loopEnabled
-      && modelHasRhythm(model)
-      && state.loopStartBeat != null
-      && state.loopEndBeat != null;
+    const beatLoop = hasBeatLoop();
     const loadOpts = mixLoadBase();
     if (state.loopEnabled && !beatLoop) {
       loadOpts.loopMeasures = [state.loopStart, state.loopEnd];
@@ -671,10 +673,7 @@ export function mountGpPlayer(host, {
       stateController.applyTransforms();
       const model = state.viewModel;
       if (!model) return;
-      const beatLoop = state.loopEnabled
-        && modelHasRhythm(model)
-        && state.loopStartBeat != null
-        && state.loopEndBeat != null;
+      const beatLoop = hasBeatLoop();
       const loadOpts = mixLoadBase();
       if (state.loopEnabled && !beatLoop) {
         loadOpts.loopMeasures = [state.loopStart, state.loopEnd];

@@ -70,11 +70,11 @@ export function createPlayerState(gpResult, options = {}) {
     || gpResult.drumTracks?.[0]?.model?.measures?.length
     || 1;
 
-  // null/'' must mean "no saved bar", not bar 0 — Number() would coerce both to 0
-  // and silently pin a whole-score loop to the first bar.
-  const isSetBar = (n) => n != null && n !== '' && Number.isFinite(Number(n));
+  // null/'' must mean "no saved value", not bar 0 / beat 0 — Number() would
+  // coerce both to 0 and silently pin a whole-score loop to the first bar.
+  const isSetNumber = (n) => n != null && n !== '' && Number.isFinite(Number(n));
   const clampBar = (n, fallback) => clampMeasureIndex(
-    isSetBar(n) ? Number(n) : fallback,
+    isSetNumber(n) ? Number(n) : fallback,
     measureCount,
   );
 
@@ -136,16 +136,19 @@ export function createPlayerState(gpResult, options = {}) {
   const initMeasures = gpResult.tracks[0]?.model?.measures
     || gpResult.drumTracks?.[0]?.model?.measures
     || [];
-  let loopStartBeat = Number.isFinite(Number(options.initialLoopStartBeat))
+  const measureBeats = beatsFromMeasureRange(initMeasures, state.loopStart, state.loopEnd);
+  let loopStartBeat = isSetNumber(options.initialLoopStartBeat)
     ? Number(options.initialLoopStartBeat)
-    : null;
-  let loopEndBeat = Number.isFinite(Number(options.initialLoopEndBeat))
+    : measureBeats.startBeat;
+  let loopEndBeat = isSetNumber(options.initialLoopEndBeat)
     ? Number(options.initialLoopEndBeat)
-    : null;
-  if (loopStartBeat == null || loopEndBeat == null) {
-    const initBeats = beatsFromMeasureRange(initMeasures, state.loopStart, state.loopEnd);
-    if (loopStartBeat == null) loopStartBeat = initBeats.startBeat;
-    if (loopEndBeat == null) loopEndBeat = initBeats.endBeat;
+    : measureBeats.endBeat;
+  // A zero-length window passes every null check downstream but filters every
+  // note out of the mix, so an unusable span has to mean "no beat loop" instead.
+  if (!(loopEndBeat > loopStartBeat)) {
+    const usable = measureBeats.endBeat > measureBeats.startBeat;
+    loopStartBeat = usable ? measureBeats.startBeat : null;
+    loopEndBeat = usable ? measureBeats.endBeat : null;
   }
   state.loopStartBeat = loopStartBeat;
   state.loopEndBeat = loopEndBeat;
