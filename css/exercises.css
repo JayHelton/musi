@@ -235,6 +235,31 @@
 .ex-player-doc-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .ex-player-doc-actions a.btn{text-decoration:none;display:inline-flex;align-items:center;min-height:var(--tap-min,40px)}
 
+/* Inline viewer: hide library chrome so the player pane spans full width
+   (mirrors workbooks #sec-workbooks.wb-practicing). */
+#sec-exercises.ex-viewing .section-head,
+#sec-exercises.ex-viewing .ex-folder-bar,
+#sec-exercises.ex-viewing .ex-sidebar,
+#sec-exercises.ex-viewing .ex-toolbar,
+#sec-exercises.ex-viewing .ex-bulk-bar,
+#sec-exercises.ex-viewing .ex-status{display:none}
+#sec-exercises.ex-viewing .ex-list-pane{display:none!important}
+#sec-exercises.ex-viewing .ex-layout{
+  flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;width:100%
+}
+#sec-exercises.ex-viewing .ex-main{
+  flex:1;min-height:0;display:flex;flex-direction:column;min-width:0;width:100%
+}
+#sec-exercises.ex-viewing .ex-workspace{
+  flex:1;min-height:0
+}
+#sec-exercises.ex-viewing .ex-workspace.is-open{
+  display:flex;flex-direction:column;grid-template-columns:none;gap:0;flex:1;min-height:0
+}
+#sec-exercises.ex-viewing .ex-player-pane{
+  flex:1;min-height:0;display:flex!important;flex-direction:column
+}
+
 @media(max-width:900px){
   #sec-exercises{overflow-x:hidden}
   #sec-exercises .ex-layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important;width:100%!important;max-width:100%!important;min-width:0!important}
@@ -391,6 +416,26 @@
   #sec-exercises .ex-item-actions .btn{min-height:32px}
   #sec-exercises .ex-toolbar{margin-bottom:4px}
   #sec-exercises .ex-item{padding:6px 8px}
+}
+
+/* ex-viewing wins over landscape split-list rules above */
+@media (orientation:landscape) and (max-height:500px){
+  #sec-exercises.ex-viewing.active{
+    display:flex;flex-direction:column;min-height:0;
+    max-height:calc(100dvh - var(--dock-h) - 52px)
+  }
+  #sec-exercises.ex-viewing .ex-sidebar{display:none!important}
+  #sec-exercises.ex-viewing .quiz-layout.ex-layout{
+    display:flex!important;flex-direction:column!important;flex:1;min-height:0
+  }
+  #sec-exercises.ex-viewing .ex-workspace.is-open{
+    display:flex!important;flex-direction:column!important;grid-template-columns:none!important;
+    flex:1;min-height:0
+  }
+  #sec-exercises.ex-viewing .ex-workspace.is-open .ex-list-pane{display:none!important}
+  #sec-exercises.ex-viewing .ex-player-pane{
+    flex:1;min-height:0!important;height:auto!important
+  }
 }
 
 /* ── Bulk upload dialog (Exercises library) ─────────────────────────────── */

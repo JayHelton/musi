@@ -584,7 +584,7 @@ let selectionMode = false;
 const selectedIds = new Set();
 
 let listEl, catListEl, titleEl, statusEl, bulkBarEl, fileInput, bulkFileInput, uploadBtn, bulkUploadBtn, addLinkBtn, addCatForm, addCatInput;
-let workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
+let sectionEl, workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
 let activeExerciseId = null;
 let viewerURL = null;
 let viewerGpMount = null;
@@ -1399,6 +1399,7 @@ function addLinkExercise(name, url) {
 // --- inline player ---------------------------------------------------------
 
 function ensurePlayerElements() {
+  sectionEl = sectionEl || document.getElementById('sec-exercises');
   workspaceEl = workspaceEl || document.getElementById('ex-workspace');
   playerPaneEl = playerPaneEl || document.getElementById('ex-player-pane');
   playerBodyEl = playerBodyEl || document.getElementById('ex-player-body');
@@ -1406,6 +1407,10 @@ function ensurePlayerElements() {
   playerActionsEl = playerActionsEl || document.getElementById('ex-player-actions');
   playerBackBtn = playerBackBtn || document.getElementById('ex-player-back');
   return !!(workspaceEl && playerPaneEl && playerBodyEl && playerTitleEl && playerActionsEl);
+}
+
+function setViewerLayoutActive(on) {
+  if (sectionEl) sectionEl.classList.toggle('ex-viewing', on);
 }
 
 function wirePlayerControls() {
@@ -1596,6 +1601,7 @@ function teardownPlayer() {
   }
   if (viewerURL) { try { URL.revokeObjectURL(viewerURL); } catch (e) {} viewerURL = null; }
   activeExerciseId = null;
+  setViewerLayoutActive(false);
   if (workspaceEl) workspaceEl.classList.remove('is-open');
   if (playerPaneEl) playerPaneEl.hidden = true;
   if (playerTitleEl) {
@@ -1625,6 +1631,7 @@ export async function openExerciseViewer(id) {
 
   activeExerciseId = id;
   workspaceEl.classList.add('is-open');
+  setViewerLayoutActive(true);
   playerPaneEl.hidden = false;
   fillPlayerHead(item, kind, blob);
   const gpMount = mountPlayerBody(item, kind, blob);
@@ -1870,6 +1877,7 @@ export function initExercises() {
   addLinkBtn = document.getElementById('ex-add-link-btn');
   addCatForm = document.getElementById('ex-add-cat-form');
   addCatInput = document.getElementById('ex-add-cat-input');
+  sectionEl = document.getElementById('sec-exercises');
   workspaceEl = document.getElementById('ex-workspace');
   playerPaneEl = document.getElementById('ex-player-pane');
   playerBodyEl = document.getElementById('ex-player-body');
