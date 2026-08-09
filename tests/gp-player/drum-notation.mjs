@@ -40,6 +40,12 @@ assert.equal(drumTabGlyph({ instrument: 'unknown' }), 'x');
 assert.equal(drumTabGlyph({ instrument: 'snare' }), 'o', 'missing velocity stays un-accented');
 assert.equal(ACCENT_VELOCITY, 0.9);
 
+// ---- explicit accent flag ----
+assert.equal(drumTabGlyph({ instrument: 'snare', accent: true }), 'O');
+assert.equal(drumTabGlyph({ instrument: 'hihatClosed', accent: true }), 'X');
+assert.equal(drumTabGlyph({ instrument: 'snare', accent: false, velocity: 1 }), 'o');
+assert.equal(drumTabGlyph({ instrument: 'snare', velocity: 1 }), 'O', 'velocity fallback when accent absent');
+
 // ---- drumArticulationFromMidi ----
 assert.equal(drumArticulationFromMidi(44), 'hihatPedal');
 assert.equal(drumArticulationFromMidi(37), 'sideStick');
@@ -99,6 +105,7 @@ assert.deepEqual(
 // ---- drumHitLabel ----
 assert.equal(drumHitLabel({ instrument: 'snare', velocity: 0.5 }), 'Snare');
 assert.equal(drumHitLabel({ instrument: 'snare', velocity: 1 }), 'Snare (accent)');
+assert.equal(drumHitLabel({ instrument: 'snare', accent: true }), 'Snare (accent)');
 assert.equal(drumHitLabel({ instrument: 'hihatClosed', midi: 44 }), 'Hi-Hat (foot)');
 assert.equal(drumHitLabel({ instrument: 'ride', midi: 53 }), 'Ride (bell)');
 assert.equal(drumHitLabel({ instrument: 'snare', midi: 37 }), 'Snare (side stick)');
@@ -198,5 +205,41 @@ const preserved = makePercussionModel({
   measures: [{ startBeat: 0, endBeat: 4 }],
 });
 assert.equal(preserved.events[0].articulation, 'splash');
+
+// ---- GPIF: explicit accent bitfield on drum notes ----
+const gpifAccent = `<?xml version="1.0" encoding="UTF-8"?>
+<GPIF>
+  <MasterBars>
+    <MasterBar><Bars>0</Bars><Time>4/4</Time></MasterBar>
+  </MasterBars>
+  <Bars><Bar id="0"><Voices>0</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0 1 2 3</Beats></Voice></Voices>
+  <Beats>
+    <Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
+    <Beat id="1"><Rhythm ref="0"/><Notes>1</Notes></Beat>
+    <Beat id="2"><Rhythm ref="0"/><Notes>2</Notes></Beat>
+    <Beat id="3"><Rhythm ref="0"/><Notes>3</Notes></Beat>
+  </Beats>
+  <Notes>
+    <Note id="0"><InstrumentArticulation>1</InstrumentArticulation><Accent>4</Accent></Note>
+    <Note id="1"><InstrumentArticulation>1</InstrumentArticulation><Accent>8</Accent></Note>
+    <Note id="2"><InstrumentArticulation>1</InstrumentArticulation></Note>
+    <Note id="3"><InstrumentArticulation>1</InstrumentArticulation><Accent>1</Accent></Note>
+  </Notes>
+  <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
+  <Tracks>
+    <Track id="0">
+      <Name>Drums</Name>
+      ${DRUM_ARTICULATION_SET}
+    </Track>
+  </Tracks>
+</GPIF>`;
+const accentResult = gpifToTracks(gpifAccent);
+const accentEvents = accentResult.tracks[0].model.events;
+assert.equal(accentEvents.length, 4);
+assert.equal(accentEvents[0].accent, true, 'Accent bit 0x04');
+assert.equal(accentEvents[1].accent, true, 'Accent bit 0x08');
+assert.equal(accentEvents[2].accent, false, 'no Accent element');
+assert.equal(accentEvents[3].accent, false, 'unrelated Accent bit');
 
 console.log('gp-player drum notation: ok');

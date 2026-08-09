@@ -189,7 +189,7 @@ export function deriveMeasureSlotSpans(measures, events) {
 
 /**
  * Build a PercussionModel from timed drum hits.
- * @typedef {{ slot:number, start:number, duration:number, instrument:string, velocity:number, midi:number, articulation:string|null }} PercEvent
+ * @typedef {{ slot:number, start:number, duration:number, instrument:string, velocity:number, midi:number, articulation:string|null, accent:boolean }} PercEvent
  * @typedef {{
  *   percussion: true,
  *   name: string,

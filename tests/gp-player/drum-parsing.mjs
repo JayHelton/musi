@@ -252,6 +252,12 @@ const ghostSnare = dynEvents.find((e) => e.start === 2);
 assert.ok(mfSnare && fSnare && ghostSnare);
 assert.ok(fSnare.velocity > mfSnare.velocity, 'F beat should be louder than MF');
 assert.equal(ghostSnare.instrument, 'snareGhost');
+assert.equal(mfSnare.accent, false);
+assert.equal(fSnare.accent, false);
+assert.equal(ghostSnare.accent, false);
+for (const ev of dynEvents) {
+  assert.equal(ev.accent, false, 'GPIF drum events default accent to false');
+}
 
 // ---- GPIF: pitched track must not be classified as percussion ----
 const gpifPitched = `<?xml version="1.0" encoding="UTF-8"?>

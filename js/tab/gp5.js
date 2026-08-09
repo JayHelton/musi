@@ -284,6 +284,8 @@ function readNotes(r, ctx, track, beatTechniques) {
 
 function readNote(r, ctx, track, number, beatTechniques) {
   const flags = r.u8();
+  const accent = !!(flags & 0x40) || !!(flags & 0x02); // accentuated (0x40), heavy accent (0x02)
+  const ghost = !!(flags & 0x04);                       // ghost note (0x04)
   let type = 1;                     // 1 normal, 2 tie, 3 dead
   if (flags & 0x20) type = r.u8();
   let dynamics = null;
@@ -300,18 +302,19 @@ function readNote(r, ctx, track, number, beatTechniques) {
     effects.hopo = e.hopo;
   }
   const techniques = [...effects.techniques];
-  if (type === 2) return { number, tie: true, fret: null, midi: null, dead: false, techniques, hopo: effects.hopo, dynamics };
+  const noteFields = { accent, ghost, techniques, hopo: effects.hopo, dynamics };
+  if (type === 2) return { number, tie: true, fret: null, midi: null, dead: false, ...noteFields };
   const dead = type === 3;
-  if (dead) return { number, fret: null, midi: null, dead: true, techniques, hopo: effects.hopo, dynamics };
+  if (dead) return { number, fret: null, midi: null, dead: true, ...noteFields };
   if (fret == null) return null;
   // Percussion: GP5 stores the kit MIDI (or GS value) in the fret field.
   if (track.isPercussion) {
     const midi = normalizeGp5PercussionMidi(fret);
-    return { number, fret, midi, dead: false, techniques, hopo: effects.hopo, dynamics };
+    return { number, fret, midi, dead: false, ...noteFields };
   }
   const open = track.tuning[number - 1];
   const midi = open != null ? open + fret : null;
-  return { number, fret, midi, dead: false, techniques, hopo: effects.hopo, dynamics };
+  return { number, fret, midi, dead: false, ...noteFields };
 }
 
 // Read one beat; returns { notes, empty, duration, dotted }.
@@ -494,7 +497,7 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120)
         for (const n of beat.notes) {
           if (n.dead || n.tie || n.midi == null) continue;
           const velocity = dynamicsToVelocity(n.dynamics);
-          const instrument = midiToDrumInstrument(n.midi, { velocity });
+          const instrument = midiToDrumInstrument(n.midi, { velocity, ghost: n.ghost });
           if (!instrument) continue;
           events.push({
             start: voiceCursor,
@@ -502,6 +505,7 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120)
             instrument,
             velocity,
             midi: n.midi,
+            accent: n.accent,
           });
         }
         voiceCursor += duration;

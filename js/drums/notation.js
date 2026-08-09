@@ -15,7 +15,7 @@ export const DRUM_TAB_LANES = [
   { key: 'kick', label: 'K', title: 'Kick', instruments: ['kick'] },
 ];
 
-/** Velocity at or above this threshold renders the accented tab symbol. */
+/** Velocity fallback threshold when no explicit accent flag is present (hand-authored patterns). */
 export const ACCENT_VELOCITY = 0.9;
 
 const LANE_BY_INSTRUMENT = new Map();
@@ -101,7 +101,7 @@ export const DRUM_TAB_LEGEND = [
 ];
 
 /**
- * @param {{ instrument?: string, velocity?: number, midi?: number, articulation?: string|null }} event
+ * @param {{ instrument?: string, velocity?: number, midi?: number, articulation?: string|null, accent?: boolean|null }} event
  * @returns {{
  *   instrument: string|undefined,
  *   articulation: string|null,
@@ -114,7 +114,9 @@ export const DRUM_TAB_LEGEND = [
 function resolveHit(event) {
   const instrument = event?.instrument;
   const articulation = event?.articulation ?? drumArticulationFromMidi(event?.midi);
-  const accented = Number.isFinite(event?.velocity) && event.velocity >= ACCENT_VELOCITY;
+  // Guitar Pro sets accent explicitly; hand-authored drum patterns rely on velocity.
+  const accented = event?.accent
+    ?? (Number.isFinite(event?.velocity) && event.velocity >= ACCENT_VELOCITY);
   const pair = instrument ? INSTRUMENT_GLYPHS[instrument] : null;
   const normalGlyph = pair ? pair[0] : 'x';
   const accentGlyph = pair ? pair[1] : 'x';
@@ -146,7 +148,7 @@ export function drumArticulationFromMidi(midi) {
 
 /**
  * Single-character drum-tab symbol for a percussion hit.
- * @param {{ instrument?: string, velocity?: number, midi?: number, articulation?: string|null }} event
+ * @param {{ instrument?: string, velocity?: number, midi?: number, articulation?: string|null, accent?: boolean|null }} event
  * @returns {string}
  */
 export function drumTabGlyph(event) {
@@ -155,7 +157,7 @@ export function drumTabGlyph(event) {
 
 /**
  * Short human label for tooltips and aria (instrument + articulation + accent).
- * @param {{ instrument?: string, velocity?: number, midi?: number, articulation?: string|null }} event
+ * @param {{ instrument?: string, velocity?: number, midi?: number, articulation?: string|null, accent?: boolean|null }} event
  * @returns {string}
  */
 export function drumHitLabel(event) {
