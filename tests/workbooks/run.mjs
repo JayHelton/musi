@@ -12,6 +12,7 @@ import {
   createWorkbookFolder,
   renameWorkbookFolder,
   deleteWorkbookFolder,
+  deleteWorkbookFolderWithContents,
   getWorkbookFolderOptions,
   listWorkbooks,
   getWorkbook,
@@ -225,6 +226,39 @@ test('pruneMissingExercises drops absent exercises only', () => {
   const removed = pruneMissingExercises(wb.id, ['keep', 'keep2', 'other']);
   assert.equal(removed, 1);
   assert.deepEqual(getWorkbook(wb.id).entries.map(e => e.exerciseId), ['keep', 'keep2']);
+});
+
+test('deleteWorkbookFolderWithContents removes folder and its workbooks only', () => {
+  const keepFolder = createWorkbookFolder('Keep Folder');
+  const dropFolder = createWorkbookFolder('Drop Folder');
+  const otherFolder = createWorkbookFolder('Other Folder');
+  const wbDrop1 = createWorkbook({ name: 'Drop 1', folderId: dropFolder.id });
+  const wbDrop2 = createWorkbook({ name: 'Drop 2', folderId: dropFolder.id });
+  const wbOther = createWorkbook({ name: 'Other', folderId: otherFolder.id });
+  const wbLoose = createWorkbook({ name: 'Loose' });
+  const wbKeep = createWorkbook({ name: 'Keep', folderId: keepFolder.id });
+
+  const result = deleteWorkbookFolderWithContents(dropFolder.id);
+  assert.deepEqual(result, { ok: true, deleted: 2 });
+  assert.ok(!listWorkbookFolders().some(f => f.id === dropFolder.id));
+  assert.equal(getWorkbook(wbDrop1.id), null);
+  assert.equal(getWorkbook(wbDrop2.id), null);
+  assert.ok(getWorkbook(wbOther.id));
+  assert.ok(getWorkbook(wbLoose.id));
+  assert.ok(getWorkbook(wbKeep.id));
+  assert.equal(listWorkbooks({ folderId: otherFolder.id }).length, 1);
+  assert.equal(listWorkbooks({ folderId: 'uncategorized' }).some(w => w.id === wbLoose.id), true);
+});
+
+test('deleteWorkbookFolderWithContents on empty folder reports zero deleted', () => {
+  const empty = createWorkbookFolder('Empty Folder');
+  const result = deleteWorkbookFolderWithContents(empty.id);
+  assert.deepEqual(result, { ok: true, deleted: 0 });
+  assert.ok(!listWorkbookFolders().some(f => f.id === empty.id));
+});
+
+test('deleteWorkbookFolderWithContents returns not ok for missing folder', () => {
+  assert.deepEqual(deleteWorkbookFolderWithContents('wbf-missing'), { ok: false, deleted: 0 });
 });
 
 test('listWorkbooks folder filtering and updatedAt sort order', () => {

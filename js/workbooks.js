@@ -25,6 +25,7 @@ import {
   createWorkbookFolder,
   renameWorkbookFolder,
   deleteWorkbookFolder,
+  deleteWorkbookFolderWithContents,
   getWorkbookFolderOptions,
   listWorkbookFolders,
   listWorkbooks,
@@ -484,6 +485,45 @@ function openConfirm(title, body, confirmLabel, onConfirm) {
   dialog.appendChild(actions);
   overlay.appendChild(dialog);
   overlay.addEventListener('click', e => { if (e.target === overlay) closeDialog(); });
+  dialogRoot.appendChild(overlay);
+}
+
+function openFolderDeleteDialog({ name, count, onDeleteFolderOnly, onDeleteAll }) {
+  ensureDialogRoot();
+  dialogRoot.innerHTML = '';
+  const workbookWord = count === 1 ? 'workbook' : 'workbooks';
+  const overlay = el('div', { class: 'modal-overlay' });
+  const dialog = el('div', { class: 'modal-dialog modal-confirm' }, [
+    el('h3', { class: 'modal-title', text: `Delete folder "${name}"?` }),
+    el('p', {
+      class: 'modal-body',
+      text: `"${name}" holds ${count} ${workbookWord}. Delete the folder only and keep them uncategorized, or delete the folder and its ${count} ${workbookWord} from this device.`,
+    }),
+  ]);
+  const actions = el('div', { class: 'modal-actions' });
+  let escapeHandler = null;
+  const finish = (fn) => {
+    if (escapeHandler) document.removeEventListener('keydown', escapeHandler);
+    closeDialog();
+    fn();
+  };
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Cancel',
+    onClick: () => finish(() => {}),
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Delete folder only',
+    onClick: () => finish(onDeleteFolderOnly),
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn modal-danger', type: 'button', text: `Delete folder + ${count} ${workbookWord}`,
+    onClick: () => finish(onDeleteAll),
+  }));
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', e => { if (e.target === overlay) finish(() => {}); });
+  escapeHandler = (e) => { if (e.key === 'Escape') finish(() => {}); };
+  document.addEventListener('keydown', escapeHandler);
   dialogRoot.appendChild(overlay);
 }
 
@@ -1346,16 +1386,40 @@ function onRenameFolder(id, current) {
 }
 
 function onDeleteFolder(id, name) {
-  openConfirm(
-    `Delete folder "${name}"?`,
-    'Workbooks in this folder are kept but become uncategorized.',
-    'Delete',
-    () => {
+  const count = listWorkbooks({ folderId: id }).length;
+  if (count === 0) {
+    openConfirm(
+      `Delete folder "${name}"?`,
+      'This folder is empty.',
+      'Delete',
+      () => {
+        deleteWorkbookFolder(id);
+        if (selectedFolder === id) selectedFolder = 'all';
+        render();
+      },
+    );
+    return;
+  }
+  openFolderDeleteDialog({
+    name,
+    count,
+    onDeleteFolderOnly: () => {
       deleteWorkbookFolder(id);
       if (selectedFolder === id) selectedFolder = 'all';
       render();
+      const word = count === 1 ? 'workbook' : 'workbooks';
+      setStatus(`Deleted folder "${name}". ${count} ${word} ${count === 1 ? 'is' : 'are'} now uncategorized.`);
     },
-  );
+    onDeleteAll: () => {
+      const openWb = openWorkbookId ? getWorkbook(openWorkbookId) : null;
+      if (openWb && openWb.folderId === id) closeWorkbookDetail();
+      const { deleted } = deleteWorkbookFolderWithContents(id);
+      if (selectedFolder === id) selectedFolder = 'all';
+      render();
+      const word = deleted === 1 ? 'workbook' : 'workbooks';
+      setStatus(`Deleted folder "${name}" and ${deleted} ${word}.`);
+    },
+  });
 }
 
 function onNewWorkbook() {
