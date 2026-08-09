@@ -4,36 +4,15 @@
 // but generated fills and user-created sequencer patterns are rendered from
 // their steps with this module so the count row and every lane stay aligned.
 
-import { INSTRUMENT_ROW_LABEL, stepsPerBeat } from './types.js';
+import {
+  DRUM_TAB_LANES,
+  DRUM_LANE_PRIORITY,
+  drumTabGlyph,
+  INSTRUMENT_ROW_LABEL,
+  stepsPerBeat,
+} from './types.js';
 
-// Lanes are merged for display the way drummers read tab: the hi-hat row shows
-// open hits as `O`, and the snare row folds in ghost (`g`) and flam (`f`).
-const RENDER_LANES = [
-  { label: 'C', instruments: ['crash'] },
-  { label: 'R', instruments: ['ride'] },
-  { label: 'H', instruments: ['hihatClosed', 'hihatOpen'] },
-  { label: 'S', instruments: ['snare', 'snareGhost', 'snareFlam'] },
-  { label: 'T1', instruments: ['tomHigh'] },
-  { label: 'T2', instruments: ['tomMid'] },
-  { label: 'FT', instruments: ['tomFloor'] },
-  { label: 'K', instruments: ['kick'] },
-];
-
-function glyphFor(instrument, velocity) {
-  if (instrument === 'hihatOpen') return 'O';
-  if (instrument === 'snareGhost') return 'g';
-  if (instrument === 'snareFlam') return 'f';
-  if (velocity >= 0.9) return 'X';
-  if (velocity >= 0.6) return 'x';
-  return 'o';
-}
-
-// Priority when several instruments in a lane land on the same step (flam beats
-// ghost beats a normal hit; an open hat beats a closed one).
-const LANE_PRIORITY = {
-  snareFlam: 3, snareGhost: 1, snare: 2,
-  hihatOpen: 2, hihatClosed: 1,
-};
+const RENDER_LANES = DRUM_TAB_LANES;
 
 function countTokens(stepsPerBar, subdivision) {
   const per = stepsPerBeat(subdivision);
@@ -65,9 +44,9 @@ export function renderTab(pattern) {
     const laneIdx = RENDER_LANES.findIndex((l) => l.instruments.includes(s.instrument));
     if (laneIdx === -1 || s.step < 0 || s.step >= total) continue;
     const cur = laneCells[laneIdx][s.step];
-    const pri = LANE_PRIORITY[s.instrument] ?? 2;
+    const pri = DRUM_LANE_PRIORITY[s.instrument] ?? 2;
     if (!cur || pri > cur.pri) {
-      laneCells[laneIdx][s.step] = { glyph: glyphFor(s.instrument, s.velocity), pri };
+      laneCells[laneIdx][s.step] = { glyph: drumTabGlyph(s.instrument, s.velocity), pri };
     }
   }
 

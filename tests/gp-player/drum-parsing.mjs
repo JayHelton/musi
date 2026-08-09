@@ -13,6 +13,13 @@ import {
 } from '../../js/tab/gpPercussion.js';
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
 import { createPlayerState } from '../../js/gpPlayer/playerState.js';
+import { mountParchmentView } from '../../js/gpPlayer/parchmentView.js';
+import {
+  DRUM_TAB_LANES,
+  DRUM_LANE_PRIORITY,
+  drumTabGlyph,
+} from '../../js/drums/types.js';
+import { parseTab } from '../../js/drums/tabParser.js';
 import { installDomShim } from './domShim.mjs';
 
 const DRUM_ARTICULATION_SET = `
@@ -502,5 +509,140 @@ assert.ok(psDrum.state.viewModel);
 assert.equal(psDrum.state.viewModel.percussion, true);
 assert.equal(psDrum.state.viewModel.events.length, drumModel.events.length);
 psDrum.destroy();
+
+// ---- drumTabGlyph round-trip through parseTab ----
+function expectedInstrument(laneLabel, glyph) {
+  if (laneLabel === 'H' && glyph === 'O') return 'hihatOpen';
+  if (laneLabel === 'S' && glyph === 'g') return 'snareGhost';
+  if (laneLabel === 'S' && glyph === 'f') return 'snareFlam';
+  const lane = DRUM_TAB_LANES.find((l) => l.label === laneLabel);
+  return lane?.instruments[0];
+}
+
+for (const lane of DRUM_TAB_LANES) {
+  for (const inst of lane.instruments) {
+    const velocities = inst === 'hihatOpen'
+      ? [0.72]
+      : inst === 'snareGhost' || inst === 'snareFlam'
+        ? [0.32, 0.95]
+        : [0.55, 0.72, 0.95, 1.0];
+    for (const vel of velocities) {
+      const glyph = drumTabGlyph(inst, vel);
+      const tab = `Count | 1\n${lane.label} | ${glyph}`;
+      const parsed = parseTab(tab);
+      assert.equal(parsed.steps.length, 1, `${inst}@${vel} → ${glyph}`);
+      assert.equal(parsed.steps[0].instrument, expectedInstrument(lane.label, glyph));
+    }
+  }
+}
+
+// ---- parchment drum staff renders drum tab ----
+function laneLabelText(el) {
+  const textEl = el.querySelector?.('.gpp-parch-lane-label-text');
+  return textEl?.textContent ?? el.textContent;
+}
+
+function collectLaneHits(host, laneLabel) {
+  const gutter = host.querySelector('.gpp-parch-drum-gutter');
+  const labels = gutter ? gutter.querySelectorAll('.gpp-parch-lane-label') : [];
+  let laneIdx = -1;
+  labels.forEach((el, i) => {
+    if (laneLabelText(el) === laneLabel) laneIdx = i;
+  });
+  const lanes = host.querySelectorAll('.gpp-parch-drum-lane');
+  const lane = lanes[laneIdx];
+  if (!lane) return [];
+  return [...lane.querySelectorAll('.gpp-parch-drum-hit')].map((h) => h.textContent);
+}
+
+function gutterLaneLabels(host) {
+  const gutter = host.querySelector('.gpp-parch-drum-gutter');
+  if (!gutter) return [];
+  return [...gutter.querySelectorAll('.gpp-parch-lane-label')].map((el) => laneLabelText(el));
+}
+
+const parchHost = document.createElement('div');
+parchHost.clientWidth = 800;
+mountParchmentView(parchHost, { percModel: drumModel, zoom: 1 });
+
+const parchSystems = parchHost.querySelectorAll('.gpp-parch-system');
+assert.ok(parchSystems.length >= 1);
+for (const sys of parchSystems) {
+  assert.equal(sys.querySelectorAll('.gpp-parch-drum-gutter').length, 1);
+  for (const m of sys.querySelectorAll('.gpp-parch-measure')) {
+    assert.equal(m.querySelectorAll('.gpp-parch-lane-label').length, 0);
+  }
+}
+assert.deepEqual(gutterLaneLabels(parchHost), ['H', 'S', 'K'], 'active lanes in tab order');
+assert.ok(!parchHost.textContent.includes('●'), 'drum staff must not use bullet glyphs');
+const parchHits = [...parchHost.querySelectorAll('.gpp-parch-drum-hit')].map((h) => h.textContent);
+assert.ok(parchHits.every((g) => /^[XxogOf]$/.test(g)), `unexpected glyphs: ${parchHits.join('')}`);
+
+const multiMeasureModel = {
+  events: drumModel.events,
+  measures: Array.from({ length: 8 }, (_, i) => ({
+    startBeat: i * 4,
+    endBeat: (i + 1) * 4,
+  })),
+  totalBeats: 32,
+};
+const multiHost = document.createElement('div');
+multiHost.clientWidth = 800;
+mountParchmentView(multiHost, { percModel: multiMeasureModel, zoom: 1 });
+const multiSystems = multiHost.querySelectorAll('.gpp-parch-system');
+assert.ok(multiSystems.length >= 2, 'wide host should pack multiple systems');
+for (const sys of multiSystems) {
+  assert.equal(sys.querySelectorAll('.gpp-parch-drum-gutter').length, 1);
+}
+
+const priorityModel = {
+  events: [
+    { instrument: 'hihatClosed', start: 0, velocity: 0.72 },
+    { instrument: 'hihatOpen', start: 0, velocity: 0.72 },
+    { instrument: 'kick', start: 0, velocity: 1.0 },
+    { instrument: 'snareGhost', start: 1, velocity: 0.32 },
+    { instrument: 'snare', start: 1, velocity: 1.0 },
+    { instrument: 'snareFlam', start: 1, velocity: 0.95 },
+  ],
+  measures: [{ startBeat: 0, endBeat: 4 }],
+  totalBeats: 4,
+};
+const priHost = document.createElement('div');
+priHost.clientWidth = 600;
+mountParchmentView(priHost, { percModel: priorityModel, zoom: 1 });
+assert.deepEqual(collectLaneHits(priHost, 'H'), ['O'], 'open hat wins over closed at same beat');
+assert.deepEqual(collectLaneHits(priHost, 'S'), ['f'], 'flam wins over ghost/snare at same beat');
+assert.deepEqual(collectLaneHits(priHost, 'K'), ['X'], 'accent kick renders as X');
+
+const markerModel = {
+  events: drumModel.events,
+  measures: [
+    { startBeat: 0, endBeat: 4, marker: 'Verse' },
+    { startBeat: 4, endBeat: 8 },
+    { startBeat: 8, endBeat: 12 },
+    { startBeat: 12, endBeat: 16 },
+  ],
+  totalBeats: 16,
+};
+const markerHost = document.createElement('div');
+markerHost.clientWidth = 800;
+mountParchmentView(markerHost, { percModel: markerModel, zoom: 1 });
+const markerSystem = markerHost.querySelector('.gpp-parch-system');
+assert.ok(markerSystem, 'marker fixture should render at least one system');
+const markerMeasures = [...markerSystem.querySelectorAll('.gpp-parch-measure')];
+assert.equal(markerMeasures.length, 4);
+const firstMarker = markerMeasures[0].querySelector('.gpp-parch-marker');
+assert.ok(firstMarker, 'first bar keeps the real section marker');
+assert.ok(!firstMarker.classList.contains('gpp-parch-marker-spacer'));
+for (let i = 1; i < markerMeasures.length; i += 1) {
+  assert.equal(
+    markerMeasures[i].querySelectorAll('.gpp-parch-marker-spacer').length,
+    1,
+    `measure ${i + 1} should reserve marker row height`,
+  );
+}
+const gutter = markerSystem.querySelector('.gpp-parch-drum-gutter');
+const gutterMarkerSpacer = gutter && gutter.querySelector('.gpp-parch-marker-spacer');
+assert.ok(gutterMarkerSpacer, 'gutter should mirror marker row when system has a section');
 
 console.log('gp-player drum parsing: ok');

@@ -483,7 +483,8 @@
   border-left: 2px solid #1a1420;
   transition: background 0.12s ease, outline 0.12s ease;
 }
-.gpp-parch-measure:first-child {
+.gpp-parch-measure:first-child,
+.gpp-parch-drum-gutter + .gpp-parch-measure {
   border-left-width: 3px;
 }
 .gpp-parch-measure.is-active {
@@ -524,6 +525,11 @@
   text-overflow: ellipsis;
   color: rgba(58, 42, 24, 0.75);
 }
+.gpp-parch-marker-spacer {
+  visibility: hidden;
+  user-select: none;
+  pointer-events: none;
+}
 
 .gpp-parch-staff {
   position: relative;
@@ -553,28 +559,67 @@
   opacity: 0.55;
 }
 
+/* Lane labels sit outside the staff so the first beat of a bar is never hidden
+   behind them; the following measure's left border is the opening barline. */
+.gpp-parch-drum-gutter {
+  flex: 0 0 auto;
+  padding: 4px 2px 8px 0;
+  color: rgba(58, 42, 24, 0.85);
+}
+/* Spacers mirroring the leading rows of a measure so labels meet their lanes. */
+.gpp-parch-gutter-rail {
+  margin-bottom: 3px;
+  min-height: 0;
+}
+.gpp-parch-gutter-bar-num {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  visibility: hidden;
+}
+.gpp-parch-gutter-labels .gpp-parch-lane-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 1.15em;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-weight: 600;
+  opacity: 0.55;
+  padding-right: 4px;
+}
+.gpp-parch-gutter-labels .gpp-parch-lane-label-text {
+  font-size: 0.75em;
+  line-height: 1;
+}
+
 .gpp-parch-drum-lane {
   position: relative;
-  height: 12px;
-  border-bottom: 1px dashed rgba(26, 20, 32, 0.2);
+  height: 1.15em;
 }
-.gpp-parch-drum-lane .gpp-parch-lane-label {
+.gpp-parch-drum-lane::before {
+  content: "";
   position: absolute;
   left: 0;
+  right: 0;
   top: 50%;
-  transform: translateY(-50%);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 8px;
-  opacity: 0.5;
-  width: 14px;
+  border-top: 1px dashed rgba(26, 20, 32, 0.25);
+  pointer-events: none;
 }
 .gpp-parch-drum-hit {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
+  z-index: 1;
+  min-width: 1ch;
+  padding: 0 0.05em;
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 10px;
+  font-size: 0.95em;
+  line-height: 1;
+  text-align: center;
   color: #1e1408;
+  background: #f7efd8;
+  pointer-events: none;
 }
 
 .gpp-parch-playhead {
@@ -1931,6 +1976,18 @@ html.gpp-player-locked body {
   }
   .gpp-parch-viewport {
     padding: 6px 6px calc(var(--gpp-transport-pad, 60px) + 4px);
+  }
+  .gpp-parch-drum-lane {
+    height: 1.05em;
+  }
+  .gpp-parch-gutter-labels .gpp-parch-lane-label {
+    height: 1.05em;
+  }
+  .gpp-parch-gutter-labels .gpp-parch-lane-label-text {
+    font-size: 0.7em;
+  }
+  .gpp-parch-drum-hit {
+    font-size: 0.88em;
   }
 
   .gpp-transport-anchor {
