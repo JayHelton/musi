@@ -1622,7 +1622,7 @@
     <div class="section-head">
       <div class="section-kicker">Tools</div>
       <h2>Exercises</h2>
-      <p>Upload PDFs, images, audio, video, and Guitar Pro <code>.gp</code>/<code>.gp5</code> files, or add lesson links — open any item to practice right here in the library.</p>
+      <p>Upload PDFs, images, audio, video, and Guitar Pro <code>.gp</code>/<code>.gp5</code> files, or add lesson links — use Bulk Upload to add many files at once (Guitar Pro scores are split into one exercise per section). Open any item to practice right here in the library.</p>
     </div>
     <div class="quiz-layout ex-layout">
       <aside class="sidebar ex-sidebar">
@@ -1640,7 +1640,9 @@
           <div class="ex-toolbar-title" id="ex-current-title">All Exercises</div>
           <div class="ex-toolbar-actions">
             <input type="file" id="ex-file-input" multiple hidden>
+            <input type="file" id="ex-bulk-file-input" multiple hidden>
             <button class="btn primary" id="ex-upload-btn" type="button">+ Upload File</button>
+            <button class="btn" id="ex-bulk-upload-btn" type="button">+ Bulk Upload</button>
             <button class="btn" id="ex-add-link-btn" type="button">+ Add Link</button>
           </div>
         </div>

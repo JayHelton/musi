@@ -392,3 +392,477 @@
   #sec-exercises .ex-toolbar{margin-bottom:4px}
   #sec-exercises .ex-item{padding:6px 8px}
 }
+
+/* ── Bulk upload dialog (Exercises library) ─────────────────────────────── */
+
+.exbulk-root {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  pointer-events: none;
+}
+.exbulk-root.is-open {
+  pointer-events: auto;
+}
+.exbulk-root[hidden] {
+  display: none !important;
+}
+
+.exbulk-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.58);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.exbulk-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.exbulk-panel {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -48%) scale(0.98);
+  width: min(720px, calc(100% - 24px));
+  max-height: min(88dvh, 780px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 26, 46, 0.98);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-screen, 18px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow: hidden;
+}
+.exbulk-panel.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.exbulk-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(11, 16, 32, 0.72);
+}
+.exbulk-head-titles {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.exbulk-kicker {
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.48rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent2);
+}
+.exbulk-title {
+  font-family: var(--font-body, "Pixelify Sans", monospace);
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--text);
+  margin: 0;
+}
+.exbulk-close {
+  flex-shrink: 0;
+}
+
+.exbulk-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 16px;
+  scrollbar-width: thin;
+}
+
+.exbulk-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.exbulk-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  font-family: var(--font-body, "Pixelify Sans", monospace);
+  font-size: 0.88rem;
+  color: var(--text);
+}
+.exbulk-opt input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+.exbulk-opt-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.exbulk-opt-title {
+  font-weight: 600;
+  line-height: 1.25;
+}
+.exbulk-opt-hint {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.exbulk-fallback-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(11, 16, 32, 0.35);
+}
+.exbulk-fallback-label {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.exbulk-fallback {
+  min-width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body, "Pixelify Sans", monospace);
+  font-size: 0.85rem;
+}
+.exbulk-fallback:disabled {
+  opacity: 0.5;
+}
+.exbulk-every-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.exbulk-every-input {
+  width: 3.2rem;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 1rem;
+  text-align: center;
+}
+.exbulk-every-input:disabled {
+  opacity: 0.45;
+}
+.exbulk-every-input:focus,
+.exbulk-fallback:focus,
+.exbulk-folder:focus,
+.exbulk-new-folder-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+.exbulk-folder-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.exbulk-folder-label {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.exbulk-folder-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.exbulk-folder {
+  min-width: 140px;
+  flex: 1 1 140px;
+  max-width: 280px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body, "Pixelify Sans", monospace);
+  font-size: 0.88rem;
+}
+.exbulk-new-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.exbulk-new-folder[hidden] {
+  display: none;
+}
+.exbulk-new-folder-input {
+  width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body, "Pixelify Sans", monospace);
+  font-size: 0.85rem;
+}
+
+.exbulk-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(280px, 36dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.exbulk-file {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.exbulk-file.is-disabled {
+  opacity: 0.55;
+}
+.exbulk-file.has-warning {
+  border-color: color-mix(in srgb, var(--warn, #f39c12) 45%, var(--border));
+}
+.exbulk-file-check {
+  flex-shrink: 0;
+  margin-top: 4px;
+  accent-color: var(--accent);
+}
+.exbulk-file-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.exbulk-file-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.exbulk-file-name {
+  flex: 1 1 120px;
+  min-width: 0;
+  font-family: var(--font-body, "Pixelify Sans", monospace);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.exbulk-kind {
+  flex-shrink: 0;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.78rem;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(180, 94, 255, 0.18);
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.exbulk-size {
+  flex-shrink: 0;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.exbulk-plan {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.2;
+}
+.exbulk-skip,
+.exbulk-warn {
+  margin: 2px 0 0;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+.exbulk-skip {
+  color: var(--err);
+}
+.exbulk-warn {
+  color: var(--warn, #f39c12);
+}
+
+.exbulk-analyzing,
+.exbulk-importing,
+.exbulk-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 120px;
+  text-align: center;
+  padding: 16px 8px;
+}
+.exbulk-analyzing-title,
+.exbulk-done-msg {
+  font-family: var(--font-body, "Pixelify Sans", monospace);
+  font-size: 0.95rem;
+  color: var(--text);
+  margin: 0;
+}
+.exbulk-analyzing-detail,
+.exbulk-import-label {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin: 0;
+}
+.exbulk-done-msg.is-error {
+  color: var(--err);
+}
+.exbulk-errors {
+  margin: 0;
+  padding: 0 0 0 18px;
+  text-align: left;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.88rem;
+  color: var(--err);
+  max-width: 100%;
+}
+
+.exbulk-progress-track {
+  width: 100%;
+  max-width: 360px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.exbulk-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  transition: width 0.15s ease;
+}
+
+.exbulk-foot {
+  flex-shrink: 0;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--border);
+  background: rgba(11, 16, 32, 0.72);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.exbulk-summary {
+  flex: 1 1 100%;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+.exbulk-cancel,
+.exbulk-add {
+  min-height: var(--tap-min, 44px);
+}
+.exbulk-add {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .exbulk-panel {
+    width: calc(100% - 12px);
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: translateY(100%);
+    border-radius: var(--radius-screen, 18px) var(--radius-screen, 18px) 0 0;
+  }
+  .exbulk-panel.is-open {
+    transform: translateY(0);
+  }
+  .exbulk-body {
+    padding: 10px 12px;
+  }
+  .exbulk-fallback-row {
+    border-radius: 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .exbulk-folder-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .exbulk-folder {
+    max-width: none;
+  }
+  .exbulk-files {
+    max-height: min(220px, 32dvh);
+  }
+  .exbulk-foot {
+    padding: 10px 12px calc(12px + var(--dock-h, 62px));
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .exbulk-add {
+    width: 100%;
+    margin-left: 0;
+  }
+  .exbulk-cancel {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exbulk-backdrop,
+  .exbulk-panel,
+  .exbulk-progress-fill {
+    transition: none;
+  }
+}
