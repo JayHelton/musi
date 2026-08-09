@@ -33,6 +33,7 @@ const CONTENT_KEYS = [
   'musi.songs',
   'musi.exercises',
   'musi.workbooks',
+  'musi.routines',
   'musi.gpAnnotations',
 ];
 
@@ -56,7 +57,7 @@ export const SYNC_SCOPES = [
   {
     id: 'content',
     label: 'Content',
-    description: 'Notes, songs, exercises, workbooks, and score annotations.',
+    description: 'Notes, songs, exercises, workbooks, routines, and score annotations.',
     keys: [...CONTENT_KEYS],
   },
 ];
@@ -317,6 +318,18 @@ function mergeWorkbooks(localRaw, incomingRaw) {
   };
 }
 
+function mergeRoutines(localRaw, incomingRaw) {
+  const counts = emptyCounts();
+  const local = tryParseObject(localRaw);
+  const incoming = tryParseObject(incomingRaw);
+  const rtMerge = mergeById(local.routines, incoming.routines, emptyCounts());
+  mergeCounts(counts, rtMerge.counts);
+  return {
+    result: { routines: rtMerge.list },
+    counts,
+  };
+}
+
 function mergeGpAnnotations(localRaw, incomingRaw) {
   const counts = emptyCounts();
   const local = tryParseObject(localRaw);
@@ -355,6 +368,9 @@ function mergeCollectionKey(key, localRaw, incomingRaw) {
     case 'musi.workbooks':
       const wb = mergeWorkbooks(localRaw, incomingRaw);
       return { result: wb.result, counts: wb.counts };
+    case 'musi.routines':
+      const rt = mergeRoutines(localRaw, incomingRaw);
+      return { result: rt.result, counts: rt.counts };
     case 'musi.gpAnnotations':
       const gp = mergeGpAnnotations(localRaw, incomingRaw);
       return { result: gp.result, counts: gp.counts };
@@ -382,6 +398,7 @@ async function invalidateModuleCaches() {
     { path: '../notes.js', fn: 'invalidateNotesCache' },
     { path: '../songwriter.js', fn: 'invalidateSongsCache' },
     { path: '../exercises.js', fn: 'invalidateExercisesCache' },
+    { path: '../routineModel.js', fn: 'invalidateRoutinesCache' },
     { path: '../gpAnnotations.js', fn: 'invalidateGpAnnotationsCache' },
   ];
   for (const spec of specs) {
@@ -410,6 +427,10 @@ function countCollectionItems(key, raw) {
     if (key === 'musi.workbooks') {
       if (!isPlainObject(parsed)) return null;
       return Array.isArray(parsed.workbooks) ? parsed.workbooks.length : 0;
+    }
+    if (key === 'musi.routines') {
+      if (!isPlainObject(parsed)) return null;
+      return Array.isArray(parsed.routines) ? parsed.routines.length : 0;
     }
     if (key === 'musi.gpAnnotations') {
       if (!isPlainObject(parsed) || !isPlainObject(parsed.byScore)) return 0;
@@ -533,6 +554,7 @@ export function summarizeSnapshot(snapshot) {
     'musi.songs': 'Songs',
     'musi.exercises': 'Exercises',
     'musi.workbooks': 'Workbooks',
+    'musi.routines': 'Routines',
     'musi.gpAnnotations': 'Score annotations',
   };
 
