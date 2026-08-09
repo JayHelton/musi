@@ -21,9 +21,26 @@ distribution.
   user's message or prior main-thread steps.
 - **Model:** use Composer 2.5 (`composer-2.5` or `composer-2.5-fast`) for
   implementation sub-agents unless the user specifies otherwise.
-- **Before opening a PR:** fetch the latest `main` from origin, rebase (or merge)
-  your branch onto it, and resolve all conflicts first. Do not create or update a
-  PR while the branch is behind `main` or has unresolved merge conflicts.
+
+### Branching and delivery (trunk-based, no PRs)
+
+- **Trunk only:** do all work directly on `main` (the trunk; some people call it
+  `master`, but this repo has no `master` branch). Do not create feature branches and
+  do not open pull requests.
+- **Push to main:** when the work is done, push straight to `main` with
+  `git push origin main`.
+- **Complete features only:** only push finished, working features. `main` is the live
+  trunk — a push is a release, not a half-done checkpoint. That trade-off is what makes
+  skipping review acceptable; keep commits shippable.
+- **Stay current:** commit in logical units with descriptive messages. Before pushing,
+  pull and rebase onto `origin/main` (`git pull --rebase origin main`) so the push is a
+  fast-forward; resolve conflicts first.
+- **Verify before push:** there is no CI. Follow the Gotchas definition of verifying
+  (run the CLI, exercise the web UI in a browser) and run any relevant ad-hoc Node test
+  runners under `tests/` (e.g. `node tests/workbooks/run.mjs`,
+  `node tests/exercises/run.mjs`).
+- **Harness override:** a cloud-agent harness may still force branch-and-PR delivery. If
+  so, say so explicitly — do not silently open a PR against this rule.
 
 Musi is a **fully static, frontend-only** product — there is no backend, database, or
 API. It ships as two deliverables that share the same music-theory engine in `js/`:
