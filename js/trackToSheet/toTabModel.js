@@ -126,30 +126,43 @@ export function notesToTabModel(notes, {
   }));
 
   const timed = shifted.map((n) => {
-    const rawStart = (n.startSec - offsetSec) / beatSec;
-    const rawDur = Math.max(0.25, n.durationSec / beatSec);
-    return { n, start: Math.round(rawStart * 4) / 4, rawDur };
+    const start = n.startBeat != null
+      ? n.startBeat
+      : (n.startSec - offsetSec) / beatSec;
+    const rawDur = n.durationBeats != null
+      ? n.durationBeats
+      : Math.max(0.25, n.durationSec / beatSec);
+    return { n, start, rawDur, confidence: n.confidence ?? n.clarity ?? 0.5 };
   });
   timed.sort((a, b) => a.start - b.start || a.n.startSec - b.n.startSec);
 
-  for (let i = 1; i < timed.length; i++) {
-    if (timed[i].start <= timed[i - 1].start) {
-      timed[i].start = timed[i - 1].start + 0.25;
+  const kept = [];
+  const slotMap = new Map();
+  for (const item of timed) {
+    const key = Math.round(item.start * 64);
+    const existing = slotMap.get(key);
+    if (existing && existing.confidence >= item.confidence) continue;
+    if (existing) {
+      const idx = kept.indexOf(existing);
+      if (idx >= 0) kept.splice(idx, 1);
     }
+    slotMap.set(key, item);
+    kept.push(item);
   }
+  kept.sort((a, b) => a.start - b.start);
 
-  for (let i = 0; i < timed.length; i++) {
-    let duration = nearestDuration(timed[i].rawDur).beats;
-    if (i + 1 < timed.length) {
-      const gap = timed[i + 1].start - timed[i].start;
+  for (let i = 0; i < kept.length; i++) {
+    let duration = nearestDuration(kept[i].rawDur).beats;
+    if (i + 1 < kept.length) {
+      const gap = kept[i + 1].start - kept[i].start;
       duration = Math.min(duration, Math.max(0.25, gap));
     }
-    timed[i].duration = Math.max(0.25, duration);
+    kept[i].duration = Math.max(0.25, duration);
   }
 
-  const minStart = timed.length ? Math.min(...timed.map((t) => t.start)) : 0;
+  const minStart = kept.length ? Math.min(...kept.map((t) => t.start)) : 0;
   if (minStart < 0) {
-    for (const t of timed) t.start -= minStart;
+    for (const t of kept) t.start -= minStart;
   }
 
   const events = [];
@@ -157,7 +170,7 @@ export function notesToTabModel(notes, {
   let slot = 0;
   let totalBeats = 0;
 
-  for (const { n, start, duration } of timed) {
+  for (const { n, start, duration } of kept) {
     const placed = placeMidiOnStrings(n.midi, strings, {
       preferStringIndex: preferString,
       preferFretCenter: 5,

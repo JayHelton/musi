@@ -9,6 +9,8 @@ import {
   extractPitchFrames,
   segmentNotes,
   quantizeToScore,
+  quantizeNotes,
+  analyzeMono,
   estimateBpm,
   estimateTempo,
   midiToStaff,
@@ -224,6 +226,53 @@ function synthMelody(events, sampleRate = SR) {
   for (const ev of model.events) {
     assert.ok(ev.midi >= 40 && ev.midi <= 88, `midi ${ev.midi} should be guitar-range after shift`);
   }
+}
+
+// ── quantizeNotes ──────────────────────────────────────────────
+{
+  const beatSec = 0.5;
+  const notes = [
+    { midi: 60, startSec: 0.02, durationSec: 0.48, name: 'C', oct: 4, label: 'C4', clarity: 1 },
+    { midi: 62, startSec: 0.52, durationSec: 0.46, name: 'D', oct: 4, label: 'D4', clarity: 1 },
+  ];
+  const q = quantizeNotes(notes, {
+    bpm: 120,
+    beatsPerBar: 4,
+    offsetSec: 0,
+    gridDivisions: [1, 0.5, 0.25],
+    quantizeStrength: 1,
+  });
+  assert.ok(q.notes.length === 2);
+  assert.ok(q.notes[0].startBeat != null);
+  assert.ok(q.notes[0].durationBeats != null);
+  assert.ok(q.gridDivision > 0);
+  assert.ok(q.fitScore >= 0);
+}
+
+// ── analyzeMono on synthetic melody ────────────────────────────
+{
+  const TRUTH_BPM = 100;
+  const beatSec = 60 / TRUTH_BPM;
+  const melody = [];
+  const scale = [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65];
+  for (let i = 0; i < scale.length; i++) {
+    melody.push({
+      midi: scale[i],
+      startSec: i * beatSec * 0.5 + 0.05,
+      durationSec: beatSec * 0.4,
+      amp: 0.3,
+    });
+  }
+  const mono = synthMelody(melody);
+  const result = await analyzeMono(mono, SR, { preset: 'balanced' });
+  assert.ok(result.notes.length >= 8, `expected many notes, got ${result.notes.length}`);
+  assert.ok(result.frameCount > 10);
+  assert.ok(result.onsets.length >= 4);
+  assert.ok(result.grid.division > 0);
+  assert.ok(Math.abs(result.bpm - TRUTH_BPM) <= TRUTH_BPM * 0.08,
+    `tempo ${result.bpm} should be near ${TRUTH_BPM}`);
+  assert.ok(result.score.events.some((e) => e.type === 'note'));
+  assert.ok(result.diagnostics.voicedRatio > 0.1);
 }
 
 console.log('track-to-sheet: all tests passed');
