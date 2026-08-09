@@ -231,3 +231,53 @@ export async function listFilesMeta(source) {
   if (!source) return all;
   return all.filter((m) => m.source === source);
 }
+
+// Returns true when a record exists for `id` (metadata only — no Blob read).
+export async function hasFile(id) {
+  const db = await openDB();
+  if (!db || !id) return false;
+  return new Promise((resolve) => {
+    try {
+      const req = store(db, 'readonly').get(id);
+      req.onsuccess = () => resolve(!!req.result);
+      req.onerror = () => resolve(false);
+    } catch (e) {
+      resolve(false);
+    }
+  });
+}
+
+// Writes a Blob under a caller-supplied id (sync import). Returns metadata or null.
+export async function putFileWithId({
+  id,
+  blob,
+  name,
+  fileName,
+  type,
+  size,
+  createdAt,
+  source,
+} = {}) {
+  const db = await openDB();
+  if (!db || !id || !blob) return null;
+  ensurePersistentStorage();
+  const rec = {
+    id: String(id),
+    blob,
+    name: (name && String(name).trim()) || 'File',
+    fileName: fileName || '',
+    type: type || blob.type || '',
+    size: Number.isFinite(size) ? size : (blob.size || 0),
+    createdAt: createdAt || new Date().toISOString(),
+    source: source || 'upload',
+  };
+  return new Promise((resolve) => {
+    try {
+      const req = store(db, 'readwrite').put(rec);
+      req.onsuccess = () => resolve(metaOf(rec));
+      req.onerror = () => resolve(null);
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}

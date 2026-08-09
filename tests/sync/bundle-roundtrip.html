@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>bundle roundtrip</title></head>
+<!--
+  Browser harness for the library bundle path, covering what Node shims cannot:
+  real IndexedDB, real Blob streaming, and the File System Access fallback that
+  collects the archive stream into a Blob. Serve the repo root over HTTP and open
+  /tests/sync/bundle-roundtrip.html; the page prints RESULT: PASS or FAIL.
+-->
+<body>
+<pre id="out">running</pre>
+<script type="module">
+const log = [];
+function say(s) { log.push(s); document.getElementById('out').textContent = log.join('\n'); }
+
+// Fake GP5 payload: repetitive binary, like a real Guitar Pro 5 file.
+function gp5Bytes(seed, len) {
+  const b = new Uint8Array(len);
+  for (let i = 0; i < len; i++) b[i] = (i * 7 + seed * 31) % 251;
+  return b;
+}
+
+async function collect(stream) {
+  return await new Response(stream).blob();
+}
+
+try {
+  const att = await import('../../js/attachments.js');
+  const bundle = await import('../../js/sync/syncBundle.js');
+  const zip = await import('../../js/sync/zip.js');
+  const drums = await import('../../js/drums/drumPatternDb.js');
+
+  if (!att.attachmentsSupported()) throw new Error('IndexedDB unavailable in this browser context');
+  if (!drums.drumsDbSupported()) throw new Error('drums IndexedDB unavailable');
+
+  // Wipe any prior state so the run is deterministic.
+  for (const m of await att.listAudioMeta()) await att.deleteFile(m.id);
+  for (const p of await drums.listPatterns()) await drums.deletePattern(p.id);
+  localStorage.removeItem('musi.exercises');
+  localStorage.removeItem('musi.workbooks');
+  localStorage.removeItem('musi:settings');
+
+  // One score blob shared by many bar-range exercises: the bulk GP import case.
+  const scoreId = 'att-shared-score';
+  const scoreBytes = gp5Bytes(3, 240 * 1024);
+  await att.putFileWithId({
+    id: scoreId, blob: new Blob([scoreBytes], { type: 'application/octet-stream' }),
+    name: 'Etude', fileName: 'etude.gp5', type: 'application/octet-stream',
+    size: scoreBytes.length, createdAt: new Date().toISOString(), source: 'exercise',
+  });
+  const soloId = 'att-solo-score';
+  const soloBytes = gp5Bytes(9, 64 * 1024);
+  await att.putFileWithId({
+    id: soloId, blob: new Blob([soloBytes], { type: 'application/octet-stream' }),
+    name: 'Solo', fileName: 'solo.gp5', type: 'application/octet-stream',
+    size: soloBytes.length, createdAt: new Date().toISOString(), source: 'exercise',
+  });
+
+  const items = [];
+  for (let i = 0; i < 20; i++) {
+    items.push({
+      id: 'ex-bar-' + i, name: 'Etude bars ' + (i * 4 + 1), categoryId: 'cat-1',
+      attachmentId: scoreId, url: '', fileName: 'etude.gp5', type: 'application/octet-stream',
+      size: scoreBytes.length, addedAt: '2026-08-01T00:00:00.000Z',
+      measureStart: i * 4 + 1, measureEnd: i * 4 + 4,
+    });
+  }
+  items.push({
+    id: 'ex-solo', name: 'Solo', categoryId: 'cat-1', attachmentId: soloId, url: '',
+    fileName: 'solo.gp5', type: 'application/octet-stream', size: soloBytes.length,
+    addedAt: '2026-08-02T00:00:00.000Z',
+  });
+  localStorage.setItem('musi.exercises', JSON.stringify({ categories: [{ id: 'cat-1', name: 'Studies' }], items }));
+  localStorage.setItem('musi.workbooks', JSON.stringify({
+    folders: [{ id: 'f1', name: 'Term 1' }],
+    workbooks: [{ id: 'wb1', name: 'Week 1', folderId: 'f1', updatedAt: '2026-08-03T00:00:00.000Z',
+      entries: items.slice(0, 5).map((it, n) => ({ id: 'wbe-' + n, exerciseId: it.id })) }],
+  }));
+
+  // Drum patterns live in a second IndexedDB database, and favourites in
+  // settings reference them by id.
+  await drums.putPatternRaw({
+    id: 'usr-groove-a', builtin: false, name: 'Half-time shuffle', steps: [1, 0, 0, 1, 0, 1, 0, 0],
+    createdAt: '2026-07-01T00:00:00.000Z', updatedAt: '2026-07-02T00:00:00.000Z',
+  });
+  await drums.putPatternRaw({
+    id: 'usr-fill-b', builtin: false, name: 'Tom fill', steps: [1, 1, 1, 1],
+    createdAt: '2026-07-03T00:00:00.000Z', updatedAt: '2026-07-04T00:00:00.000Z',
+  });
+  localStorage.setItem('musi:settings', JSON.stringify({ 'drums.favorites': ['usr-groove-a'] }));
+
+  // 1. Preflight estimate must resolve (this is where the UI showed "Calculating...").
+  const t0 = performance.now();
+  const est = await bundle.estimateBundle({});
+  say('estimate resolved in ' + Math.round(performance.now() - t0) + ' ms: '
+    + est.fileCount + ' files, ' + est.totalBytes + ' bytes, missing ' + (est.missing?.length ?? 0));
+  if (est.fileCount !== 2) throw new Error('expected 2 deduped files, got ' + est.fileCount);
+
+  // 2. Build the archive through the Blob fallback path.
+  const built = await bundle.createBundleStream({ onProgress: () => {} });
+  const archive = await collect(built.stream);
+  say('archive: ' + built.filename + ', ' + archive.size + ' bytes');
+
+  const sig = new Uint8Array(await archive.slice(0, 4).arrayBuffer());
+  const isZip = sig[0] === 0x50 && sig[1] === 0x4b && sig[2] === 0x03 && sig[3] === 0x04;
+  say('starts with PK\\x03\\x04: ' + isZip);
+  if (!isZip) throw new Error('archive is not a zip');
+
+  const entries = await zip.readZipEntries(archive);
+  say('entries: ' + entries.map(e => e.name).join(', '));
+  const fileEntries = entries.filter(e => e.name.startsWith('files/'));
+  if (fileEntries.length !== 2) throw new Error('expected 2 file entries, got ' + fileEntries.length);
+  if (!entries.some(e => e.name === 'drums/patterns.json')) throw new Error('drum patterns entry missing');
+
+  // 3. Wipe the device, then import. Leave one drum pattern behind under the
+  // same id but with different content, so the remap path is exercised: the
+  // local copy must survive and the imported favourite must follow the new id.
+  for (const m of await att.listAudioMeta()) await att.deleteFile(m.id);
+  for (const p of await drums.listPatterns()) await drums.deletePattern(p.id);
+  localStorage.removeItem('musi.exercises');
+  localStorage.removeItem('musi.workbooks');
+  localStorage.removeItem('musi:settings');
+  await drums.putPatternRaw({
+    id: 'usr-groove-a', builtin: false, name: 'LOCAL different groove', steps: [0, 0, 1, 1],
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  const file = new File([archive], built.filename, { type: 'application/zip' });
+  const read = await bundle.readBundle(file);
+  if (!read.ok) throw new Error('readBundle failed: ' + read.error);
+  say('readBundle ok, manifest files: ' + (read.manifest?.attachments?.length ?? '?'));
+
+  const outcome = await bundle.importBundle(file, { mode: 'merge' });
+  say('import files: ' + JSON.stringify(outcome.files));
+
+  // 4. Every exercise must resolve to byte-identical bytes under its original id.
+  const restored = JSON.parse(localStorage.getItem('musi.exercises') || '{}');
+  say('restored exercises: ' + (restored.items?.length ?? 0));
+  if ((restored.items?.length ?? 0) !== 21) throw new Error('expected 21 exercises');
+  const wb = JSON.parse(localStorage.getItem('musi.workbooks') || '{}');
+  say('restored workbooks: ' + (wb.workbooks?.length ?? 0) + ', entries: ' + (wb.workbooks?.[0]?.entries?.length ?? 0));
+  if ((wb.workbooks?.length ?? 0) !== 1) throw new Error('workbook missing');
+
+  async function checkBlob(id, expected) {
+    const blob = await att.getFileBlob(id);
+    if (!blob) throw new Error('attachment ' + id + ' missing after import');
+    const got = new Uint8Array(await blob.arrayBuffer());
+    if (got.length !== expected.length) throw new Error(id + ' size ' + got.length + ' != ' + expected.length);
+    for (let i = 0; i < got.length; i++) if (got[i] !== expected[i]) throw new Error(id + ' differs at ' + i);
+    return true;
+  }
+  await checkBlob(scoreId, scoreBytes);
+  await checkBlob(soloId, soloBytes);
+  say('both blobs byte-identical under original ids');
+
+  // Every exercise reference must resolve to a real stored file.
+  for (const it of restored.items) {
+    if (!it.attachmentId) continue;
+    if (!(await att.hasFile(it.attachmentId))) throw new Error('dangling ref ' + it.id + ' -> ' + it.attachmentId);
+  }
+  say('no dangling attachment references');
+
+  // 5. Drum patterns: the untouched one keeps its id and timestamps, the
+  // colliding one is remapped without destroying the local copy, and the
+  // imported favourite points at whichever id the groove actually landed under.
+  const patterns = await drums.listPatterns();
+  say('patterns after import: ' + patterns.map(p => p.id + '(' + p.name + ')').join(', '));
+  const fill = patterns.find(p => p.id === 'usr-fill-b');
+  if (!fill) throw new Error('non-colliding pattern lost its id');
+  if (fill.createdAt !== '2026-07-03T00:00:00.000Z' || fill.updatedAt !== '2026-07-04T00:00:00.000Z') {
+    throw new Error('pattern timestamps were not preserved: ' + JSON.stringify(fill));
+  }
+  const localKept = patterns.find(p => p.id === 'usr-groove-a');
+  if (!localKept || localKept.name !== 'LOCAL different groove') {
+    throw new Error('local colliding pattern was overwritten');
+  }
+  const remapped = patterns.find(p => p.name === 'Half-time shuffle');
+  if (!remapped) throw new Error('colliding incoming pattern was dropped');
+  if (remapped.id === 'usr-groove-a') throw new Error('collision was not remapped');
+  say('remapped incoming groove to ' + remapped.id + ', local copy intact');
+
+  const favs = JSON.parse(localStorage.getItem('musi:settings') || '{}')['drums.favorites'] || [];
+  say('favourites after import: ' + JSON.stringify(favs));
+  if (!favs.includes(remapped.id)) {
+    throw new Error('favourite still points at the old id, so it references the wrong pattern');
+  }
+  say('favourite reference followed the remapped id');
+  say('RESULT: PASS');
+} catch (e) {
+  say('RESULT: FAIL ' + (e && e.message ? e.message : e));
+}
+</script>
+</body>
+</html>

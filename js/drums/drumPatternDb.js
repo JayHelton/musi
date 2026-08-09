@@ -103,3 +103,28 @@ export async function deletePattern(id) {
     } catch (e) { resolve(false); }
   });
 }
+
+// Store a pattern record verbatim (preserves createdAt / updatedAt on import).
+export async function putPatternRaw(record) {
+  const db = await openDB();
+  if (!db || !record || !record.id) return null;
+  return new Promise((resolve) => {
+    try {
+      const req = store(db, 'readwrite').put(record);
+      req.onsuccess = () => resolve(record);
+      req.onerror = () => resolve(null);
+    } catch (e) { resolve(null); }
+  });
+}
+
+export async function hasPattern(id) {
+  const db = await openDB();
+  if (!db || !id) return false;
+  return new Promise((resolve) => {
+    try {
+      const req = store(db, 'readonly').get(id);
+      req.onsuccess = () => resolve(req.result != null);
+      req.onerror = () => resolve(false);
+    } catch (e) { resolve(false); }
+  });
+}

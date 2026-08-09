@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v157-profile-sync";
+const CACHE_VERSION = "v159-migration-sync";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -80,6 +80,8 @@ const PRECACHE_URLS = [
   "js/sync/syncProfile.js",
   "js/sync/frames.js",
   "js/sync/camera.js",
+  "js/sync/zip.js",
+  "js/sync/syncBundle.js",
   "js/sync/syncUI.js",
   "js/qr/qrEncode.js",
   "js/qr/qrDecode.js",

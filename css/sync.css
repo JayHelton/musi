@@ -75,11 +75,127 @@
   line-height: 1.3;
 }
 
+.sync-estimate-sub {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.sync-method {
+  margin-top: 16px;
+  padding: 14px 14px 12px;
+  border-radius: var(--radius-screen, 18px);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    rgba(18, 26, 46, 0.45);
+}
+
+.sync-method-library {
+  border-color: var(--accent2, var(--shell-bright));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.sync-method-title {
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.52rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.sync-method-library .sync-method-title {
+  color: var(--accent);
+}
+
+.sync-section-label-inline {
+  margin-top: 14px;
+}
+
+.sync-qr-warning {
+  margin: 8px 0 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-screen, 18px);
+  border: 1px solid var(--warn);
+  background: rgba(255, 180, 80, 0.08);
+  font-size: 0.84rem;
+  color: var(--warn);
+  line-height: 1.4;
+}
+
+.sync-btn-disabled,
+.sync-btn-row .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .sync-hint {
   font-size: 0.82rem;
   color: var(--muted);
   line-height: 1.4;
   margin: 0 0 8px;
+}
+
+.sync-hint-compact {
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+
+.sync-advanced {
+  margin: 12px 0 4px;
+  border-radius: var(--radius-screen, 18px);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  padding: 10px 12px;
+}
+
+.sync-advanced-summary {
+  font-family: var(--font-body, "Pixelify Sans", sans-serif);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.sync-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+
+.sync-advanced-summary::before {
+  content: "▸ ";
+  color: var(--accent2, var(--shell-bright));
+}
+
+.sync-advanced[open] .sync-advanced-summary::before {
+  content: "▾ ";
+}
+
+.sync-advanced[open] .sync-advanced-summary {
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.sync-advanced .sync-scopes-label {
+  margin-top: 4px;
+}
+
+.sync-method-secondary {
+  border-color: var(--border);
+  opacity: 0.95;
+}
+
+.sync-btn-secondary {
+  border-color: var(--border);
+  background: var(--bg2);
+  color: var(--muted);
+}
+
+.sync-btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent2, var(--shell-bright));
+  color: var(--text);
 }
 
 .sync-btn-row {
