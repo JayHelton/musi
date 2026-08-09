@@ -3,6 +3,8 @@
 // dynamics, decode GP6 element+variation pairs, and build a PercussionModel
 // parallel to TabModel.
 
+import { drumArticulationFromMidi } from '../drums/notation.js';
+
 /** Guitar Pro "input" kit number → General MIDI percussion number. */
 const INPUT_TO_GM = new Map([
   [27, 42], [28, 60], [29, 59], [30, 49], [31, 40], [32, 40], [33, 37], [34, 38],
@@ -187,7 +189,7 @@ export function deriveMeasureSlotSpans(measures, events) {
 
 /**
  * Build a PercussionModel from timed drum hits.
- * @typedef {{ slot:number, start:number, duration:number, instrument:string, velocity:number, midi:number }} PercEvent
+ * @typedef {{ slot:number, start:number, duration:number, instrument:string, velocity:number, midi:number, articulation:string|null }} PercEvent
  * @typedef {{
  *   percussion: true,
  *   name: string,
@@ -200,7 +202,12 @@ export function deriveMeasureSlotSpans(measures, events) {
  * }} PercussionModel
  */
 export function makePercussionModel({ name, tempo, events, measures, warnings = [] }) {
-  const evs = assignPercussionSlots(events || []).sort((a, b) => (a.start - b.start) || (a.midi - b.midi));
+  const evs = assignPercussionSlots(events || [])
+    .sort((a, b) => (a.start - b.start) || (a.midi - b.midi))
+    .map((e) => ({
+      ...e,
+      articulation: e.articulation ?? drumArticulationFromMidi(e.midi),
+    }));
   const slots = evs.length ? Math.max(...evs.map((e) => e.slot)) + 1 : (measures?.length || 0);
   const totalBeats = measures?.length
     ? measures[measures.length - 1].endBeat
