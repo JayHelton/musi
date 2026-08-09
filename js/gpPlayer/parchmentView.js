@@ -11,6 +11,8 @@ import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from '.
 
 const USER_SCROLL_COOLDOWN_MS = 2500;
 const LONG_PRESS_MS = 450;
+const NOTE_PAD_START = 9;
+const NOTE_PAD_END = 7;
 
 function previewAnnoText(text, max = 56) {
   const t = (text || '').trim().replace(/\s+/g, ' ');
@@ -147,6 +149,79 @@ export function mountParchmentView(host, {
     return glyphs;
   }
 
+  function openStringNotesLowToHigh() {
+    return (model?.strings || [])
+      .map((s) => s.note || s.label || '')
+      .filter(Boolean);
+  }
+
+  function tuningCaptionText() {
+    if (isDrum || !model?.strings?.length) return '';
+    const notes = openStringNotesLowToHigh();
+    if (!notes.length) return '';
+    const noteList = notes.join(' ');
+    const tuning = model.tuning;
+    if (tuning) return `Tuning · ${tuning} (${noteList})`;
+    return noteList;
+  }
+
+  function gutterTooltip() {
+    return tuningCaptionText() || 'Drum kit lanes';
+  }
+
+  function renderGutter() {
+    const gutter = document.createElement('div');
+    gutter.className = 'gpp-parch-gutter';
+    gutter.title = gutterTooltip();
+    gutter.setAttribute('aria-hidden', 'true');
+
+    const gutterStaff = document.createElement('div');
+    gutterStaff.className = 'gpp-parch-gutter-staff';
+
+    if (!isDrum && model?.strings?.length) {
+      const strings = model.strings;
+      for (let si = strings.length - 1; si >= 0; si--) {
+        const row = document.createElement('div');
+        row.className = 'gpp-parch-string gpp-parch-gutter-row';
+        const s = strings[si];
+        if (s.note != null && s.oct != null) row.title = `${s.note}${s.oct}`;
+        const lab = document.createElement('span');
+        lab.className = 'gpp-parch-gutter-label';
+        lab.textContent = s.label || s.note || String(si + 1);
+        row.appendChild(lab);
+        gutterStaff.appendChild(row);
+      }
+    } else {
+      const lanes = activeDrumLanes();
+      if (lanes.length) {
+        for (const lane of lanes) {
+          const row = document.createElement('div');
+          row.className = 'gpp-parch-drum-lane gpp-parch-gutter-row';
+          row.title = lane.title;
+          const lab = document.createElement('span');
+          lab.className = 'gpp-parch-gutter-label';
+          lab.textContent = lane.label;
+          row.appendChild(lab);
+          gutterStaff.appendChild(row);
+        }
+      } else {
+        const row = document.createElement('div');
+        row.className = 'gpp-parch-string gpp-parch-gutter-row';
+        row.textContent = ' ';
+        gutterStaff.appendChild(row);
+      }
+    }
+
+    gutter.appendChild(gutterStaff);
+    return gutter;
+  }
+
+  function measureNotesRect(measureEl) {
+    const notesBox = measureEl?.querySelector('.gpp-parch-lane-notes');
+    if (notesBox) return notesBox.getBoundingClientRect();
+    return measureEl?.getBoundingClientRect() ?? null;
+  }
+
   function renderMeasure(mi, m) {
     const wrap = document.createElement('div');
     wrap.className = 'gpp-parch-measure';
@@ -178,6 +253,8 @@ export function mountParchmentView(host, {
         const row = document.createElement('div');
         row.className = 'gpp-parch-string';
         row.dataset.string = String(si);
+        const laneNotes = document.createElement('div');
+        laneNotes.className = 'gpp-parch-lane-notes';
         const notes = (model.events || []).filter((ev) => {
           const b = Number(ev.start);
           return ev.stringIndex === si && b >= mStart - 1e-6 && b < mEnd - 1e-6;
@@ -187,8 +264,9 @@ export function mountParchmentView(host, {
           note.className = 'gpp-parch-note' + (ev.dead ? ' dead' : '');
           note.style.left = `${beatPctInMeasure(ev.start, m)}%`;
           note.textContent = ev.dead ? 'x' : (ev.fret != null ? String(ev.fret) : '');
-          row.appendChild(note);
+          laneNotes.appendChild(note);
         }
+        row.appendChild(laneNotes);
         staff.appendChild(row);
       }
     } else {
@@ -200,11 +278,8 @@ export function mountParchmentView(host, {
       for (const lane of lanes) {
         const row = document.createElement('div');
         row.className = 'gpp-parch-drum-lane';
-        const lab = document.createElement('span');
-        lab.className = 'gpp-parch-lane-label';
-        lab.textContent = lane.label;
-        lab.title = lane.title;
-        row.appendChild(lab);
+        const laneNotes = document.createElement('div');
+        laneNotes.className = 'gpp-parch-lane-notes';
         for (const ev of evts) {
           if (!lane.instruments.includes(ev.instrument)) continue;
           const glyph = drumTabGlyph(ev);
@@ -214,14 +289,17 @@ export function mountParchmentView(host, {
           hit.textContent = glyph;
           hit.dataset.glyph = glyph;
           hit.title = drumHitLabel(ev);
-          row.appendChild(hit);
+          laneNotes.appendChild(hit);
         }
+        row.appendChild(laneNotes);
         staff.appendChild(row);
       }
       if (!lanes.length) {
         const row = document.createElement('div');
         row.className = 'gpp-parch-string';
-        row.textContent = ' ';
+        const laneNotes = document.createElement('div');
+        laneNotes.className = 'gpp-parch-lane-notes';
+        row.appendChild(laneNotes);
         staff.appendChild(row);
       }
     }
@@ -269,11 +347,21 @@ export function mountParchmentView(host, {
 
     mps = measuresPerSystem(host.clientWidth || 600, currentZoom);
     sheet.style.fontSize = `${Math.round(12 * currentZoom)}px`;
+    sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * currentZoom))}px`);
+    sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * currentZoom))}px`);
+
+    const captionText = tuningCaptionText();
+    if (captionText) {
+      const caption = document.createElement('div');
+      caption.className = 'gpp-parch-tuning-caption';
+      caption.textContent = captionText;
+      sheet.appendChild(caption);
+    }
 
     for (let i = 0; i < ms.length; i += mps) {
       const sys = document.createElement('div');
       sys.className = 'gpp-parch-system';
-      sys.style.gap = `${Math.round(4 * currentZoom)}px`;
+      sys.appendChild(renderGutter());
       const chunk = ms.slice(i, i + mps);
       chunk.forEach((m, j) => {
         const el = renderMeasure(i + j, m);
@@ -326,7 +414,8 @@ export function mountParchmentView(host, {
     const mi = Number(el.dataset.index);
     const m = measures()[mi];
     if (!m) return null;
-    const rect = el.getBoundingClientRect();
+    const rect = measureNotesRect(el);
+    if (!rect || !rect.width) return null;
     const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const { start, len } = measureSpan(m);
     return snapBeat(start + frac * len);
@@ -685,7 +774,11 @@ export function mountParchmentView(host, {
       return;
     }
     const sheetRect = sheet.getBoundingClientRect();
-    const rect = el.getBoundingClientRect();
+    const rect = measureNotesRect(el);
+    if (!rect || !rect.width) {
+      playheadEl.hidden = true;
+      return;
+    }
     const m = measures()[mi];
     const pct = beatPctInMeasure(beat, m) / 100;
     const x = rect.left - sheetRect.left + viewport.scrollLeft + rect.width * pct;

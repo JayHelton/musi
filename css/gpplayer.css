@@ -506,25 +506,69 @@
 .gpp-parch-system {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
-  gap: 0;
+  align-items: stretch;
   margin-bottom: 10px;
+}
+
+.gpp-parch-tuning-caption {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 11px;
+  line-height: 1.2;
+  color: rgba(58, 42, 24, 0.7);
+  margin: 0 0 6px;
+  padding: 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gpp-parch-gutter {
+  flex: 0 0 20px;
+  min-width: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 8px;
+}
+.gpp-parch-gutter-staff {
+  position: relative;
+}
+.gpp-parch-gutter-row {
+  pointer-events: none;
+}
+.gpp-parch-gutter-label {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.75;
+  color: rgba(58, 42, 24, 0.85);
+  text-align: right;
+  white-space: nowrap;
 }
 
 .gpp-parch-measure {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   flex: 1;
   min-width: 0;
-  padding: 4px 6px 8px;
+  padding: 4px 0 8px;
   border-left: 2px solid #1a1420;
   transition: background 0.12s ease, outline 0.12s ease;
 }
+.gpp-parch-gutter + .gpp-parch-measure,
 .gpp-parch-measure:first-child {
   border-left-width: 3px;
 }
 .gpp-parch-measure.is-active {
   outline: 2px solid #6b4c9a;
-  outline-offset: 2px;
+  outline-offset: -2px;
   background: rgba(107, 76, 154, 0.08);
 }
 .gpp-parch-measure.in-loop {
@@ -535,11 +579,11 @@
 }
 .gpp-parch-measure.is-nav:not(.is-active) {
   outline: 1px solid rgba(107, 45, 139, 0.55);
-  outline-offset: 1px;
+  outline-offset: -1px;
 }
 .gpp-parch-measure.selecting {
   outline: 1px dashed #6b4c9a;
-  outline-offset: 1px;
+  outline-offset: -1px;
 }
 
 .gpp-parch-bar-num {
@@ -547,6 +591,7 @@
   font-size: 10px;
   font-weight: 700;
   margin-bottom: 2px;
+  padding-left: 6px;
   opacity: 0.75;
   color: rgba(58, 42, 24, 0.85);
 }
@@ -555,6 +600,7 @@
   font-size: 9px;
   opacity: 0.65;
   margin-bottom: 2px;
+  padding-left: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -572,6 +618,14 @@
 }
 .gpp-parch-string:last-child {
   border-bottom-width: 2px;
+}
+
+.gpp-parch-lane-notes {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--gpp-note-pad-start, 9px);
+  right: var(--gpp-note-pad-end, 7px);
 }
 
 .gpp-parch-note {
@@ -593,16 +647,6 @@
   position: relative;
   height: 12px;
   border-bottom: 1px dashed rgba(26, 20, 32, 0.2);
-}
-.gpp-parch-drum-lane .gpp-parch-lane-label {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 8px;
-  opacity: 0.5;
-  width: 14px;
 }
 .gpp-parch-drum-hit {
   position: absolute;
@@ -719,6 +763,7 @@
   gap: 3px;
   margin-bottom: 3px;
   min-height: 0;
+  padding-left: 6px;
   position: relative;
   z-index: 2;
 }
@@ -845,7 +890,7 @@
 
 .gpp-parch-measure.note-selecting {
   outline: 1px dashed rgba(107, 76, 154, 0.7);
-  outline-offset: 1px;
+  outline-offset: -1px;
   background: rgba(107, 76, 154, 0.06);
 }
 
@@ -857,6 +902,18 @@
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
+  .gpp-parch-tuning-caption {
+    display: none;
+  }
+  .gpp-parch-gutter {
+    flex-basis: 16px;
+    min-width: 14px;
+    padding-bottom: 6px;
+  }
+  .gpp-parch-gutter-label {
+    font-size: 9px;
+    right: 2px;
+  }
   .gpp-parch-notes-rail {
     gap: 2px;
     margin-bottom: 2px;
@@ -2175,6 +2232,9 @@ html.gpp-player-locked body {
   }
   .gpp-parchment-host {
     min-height: 80px;
+  }
+  .gpp-parch-tuning-caption {
+    display: none;
   }
 }
 
