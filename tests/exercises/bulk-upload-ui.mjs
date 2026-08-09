@@ -182,20 +182,47 @@ assert.ok(splitCheck);
 assert.equal(splitCheck.checked, true);
 const addBtn = document.querySelector('.exbulk-add');
 assert.match(addBtn.textContent, /Add 5 exercises/);
+const markedDest = markedRow.querySelector('.exbulk-dest');
+assert.ok(markedDest, 'split score should show destination folder');
+assert.equal(markedDest.textContent, '\u2192 Marked');
+const folderPerSplitCheck = document.querySelector('.exbulk-opt-folder-split')?.querySelector('input');
+assert.ok(folderPerSplitCheck);
+assert.equal(folderPerSplitCheck.checked, true);
+const perFileOption = [...document.querySelector('.exbulk-folder').options]
+  .find((o) => o.value === '__perfile__');
+assert.equal(perFileOption, undefined, 'per-file folder option removed');
 console.log('section split default: ok');
 
 // ---- toggle split off re-plans without re-parse ----
 splitCheck.checked = false;
 splitCheck.change();
-const markedPlan = () => [...document.querySelectorAll('.exbulk-file')].find((row) =>
+const markedRowAfter = () => [...document.querySelectorAll('.exbulk-file')].find((row) =>
   row.querySelector('.exbulk-file-name')?.textContent === 'Marked.musi-tab.json',
-)?.querySelector('.exbulk-plan');
+);
+const markedPlan = () => markedRowAfter()?.querySelector('.exbulk-plan');
 assert.match(markedPlan().textContent, /Whole file/);
+assert.equal(markedRowAfter()?.querySelector('.exbulk-dest'), null, 'no dest chip when not split');
 assert.match(addBtn.textContent, /Add 2 exercises/);
 splitCheck.checked = true;
 splitCheck.change();
 assert.match(markedPlan().textContent, /4 sections/);
+assert.ok(markedRowAfter()?.querySelector('.exbulk-dest'));
 console.log('toggle split off: ok');
+
+// ---- destination chip toggles with folder-per-split checkbox ----
+resetBody();
+openBulkUploadDialog({ files: [markedTab] });
+await waitForReview();
+const destCheck = document.querySelector('.exbulk-opt-folder-split')?.querySelector('input');
+assert.ok(destCheck?.checked);
+assert.ok(document.querySelector('.exbulk-dest'));
+destCheck.checked = false;
+destCheck.change();
+assert.equal(document.querySelector('.exbulk-dest'), null);
+destCheck.checked = true;
+destCheck.change();
+assert.ok(document.querySelector('.exbulk-dest'));
+console.log('folder per split checkbox: ok');
 
 // ---- fallback every N bars ----
 resetBody();

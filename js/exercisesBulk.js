@@ -343,6 +343,10 @@ export async function analyzeBulkFiles(files, opts = {}) {
  * Save the planned entries into the Exercises library.
  * @param {BulkEntry[]} entries
  * @param {object} deps
+ * @param {string} [deps.categoryId] — folder for whole (non-split) files
+ * @param {boolean} [deps.folderPerSplitFile=true] — auto-folder per split score (named after file)
+ * @param {boolean} [deps.prefixSegmentNames=true] — prefix segment titles with score name when no auto-folder
+ * @param {boolean} [deps.keepWholeScore=false] — also import the full score alongside sections
  * @returns {Promise<{ ok: boolean, added: number, segments: number, files: number,
  *                     skipped: number, folders: number, message: string,
  *                     errors: Array<{ name: string, message: string }> }>}
@@ -350,7 +354,7 @@ export async function analyzeBulkFiles(files, opts = {}) {
 export async function importBulkEntries(entries, deps) {
   const {
     categoryId = '',
-    folderPerFile = false,
+    folderPerSplitFile = true,
     prefixSegmentNames = true,
     keepWholeScore = false,
     createFolder,
@@ -406,17 +410,20 @@ export async function importBulkEntries(entries, deps) {
 
     try {
       let targetCategoryId = categoryId;
-      const willAddWhole = !entry.segments?.length || keepWholeScore;
+      let entryGotOwnFolder = false;
       const willAddSegments = entry.segments?.length > 0;
-      const producesExercise = willAddWhole || willAddSegments;
+      const willAddWhole = !willAddSegments || keepWholeScore;
 
-      if (folderPerFile && producesExercise && typeof createFolder === 'function') {
+      if (folderPerSplitFile && willAddSegments && typeof createFolder === 'function') {
         const folder = createFolder(entry.baseName);
         if (folder?.id) {
           targetCategoryId = folder.id;
+          entryGotOwnFolder = true;
           folderIds.add(folder.id);
         }
       }
+
+      const effectivePrefixSegmentNames = prefixSegmentNames && !entryGotOwnFolder;
 
       if (willAddSegments) {
         for (const segment of [...entry.segments].reverse()) {
@@ -431,7 +438,7 @@ export async function importBulkEntries(entries, deps) {
           const beatInfo = segmentBeats(segment, entry.digests);
           const startBeat = Number.isFinite(segment.startBeat) ? segment.startBeat : beatInfo.startBeat;
           const endBeat = Number.isFinite(segment.endBeat) ? segment.endBeat : beatInfo.endBeat;
-          const name = resolveSegmentName(segment, entry, prefixSegmentNames);
+          const name = resolveSegmentName(segment, entry, effectivePrefixSegmentNames);
           const slicedGp = sliceGpResultByBeats(entry.gp, { startBeat, endBeat });
           const json = serializeExerciseScore(slicedGp, {
             sourceFileName: entry.fileName,
@@ -524,7 +531,10 @@ export async function importBulkEntries(entries, deps) {
     const sectionPart = segmentCount
       ? ` (${segmentCount} section${segmentCount === 1 ? '' : 's'})`
       : '';
-    message = `Added ${added} exercise${added === 1 ? '' : 's'} from ${sourceFiles} file${sourceFiles === 1 ? '' : 's'}${sectionPart}.`;
+    const folderPart = folderIds.size
+      ? ` in ${folderIds.size} folder${folderIds.size === 1 ? '' : 's'}`
+      : '';
+    message = `Added ${added} exercise${added === 1 ? '' : 's'} from ${sourceFiles} file${sourceFiles === 1 ? '' : 's'}${sectionPart}${folderPart}.`;
     if (skipped) {
       message += ` Skipped ${skipped} file${skipped === 1 ? '' : 's'}.`;
     }

@@ -77,6 +77,7 @@ let splitBySection = true;
 let fallbackMode = 'whole';
 let everyN = 8;
 let keepWholeScore = false;
+let folderPerSplitFile = true;
 let folderId = '';
 let importResult = null;
 
@@ -90,6 +91,7 @@ let splitCheck = null;
 let fallbackSelect = null;
 let everyInput = null;
 let keepWholeCheck = null;
+let folderPerSplitCheck = null;
 let folderSelect = null;
 let newFolderWrap = null;
 let newFolderInput = null;
@@ -134,6 +136,7 @@ function destroyRoot() {
   fallbackSelect = null;
   everyInput = null;
   keepWholeCheck = null;
+  folderPerSplitCheck = null;
   folderSelect = null;
   newFolderWrap = null;
   newFolderInput = null;
@@ -176,7 +179,6 @@ function paintFolders(folders) {
     folderSelect.appendChild(el('option', { value: f.id, text: f.name }));
   });
   folderSelect.appendChild(el('option', { value: '__new__', text: 'New folder…' }));
-  folderSelect.appendChild(el('option', { value: '__perfile__', text: 'New folder per file' }));
   const hasPrev = [...folderSelect.options].some((o) => o.value === prev);
   folderSelect.value = hasPrev ? prev : (folderId || '');
   if (folderSelect.value === '__new__' && newFolderWrap?.hidden) {
@@ -227,6 +229,13 @@ function paintAddBtn() {
     : `Add ${exerciseCount} exercises`;
 }
 
+function entryGetsOwnFolder(entry) {
+  return folderPerSplitFile
+    && !!entry?.include
+    && !entry?.skipReason
+    && entry.segments?.length > 0;
+}
+
 function buildFileRow(entry) {
   const disabled = !!entry.skipReason;
   const row = el('div', {
@@ -254,8 +263,15 @@ function buildFileRow(entry) {
   ]);
   main.appendChild(top);
 
-  const plan = el('div', { class: 'exbulk-plan', text: describeEntryPlan(entry) });
-  main.appendChild(plan);
+  const planRow = el('div', { class: 'exbulk-plan-row' });
+  planRow.appendChild(el('span', { class: 'exbulk-plan', text: describeEntryPlan(entry) }));
+  if (entryGetsOwnFolder(entry)) {
+    planRow.appendChild(el('span', {
+      class: 'exbulk-dest',
+      text: `\u2192 ${entry.baseName}`,
+    }));
+  }
+  main.appendChild(planRow);
 
   if (entry.skipReason === 'unsupported') {
     main.appendChild(el('p', {
@@ -301,6 +317,7 @@ function paintOptions(folders) {
     everyInput.disabled = !splitBySection || fallbackMode !== 'everyN';
   }
   if (keepWholeCheck) keepWholeCheck.checked = keepWholeScore;
+  if (folderPerSplitCheck) folderPerSplitCheck.checked = folderPerSplitFile;
   paintFolders(folders);
 }
 
@@ -406,7 +423,26 @@ function renderReview(folders) {
     ]),
   ]));
 
-  folderSelect = el('select', { class: 'exbulk-folder', 'aria-label': 'Add to folder' });
+  folderPerSplitCheck = el('input', { type: 'checkbox' });
+  folderPerSplitCheck.checked = folderPerSplitFile;
+  folderPerSplitCheck.addEventListener('change', () => {
+    folderPerSplitFile = folderPerSplitCheck.checked;
+    paintFileList();
+    paintSummary();
+    paintAddBtn();
+  });
+  options.appendChild(el('label', { class: 'exbulk-opt exbulk-opt-folder-split' }, [
+    folderPerSplitCheck,
+    el('span', { class: 'exbulk-opt-text' }, [
+      el('span', { class: 'exbulk-opt-title', text: 'Put each split score in its own folder' }),
+      el('span', {
+        class: 'exbulk-opt-hint',
+        text: 'Folder is named after the file.',
+      }),
+    ]),
+  ]));
+
+  folderSelect = el('select', { class: 'exbulk-folder', 'aria-label': 'Folder for files that aren\'t split' });
   newFolderInput = el('input', {
     class: 'exbulk-new-folder-input',
     type: 'text',
@@ -432,7 +468,7 @@ function renderReview(folders) {
       return;
     }
     newFolderWrap.hidden = true;
-    folderId = v === '__perfile__' ? '__perfile__' : v;
+    folderId = v;
   });
 
   newFolderCreate.addEventListener('click', () => {
@@ -449,7 +485,10 @@ function renderReview(folders) {
   });
 
   const folderRow = el('div', { class: 'exbulk-folder-row' }, [
-    el('span', { class: 'exbulk-folder-label', text: 'Folder' }),
+    el('span', { class: 'exbulk-folder-label' }, [
+      el('span', { text: 'Folder' }),
+      el('span', { class: 'exbulk-folder-hint', text: 'For files that aren\'t split into sections' }),
+    ]),
     el('div', { class: 'exbulk-folder-wrap' }, [folderSelect, newFolderWrap]),
   ]);
   options.appendChild(folderRow);
@@ -594,12 +633,9 @@ async function runImport() {
   if (!included.length) return;
 
   let categoryId = '';
-  let folderPerFile = false;
   const folderChoice = folderSelect?.value ?? folderId;
 
-  if (folderChoice === '__perfile__') {
-    folderPerFile = true;
-  } else if (folderChoice === '__new__') {
+  if (folderChoice === '__new__') {
     const name = (newFolderInput?.value || '').trim();
     if (!name) {
       newFolderWrap.hidden = false;
@@ -619,8 +655,8 @@ async function runImport() {
   try {
     const result = await importBulkEntries(included, {
       categoryId,
-      folderPerFile,
-      prefixSegmentNames: !folderPerFile,
+      folderPerSplitFile,
+      prefixSegmentNames: true,
       keepWholeScore,
       createFolder: createFolderRef,
       addGpExercise: addGpExerciseRef,
@@ -760,7 +796,9 @@ function openShell() {
 }
 
 /**
- * Open the bulk upload review/import dialog.
+ * Open the bulk upload review/import dialog. Guitar Pro scores that split into
+ * sections are filed into a folder named after the source file by default; turn
+ * that off in the dialog to use the folder picker for those files too.
  * @param {object} opts
  * @param {FileList|File[]} [opts.files]
  * @param {{id: string, name: string}[]} [opts.folders]
@@ -792,6 +830,7 @@ export function openBulkUploadDialog({
   fallbackMode = 'whole';
   everyN = 8;
   keepWholeScore = false;
+  folderPerSplitFile = true;
   importing = false;
   importResult = null;
   entries = [];

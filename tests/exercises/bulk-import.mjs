@@ -314,26 +314,111 @@ assert.deepEqual(addOrder, expectedOrder);
 console.log('importBulkEntries happy path: ok');
 
 const folderCreates = [];
-const folderEntry = { ...importEntry, id: 'bulk-f', baseName: 'FolderSong', fileName: 'FolderSong.gp5' };
-await importBulkEntries([folderEntry], {
-  folderPerFile: true,
+const folderBatchAdds = [];
+const folderSplitEntry = { ...importEntry, id: 'bulk-f', baseName: 'FolderSong', fileName: 'FolderSong.gp5' };
+const folderPdfEntry = {
+  id: 'bulk-pdf-f',
+  include: true,
+  file: fakeFile({ name: 'notes.pdf', type: 'application/pdf', size: 10 }),
+  fileName: 'notes.pdf',
+  baseName: 'notes',
+  size: 10,
+  kind: 'pdf',
+  mimeType: 'application/pdf',
+  supported: true,
+  isGuitarPro: false,
+  segments: [],
+  splitMode: 'none',
+};
+const folderBatchResult = await importBulkEntries([folderSplitEntry, folderPdfEntry], {
+  categoryId: 'cat-default',
   createFolder: (name) => {
     folderCreates.push(name);
     return { id: `cat-${name}`, name };
   },
   addGpExercise: (opts) => {
-    gpAdds.push({ ...opts, _folder: true });
-    return { id: 'ex-f' };
+    folderBatchAdds.push({ ...opts, _kind: 'gp' });
+    return { id: `ex-f-${folderBatchAdds.length}` };
   },
-  addMediaExercise: () => null,
+  addMediaExercise: (opts) => {
+    folderBatchAdds.push({ ...opts, _kind: 'media' });
+    return { id: `ex-m-${folderBatchAdds.length}` };
+  },
   saveFile: async () => ({ id: 'att-f' }),
   attachmentsSupported: () => true,
   ensurePersistentStorage: async () => {},
 });
 assert.deepEqual(folderCreates, ['FolderSong']);
-const folderAdds = gpAdds.filter((c) => c._folder);
-assert.ok(folderAdds.every((c) => c.categoryId === 'cat-FolderSong'));
-console.log('importBulkEntries folderPerFile: ok');
+const splitFolderAdds = folderBatchAdds.filter((c) => c._kind === 'gp');
+assert.ok(splitFolderAdds.every((c) => c.categoryId === 'cat-FolderSong'));
+const pdfFolderAdd = folderBatchAdds.find((c) => c._kind === 'media');
+assert.equal(pdfFolderAdd.categoryId, 'cat-default');
+assert.equal(folderBatchResult.folders, 1);
+assert.match(folderBatchResult.message, /in 1 folder/);
+const unprefixedNames = splitFolderAdds.map((c) => c.name);
+assert.ok(unprefixedNames.every((n) => !n.startsWith('FolderSong \u2014')));
+console.log('importBulkEntries folderPerSplitFile default: ok');
+
+const noAutoFolderAdds = [];
+await importBulkEntries([folderSplitEntry], {
+  categoryId: 'cat-flat',
+  folderPerSplitFile: false,
+  createFolder: (name) => ({ id: `cat-${name}`, name }),
+  addGpExercise: (opts) => {
+    noAutoFolderAdds.push(opts);
+    return { id: 'ex-flat' };
+  },
+  addMediaExercise: () => null,
+  saveFile: async () => ({ id: 'att-flat' }),
+  attachmentsSupported: () => true,
+  ensurePersistentStorage: async () => {},
+});
+assert.ok(noAutoFolderAdds.every((c) => c.categoryId === 'cat-flat'));
+const prefixedNames = noAutoFolderAdds.map((c) => c.name);
+assert.ok(prefixedNames.every((n) => n.startsWith('FolderSong \u2014')));
+console.log('importBulkEntries folderPerSplitFile false: ok');
+
+const keepFolderCreates = [];
+const keepFolderAdds = [];
+await importBulkEntries([folderSplitEntry], {
+  categoryId: 'cat-keep',
+  keepWholeScore: true,
+  createFolder: (name) => {
+    keepFolderCreates.push(name);
+    return { id: `cat-${name}`, name };
+  },
+  addGpExercise: (opts) => {
+    keepFolderAdds.push(opts);
+    return { id: `ex-kf-${keepFolderAdds.length}` };
+  },
+  addMediaExercise: () => null,
+  saveFile: async () => ({ id: 'att-kf' }),
+  attachmentsSupported: () => true,
+  ensurePersistentStorage: async () => {},
+});
+assert.deepEqual(keepFolderCreates, ['FolderSong']);
+assert.ok(keepFolderAdds.every((c) => c.categoryId === 'cat-FolderSong'));
+const wholeKeepAdd = keepFolderAdds.find((c) => c.fileName === 'FolderSong.gp5');
+assert.ok(wholeKeepAdd);
+console.log('importBulkEntries keepWholeScore shares auto folder: ok');
+
+const nullFolderAdds = [];
+await importBulkEntries([folderSplitEntry], {
+  categoryId: 'cat-fallback',
+  createFolder: () => null,
+  addGpExercise: (opts) => {
+    nullFolderAdds.push(opts);
+    return { id: 'ex-null' };
+  },
+  addMediaExercise: () => null,
+  saveFile: async () => ({ id: 'att-null' }),
+  attachmentsSupported: () => true,
+  ensurePersistentStorage: async () => {},
+});
+assert.ok(nullFolderAdds.every((c) => c.categoryId === 'cat-fallback'));
+const fallbackNames = nullFolderAdds.map((c) => c.name);
+assert.ok(fallbackNames.some((n) => n.startsWith('FolderSong \u2014')));
+console.log('importBulkEntries createFolder null fallback: ok');
 
 const keepCalls = [];
 await importBulkEntries([importEntry], {

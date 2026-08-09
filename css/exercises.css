@@ -600,6 +600,16 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.exbulk-folder-hint {
+  font-size: 0.75rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+  opacity: 0.85;
 }
 .exbulk-folder-wrap {
   display: flex;
@@ -717,6 +727,24 @@
   font-size: 0.9rem;
   color: var(--muted);
   line-height: 1.2;
+}
+.exbulk-plan-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.exbulk-dest {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.78rem;
+  color: var(--accent2);
+  line-height: 1.3;
+  white-space: nowrap;
 }
 .exbulk-skip,
 .exbulk-warn {
