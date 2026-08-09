@@ -22,6 +22,7 @@ import { mountParchmentView } from './gpPlayer/parchmentView.js';
 import { createLoopSelectionController } from './gpPlayer/loopSelection.js';
 import { mountMeasureNav } from './gpPlayer/measureNav.js';
 import { mountTransportDock } from './gpPlayer/transportDock.js';
+import { clampBpm } from './gpPlayer/tempoRange.js';
 import { mountTrackMixer } from './gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from './gpPlayer/settingsDrawer.js';
 import { mountAnnotationsDrawer } from './gpPlayer/annotationsDrawer.js';
@@ -648,6 +649,7 @@ export function mountGpPlayer(host, {
     }
     settingsDrawer?.sync();
     trackMixer?.sync();
+    transport?.sync();
     emitPracticeSettings();
   }
 
@@ -841,6 +843,27 @@ export function mountGpPlayer(host, {
     },
     canPrev: () => canPrevMeasure(navMeasureIndex(), stateController.getScope()),
     canNext: () => canNextMeasure(navMeasureIndex(), stateController.getScope()),
+    onBpmStep: (delta) => {
+      state.bpmUserOverride = true;
+      state.bpm = clampBpm(state.bpm + delta);
+      onSettingsChange({ reload: true });
+    },
+    onBpmInput: (value) => {
+      state.bpmUserOverride = true;
+      state.bpm = clampBpm(Number(value) || state.scoreBpm);
+      onSettingsChange({ reload: true });
+    },
+    onBpmReset: () => {
+      stateController.resetBpm();
+      onSettingsChange({ reload: true });
+    },
+    getBpm: () => state.bpm,
+    getScoreBpm: () => state.scoreBpm,
+    canResetBpm: () => {
+      const scoreRounded = Math.round(state.scoreBpm);
+      const atScore = !state.bpmUserOverride && Math.round(state.bpm) === scoreRounded;
+      return !atScore;
+    },
   });
 
   tracksDrawer = mountTracksDrawerShell(tracksDrawerRoot, {

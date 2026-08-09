@@ -111,6 +111,44 @@ plainMount.destroy();
 assert.equal(plainHost.innerHTML, '', 'destroy should clear host');
 assert.equal(plainHost.children.length, 0, 'destroy should leave host empty');
 
+// ---- transport dock tempo controls ----
+const tempoHost = document.createElement('div');
+const tempoMount = mountGpPlayer(tempoHost, { gpResult: fakeGp, title: 'Tempo dock' });
+const tempoDock = tempoHost.querySelector('.gpp-transport-tempo');
+assert.ok(tempoDock, 'transport dock should render tempo group');
+const dockBpmInput = tempoHost.querySelector('[aria-label="Tempo BPM"]');
+const bpmUpBtn = tempoHost.querySelector('[aria-label="Increase tempo by 5 BPM"]');
+const bpmDownBtn = tempoHost.querySelector('[aria-label="Decrease tempo by 5 BPM"]');
+const bpmResetBtn = tempoHost.querySelector('[aria-label="Reset tempo to score BPM"]');
+assert.ok(dockBpmInput, 'dock should render BPM input');
+assert.ok(bpmUpBtn && bpmDownBtn && bpmResetBtn, 'dock should render tempo step and reset buttons');
+assert.equal(dockBpmInput.getAttribute('min'), '40');
+assert.equal(dockBpmInput.getAttribute('max'), '320');
+assert.equal(tempoMount.getState().bpm, 120);
+assert.equal(tempoMount.getState().bpmUserOverride, false);
+assert.equal(bpmResetBtn.disabled, true, 'reset disabled at score tempo');
+
+bpmUpBtn.click();
+assert.equal(tempoMount.getState().bpm, 125);
+assert.equal(tempoMount.getState().bpmUserOverride, true);
+assert.equal(bpmResetBtn.disabled, false, 'reset enabled after tempo override');
+
+bpmDownBtn.click();
+assert.equal(tempoMount.getState().bpm, 120);
+assert.equal(tempoMount.getState().bpmUserOverride, true);
+
+dockBpmInput.value = '90';
+dockBpmInput.change();
+assert.equal(tempoMount.getState().bpm, 90);
+assert.equal(tempoMount.getState().bpmUserOverride, true);
+
+bpmResetBtn.click();
+assert.equal(tempoMount.getState().bpm, 120);
+assert.equal(tempoMount.getState().bpmUserOverride, false);
+assert.equal(bpmResetBtn.disabled, true, 'reset disabled after returning to score tempo');
+
+tempoMount.destroy();
+
 // ---- standalone wiring with exerciseImport ----
 const host = document.createElement('div');
 const mounted = mountGpPlayer(host, {

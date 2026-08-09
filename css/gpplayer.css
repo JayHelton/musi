@@ -1063,6 +1063,82 @@
   background: rgba(255, 252, 240, 0.5);
 }
 
+.gpp-transport-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.gpp-transport-tempo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 36px;
+  padding: 0 6px;
+  border: 1px solid rgba(58, 42, 24, 0.35);
+  border-radius: 9px;
+  background: rgba(255, 252, 240, 0.96);
+  color: #1e1408;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.88rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.gpp-transport-tempo-btn:hover,
+.gpp-transport-tempo-btn:focus-visible {
+  border-color: #6b4c9a;
+  color: #6b2d8b;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(107, 76, 154, 0.22);
+}
+.gpp-transport-tempo-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.gpp-transport-tempo-reset {
+  font-size: 0.82rem;
+}
+.gpp-transport-tempo .gpp-transport-bpm-input {
+  width: 4ch;
+  min-width: 4ch;
+  max-width: 4.5ch;
+  padding: 4px 2px;
+  border: 1px solid rgba(58, 42, 24, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 252, 240, 0.96);
+  color: #1e1408;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.2;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.gpp-transport-tempo .gpp-transport-bpm-input::-webkit-outer-spin-button,
+.gpp-transport-tempo .gpp-transport-bpm-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.gpp-transport-tempo .gpp-transport-bpm-input:hover {
+  border-color: rgba(58, 42, 24, 0.5);
+}
+.gpp-transport-tempo .gpp-transport-bpm-input:focus-visible {
+  border-color: #6b4c9a;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(107, 76, 154, 0.22);
+}
+.gpp-transport-bpm-unit {
+  font-size: 0.72rem;
+  color: rgba(30, 20, 8, 0.62);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
 .gpp-loop-select-toggle {
   display: inline-flex;
   align-items: center;
@@ -1977,6 +2053,19 @@ html.gpp-player-locked body {
     font-size: 0.78rem;
     gap: 6px;
   }
+  .gpp-transport-tempo-btn {
+    min-width: 30px;
+    min-height: 36px;
+    padding: 0 5px;
+    font-size: 0.84rem;
+  }
+  .gpp-transport-tempo .gpp-transport-bpm-input {
+    font-size: 0.78rem;
+    padding: 3px 1px;
+  }
+  .gpp-transport-bpm-unit {
+    font-size: 0.68rem;
+  }
   .gpp-chrome {
     height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 100px);
     max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 80px);
@@ -2129,6 +2218,22 @@ html.gpp-player-locked body {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
+  .gpp-transport-tempo {
+    gap: 2px;
+  }
+  .gpp-transport-tempo-btn {
+    min-width: 28px;
+    min-height: 36px;
+    padding: 0 4px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+  }
+  .gpp-transport-tempo .gpp-transport-bpm-input {
+    font-size: 0.76rem;
+  }
+  .gpp-transport-bpm-unit {
+    font-size: 0.66rem;
+  }
   .gpp-transport-secondary::-webkit-scrollbar {
     display: none;
   }
@@ -2224,6 +2329,11 @@ html.gpp-player-locked body {
   .gpp-transport-btn {
     min-width: 40px;
     min-height: 40px;
+  }
+  .gpp-transport-tempo-btn {
+    min-width: 28px;
+    min-height: 36px;
+    font-size: 0.78rem;
   }
   .gpp-transport-anchor {
     padding: 0 4px max(2px, env(safe-area-inset-bottom, 0px));

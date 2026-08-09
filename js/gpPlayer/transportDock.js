@@ -1,6 +1,9 @@
-// Transport dock — play/pause, stop, restart, prev/next measure, time + loop chip.
+// Transport dock — play/pause, stop, restart, prev/next measure, time + loop chip + tempo.
 
 import { el } from './dom.js';
+import { GPP_MIN_BPM, GPP_MAX_BPM } from './tempoRange.js';
+
+export const GPP_TRANSPORT_BPM_STEP = 5;
 
 /**
  * @param {HTMLElement} host
@@ -57,11 +60,46 @@ export function mountTransportDock(host, api = {}) {
 
   primary.append(prevBtn, playBtn, stopBtn, restartBtn, nextBtn);
 
+  const tempoGroup = el('div', { class: 'gpp-transport-tempo' });
+  const bpmDownBtn = el('button', {
+    class: 'gpp-transport-tempo-btn',
+    type: 'button',
+    text: '−',
+    'aria-label': `Decrease tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
+    title: `Decrease tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
+  });
+  const bpmInput = el('input', {
+    class: 'gpp-transport-bpm-input',
+    type: 'number',
+    inputmode: 'numeric',
+    min: String(GPP_MIN_BPM),
+    max: String(GPP_MAX_BPM),
+    step: '1',
+    'aria-label': 'Tempo BPM',
+    title: 'Tempo BPM',
+  });
+  const bpmUnit = el('span', { class: 'gpp-transport-bpm-unit', text: 'BPM' });
+  const bpmUpBtn = el('button', {
+    class: 'gpp-transport-tempo-btn',
+    type: 'button',
+    text: '+',
+    'aria-label': `Increase tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
+    title: `Increase tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
+  });
+  const bpmResetBtn = el('button', {
+    class: 'gpp-transport-tempo-btn gpp-transport-tempo-reset',
+    type: 'button',
+    text: '↺',
+    'aria-label': 'Reset tempo to score BPM',
+    title: 'Reset to score tempo',
+  });
+  tempoGroup.append(bpmDownBtn, bpmInput, bpmUnit, bpmUpBtn, bpmResetBtn);
+
   const measureEl = el('span', { class: 'gpp-transport-measure', text: '' });
   const timeEl = el('span', { class: 'gpp-transport-time', text: '0:00 / 0:00' });
   const loopChip = el('span', { class: 'gpp-loop-chip is-off', text: 'Loop off' });
 
-  secondary.append(measureEl, timeEl, loopChip);
+  secondary.append(tempoGroup, measureEl, timeEl, loopChip);
   dock.append(primary, secondary);
 
   prevBtn.addEventListener('click', () => api.onPrev?.());
@@ -69,8 +107,31 @@ export function mountTransportDock(host, api = {}) {
   playBtn.addEventListener('click', () => api.onPlayPause?.());
   stopBtn.addEventListener('click', () => api.onStop?.());
   restartBtn.addEventListener('click', () => api.onRestart?.());
+  bpmDownBtn.addEventListener('click', () => api.onBpmStep?.(-GPP_TRANSPORT_BPM_STEP));
+  bpmUpBtn.addEventListener('click', () => api.onBpmStep?.(GPP_TRANSPORT_BPM_STEP));
+  bpmInput.addEventListener('change', () => api.onBpmInput?.(bpmInput.value));
+  bpmResetBtn.addEventListener('click', () => api.onBpmReset?.());
 
   let ro = null;
+
+  function syncTempoControls() {
+    const bpm = Math.round(Number(api.getBpm?.()) || 0);
+    const scoreBpm = Math.round(Number(api.getScoreBpm?.()) || 0);
+    const pct = scoreBpm ? Math.round((bpm / scoreBpm) * 100) : 100;
+    const canReset = api.canResetBpm?.() !== false;
+
+    if (typeof document !== 'undefined' && document.activeElement !== bpmInput) {
+      bpmInput.value = String(bpm);
+    }
+    bpmInput.title = scoreBpm
+      ? `Tempo: ${bpm} BPM · ${pct}% of score tempo ${scoreBpm}`
+      : `Tempo: ${bpm} BPM`;
+
+    bpmResetBtn.disabled = !canReset;
+    bpmResetBtn.title = canReset && scoreBpm
+      ? `Reset to score tempo (${scoreBpm} BPM)`
+      : 'Already at score tempo';
+  }
 
   function publishPad() {
     const root = host.closest('.gpp-root');
@@ -100,6 +161,7 @@ export function mountTransportDock(host, api = {}) {
 
     prevBtn.disabled = api.canPrev?.() === false;
     nextBtn.disabled = api.canNext?.() === false;
+    syncTempoControls();
     publishPad();
   }
 
