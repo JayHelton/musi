@@ -381,7 +381,9 @@ export function mountGpPlayer(host, {
     fn();
     const newSec = quartersToSeconds(beat, state.bpm);
     if (was) player.play({ fromSec: newSec });
-    else player.seek(newSec);
+    // A fresh mount has no position to keep, and seeking to zero would override
+    // the loop start the player just picked for itself.
+    else if (at > 0) player.seek(newSec);
   }
 
   function applyLoopToPlayer() {
@@ -423,7 +425,9 @@ export function mountGpPlayer(host, {
     applyLoopToPlayer();
     const newSec = quartersToSeconds(beat, state.bpm);
     if (was) player.play({ fromSec: newSec });
-    else player.seek(newSec);
+    // A fresh mount has no position to keep, and seeking to zero would override
+    // the loop start load() just picked.
+    else if (at > 0) player.seek(newSec);
 
     refreshScoreSurface();
     emitPracticeSettings();
