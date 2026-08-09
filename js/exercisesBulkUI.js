@@ -95,6 +95,12 @@ let newFolderWrap = null;
 let newFolderInput = null;
 let newFolderCreate = null;
 let fileListEl = null;
+let analyzingWrapEl = null;
+let analyzingDetailEl = null;
+let importingWrapEl = null;
+let importingBarTrackEl = null;
+let importingBarFillEl = null;
+let importingLabelEl = null;
 
 function canClose() {
   return !importing;
@@ -133,6 +139,12 @@ function destroyRoot() {
   newFolderInput = null;
   newFolderCreate = null;
   fileListEl = null;
+  analyzingWrapEl = null;
+  analyzingDetailEl = null;
+  importingWrapEl = null;
+  importingBarTrackEl = null;
+  importingBarFillEl = null;
+  importingLabelEl = null;
 }
 
 /**
@@ -167,9 +179,7 @@ function paintFolders(folders) {
   folderSelect.appendChild(el('option', { value: '__perfile__', text: 'New folder per file' }));
   const hasPrev = [...folderSelect.options].some((o) => o.value === prev);
   folderSelect.value = hasPrev ? prev : (folderId || '');
-  if (folderSelect.value === '__new__' && !newFolderWrap?.hidden) {
-    // keep new-folder mode
-  } else if (folderSelect.value === '__new__') {
+  if (folderSelect.value === '__new__' && newFolderWrap?.hidden) {
     folderSelect.value = folderId || '';
   }
   if (newFolderWrap) newFolderWrap.hidden = folderSelect.value !== '__new__';
@@ -298,13 +308,19 @@ function renderReview(folders) {
   phase = 'review';
   if (!bodyEl || !footEl) return;
 
+  analyzingWrapEl = null;
+  analyzingDetailEl = null;
+  importingWrapEl = null;
+  importingBarTrackEl = null;
+  importingBarFillEl = null;
+  importingLabelEl = null;
+
   while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
 
   const options = el('div', { class: 'exbulk-options' });
 
   splitCheck = el('input', {
     type: 'checkbox',
-    id: 'exbulk-split-section',
   });
   splitCheck.checked = splitBySection;
   splitCheck.addEventListener('change', () => {
@@ -317,7 +333,7 @@ function renderReview(folders) {
     paintAddBtn();
   });
 
-  const splitLabel = el('label', { class: 'exbulk-opt exbulk-opt-split', for: 'exbulk-split-section' }, [
+  const splitLabel = el('label', { class: 'exbulk-opt exbulk-opt-split' }, [
     splitCheck,
     el('span', { class: 'exbulk-opt-text' }, [
       el('span', { class: 'exbulk-opt-title', text: 'Split Guitar Pro files by section' }),
@@ -376,14 +392,14 @@ function renderReview(folders) {
   ]);
   options.appendChild(fallbackRow);
 
-  keepWholeCheck = el('input', { type: 'checkbox', id: 'exbulk-keep-whole' });
+  keepWholeCheck = el('input', { type: 'checkbox' });
   keepWholeCheck.checked = keepWholeScore;
   keepWholeCheck.addEventListener('change', () => {
     keepWholeScore = keepWholeCheck.checked;
     paintSummary();
     paintAddBtn();
   });
-  options.appendChild(el('label', { class: 'exbulk-opt', for: 'exbulk-keep-whole' }, [
+  options.appendChild(el('label', { class: 'exbulk-opt' }, [
     keepWholeCheck,
     el('span', { class: 'exbulk-opt-text' }, [
       el('span', { class: 'exbulk-opt-title', text: 'Also keep the full score' }),
@@ -459,21 +475,48 @@ let addMediaExerciseRef = null;
 /** @type {{id: string, name: string}[]} */
 let foldersRef = [];
 
+function updateAnalyzingProgress(progress) {
+  if (!analyzingDetailEl) return;
+  if (progress) {
+    analyzingDetailEl.textContent = `${progress.index + 1} of ${progress.total} — ${progress.name}`;
+  } else {
+    analyzingDetailEl.textContent = '';
+  }
+}
+
 function renderAnalyzing(progress) {
   phase = 'analyzing';
   if (!bodyEl) return;
-  while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
-  const wrap = el('div', { class: 'exbulk-analyzing' });
-  wrap.appendChild(el('p', { class: 'exbulk-analyzing-title', text: 'Reading files…' }));
-  const detail = el('p', { class: 'exbulk-analyzing-detail' });
-  if (progress) {
-    detail.textContent = `${progress.index + 1} of ${progress.total} — ${progress.name}`;
+  if (!analyzingWrapEl) {
+    while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
+    analyzingWrapEl = el('div', { class: 'exbulk-analyzing' });
+    analyzingWrapEl.appendChild(el('p', { class: 'exbulk-analyzing-title', text: 'Reading files…' }));
+    analyzingDetailEl = el('p', { class: 'exbulk-analyzing-detail' });
+    analyzingWrapEl.appendChild(analyzingDetailEl);
+    bodyEl.appendChild(analyzingWrapEl);
   }
-  wrap.appendChild(detail);
-  bodyEl.appendChild(wrap);
+  updateAnalyzingProgress(progress);
   if (addBtn) {
     addBtn.disabled = true;
     addBtn.textContent = 'Add exercises';
+  }
+}
+
+function updateImportingProgress(progress) {
+  if (!importingBarFillEl || !importingBarTrackEl || !importingLabelEl) return;
+  if (progress && progress.total > 0) {
+    const pct = Math.round(((progress.index + 1) / progress.total) * 100);
+    importingBarFillEl.style.width = `${pct}%`;
+    importingBarTrackEl.setAttribute('aria-valuenow', String(pct));
+    importingBarTrackEl.setAttribute('aria-valuemin', '0');
+    importingBarTrackEl.setAttribute('aria-valuemax', '100');
+    importingLabelEl.textContent = progress.label
+      ? `${progress.index + 1} of ${progress.total} — ${progress.label}`
+      : `${progress.index + 1} of ${progress.total}`;
+  } else {
+    importingBarFillEl.style.width = '0%';
+    importingBarTrackEl.removeAttribute('aria-valuenow');
+    importingLabelEl.textContent = 'Importing…';
   }
 }
 
@@ -481,29 +524,17 @@ function renderImporting(progress) {
   phase = 'importing';
   importing = true;
   if (!bodyEl) return;
-  while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
-
-  const wrap = el('div', { class: 'exbulk-importing' });
-  const barTrack = el('div', { class: 'exbulk-progress-track', role: 'progressbar' });
-  const barFill = el('div', { class: 'exbulk-progress-fill' });
-  barTrack.appendChild(barFill);
-  const label = el('p', { class: 'exbulk-import-label' });
-
-  if (progress && progress.total > 0) {
-    const pct = Math.round(((progress.index + 1) / progress.total) * 100);
-    barFill.style.width = `${pct}%`;
-    barTrack.setAttribute('aria-valuenow', String(pct));
-    barTrack.setAttribute('aria-valuemin', '0');
-    barTrack.setAttribute('aria-valuemax', '100');
-    label.textContent = progress.label
-      ? `${progress.index + 1} of ${progress.total} — ${progress.label}`
-      : `${progress.index + 1} of ${progress.total}`;
-  } else {
-    label.textContent = 'Importing…';
+  if (!importingWrapEl) {
+    while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
+    importingWrapEl = el('div', { class: 'exbulk-importing' });
+    importingBarTrackEl = el('div', { class: 'exbulk-progress-track', role: 'progressbar' });
+    importingBarFillEl = el('div', { class: 'exbulk-progress-fill' });
+    importingBarTrackEl.appendChild(importingBarFillEl);
+    importingLabelEl = el('p', { class: 'exbulk-import-label' });
+    importingWrapEl.append(importingBarTrackEl, importingLabelEl);
+    bodyEl.appendChild(importingWrapEl);
   }
-
-  wrap.append(barTrack, label);
-  bodyEl.appendChild(wrap);
+  updateImportingProgress(progress);
   paintAddBtn();
   if (cancelBtn) cancelBtn.disabled = true;
 }
@@ -513,6 +544,14 @@ function renderDone(result) {
   importing = false;
   importResult = result;
   if (!bodyEl) return;
+
+  analyzingWrapEl = null;
+  analyzingDetailEl = null;
+  importingWrapEl = null;
+  importingBarTrackEl = null;
+  importingBarFillEl = null;
+  importingLabelEl = null;
+
   while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
 
   const wrap = el('div', { class: 'exbulk-done' });
@@ -680,11 +719,11 @@ function ensureShell() {
     type: 'button',
     text: 'Add exercises',
     disabled: true,
-    onclick: () => {
-      if (phase === 'done') return;
-      runImport();
-    },
   });
+  addBtn.onclick = () => {
+    if (phase === 'done') return;
+    runImport();
+  };
   footEl.append(cancelBtn, addBtn);
   panel.appendChild(footEl);
 

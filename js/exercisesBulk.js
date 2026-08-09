@@ -120,15 +120,10 @@ function resolveMimeType(probe, kind) {
  *             mimeType: string, supported: boolean, isGuitarPro: boolean }}
  */
 export function classifyUploadFile(fileOrProbe) {
-  const probe = fileOrProbe?.fileName != null || fileOrProbe?.type != null
-    ? {
-      type: fileOrProbe.type || '',
-      fileName: fileOrProbe.fileName || fileOrProbe.name || '',
-    }
-    : {
-      type: fileOrProbe?.type || '',
-      fileName: fileOrProbe?.name || '',
-    };
+  const probe = {
+    type: fileOrProbe?.type || '',
+    fileName: fileOrProbe?.fileName || fileOrProbe?.name || '',
+  };
 
   let kind = 'unsupported';
   if (isPdfProbe(probe)) kind = 'pdf';
@@ -390,6 +385,7 @@ export async function importBulkEntries(entries, deps) {
   let segmentCount = 0;
   let fileCount = 0;
   const folderIds = new Set();
+  const sourceFileIds = new Set();
 
   try {
     await ensureStorage();
@@ -471,6 +467,7 @@ export async function importBulkEntries(entries, deps) {
           if (item) {
             added += 1;
             segmentCount += 1;
+            sourceFileIds.add(entry.id);
           }
         }
       }
@@ -505,6 +502,7 @@ export async function importBulkEntries(entries, deps) {
           if (item) {
             added += 1;
             fileCount += 1;
+            sourceFileIds.add(entry.id);
           }
         }
       }
@@ -516,7 +514,7 @@ export async function importBulkEntries(entries, deps) {
     }
   }
 
-  const sourceFiles = new Set(included.map((e) => e.id)).size;
+  const sourceFiles = sourceFileIds.size;
   let message = '';
   if (!added) {
     message = errors.length

@@ -432,7 +432,7 @@
   max-height: min(88dvh, 780px);
   display: flex;
   flex-direction: column;
-  background: rgba(18, 26, 46, 0.98);
+  background: color-mix(in srgb, var(--bg2) 98%, transparent);
   border: 1px solid var(--border);
   border-radius: var(--radius-screen, 18px);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -455,7 +455,7 @@
   gap: 12px;
   padding: 14px 16px 12px;
   border-bottom: 1px solid var(--border);
-  background: rgba(11, 16, 32, 0.72);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 .exbulk-head-titles {
   min-width: 0;
@@ -536,7 +536,7 @@
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill, 999px);
-  background: rgba(11, 16, 32, 0.35);
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
 }
 .exbulk-fallback-label {
   font-family: var(--font-ui, "VT323", monospace);
@@ -663,7 +663,7 @@
   opacity: 0.55;
 }
 .exbulk-file.has-warning {
-  border-color: color-mix(in srgb, var(--warn, #f39c12) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
 }
 .exbulk-file-check {
   flex-shrink: 0;
@@ -700,7 +700,7 @@
   font-size: 0.78rem;
   padding: 1px 6px;
   border-radius: 6px;
-  background: rgba(180, 94, 255, 0.18);
+  background: color-mix(in srgb, var(--accent2) 18%, transparent);
   color: var(--accent2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -729,7 +729,7 @@
   color: var(--err);
 }
 .exbulk-warn {
-  color: var(--warn, #f39c12);
+  color: var(--warn);
 }
 
 .exbulk-analyzing,
@@ -792,7 +792,7 @@
   flex-shrink: 0;
   padding: 12px 16px 14px;
   border-top: 1px solid var(--border);
-  background: rgba(11, 16, 32, 0.72);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
   display: flex;
   flex-wrap: wrap;
   align-items: center;

@@ -4,5 +4,6 @@
  */
 
 import './bulk-import.mjs';
+import './bulk-upload-ui.mjs';
 
 console.log('exercises tests: ok');

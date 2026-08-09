@@ -88,6 +88,7 @@ export function installDomShim() {
       children: [],
       attributes: {},
       parentElement: null,
+      get firstChild() { return this.children[0] || null; },
       textContent: '',
       innerHTML: '',
       value: '',
@@ -130,6 +131,7 @@ export function installDomShim() {
         if (k === 'value') this.value = v;
       },
       getAttribute(k) { return this.attributes[k]; },
+      removeAttribute(k) { delete this.attributes[k]; },
       appendChild(c) {
         if (!c) return c;
         this.children.push(c);
@@ -150,6 +152,13 @@ export function installDomShim() {
         if (i >= 0) this.children.splice(i, 1);
         c.parentElement = null;
         return c;
+      },
+      remove() {
+        if (!this.parentElement) return;
+        const parent = this.parentElement;
+        const i = parent.children.indexOf(this);
+        if (i >= 0) parent.children.splice(i, 1);
+        this.parentElement = null;
       },
       replaceChild(next, prev) {
         const i = this.children.indexOf(prev);
@@ -211,7 +220,10 @@ export function installDomShim() {
         if (!type) return true;
         return this.dispatch(type, event);
       },
-      click() { this.dispatch('click'); },
+      click() {
+        if (el._onclick) el._onclick.call(el);
+        this.dispatch('click');
+      },
       change() { this.dispatch('change'); },
       input() { this.dispatch('input'); },
       focus() {
@@ -224,6 +236,8 @@ export function installDomShim() {
       },
       setPointerCapture() { el._pointerCapture = true; },
       releasePointerCapture() { el._pointerCapture = false; },
+      get onclick() { return el._onclick || null; },
+      set onclick(fn) { el._onclick = typeof fn === 'function' ? fn : null; },
     };
     Object.defineProperty(el, 'style', {
       get() {
@@ -243,6 +257,10 @@ export function installDomShim() {
       el.selected = false;
     }
     if (String(tag).toLowerCase() === 'select') {
+      Object.defineProperty(el, 'options', {
+        get() { return el.children; },
+        configurable: true,
+      });
       Object.defineProperty(el, 'value', {
         get() {
           const opt = el.children.find((c) => c.selected);
