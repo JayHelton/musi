@@ -119,7 +119,7 @@ function deepEqual(a, b) {
 
   assert.ok(sensitive.derived.onsetDelta < strict.derived.onsetDelta);
 
-  assert.equal(sensitive.minNoteMs, 45);
+  assert.equal(sensitive.minNoteMs, 55);
   assert.equal(strict.minNoteMs, 110);
 }
 
@@ -141,7 +141,7 @@ function deepEqual(a, b) {
   assert.equal(unknown.preset, 'balanced');
 
   const sens = applyPreset('sensitive');
-  assert.equal(sens.onsetSensitivity, 0.68);
+  assert.equal(sens.onsetSensitivity, 0.58);
 }
 
 // ── Range Hz mapping and min/max correction ─────────────────────

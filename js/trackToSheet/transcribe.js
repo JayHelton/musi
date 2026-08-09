@@ -770,6 +770,25 @@ function gaussianReward(dist, sigma) {
 /**
  * Score BPM + phase against onsets; pick the coarsest grid division that fits.
  */
+const TRIPLET_COMPLEXITY = 0.88;
+
+function isTripletDivision(division) {
+  return Math.abs(division - 1 / 3) < 0.02 || Math.abs(division - 1 / 6) < 0.02;
+}
+
+/**
+ * Coarseness of a grid division as a *notated* rhythm rather than as a raw
+ * fraction. A triplet eighth (1/3 beat) is numerically larger than a sixteenth
+ * (1/4) but is not a simpler rhythm to read, so scoring it on the raw fraction
+ * lets a 4:3-fast tempo out-score the true one by re-reading every note as a
+ * triplet. Triplets therefore fall back to the next finer straight division.
+ */
+function notatedCoarseness(division) {
+  if (Math.abs(division - 1 / 3) < 0.02) return 0.25;
+  if (Math.abs(division - 1 / 6) < 0.02) return 0.125;
+  return division;
+}
+
 function scoreTempoWithBestGrid(bpm, phaseSec, onsetTimes, gridDivisions, weights) {
   if (!onsetTimes.length || bpm <= 0) return { score: 0, gridUnit: 0.25 };
   const beatSec = 60 / bpm;
@@ -787,8 +806,11 @@ function scoreTempoWithBestGrid(bpm, phaseSec, onsetTimes, gridDivisions, weight
       const err = Math.abs(pos - nearest) * beatSec;
       total += gaussianReward(err, sigma) * (weights[i] ?? 1);
     }
-    const align = total / onsetTimes.length;
-    const coarseBonus = gridUnit * 0.12;
+    let align = total / onsetTimes.length;
+    // Mirror the triplet penalty quantizeNotes applies, so a triplet reading
+    // only wins when it fits clearly better than the straight one.
+    if (isTripletDivision(gridUnit)) align *= TRIPLET_COMPLEXITY;
+    const coarseBonus = notatedCoarseness(gridUnit) * 0.12;
     const downbeat = downbeatAlignment(bpm, phaseSec, onsetTimes) * 0.1;
     const score = align + coarseBonus + downbeat;
     if (score > bestScore) {

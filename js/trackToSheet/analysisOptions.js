@@ -194,10 +194,10 @@ export const PRESET_OPTIONS = Object.freeze({
   }),
   sensitive: Object.freeze({
     preset: 'sensitive',
-    sensitivity: 0.75,
-    minNoteMs: 45,
-    vibratoCents: 85,
-    onsetSensitivity: 0.68,
+    sensitivity: 0.72,
+    minNoteMs: 55,
+    vibratoCents: 78,
+    onsetSensitivity: 0.58,
   }),
   strict: Object.freeze({
     preset: 'strict',
