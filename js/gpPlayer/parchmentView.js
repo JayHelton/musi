@@ -1,6 +1,11 @@
 // Songsterr-like vertical parchment score renderer for the GP player.
 
-import { DRUM_LANES } from '../gpFollowView.js';
+import {
+  DRUM_TAB_LANES,
+  drumTabGlyph,
+  drumHitLabel,
+  drumTabLegendFor,
+} from '../drums/notation.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
@@ -80,6 +85,7 @@ export function mountParchmentView(host, {
   let measureEls = [];
   let systemEls = [];
   let playheadEl = null;
+  let legendEl = null;
   let selOverlayEl = null;
   let noteOverlayEl = null;
   let annoSpanEls = [];
@@ -126,7 +132,17 @@ export function mountParchmentView(host, {
     if (!percModel && !isDrum) return [];
     const m = isDrum ? model : percModel;
     const insts = new Set((m?.events || []).map((e) => e.instrument).filter(Boolean));
-    return DRUM_LANES.filter((lane) => lane.instruments.some((i) => insts.has(i)));
+    return DRUM_TAB_LANES.filter((lane) => lane.instruments.some((i) => insts.has(i)));
+  }
+
+  function drumGlyphsUsed(m) {
+    if (!m?.events?.length) return new Set();
+    const glyphs = new Set();
+    for (const ev of m.events) {
+      if (!ev.instrument) continue;
+      glyphs.add(drumTabGlyph(ev));
+    }
+    return glyphs;
   }
 
   function renderMeasure(mi, m) {
@@ -185,15 +201,17 @@ export function mountParchmentView(host, {
         const lab = document.createElement('span');
         lab.className = 'gpp-parch-lane-label';
         lab.textContent = lane.label;
+        lab.title = lane.title;
         row.appendChild(lab);
         for (const ev of evts) {
           if (!lane.instruments.includes(ev.instrument)) continue;
+          const glyph = drumTabGlyph(ev);
           const hit = document.createElement('span');
           hit.className = 'gpp-parch-drum-hit';
           hit.style.left = `${beatPctInMeasure(ev.start, m)}%`;
-          hit.textContent = ev.instrument === 'hihatOpen' ? 'O'
-            : ev.instrument === 'snareGhost' ? 'g'
-              : ev.instrument === 'snareFlam' ? 'f' : '●';
+          hit.textContent = glyph;
+          hit.dataset.glyph = glyph;
+          hit.title = drumHitLabel(ev);
           row.appendChild(hit);
         }
         staff.appendChild(row);
@@ -233,6 +251,10 @@ export function mountParchmentView(host, {
   function rebuild() {
     if (destroyed) return;
     sheet.innerHTML = '';
+    if (legendEl) {
+      legendEl.remove();
+      legendEl = null;
+    }
     measureEls = [];
     systemEls = [];
     playheadEl = null;
@@ -264,6 +286,27 @@ export function mountParchmentView(host, {
     playheadEl.className = 'gpp-parch-playhead';
     playheadEl.hidden = true;
     sheet.appendChild(playheadEl);
+
+    if (isDrum && activeDrumLanes().length) {
+      const legendRows = drumTabLegendFor(drumGlyphsUsed(model));
+      if (legendRows.length) {
+        legendEl = document.createElement('div');
+        legendEl.className = 'gpp-parch-drum-legend';
+        for (const row of legendRows) {
+          const item = document.createElement('span');
+          item.className = 'gpp-parch-legend-item';
+          const glyphSpan = document.createElement('span');
+          glyphSpan.className = 'gpp-parch-legend-glyph';
+          glyphSpan.textContent = row.glyph;
+          const textSpan = document.createElement('span');
+          textSpan.className = 'gpp-parch-legend-text';
+          textSpan.textContent = row.text;
+          item.append(glyphSpan, textSpan);
+          legendEl.appendChild(item);
+        }
+        viewport.appendChild(legendEl);
+      }
+    }
 
     paintSelection(sel);
     paintNoteDraft(noteSel);

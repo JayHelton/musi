@@ -90,6 +90,7 @@ export function installDomShim() {
       parentElement: null,
       get firstChild() { return this.children[0] || null; },
       textContent: '',
+      title: '',
       innerHTML: '',
       value: '',
       checked: false,
