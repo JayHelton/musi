@@ -5,5 +5,6 @@
 
 import './bulk-import.mjs';
 import './bulk-upload-ui.mjs';
+import './folder-delete.mjs';
 
 console.log('exercises tests: ok');

@@ -306,7 +306,11 @@ function renameCategory(id, name) {
   return true;
 }
 
-// Deleting a category leaves its exercises in place but uncategorized.
+// deleteCategory leaves its exercises in place but uncategorized; see deleteCategoryWithContents.
+function countExercisesInCategory(id) {
+  return getStore().items.filter(it => it.categoryId === id).length;
+}
+
 function deleteCategory(id) {
   const store = getStore();
   const idx = store.categories.findIndex(c => c.id === id);
@@ -315,6 +319,15 @@ function deleteCategory(id) {
   store.items.forEach(it => { if (it.categoryId === id) it.categoryId = ''; });
   persist();
   return true;
+}
+
+async function deleteCategoryWithContents(id) {
+  const store = getStore();
+  if (!store.categories.some(c => c.id === id)) return { ok: false, deleted: 0 };
+  const ids = store.items.filter(it => it.categoryId === id).map(it => it.id);
+  const deleted = await deleteExercises(ids);
+  deleteCategory(id);
+  return { ok: true, deleted };
 }
 
 function renameExercise(id, name) {
@@ -1331,6 +1344,14 @@ export async function deleteExerciseItems(ids) {
   return deleteExercises(ids);
 }
 
+export function deleteExerciseFolder(id) {
+  return deleteCategory(id);
+}
+
+export async function deleteExerciseFolderWithContents(id) {
+  return deleteCategoryWithContents(id);
+}
+
 /** Persist practice-player settings back onto an exercise (tempo loop, rest, track). */
 export function updateExercisePracticeSettings(id, patch = {}) {
   const store = getStore();
@@ -1659,6 +1680,45 @@ function openConfirm(title, body, confirmLabel, onConfirm) {
   dialogRoot.appendChild(overlay);
 }
 
+function openFolderDeleteDialog({ name, count, onDeleteFolderOnly, onDeleteAll }) {
+  ensureDialogRoot();
+  dialogRoot.innerHTML = '';
+  const exerciseWord = count === 1 ? 'exercise' : 'exercises';
+  const overlay = el('div', { class: 'modal-overlay' });
+  const dialog = el('div', { class: 'modal-dialog modal-confirm' }, [
+    el('h3', { class: 'modal-title', text: `Delete folder "${name}"?` }),
+    el('p', {
+      class: 'modal-body',
+      text: `"${name}" holds ${count} ${exerciseWord}. Delete the folder only and keep them unfiled, or delete the folder and its ${count} ${exerciseWord} from this device.`,
+    }),
+  ]);
+  const actions = el('div', { class: 'modal-actions' });
+  let escapeHandler = null;
+  const finish = (fn) => {
+    if (escapeHandler) document.removeEventListener('keydown', escapeHandler);
+    closeDialog();
+    fn();
+  };
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Cancel',
+    onClick: () => finish(() => {}),
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Delete folder only',
+    onClick: () => finish(onDeleteFolderOnly),
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn modal-danger', type: 'button', text: `Delete folder + ${count} ${exerciseWord}`,
+    onClick: () => finish(onDeleteAll),
+  }));
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', e => { if (e.target === overlay) finish(() => {}); });
+  escapeHandler = (e) => { if (e.key === 'Escape') finish(() => {}); };
+  document.addEventListener('keydown', escapeHandler);
+  dialogRoot.appendChild(overlay);
+}
+
 function openPrompt(title, initialValue, confirmLabel, onConfirm) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
@@ -1742,16 +1802,39 @@ function onRenameCategory(id, current) {
 }
 
 function onDeleteCategory(id, name) {
-  openConfirm(
-    `Delete folder "${name}"?`,
-    'Exercises in this folder are kept but become unfiled.',
-    'Delete',
-    () => {
+  const count = countExercisesInCategory(id);
+  const afterDelete = () => {
+    if (selectedCategory === id) setSelectedCategory('all');
+    render();
+  };
+  if (count === 0) {
+    openConfirm(
+      `Delete folder "${name}"?`,
+      'This folder is empty.',
+      'Delete',
+      () => {
+        deleteCategory(id);
+        afterDelete();
+      },
+    );
+    return;
+  }
+  openFolderDeleteDialog({
+    name,
+    count,
+    onDeleteFolderOnly: () => {
       deleteCategory(id);
-      if (selectedCategory === id) setSelectedCategory('all');
-      render();
+      setStatus(`Deleted folder "${name}". ${pluralExercises(count)} ${count === 1 ? 'is' : 'are'} now unfiled.`);
+      afterDelete();
     },
-  );
+    onDeleteAll: async () => {
+      const result = await deleteCategoryWithContents(id);
+      if (result.ok) {
+        setStatus(`Deleted folder "${name}" and ${pluralExercises(result.deleted)}.`);
+      }
+      afterDelete();
+    },
+  });
 }
 
 function onDeleteExercise(item) {
