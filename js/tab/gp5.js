@@ -20,6 +20,8 @@ import {
   normalizeGp5PercussionMidi,
   dynamicsToVelocity,
   makePercussionModel,
+  assignPercussionSlots,
+  deriveMeasureSlotSpans,
 } from './gpPercussion.js';
 
 // ---- low-level cursor ------------------------------------------------------
@@ -470,46 +472,53 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120)
   const events = [];
   const measureSpans = [];
   const warnings = [];
-  let slot = 0;
   let cursor = 0;
   let measureIndex = 0;
   let currentTimeSig = [4, 4];
 
   for (const voices of measures) {
-    const measureStart = slot;
     const measureStartBeat = cursor;
     const header = measureHeaders[measureIndex] || {};
     const marker = header.marker || null;
     if (header.timeSig) currentTimeSig = header.timeSig;
     measureIndex += 1;
-    const voice = voices.find((bts) => bts.some((b) => b.notes && b.notes.length)) || voices[0] || [];
-    let advanced = false;
-    for (const beat of voice) {
-      const duration = Number.isFinite(beat.duration) && beat.duration > 0 ? beat.duration : 1;
-      for (const n of beat.notes) {
-        if (n.dead || n.tie || n.midi == null) continue;
-        const velocity = dynamicsToVelocity(n.dynamics);
-        const instrument = midiToDrumInstrument(n.midi, { velocity });
-        if (!instrument) continue;
-        events.push({
-          slot, start: cursor, duration,
-          instrument, velocity, midi: n.midi,
-        });
+
+    let measureEndBeat = measureStartBeat;
+    let anyVoiceAdvanced = false;
+
+    for (const voice of voices) {
+      if (!voice?.length) continue;
+      let voiceCursor = measureStartBeat;
+      for (const beat of voice) {
+        const duration = Number.isFinite(beat.duration) && beat.duration > 0 ? beat.duration : 1;
+        for (const n of beat.notes) {
+          if (n.dead || n.tie || n.midi == null) continue;
+          const velocity = dynamicsToVelocity(n.dynamics);
+          const instrument = midiToDrumInstrument(n.midi, { velocity });
+          if (!instrument) continue;
+          events.push({
+            start: voiceCursor,
+            duration,
+            instrument,
+            velocity,
+            midi: n.midi,
+          });
+        }
+        voiceCursor += duration;
+        anyVoiceAdvanced = true;
       }
-      slot += 1;
-      cursor += duration;
-      advanced = true;
+      measureEndBeat = Math.max(measureEndBeat, voiceCursor);
     }
-    if (!advanced) {
+
+    if (!anyVoiceAdvanced) {
       const beatsInBar = currentTimeSig[0] * (4 / (currentTimeSig[1] || 4));
-      slot += 1;
-      cursor += beatsInBar;
+      measureEndBeat = measureStartBeat + beatsInBar;
     }
+
+    cursor = measureEndBeat;
     measureSpans.push({
-      startSlot: measureStart,
-      endSlot: slot,
       startBeat: measureStartBeat,
-      endBeat: cursor,
+      endBeat: measureEndBeat,
       marker,
       timeSig: currentTimeSig.slice(),
     });
@@ -518,11 +527,15 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120)
   if (!events.length) {
     warnings.push('The percussion track had no mappable drum hits.');
   }
+
+  const slottedEvents = assignPercussionSlots(events);
+  const measuresWithSlots = deriveMeasureSlotSpans(measureSpans, slottedEvents);
+
   return makePercussionModel({
     name: track.name || 'Drums',
     tempo,
-    events,
-    measures: measureSpans,
+    events: slottedEvents,
+    measures: measuresWithSlots,
     warnings,
   });
 }
