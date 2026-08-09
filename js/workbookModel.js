@@ -193,6 +193,7 @@ export function renameWorkbookFolder(id, name) {
   return true;
 }
 
+/** Removes the folder; workbooks filed here become uncategorized. */
 export function deleteWorkbookFolder(id) {
   const store = getStore();
   const idx = store.folders.findIndex(f => f.id === id);
@@ -203,6 +204,19 @@ export function deleteWorkbookFolder(id) {
   });
   persist();
   return true;
+}
+
+/** Removes the folder and every workbook filed under it. */
+export function deleteWorkbookFolderWithContents(id) {
+  const store = getStore();
+  const idx = store.folders.findIndex(f => f.id === id);
+  if (idx < 0) return { ok: false, deleted: 0 };
+  const before = store.workbooks.length;
+  store.workbooks = store.workbooks.filter(wb => wb.folderId !== id);
+  const deleted = before - store.workbooks.length;
+  store.folders.splice(idx, 1);
+  persist();
+  return { ok: true, deleted };
 }
 
 export function getWorkbookFolderOptions() {
