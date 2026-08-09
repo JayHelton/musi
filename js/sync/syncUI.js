@@ -503,6 +503,11 @@ function countLocalCollection(key, raw) {
         ? parsed.workbooks.length
         : 0;
     }
+    if (key === 'musi.routines') {
+      return parsed && typeof parsed === 'object' && Array.isArray(parsed.routines)
+        ? parsed.routines.length
+        : 0;
+    }
   } catch (_) { /* ignore */ }
   return 0;
 }
@@ -517,7 +522,7 @@ export async function hasLocalDataInScopes(scopes) {
     : allIds;
 
   if (scopeIds.includes('content')) {
-    const contentKeys = ['musi.notes', 'musi.songs', 'musi.exercises', 'musi.workbooks'];
+    const contentKeys = ['musi.notes', 'musi.songs', 'musi.exercises', 'musi.workbooks', 'musi.routines'];
     for (const key of contentKeys) {
       try {
         const raw = localStorage.getItem(key);
