@@ -6,7 +6,7 @@
 
 @media (orientation: landscape) and (max-height: 500px) {
   /* ---- Chrome ---- */
-  :root{--dock-h:calc(46px + env(safe-area-inset-bottom,0px));--tap-min:40px}
+  :root{--dock-h:calc(46px + env(safe-area-inset-bottom,0px));--tap-min:40px;--content-max:100%}
   html,body{overflow-x:clip;max-width:100%}
   header{padding:4px max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
   .wordmark{font-size:.85rem;letter-spacing:2px}

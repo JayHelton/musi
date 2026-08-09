@@ -51,10 +51,16 @@ CHAR_RECTS = [
 GRID_W = 32
 GRID_H = 40
 
+# Android maskable icons: essential content must fit inside a centred circle of 40% radius.
+MASKABLE_SAFE_RADIUS_FRAC = 0.4
+
 GLOW_COLORS = {
     "#D82E2E": (216, 46, 46, 48),
     "#B9E7E7": (120, 210, 210, 36),
 }
+
+SMALL_ICON_THRESHOLD = 48
+SMALL_ICON_RENDER_SIZE = 256
 
 
 def hex_rgb(color: str) -> tuple[int, int, int]:
@@ -146,32 +152,106 @@ def draw_character(
         draw.rectangle([x0, y0, x1, y1], fill=hex_rgb(color))
 
 
-def render_icon(size: int, *, maskable: bool = False) -> Image.Image:
-    img = draw_background(size, maskable=maskable)
+def content_bbox_corners() -> list[tuple[int, int]]:
+    min_x = min(x for x, _y, _w, _h, _c in CHAR_RECTS)
+    max_x = max(x + w for x, _y, w, _h, _c in CHAR_RECTS)
+    min_y = min(y for _x, y, _w, _h, _c in CHAR_RECTS)
+    max_y = max(y + h for _x, y, _w, h, _c in CHAR_RECTS)
+    return [(min_x, min_y), (max_x, min_y), (min_x, max_y), (max_x, max_y)]
 
-    fill = 0.72 if maskable else 0.78
-    scale = max(1, int((size * fill) / max(GRID_W, GRID_H)))
-    char_w = GRID_W * scale
-    char_h = GRID_H * scale
-    offset_x = (size - char_w) // 2
-    offset_y = (size - char_h) // 2 + int(size * 0.02)
 
-    draw_character(img, scale=scale, offset_x=offset_x, offset_y=offset_y)
+def mascot_corner_max_radius(size: int, scale: int, offset_x: int, offset_y: int) -> float:
+    """Farthest canvas distance from centre for the mascot silhouette bounding box."""
+    cx = size / 2
+    cy = size / 2
+    max_dist = 0.0
+    for px, py in content_bbox_corners():
+        canvas_x = offset_x + px * scale
+        canvas_y = offset_y + py * scale
+        max_dist = max(max_dist, math.hypot(canvas_x - cx, canvas_y - cy))
+    return max_dist
+
+
+def layout_for_scale(size: int, scale: int) -> tuple[int, int, int]:
+    offset_x = (size - GRID_W * scale) // 2
+    offset_y = (size - GRID_H * scale) // 2 + int(size * 0.02)
+    return scale, offset_x, offset_y
+
+
+def maskable_scale(size: int) -> tuple[int, float]:
+    """Pick the largest integer scale whose mascot fits inside the 40%-radius safe circle."""
+    safe_radius = MASKABLE_SAFE_RADIUS_FRAC * size
+    for scale in range((size * 2) // GRID_H, 0, -1):
+        _, offset_x, offset_y = layout_for_scale(size, scale)
+        if mascot_corner_max_radius(size, scale, offset_x, offset_y) <= safe_radius:
+            fill = (scale * GRID_H) / size
+            return scale, fill
+    return 1, GRID_H / size
+
+
+def standard_scale(size: int) -> int:
+    fill = 0.78
+    return max(1, int((size * fill) / GRID_H))
+
+
+def render_icon_at(
+    size: int,
+    *,
+    maskable: bool = False,
+    decorations: bool = True,
+) -> Image.Image:
+    img = draw_background(size, maskable=maskable or not decorations)
+
+    if maskable:
+        scale, _fill = maskable_scale(size)
+    else:
+        scale = standard_scale(size)
+
+    offset_x = (size - GRID_W * scale) // 2
+    offset_y = (size - GRID_H * scale) // 2 + int(size * 0.02)
+
+    draw_character(
+        img,
+        scale=scale,
+        offset_x=offset_x,
+        offset_y=offset_y,
+        glow=decorations and not maskable,
+    )
     return img
+
+
+def render_icon(size: int, *, maskable: bool = False) -> Image.Image:
+    if size <= SMALL_ICON_THRESHOLD:
+        source = render_icon_at(SMALL_ICON_RENDER_SIZE, maskable=maskable, decorations=False)
+        return source.resize((size, size), Image.Resampling.NEAREST)
+    return render_icon_at(size, maskable=maskable, decorations=True)
 
 
 def main() -> None:
     icons_dir = ROOT / "icons"
     icons_dir.mkdir(exist_ok=True)
 
-    outputs = {
-        icons_dir / "icon-192.png": (192, False),
-        icons_dir / "icon-512.png": (512, False),
-        icons_dir / "icon-maskable-512.png": (512, True),
-        ROOT / "favicon.png": (512, False),
-    }
+    outputs: list[tuple[Path, int, bool]] = [
+        (icons_dir / "icon-192.png", 192, False),
+        (icons_dir / "icon-512.png", 512, False),
+        (icons_dir / "icon-maskable-192.png", 192, True),
+        (icons_dir / "icon-maskable-512.png", 512, True),
+        (icons_dir / "apple-touch-icon-180.png", 180, False),
+        (icons_dir / "favicon-32.png", 32, False),
+        (icons_dir / "favicon-16.png", 16, False),
+        (ROOT / "favicon.png", 512, False),
+    ]
 
-    for path, (size, maskable) in outputs.items():
+    maskable_scale_512, maskable_fill_512 = maskable_scale(512)
+    safe_radius_512 = MASKABLE_SAFE_RADIUS_FRAC * 512
+    _, ox, oy = layout_for_scale(512, maskable_scale_512)
+    max_radius_512 = mascot_corner_max_radius(512, maskable_scale_512, ox, oy)
+    print(
+        f"maskable 512: scale={maskable_scale_512}, fill≈{maskable_fill_512:.4f}, "
+        f"max mascot radius={max_radius_512:.2f}px (safe {safe_radius_512:.1f}px)"
+    )
+
+    for path, size, maskable in outputs:
         render_icon(size, maskable=maskable).save(path, optimize=True)
         print(f"wrote {path.relative_to(ROOT)} ({size}x{size})")
 

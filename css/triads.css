@@ -14,6 +14,10 @@
 #sec-triads .ref-fb-card{padding:18px 18px 12px}
 #sec-triads .quiz-main{gap:14px}
 
+@media (min-width: 769px) {
+  .sweep-dim-grid{grid-template-columns:1fr}
+}
+
 .triad-only-opts{display:contents}
 .triad-sweep-panel{margin-top:4px}
 .ref-sweep-controls{display:flex;flex-direction:column;gap:10px;margin:0 0 12px}

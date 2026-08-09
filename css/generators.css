@@ -115,18 +115,32 @@
 .deg-10{background:#ffb020}
 .deg-11{background:#d4a1ff}
 
-/* Scale Reference — desktop: setup above chart, full-width fretboard */
+/* Reference screens — desktop: setup above chart, full-width content */
 @media (min-width: 769px) {
-  #sec-scaleref .quiz-layout {
+  #sec-scaleref .quiz-layout,
+  #sec-chords .quiz-layout,
+  #sec-triads .quiz-layout {
     flex-direction: column;
   }
-  #sec-scaleref.has-setup-summary .sidebar {
+  #sec-scaleref.has-setup-summary .sidebar,
+  #sec-chords.has-setup-summary .sidebar,
+  #sec-triads.has-setup-summary .sidebar {
     display: none;
   }
-  #sec-scaleref .quiz-main {
+  #sec-scaleref .quiz-main,
+  #sec-chords .quiz-main,
+  #sec-triads .quiz-main {
     width: 100%;
     min-width: 0;
+    max-width: none;
   }
+  .modal-scale-flow{grid-template-columns:1fr}
+  .modal-chord-grid{grid-template-columns:repeat(auto-fit,minmax(480px,1fr))}
+  .mode-grid{grid-template-columns:1fr}
+  .caged-grid{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
+  .mcc-grid{grid-template-columns:1fr}
+  .mcc-card-body{grid-template-columns:1fr}
+  .mcc-diagram{justify-content:flex-start}
 }
 
 @media(max-width:768px){

@@ -894,3 +894,17 @@
     transition: none;
   }
 }
+
+/* Embedded GP height: viewport-relative only (not scroll position). */
+@media (min-width: 1280px) and (min-height: 501px) {
+  .ex-player-body-gp .gpp-chrome {
+    height: min(75dvh, 800px);
+    max-height: min(75dvh, 800px);
+  }
+}
+@media (min-width: 1800px) and (min-height: 501px) {
+  .ex-player-body-gp .gpp-chrome {
+    height: min(82dvh, 920px);
+    max-height: min(82dvh, 920px);
+  }
+}

@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v155-folder-delete";
+const CACHE_VERSION = "v156-gbc-icons";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -10,7 +10,11 @@ const PRECACHE_URLS = [
   "index.html",
   "manifest.webmanifest",
   "favicon.png",
+  "icons/favicon-16.png",
+  "icons/favicon-32.png",
   "icons/icon-192.png",
+  "icons/icon-maskable-192.png",
+  "icons/apple-touch-icon-180.png",
   "icons/icon-512.png",
   "icons/icon-maskable-512.png",
   "css/base.css",

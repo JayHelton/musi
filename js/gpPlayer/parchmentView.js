@@ -32,9 +32,11 @@ function beatPctInMeasure(beat, m) {
   return Math.max(0, Math.min(100, ((beat - start) / len) * 100));
 }
 
+// Measures share the row width, so the divisor targets ~220px per measure at
+// zoom 1; the ceiling keeps very wide screens from packing rows too densely.
 function measuresPerSystem(hostWidth, zoom) {
   const base = hostWidth / (220 * zoom);
-  return Math.max(1, Math.min(4, Math.round(base) || 2));
+  return Math.max(1, Math.min(8, Math.round(base) || 2));
 }
 
 /**

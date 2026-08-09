@@ -631,3 +631,17 @@
   #sec-workbooks:not(.wb-practicing) .wb-toolbar{margin-bottom:4px}
   #sec-workbooks:not(.wb-practicing) .wb-card{padding:6px 8px}
 }
+
+/* Embedded GP height: viewport-relative only (not scroll position). */
+@media (min-width: 1280px) and (min-height: 501px) {
+  #sec-workbooks:not(.wb-practicing) .wb-gp-mount .gpp-chrome {
+    height: min(60dvh, 640px);
+    max-height: min(60dvh, 640px);
+  }
+}
+@media (min-width: 1800px) and (min-height: 501px) {
+  #sec-workbooks:not(.wb-practicing) .wb-gp-mount .gpp-chrome {
+    height: min(68dvh, 760px);
+    max-height: min(68dvh, 760px);
+  }
+}
