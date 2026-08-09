@@ -129,6 +129,7 @@ export function normalizeRoutineSession(raw) {
     workbookIds: normalizeWorkbookIds(raw.workbookIds),
     durationMin,
     metronome: normalizeSessionMetronome(raw.metronome),
+    completed: raw.completed === true,
   };
 }
 
@@ -143,7 +144,7 @@ export function normalizeRoutine(raw) {
   if (activeSessionId != null && typeof activeSessionId !== 'string') activeSessionId = null;
   if (activeSessionId && !sessions.some(s => s.id === activeSessionId)) activeSessionId = null;
 
-  return {
+  const rt = {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('rt'),
     name: clampText(
       typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Routine',
@@ -155,6 +156,8 @@ export function normalizeRoutine(raw) {
     createdAt,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : createdAt,
   };
+  reconcileRoutineActiveSession(rt);
+  return rt;
 }
 
 function defaultStore() {
@@ -209,6 +212,7 @@ function copySession(session) {
     workbookIds: session.workbookIds.slice(),
     durationMin: session.durationMin,
     metronome: copyMetronome(session.metronome),
+    completed: !!session.completed,
   };
 }
 
@@ -226,6 +230,54 @@ function copyRoutine(rt) {
 
 function touchUpdated(rt) {
   rt.updatedAt = nowISO();
+}
+
+function firstIncompleteSessionId(sessions, { afterIndex = -1 } = {}) {
+  if (!Array.isArray(sessions) || !sessions.length) return null;
+  const after = sessions.slice(afterIndex + 1).find(s => !s.completed);
+  if (after) return after.id;
+  const before = sessions.slice(0, afterIndex + 1).find(s => !s.completed);
+  return before ? before.id : null;
+}
+
+/** Keep activeSessionId on an incomplete session, or null when every session is done. */
+export function reconcileRoutineActiveSession(rt) {
+  if (!rt || !Array.isArray(rt.sessions)) return;
+  if (!rt.sessions.length) {
+    rt.activeSessionId = null;
+    return;
+  }
+  const active = rt.activeSessionId
+    ? rt.sessions.find(s => s.id === rt.activeSessionId)
+    : null;
+  if (!active) {
+    rt.activeSessionId = null;
+    return;
+  }
+  if (!active.completed) return;
+  rt.activeSessionId = firstIncompleteSessionId(rt.sessions);
+}
+
+/** Canonical completion mutation; callers persist when appropriate. */
+function mutateSessionCompletion(rt, sessionId, completed) {
+  const session = rt.sessions.find(s => s.id === sessionId);
+  if (!session) return false;
+  const nextCompleted = !!completed;
+  if (session.completed === nextCompleted) return true;
+
+  session.completed = nextCompleted;
+  if (nextCompleted) {
+    if (rt.activeSessionId === sessionId) {
+      const currentIdx = rt.sessions.findIndex(s => s.id === sessionId);
+      rt.activeSessionId = firstIncompleteSessionId(rt.sessions, { afterIndex: currentIdx - 1 });
+    }
+  } else if (
+    !rt.activeSessionId
+    || !rt.sessions.some(s => s.id === rt.activeSessionId && !s.completed)
+  ) {
+    rt.activeSessionId = sessionId;
+  }
+  return true;
 }
 
 // --- routines --------------------------------------------------------------
@@ -302,6 +354,7 @@ export function duplicateRoutine(id) {
     sessions: rt.sessions.map(s => normalizeRoutineSession({
       ...s,
       id: uid('rs'),
+      completed: false,
       metronome: { ...s.metronome },
       workbookIds: s.workbookIds.slice(),
     })),
@@ -339,9 +392,14 @@ export function updateRoutineSession(routineId, sessionId, patch) {
   const session = rt.sessions.find(s => s.id === sessionId);
   if (!session) return false;
 
-  const keys = ['name', 'notes', 'durationMin', 'metronome', 'workbookIds'];
+  const patchKeys = Object.keys(patch);
+  const keys = ['name', 'notes', 'durationMin', 'metronome', 'workbookIds', 'completed'];
   const hasKnown = keys.some(k => k in patch);
   if (!hasKnown) return false;
+
+  if ('completed' in patch && patchKeys.length === 1) {
+    return setRoutineSessionCompleted(routineId, sessionId, patch.completed);
+  }
 
   if ('name' in patch) {
     session.name = clampText(
@@ -367,10 +425,30 @@ export function updateRoutineSession(routineId, sessionId, patch) {
   if ('workbookIds' in patch) {
     session.workbookIds = normalizeWorkbookIds(patch.workbookIds);
   }
+  if ('completed' in patch && !mutateSessionCompletion(rt, sessionId, patch.completed)) {
+    return false;
+  }
 
   touchUpdated(rt);
   persist();
   return true;
+}
+
+/** Mark a session complete or incomplete; advances active session when completing the current one. */
+export function setRoutineSessionCompleted(routineId, sessionId, completed) {
+  const rt = findRoutine(routineId);
+  if (!rt) return false;
+  if (!mutateSessionCompletion(rt, sessionId, completed)) return false;
+  touchUpdated(rt);
+  persist();
+  return true;
+}
+
+/** Sessions for display; completed ones are omitted unless includeCompleted is true. */
+export function filterRoutineSessions(sessions, { includeCompleted = false } = {}) {
+  if (!Array.isArray(sessions)) return [];
+  if (includeCompleted) return sessions.slice();
+  return sessions.filter(s => !s.completed);
 }
 
 export function deleteRoutineSession(routineId, sessionId) {
@@ -383,11 +461,11 @@ export function deleteRoutineSession(routineId, sessionId) {
   if (wasActive) {
     if (!rt.sessions.length) {
       rt.activeSessionId = null;
-    } else if (idx < rt.sessions.length) {
-      rt.activeSessionId = rt.sessions[idx].id;
     } else {
-      rt.activeSessionId = rt.sessions[rt.sessions.length - 1].id;
+      rt.activeSessionId = firstIncompleteSessionId(rt.sessions, { afterIndex: idx - 1 });
     }
+  } else {
+    reconcileRoutineActiveSession(rt);
   }
   touchUpdated(rt);
   persist();
@@ -445,8 +523,14 @@ export function setActiveRoutineSession(routineId, sessionId) {
 export function getActiveRoutineSession(routineId) {
   const rt = findRoutine(routineId);
   if (!rt || !rt.sessions.length) return null;
-  let idx = rt.sessions.findIndex(s => s.id === rt.activeSessionId);
-  if (idx < 0) idx = 0;
+  let activeId = rt.activeSessionId;
+  const active = activeId ? rt.sessions.find(s => s.id === activeId) : null;
+  if (!active || active.completed) {
+    activeId = firstIncompleteSessionId(rt.sessions);
+  }
+  if (!activeId) return null;
+  const idx = rt.sessions.findIndex(s => s.id === activeId);
+  if (idx < 0) return null;
   return { session: copySession(rt.sessions[idx]), index: idx };
 }
 
@@ -536,12 +620,21 @@ export function getRoutineStats(routineOrId) {
     rt = findRoutine(routineOrId);
   }
   if (!rt || typeof rt !== 'object') {
-    return { sessionCount: 0, workbookCount: 0, uniqueWorkbookCount: 0, totalMinutes: 0 };
+    return {
+      sessionCount: 0,
+      completedSessionCount: 0,
+      pendingSessionCount: 0,
+      workbookCount: 0,
+      uniqueWorkbookCount: 0,
+      totalMinutes: 0,
+    };
   }
   const sessions = Array.isArray(rt.sessions) ? rt.sessions : [];
   const allIds = [];
   let totalMinutes = 0;
+  let completedSessionCount = 0;
   for (const session of sessions) {
+    if (session.completed) completedSessionCount += 1;
     if (Array.isArray(session.workbookIds)) {
       allIds.push(...session.workbookIds);
     }
@@ -552,6 +645,8 @@ export function getRoutineStats(routineOrId) {
   const unique = new Set(allIds);
   return {
     sessionCount: sessions.length,
+    completedSessionCount,
+    pendingSessionCount: sessions.length - completedSessionCount,
     workbookCount: allIds.length,
     uniqueWorkbookCount: unique.size,
     totalMinutes,
@@ -769,6 +864,7 @@ export function applyRoutineImport(raw, { existingWorkbooks = [], createWorkbook
         workbookIds: remappedIds,
         durationMin: session.durationMin,
         metronome: session.metronome,
+        completed: session.completed,
       });
     });
 

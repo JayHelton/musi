@@ -84,8 +84,12 @@
   border-radius:var(--radius-pill,999px);padding:5px 12px;font-family:var(--font-ui);
   font-variant-numeric:tabular-nums
 }
+.rt-stat-chip-done{color:var(--ok);border-color:rgba(46,204,113,0.35);background:rgba(46,204,113,0.12)}
 
 .rt-session-list{display:flex;flex-direction:column;gap:10px}
+.rt-session-list-head{display:flex;justify-content:flex-end}
+.rt-show-completed{font-family:var(--font-ui)}
+.rt-empty-complete{border-style:solid;border-color:rgba(46,204,113,0.35);color:var(--ok)}
 /* Wrapping keeps the name readable when the card sits in the narrow overview
    column beside an open session; the actions drop to their own line instead of
    squeezing the body to zero width. */
@@ -96,10 +100,17 @@
   transition:border-color .15s ease
 }
 .rt-session-card:hover{border-color:var(--accent2)}
+.rt-session-card.is-complete{
+  border-color:rgba(46,204,113,0.35);
+  background:linear-gradient(90deg,rgba(46,204,113,0.08),var(--card) 40%)
+}
 .rt-session-step{
   flex-shrink:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;
   border-radius:50%;background:var(--accent-dim);color:var(--accent);
   font-family:var(--font-ui);font-size:.85rem;font-weight:700
+}
+.rt-session-step.is-complete{
+  background:rgba(46,204,113,0.18);color:var(--ok);font-size:.95rem
 }
 .rt-session-card-body{
   flex:1 1 150px;min-width:0;cursor:pointer;display:flex;flex-direction:column;gap:3px

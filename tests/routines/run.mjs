@@ -27,6 +27,8 @@ import {
   reorderRoutineSessions,
   setActiveRoutineSession,
   getActiveRoutineSession,
+  setRoutineSessionCompleted,
+  filterRoutineSessions,
   attachWorkbooksToSession,
   detachWorkbookFromSession,
   moveSessionWorkbook,
@@ -78,6 +80,14 @@ test('normalizers fill defaults and clamp out-of-range values', () => {
   assert.equal(session.metronome.bpm, 120);
   assert.equal(session.metronome.beats, 3);
   assert.equal(session.metronome.subdiv, 'eighth');
+  assert.equal(session.completed, false);
+});
+
+test('normalizeRoutineSession treats missing completed as false (backward compat)', () => {
+  const legacy = normalizeRoutineSession({ id: 'rs-legacy', name: 'Legacy' });
+  assert.equal(legacy.completed, false);
+  const done = normalizeRoutineSession({ id: 'rs-done', name: 'Done', completed: true });
+  assert.equal(done.completed, true);
 });
 
 test('normalizeRoutine clears stale activeSessionId', () => {
@@ -91,6 +101,21 @@ test('normalizeRoutine clears stale activeSessionId', () => {
     updatedAt: '2026-01-01T00:00:00.000Z',
   });
   assert.equal(rt.activeSessionId, null);
+});
+
+test('normalizeRoutine moves active off completed sessions on load', () => {
+  const rt = normalizeRoutine({
+    id: 'rt-reconcile',
+    name: 'Reconcile',
+    sessions: [
+      { id: 'rs-done', name: 'Done', completed: true },
+      { id: 'rs-next', name: 'Next' },
+    ],
+    activeSessionId: 'rs-done',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+  assert.equal(rt.activeSessionId, 'rs-next');
 });
 
 test('create rename describe delete duplicate routine', () => {
@@ -181,7 +206,37 @@ test('setActiveRoutineSession does not change updatedAt', () => {
   assert.equal(getRoutine(rt.id).activeSessionId, s.id);
 });
 
-test('getActiveRoutineSession falls back to index 0', () => {
+test('setRoutineSessionCompleted and filterRoutineSessions', () => {
+  const rt = createRoutine({
+    name: 'Complete Flow',
+    sessions: [{ name: 'A' }, { name: 'B' }, { name: 'C' }],
+  });
+  const sessions = getRoutine(rt.id).sessions;
+  setActiveRoutineSession(rt.id, sessions[0].id);
+
+  assert.ok(setRoutineSessionCompleted(rt.id, sessions[0].id, true));
+  const afterFirst = getRoutine(rt.id);
+  assert.equal(afterFirst.sessions[0].completed, true);
+  assert.equal(afterFirst.activeSessionId, sessions[1].id);
+
+  assert.deepEqual(
+    filterRoutineSessions(afterFirst.sessions).map(s => s.id),
+    [sessions[1].id, sessions[2].id],
+  );
+  assert.deepEqual(
+    filterRoutineSessions(afterFirst.sessions, { includeCompleted: true }).map(s => s.id),
+    sessions.map(s => s.id),
+  );
+
+  assert.ok(updateRoutineSession(rt.id, sessions[2].id, { completed: true }));
+  assert.ok(setRoutineSessionCompleted(rt.id, sessions[1].id, true));
+  assert.equal(getRoutine(rt.id).activeSessionId, null);
+
+  assert.ok(setRoutineSessionCompleted(rt.id, sessions[1].id, false));
+  assert.equal(getRoutine(rt.id).activeSessionId, sessions[1].id);
+});
+
+test('getActiveRoutineSession falls back to index 0 when no active set', () => {
   const rt = createRoutine({
     name: 'No Active',
     sessions: [{ name: 'X' }, { name: 'Y' }],
@@ -189,6 +244,87 @@ test('getActiveRoutineSession falls back to index 0', () => {
   const active = getActiveRoutineSession(rt.id);
   assert.equal(active.index, 0);
   assert.equal(active.session.name, 'X');
+});
+
+test('getActiveRoutineSession prefers first incomplete session', () => {
+  const rt = createRoutine({
+    name: 'Active Incomplete',
+    sessions: [{ name: 'Done', completed: true }, { name: 'Next' }],
+  });
+  const ids = getRoutine(rt.id).sessions.map(s => s.id);
+  setActiveRoutineSession(rt.id, ids[0]);
+  const active = getActiveRoutineSession(rt.id);
+  assert.equal(active.session.name, 'Next');
+  assert.equal(active.index, 1);
+});
+
+test('getActiveRoutineSession returns null when every session is complete', () => {
+  const rt = createRoutine({
+    name: 'All Done',
+    sessions: [{ name: 'A', completed: true }, { name: 'B', completed: true }],
+  });
+  setActiveRoutineSession(rt.id, getRoutine(rt.id).sessions[0].id);
+  assert.equal(getActiveRoutineSession(rt.id), null);
+});
+
+test('normalizeRoutine reconciles active session away from completed sessions', () => {
+  const allDone = normalizeRoutine({
+    id: 'rt-all-done',
+    name: 'All Done',
+    sessions: [
+      { id: 'rs-a', name: 'A', completed: true },
+      { id: 'rs-b', name: 'B', completed: true },
+    ],
+    activeSessionId: 'rs-a',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+  assert.equal(allDone.activeSessionId, null);
+});
+
+test('updateRoutineSession completed uses canonical active-session advancement', () => {
+  const rt = createRoutine({
+    name: 'Patch Complete',
+    sessions: [{ name: 'A' }, { name: 'B' }],
+  });
+  const [a, b] = getRoutine(rt.id).sessions;
+  setActiveRoutineSession(rt.id, a.id);
+
+  assert.ok(updateRoutineSession(rt.id, a.id, { completed: true }));
+  assert.equal(getRoutine(rt.id).activeSessionId, b.id);
+
+  assert.ok(updateRoutineSession(rt.id, b.id, { name: 'B renamed', completed: true }));
+  const stored = getRoutine(rt.id);
+  assert.equal(stored.sessions.find(s => s.id === b.id).name, 'B renamed');
+  assert.equal(stored.activeSessionId, null);
+});
+
+test('deleteRoutineSession skips completed sessions when choosing next active', () => {
+  const rt = createRoutine({
+    name: 'Delete Skip Done',
+    sessions: [
+      { name: 'Done', completed: true },
+      { name: 'Current' },
+      { name: 'Later' },
+    ],
+  });
+  const ids = getRoutine(rt.id).sessions.map(s => s.id);
+  setActiveRoutineSession(rt.id, ids[1]);
+  assert.ok(deleteRoutineSession(rt.id, ids[1]));
+  assert.equal(getRoutine(rt.id).activeSessionId, ids[2]);
+});
+
+test('setActiveRoutineSession can target a completed session while practice resolves incomplete', () => {
+  const rt = createRoutine({
+    name: 'Review Complete',
+    sessions: [{ name: 'Done', completed: true }, { name: 'Todo' }],
+  });
+  const ids = getRoutine(rt.id).sessions.map(s => s.id);
+  setActiveRoutineSession(rt.id, ids[0]);
+  assert.equal(getRoutine(rt.id).activeSessionId, ids[0]);
+  const active = getActiveRoutineSession(rt.id);
+  assert.equal(active.session.name, 'Todo');
+  assert.equal(active.index, 1);
 });
 
 test('metronome patch merging', () => {
@@ -267,12 +403,19 @@ test('getRoutineStats', () => {
   const byObj = getRoutineStats(getRoutine(rt.id));
   assert.deepEqual(byObj, {
     sessionCount: 3,
+    completedSessionCount: 0,
+    pendingSessionCount: 3,
     workbookCount: 5,
     uniqueWorkbookCount: 3,
     totalMinutes: 20,
   });
   const byId = getRoutineStats(rt.id);
   assert.deepEqual(byId, byObj);
+
+  assert.ok(updateRoutineSession(rt.id, getRoutine(rt.id).sessions[0].id, { completed: true }));
+  const withDone = getRoutineStats(rt.id);
+  assert.equal(withDone.completedSessionCount, 1);
+  assert.equal(withDone.pendingSessionCount, 2);
 });
 
 test('buildRoutineExport embeds referenced workbooks in first-referenced order', () => {
@@ -396,11 +539,44 @@ test('applyRoutineImport round-trip with fresh ids and preserved session data', 
   assert.notEqual(session.id, envelope.routines[0].sessions[0].id);
   assert.equal(session.notes, 'keep notes');
   assert.equal(session.durationMin, 25);
+  assert.equal(session.completed, false);
   assert.deepEqual(session.metronome, { bpm: 88, beats: 2, subdiv: 'sixteenth', accentFirst: false });
   assert.deepEqual(session.workbookIds, ['wb-export-1']);
   assert.equal(result.workbooksLinked, 1);
   assert.equal(result.workbooksCreated, 0);
   assert.equal(result.missingExercises, 1);
+});
+
+test('export and import preserve completed sessions', () => {
+  const rt = createRoutine({
+    name: 'Completed Export',
+    sessions: [
+      { name: 'Done', completed: true },
+      { name: 'Todo' },
+    ],
+  });
+  const envelope = buildRoutineExport({
+    routineIds: [rt.id],
+    resolveWorkbook: () => null,
+  });
+  assert.equal(envelope.routines[0].sessions[0].completed, true);
+  assert.equal(envelope.routines[0].sessions[1].completed, false);
+
+  const result = applyRoutineImport(envelope);
+  assert.equal(result.ok, true);
+  const imported = result.imported[0];
+  assert.equal(imported.sessions[0].completed, true);
+  assert.equal(imported.sessions[1].completed, false);
+});
+
+test('duplicateRoutine resets completed state on new sessions', () => {
+  const rt = createRoutine({
+    name: 'Dup Complete',
+    sessions: [{ name: 'Done', completed: true }],
+  });
+  const dup = duplicateRoutine(rt.id);
+  assert.equal(dup.sessions.length, 1);
+  assert.equal(dup.sessions[0].completed, false);
 });
 
 test('applyRoutineImport links by name and creates via callback', () => {

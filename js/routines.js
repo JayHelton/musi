@@ -14,6 +14,8 @@ import {
   deleteRoutineSession,
   moveRoutineSession,
   setActiveRoutineSession,
+  setRoutineSessionCompleted,
+  filterRoutineSessions,
   attachWorkbooksToSession,
   detachWorkbookFromSession,
   moveSessionWorkbook,
@@ -66,6 +68,7 @@ let bound = false;
 let escapeWired = false;
 let selectedRoutineId = null;
 let openSessionId = null;
+let showCompletedSessions = false;
 
 let routineListEl, titleEl, toolbarActionsEl, statusEl, workspaceEl;
 let overviewEl, sessionListEl;
@@ -104,10 +107,18 @@ function plural(count, singular, pluralWord) {
 }
 
 function formatRoutineMeta(stats) {
-  const parts = [
-    plural(stats.sessionCount, 'session'),
-    plural(stats.uniqueWorkbookCount, 'workbook'),
-  ];
+  const parts = [];
+  if (stats.pendingSessionCount > 0) {
+    parts.push(plural(stats.pendingSessionCount, 'session'));
+  } else if (stats.sessionCount > 0) {
+    parts.push('all sessions done');
+  } else {
+    parts.push(plural(stats.sessionCount, 'session'));
+  }
+  if (stats.completedSessionCount > 0) {
+    parts.push(`${stats.completedSessionCount} done`);
+  }
+  parts.push(plural(stats.uniqueWorkbookCount, 'workbook'));
   if (stats.totalMinutes > 0) parts.push(`${stats.totalMinutes} min`);
   return parts.join(' · ');
 }
@@ -462,6 +473,7 @@ function renderSidebar() {
           flushDescAutosave();
           flushNotesAutosave();
           closeSessionPane();
+          showCompletedSessions = false;
         }
         selectedRoutineId = rt.id;
         render();
@@ -588,12 +600,42 @@ function renderOverview() {
   overviewEl.appendChild(descWrap);
 
   const chips = el('div', { class: 'rt-stats' });
-  chips.appendChild(el('span', { class: 'rt-stat-chip', text: plural(stats.sessionCount, 'session') }));
+  if (stats.pendingSessionCount > 0) {
+    chips.appendChild(el('span', {
+      class: 'rt-stat-chip',
+      text: plural(stats.pendingSessionCount, 'session', 'sessions') + ' left',
+    }));
+  }
+  if (stats.completedSessionCount > 0) {
+    chips.appendChild(el('span', {
+      class: 'rt-stat-chip rt-stat-chip-done',
+      text: plural(stats.completedSessionCount, 'done'),
+    }));
+  }
   chips.appendChild(el('span', { class: 'rt-stat-chip', text: plural(stats.uniqueWorkbookCount, 'workbook') }));
   if (stats.totalMinutes > 0) {
     chips.appendChild(el('span', { class: 'rt-stat-chip', text: `${stats.totalMinutes} min total` }));
   }
   overviewEl.appendChild(chips);
+
+  const completedCount = rt.sessions.filter(s => s.completed).length;
+  const visibleSessions = filterRoutineSessions(rt.sessions, { includeCompleted: showCompletedSessions });
+
+  if (completedCount > 0) {
+    const toggleRow = el('div', { class: 'rt-session-list-head' });
+    toggleRow.appendChild(el('button', {
+      type: 'button',
+      class: 'btn sm rt-show-completed',
+      text: showCompletedSessions
+        ? 'Hide completed'
+        : `Show completed (${completedCount})`,
+      onClick: () => {
+        showCompletedSessions = !showCompletedSessions;
+        render();
+      },
+    }));
+    sessionListEl.appendChild(toggleRow);
+  }
 
   if (!rt.sessions.length) {
     sessionListEl.appendChild(el('div', {
@@ -603,27 +645,71 @@ function renderOverview() {
     return;
   }
 
-  rt.sessions.forEach((session, idx) => {
-    sessionListEl.appendChild(buildSessionCard(rt, session, idx));
+  if (!visibleSessions.length) {
+    sessionListEl.appendChild(el('div', {
+      class: 'rt-empty rt-empty-complete',
+      text: 'All sessions complete! Show completed above to review or mark any session incomplete.',
+    }));
+    return;
+  }
+
+  visibleSessions.forEach((session, displayIdx) => {
+    const fullIdx = rt.sessions.findIndex(s => s.id === session.id);
+    sessionListEl.appendChild(buildSessionCard(rt, session, fullIdx, displayIdx + 1));
   });
 }
 
-function buildSessionCard(rt, session, idx) {
-  const card = el('div', { class: 'rt-session-card' });
-  card.appendChild(el('span', { class: 'rt-session-step', text: String(idx + 1) }));
+function buildSessionCard(rt, session, fullIdx, displayStep) {
+  const isComplete = !!session.completed;
+  const card = el('div', {
+    class: 'rt-session-card' + (isComplete ? ' is-complete' : ''),
+  });
+  card.appendChild(el('span', {
+    class: 'rt-session-step' + (isComplete ? ' is-complete' : ''),
+    text: isComplete ? '\u2713' : String(displayStep),
+    'aria-label': isComplete ? 'Completed' : `Step ${displayStep}`,
+  }));
 
   const body = el('div', {
     class: 'rt-session-card-body',
     onClick: () => openSession(rt.id, session.id),
   });
   body.appendChild(el('span', { class: 'rt-session-card-name', text: session.name }));
-  body.appendChild(el('span', { class: 'rt-session-card-meta', text: formatSessionMeta(session) }));
+  const metaParts = [formatSessionMeta(session)];
+  if (isComplete) metaParts.unshift('Complete');
+  body.appendChild(el('span', { class: 'rt-session-card-meta', text: metaParts.join(' · ') }));
   card.appendChild(body);
 
   const actions = el('div', { class: 'rt-session-card-actions' });
+  if (!isComplete) {
+    actions.appendChild(el('button', {
+      class: 'btn sm primary', type: 'button', text: 'Done',
+      'aria-label': `Mark ${session.name} complete`,
+      onClick: (e) => {
+        e.stopPropagation();
+        if (setRoutineSessionCompleted(rt.id, session.id, true)) {
+          if (openSessionId === session.id) closeSessionPane();
+          setStatus(`"${session.name}" marked complete.`);
+          render();
+        }
+      },
+    }));
+  } else {
+    actions.appendChild(el('button', {
+      class: 'btn sm', type: 'button', text: 'Restore',
+      'aria-label': `Mark ${session.name} incomplete`,
+      onClick: (e) => {
+        e.stopPropagation();
+        if (setRoutineSessionCompleted(rt.id, session.id, false)) {
+          setStatus(`"${session.name}" restored.`);
+          render();
+        }
+      },
+    }));
+  }
   actions.appendChild(el('button', {
     class: 'btn sm', type: 'button', text: '\u2191', 'aria-label': 'Move session up', title: 'Move up',
-    disabled: idx === 0 ? 'true' : undefined,
+    disabled: fullIdx === 0 ? 'true' : undefined,
     onClick: (e) => {
       e.stopPropagation();
       if (moveRoutineSession(rt.id, session.id, -1)) render();
@@ -631,14 +717,14 @@ function buildSessionCard(rt, session, idx) {
   }));
   actions.appendChild(el('button', {
     class: 'btn sm', type: 'button', text: '\u2193', 'aria-label': 'Move session down', title: 'Move down',
-    disabled: idx === rt.sessions.length - 1 ? 'true' : undefined,
+    disabled: fullIdx === rt.sessions.length - 1 ? 'true' : undefined,
     onClick: (e) => {
       e.stopPropagation();
       if (moveRoutineSession(rt.id, session.id, 1)) render();
     },
   }));
   actions.appendChild(el('button', {
-    class: 'btn sm primary', type: 'button', text: 'Open',
+    class: 'btn sm' + (isComplete ? ' primary' : ''), type: 'button', text: 'Open',
     onClick: (e) => { e.stopPropagation(); openSession(rt.id, session.id); },
   }));
   actions.appendChild(el('button', {
@@ -686,12 +772,38 @@ function renderSessionPane() {
   if (workspaceEl) workspaceEl.classList.add('is-open');
 
   const idx = rt.sessions.findIndex(s => s.id === session.id);
+  const pendingBefore = rt.sessions.slice(0, idx + 1).filter(s => !s.completed).length;
+  const stepLabel = session.completed
+    ? `${session.name} (complete)`
+    : `Step ${pendingBefore} \u00b7 ${session.name}`;
   if (sessionTitleEl) {
-    sessionTitleEl.textContent = `Step ${idx + 1} \u00b7 ${session.name}`;
+    sessionTitleEl.textContent = stepLabel;
   }
 
   if (sessionActionsEl) {
     sessionActionsEl.innerHTML = '';
+    if (session.completed) {
+      sessionActionsEl.appendChild(el('button', {
+        class: 'btn sm', type: 'button', text: 'Mark incomplete',
+        onClick: () => {
+          if (setRoutineSessionCompleted(rt.id, session.id, false)) {
+            setStatus(`"${session.name}" restored.`);
+            render();
+          }
+        },
+      }));
+    } else {
+      sessionActionsEl.appendChild(el('button', {
+        class: 'btn sm primary', type: 'button', text: 'Mark complete',
+        onClick: () => {
+          if (setRoutineSessionCompleted(rt.id, session.id, true)) {
+            closeSessionPane();
+            setStatus(`"${session.name}" marked complete.`);
+            render();
+          }
+        },
+      }));
+    }
     sessionActionsEl.appendChild(el('button', {
       class: 'btn sm', type: 'button', text: 'Rename',
       onClick: () => {
