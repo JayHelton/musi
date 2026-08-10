@@ -654,6 +654,8 @@ body:not(.hold-rec-relevant) #hold-rec-btn {
 
 /* ---- Mobile list/editor nav ---- */
 @media (max-width: 768px) {
+  .mobile-master-detail .md-list,
+  .mobile-master-detail .md-editor { width: 100%; min-width: 0; box-sizing: border-box; }
   .mobile-master-detail.nav-list .md-editor { display: none !important; }
   .mobile-master-detail.nav-editor .md-list { display: none !important; }
   .mobile-master-detail.nav-editor .md-editor { display: flex !important; flex-direction: column; min-height: 60vh; }
