@@ -20,7 +20,8 @@ import {
 } from './gpExerciseScore.js';
 
 export const BULK_MAX_FILE_BYTES = 250 * 1024 * 1024;
-export const BULK_ACCEPT_ATTR = [
+/** Shared accept list for single-file and bulk exercise uploads. */
+export const UPLOAD_ACCEPT_ATTR = [
   'application/pdf,.pdf',
   '.doc,.docx,.txt,.rtf,.odt,.md,.pages,.csv',
   'application/msword',
@@ -35,6 +36,7 @@ export const BULK_ACCEPT_ATTR = [
   '.gp,.gp3,.gp4,.gp5,.gpx,application/x-guitar-pro',
   '.musi-tab.json,application/x-musi-tab-model',
 ].join(',');
+export const BULK_ACCEPT_ATTR = UPLOAD_ACCEPT_ATTR;
 export const BULK_UNSUPPORTED_MSG = 'Only PDF, documents (doc, docx, txt, rtf, odt, md, pages, csv), images, audio, video, and Guitar Pro (.gp/.gp5) files up to 250 MB can be uploaded.';
 
 const NAME_LIMIT = 120;
@@ -54,14 +56,28 @@ function isImageProbe(probe) {
     || /^(png|jpe?g|gif|webp|bmp|svg)$/.test(fileExt(probe));
 }
 
+function isAmbiguousAvExt(ext) {
+  return ext === 'ogg' || ext === 'oga' || ext === 'webm';
+}
+
 function isAudioProbe(probe) {
-  return (typeof probe.type === 'string' && probe.type.startsWith('audio/'))
-    || /^(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm)$/.test(fileExt(probe));
+  const t = probe.type || '';
+  if (t.startsWith('video/')) return false;
+  if (t.startsWith('audio/')) return true;
+  const ext = fileExt(probe);
+  if (/^(mp3|m4a|aac|wav|opus|flac)$/.test(ext)) return true;
+  if (isAmbiguousAvExt(ext)) return !t || t.startsWith('audio/');
+  return false;
 }
 
 function isVideoProbe(probe) {
-  return (typeof probe.type === 'string' && probe.type.startsWith('video/'))
-    || /^(mp4|m4v|mov|webm|ogv|ogg)$/.test(fileExt(probe));
+  const t = probe.type || '';
+  if (t.startsWith('audio/')) return false;
+  if (t.startsWith('video/')) return true;
+  const ext = fileExt(probe);
+  if (/^(mp4|m4v|mov|ogv)$/.test(ext)) return true;
+  if (isAmbiguousAvExt(ext)) return t.startsWith('video/');
+  return false;
 }
 
 function isTabModelProbe(probe) {

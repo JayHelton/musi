@@ -27,8 +27,9 @@ import {
   gpResultFromTabModelJson,
   isSegmentExercise,
 } from './gpExerciseScore.js';
-import { BULK_ACCEPT_ATTR } from './exercisesBulk.js';
+import { BULK_ACCEPT_ATTR, UPLOAD_ACCEPT_ATTR, classifyUploadFile } from './exercisesBulk.js';
 import { openBulkUploadDialog, closeBulkUploadDialog } from './exercisesBulkUI.js';
+import { mountExerciseTakePanel } from './exerciseTakePanel.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -113,6 +114,28 @@ function normalizeCategory(raw) {
   return { id, name };
 }
 
+const MAX_TAKES = 50;
+
+function normalizeTake(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = typeof raw.id === 'string' && raw.id ? raw.id : '';
+  const attachmentId = typeof raw.attachmentId === 'string' && raw.attachmentId ? raw.attachmentId : '';
+  if (!id || !attachmentId) return null;
+  return {
+    id,
+    attachmentId,
+    name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Take', NAME_LIMIT),
+    type: typeof raw.type === 'string' ? raw.type : '',
+    durationMs: Number.isFinite(Number(raw.durationMs)) ? Math.max(0, Math.floor(Number(raw.durationMs))) : 0,
+    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : nowISO(),
+  };
+}
+
+function normalizeTakes(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeTake).filter(Boolean).slice(0, MAX_TAKES);
+}
+
 function normalizeItem(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const attachmentId = typeof raw.attachmentId === 'string' && raw.attachmentId ? raw.attachmentId : '';
@@ -153,7 +176,12 @@ function normalizeItem(raw) {
     transpose: Number.isFinite(Number(raw.transpose)) ? Math.round(Number(raw.transpose)) : 0,
     tuning: typeof raw.tuning === 'string' && raw.tuning ? raw.tuning : null,
     retuneMode: raw.retuneMode === 'pitches' ? 'pitches' : 'fingerings',
+    takes: normalizeTakes(raw.takes),
   };
+}
+
+export function normalizeExerciseItem(raw) {
+  return normalizeItem(raw);
 }
 
 function defaultStore() {
@@ -355,7 +383,20 @@ function moveExercise(id, categoryId) {
 
 function attachmentStillReferenced(attachmentId) {
   if (!attachmentId) return false;
-  return getStore().items.some(it => it.attachmentId === attachmentId);
+  return getStore().items.some((it) => {
+    if (it.attachmentId === attachmentId) return true;
+    return (it.takes || []).some((t) => t.attachmentId === attachmentId);
+  });
+}
+
+async function releaseAttachmentsForItem(item) {
+  if (!item) return;
+  const ids = new Set();
+  if (item.attachmentId) ids.add(item.attachmentId);
+  (item.takes || []).forEach((t) => { if (t.attachmentId) ids.add(t.attachmentId); });
+  for (const attachmentId of ids) {
+    try { await releaseAttachment(attachmentId); } catch (e) { /* keep releasing */ }
+  }
 }
 
 async function releaseAttachment(attachmentId) {
@@ -370,8 +411,8 @@ async function deleteExercise(id) {
   if (idx < 0) return false;
   const [removed] = store.items.splice(idx, 1);
   persist();
-  if (removed && removed.attachmentId) {
-    await releaseAttachment(removed.attachmentId);
+  if (removed) {
+    await releaseAttachmentsForItem(removed);
   }
   if (wired) render();
   return true;
@@ -391,7 +432,11 @@ async function deleteExercises(ids) {
   });
   if (!removed.length) return 0;
   persist();
-  const attachmentIds = [...new Set(removed.map(it => it.attachmentId).filter(Boolean))];
+  const attachmentIds = new Set();
+  removed.forEach((it) => {
+    if (it.attachmentId) attachmentIds.add(it.attachmentId);
+    (it.takes || []).forEach((t) => { if (t.attachmentId) attachmentIds.add(t.attachmentId); });
+  });
   for (const attachmentId of attachmentIds) {
     try {
       await releaseAttachment(attachmentId);
@@ -445,18 +490,30 @@ function isImageItem(item) {
   );
 }
 
+function isAmbiguousAvExt(ext) {
+  return ext === 'ogg' || ext === 'oga' || ext === 'webm';
+}
+
 function isAudioItem(item) {
-  return !!item && (
-    (typeof item.type === 'string' && item.type.startsWith('audio/')) ||
-    /^(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm)$/.test(fileExt(item))
-  );
+  if (!item) return false;
+  const t = item.type || '';
+  if (t.startsWith('video/')) return false;
+  if (t.startsWith('audio/')) return true;
+  const ext = fileExt(item);
+  if (/^(mp3|m4a|aac|wav|opus|flac)$/.test(ext)) return true;
+  if (isAmbiguousAvExt(ext)) return !t || t.startsWith('audio/');
+  return false;
 }
 
 function isVideoItem(item) {
-  return !!item && (
-    (typeof item.type === 'string' && item.type.startsWith('video/')) ||
-    /^(mp4|m4v|mov|webm|ogv|ogg)$/.test(fileExt(item))
-  );
+  if (!item) return false;
+  const t = item.type || '';
+  if (t.startsWith('audio/')) return false;
+  if (t.startsWith('video/')) return true;
+  const ext = fileExt(item);
+  if (/^(mp4|m4v|mov|ogv)$/.test(ext)) return true;
+  if (isAmbiguousAvExt(ext)) return t.startsWith('video/');
+  return false;
 }
 
 export function isTabModelItem(item) {
@@ -588,6 +645,7 @@ let sectionEl, workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerAct
 let activeExerciseId = null;
 let viewerURL = null;
 let viewerGpMount = null;
+let viewerTakePanel = null;
 let escapeWired = false;
 let openGeneration = 0;
 
@@ -1193,19 +1251,14 @@ async function onUploadFiles() {
   let added = 0;
   let rejected = 0;
   for (const file of files) {
-    const probe = { type: file.type || '', fileName: file.name };
-    const isSupported = isPdfItem(probe) || isDocItem(probe) || isImageItem(probe)
-      || isAudioItem(probe) || isVideoItem(probe) || isGpItem(probe);
-    if (!isSupported) { rejected++; continue; }
+    const classified = classifyUploadFile(file);
+    if (!classified.supported) { rejected++; continue; }
     if (file.size > MAX_FILE_BYTES) { rejected++; continue; }
 
     setStatus(`Uploading "${file.name}"\u2026`);
     const dot = file.name.lastIndexOf('.');
     const base = dot > 0 ? file.name.slice(0, dot) : file.name;
-    const fileType = file.type
-      || (isPdfItem(probe) ? 'application/pdf' : '')
-      || (isGpItem(probe) ? 'application/x-guitar-pro' : '')
-      || docMimeFromExt(fileExt(probe));
+    const fileType = classified.mimeType || file.type || '';
     const meta = await saveFile({
       blob: file, name: base || 'Exercise', type: fileType,
       fileName: file.name, size: file.size, source: 'exercise',
@@ -1222,6 +1275,7 @@ async function onUploadFiles() {
       type: fileType,
       size: file.size,
       addedAt: nowISO(),
+      takes: [],
     });
     persist();
     added++;
@@ -1522,7 +1576,12 @@ function mountPlayerBody(item, kind, blob) {
       }));
     } else if (kind === 'video') {
       playerBodyEl.appendChild(el('video', {
-        class: 'ex-player-media', src: viewerURL, controls: '', preload: 'metadata',
+        class: 'ex-player-media ex-player-video',
+        src: viewerURL,
+        controls: '',
+        playsinline: '',
+        'webkit-playsinline': '',
+        preload: 'metadata',
       }));
     } else if (kind === 'doc' && !isInlineDocItem(item)) {
       mountDocFallbackCard(item);
@@ -1594,7 +1653,63 @@ async function mountGpExercise(item, mountHost, blob) {
   }
 }
 
+function persistExerciseTakes(exerciseId, takes) {
+  const item = getExercise(exerciseId);
+  if (!item) return false;
+  item.takes = normalizeTakes(takes);
+  persist();
+  return true;
+}
+
+async function addExerciseTake(exerciseId, take) {
+  const item = getExercise(exerciseId);
+  if (!item || !take) return false;
+  const next = normalizeTakes([...(item.takes || []), take]);
+  return persistExerciseTakes(exerciseId, next);
+}
+
+async function deleteExerciseTake(exerciseId, takeId) {
+  const item = getExercise(exerciseId);
+  if (!item) return false;
+  const removed = (item.takes || []).find((t) => t.id === takeId);
+  const next = (item.takes || []).filter((t) => t.id !== takeId);
+  if (!persistExerciseTakes(exerciseId, next)) return false;
+  if (removed?.attachmentId) await releaseAttachment(removed.attachmentId);
+  return true;
+}
+
+async function renameExerciseTake(exerciseId, takeId, name) {
+  const item = getExercise(exerciseId);
+  if (!item) return false;
+  const clean = clampText((name || '').trim(), NAME_LIMIT) || 'Take';
+  const next = (item.takes || []).map((t) => (t.id === takeId ? { ...t, name: clean } : t));
+  if (!persistExerciseTakes(exerciseId, next)) return false;
+  const take = next.find((t) => t.id === takeId);
+  if (take?.attachmentId) renameFile(take.attachmentId, clean).catch(() => {});
+  return true;
+}
+
+function teardownTakePanel() {
+  if (viewerTakePanel) {
+    try { viewerTakePanel.destroy(); } catch (e) { /* ignore */ }
+    viewerTakePanel = null;
+  }
+}
+
+function mountTakePanel(item) {
+  teardownTakePanel();
+  if (!playerPaneEl || !item) return;
+  viewerTakePanel = mountExerciseTakePanel(playerPaneEl, {
+    exerciseId: item.id,
+    getTakes: () => getExercise(item.id)?.takes || [],
+    onSaveTake: (take) => addExerciseTake(item.id, take),
+    onDeleteTake: (takeId) => deleteExerciseTake(item.id, takeId),
+    onRenameTake: (takeId, name) => renameExerciseTake(item.id, takeId, name),
+  });
+}
+
 function teardownPlayer() {
+  teardownTakePanel();
   if (viewerGpMount) {
     try { viewerGpMount.destroy(); } catch (e) { /* ignore */ }
     viewerGpMount = null;
@@ -1635,6 +1750,7 @@ export async function openExerciseViewer(id) {
   playerPaneEl.hidden = false;
   fillPlayerHead(item, kind, blob);
   const gpMount = mountPlayerBody(item, kind, blob);
+  mountTakePanel(item);
   applyActiveRowHighlight();
 
   if (gpMount) {
@@ -1896,7 +2012,10 @@ export function initExercises() {
       bulkFileInput.addEventListener('change', onBulkUploadFiles);
     }
     if (addLinkBtn) addLinkBtn.onclick = openLinkDialog;
-    if (fileInput) fileInput.addEventListener('change', onUploadFiles);
+    if (fileInput) {
+      fileInput.setAttribute('accept', UPLOAD_ACCEPT_ATTR);
+      fileInput.addEventListener('change', onUploadFiles);
+    }
     if (addCatForm) {
       addCatForm.addEventListener('submit', (e) => {
         e.preventDefault();

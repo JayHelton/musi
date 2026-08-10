@@ -16,7 +16,6 @@ globalThis.localStorage = {
   clear() { storage.clear(); },
 };
 
-let importCounter = 0;
 
 function linkItem({ id, name, categoryId = '' }) {
   return {
@@ -38,9 +37,9 @@ function seedStore({ categories = [], items = [] } = {}) {
 }
 
 async function loadExercises() {
-  importCounter += 1;
-  const url = new URL(`../../js/exercises.js?folder-delete=${importCounter}`, import.meta.url);
-  return import(url.href);
+  const mod = await import('../../js/exercises.js');
+  mod.invalidateExercisesCache?.();
+  return mod;
 }
 
 async function test(name, fn) {
