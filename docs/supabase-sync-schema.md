@@ -1,0 +1,908 @@
+# Cloud Sync — Database & Infrastructure Reference
+
+Supabase-side schema, storage, Realtime, Edge Function, Terraform, and CI for
+optional Musi cloud sync. Master scope lives in
+[`docs/supabase-sync-plan.md`](supabase-sync-plan.md); client design in
+[`docs/supabase-sync-client.md`](supabase-sync-client.md).
+
+**This document covers only Supabase-side infrastructure. No part of it deploys,
+builds, or hosts the Musi PWA** — the app continues to ship as static files from
+its existing static host.
+
+---
+
+## File layout
+
+```
+supabase/
+├── config.toml
+├── schemas/
+│   ├── 010_extensions.sql
+│   ├── 020_sync_tables.sql
+│   ├── 030_sync_functions.sql
+│   └── 040_sync_indexes.sql
+├── migrations/
+├── tests/
+├── functions/account/index.ts
+└── seed.sql
+infra/terraform/          # main.tf, variables.tf, *.tfvars, README.md
+.github/workflows/        # supabase-verify.yml, supabase-staging.yml, supabase-production.yml
+```
+
+| Path | Purpose | Commit? |
+| ---- | ------- | ------- |
+| `supabase/config.toml` | Auth, storage buckets, remotes, `schema_paths` | Yes |
+| `supabase/schemas/*.sql` | Declarative DDL for diff engine | Yes |
+| `supabase/migrations/*.sql` | Generated + hand-written apply chain | Yes |
+| `supabase/tests/*.sql` | pgTAP (`supabase test db`) | Yes |
+| `supabase/functions/account/index.ts` | Account delete + export | Yes |
+| `infra/terraform/*` | Staging + production projects | Yes |
+| `.github/workflows/supabase-*.yml` | CI/CD (DB, auth, storage, functions) | Yes |
+| `*.tfvars`, `.env` with secrets | Tokens, passwords, SMTP | **No** |
+
+---
+
+## Schema files vs hand-written migrations
+
+`supabase db diff` compares **`supabase/schemas/` against existing migrations**,
+not the live database. Studio/`psql` edits are invisible. Loop: edit schemas →
+`supabase db diff -f <name>` → review → `supabase db reset` → commit schema +
+migration together.
+
+**Call out prominently:** the diff engine does not reliably track **RLS
+policies, grants/privileges, comments, publications, and DML**. Structure the
+repo accordingly — schema files for tables/indexes/functions; hand-written
+migrations for policies, grants, cron, publication changes. Keep all policy SQL
+checked in and reviewable.
+
+| Object type | Lives in | Why |
+| ----------- | -------- | --- |
+| Tables, indexes, FKs, checks | `schemas/*.sql` → diff | Diff handles DDL |
+| Functions, triggers | `schemas/*.sql` → diff | Verify generated SQL |
+| **RLS policies** | Hand-written migrations | Diff weak spot |
+| **`revoke` / `grant`** | Hand-written migrations | Diff weak spot |
+| **Comments, publications** | Hand-written migrations | Diff weak spot |
+| **pg_cron schedules** | Hand-written migrations | DML / extension |
+| `realtime.messages` RLS | Hand-written migrations | Extension coupling |
+| `storage.objects` policies | Hand-written migrations | Outside schemas path |
+| Bucket creation on remote | `supabase seed buckets --linked` | `db push` skips buckets |
+
+Pin order via `[db.migrations] schema_paths = [...]` in `config.toml` when needed.
+
+---
+
+## Tables
+
+### `sync_records`
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `user_id` | `uuid` | FK → `auth.users`, cascade delete |
+| `domain` | `text` | Check-constrained sync domain |
+| `record_id` | `text` | Entity id (`note-*`, settings key, `att:<id>`, …) |
+| `payload` | `jsonb` | Opaque client document; not on Realtime wire |
+| `deleted` | `boolean` | Tombstone (hard-deleted after 90 days) |
+| `updated_at` | `timestamptz` | Trigger-maintained |
+| `device_id` | `text` | Originating device |
+| `content_hash` | `text` | Client idempotency / conflict hint |
+| `rev` | `bigserial` | Global monotonic pull cursor |
+
+**`rev`:** single pull cursor per user (`rev > :cursor order by rev`). Inserts use
+the `bigserial` default; a `before update` trigger calls `nextval` on every update.
+
+**`user_id`:** defaults to `auth.uid()` so the client never sends it. The RLS
+`with check` clause rejects any row whose `user_id` is not the caller, making a
+spoofed value a hard failure rather than a silent cross-tenant write.
+
+**`payload`:** `jsonb` holds domain-native JSON from `localStorage` /
+IndexedDB metadata — server enforces size/ownership, not structure.
+
+### `sync_devices`
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `user_id`, `device_id` | `uuid`, `text` | PK `(user_id, device_id)` |
+| `name`, `platform`, `app_version` | `text` | Diagnostics |
+| `last_seen_at` | `timestamptz` | Heartbeat |
+| `last_pulled_rev` | `bigint` | Optional server hint |
+| `created_at` | `timestamptz` | First registration |
+
+### `sync_blobs`
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `user_id`, `attachment_id` | `uuid`, `text` | PK; `attachment_id` like `att-%` |
+| `crc32`, `size_bytes` | `text`, `bigint` | Dedupe with `js/sync/syncBundle.js` |
+| `mime_type` | `text` | MIME |
+| `storage_path` | `text` | `{user_id}/{attachment_id}` |
+| `deleted`, `updated_at`, `rev` | | Tombstone metadata; `rev` uses `bigserial` on insert, `before update` trigger on change |
+
+### `sync_watermarks`
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `user_id` | `uuid` | PK |
+| `purged_through_rev` | `bigint` | Highest `rev` hard-deleted by purge; cursor at or below → full resync |
+| `max_rev` | `bigint` | Current max live `rev` among surviving rows |
+| `updated_at` | `timestamptz` | Purge job maintains |
+
+```sql
+-- supabase/schemas/020_sync_tables.sql
+
+create table public.sync_records (
+  user_id       uuid        not null default auth.uid() references auth.users (id) on delete cascade,
+  domain        text        not null,
+  record_id     text        not null,
+  payload       jsonb       not null default '{}'::jsonb,
+  deleted       boolean     not null default false,
+  updated_at    timestamptz not null default now(),
+  device_id     text        not null,
+  content_hash  text        not null,
+  rev           bigserial   not null,
+  constraint sync_records_pkey primary key (user_id, domain, record_id),
+  constraint sync_records_domain_check check (domain in (
+    'settings','progress','notes','songs','exercises','exerciseCategories',
+    'workbooks','workbookFolders','routines','gpAnnotations','drumPatterns',
+    'attachmentsMeta')),
+  constraint sync_records_record_id_nonempty check (char_length(record_id) > 0),
+  constraint sync_records_device_id_nonempty check (char_length(device_id) > 0)
+);
+
+create index sync_records_user_rev_idx on public.sync_records (user_id, rev);
+create index sync_records_user_domain_rev_idx on public.sync_records (user_id, domain, rev);
+
+create table public.sync_devices (
+  user_id          uuid        not null default auth.uid() references auth.users (id) on delete cascade,
+  device_id        text        not null,
+  name             text,
+  platform         text,
+  app_version      text,
+  last_seen_at     timestamptz not null default now(),
+  last_pulled_rev  bigint      not null default 0,
+  created_at       timestamptz not null default now(),
+  constraint sync_devices_pkey primary key (user_id, device_id),
+  constraint sync_devices_device_id_nonempty check (char_length(device_id) > 0)
+);
+
+create index sync_devices_user_last_seen_idx on public.sync_devices (user_id, last_seen_at desc);
+
+create table public.sync_blobs (
+  user_id        uuid        not null default auth.uid() references auth.users (id) on delete cascade,
+  attachment_id  text        not null,
+  crc32          text        not null,
+  size_bytes     bigint      not null,
+  mime_type      text,
+  storage_path   text        not null,
+  deleted        boolean     not null default false,
+  updated_at     timestamptz not null default now(),
+  rev            bigserial   not null,
+  constraint sync_blobs_pkey primary key (user_id, attachment_id),
+  constraint sync_blobs_attachment_id_prefix check (attachment_id like 'att-%'),
+  constraint sync_blobs_size_positive check (size_bytes > 0)
+);
+
+create index sync_blobs_user_rev_idx on public.sync_blobs (user_id, rev);
+create index sync_blobs_user_crc32_size_idx on public.sync_blobs (user_id, crc32, size_bytes)
+  where deleted = false;
+
+create table public.sync_watermarks (
+  user_id            uuid        primary key references auth.users (id) on delete cascade,
+  purged_through_rev bigint      not null default 0,
+  max_rev            bigint,
+  updated_at         timestamptz not null default now()
+);
+
+-- supabase/schemas/030_sync_functions.sql (table maintenance)
+
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql set search_path = public as $$
+begin new.updated_at := now(); return new; end; $$;
+
+create trigger sync_records_touch_updated_at before update on public.sync_records
+  for each row execute function public.touch_updated_at();
+create trigger sync_blobs_touch_updated_at before update on public.sync_blobs
+  for each row execute function public.touch_updated_at();
+
+create or replace function public.sync_records_assign_rev()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.rev := nextval(pg_get_serial_sequence('public.sync_records', 'rev'));
+  return new;
+end; $$;
+
+create trigger sync_records_assign_rev before update on public.sync_records
+  for each row execute function public.sync_records_assign_rev();
+
+create or replace function public.sync_blobs_assign_rev()
+returns trigger language plpgsql set search_path = public as $$
+begin new.rev := nextval(pg_get_serial_sequence('public.sync_blobs', 'rev')); return new; end; $$;
+create trigger sync_blobs_assign_rev before update on public.sync_blobs
+  for each row execute function public.sync_blobs_assign_rev();
+```
+
+---
+
+## Row Level Security
+
+Hand-written migration. `(select auth.uid())` form for InitPlan caching.
+**`anon` gets nothing** — no policies, no grants.
+
+```sql
+-- supabase/migrations/20260102000000_sync_rls.sql
+
+alter table public.sync_records enable row level security;
+alter table public.sync_records force row level security;
+revoke all on public.sync_records from anon, authenticated;
+grant select, insert, update, delete on public.sync_records to authenticated;
+create policy sync_records_select_own on public.sync_records for select to authenticated
+  using (user_id = (select auth.uid()));
+create policy sync_records_insert_own on public.sync_records for insert to authenticated
+  with check (user_id = (select auth.uid()));
+create policy sync_records_update_own on public.sync_records for update to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy sync_records_delete_own on public.sync_records for delete to authenticated
+  using (user_id = (select auth.uid()));
+
+alter table public.sync_devices enable row level security;
+alter table public.sync_devices force row level security;
+revoke all on public.sync_devices from anon, authenticated;
+grant select, insert, update, delete on public.sync_devices to authenticated;
+create policy sync_devices_select_own on public.sync_devices for select to authenticated
+  using (user_id = (select auth.uid()));
+create policy sync_devices_insert_own on public.sync_devices for insert to authenticated
+  with check (user_id = (select auth.uid()));
+create policy sync_devices_update_own on public.sync_devices for update to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy sync_devices_delete_own on public.sync_devices for delete to authenticated
+  using (user_id = (select auth.uid()));
+
+alter table public.sync_blobs enable row level security;
+alter table public.sync_blobs force row level security;
+revoke all on public.sync_blobs from anon, authenticated;
+grant select, insert, update, delete on public.sync_blobs to authenticated;
+create policy sync_blobs_select_own on public.sync_blobs for select to authenticated
+  using (user_id = (select auth.uid()));
+create policy sync_blobs_insert_own on public.sync_blobs for insert to authenticated
+  with check (user_id = (select auth.uid()));
+create policy sync_blobs_update_own on public.sync_blobs for update to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy sync_blobs_delete_own on public.sync_blobs for delete to authenticated
+  using (user_id = (select auth.uid()));
+
+alter table public.sync_watermarks enable row level security;
+alter table public.sync_watermarks force row level security;
+revoke all on public.sync_watermarks from anon, authenticated;
+grant select on public.sync_watermarks to authenticated;
+create policy sync_watermarks_select_own on public.sync_watermarks for select to authenticated
+  using (user_id = (select auth.uid()));
+```
+
+| Policy | Command | Predicate | Intent |
+| ------ | ------- | --------- | ------ |
+| `sync_records_*_own` | CRUD | `user_id = auth.uid()` | Owner-only sync rows |
+| `sync_devices_*_own` | CRUD | same | Device registry |
+| `sync_blobs_*_own` | CRUD | same | Attachment metadata |
+| `sync_watermarks_select_own` | `SELECT` | same | Read `purged_through_rev` for resync |
+| *(none for `anon`)* | — | — | Zero access |
+
+---
+
+## Realtime fan-out
+
+Broadcast from Database (not Postgres Changes). `SECURITY DEFINER` with explicit
+`search_path = public, realtime`. Broadcast copies **strip `payload` from new and
+old records**; clients pull bodies by `rev` cursor.
+
+```sql
+create or replace function public.broadcast_sync_record_change()
+returns trigger language plpgsql security definer set search_path = public, realtime as $$
+declare
+  broadcast_new public.sync_records;
+  broadcast_old public.sync_records;
+begin
+  broadcast_new := new;
+  broadcast_new.payload := '{}'::jsonb;
+  broadcast_old := null;
+  if tg_op = 'UPDATE' then
+    broadcast_old := old;
+    broadcast_old.payload := '{}'::jsonb;
+  end if;
+  perform realtime.broadcast_changes(
+    'sync:' || new.user_id::text, tg_op, tg_op, tg_table_name, tg_table_schema,
+    broadcast_new, broadcast_old);
+  return new;
+end; $$;
+
+create trigger sync_records_broadcast after insert or update on public.sync_records
+  for each row execute function public.broadcast_sync_record_change();
+
+-- supabase/migrations/20260102000001_realtime_messages_rls.sql
+create policy realtime_sync_receive on realtime.messages for select to authenticated
+  using (topic = 'sync:' || (select auth.uid())::text);
+create policy realtime_sync_send on realtime.messages for insert to authenticated
+  with check (topic = 'sync:' || (select auth.uid())::text);
+```
+
+| Broadcast field | Source | Notes |
+| --------------- | ------ | ----- |
+| `domain` | `sync_records.domain` | Route pull |
+| `record_id` | `sync_records.record_id` | Entity key |
+| `rev` | `sync_records.rev` | Advance cursor |
+| `deleted` | `sync_records.deleted` | Tombstone hint |
+| `device_id` | `sync_records.device_id` | Echo suppression |
+| `payload` | — | **Omitted** (empty in broadcast copy only) |
+
+---
+
+## Storage
+
+Private bucket `attachments`; path `{user_id}/{attachment_id}`. `sync_blobs` +
+CRC32 dedupe index metadata; bytes in Storage. **Create bucket:**
+`supabase seed buckets --linked` (`db push` does not create buckets from
+`config.toml`).
+
+```sql
+-- supabase/migrations/20260102000002_storage_objects_rls.sql
+create policy attachments_select_own on storage.objects for select to authenticated
+  using (bucket_id = 'attachments' and (storage.foldername(name))[1] = (select auth.uid())::text);
+create policy attachments_insert_own on storage.objects for insert to authenticated
+  with check (bucket_id = 'attachments' and (storage.foldername(name))[1] = (select auth.uid())::text);
+create policy attachments_update_own on storage.objects for update to authenticated
+  using (bucket_id = 'attachments' and (storage.foldername(name))[1] = (select auth.uid())::text)
+  with check (bucket_id = 'attachments' and (storage.foldername(name))[1] = (select auth.uid())::text);
+create policy attachments_delete_own on storage.objects for delete to authenticated
+  using (bucket_id = 'attachments' and (storage.foldername(name))[1] = (select auth.uid())::text);
+```
+
+---
+
+## Quotas, retention, and abuse limits
+
+| Limit | Value | Enforced by | Client error |
+| ----- | ----- | ----------- | ------------ |
+| Payload size | ≈256 KB | `pg_column_size` trigger | `sync_payload_too_large` (`P0001`) |
+| Rows per user | 50 000 | `BEFORE INSERT` count | `sync_row_cap_exceeded` (`P0001`) |
+| Storage bytes/user | 2 GB (tunable) | `sync_blobs` insert trigger | `sync_storage_cap_exceeded` (`P0001`) |
+| Tombstone retention | 90 days | `pg_cron` hard delete | See resync signal |
+| File size | 250 MB | Storage `file_size_limit` | Storage API error |
+
+```sql
+create or replace function public.enforce_sync_payload_size()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if pg_column_size(new.payload) > 256 * 1024 then
+    raise exception 'sync_payload_too_large' using errcode = 'P0001';
+  end if;
+  return new;
+end; $$;
+create trigger sync_records_payload_size before insert or update on public.sync_records
+  for each row execute function public.enforce_sync_payload_size();
+
+create or replace function public.enforce_sync_row_cap()
+returns trigger language plpgsql set search_path = public as $$
+declare row_count bigint;
+begin
+  select count(*) into row_count from public.sync_records where user_id = new.user_id;
+  if row_count >= 50000 then raise exception 'sync_row_cap_exceeded' using errcode = 'P0001'; end if;
+  return new;
+end; $$;
+create trigger sync_records_row_cap before insert on public.sync_records
+  for each row execute function public.enforce_sync_row_cap();
+
+create or replace function public.enforce_sync_storage_cap()
+returns trigger language plpgsql set search_path = public as $$
+declare total_bytes bigint;
+begin
+  select coalesce(sum(size_bytes),0) into total_bytes from public.sync_blobs
+    where user_id = new.user_id and deleted = false;
+  if total_bytes + new.size_bytes > 2147483648 then
+    raise exception 'sync_storage_cap_exceeded' using errcode = 'P0001';
+  end if;
+  return new;
+end; $$;
+create trigger sync_blobs_storage_cap before insert on public.sync_blobs
+  for each row execute function public.enforce_sync_storage_cap();
+```
+
+**Full resync:** `purged_through_rev` is the highest `rev` among rows the purge
+job deleted; if `p_cursor` is at or below it, call `sync_bounds(p_cursor)` and
+respect `full_resync_required` (reset cursor, re-pull or re-upload).
+
+```sql
+create or replace function public.sync_bounds(p_cursor bigint default 0)
+returns table (purged_through_rev bigint, max_rev bigint, full_resync_required boolean)
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := (select auth.uid()); wm public.sync_watermarks;
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  select * into wm from public.sync_watermarks where user_id = uid;
+  if not found then
+    purged_through_rev := 0;
+    max_rev := coalesce((select max(rev) from public.sync_records where user_id = uid), 0);
+  else
+    purged_through_rev := wm.purged_through_rev; max_rev := coalesce(wm.max_rev, 0);
+  end if;
+  full_resync_required := purged_through_rev > 0 and p_cursor <= purged_through_rev;
+  return next;
+end; $$;
+revoke all on function public.sync_bounds(bigint) from public;
+grant execute on function public.sync_bounds(bigint) to authenticated;
+
+-- pg_cron (hand-written migration; extension in 010_extensions.sql). One SQL batch — idempotent.
+select cron.schedule('purge_sync_tombstones', '0 4 * * *', $$
+  with deleted_records as (
+    delete from public.sync_records where deleted and updated_at < now() - interval '90 days'
+    returning user_id, rev
+  ), deleted_blobs as (
+    delete from public.sync_blobs where deleted and updated_at < now() - interval '90 days'
+    returning user_id, rev
+  ), deleted as (
+    select user_id, rev from deleted_records union all select user_id, rev from deleted_blobs
+  ), boundary as (select user_id, max(rev) as purged_rev from deleted group by user_id),
+  live_max as (select user_id, max(rev) as max_rev from public.sync_records group by user_id),
+  affected as (select user_id from boundary union select user_id from live_max)
+  insert into public.sync_watermarks (user_id, purged_through_rev, max_rev, updated_at)
+  select a.user_id, greatest(coalesce(w.purged_through_rev, 0), coalesce(b.purged_rev, 0)), lm.max_rev, now()
+  from affected a
+  left join boundary b on b.user_id = a.user_id
+  left join live_max lm on lm.user_id = a.user_id
+  left join public.sync_watermarks w on w.user_id = a.user_id
+  on conflict (user_id) do update set
+    purged_through_rev = greatest(sync_watermarks.purged_through_rev, excluded.purged_through_rev),
+    max_rev = excluded.max_rev, updated_at = now();
+$$);
+```
+
+Pass `last_pulled_rev` as `p_cursor`; when `full_resync_required` is true, reset
+the local cursor and re-sync from scratch.
+
+---
+
+## RPCs and the one Edge Function
+
+### `public.purge_my_sync_data()`
+
+Removes cloud copy; keeps `auth.users`. `SECURITY DEFINER`, `search_path =
+public, storage`.
+
+```sql
+create or replace function public.purge_my_sync_data() returns void
+language plpgsql security definer set search_path = public, storage as $$
+declare uid uuid := (select auth.uid());
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  delete from public.sync_records where user_id = uid;
+  delete from public.sync_devices where user_id = uid;
+  delete from public.sync_blobs where user_id = uid;
+  delete from public.sync_watermarks where user_id = uid;
+  delete from storage.objects where bucket_id = 'attachments'
+    and (storage.foldername(name))[1] = uid::text;
+end; $$;
+revoke all on function public.purge_my_sync_data() from public;
+grant execute on function public.purge_my_sync_data() to authenticated;
+```
+
+### Edge Function `account`
+
+| | |
+| - | - |
+| Path | `supabase/functions/account/index.ts` |
+| `verify_jwt` | `true` |
+| Credentials | Service role (server-side only) |
+
+**Delete account:** JWT `sub` → purge sync + storage → `auth.admin.deleteUser`.
+**Export:** JWT → JSON of `sync_records` + signed URLs / manifest for blobs.
+Needs service role for Admin API and cross-schema deletes. **Never accept from
+client:** `user_id` override, service role key, arbitrary SQL.
+
+```typescript
+// Illustrative sketch — not production-ready
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+Deno.serve(async (req) => {
+  const auth = req.headers.get('Authorization');
+  if (!auth) return new Response('Unauthorized', { status: 401 });
+  const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: auth } } });
+  const { data: { user } } = await userClient.auth.getUser();
+  if (!user) return new Response('Unauthorized', { status: 401 });
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const path = new URL(req.url).pathname;
+  if (path.endsWith('/delete') && req.method === 'POST') {
+    /* purge + admin.auth.admin.deleteUser(user.id) */ return Response.json({ ok: true });
+  }
+  if (path.endsWith('/export') && req.method === 'POST') {
+    /* export rows for user.id */ return Response.json({ ok: true, exportUrl: '…' });
+  }
+  return new Response('Not found', { status: 404 });
+});
+```
+
+All other sync operations: client → PostgREST/Storage under RLS.
+
+---
+
+## config.toml
+
+Secrets via `env(...)` or dashboard — never commit real values.
+
+```toml
+project_id = "local"  # overridden by supabase link
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]  # match linked project defaults
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17  # must match the linked Supabase project's Postgres major version
+
+[db.migrations]
+schema_paths = ["./schemas/010_extensions.sql","./schemas/020_sync_tables.sql",
+  "./schemas/030_sync_functions.sql","./schemas/040_sync_indexes.sql"]
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+file_size_limit = "250MiB"
+
+[storage.buckets.attachments]
+public = false
+file_size_limit = "250MiB"
+allowed_mime_types = []
+
+[auth]
+enabled = true
+site_url = "https://YOUR_STATIC_HOST.example"  # PWA origin — not Supabase
+additional_redirect_urls = ["https://YOUR_STATIC_HOST.example", "http://localhost:8080"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false   # OTP/magic-link sign-in
+otp_expiry = 3600
+max_frequency = "1s"
+
+[auth.email.smtp]
+enabled = true
+host = "env(SMTP_HOST)"      # SECRET — custom SMTP required in production
+port = 587
+user = "env(SMTP_USER)"      # SECRET
+pass = "env(SMTP_PASS)"      # SECRET
+admin_email = "noreply@YOUR_DOMAIN.example"
+sender_name = "Musi"
+
+[auth.rate_limit]
+email_sent = 4
+sign_in_sign_ups = 30
+token_verifications = 30
+token_refresh = 150
+anonymous_users = 0          # v1: no anonymous auth
+
+[functions.account]
+verify_jwt = true
+
+[inbucket]
+enabled = true
+smtp_port = 54325            # local OTP capture
+
+[remotes.staging]
+project_id = "env(STAGING_PROJECT_ID)"
+
+[remotes.staging.auth]
+site_url = "https://staging.YOUR_STATIC_HOST.example"
+additional_redirect_urls = ["https://staging.YOUR_STATIC_HOST.example", "http://localhost:8080"]
+
+[remotes.production]
+project_id = "env(PRODUCTION_PROJECT_ID)"
+
+[remotes.production.auth]
+site_url = "https://YOUR_STATIC_HOST.example"
+additional_redirect_urls = ["https://YOUR_STATIC_HOST.example"]
+```
+
+Auth v1: passwordless email, 6-digit OTP primary, magic link secondary, PKCE; no
+passwords/OAuth/anonymous.
+
+---
+
+## Terraform
+
+Provider `supabase/supabase` ~> 1.10.x; auth via `SUPABASE_ACCESS_TOKEN`.
+
+```hcl
+terraform {
+  required_providers {
+    supabase = {
+      source  = "supabase/supabase"
+      version = "~> 1.10.0"
+    }
+  }
+  # backend "s3" {} or Terraform Cloud — see infra/terraform/README.md
+}
+provider "supabase" {}
+
+resource "supabase_project" "staging" {
+  organization_id   = var.organization_id
+  name              = "musi-sync-staging"
+  database_password = var.staging_db_password
+  region            = var.region
+}
+resource "supabase_project" "production" {
+  organization_id   = var.organization_id
+  name              = "musi-sync-production"
+  database_password = var.production_db_password
+  region            = var.region
+}
+resource "supabase_settings" "staging" {
+  project_ref = supabase_project.staging.id
+  api   = jsonencode({ db_schema = "public,storage", max_rows = 1000 })
+  auth  = jsonencode({ site_url = var.staging_site_url,
+    additional_redirect_urls = var.staging_redirect_urls, jwt_expiry = 3600 })
+  storage = jsonencode({ file_size_limit = 262144000 })
+}
+resource "supabase_settings" "production" {
+  project_ref = supabase_project.production.id
+  api   = jsonencode({ db_schema = "public,storage", max_rows = 1000 })
+  auth  = jsonencode({ site_url = var.production_site_url,
+    additional_redirect_urls = var.production_redirect_urls, jwt_expiry = 3600 })
+  storage = jsonencode({ file_size_limit = 262144000 })
+}
+```
+
+```hcl
+# variables.tf
+variable "organization_id" { type = string }
+variable "region" {
+  type    = string
+  default = "us-east-1"
+}
+variable "staging_db_password" {
+  type      = string
+  sensitive = true
+}
+variable "production_db_password" {
+  type      = string
+  sensitive = true
+}
+variable "staging_site_url" { type = string }
+variable "production_site_url" { type = string }
+variable "staging_redirect_urls" { type = list(string) }
+variable "production_redirect_urls" { type = list(string) }
+```
+
+```hcl
+# staging.tfvars (placeholders — do not commit secrets)
+organization_id = "your-org-slug"
+region = "us-east-1"
+staging_db_password = "CHANGE_ME"
+staging_site_url = "https://staging.example.com"
+staging_redirect_urls = ["https://staging.example.com", "http://localhost:8080"]
+```
+
+```hcl
+import {
+  to = supabase_project.production
+  id = "abcdefghijklmnop"
+}
+# terraform import supabase_project.production abcdefghijklmnop
+```
+
+| Knob | Terraform | `config.toml` |
+| ---- | --------- | ------------- |
+| Project, region, DB password | Yes | No |
+| `site_url`, redirects | Yes | `[remotes.*.auth]` — keep identical |
+| JWT expiry, signup | Yes | Yes — mirror values |
+| SMTP | Dashboard/env | `[auth.email.smtp]` |
+| DDL, RLS, functions | No | Migrations via `db push` |
+| Buckets | No | `seed buckets --linked` |
+
+`supabase link` diffs local `config.toml` against remote to detect drift. Pick
+one owner per knob to avoid Terraform and `config.toml` fighting.
+
+---
+
+## GitHub Actions
+
+Trunk-based: staging on every `main` push; production gated by Environment
+approval + `workflow_dispatch`.
+
+**These workflows deploy database, auth, storage, and function config only —
+never the Musi PWA.**
+
+```yaml
+# .github/workflows/supabase-verify.yml
+name: Supabase verify
+on:
+  pull_request:
+    paths: ['supabase/**', '.github/workflows/supabase-verify.yml']
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v3
+      - run: supabase start
+      - run: supabase db reset   # start already boots DB; reset reapplies migrations for lint/tests
+      - run: supabase db lint
+      - run: supabase test db
+      - name: Fail on schema drift
+        run: |
+          supabase db diff -f ci_drift_check
+          # Drift = untracked file under supabase/migrations/; empty diff leaves porcelain clean.
+          if [ -n "$(git status --porcelain supabase/migrations)" ]; then
+            echo "::error::schemas drift from migrations"
+            git diff supabase/migrations && exit 1
+          fi
+```
+
+```yaml
+# .github/workflows/supabase-staging.yml
+name: Supabase staging
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**', 'infra/terraform/**', '.github/workflows/supabase-staging.yml']
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+      PROJECT_ID: ${{ secrets.STAGING_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v3
+      - run: supabase link --project-ref "$PROJECT_ID"
+      - run: supabase db push
+      - run: supabase seed buckets --linked
+      - run: supabase functions deploy account --project-ref "$PROJECT_ID"
+```
+
+```yaml
+# .github/workflows/supabase-production.yml
+name: Supabase production
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['supabase/**', '.github/workflows/supabase-production.yml']
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production  # required reviewers
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+      PROJECT_ID: ${{ secrets.PRODUCTION_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v3
+      - run: supabase link --project-ref "$PROJECT_ID"
+      - run: supabase db push
+      - run: supabase seed buckets --linked
+      - run: supabase functions deploy account --project-ref "$PROJECT_ID"
+```
+
+| Secret | Scope | Used by |
+| ------ | ----- | ------- |
+| `SUPABASE_ACCESS_TOKEN` | Org | All workflows, Terraform |
+| `STAGING_PROJECT_ID` | Staging ref | Staging workflow |
+| `PRODUCTION_PROJECT_ID` | Production ref | Production workflow |
+| `STAGING_DB_PASSWORD` | Staging DB | Staging `db push` |
+| `PRODUCTION_DB_PASSWORD` | Production DB | Production `db push` |
+| `SMTP_*` | Auth email | Dashboard / `supabase secrets set` |
+
+---
+
+## pgTAP tests
+
+```bash
+supabase test db
+```
+
+`auth.users` needs version-specific not-null columns — use a user-creation helper
+or the full column set. `supabase test db` rolls back each file's transaction.
+
+Fake JWT: `set local role authenticated; set local request.jwt.claims =
+'{"sub":"<uuid>"}';`
+
+**Checklist:** user A cannot touch user B's `sync_records`; `anon` gets zero
+rows; payload cap raises `sync_payload_too_large`; tombstone purge respects 90
+days; broadcast function exists; `purge_my_sync_data` scoped to caller.
+
+```sql
+-- tests/010_rls_sync_records.sql
+begin; select plan(1);
+insert into auth.users (id, email) values
+  ('11111111-1111-1111-1111-111111111111','a@test.com'),
+  ('22222222-2222-2222-2222-222222222222','b@test.com');
+insert into public.sync_records (user_id,domain,record_id,device_id,content_hash,payload)
+  values ('11111111-1111-1111-1111-111111111111','notes','note-1','d','h','{}'::jsonb);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222"}';
+select is((select count(*)::int from public.sync_records where record_id='note-1'),0,
+  'user B cannot see user A rows');
+select * from finish(); rollback;
+```
+
+```sql
+-- tests/020_quotas.sql
+begin; select plan(1);
+insert into auth.users (id,email) values ('11111111-1111-1111-1111-111111111111','a@test.com');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
+select throws_ok(
+  $$insert into public.sync_records (user_id,domain,record_id,device_id,content_hash,payload)
+    values ('11111111-1111-1111-1111-111111111111','notes','big','d','h',
+      jsonb_build_object('p',repeat('x',300000)))$$,
+  'P0001','sync_payload_too_large','oversize payload rejected');
+select * from finish(); rollback;
+```
+
+```sql
+-- tests/030_broadcast.sql
+begin; select plan(1);
+select has_function('public','broadcast_sync_record_change','broadcast fn exists');
+select * from finish(); rollback;
+```
+
+---
+
+## Local development loop
+
+1. `supabase start`
+2. Edit `supabase/schemas/*.sql`
+3. `supabase db diff -f <name>` — review migration; hand-write policies/grants
+   the diff missed
+4. `supabase db reset`
+5. `supabase test db`
+6. Commit schema + migration together
+
+| Resource | Value |
+| -------- | ----- |
+| Local API | `http://127.0.0.1:54321` |
+| Anon key | `supabase status` |
+| Inbucket (OTP) | `[inbucket] smtp_port` (default `54325`) |
+| Musi PWA | `python3 -m http.server 8080` at `http://localhost:8080` |
+
+---
+
+## Applying to an existing project
+
+1. `supabase link --project-ref <ref>`
+2. `supabase db pull` — baseline migration from live schema
+3. **Caution:** two representations (pull + `schemas/`). Reconcile deliberately
+   before the next `db diff`.
+4. Move to declarative: edit `schemas/` → diff → push staging → verify →
+   production
+5. `supabase seed buckets --linked`
+6. Deploy `account`; configure SMTP/auth URLs
+7. Adopt in Terraform via `import` block if desired
+
+Never edit production only in Studio — `db diff` will not see it.
+
+---
+
+## Risks & mitigations
+
+| Risk | Mitigation |
+| ---- | ---------- |
+| Diff misses policies/grants | Hand-written migrations; PR drift check |
+| Forgetting `seed buckets` | Explicit CI step; README callout |
+| Terraform vs `config.toml` overlap | One owner per knob; `supabase link` drift check |
+| Production before staging | Staging on every `main` push; production Environment gate |
+| Retention vs stale cursor | `sync_watermarks.purged_through_rev` + `sync_bounds(cursor)` |
+| Opaque quota errors | Map `P0001` messages in client |
+| Free-tier project pause | Paid instance for production |
+| Secret leakage in logs | GitHub Secrets only; never echo passwords |
+| Broadcast payload leak | Strip `payload` in broadcast copy |
+| Service role misuse | `verify_jwt`; derive user only from JWT |
