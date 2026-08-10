@@ -1021,14 +1021,15 @@ function setupTiming() {
 }
 
 /* ── Songwriting / Notes ─────────────────────────────────────── */
-function setupMasterDetail(sectionId, listSel, editorSel) {
+function setupMasterDetail(sectionId, listSel, editorSel, itemSel) {
   const sec = document.getElementById(sectionId);
   if (!sec) return;
   ensureBackButton(sec);
   const root = sec.querySelector('.sw-layout, .notes-layout, .md-layout') || sec;
   root.classList.add('mobile-master-detail', 'nav-list');
 
-  const list = sec.querySelector(listSel);
+  const listAside = sec.querySelector('.sw-sidebar, .notes-sidebar');
+  const list = listAside || sec.querySelector(listSel);
   const editor = sec.querySelector(editorSel);
   if (list) list.classList.add('md-list');
   if (editor) editor.classList.add('md-editor');
@@ -1044,20 +1045,22 @@ function setupMasterDetail(sectionId, listSel, editorSel) {
 
   // Enter editor when selecting an item
   sec.addEventListener('click', (e) => {
-    const item = e.target.closest('.sw-item, .notes-item, .song-item, [data-song-id], [data-note-id]');
-    if (item && !e.target.closest('.md-back')) setEditorNavState(root, 'editor');
+    if (e.target.closest('.md-back')) return;
+    const legacy = e.target.closest('.sw-item, .notes-item, .song-item, [data-song-id], [data-note-id]');
+    const item = legacy || (itemSel ? e.target.closest(itemSel) : null);
+    if (item && list?.contains(item)) setEditorNavState(root, 'editor');
   });
 
   // New button
   sec.querySelectorAll('button').forEach(btn => {
-    if (/^new$/i.test(btn.textContent.trim()) || /new song|new note/i.test(btn.textContent)) {
+    if (/^\+?\s*new\b/i.test(btn.textContent.trim()) || /new song|new note/i.test(btn.textContent)) {
       btn.addEventListener('click', () => setEditorNavState(root, 'editor'));
     }
   });
 }
 
 function setupSongwriter() {
-  setupMasterDetail('sec-songwriter', '.sw-list, .songwriter-list, #sw-list', '.sw-editor, .songwriter-editor, #sw-editor');
+  setupMasterDetail('sec-songwriter', '.sw-list, .songwriter-list, #sw-list', '.sw-editor, .songwriter-editor, #sw-editor', '.sw-list-item');
   const sec = document.getElementById('sec-songwriter');
   if (!sec) return;
   // Collapsible recordings
@@ -1091,7 +1094,7 @@ function setupSongwriter() {
 }
 
 function setupNotes() {
-  setupMasterDetail('sec-notes', '.notes-list, #notes-list', '.notes-editor, #notes-editor');
+  setupMasterDetail('sec-notes', '.notes-list, #notes-list', '.notes-editor, #notes-editor', '.notes-list-item');
   const sec = document.getElementById('sec-notes');
   if (!sec) return;
   const del = [...sec.querySelectorAll('button')].find(b => /^delete$/i.test(b.textContent.trim()));

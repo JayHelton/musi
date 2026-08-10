@@ -19,6 +19,7 @@ import {
   ensurePersistentStorage,
 } from './attachments.js';
 import { requestMicStream, releaseMicStream } from './audio.js';
+import { setMasterDetailView } from './uxPrimitives.js';
 
 const STORAGE_KEY = 'musi.songs';
 const TITLE_LIMIT = 120;
@@ -244,7 +245,7 @@ function renderList() {
     }
     item.appendChild(metaRow);
 
-    item.onclick = () => selectSong(song.id);
+    item.onclick = () => selectSong(song.id, { showEditor: true });
     listEl.appendChild(item);
   });
 }
@@ -263,7 +264,7 @@ function showEditorBody(show) {
   if (editorEmptyEl) editorEmptyEl.style.display = show ? 'none' : '';
 }
 
-function selectSong(id) {
+function selectSong(id, { showEditor = false } = {}) {
   // Commit any pending edits to the previously open song first.
   flushSave();
   stopRecordingIfActive();
@@ -278,6 +279,7 @@ function selectSong(id) {
   showEditorBody(true);
   renderRecordings(song);
   renderList();
+  if (showEditor) setMasterDetailView('sec-songwriter', 'editor');
 }
 
 function newSong() {
@@ -291,6 +293,7 @@ function newSong() {
   showEditorBody(true);
   renderRecordings(song);
   renderList();
+  setMasterDetailView('sec-songwriter', 'editor');
   setTimeout(() => titleInput.focus(), 30);
 }
 
@@ -351,6 +354,7 @@ function confirmDeleteSong() {
       revokeRecURLs();
       showEditorBody(false);
       renderList();
+      setMasterDetailView('sec-songwriter', 'list');
       for (const id of ids) { try { await deleteAudio(id); } catch (e) {} }
     },
   );
@@ -697,6 +701,8 @@ export function initSongwriter() {
   recListEl = document.getElementById('sw-rec-list');
 
   if (!listEl) return;
+
+  setMasterDetailView('sec-songwriter', 'list');
 
   if (!wired) {
     wired = true;

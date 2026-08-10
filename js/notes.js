@@ -5,6 +5,8 @@
 // All storage access is defensive so the feature degrades gracefully when
 // localStorage is unavailable.
 
+import { setMasterDetailView } from './uxPrimitives.js';
+
 const STORAGE_KEY = 'musi.notes';
 const TITLE_LIMIT = 120;
 const BODY_LIMIT = 50000;
@@ -148,7 +150,7 @@ function renderList() {
     item.appendChild(title);
     item.appendChild(sub);
     item.appendChild(meta);
-    item.onclick = () => selectNote(note.id);
+    item.onclick = () => selectNote(note.id, { showEditor: true });
     list.appendChild(item);
   });
 }
@@ -180,13 +182,14 @@ function setSavedState(cls, text) {
   el.textContent = text || '';
 }
 
-function selectNote(id) {
+function selectNote(id, { showEditor = false } = {}) {
   flushAutosave();
   selectedId = id;
   renderList();
   renderEditor();
   const bodyInput = q('notes-body');
   if (bodyInput) setTimeout(() => bodyInput.focus(), 30);
+  if (showEditor) setMasterDetailView('sec-notes', 'editor');
 }
 
 function createNote() {
@@ -197,6 +200,7 @@ function createNote() {
   selectedId = note.id;
   renderList();
   renderEditor();
+  setMasterDetailView('sec-notes', 'editor');
   const titleInput = q('notes-title');
   if (titleInput) setTimeout(() => titleInput.focus(), 30);
 }
@@ -284,12 +288,15 @@ function deleteNote(id) {
   if (selectedId === id) selectedId = null;
   renderList();
   renderEditor();
+  setMasterDetailView('sec-notes', 'list');
 }
 
 // --- init / teardown -------------------------------------------------------
 
 export function initNotes() {
   if (!q('notes-list')) return;
+
+  setMasterDetailView('sec-notes', 'list');
 
   if (!bound) {
     bound = true;

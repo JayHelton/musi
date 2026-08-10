@@ -213,6 +213,14 @@ export function setEditorNavState(root, state) {
   root.classList.toggle('nav-editor', state === 'editor');
 }
 
+/** Flip a section's mobile master-detail view between its list and its editor. */
+export function setMasterDetailView(sectionId, state) {
+  const sec = document.getElementById(sectionId);
+  if (!sec) return;
+  const root = sec.querySelector('.mobile-master-detail') || sec;
+  setEditorNavState(root, state);
+}
+
 /** Apply drill focus mode class to a section. */
 export function setDrillFocus(sectionEl, focused) {
   if (!sectionEl) return;
