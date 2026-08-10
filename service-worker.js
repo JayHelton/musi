@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v166-metro-click-gain";
+const CACHE_VERSION = "v167-gp-menu-exercise-takes";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
