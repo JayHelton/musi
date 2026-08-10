@@ -1467,6 +1467,22 @@ function setViewerLayoutActive(on) {
   if (sectionEl) sectionEl.classList.toggle('ex-viewing', on);
 }
 
+// Overlays that own Escape themselves; closing the whole viewer underneath them
+// would throw away the user's place in the exercise.
+const VIEWER_OVERLAY_SELECTOR = [
+  '.ex-take-drawer.is-open',
+  '.ex-take-sheet.is-open',
+  '.gpp-drawer.is-open',
+  '.gpp-sheet.is-open',
+  '.gpi-mount.is-open',
+  '.modal-overlay',
+].join(',');
+
+function viewerOverlayOpen() {
+  if (document.body?.classList.contains('sel-sheet-open')) return true;
+  return !!document.querySelector(VIEWER_OVERLAY_SELECTOR);
+}
+
 function wirePlayerControls() {
   if (!playerBackBtn || playerBackBtn.dataset.wired) return;
   playerBackBtn.dataset.wired = '1';
@@ -1477,6 +1493,7 @@ function wirePlayerControls() {
     if (e.key !== 'Escape' || !activeExerciseId) return;
     const sec = document.getElementById('sec-exercises');
     if (!sec || !sec.classList.contains('active')) return;
+    if (viewerOverlayOpen()) return;
     closeExerciseViewer();
   });
 }
