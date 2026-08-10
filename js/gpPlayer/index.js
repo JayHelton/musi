@@ -19,6 +19,7 @@ export { mountMeasureNav } from './measureNav.js';
 export { mountTransportDock } from './transportDock.js';
 export { mountTrackMixer } from './trackMixer.js';
 export { mountSettingsDrawer } from './settingsDrawer.js';
+export { mountPlayerMenu } from './playerMenu.js';
 export { mountAnnotationsDrawer } from './annotationsDrawer.js';
 export { buildMeasureDigests, formatBarRange, describeMeasure } from './measureDigest.js';
 export {

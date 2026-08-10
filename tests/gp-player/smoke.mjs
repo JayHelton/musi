@@ -603,10 +603,54 @@ assert.ok(gpHost.querySelector('.gpp-chrome'), 'player should wrap chrome');
 const analysisPane = gpHost.querySelector('.gpp-analysis-pane');
 assert.ok(analysisPane, 'analysis pane should exist inside chrome');
 assert.ok(analysisPane.querySelector('.gpp-analysis-results'), 'analysis results should mount in pane');
+function menuRowByLabel(root, label) {
+  return [...root.querySelectorAll('.gpp-menu-row')].find(
+    (b) => b.getAttribute?.('aria-label') === label,
+  );
+}
+function hasOpenDrawer(root) {
+  return [...root.querySelectorAll('.gpp-drawer')].some((d) => (d.className || '').includes('is-open'))
+    || [...root.querySelectorAll('.gpp-sheet')].some((d) => (d.className || '').includes('is-open'));
+}
+
 assert.ok(gpHost.dataset.view === 'score', 'default view should be score');
-const viewPicker = gpHost.querySelector('.gpp-view-picker');
-assert.ok(viewPicker, 'view picker should exist');
-assert.equal(viewPicker.querySelectorAll('.gpp-view-btn').length, 3, 'view picker should have three modes');
+assert.ok(!gpHost.querySelector('.gpp-view-picker'), 'header must not contain view picker');
+assert.ok(!gpHost.querySelector('.gpp-score-actions'), 'header must not contain icon action row');
+const menuBtn = gpHost.querySelector('.gpp-transport-menu-btn');
+assert.ok(menuBtn, 'transport dock should contain gear menu button');
+assert.equal(menuBtn.getAttribute('aria-expanded'), 'false', 'menu button starts collapsed');
+menuBtn.click();
+assert.equal(menuBtn.getAttribute('aria-expanded'), 'true', 'menu button reflects open state');
+const menuViewPicker = gpHost.querySelector('.gpp-menu-view-picker');
+assert.ok(menuViewPicker, 'player menu should expose view picker');
+assert.equal(menuViewPicker.querySelectorAll('.gpp-menu-view-option').length, 3, 'menu should have three view modes');
+const menuActions = gpHost.querySelector('.gpp-menu-actions');
+assert.ok(menuActions, 'player menu should expose actions group');
+assert.ok(menuRowByLabel(menuActions, 'Section notes'), 'menu should list section notes');
+assert.ok(menuRowByLabel(menuActions, 'Track mixer'), 'menu should list track mixer');
+assert.ok(menuRowByLabel(menuActions, 'Practice settings'), 'menu should list practice settings');
+menuRowByLabel(menuActions, 'Practice settings').click();
+assert.ok(hasOpenDrawer(gpHost), 'settings action should open settings drawer');
+assert.equal(menuBtn.getAttribute('aria-expanded'), 'false', 'menu closes when opening a drawer');
+const settingsClose = gpHost.querySelector('.gpp-drawer-close');
+settingsClose?.click();
+menuBtn.click();
+menuRowByLabel(menuActions, 'Track mixer').click();
+const tracksRoot = gpHost.querySelector('.gpp-tracks-drawer-root');
+assert.ok(
+  [...tracksRoot.querySelectorAll('.gpp-drawer')].some((d) => (d.className || '').includes('is-open'))
+    || [...tracksRoot.querySelectorAll('.gpp-sheet')].some((d) => (d.className || '').includes('is-open')),
+  'tracks action should open track drawer',
+);
+const tracksClose = tracksRoot.querySelector('.gpp-drawer-close');
+tracksClose?.click();
+menuBtn.click();
+menuRowByLabel(menuActions, 'Section notes').click();
+assert.ok(
+  [...gpHost.querySelectorAll('.gpp-anno-drawer')].some((d) => (d.className || '').includes('is-open'))
+    || [...gpHost.querySelectorAll('.gpp-anno-sheet')].some((d) => (d.className || '').includes('is-open')),
+  'notes action should open annotations drawer',
+);
 const analyzeToolbarBtn = gpHost.querySelector('.gpp-analysis-rerun');
 assert.ok(analyzeToolbarBtn, 'analysis pane should expose re-run control');
 const duplicateAnalyzeBtn = [...gpHost.querySelectorAll('.gpp-score-actions button')].find(
@@ -1121,11 +1165,12 @@ const exPlayer = mountGpPlayer(exHost, {
 assert.equal(exPlayer.getState().loopEnabled, false);
 assert.equal(exPlayer.getState().exerciseScope, true);
 assert.equal(exPlayer.getState().loopStart, 1);
-const exNotesBtn = [...exHost.querySelectorAll('button')].find(
-  (b) => b.getAttribute?.('aria-label') === 'Section notes',
-);
-assert.ok(exNotesBtn, 'section notes button should exist');
+const exNotesBtn = exHost.querySelector('.gpp-transport-menu-btn');
+assert.ok(exNotesBtn, 'transport menu button should exist');
 exNotesBtn.click();
+const exNotesRow = menuRowByLabel(exHost, 'Section notes');
+assert.ok(exNotesRow, 'section notes action should exist in player menu');
+exNotesRow.click();
 const exAddBtn = exHost.querySelector('.gpp-anno-add-btn');
 assert.ok(exAddBtn, 'Add note button should mount in annotations drawer');
 exAddBtn.click();

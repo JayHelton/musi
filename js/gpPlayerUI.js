@@ -25,6 +25,7 @@ import { mountTransportDock } from './gpPlayer/transportDock.js';
 import { clampBpm } from './gpPlayer/tempoRange.js';
 import { mountTrackMixer } from './gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from './gpPlayer/settingsDrawer.js';
+import { mountPlayerMenu } from './gpPlayer/playerMenu.js';
 import { mountAnnotationsDrawer } from './gpPlayer/annotationsDrawer.js';
 import { buildMeasureDigests } from './gpPlayer/measureDigest.js';
 import { mountExerciseImportPanel } from './gpPlayer/exerciseImportPanel.js';
@@ -131,73 +132,9 @@ export function mountGpPlayer(host, {
   const scoreTitle = el('div', { class: 'gpp-score-title', text: hideTitle ? '' : title, title: fileName || title });
   const scoreTrack = el('div', { class: 'gpp-score-track', text: '' });
   titles.append(scoreTitle, scoreTrack);
+  scoreHeader.append(titles);
 
-  const viewPicker = el('div', {
-    class: 'gpp-view-picker',
-    role: 'radiogroup',
-    'aria-label': 'Player view',
-  });
-  const viewBtns = {};
-  GPP_VIEW_MODES.forEach((mode) => {
-    const label = mode === 'score' ? 'Score' : mode === 'analyze' ? 'Analyze' : 'Both';
-    const btn = el('button', {
-      class: 'gpp-view-btn',
-      type: 'button',
-      role: 'radio',
-      'aria-checked': 'false',
-      'aria-label': `${label} view`,
-      text: label,
-      'data-view': mode,
-    });
-    viewBtns[mode] = btn;
-    viewPicker.appendChild(btn);
-  });
-
-  const scoreActions = el('div', { class: 'gpp-score-actions' });
-  if (typeof onOpenFile === 'function') {
-    const openBtn = el('button', {
-      class: 'gpp-icon-btn has-label',
-      type: 'button',
-      'aria-label': 'Open Guitar Pro file',
-      title: 'Open Guitar Pro file',
-      html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/></svg><span class="gpp-btn-label">Open</span>',
-      onClick: () => onOpenFile(),
-    });
-    scoreActions.appendChild(openBtn);
-  }
-  const mixerBtn = el('button', {
-    class: 'gpp-icon-btn has-label',
-    type: 'button',
-    'aria-label': 'Track mixer',
-    title: 'Track mixer',
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h14"/></svg><span class="gpp-btn-label">Tracks</span>',
-  });
-  const notesBtn = el('button', {
-    class: 'gpp-icon-btn has-label',
-    type: 'button',
-    'aria-label': 'Section notes',
-    title: 'Section notes',
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 6h10M8 12h10M8 18h6"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span class="gpp-btn-label">Notes</span>',
-  });
   const exerciseImportCapable = exerciseImport && typeof exerciseImport.importSegments === 'function';
-  const splitBtn = exerciseImportCapable ? el('button', {
-    class: 'gpp-icon-btn has-label',
-    type: 'button',
-    'aria-label': 'Split score into exercises',
-    title: 'Split score into exercises',
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8.5L20 20"/><path d="M8.5 15.5L20 4"/></svg><span class="gpp-btn-label">Split</span>',
-  }) : null;
-  const settingsBtn = el('button', {
-    class: 'gpp-icon-btn has-label',
-    type: 'button',
-    'aria-label': 'Practice settings',
-    title: 'Practice settings',
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg><span class="gpp-btn-label">Settings</span>',
-  });
-  if (splitBtn) scoreActions.append(notesBtn, splitBtn, mixerBtn, settingsBtn);
-  else scoreActions.append(notesBtn, mixerBtn, settingsBtn);
-  if (headerExtra) scoreActions.appendChild(headerExtra);
-  scoreHeader.append(titles, viewPicker, scoreActions);
 
   const scoreBody = el('div', { class: 'gpp-score-body' });
   const measureNavHost = el('div', { class: 'gpp-measure-nav-host' });
@@ -206,10 +143,11 @@ export function mountGpPlayer(host, {
 
   const scorePane = el('div', { class: 'gpp-score-pane' });
   const drawerRoot = el('div', { class: 'gpp-drawer-root' });
+  const menuDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-menu-drawer-root' });
   const tracksDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-tracks-drawer-root' });
   const annoDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-anno-drawer-root' });
   const tracksMixerHost = el('div', { class: 'gpp-tracks-drawer-mount' });
-  scorePane.append(scoreBody, drawerRoot, tracksDrawerRoot, annoDrawerRoot);
+  scorePane.append(scoreBody, drawerRoot, menuDrawerRoot, tracksDrawerRoot, annoDrawerRoot);
 
   const analysisResultsEl = el('div', {
     class: 'gpp-analysis-results ta-results',
@@ -247,6 +185,7 @@ export function mountGpPlayer(host, {
   let transport = null;
   let trackMixer = null;
   let settingsDrawer = null;
+  let playerMenu = null;
   let tracksDrawer = null;
   let annoDrawer = null;
   let importPanel = null;
@@ -264,15 +203,22 @@ export function mountGpPlayer(host, {
     return `${state.viewKind}:${state.viewIndex}`;
   }
 
+  function syncHeaderVisibility() {
+    const hasTitle = !hideTitle && !!(scoreTitle.textContent?.trim());
+    const hasTrack = !!(scoreTrack.textContent?.trim());
+    scoreHeader.hidden = !hasTitle && !hasTrack;
+  }
+
+  function closeOtherOverlays(except = null) {
+    if (except !== 'menu' && playerMenu?.isOpen?.()) playerMenu.close();
+    if (except !== 'settings' && settingsDrawer?.isOpen?.()) settingsDrawer.close();
+    if (except !== 'tracks' && tracksDrawer?.isOpen?.()) tracksDrawer.close();
+    if (except !== 'notes' && annoDrawer?.isOpen?.()) annoDrawer.close();
+    transport?.sync();
+  }
+
   function syncViewPicker() {
-    GPP_VIEW_MODES.forEach((mode) => {
-      const btn = viewBtns[mode];
-      if (!btn) return;
-      const on = viewMode === mode;
-      btn.classList.toggle('is-active', on);
-      btn.setAttribute('aria-checked', on ? 'true' : 'false');
-      btn.tabIndex = on ? 0 : -1;
-    });
+    playerMenu?.sync();
   }
 
   function maybeRunAnalysis({ force = false } = {}) {
@@ -471,6 +417,7 @@ export function mountGpPlayer(host, {
     const sel = measureSelectionFromIndices(mi, mi);
     noteDraftSelection = sel;
     highlightedAnnoId = null;
+    closeOtherOverlays('notes');
     annoDrawer?.open();
     annoDrawer?.showEditor({ ...sel });
     syncNoteSelectMode();
@@ -548,6 +495,7 @@ export function mountGpPlayer(host, {
     restRemaining = 0,
   } = {}) {
     scoreTrack.textContent = currentTrackLabel();
+    syncHeaderVisibility();
     parchment?.update({
       currentSec,
       bpm: state.bpm,
@@ -771,6 +719,7 @@ export function mountGpPlayer(host, {
     onMeasureClick: (mi) => seekToBar(mi, { autoplay: player.playing }),
     onMeasureLongPress: (mi) => {
       if (!scoreKey) {
+        closeOtherOverlays('notes');
         annoDrawer?.open();
         return;
       }
@@ -863,6 +812,15 @@ export function mountGpPlayer(host, {
       const atScore = !state.bpmUserOverride && Math.round(state.bpm) === scoreRounded;
       return !atScore;
     },
+    onOpenMenu: () => {
+      if (playerMenu?.isOpen?.()) playerMenu.close();
+      else {
+        closeOtherOverlays('menu');
+        playerMenu?.open();
+      }
+      transport?.sync();
+    },
+    isMenuOpen: () => !!playerMenu?.isOpen?.(),
   });
 
   tracksDrawer = mountTracksDrawerShell(tracksDrawerRoot, {
@@ -952,6 +910,37 @@ export function mountGpPlayer(host, {
     console.error(e);
   }
 
+  try {
+    playerMenu = mountPlayerMenu(menuDrawerRoot, {
+      getViewMode: () => viewMode,
+      onViewModeChange: (mode) => {
+        setViewMode(mode);
+        closeOtherOverlays();
+      },
+      onOpenFile: typeof onOpenFile === 'function' ? () => onOpenFile() : null,
+      onOpenNotes: () => {
+        closeOtherOverlays('notes');
+        annoDrawer?.toggle();
+      },
+      onOpenSplit: exerciseImportCapable ? () => {
+        closeOtherOverlays();
+        if (!importPanel?.isOpen?.()) loopSnapshot = snapshotLoopState();
+        importPanel?.open();
+      } : null,
+      onOpenTracks: () => {
+        closeOtherOverlays('tracks');
+        tracksDrawer.toggle();
+      },
+      onOpenSettings: () => {
+        closeOtherOverlays('settings');
+        settingsDrawer?.toggle();
+      },
+      headerExtra,
+    });
+  } catch (e) {
+    console.error(e);
+  }
+
   if (exerciseImportCapable && exerciseImportRoot) {
     try {
       importPanel = mountExerciseImportPanel(exerciseImportRoot, {
@@ -987,40 +976,6 @@ export function mountGpPlayer(host, {
   rerunAnalysisBtn.addEventListener('click', () => {
     if (!viewModeNeedsAnalysis(viewMode)) setViewMode('analyze');
     else maybeRunAnalysis({ force: true });
-  });
-
-  GPP_VIEW_MODES.forEach((mode) => {
-    viewBtns[mode]?.addEventListener('click', () => {
-      setViewMode(mode);
-      if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
-      if (annoDrawer?.isOpen?.()) annoDrawer.close();
-      if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
-    });
-  });
-
-  notesBtn.addEventListener('click', () => {
-    if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
-    if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
-    annoDrawer?.toggle();
-  });
-
-  splitBtn?.addEventListener('click', () => {
-    if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
-    if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
-    if (annoDrawer?.isOpen?.()) annoDrawer.close();
-    if (!importPanel?.isOpen?.()) loopSnapshot = snapshotLoopState();
-    importPanel?.open();
-  });
-
-  mixerBtn.addEventListener('click', () => {
-    if (settingsDrawer?.isOpen?.()) settingsDrawer.close();
-    if (annoDrawer?.isOpen?.()) annoDrawer.close();
-    tracksDrawer.toggle();
-  });
-  settingsBtn.addEventListener('click', () => {
-    if (tracksDrawer?.isOpen?.()) tracksDrawer.close();
-    if (annoDrawer?.isOpen?.()) annoDrawer.close();
-    settingsDrawer?.toggle();
   });
 
   function clearCountIn() {
@@ -1160,6 +1115,7 @@ export function mountGpPlayer(host, {
   host.classList.remove('is-loading');
   reloadModel();
   scoreTrack.textContent = currentTrackLabel();
+  syncHeaderVisibility();
   loopController.syncFromState();
   if (viewModeNeedsAnalysis(viewMode)) maybeRunAnalysis({ force: true });
   if (standaloneSection) {
@@ -1234,6 +1190,7 @@ export function mountGpPlayer(host, {
       transport?.destroy();
       trackMixer?.destroy();
       settingsDrawer?.destroy();
+      playerMenu?.destroy();
       annoDrawer?.destroy();
       importPanel?.destroy();
       if (exerciseImportRoot?.parentElement) {

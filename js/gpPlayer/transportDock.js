@@ -57,8 +57,16 @@ export function mountTransportDock(host, api = {}) {
     'aria-label': 'Next measure',
     title: 'Next measure',
   });
+  const menuBtn = el('button', {
+    class: 'gpp-transport-btn gpp-transport-menu-btn',
+    type: 'button',
+    'aria-label': 'Player menu',
+    title: 'Player menu',
+    'aria-expanded': 'false',
+    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  });
 
-  primary.append(prevBtn, playBtn, stopBtn, restartBtn, nextBtn);
+  primary.append(prevBtn, playBtn, stopBtn, restartBtn, nextBtn, menuBtn);
 
   const tempoGroup = el('div', { class: 'gpp-transport-tempo' });
   const bpmDownBtn = el('button', {
@@ -111,6 +119,7 @@ export function mountTransportDock(host, api = {}) {
   bpmUpBtn.addEventListener('click', () => api.onBpmStep?.(GPP_TRANSPORT_BPM_STEP));
   bpmInput.addEventListener('change', () => api.onBpmInput?.(bpmInput.value));
   bpmResetBtn.addEventListener('click', () => api.onBpmReset?.());
+  menuBtn.addEventListener('click', () => api.onOpenMenu?.());
 
   let ro = null;
 
@@ -161,6 +170,11 @@ export function mountTransportDock(host, api = {}) {
 
     prevBtn.disabled = api.canPrev?.() === false;
     nextBtn.disabled = api.canNext?.() === false;
+
+    const menuOpen = !!api.isMenuOpen?.();
+    menuBtn.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
+    menuBtn.classList.toggle('is-on', menuOpen);
+
     syncTempoControls();
     publishPad();
   }
