@@ -1,0 +1,443 @@
+/* Exercise companion widgets — Atomic Purple GBC screen tiles */
+
+.ec-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.ec-panel {
+  border-radius: var(--radius-screen);
+  border: 1px solid var(--border);
+  background: rgba(22, 31, 54, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+.ec-toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0.65rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ec-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.ec-lock {
+  flex: 1;
+  font-family: var(--font-ui);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.ec-chevron {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+.ec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0 0.85rem 0.85rem;
+  max-width: 100%;
+}
+
+.ec-sub {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.ec-diagram-host {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.ec-fretboard-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-radius: calc(var(--radius-screen) - 4px);
+  border: 1px solid rgba(180, 140, 255, 0.14);
+  background: rgba(18, 26, 46, 0.72);
+}
+
+.ec-fretboard {
+  display: grid;
+  gap: 0;
+  min-width: min-content;
+  padding: 0.35rem 0.25rem 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+}
+
+.ec-fb-corner,
+.ec-fb-fretnum,
+.ec-fb-strlabel,
+.ec-fb-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.65rem;
+}
+
+.ec-fb-fretnum {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.ec-fb-strlabel {
+  justify-content: flex-end;
+  padding-right: 0.25rem;
+  color: var(--shell-bright);
+  font-size: 0.72rem;
+}
+
+.ec-fb-cell {
+  position: relative;
+  border-right: 1px solid rgba(180, 140, 255, 0.08);
+  border-bottom: 1px solid rgba(180, 140, 255, 0.06);
+}
+
+.ec-fb-cell.ec-nut {
+  border-left: 2px solid var(--accent-dim);
+}
+
+.ec-fb-cell.ec-inlay::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(180, 140, 255, 0.22);
+  pointer-events: none;
+}
+
+.ec-note {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  min-height: 1.35rem;
+  padding: 0 0.15rem;
+  border-radius: var(--radius-pill);
+  background: var(--btn-x);
+  color: var(--on-accent);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ec-note.ec-root {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.ec-note.ec-order {
+  background: var(--shell-bright);
+  color: var(--on-accent);
+  font-family: var(--font-pixel);
+  font-size: 0.55rem;
+}
+
+.ec-clickable {
+  cursor: pointer;
+}
+
+.ec-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.ec-leg-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ec-leg-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  background: var(--btn-x);
+  flex-shrink: 0;
+}
+
+.ec-leg-item.ec-root .ec-leg-swatch {
+  background: var(--accent);
+}
+
+.ec-empty,
+.ec-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.ec-triad-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ec-triad-inv {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border-radius: calc(var(--radius-screen) - 6px);
+  border: 1px solid rgba(180, 140, 255, 0.14);
+  background: rgba(18, 26, 46, 0.55);
+  --triad-color: var(--triad-major);
+}
+
+.ec-triad-inv-title {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--triad-color, var(--accent2));
+}
+
+.ec-triad-inv-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ec-triad-mini {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ec-triad-svg {
+  display: block;
+  max-width: none;
+  height: auto;
+}
+
+.ec-triad-board-bg {
+  fill: rgba(11, 16, 32, 0.55);
+  stroke: rgba(180, 140, 255, 0.12);
+}
+
+.ec-triad-fretline,
+.ec-triad-string {
+  stroke: rgba(180, 140, 255, 0.2);
+  stroke-width: 1;
+}
+
+.ec-triad-nut {
+  stroke: var(--accent-dim);
+  stroke-width: 2;
+}
+
+.ec-triad-fretnum,
+.ec-triad-strlabel {
+  fill: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+}
+
+.ec-triad-note-label {
+  fill: var(--on-accent);
+  font-family: var(--font-ui);
+  font-size: 8px;
+  pointer-events: none;
+}
+
+.ec-tab-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ec-tab {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: calc(var(--radius-screen) - 8px);
+  background: rgba(11, 16, 32, 0.65);
+  border: 1px solid rgba(180, 140, 255, 0.12);
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  color: var(--text);
+  white-space: pre;
+}
+
+.ec-pitch-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.ec-pitch-target {
+  font-family: var(--font-pixel);
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-align: center;
+}
+
+.ec-pitch-cents {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.ec-pitch-cents.in { color: var(--ok); }
+.ec-pitch-cents.close { color: var(--warn); }
+.ec-pitch-cents.off { color: var(--muted); }
+
+.ec-pitch-meter {
+  position: relative;
+  height: 8rem;
+  border-radius: var(--radius-screen);
+  border: 1px solid rgba(180, 140, 255, 0.18);
+  background: rgba(11, 16, 32, 0.72);
+  overflow: hidden;
+}
+
+.ec-pitch-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 35%;
+  background: rgba(255, 225, 74, 0.12);
+  border-top: 1px dashed rgba(255, 225, 74, 0.35);
+  border-bottom: 1px dashed rgba(255, 225, 74, 0.35);
+  pointer-events: none;
+}
+
+.ec-pitch-puck {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: var(--tap-min);
+  min-height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  text-align: center;
+  transition: top 0.06s linear;
+}
+
+.ec-pitch-puck.in {
+  background: var(--ok);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+.ec-pitch-puck.close {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.ec-pitch-puck.off {
+  color: var(--muted);
+}
+
+.ec-pitch-progress {
+  height: 0.35rem;
+  border-radius: var(--radius-pill);
+  background: rgba(180, 140, 255, 0.12);
+  overflow: hidden;
+}
+
+.ec-pitch-progress-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  transition: width 0.08s linear;
+}
+
+.ec-pitch-status {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.ec-pitch-status.ec-err {
+  color: var(--err);
+}
+
+.ec-pitch-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ec-btn {
+  min-height: var(--tap-min);
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: rgba(18, 26, 46, 0.9);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.ec-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ec-btn-start {
+  background: linear-gradient(180deg, var(--accent-dim), rgba(22, 31, 54, 0.95));
+  border-color: rgba(255, 225, 74, 0.35);
+  color: var(--accent);
+}
+
+.ec-btn-stop {
+  border-color: rgba(230, 57, 70, 0.35);
+  color: var(--btn-a);
+}
+
+.ec-sweep-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
