@@ -98,8 +98,6 @@ export function mountSettingsDrawer(host, {
   host.append(backdrop, drawer, sheet);
 
   const ids = {
-    metro: `${prefix}-metro`,
-    countIn: `${prefix}-countin`,
     loop: `${prefix}-loop`,
     loopStart: `${prefix}-loop-start`,
     loopEnd: `${prefix}-loop-end`,
@@ -137,8 +135,6 @@ export function mountSettingsDrawer(host, {
       text: 'Reset to original',
       'aria-label': 'Reset tempo to score BPM',
     });
-    const metroCheck = el('input', { type: 'checkbox', id: ids.metro, 'aria-label': 'Metronome' });
-    const countInCheck = el('input', { type: 'checkbox', id: ids.countIn, 'aria-label': 'Count-in' });
     const loopToggle = el('input', { type: 'checkbox', id: ids.loop });
     const loopStartSel = el('select', {
       class: 'gpp-select gpp-loop-sel', id: ids.loopStart, 'aria-label': 'Loop start bar',
@@ -192,11 +188,6 @@ export function mountSettingsDrawer(host, {
         el('div', { class: 'gpp-field' }, [
           el('div', { class: 'gpp-control-row' }, [bpmInput, el('span', { class: 'gpp-unit', text: 'BPM' }), bpmSlider, bpmPct]),
           el('div', { class: 'gpp-control-row gpp-tempo-reset-row' }, [resetBpmBtn]),
-        ]),
-        el('label', { class: 'gpp-check', for: ids.metro }, [metroCheck, el('span', { text: 'Metronome' })]),
-        el('label', { class: 'gpp-check', for: ids.countIn }, [
-          countInCheck,
-          el('span', { text: 'Count-in (4-beat lead-in metronome before play)' }),
         ]),
       ]),
     ]);
@@ -256,14 +247,6 @@ export function mountSettingsDrawer(host, {
 
     controlsBody.append(tempoSection, loopSection, scoreSection, pitchSection);
 
-    metroCheck.addEventListener('change', () => {
-      stateController.state.metronomeEnabled = !!metroCheck.checked;
-      onChange?.({ metronome: true });
-    });
-    countInCheck.addEventListener('change', () => {
-      stateController.state.countInEnabled = !!countInCheck.checked;
-      onChange?.();
-    });
     loopToggle.addEventListener('change', () => {
       stateController.state.loopEnabled = !!loopToggle.checked;
       onChange?.({ reload: true });
@@ -337,7 +320,7 @@ export function mountSettingsDrawer(host, {
     });
 
     return {
-      bpmInput, bpmSlider, bpmPct, resetBpmBtn, metroCheck, countInCheck, loopToggle,
+      bpmInput, bpmSlider, bpmPct, resetBpmBtn, loopToggle,
       loopStartSel, loopEndSel, restInput, loopSelBtn, transposeInput,
       tuningSelect, retuneFinger, retunePitch, zoomInput, zoomPct, autoFollowCheck,
       pitchSection,
@@ -432,8 +415,6 @@ export function mountSettingsDrawer(host, {
     syncResetBpmBtn(controls.resetBpmBtn);
     rebuildTuningSelect(controls.tuningSelect);
     rebuildLoopSelects(controls.loopStartSel, controls.loopEndSel);
-    controls.metroCheck.checked = !!st.metronomeEnabled;
-    controls.countInCheck.checked = !!st.countInEnabled;
     controls.loopToggle.checked = !!st.loopEnabled;
     controls.restInput.value = String(st.loopRestSec);
     controls.transposeInput.value = String(st.transpose);

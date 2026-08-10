@@ -26,6 +26,7 @@ import { clampBpm } from './gpPlayer/tempoRange.js';
 import { mountTrackMixer } from './gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from './gpPlayer/settingsDrawer.js';
 import { mountPlayerMenu } from './gpPlayer/playerMenu.js';
+import { mountMetronomePanel } from './gpPlayer/metronomePanel.js';
 import { mountAnnotationsDrawer } from './gpPlayer/annotationsDrawer.js';
 import { buildMeasureDigests } from './gpPlayer/measureDigest.js';
 import { mountExerciseImportPanel } from './gpPlayer/exerciseImportPanel.js';
@@ -37,6 +38,11 @@ import {
   applyViewModeClasses,
 } from './gpPlayer/viewModes.js';
 import { installGppLayoutMetrics } from './gpPlayer/layoutMetrics.js';
+import {
+  countInBeatCount,
+  createTempoRampController,
+  clickLevelAt,
+} from './gpPlayer/metronomeState.js';
 import {
   listAnnotations,
   addAnnotation,
@@ -106,8 +112,10 @@ export function mountGpPlayer(host, {
     initialTranspose,
     initialTuning,
     initialRetuneMode,
+    scoreKey,
   });
   const state = stateController.state;
+  syncMetroMirrors();
 
   const resolvedBpm = resolveInitialBpm(initialBpm, state.scoreBpm);
   if (resolvedBpm.apply) {
@@ -146,8 +154,9 @@ export function mountGpPlayer(host, {
   const menuDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-menu-drawer-root' });
   const tracksDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-tracks-drawer-root' });
   const annoDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-anno-drawer-root' });
+  const metroDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-metro-drawer-root' });
   const tracksMixerHost = el('div', { class: 'gpp-tracks-drawer-mount' });
-  scorePane.append(scoreBody, drawerRoot, menuDrawerRoot, tracksDrawerRoot, annoDrawerRoot);
+  scorePane.append(scoreBody, drawerRoot, menuDrawerRoot, tracksDrawerRoot, annoDrawerRoot, metroDrawerRoot);
 
   const analysisResultsEl = el('div', {
     class: 'gpp-analysis-results ta-results',
@@ -185,6 +194,7 @@ export function mountGpPlayer(host, {
   let transport = null;
   let trackMixer = null;
   let settingsDrawer = null;
+  let metronomePanel = null;
   let playerMenu = null;
   let tracksDrawer = null;
   let annoDrawer = null;
@@ -214,6 +224,7 @@ export function mountGpPlayer(host, {
     if (except !== 'settings' && settingsDrawer?.isOpen?.()) settingsDrawer.close();
     if (except !== 'tracks' && tracksDrawer?.isOpen?.()) tracksDrawer.close();
     if (except !== 'notes' && annoDrawer?.isOpen?.()) annoDrawer.close();
+    if (except !== 'metro' && metronomePanel?.isOpen?.()) metronomePanel.close();
     transport?.sync();
   }
 
@@ -297,7 +308,7 @@ export function mountGpPlayer(host, {
       loopRestSec: state.loopRestSec,
       enabledGuitars,
       enabledDrums,
-      metronomeEnabled: !!state.metronomeEnabled,
+      metronomeEnabled: !!state.metro.enabled,
       referenceModel: state.viewModel || state.gp.drumTracks?.[0]?.model || null,
     };
   }
@@ -310,6 +321,54 @@ export function mountGpPlayer(host, {
     return Number.isFinite(start) && Number.isFinite(end) && end > start;
   }
 
+  let rampRestoreBpm = null;
+
+  const tempoRamp = createTempoRampController({
+    getRampConfig: () => state.tempoRamp,
+    onStep: (bpm) => {
+      if (!isAlive()) return;
+      state.bpm = clampBpm(bpm);
+      player.setBpm(state.bpm);
+      settingsDrawer?.sync();
+      metronomePanel?.sync();
+      transport?.sync();
+    },
+    onFinish: () => {
+      if (!isAlive()) return;
+      player.pause();
+      transport?.sync();
+    },
+  });
+
+  function syncMetroMirrors() {
+    state.metronomeEnabled = !!state.metro.enabled;
+    state.countInEnabled = !!state.metro.countInEnabled;
+  }
+
+  function syncMetroToPlayer() {
+    syncMetroMirrors();
+    player.setMetronomeConfig(state.metro);
+    player.setMetronomeEnabled(!!state.metro.enabled);
+  }
+
+  function rampStatusLabel() {
+    const s = tempoRamp.getStatus();
+    if (!s.enabled) return '';
+    if (s.active) {
+      return `Ramp ${Math.round(s.currentBpm)}→${Math.round(s.targetBpm)} · ${s.nextIn || ''}`.trim();
+    }
+    if (s.finished) return `Ramp done ${Math.round(s.currentBpm || s.targetBpm)}`;
+    return `Ramp →${Math.round(s.targetBpm)}`;
+  }
+
+  function resetRampAfterStop() {
+    const startBpm = tempoRamp.stopSession();
+    if (startBpm != null && rampRestoreBpm != null && !state.bpmUserOverride) {
+      state.bpm = rampRestoreBpm;
+      player.setBpm(state.bpm);
+    }
+    rampRestoreBpm = null;
+  }
   let prevPlaybackTick = null;
   let playbackEndFired = false;
   let lastUserStopAt = 0;
@@ -319,6 +378,14 @@ export function mountGpPlayer(host, {
   const player = createGpMixPlayer({
     onTick: (info) => {
       if (!isAlive()) return;
+      tempoRamp.onPlaybackTick({
+        playing: info.playing,
+        resting: info.resting,
+        currentSec: info.currentSec,
+        measureIndex: info.measureIndex,
+        loopRestart: info.loopRestart,
+        bpm: info.bpm,
+      });
       detectNaturalPlaybackEnd(info);
       syncPlaybackUi(info);
     },
@@ -349,7 +416,7 @@ export function mountGpPlayer(host, {
     } else if (!state.loopEnabled) {
       player.setLoop(null);
     }
-    if (state.metronomeEnabled) player.setMetronomeEnabled(true);
+    syncMetroToPlayer();
   }
 
   function reloadModel() {
@@ -380,6 +447,7 @@ export function mountGpPlayer(host, {
     else if (at > 0) player.seek(newSec);
 
     refreshScoreSurface();
+    syncMetroToPlayer();
     emitPracticeSettings();
   }
 
@@ -520,6 +588,8 @@ export function mountGpPlayer(host, {
       loopEnd: state.loopEnd,
     });
     transport?.sync();
+    // Per-tick playback UI must not rebuild the metronome panel — use syncStatus only.
+    metronomePanel?.syncStatus?.();
   }
 
   function detectNaturalPlaybackEnd(info) {
@@ -584,7 +654,7 @@ export function mountGpPlayer(host, {
       player.setLoopRestSec(state.loopRestSec);
       applyLoopToPlayer();
     } else if (patch.metronome) {
-      player.setMetronomeEnabled(state.metronomeEnabled);
+      syncMetroToPlayer();
     } else if (patch.zoom || patch.autoFollow || patch.loopSelectMode) {
       if (patch.loopSelectMode) {
         if (state.loopSelectMode) loopController?.enable();
@@ -600,6 +670,7 @@ export function mountGpPlayer(host, {
     }
     settingsDrawer?.sync();
     trackMixer?.sync();
+    metronomePanel?.sync();
     transport?.sync();
     emitPracticeSettings();
   }
@@ -797,11 +868,13 @@ export function mountGpPlayer(host, {
     canNext: () => canNextMeasure(navMeasureIndex(), stateController.getScope()),
     onBpmStep: (delta) => stepBpm(delta),
     onBpmInput: (value) => {
+      tempoRamp.stopSession();
       state.bpmUserOverride = true;
       state.bpm = clampBpm(Number(value) || state.scoreBpm);
       onSettingsChange({ reload: true });
     },
     onBpmReset: () => {
+      tempoRamp.stopSession();
       stateController.resetBpm();
       onSettingsChange({ reload: true });
     },
@@ -812,6 +885,14 @@ export function mountGpPlayer(host, {
       const atScore = !state.bpmUserOverride && Math.round(state.bpm) === scoreRounded;
       return !atScore;
     },
+    onMetroToggle: () => {
+      state.metro.enabled = !state.metro.enabled;
+      syncMetroMirrors();
+      stateController.persistMetroPrefs?.();
+      onSettingsChange({ metronome: true });
+    },
+    getMetroEnabled: () => !!state.metro.enabled,
+    getRampStatusLabel: () => rampStatusLabel(),
     onOpenMenu: () => {
       if (playerMenu?.isOpen?.()) playerMenu.close();
       else {
@@ -849,6 +930,18 @@ export function mountGpPlayer(host, {
     settingsDrawer = mountSettingsDrawer(drawerRoot, {
       stateController,
       uidPrefix,
+      onChange: onSettingsChange,
+    });
+  } catch (e) {
+    console.error(e);
+  }
+
+  try {
+    metronomePanel = mountMetronomePanel(metroDrawerRoot, {
+      stateController,
+      uidPrefix: `${uidPrefix}-metro`,
+      getMeasureIndex: () => navMeasureIndex(),
+      getRampStatus: () => tempoRamp.getStatus(),
       onChange: onSettingsChange,
     });
   } catch (e) {
@@ -931,6 +1024,10 @@ export function mountGpPlayer(host, {
         closeOtherOverlays('tracks');
         tracksDrawer.toggle();
       },
+      onOpenMetronome: () => {
+        closeOtherOverlays('metro');
+        metronomePanel?.toggle();
+      },
       onOpenSettings: () => {
         closeOtherOverlays('settings');
         settingsDrawer?.toggle();
@@ -993,22 +1090,39 @@ export function mountGpPlayer(host, {
     const beats = beatsFromMeasureRange(measures, navIdx, navIdx);
     const startSec = quartersToSeconds(beats.startBeat, state.bpm);
     ensureAudio();
-    player.setMetronomeEnabled(!!state.metronomeEnabled);
+    syncMetroToPlayer();
     player.play({ fromSec: startSec });
   }
 
   function countInBeats() {
-    const measures = state.viewModel?.measures || [];
-    const navIdx = navMeasureIndex();
-    const m = measures[navIdx];
-    if (m?.timeSig) {
-      return m.timeSig[0] * (4 / (m.timeSig[1] || 4));
+    return countInBeatCount(state.metro, state.viewModel, navMeasureIndex());
+  }
+
+  function runCountIn(onDone) {
+    const quarterSec = 60 / state.bpm;
+    const beats = countInBeats();
+    const prevMetro = state.metro.enabled;
+    player.setMetronomeEnabled(true);
+    const now = audioCtx.currentTime;
+    for (let i = 0; i < beats; i++) {
+      const level = clickLevelAt(i, state.metro.subdiv, state.metro, []);
+      scheduleMetronomeClick(
+        now + 0.06 + i * quarterSec,
+        level,
+        state.metro.volume,
+      );
     }
-    if (m && Number.isFinite(m.startBeat) && Number.isFinite(m.endBeat)) {
-      const span = m.endBeat - m.startBeat;
-      if (span > 0) return span;
-    }
-    return 4;
+    countInTimer = setTimeout(() => {
+      countInTimer = null;
+      if (!isAlive()) return;
+      if (!prevMetro) player.setMetronomeEnabled(false);
+      onDone?.();
+    }, quarterSec * beats * 1000 + 40);
+  }
+
+  function beginPlaybackSession() {
+    rampRestoreBpm = state.bpm;
+    if (state.tempoRamp.enabled) tempoRamp.startSession(state.bpm);
   }
 
   function startPlayback() {
@@ -1017,6 +1131,7 @@ export function mountGpPlayer(host, {
 
   function stepBpm(delta) {
     if (!isAlive()) return;
+    tempoRamp.stopSession();
     state.bpmUserOverride = true;
     state.bpm = clampBpm(state.bpm + delta);
     onSettingsChange({ reload: true });
@@ -1027,34 +1142,29 @@ export function mountGpPlayer(host, {
     if (player.playing) {
       lastUserStopAt = Date.now();
       clearCountIn();
+      tempoRamp.pauseSession();
       player.pause();
       transport?.sync();
       return;
     }
     if (player.paused) {
       ensureAudio();
+      tempoRamp.resumeSession();
       player.play();
       transport?.sync();
       return;
     }
-    if (state.countInEnabled) {
+    if (state.metro.countInEnabled) {
       ensureAudio();
-      const quarterSec = 60 / state.bpm;
-      const beats = countInBeats();
-      const prevMetro = state.metronomeEnabled;
-      player.setMetronomeEnabled(true);
-      const now = audioCtx.currentTime;
-      for (let i = 0; i < beats; i++) {
-        scheduleMetronomeClick(now + 0.06 + i * quarterSec, i === 0);
-      }
-      countInTimer = setTimeout(() => {
-        countInTimer = null;
+      runCountIn(() => {
         if (!isAlive()) return;
-        if (!prevMetro) player.setMetronomeEnabled(false);
+        beginPlaybackSession();
         startPlayFromNav();
-      }, quarterSec * beats * 1000 + 40);
+      });
       return;
     }
+    ensureAudio();
+    beginPlaybackSession();
     startPlayFromNav();
   }
 
@@ -1062,6 +1172,7 @@ export function mountGpPlayer(host, {
     if (!isAlive()) return;
     lastUserStopAt = Date.now();
     clearCountIn();
+    resetRampAfterStop();
     const measures = state.viewModel?.measures || [];
     const navIdx = navMeasureIndex();
     const beats = beatsFromMeasureRange(measures, navIdx, navIdx);
@@ -1190,6 +1301,7 @@ export function mountGpPlayer(host, {
       transport?.destroy();
       trackMixer?.destroy();
       settingsDrawer?.destroy();
+      metronomePanel?.destroy();
       playerMenu?.destroy();
       annoDrawer?.destroy();
       importPanel?.destroy();

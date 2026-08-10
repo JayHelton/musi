@@ -37,4 +37,15 @@ export {
   segmentBeats,
   estimateSeconds,
 } from './exerciseSegments.js';
+export { mountMetronomePanel } from './metronomePanel.js';
+export {
+  defaultMetronomeConfig,
+  defaultTempoRampConfig,
+  createTempoRampController,
+  clickLevelAt,
+  clickPositionsInRange,
+  deriveBeatsPerMeasure,
+  normalizeMetronomeConfig,
+  normalizeTempoRampConfig,
+} from './metronomeState.js';
 export { mountExerciseImportPanel } from './exerciseImportPanel.js';

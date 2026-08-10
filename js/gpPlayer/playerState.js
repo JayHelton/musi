@@ -9,6 +9,14 @@ import {
   scopeBounds,
 } from './rangeUtils.js';
 import { clampBpm } from './tempoRange.js';
+import {
+  defaultMetronomeConfig,
+  defaultTempoRampConfig,
+  normalizeMetronomeConfig,
+  normalizeTempoRampConfig,
+  readMetroPrefs,
+  writeMetroPrefs,
+} from './metronomeState.js';
 
 const AUTO_FOLLOW_KEY = 'musi.gpAutoFollow';
 const PARCHMENT_ZOOM_KEY = 'musi.gpParchmentZoom';
@@ -58,6 +66,7 @@ export function resolveInitialBpm(initialBpm, scoreBpm) {
 /**
  * @param {object} gpResult parseGuitarPro output
  * @param {object} [options]
+ * @param {string} [options.scoreKey] localStorage key for metronome prefs
  */
 export function createPlayerState(gpResult, options = {}) {
   const hasFretted = gpResult?.tracks?.length > 0;
@@ -80,6 +89,11 @@ export function createPlayerState(gpResult, options = {}) {
 
   let generation = 1;
 
+  const scoreKey = options.scoreKey || '';
+  const savedMetro = readMetroPrefs(scoreKey);
+  const metroDefaults = savedMetro?.metro || defaultMetronomeConfig();
+  const rampDefaults = savedMetro?.ramp || defaultTempoRampConfig();
+
   const state = {
     gp: gpResult,
     trackIndex: hasFretted
@@ -93,8 +107,10 @@ export function createPlayerState(gpResult, options = {}) {
     enabledGuitars: gpResult.tracks.map(() => true),
     enabledDrums: (gpResult.drumTracks || []).map(() => true),
     solo: null,
-    metronomeEnabled: false,
-    countInEnabled: false,
+    metronomeEnabled: !!metroDefaults.enabled,
+    countInEnabled: !!metroDefaults.countInEnabled,
+    metro: normalizeMetronomeConfig(metroDefaults),
+    tempoRamp: normalizeTempoRampConfig(rampDefaults),
     scoreBpm: Number(gpResult.tempo)
       || Number(gpResult.tracks[0]?.model?.tempo)
       || Number(gpResult.drumTracks?.[0]?.model?.tempo)
@@ -303,6 +319,10 @@ export function createPlayerState(gpResult, options = {}) {
     state.bpm = state.scoreBpm;
   }
 
+  function persistMetroPrefs() {
+    writeMetroPrefs(scoreKey, { metro: state.metro, ramp: state.tempoRamp });
+  }
+
   function toPersistable() {
     return {
       preferredTrackIndex: state.trackIndex,
@@ -358,6 +378,7 @@ export function createPlayerState(gpResult, options = {}) {
     setLoopMeasures,
     resetBpm,
     toPersistable,
+    persistMetroPrefs,
     isAlive,
     destroy,
     setAutoFollow,

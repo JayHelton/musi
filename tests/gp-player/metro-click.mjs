@@ -10,18 +10,21 @@ const STANDALONE_METRO_ACCENT = 0.35;
 const STANDALONE_METRO_NORMAL = 0.20;
 
 assert.equal(typeof METRO_CLICK_GAIN.accent, 'number');
+assert.equal(typeof METRO_CLICK_GAIN.beat, 'number');
+assert.equal(typeof METRO_CLICK_GAIN.sub, 'number');
 assert.equal(typeof METRO_CLICK_GAIN.normal, 'number');
-assert.ok(METRO_CLICK_GAIN.accent > METRO_CLICK_GAIN.normal, 'accent louder than normal');
+assert.ok(METRO_CLICK_GAIN.accent > METRO_CLICK_GAIN.beat, 'accent louder than beat');
+assert.ok(METRO_CLICK_GAIN.beat > METRO_CLICK_GAIN.sub, 'beat louder than sub');
+assert.equal(METRO_CLICK_GAIN.normal, METRO_CLICK_GAIN.beat, 'normal aliases beat gain');
 
 assert.ok(
   METRO_CLICK_GAIN.accent >= GP_GUITAR_NOTE_PEAK,
   'accent should be at least as loud as guitar note peaks so clicks cut through the mix',
 );
 assert.ok(
-  METRO_CLICK_GAIN.normal >= GP_GUITAR_NOTE_PEAK * 0.65,
-  'normal clicks should stay materially audible against guitar notes',
+  METRO_CLICK_GAIN.beat >= GP_GUITAR_NOTE_PEAK * 0.65,
+  'beat clicks should stay materially audible against guitar notes',
 );
-
 assert.ok(
   METRO_CLICK_GAIN.accent < STANDALONE_METRO_ACCENT,
   'score-synced accent should stay below standalone metronome peak',

@@ -11,6 +11,7 @@ const ICONS = {
   split: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8.5L20 20"/><path d="M8.5 15.5L20 4"/></svg>',
   tracks: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h14"/></svg>',
   settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>',
+  metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 18v4"/><path d="m19.07 19.07-2.83-2.83"/><path d="M18 12h4"/><path d="m19.07 4.93-2.83 2.83"/><circle cx="12" cy="12" r="4"/></svg>',
 };
 
 function viewLabel(mode) {
@@ -41,6 +42,7 @@ export function mountPlayerMenu(host, {
   onOpenNotes = null,
   onOpenSplit = null,
   onOpenTracks = null,
+  onOpenMetronome = null,
   onOpenSettings = null,
   headerExtra = null,
 } = {}) {
@@ -187,6 +189,17 @@ export function mountPlayerMenu(host, {
         onClick: () => {
           close();
           onOpenTracks();
+        },
+      }));
+    }
+    if (typeof onOpenMetronome === 'function') {
+      actionsGroup.appendChild(makeMenuRow({
+        label: 'Metronome',
+        ariaLabel: 'Metronome and tempo ramp',
+        icon: ICONS.metronome,
+        onClick: () => {
+          close();
+          onOpenMetronome();
         },
       }));
     }

@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v168-mobile-songwriter-editor";
+const CACHE_VERSION = "v169-gp-metronome-ramp";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -152,6 +152,8 @@ const PRECACHE_URLS = [
   "js/gpPlayer/trackMixer.js",
   "js/gpPlayer/settingsDrawer.js",
   "js/gpPlayer/playerMenu.js",
+  "js/gpPlayer/metronomeState.js",
+  "js/gpPlayer/metronomePanel.js",
   "js/gpPlayer/annotationsDrawer.js",
   "js/gpPlayer/exerciseImportPanel.js",
   "js/gpPlayer/measureDigest.js",

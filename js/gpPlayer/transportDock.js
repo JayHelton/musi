@@ -65,8 +65,16 @@ export function mountTransportDock(host, api = {}) {
     'aria-expanded': 'false',
     html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   });
+  const metroBtn = el('button', {
+    class: 'gpp-transport-btn gpp-transport-metro-btn',
+    type: 'button',
+    text: '♩',
+    'aria-label': 'Metronome click',
+    title: 'Metronome click',
+    'aria-pressed': 'false',
+  });
 
-  primary.append(prevBtn, playBtn, stopBtn, restartBtn, nextBtn, menuBtn);
+  primary.append(prevBtn, playBtn, stopBtn, restartBtn, nextBtn, metroBtn, menuBtn);
 
   const tempoGroup = el('div', { class: 'gpp-transport-tempo' });
   const bpmDownBtn = el('button', {
@@ -106,8 +114,9 @@ export function mountTransportDock(host, api = {}) {
   const measureEl = el('span', { class: 'gpp-transport-measure', text: '' });
   const timeEl = el('span', { class: 'gpp-transport-time', text: '0:00 / 0:00' });
   const loopChip = el('span', { class: 'gpp-loop-chip is-off', text: 'Loop off' });
+  const rampChip = el('span', { class: 'gpp-ramp-chip', text: '', hidden: true });
 
-  secondary.append(tempoGroup, measureEl, timeEl, loopChip);
+  secondary.append(tempoGroup, rampChip, measureEl, timeEl, loopChip);
   dock.append(primary, secondary);
 
   prevBtn.addEventListener('click', () => api.onPrev?.());
@@ -120,6 +129,7 @@ export function mountTransportDock(host, api = {}) {
   bpmInput.addEventListener('change', () => api.onBpmInput?.(bpmInput.value));
   bpmResetBtn.addEventListener('click', () => api.onBpmReset?.());
   menuBtn.addEventListener('click', () => api.onOpenMenu?.());
+  metroBtn.addEventListener('click', () => api.onMetroToggle?.());
 
   let ro = null;
 
@@ -167,6 +177,20 @@ export function mountTransportDock(host, api = {}) {
       loopChip.textContent = 'Loop off';
       loopChip.classList.add('is-off');
     }
+
+    const rampTxt = api.getRampStatusLabel?.();
+    if (rampTxt) {
+      rampChip.textContent = rampTxt;
+      rampChip.hidden = false;
+    } else {
+      rampChip.textContent = '';
+      rampChip.hidden = true;
+    }
+
+    const metroOn = !!api.getMetroEnabled?.();
+    metroBtn.classList.toggle('is-on', metroOn);
+    metroBtn.setAttribute('aria-pressed', metroOn ? 'true' : 'false');
+    metroBtn.title = metroOn ? 'Metronome on' : 'Metronome off';
 
     prevBtn.disabled = api.canPrev?.() === false;
     nextBtn.disabled = api.canNext?.() === false;

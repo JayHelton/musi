@@ -7,6 +7,12 @@ import { buildTimedNotes } from './tab/tabPlayer.js';
 import { scheduleHit, initEngine } from './drums/drumEngine.js';
 import { scheduleMetronomeClick } from './tab/metroClick.js';
 import { measureIndexAtBeat } from './gpPlayer/rangeUtils.js';
+import {
+  clickLevelAt,
+  nextClickBeat,
+  normalizeMetronomeConfig,
+  snapMetroBeatToGrid,
+} from './gpPlayer/metronomeState.js';
 
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD = 0.14;
@@ -45,24 +51,6 @@ function buildTimedDrums(percModel, bpm, trackIndex) {
       startBeat: Number.isFinite(e.start) ? e.start : 0,
     }))
     .sort((a, b) => a.startSec - b.startSec);
-}
-
-function isMeasureStartBeat(measureStarts, beat, referenceModel) {
-  if (measureStarts.length) {
-    for (const ms of measureStarts) {
-      if (Math.abs(ms - beat) < 1e-5) return true;
-    }
-    return false;
-  }
-  const measures = referenceModel?.measures;
-  if (measures?.length) {
-    const m0 = measures[0];
-    const len = (Number.isFinite(m0.endBeat) && Number.isFinite(m0.startBeat))
-      ? (m0.endBeat - m0.startBeat)
-      : null;
-    if (len && len > 0) return beat % len < 1e-6;
-  }
-  return beat % 4 < 1e-6;
 }
 
 function buildMeasureStarts(model) {
@@ -111,7 +99,10 @@ export function createGpMixPlayer(opts = {}) {
     events: [],
     nextIndex: 0,
     nextMetroBeat: 0,
+    metroConfig: normalizeMetronomeConfig(),
     measureStarts: [],
+    loopPassCount: 0,
+    loopRestartFlag: false,
     referenceModel: null,
     playing: false,
     paused: false,
@@ -180,7 +171,7 @@ export function createGpMixPlayer(opts = {}) {
       state.events[state.nextIndex].startSec < fromSec - 0.0001
     ) state.nextIndex += 1;
     const beat = (fromSec / 60) * state.bpm;
-    state.nextMetroBeat = Math.max(0, Math.floor(beat + 1e-9));
+    state.nextMetroBeat = snapMetroBeatToGrid(beat, state.metroConfig.subdiv);
   }
 
   function emitTick() {
@@ -189,6 +180,8 @@ export function createGpMixPlayer(opts = {}) {
     const beat = (sec / 60) * state.bpm;
     const measures = state.referenceModel?.measures || [];
     state.measureIndex = measureIndexAtBeat(measures, beat);
+    const loopRestart = state.loopRestartFlag;
+    state.loopRestartFlag = false;
     state.onTick({
       playing: state.playing,
       currentSec: sec,
@@ -198,6 +191,8 @@ export function createGpMixPlayer(opts = {}) {
       bpm: state.bpm,
       resting: !!state.inLoopRest,
       restRemaining: restRemaining(),
+      loopRestart,
+      loopPassCount: state.loopPassCount,
     });
   }
 
@@ -220,18 +215,26 @@ export function createGpMixPlayer(opts = {}) {
     const quarterSec = 60 / state.bpm;
     const loopStart = state.loop?.startSec ?? 0;
     const loopEnd = state.loop?.endSec ?? Infinity;
+    const metro = state.metroConfig;
     while (state.nextMetroBeat * quarterSec <= horizon + 1e-9) {
       const beatSec = state.nextMetroBeat * quarterSec;
       if (beatSec >= loopStart - 1e-6 && beatSec < loopEnd - 1e-6) {
         const when = state.originAudioTime + (beatSec - state.originSongSec);
         if (when >= now - 0.02) {
+          const level = clickLevelAt(
+            state.nextMetroBeat,
+            metro.subdiv,
+            metro,
+            state.measureStarts,
+          );
           scheduleMetronomeClick(
             Math.max(now + 0.004, when),
-            isMeasureStartBeat(state.measureStarts, state.nextMetroBeat, state.referenceModel)
+            level,
+            metro.volume,
           );
         }
       }
-      state.nextMetroBeat += 1;
+      state.nextMetroBeat = nextClickBeat(state.nextMetroBeat, metro.subdiv);
     }
   }
 
@@ -268,6 +271,8 @@ export function createGpMixPlayer(opts = {}) {
       }
       state.originSongSec = state.loop.startSec;
       state.originAudioTime = now;
+      state.loopPassCount += 1;
+      state.loopRestartFlag = true;
       resyncCursor(state.loop.startSec);
       songNow = state.loop.startSec;
       emitTick();
@@ -461,6 +466,8 @@ export function createGpMixPlayer(opts = {}) {
       : quartersToSeconds(state.range.startBeat || 0, state.bpm);
     state.nextIndex = 0;
     state.nextMetroBeat = 0;
+    state.loopPassCount = 0;
+    state.loopRestartFlag = false;
     state.measureIndex = 0;
     stopTimer();
     clearVoices();
@@ -510,6 +517,13 @@ export function createGpMixPlayer(opts = {}) {
     else emitTick();
   }
 
+  function setMetronomeConfig(config) {
+    state.metroConfig = normalizeMetronomeConfig({ ...state.metroConfig, ...config });
+    const beat = (songTimeNow() / 60) * state.bpm;
+    state.nextMetroBeat = snapMetroBeatToGrid(beat, state.metroConfig.subdiv);
+    if (!state.playing) emitTick();
+  }
+
   function setBpm(bpm) {
     const was = state.playing;
     const at = songTimeNow();
@@ -540,6 +554,7 @@ export function createGpMixPlayer(opts = {}) {
     setBpm,
     setTrackEnabled,
     setMetronomeEnabled,
+    setMetronomeConfig,
     setLoop(loop) {
       if (!loop) {
         state.loop = null;
