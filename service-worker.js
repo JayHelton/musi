@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v170-workbook-companions";
+const CACHE_VERSION = "v171-interval-orbit-companion";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -189,6 +189,7 @@ const PRECACHE_URLS = [
   "js/exerciseCompanions/triadRef.js",
   "js/exerciseCompanions/sweepRef.js",
   "js/exerciseCompanions/pitchTrain.js",
+  "js/exerciseCompanions/intervalOrbit.js",
   "js/exerciseCompanions/index.js",
   "js/exercisesBulk.js",
   "js/exercisesBulkUI.js",
