@@ -1,5 +1,5 @@
 /**
- * Lazy-load and mount one objective workspace at a time into #workspace-root.
+ * Load and mount one objective workspace at a time into #workspace-root.
  */
 
 const workspaceLoaders = {

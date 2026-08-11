@@ -1,4 +1,4 @@
-/** Dock destination icons (Home / Train / Study / Create). */
+/** Dock destination icons for Home, Train, Study, and Create. */
 
 export const DEST_ICONS = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',

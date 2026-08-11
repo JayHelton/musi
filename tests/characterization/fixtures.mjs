@@ -1,4 +1,4 @@
-// Realistic legacy localStorage fixtures keyed exactly as production writes them.
+// Realistic legacy localStorage fixtures. Keys match production writes exactly.
 // Run: node tests/characterization/fixtures.mjs
 
 import { ROUTINES_STORAGE_KEY } from '../../js/routineModel.js';
@@ -8,7 +8,7 @@ const FIXED_ISO = '2026-06-15T12:00:00.000Z';
 const FIXED_ISO_2 = '2026-06-14T10:30:00.000Z';
 const FIXED_ISO_3 = '2026-06-13T08:15:00.000Z';
 
-/** Today's YYYY-MM-DD for stats.today.day so loadStats does not reset the fixture. */
+/** Today's YYYY-MM-DD for stats.today.day. loadStats does not reset the fixture. */
 function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -303,7 +303,7 @@ export const MUSI_NOTES = [
   },
 ];
 
-/** Raw stored shape for the legacy single-recording song (audioId/audioName). */
+/** Raw stored shape for the legacy single-recording song (audioId and audioName). */
 export const MUSI_SONGS_RAW = [
   {
     id: 'song-modern',
@@ -327,7 +327,7 @@ export const MUSI_SONGS_RAW = [
   },
 ];
 
-/** Expected reader output for songs after normalizeSong (legacy audioId migrated). */
+/** Expected reader output for songs after normalizeSong. Legacy audioId migrated. */
 export const MUSI_SONGS_EXPECTED = [
   {
     id: 'song-modern',

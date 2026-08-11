@@ -1,5 +1,5 @@
 /**
- * Inspector unit tests for study workspace Phase 4.
+ * Inspector unit tests for the Study workspace Phase 4.
  */
 
 import assert from 'node:assert/strict';

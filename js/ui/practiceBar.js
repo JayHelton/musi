@@ -1,5 +1,5 @@
 // Persistent Train transport bar bound to the practice session service.
-// Pure view over session state — no local metronome or timer ownership.
+// Pure view over session state. No local metronome or timer ownership.
 
 import {
   getSession,

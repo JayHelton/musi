@@ -1,5 +1,5 @@
 /**
- * Study objective workspace — Learn, Explore, Review.
+ * Study objective workspace. Learn, Explore, and Review.
  */
 
 import { OBJECTIVES } from '../routes.js';

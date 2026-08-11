@@ -2,7 +2,7 @@
 // status, tempo history, cold-test scheduling, and study-concept review intervals.
 //
 // Storage: localStorage key musi.progressLog ({ version: 1, attempts: [] }).
-// All access is defensive so the module works fully in-memory when localStorage
+// All access is defensive. The module works fully in memory when localStorage
 // is unavailable (Node tests).
 
 export const PROGRESS_LOG_STORAGE_KEY = 'musi.progressLog';

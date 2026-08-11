@@ -1,6 +1,6 @@
-// MusicProject storage for Musi Create. Native projects live in musi.projects;
-// songs in musi.songs are adapted into projects at read time without moving or
-// rewriting song records.
+// MusicProject storage for Musi Create. Native projects live in musi.projects.
+// Songs in musi.songs adapt into projects at read time. Song records do not move
+// or rewrite.
 //
 // Split-write model for song-backed projects (id proj-song-<songId>):
 //   - title, lyrics, recordingIds → musi.songs (songwriter.js remains authoritative)
@@ -8,7 +8,7 @@
 //     → musi.projects.songExtensions[songId] (Create-only overlay)
 //
 // Native projects (id proj-*) store the full MusicProject in musi.projects.projects.
-// Notes inbox links live in musi.projects.notesInbox; note bodies stay in musi.notes.
+// Notes inbox links live in musi.projects.notesInbox. Note bodies stay in musi.notes.
 //
 // Storage: localStorage key musi.projects. Defensive in-memory fallback when
 // localStorage is unavailable (Node tests).
@@ -293,7 +293,7 @@ export function songIdFromProjectId(projectId) {
 }
 
 /**
- * Map a musi.songs record to a merged MusicProject (read-only adapter).
+ * Map a musi.songs record to a merged MusicProject. Read-only adapter.
  * @param {object} song
  * @param {object} [extension]
  */

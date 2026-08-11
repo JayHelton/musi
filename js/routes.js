@@ -1,6 +1,6 @@
 /**
- * Pure route data for Musi navigation: objectives, views, legacy aliases,
- * parse/format/resolve. No DOM — safe to import in Node.
+ * Pure route data for Musi navigation: objectives, views, and legacy aliases.
+ * Provides parse, format, and resolve. No DOM. Safe to import in Node.
  */
 
 export const VIEWS = {

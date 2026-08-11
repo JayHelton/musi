@@ -1,5 +1,5 @@
 /**
- * Node tests for canonical routes, legacy aliases, and feature registry.
+ * Node tests for canonical routes, legacy aliases, and the feature registry.
  * Run: node tests/routes/run.mjs
  */
 

@@ -1,5 +1,5 @@
 /**
- * Shared workspace chrome: objective header + view tab bar + view region.
+ * Shared workspace chrome: objective header, view tab bar, and view region.
  */
 
 /**

@@ -11,11 +11,10 @@ sound without switching apps, installing plug-ins, or waiting on a backend.
 
 ## What Musi does
 
-Musi is organized around four persistent destinations — **Home, Train, Study,
-Create** — plus **Settings** in the application menu. Metronome, practice timer,
-tuner, keyboard, recorder, loop controls, and the music inspector are contextual
-utilities: they ride along with practice or appear in utility drawers, not as top-level
-destinations.
+Musi has four persistent destinations — **Home, Train, Study, Create** — plus
+**Settings** in the application menu. Metronome, practice timer, tuner, keyboard,
+recorder, loop controls, and the music inspector are contextual utilities. They
+appear during practice or in utility drawers. They are not top-level destinations.
 
 ### Home
 
@@ -25,9 +24,9 @@ destinations.
 
 ### Train
 
-**Today** — active practice session cockpit, free practice, routine session launch,
-manual attempt logging, and the persistent Practice Bar (metronome, timer, loop,
-transport, session notes).
+**Today** — active practice session, free practice, routine session launch, manual
+attempt logging, and the persistent Practice Bar (metronome, timer, loop, transport,
+session notes).
 
 **Plans** — routines and ordered sessions (`Routine → Sessions → Workbooks →
 Exercises`).
@@ -113,7 +112,7 @@ Subviews use query parameters, for example `#train/fundamentals?drill=scales`,
 practice utility panel.
 
 Legacy bookmarks (`#scales`, `#intervalorbit`, `#songwriter`, hub aliases, and the
-full table in `js/routes.js`) still resolve and are normalized with
+full table in `js/routes.js`) still resolve. The app normalizes them with
 `history.replaceState` so Back does not trap on old links.
 
 ## Why it is useful
@@ -134,8 +133,8 @@ Musi bridges the gap between a theory worksheet and a creative instrument:
 ## Technical highlights
 
 - **Progressive web app:** `manifest.webmanifest` and `service-worker.js` make
-  Musi installable and offline-capable with an app-shell cache; objective workspaces
-  lazy-load after first use.
+  Musi installable and offline-capable with an app-shell cache. Objective workspaces
+  load on first use.
 - **Static-first architecture:** the web app is plain HTML, CSS, and ES modules;
   no server, build step, or client framework is required.
 - **Browser-native audio:** Web Audio powers synthesis, metronome scheduling,
@@ -146,7 +145,7 @@ Musi bridges the gap between a theory worksheet and a creative instrument:
 - **Shared theory engine:** reusable modules handle note parsing, enharmonic
   spelling, scale definitions, intervals, tunings, and frequency-to-note mapping.
 - **Shared music context:** instrument, tuning, key, scale, tempo, and meter persist
-  across Train, Study, and Create with routine/project overrides.
+  across Train, Study, and Create. Routines and projects can override these values.
 - **Persistent preferences:** local storage remembers user selections and tool
   settings without requiring accounts or cloud sync.
 - **Responsive interface:** bottom dock (mobile) and top nav (desktop) show exactly
@@ -191,8 +190,8 @@ node bin/musi.js
 
 ## Development and testing
 
-Ad-hoc Node runners live under `tests/<suite>/run.mjs` (no framework, no build step).
-Run any suite with:
+Ad-hoc Node runners live under `tests/<suite>/run.mjs`. There is no framework and no
+build step. Run any suite with:
 
 ```bash
 node tests/<suite>/run.mjs
@@ -218,7 +217,7 @@ Feature and integration suites:
 - `sync` — `tests/sync/bundle.mjs`, `profile.mjs`, `frames.mjs`, `zip.mjs`, and
   `tests/sync/run-browser.mjs` (browser, static server required)
 
-Browser regression (headless Chrome over CDP):
+Browser regression uses headless Chrome over CDP:
 
 ```bash
 python3 -m http.server 8080   # from repo root — required

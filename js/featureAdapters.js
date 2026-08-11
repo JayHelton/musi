@@ -1,6 +1,6 @@
 /**
- * Lazy mount/stop of legacy feature modules via dynamic import().
- * Preserves init/stop semantics formerly in main.js TOOL_INITS/TOOL_STOPPERS.
+ * Mount and stop legacy feature modules with lazy dynamic import().
+ * Preserves init/stop semantics from main.js TOOL_INITS and TOOL_STOPPERS.
  */
 
 const ADAPTERS = {

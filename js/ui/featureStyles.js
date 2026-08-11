@@ -1,5 +1,5 @@
 /**
- * Lazy-load feature-specific stylesheets on first mount.
+ * Load feature-specific stylesheets on first mount.
  * All listed files remain in the service-worker precache for offline use.
  */
 

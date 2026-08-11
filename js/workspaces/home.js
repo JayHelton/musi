@@ -1,5 +1,5 @@
 /**
- * Home objective workspace — adopts sec-home and renders objective cards.
+ * Home objective workspace. Adopts sec-home and renders objective cards.
  */
 
 import { adoptSection, releaseAllExcept } from './legacyHost.js';

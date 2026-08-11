@@ -1,5 +1,5 @@
 /**
- * Practice bar unit tests (imported by tests/train/run.mjs).
+ * Practice bar unit tests. Imported by tests/train/run.mjs.
  */
 
 import assert from 'node:assert/strict';

@@ -227,7 +227,7 @@ export function getNavPushCount() {
   return navPushCount;
 }
 
-/** Pop one in-app history entry. */
+/** Remove one in-app history entry. */
 export function popNavHistory() {
   if (navPushCount > 0) history.back();
 }

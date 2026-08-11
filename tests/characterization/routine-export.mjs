@@ -1,5 +1,5 @@
 /**
- * Routine import/export characterization tests.
+ * Routine import and export characterization tests.
  * Run: node tests/characterization/routine-export.mjs
  */
 

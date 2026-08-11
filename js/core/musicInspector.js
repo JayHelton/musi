@@ -1,6 +1,6 @@
 /**
- * Contextual music inspector: pure inspect() model plus a compact DOM renderer.
- * Derives facts from the shared theory engine and surfaces universal study actions.
+ * Contextual music inspector. Pure inspect() model and a compact DOM renderer.
+ * Derives facts from the shared theory engine. Surfaces universal study actions.
  */
 
 import { parseNote, INTERVAL_LABELS, NOTE_NAMES_SHARP } from '../theory.js';

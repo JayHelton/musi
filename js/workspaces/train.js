@@ -1,5 +1,5 @@
 /**
- * Train objective workspace — Today, Plans, Library, Fundamentals, Progress.
+ * Train objective workspace. Today, Plans, Library, Fundamentals, and Progress.
  */
 
 import { OBJECTIVES } from '../routes.js';
@@ -146,7 +146,7 @@ function fmtPct(value) {
 }
 
 /**
- * Expand a routine session's workbook list into ordered practice items.
+ * Expand a routine session workbook list into ordered practice items.
  * @param {object} routine
  * @param {object} session
  * @param {{ getWorkbook?: typeof getWorkbook, getExercise?: typeof getExercise }} [deps]
@@ -798,7 +798,6 @@ function bindSessionRefresh() {
     else syncPracticeBar();
     const view = shellApi?.viewRegion;
     if (view && effectiveView({ view: shellApi?.currentView }) === 'today') {
-      // Re-render today on session ticks when visible
     }
   });
 }

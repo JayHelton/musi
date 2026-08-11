@@ -1,7 +1,7 @@
 # Train / Study / Create refactor — implementation contract
 
-Authoritative contract for the navigation refactor. Every agent working on this
-refactor must follow the interfaces below exactly so parallel work composes.
+This contract defines the navigation refactor. Each agent must follow the
+interfaces in this document. Parallel work must fit together.
 
 Product rule: **a capability becomes a persistent destination only when it
 represents a user objective.** Everything else is a view, component, renderer,
@@ -12,10 +12,10 @@ panel, or contextual action inside Train, Study, or Create.
 - Static, frontend-only PWA. No build step, no framework, no new dependencies.
 - Plain ES modules under `js/`, plain CSS under `css/`.
 - Atomic Purple Game Boy Color theme (`css/base.css` + `css/theme-gbc.css`
-  tokens). Never introduce generic dark-dashboard styling or hard-coded
+  tokens). Do not add generic dark-dashboard styling or hard-coded
   `#0a0a0a`-style colors.
-- Never delete or rewrite stored user records. Add adapters; migrate forward
-  only, idempotently, keeping the original readable.
+- Do not delete or rewrite stored user records. Add adapters. Migrate forward
+  only, idempotently, and keep the original readable.
 - Do not rewrite music-theory code, the Guitar Pro parser, or feature internals.
   This refactor changes **ownership, navigation, and composition**.
 - Keep every existing `#sec-*` element id and every feature module's public
@@ -23,8 +23,9 @@ panel, or contextual action inside Train, Study, or Create.
 
 ## 2. Destinations and routes
 
-Persistent destinations: **Home, Train, Study, Create**. `Settings` is reachable
-from the application menu only. Everything else is a view, panel or action.
+Persistent destinations: **Home, Train, Study, Create**. The user opens
+`Settings` from the application menu only. Everything else is a view, panel or
+action.
 
 Canonical hash routes:
 
@@ -40,8 +41,9 @@ Subviews use query parameters, e.g. `#train/fundamentals?drill=intervals`,
 `#train/library?type=workbook&id=<id>`, `#study/explore?view=fretboard`,
 `#create/projects?id=<id>&view=lyrics`.
 
-Legacy hashes must keep working and are normalized with `history.replaceState`
-(no extra back-stack entry). Full alias table lives in `js/routes.js`.
+Legacy hashes must keep working. The app normalizes them with
+`history.replaceState` and does not add a back-stack entry. The full alias table
+lives in `js/routes.js`.
 
 ## 3. Module map
 
@@ -336,8 +338,8 @@ every legacy hash resolves to its documented destination.
 
 ## Implementation status
 
-Shipped on this branch (derived from current code and test suites). Phases match
-the parallel delivery order used during the refactor.
+This branch ships the items below. The table reflects the current code and test
+suites. Phases match the parallel delivery order used during the refactor.
 
 | Phase | Landed | Deferred / not wired |
 | --- | --- | --- |

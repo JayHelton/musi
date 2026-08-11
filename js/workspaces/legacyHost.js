@@ -1,6 +1,6 @@
 /**
- * Adopt/release legacy #sec-* elements into workspace view containers.
- * Sections stay in index.html; workspaces borrow live DOM nodes.
+ * Adopt and release legacy #sec-* elements into workspace view containers.
+ * Sections stay in index.html. Workspaces borrow live DOM nodes.
  */
 
 /** @type {Map<string, { parent: Element, nextSibling: ChildNode|null }>} */

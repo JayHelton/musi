@@ -1,5 +1,5 @@
 /**
- * Settings workspace — adopts sec-musicprefs and lazily mounts preferences UI.
+ * Settings workspace. Adopts sec-musicprefs and mounts preferences UI on demand.
  */
 
 import { adoptSection, releaseAllExcept } from './legacyHost.js';

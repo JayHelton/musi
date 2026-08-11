@@ -2,8 +2,8 @@
 // routines, scores, media). Does not merge or rewrite any backing store.
 //
 // Synchronous APIs read localStorage only. Attachment metadata is exposed via
-// async listMediaFromAttachments() (IndexedDB). Import cleanly in Node (no DOM
-// at module scope).
+// async listMediaFromAttachments() (IndexedDB). Imports cleanly in Node. No DOM
+// at module scope.
 
 import { listFilesMeta } from '../attachments.js';
 

@@ -1,14 +1,14 @@
 /**
  * Shared observable music context for instrument, tuning, key, scale, tempo, and
- * meter. Dense screens read one effective state instead of wiring separate
- * selectors. Persisted defaults live here (plus `js/musicalContext.js` for
- * root, scale, and tempo). Scoped overrides stack for routines and projects
- * without touching stored defaults.
+ * meter. Dense screens read one effective state instead of separate selectors.
+ * Persisted defaults live here. js/musicalContext.js stores root, scale, and tempo.
+ * Scoped overrides stack for routines and projects. Overrides do not change stored
+ * defaults.
  *
- * `root`, `scaleId`, and `tempoBpm` are not duplicated: they read and write
- * through `js/musicalContext.js`. External `setContext` updates propagate here;
- * `setMusicContext` writes back with source `musicContext` so the subscription
- * bridge ignores echoes and avoids update loops.
+ * root, scaleId, and tempoBpm are not duplicated. They read and write through
+ * js/musicalContext.js. External setContext updates propagate here. setMusicContext
+ * writes back with source musicContext. The subscription bridge ignores echoes and
+ * avoids update loops.
  */
 
 import { getSetting, saveSettings } from '../persistence.js';

@@ -1,4 +1,4 @@
-// Map-backed localStorage / sessionStorage stubs for Node tests.
+// Map-backed localStorage and sessionStorage stubs for Node tests.
 
 function makeStorageApi(store) {
   return {

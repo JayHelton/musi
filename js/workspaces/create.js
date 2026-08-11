@@ -1,5 +1,5 @@
 /**
- * Create objective workspace — Projects, Capture, Compose.
+ * Create objective workspace. Projects, Capture, and Compose.
  */
 
 import { OBJECTIVES } from '../routes.js';

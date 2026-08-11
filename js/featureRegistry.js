@@ -1,6 +1,6 @@
 /**
- * Feature metadata registry: ownership, routes, section ids, capabilities.
- * Imports only from js/routes.js — safe to import in Node.
+ * Feature metadata registry: ownership, routes, section ids, and capabilities.
+ * Imports only from js/routes.js. Safe to import in Node.
  */
 
 import {

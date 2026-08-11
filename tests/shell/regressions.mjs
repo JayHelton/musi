@@ -1,5 +1,5 @@
 /**
- * Pure-Node shell regressions (no browser required).
+ * Pure-Node shell regressions. No browser is required.
  * Imported by tests/shell/run.mjs.
  */
 

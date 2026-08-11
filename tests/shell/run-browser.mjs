@@ -1,5 +1,5 @@
 /**
- * Permanent shell browser regression suite (headless Chrome over CDP).
+ * Permanent shell browser regression suite. Uses headless Chrome over CDP.
  *
  * Usage: node tests/shell/run-browser.mjs [baseUrl]
  * Requires a static server on the base URL (default http://localhost:8080)

@@ -1,10 +1,10 @@
 // One practice session at a time: session clock, global metronome ownership, loop
-// state, active work item, and attempt logging. Starting a new session always ends
-// the previous one first so two metronomes never run together.
+// state, active work item, and attempt logging. A new session always ends the
+// previous session first so two metronomes never run together.
 //
-// Metronome ownership uses an internal driver seam: a default browser driver talks
-// to js/metronome.js when DOM/audio exist; otherwise (Node tests) a state-only
-// driver tracks values without audio. Tests inject a fake driver via
+// Metronome ownership uses an internal driver seam. The default browser driver talks
+// to js/metronome.js when DOM and audio exist. In Node tests a state-only driver
+// tracks values without audio. Tests inject a fake driver via
 // __setMetronomeDriverForTests.
 
 import { getSetting, saveSetting } from '../persistence.js';
@@ -784,18 +784,18 @@ export function hasActiveSession() {
   return session != null && session.status !== 'ended';
 }
 
-/** Test-only: inject a fake metronome driver. */
+/** Test only: inject a fake metronome driver. */
 export function __setMetronomeDriverForTests(driver) {
   customDriverInjected = true;
   metroDriver = driver || createStateOnlyDriver();
 }
 
-/** Test-only: inject a monotonic time source (returns ms). */
+/** Test only: inject a monotonic time source. Returns ms. */
 export function __setTimeSourceForTests(fn) {
   timeSource = typeof fn === 'function' ? fn : defaultTimeSource;
 }
 
-/** Test-only: advance the session clock one tick without setInterval. */
+/** Test only: advance the session clock one tick without setInterval. */
 export function __tickSessionClockForTests(reason = 'tick') {
   tickClock(reason);
 }

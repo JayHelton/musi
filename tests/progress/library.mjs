@@ -1,4 +1,4 @@
-// Node tests for libraryService read facade.
+// Node tests for the libraryService read facade.
 // Run via tests/progress/run.mjs
 
 import assert from 'node:assert/strict';

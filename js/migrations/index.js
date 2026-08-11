@@ -1,7 +1,7 @@
 // Versioned, idempotent, non-destructive data migrations for Musi.
 // State: musi:settings keys migrations.version and migrations.log.
 // Backups: musi.backup.<storageKey>.<migrationId> before any transformation.
-// Never throws; failures are recorded and originals remain untouched.
+// Never throws. Failures are recorded and originals remain untouched.
 
 import { getSetting, saveSettings, invalidateSettingsCache } from '../persistence.js';
 import { PROJECTS_STORAGE_KEY, invalidateProjectsCache } from '../create/projectModel.js';
