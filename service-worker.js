@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v172-library-cleanup";
+const CACHE_VERSION = "v173-tsc-shell";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -42,6 +42,7 @@ const PRECACHE_URLS = [
   "css/intervalorbit.css",
   "css/selection-sheet.css",
   "css/ux-shell.css",
+  "css/shell.css",
   "css/ux-chords-orbit.css",
   "css/triads.css",
   "css/study-recs.css",
@@ -59,6 +60,18 @@ const PRECACHE_URLS = [
   "chord-cards/data/shapes.js",
   "js/movableChordCards.js",
   "js/main.js",
+  "js/routes.js",
+  "js/featureRegistry.js",
+  "js/featureAdapters.js",
+  "js/router.js",
+  "js/workspaceLoader.js",
+  "js/workspaces/legacyHost.js",
+  "js/workspaces/workspaceShell.js",
+  "js/workspaces/home.js",
+  "js/workspaces/train.js",
+  "js/workspaces/study.js",
+  "js/workspaces/create.js",
+  "js/workspaces/settings.js",
   "js/bootSplash.js",
   "js/tools.js",
   "js/recents.js",

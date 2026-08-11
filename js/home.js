@@ -1,5 +1,10 @@
-import { getSetting, saveSetting } from './persistence.js';
-import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory, isFeatureEnabled } from './tools.js';
+/**
+ * Home screen renderer: objective cards, continue card, study recommendation,
+ * and lightweight secondary summaries. Used by workspaces/home.js.
+ */
+
+import { getSetting } from './persistence.js';
+import { getTool } from './tools.js';
 import { getContext } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
 import {
@@ -7,37 +12,27 @@ import {
   completeRecommendedStudy,
 } from './studyRecommendations.js';
 import { hasActiveGenres, getMusicProfile } from './musicProfile.js';
-import { startStudyLab } from './studyLab.js';
+import { listRoutines } from './routineModel.js';
+import { getStudyProgress } from './studyProgress.js';
+import { dueStudyReviews } from './progress/progressLog.js';
+import { listAttempts } from './progress/progressLog.js';
 
 let showSectionFn = null;
-let showHubFn = null;
+let navigateFn = null;
 
-function visibleTool(id) {
-  return getTool(id) && isFeatureEnabled(id);
-}
-
-function storedFavorites() {
-  const v = getSetting('home.favorites', []);
-  return Array.isArray(v) ? v.filter(id => getTool(id)) : [];
-}
-
-function favorites() {
-  return storedFavorites().filter(id => visibleTool(id));
-}
-
-function setFavorites(list) { saveSetting('home.favorites', list); }
-
-function toggleFavorite(id) {
-  const list = storedFavorites();
-  const i = list.indexOf(id);
-  if (i >= 0) list.splice(i, 1); else list.push(id);
-  setFavorites(list);
-  render();
+function readSongs() {
+  try {
+    const raw = window.localStorage.getItem('musi.songs');
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 function lastTool() {
   const id = getSetting('nav.lastTool', null);
-  return id && visibleTool(id) ? id : null;
+  return id && getTool(id) ? id : null;
 }
 
 function continueSetupLine(toolId) {
@@ -54,8 +49,61 @@ function continueSetupLine(toolId) {
     bits.push(tuning);
   }
   const sub = getSetting(`subview.${toolId}`, null);
-  if (sub) bits.push(String(sub).replace(/^\w/, ch => ch.toUpperCase()));
+  if (sub) bits.push(String(sub).replace(/^\w/, (ch) => ch.toUpperCase()));
   return bits.filter(Boolean).join(' · ') || (getTool(toolId)?.description || '');
+}
+
+function findActiveRoutineSession() {
+  for (const rt of listRoutines()) {
+    if (!rt.activeSessionId) continue;
+    const session = rt.sessions?.find((s) => s.id === rt.activeSessionId);
+    if (session && !session.completed) return { routine: rt, session };
+  }
+  return null;
+}
+
+function findNextRoutine() {
+  for (const rt of listRoutines()) {
+    const session = rt.sessions?.find((s) => !s.completed);
+    if (session) return { routine: rt, session };
+  }
+  return null;
+}
+
+function trainNextAction() {
+  const active = findActiveRoutineSession();
+  if (active) return `Resume ${active.routine.name}`;
+  const next = findNextRoutine();
+  if (next) return `Next: ${next.routine.name}`;
+  return 'Start free practice';
+}
+
+function studyNextAction() {
+  const progress = getStudyProgress();
+  if (progress.lastPrimaryId) return 'Resume Study Lab path';
+  const rec = buildRecommendations({ limit: 1 }).primary;
+  if (rec) return rec.title;
+  return 'Explore study paths';
+}
+
+function createNextAction() {
+  const songs = readSongs();
+  if (!songs.length) return 'Start a new project';
+  const latest = songs[0];
+  return latest.title || latest.name || 'Recent project';
+}
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function go(target) {
+  if (navigateFn) navigateFn(target);
+  else if (showSectionFn) showSectionFn(target);
 }
 
 function renderContinue(host) {
@@ -70,53 +118,76 @@ function renderContinue(host) {
   host.innerHTML = `
     <button type="button" class="home-continue-card" data-id="${id}">
       <span class="home-continue-kicker">Continue</span>
-      <span class="home-continue-title">${tool.title}</span>
-      <span class="home-continue-setup">${continueSetupLine(id)}</span>
+      <span class="home-continue-title">${escapeHtml(tool.title)}</span>
+      <span class="home-continue-setup">${escapeHtml(continueSetupLine(id))}</span>
     </button>
   `;
-  host.querySelector('button').onclick = () => showSectionFn(id);
+  host.querySelector('button').onclick = () => go(id);
 }
 
-function renderQuickStart(host) {
-  const fav = favorites().slice(0, 4);
-  const pinned = fav.length ? fav : ['intervalorbit', 'scaleref', 'metronome', 'tuner'].filter(id => visibleTool(id));
-  host.innerHTML = '';
-  const label = document.createElement('div');
-  label.className = 'home-section-label';
-  label.textContent = 'Quick Start';
-  host.appendChild(label);
-  const grid = document.createElement('div');
-  grid.className = 'home-quick';
-  pinned.forEach(id => {
-    const tool = getTool(id);
-    if (!tool) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'home-quick-card';
-    btn.innerHTML = `
-      <span class="hq-icon">${TOOL_ICONS[id] || ''}</span>
-      <span class="hq-title">${tool.label}</span>
-      <span class="home-quick-fav" data-fav="${id}" aria-label="Favorite">${favorites().includes(id) ? '★' : '☆'}</span>
-    `;
-    btn.onclick = (e) => {
-      if (e.target.closest('[data-fav]')) {
-        e.stopPropagation();
-        toggleFavorite(id);
-        return;
-      }
-      showSectionFn(id);
-    };
-    grid.appendChild(btn);
+function renderObjectiveCards(host) {
+  const active = findActiveRoutineSession();
+  const trainAction = trainNextAction();
+  const studyAction = studyNextAction();
+  const createAction = createNextAction();
+
+  host.innerHTML = `
+    <div class="home-objective-grid">
+      <article class="home-objective-card">
+        <div class="home-objective-kicker">Train</div>
+        <h3 class="home-objective-title">Practice and drills</h3>
+        <p class="home-objective-action">${escapeHtml(trainAction)}</p>
+        <button type="button" class="btn primary" data-obj="train">${active ? 'Resume' : 'Open Train'}</button>
+      </article>
+      <article class="home-objective-card">
+        <div class="home-objective-kicker">Study</div>
+        <h3 class="home-objective-title">Learn and explore</h3>
+        <p class="home-objective-action">${escapeHtml(studyAction)}</p>
+        <button type="button" class="btn primary" data-obj="study">Open Study</button>
+      </article>
+      <article class="home-objective-card">
+        <div class="home-objective-kicker">Create</div>
+        <h3 class="home-objective-title">Projects and capture</h3>
+        <p class="home-objective-action">${escapeHtml(createAction)}</p>
+        <button type="button" class="btn primary" data-obj="create">Open Create</button>
+      </article>
+    </div>
+  `;
+
+  host.querySelector('[data-obj="train"]')?.addEventListener('click', () => {
+    go(active ? '#train/plans' : '#train/today');
   });
-  host.appendChild(grid);
+  host.querySelector('[data-obj="study"]')?.addEventListener('click', () => {
+    const progress = getStudyProgress();
+    go(progress.lastPrimaryId ? '#study/learn' : '#study/learn');
+  });
+  host.querySelector('[data-obj="create"]')?.addEventListener('click', () => {
+    go('#create/projects');
+  });
 }
 
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function renderSecondary(host) {
+  const due = dueStudyReviews();
+  const recent = listAttempts({ limit: 3 });
+  const songs = readSongs().slice(0, 3);
+  host.innerHTML = `
+    <div class="home-secondary-grid">
+      <div class="home-secondary-block">
+        <div class="home-section-label">Due reviews</div>
+        <p>${due.length ? `${due.length} study concepts due` : 'No reviews due'}</p>
+      </div>
+      <div class="home-secondary-block">
+        <div class="home-section-label">Recent progress</div>
+        <p>${recent.length ? `${recent.length} recent attempts` : 'No attempts logged yet'}</p>
+      </div>
+      <div class="home-secondary-block">
+        <div class="home-section-label">Recent projects</div>
+        <p>${songs.length ? songs.map((s) => escapeHtml(s.title || s.name || 'Untitled')).join(', ') : 'No projects yet'}</p>
+        <button type="button" class="btn sm" data-capture>Quick Capture</button>
+      </div>
+    </div>
+  `;
+  host.querySelector('[data-capture]')?.addEventListener('click', () => go('#create/capture'));
 }
 
 function renderStudyRec(host) {
@@ -136,14 +207,12 @@ function renderStudyRec(host) {
         </p>
         <div class="home-rec-actions">
           <button type="button" class="btn primary" data-action="prefs">Settings</button>
-          ${rec ? `<button type="button" class="btn" data-action="start" data-id="${escapeHtml(rec.id)}">Try foundation study</button>` : ''}
+          ${rec ? `<button type="button" class="btn" data-action="start">Try foundation study</button>` : ''}
         </div>
       </div>
     `;
-    host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => showSectionFn('musicprefs'));
-    host.querySelector('[data-action="start"]')?.addEventListener('click', (e) => {
-      startStudy(e.currentTarget.dataset.id);
-    });
+    host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => go('#settings'));
+    host.querySelector('[data-action="start"]')?.addEventListener('click', () => go('#study/learn'));
     return;
   }
 
@@ -158,15 +227,15 @@ function renderStudyRec(host) {
         </div>
       </div>
     `;
-    host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => showSectionFn('musicprefs'));
+    host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => go('#settings'));
     return;
   }
 
   const focus = (rec.focus || []).slice(0, 5)
-    .map(step => `<li>${escapeHtml(step)}</li>`)
+    .map((step) => `<li>${escapeHtml(step)}</li>`)
     .join('');
   const reasons = (rec.reasons || [])
-    .map(r => `<li>${escapeHtml(r)}</li>`)
+    .map((r) => `<li>${escapeHtml(r)}</li>`)
     .join('');
   const app = rec.application
     ? `<div class="home-rec-app"><strong>Application</strong>${escapeHtml(rec.application)}</div>`
@@ -184,7 +253,7 @@ function renderStudyRec(host) {
         <div class="home-rec-body">
           <p class="home-rec-narrative">${escapeHtml(rec.narrative)}</p>
           <div class="home-rec-meta">Profile · ${escapeHtml(bundle.genreSummary)}</div>
-          <div class="home-rec-focus-label">Today’s focus</div>
+          <div class="home-rec-focus-label">Today's focus</div>
           <ol class="home-rec-focus">${focus}</ol>
           <div class="home-rec-why-label">Why this was selected</div>
           <ul class="home-rec-reasons">${reasons}</ul>
@@ -192,200 +261,19 @@ function renderStudyRec(host) {
         </div>
       </details>
       <div class="home-rec-actions">
-        <button type="button" class="btn primary" data-action="start" data-id="${escapeHtml(rec.id)}">Start study</button>
+        <button type="button" class="btn primary" data-action="start">Start study</button>
         <button type="button" class="btn" data-action="done" data-id="${escapeHtml(rec.id)}">Mark reviewed</button>
         <button type="button" class="btn" data-action="prefs">Adjust profile</button>
       </div>
     </article>
   `;
 
-  host.querySelector('[data-action="start"]')?.addEventListener('click', (e) => {
-    startStudy(e.currentTarget.dataset.id);
-  });
+  host.querySelector('[data-action="start"]')?.addEventListener('click', () => go('#study/learn'));
   host.querySelector('[data-action="done"]')?.addEventListener('click', (e) => {
     completeRecommendedStudy(e.currentTarget.dataset.id);
     render();
   });
-  host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => showSectionFn('musicprefs'));
-}
-
-function startStudy(studyId) {
-  if (!studyId) return;
-  startStudyLab(studyId);
-  showSectionFn('studylab');
-}
-
-function renderCategories(host) {
-  host.innerHTML = '';
-  const label = document.createElement('div');
-  label.className = 'home-section-label';
-  label.textContent = 'Categories';
-  host.appendChild(label);
-  const grid = document.createElement('div');
-  grid.className = 'home-cats';
-  CATEGORIES.forEach(cat => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'home-cat-link';
-    btn.innerHTML = `<span class="dock-icon">${CATEGORY_ICONS[cat.id] || ''}</span><span>${cat.label}</span>`;
-    btn.onclick = () => {
-      if (typeof showHubFn === 'function') showHubFn(cat.id);
-      else showSectionFn('hub-' + cat.id);
-    };
-    grid.appendChild(btn);
-  });
-  host.appendChild(grid);
-}
-
-function renderAllTools(panel) {
-  if (!panel) return;
-  const search = panel.querySelector('.home-all-search') || (() => {
-    const input = document.createElement('input');
-    input.type = 'search';
-    input.className = 'home-all-search';
-    input.placeholder = 'Search tools…';
-    input.setAttribute('aria-label', 'Search tools');
-    panel.insertBefore(input, panel.querySelector('.home-all-rows'));
-    return input;
-  })();
-
-  let rows = panel.querySelector('.home-all-rows');
-  if (!rows) {
-    rows = document.createElement('div');
-    rows.className = 'home-all-rows';
-    panel.appendChild(rows);
-  }
-
-  const paint = () => {
-    const q = (search.value || '').toLowerCase().trim();
-    rows.innerHTML = '';
-    TOOLS.filter(t => isFeatureEnabled(t.id)).filter(t => {
-      if (!q) return true;
-      return (t.label + ' ' + t.description + ' ' + t.category).toLowerCase().includes(q);
-    }).forEach(t => {
-      const row = document.createElement('div');
-      row.className = 'home-tool-row';
-      row.innerHTML = `
-        <span class="ht-icon">${TOOL_ICONS[t.id] || ''}</span>
-        <button type="button" class="ht-title">${t.label}</button>
-        <button type="button" class="ht-fav${favorites().includes(t.id) ? ' on' : ''}" aria-label="Favorite">${favorites().includes(t.id) ? '★' : '☆'}</button>
-      `;
-      row.querySelector('.ht-title').onclick = () => showSectionFn(t.id);
-      row.querySelector('.ht-fav').onclick = (e) => {
-        e.stopPropagation();
-        toggleFavorite(t.id);
-      };
-      // Make whole row tappable except star
-      row.addEventListener('click', (e) => {
-        if (e.target.closest('.ht-fav')) return;
-        showSectionFn(t.id);
-      });
-      rows.appendChild(row);
-    });
-  };
-  search.oninput = paint;
-  paint();
-}
-
-function render() {
-  const continueHost = document.getElementById('home-continue');
-  const recHost = document.getElementById('home-study-rec');
-  const quickHost = document.getElementById('home-quickstart');
-  const catsHost = document.getElementById('home-categories');
-  const allPanel = document.getElementById('home-all-panel');
-
-  if (continueHost) renderContinue(continueHost);
-  if (quickHost) renderQuickStart(quickHost);
-  if (recHost) renderStudyRec(recHost);
-  if (catsHost) renderCategories(catsHost);
-  if (allPanel) {
-    allPanel.open = false;
-    renderAllTools(allPanel);
-  }
-}
-
-export function renderHub(categoryId, container, { showSection, onFavorite } = {}) {
-  if (!container) return;
-  const cat = CATEGORIES.find(c => c.id === categoryId);
-  if (!cat) return;
-  const tools = toolsInCategory(categoryId).filter(t => isFeatureEnabled(t.id));
-  const fav = favorites().filter(id => tools.some(t => t.id === id));
-  const recentId = lastTool();
-  const recentTool = recentId && tools.some(t => t.id === recentId) ? getTool(recentId) : null;
-
-  container.innerHTML = `
-    <div class="section-head">
-      <div class="section-kicker">Category</div>
-      <h2>${cat.label}</h2>
-      <p>${cat.description}</p>
-    </div>
-    <input type="search" class="hub-search" placeholder="Filter ${cat.label.toLowerCase()}…" aria-label="Filter ${cat.label}">
-    <div class="hub-body"></div>
-  `;
-  const body = container.querySelector('.hub-body');
-  const search = container.querySelector('.hub-search');
-
-  const paint = () => {
-    const q = (search.value || '').toLowerCase().trim();
-    body.innerHTML = '';
-    if (recentTool && !q) {
-      const lab = document.createElement('div');
-      lab.className = 'hub-recent-label';
-      lab.textContent = 'Recently used';
-      body.appendChild(lab);
-      body.appendChild(toolRow(recentTool, { showSection, onFavorite }));
-    }
-    if (fav.length && !q) {
-      const lab = document.createElement('div');
-      lab.className = 'hub-pinned-label';
-      lab.textContent = 'Pinned';
-      body.appendChild(lab);
-      const list = document.createElement('div');
-      list.className = 'hub-tool-list';
-      fav.forEach(id => {
-        const t = getTool(id);
-        if (t) list.appendChild(toolRow(t, { showSection, onFavorite }));
-      });
-      body.appendChild(list);
-    }
-    const lab = document.createElement('div');
-    lab.className = 'hub-pinned-label';
-    lab.textContent = q ? 'Results' : 'All';
-    body.appendChild(lab);
-    const list = document.createElement('div');
-    list.className = 'hub-tool-list';
-    tools.filter(t => {
-      if (!q) return true;
-      return (t.label + ' ' + t.description).toLowerCase().includes(q);
-    }).forEach(t => list.appendChild(toolRow(t, { showSection, onFavorite })));
-    body.appendChild(list);
-  };
-  search.oninput = paint;
-  paint();
-}
-
-function toolRow(tool, { showSection, onFavorite }) {
-  const fav = favorites().includes(tool.id);
-  const row = document.createElement('div');
-  row.className = 'hub-tool-row';
-  row.innerHTML = `
-    <span class="hub-icon">${TOOL_ICONS[tool.id] || ''}</span>
-    <span class="hub-tool-meta">
-      <span class="hub-tool-title">${tool.label}</span>
-      <span class="hub-tool-desc">${tool.description}</span>
-    </span>
-    <button type="button" class="hub-tool-fav${fav ? ' on' : ''}" aria-label="Favorite">${fav ? '★' : '☆'}</button>
-  `;
-  row.querySelector('.hub-tool-fav').onclick = (e) => {
-    e.stopPropagation();
-    toggleFavorite(tool.id);
-    if (onFavorite) onFavorite();
-  };
-  row.addEventListener('click', (e) => {
-    if (e.target.closest('.hub-tool-fav')) return;
-    showSection(tool.id);
-  });
-  return row;
+  host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => go('#settings'));
 }
 
 function wireHero() {
@@ -408,49 +296,63 @@ function wireHero() {
   }
 
   if (primary) {
+    const active = findActiveRoutineSession();
     const continueId = lastTool();
     const rec = buildRecommendations({ limit: 1 }).primary;
     primary.onclick = () => {
-      if (!continueId && rec) {
-        startStudy(rec.id);
+      if (active) {
+        go('#train/plans');
         return;
       }
-      showSectionFn(continueId || 'studylab');
+      if (continueId) {
+        go(continueId);
+        return;
+      }
+      if (rec) {
+        go('#study/learn');
+        return;
+      }
+      go('#train/today');
     };
     const label = document.getElementById('gbc-cta-primary-label');
     if (label) {
-      label.textContent = continueId ? 'Continue' : (rec ? 'Start study' : 'Start practice');
+      if (active) label.textContent = 'Resume routine';
+      else if (continueId) label.textContent = 'Continue';
+      else if (rec) label.textContent = 'Start study';
+      else label.textContent = 'Start practice';
     }
   }
 
   if (browse) {
-    browse.onclick = () => {
-      const panel = document.getElementById('home-all-panel');
-      if (!panel) return;
-      panel.open = true;
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      const search = panel.querySelector('.home-all-search');
-      if (search) search.focus();
-    };
+    browse.onclick = () => go('#train/library');
+    const browseLabel = browse.querySelector('span:last-child') || browse;
+    if (browseLabel.textContent === 'Browse tools') browseLabel.textContent = 'Open library';
   }
 }
 
-export function initHome(config) {
-  showSectionFn = config.showSection;
-  showHubFn = config.showHub;
+function render() {
+  const continueHost = document.getElementById('home-continue');
+  const recHost = document.getElementById('home-study-rec');
+  const objectivesHost = document.getElementById('home-objectives');
+  const secondaryHost = document.getElementById('home-secondary');
+
+  if (continueHost) renderContinue(continueHost);
+  if (objectivesHost) renderObjectiveCards(objectivesHost);
+  if (secondaryHost) renderSecondary(secondaryHost);
+  if (recHost) renderStudyRec(recHost);
+}
+
+/**
+ * @param {{ showSection?: Function, showHub?: Function, navigate?: Function }} config
+ */
+export function initHome(config = {}) {
+  showSectionFn = config.showSection || null;
+  navigateFn = config.navigate || null;
   render();
   wireHero();
   if (!window.__musiProfileListener) {
     window.__musiProfileListener = true;
-    window.addEventListener('musi:profile-changed', () => {
-      refreshHome();
-    });
-  }
-  if (!window.__musiFeaturesListener) {
-    window.__musiFeaturesListener = true;
-    window.addEventListener('musi:features-changed', () => {
-      refreshHome();
-    });
+    window.addEventListener('musi:profile-changed', () => refreshHome());
   }
 }
 

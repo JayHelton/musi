@@ -1,5 +1,5 @@
-// Centralized tool / category metadata shared by Home, mobile hubs,
-// desktop dock, command palette, and hold-to-record relevance.
+// Legacy tool metadata for labels, icons, and optional feature toggles.
+// js/featureRegistry.js is the source of truth for ownership and routing.
 
 import { getSetting, saveSetting } from './persistence.js';
 
@@ -388,31 +388,3 @@ export function setFeatureEnabled(id, on) {
   saveEnabledFeatures([...set]);
 }
 
-/** Tabs shape used by dock, command palette, and split view — enabled tools only. */
-export function asTabs() {
-  return getEnabledTools().map(t => ({
-    id: t.id,
-    label: t.short,
-    group: categoryLabel(t.category),
-    category: t.category,
-  }));
-}
-
-/** Read current enabled tabs (prefer over a module-load `asTabs()` snapshot). */
-export function getTabs() {
-  return asTabs();
-}
-
-function categoryLabel(id) {
-  const c = getCategory(id);
-  return c ? c.label : id;
-}
-
-/** Map old Drill/Reference/Tools group names onto new category ids. */
-export function legacyGroupToCategory(group) {
-  if (group === 'Drill') return 'train';
-  if (group === 'Reference') return 'reference';
-  if (group === 'Create') return 'create';
-  if (group === 'Tools') return 'tools';
-  return group;
-}

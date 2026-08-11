@@ -1,462 +1,260 @@
+/**
+ * Application bootstrap: global inits, four-destination nav, hash router,
+ * compatibility shims, and keyboard/volume wiring.
+ */
+
 import { audioCtx } from './audio.js';
 import { S, buildNoteButtons, selectItem } from './scaleQuiz.js';
 import './intervalQuiz.js';
-import { drawCoF } from './circleOfFifths.js';
-import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
-import { initMetronome, stopMetronome, metro } from './metronome.js';
-import { initFretboard } from './fretboardTrainer.js';
-import { initIntervalOrbit, stopIntervalOrbit } from './intervalOrbit.js';
-import { initChordWorkout, stopChordWorkout } from './chordWorkout.js';
-import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
-import { initPitchTrainer, stopPitchTrainer, pt } from './pitchTrainer.js';
-import { initPitchRunner, stopPitchRunner, runner } from './pitchRunner.js';
-import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
-import { initTimingDrill, stopTimingDrill, timingDrill } from './timingDrill.js';
-import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
-import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
-import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
-import { initMovableChordCards } from './movableChordCards.js';
-import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
-import { initSongwriter, stopSongwriter } from './songwriter.js';
-import { initExercises, stopExercises } from './exercises.js';
-import { initWorkbooks, stopWorkbooks } from './workbooks.js';
-import { initRoutines, stopRoutines } from './routines.js';
-import { initNotes, stopNotes } from './notes.js';
-import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
-import { initDrums, stopDrums } from './drums/drumsUI.js';
-import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
-import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
-import { initScaleRef, stopScaleRef } from './scaleReference.js';
-import { initTriadRef, stopTriadRef } from './triadReference.js';
+import { QWERTY_MAP, toggleDrone } from './keyboard.js';
+import { initMetronome } from './metronome.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
+import { initHoldRecordButton } from './recorder.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { initProgressHeaders } from './progressHeader.js';
-import { initHome, refreshHome, renderHub } from './home.js';
-import { initStats, renderStats } from './stats.js';
-import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
-import { initStudyLab, stopStudyLab } from './studyLab.js';
-import {
-  TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
-  getTabs, getTool, isHoldRecordRelevant, isFeatureEnabled,
-} from './tools.js';
+import { initStats } from './stats.js';
+import { initGlobalVolume } from './musicPreferences.js';
+import { OBJECTIVES } from './routes.js';
+import { CATEGORY_ICONS } from './tools.js';
+import { isHoldRecordRelevant } from './tools.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
+import {
+  initRouter,
+  navigate,
+  navigateLegacy,
+  currentRoute,
+  getNavPushCount,
+  popNavHistory,
+} from './router.js';
+import { showRoute } from './workspaceLoader.js';
+import { adoptedSections } from './workspaces/legacyHost.js';
+import { parseRoute } from './routes.js';
 
-const ICONS = TOOL_ICONS;
-const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
-
-const TOOL_STOPPERS = {
-  metronome: () => { if (metro.playing) stopMetronome(); },
-  keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
-  scaleref: () => stopScaleRef(),
-  triads: () => stopTriadRef(),
-  chords: () => { if (chordBuilder.oscillators.length) stopChord(); if (chOscillators.length) stopChordRef(); },
-  tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); if (runner.running) stopPitchRunner(); },
-  ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
-  timing: () => { if (timingDrill.playing) stopTimingDrill(); },
-  sightreading: () => stopSightReading(),
-  chordlab: () => stopChordWorkout(),
-  intervalorbit: () => stopIntervalOrbit(),
-  recorder: () => { if (recorder.playing) stopRecorder(); },
-  songwriter: () => stopSongwriter(),
-  exercises: () => stopExercises(),
-  workbooks: () => stopWorkbooks(),
-  routines: () => stopRoutines(),
-  notes: () => stopNotes(),
-  practice: () => stopPracticeTimer(),
-  drums: () => stopDrums(),
-  tracktosheet: () => stopTrackToSheet(),
-  gpplayer: () => stopGpPlayer(),
-  studylab: () => stopStudyLab(),
-};
-const TOOL_INITS = {
-  circle: drawCoF,
-  keyboard: buildKeyboard,
-  metronome: initMetronome,
-  scaleref: initScaleRef,
-  triads: initTriadRef,
-  chords: () => { initMovableChordCards(); initChordRef(); initChordBuilder(); },
-  fretboard: initFretboard,
-  intervalorbit: initIntervalOrbit,
-  chordlab: initChordWorkout,
-  tuner: () => { initTuner(); initPitchTrainer(); initPitchRunner(); },
-  ear: initEarTrainer,
-  timing: initTimingDrill,
-  sightreading: initSightReading,
-  recorder: initRecorder,
-  songwriter: initSongwriter,
-  exercises: initExercises,
-  workbooks: initWorkbooks,
-  routines: initRoutines,
-  notes: initNotes,
-  practice: initPracticeTimer,
-  drums: initDrums,
-  tracktosheet: initTrackToSheet,
-  gpplayer: initGpPlayer,
-  studylab: initStudyLab,
-  musicprefs: () => initMusicPreferences({ showSection }),
+const DEST_ICONS = {
+  home: CATEGORY_ICONS.home,
+  train: CATEGORY_ICONS.train,
+  study: CATEGORY_ICONS.reference,
+  create: CATEGORY_ICONS.create,
 };
 
-function stopOtherTools(keepIds) {
-  Object.keys(TOOL_STOPPERS).forEach(toolId => {
-    if (!keepIds.includes(toolId)) TOOL_STOPPERS[toolId]();
-  });
-}
-function initTool(id) {
-  if (TOOL_INITS[id]) TOOL_INITS[id]();
-}
+let appMenuEl = null;
+let toastTimer = null;
 
-let splitSecondaryId = null;
-let currentNavId = 'home';
-/** How many in-app pushState entries sit above the boot entry (phone Back pops these). */
-let navPushCount = 0;
-/** True while applying a popstate/hashchange so we don't push another history entry. */
-let applyingHistory = false;
-
-function clearSplitPane() {
-  if (!splitSecondaryId) return;
-  const sec = document.getElementById('sec-' + splitSecondaryId);
-  if (sec) sec.classList.remove('active', 'split-secondary');
-  splitSecondaryId = null;
-  document.body.classList.remove('split-mode');
-  updateSplitUI();
+export function showAppToast(message) {
+  const el = document.getElementById('app-toast');
+  if (!el) return;
+  el.textContent = message;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.hidden = true;
+    el.textContent = '';
+  }, 4000);
 }
 
-function isHubId(id) {
-  return typeof id === 'string' && id.startsWith('hub-');
+function activeSectionId() {
+  const adopted = document.querySelector('.embedded-section.active');
+  if (adopted) return adopted.id;
+  return document.querySelector('.section.active')?.id || null;
 }
 
-function hubCategory(id) {
-  return id.replace(/^hub-/, '');
-}
-
-function sectionUrl(id) {
-  if (!id || id === 'home') return location.pathname + location.search;
-  return `${location.pathname}${location.search}#${id}`;
-}
-
-function updateHoldRecordVisibility(id) {
-  const relevant = isHoldRecordRelevant(id);
+function updateHoldRecordVisibility(featureId) {
+  const relevant = featureId ? isHoldRecordRelevant(featureId) : false;
   document.body.classList.toggle('hold-rec-relevant', relevant);
 }
 
-function updateHeaderChrome(id) {
-  const isTool = id && id !== 'home' && !isHubId(id);
-  document.body.classList.toggle('tool-screen', !!isTool);
-  const tool = getTool(id);
-  document.querySelectorAll('.dock-cat-btn').forEach(btn => {
-    const cat = btn.dataset.cat;
-    let active = false;
-    if (id === 'home') active = cat === 'home';
-    else if (isHubId(id)) active = cat === hubCategory(id);
-    else if (tool) active = cat === tool.category;
-    btn.classList.toggle('active', active);
+function updateNavActive(route) {
+  const objective = route?.objective || 'home';
+  document.querySelectorAll('.dock-dest').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.objective === objective);
   });
 }
 
-function showHub(categoryId, skipHash) {
-  showSection('hub-' + categoryId, skipHash);
+function resolveFeatureIdForRoute(route) {
+  if (!route || route.objective === 'home' || route.objective === 'settings') return null;
+  const view = route.view;
+  if (route.objective === 'train') {
+    if (view === 'plans') return 'routines';
+    if (view === 'library') {
+      if (route.params?.player === 'gp') return 'gpplayer';
+      const type = route.params?.type || 'exercise';
+      if (type === 'workbook') return 'workbooks';
+      if (type === 'drums') return 'drums';
+      return 'exercises';
+    }
+    if (view === 'fundamentals' && route.params?.drill) {
+      const drill = route.params.drill;
+      const map = {
+        scales: 'scales',
+        intervals: 'intervals',
+        sightreading: 'sightreading',
+        fretboard: 'fretboard',
+        'chord-workout': 'chordlab',
+        pitch: 'tuner',
+        ear: 'ear',
+        timing: 'timing',
+      };
+      return map[drill] || null;
+    }
+  }
+  if (route.objective === 'study') {
+    if (view === 'learn') return 'studylab';
+    if (view === 'explore' && route.params?.view) {
+      const map = {
+        scales: 'scaleref',
+        chords: 'chords',
+        triads: 'triads',
+        circle: 'circle',
+        fretboard: 'intervalorbit',
+      };
+      return map[route.params.view] || null;
+    }
+  }
+  if (route.objective === 'create') {
+    if (view === 'capture') return 'recorder';
+    if (view === 'projects') return route.params?.view === 'notes' ? 'notes' : 'songwriter';
+    if (view === 'compose') {
+      if (route.params?.panel === 'keyboard') return 'keyboard';
+      if (route.params?.view === 'import-melody') return 'tracktosheet';
+      if (route.params?.view === 'beats') return 'drums';
+      return 'chords';
+    }
+  }
+  return null;
 }
 
-/**
- * Navigate back through in-app screen history (same as the phone Back button).
- * Falls back to category hub / home when there is nothing left to pop.
- */
+async function handleRoute(route) {
+  updateNavActive(route);
+  await showRoute(route);
+  const featureId = resolveFeatureIdForRoute(route);
+  updateHoldRecordVisibility(featureId);
+  document.body.classList.toggle('tool-screen', !!featureId);
+  syncSetupToolbars();
+}
+
+function showSection(idOrRoute, _skipHash) {
+  void _skipHash;
+  if (!idOrRoute) {
+    navigate('#home');
+    return;
+  }
+  const raw = String(idOrRoute);
+  if (raw.startsWith('#') && !parseRoute(raw).unknown) {
+    navigate(raw);
+    return;
+  }
+  if (['home', 'train', 'study', 'create', 'settings'].includes(raw.split('/')[0].replace('#', ''))) {
+    navigate(raw.startsWith('#') ? raw : `#${raw}`);
+    return;
+  }
+  navigateLegacy(raw.replace(/^#/, ''));
+}
+
+function showHub(categoryId) {
+  const map = {
+    train: '#train',
+    reference: '#study',
+    create: '#create',
+    tools: '#train/library',
+  };
+  navigate(map[categoryId] || '#home');
+}
+
 function goBack(fallback) {
-  if (navPushCount > 0) {
-    history.back();
+  if (getNavPushCount() > 0) {
+    popNavHistory();
     return true;
   }
   if (typeof fallback === 'function') {
     fallback();
     return false;
   }
-  if (currentNavId !== 'home') showSection('home');
+  const route = currentRoute();
+  if (route?.objective !== 'home') navigate('#home');
   return false;
 }
 
-function showSection(id, skipHash) {
-  const toolForGate = getTool(id);
-  if (toolForGate && !isFeatureEnabled(id)) {
-    showSection('home', skipHash);
-    return;
-  }
+function closeAppMenu() {
+  if (!appMenuEl) return;
+  appMenuEl.classList.remove('open');
+  appMenuEl.hidden = true;
+}
 
-  if (splitSecondaryId) {
-    const sec = document.getElementById('sec-' + splitSecondaryId);
-    if (sec) sec.classList.remove('active', 'split-secondary');
-    splitSecondaryId = null;
-    document.body.classList.remove('split-mode');
-  }
+function openAppMenu() {
+  if (!appMenuEl) return;
+  appMenuEl.hidden = false;
+  appMenuEl.classList.add('open');
+  const first = appMenuEl.querySelector('.app-menu-item');
+  if (first) first.focus();
+}
 
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
+function initAppMenu() {
+  const btn = document.getElementById('app-menu-btn');
+  if (!btn) return;
 
-  const sec = document.getElementById('sec-' + id);
-  if (!sec) return;
+  appMenuEl = document.createElement('div');
+  appMenuEl.id = 'app-menu';
+  appMenuEl.className = 'app-menu';
+  appMenuEl.setAttribute('role', 'menu');
+  appMenuEl.hidden = true;
+  appMenuEl.innerHTML = `
+    <button type="button" class="app-menu-item" role="menuitem" data-route="#settings">Settings</button>
+    <button type="button" class="app-menu-item" role="menuitem" data-route="#home">About Musi</button>
+  `;
+  document.body.appendChild(appMenuEl);
 
-  const prevId = currentNavId;
-  sec.classList.add('active');
-  currentNavId = id;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (appMenuEl.classList.contains('open')) closeAppMenu();
+    else openAppMenu();
+  });
 
-  document.querySelectorAll(`.dock-item[data-s="${id}"]`).forEach(el => el.classList.add('active'));
-
-  // Screen history: push on forward nav so phone Back walks Home → hub → tool.
-  // skipHash / applyingHistory only sync the URL+state (boot, popstate, hashchange).
-  if (!applyingHistory) {
-    const url = sectionUrl(id);
-    const histState = { musiNav: id };
-    if (skipHash || prevId === id) {
-      history.replaceState(histState, '', url);
-    } else {
-      history.pushState(histState, '', url);
-      navPushCount += 1;
-    }
-  }
-
-  if (isHubId(id)) {
-    const cat = hubCategory(id);
-    saveSetting('nav.lastCategory', cat);
-    renderHub(cat, sec, {
-      showSection,
-      onFavorite: () => { refreshHome(); renderHub(cat, sec, { showSection, onFavorite: refreshHome }); },
+  appMenuEl.querySelectorAll('.app-menu-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      navigate(item.dataset.route);
+      closeAppMenu();
+      btn.focus();
     });
-    stopOtherTools([]);
-    updateHoldRecordVisibility(null);
-    updateHeaderChrome(id);
-    updateSplitUI();
-    return;
-  }
-
-  if (id === 'home') {
-    renderStats();
-    refreshHome();
-    stopOtherTools([]);
-    updateHoldRecordVisibility(null);
-    updateHeaderChrome(id);
-    updateSplitUI();
-    return;
-  }
-
-  const tool = getTool(id);
-  if (tool) {
-    saveSetting('nav.lastTool', id);
-    saveSetting('nav.lastCategory', tool.category);
-  }
-
-  // Wire back button — same stack as the phone Back button
-  const back = sec.querySelector('.tool-back');
-  if (back && tool) {
-    const hubLabel = CATEGORIES.find(c => c.id === tool.category)?.label || 'Back';
-    back.onclick = () => goBack(() => showHub(tool.category));
-    back.textContent = `← ${hubLabel}`;
-  }
-
-  stopOtherTools([id]);
-  initTool(id);
-  updateHoldRecordVisibility(id);
-  updateHeaderChrome(id);
-  updateSplitUI();
-  refreshHome();
-  syncSetupToolbars();
-}
-window.showSection = showSection;
-window.showHub = showHub;
-window.goBack = goBack;
-
-function enterSplit(secondaryId) {
-  const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
-  if (isMobileSwipeNav()) return;
-  if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || secondaryId === 'home') return;
-  if (isHubId(primaryId) || isHubId(secondaryId)) return;
-  if (!getTabs().some(t => t.id === secondaryId)) return;
-  splitSecondaryId = secondaryId;
-  document.body.classList.add('split-mode');
-  const sec = document.getElementById('sec-' + secondaryId);
-  if (sec) sec.classList.add('active', 'split-secondary');
-  initTool(secondaryId);
-  updateSplitUI();
-}
-
-function exitSplit() {
-  if (!splitSecondaryId) return;
-  const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
-  stopOtherTools(primaryId ? [primaryId] : []);
-  clearSplitPane();
-}
-
-let splitMenuEl = null;
-
-function currentPrimaryId() {
-  return (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
-}
-
-function buildSplitMenu() {
-  if (!splitMenuEl) return;
-  const primaryId = currentPrimaryId();
-  splitMenuEl.innerHTML = '';
-  const title = document.createElement('div');
-  title.className = 'split-menu-title';
-  title.textContent = splitSecondaryId ? 'Second tool' : 'Add a second tool';
-  splitMenuEl.appendChild(title);
-  getTabs().forEach(t => {
-    if (t.id === primaryId) return;
-    const btn = document.createElement('button');
-    btn.className = 'tc-menu-item' + (t.id === splitSecondaryId ? ' active' : '');
-    btn.textContent = t.label;
-    btn.onclick = (e) => { e.stopPropagation(); enterSplit(t.id); closeSplitMenu(); };
-    splitMenuEl.appendChild(btn);
   });
-  if (splitSecondaryId) {
-    const exit = document.createElement('button');
-    exit.className = 'tc-menu-item split-exit';
-    exit.textContent = '\u2715 Exit split view';
-    exit.onclick = (e) => { e.stopPropagation(); exitSplit(); closeSplitMenu(); };
-    splitMenuEl.appendChild(exit);
-  }
-}
 
-function openSplitMenu() {
-  if (!splitMenuEl) return;
-  if (isMobileSwipeNav()) {
-    closeSplitMenu();
-    return;
-  }
-  buildSplitMenu();
-  const trigger = document.getElementById('split-trigger');
-  const r = trigger.getBoundingClientRect();
-  splitMenuEl.style.top = (r.bottom + 6) + 'px';
-  splitMenuEl.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
-  splitMenuEl.classList.add('open');
-}
-function closeSplitMenu() { if (splitMenuEl) splitMenuEl.classList.remove('open'); }
-
-function updateSplitUI() {
-  const trigger = document.getElementById('split-trigger');
-  if (!trigger) return;
-  if (isMobileSwipeNav()) {
-    if (splitSecondaryId) {
-      const primaryId = currentPrimaryId();
-      const sec = document.getElementById('sec-' + splitSecondaryId);
-      if (sec) sec.classList.remove('active', 'split-secondary');
-      splitSecondaryId = null;
-      document.body.classList.remove('split-mode');
-      stopOtherTools(primaryId && !isHubId(primaryId) && primaryId !== 'home' ? [primaryId] : []);
-    }
-    closeSplitMenu();
-    trigger.style.display = 'none';
-    trigger.classList.remove('active');
-    return;
-  }
-  const primary = currentPrimaryId();
-  trigger.style.display = (primary === 'home' || isHubId(primary)) ? 'none' : '';
-  trigger.classList.toggle('active', !!splitSecondaryId);
-}
-
-function initSplitView() {
-  splitMenuEl = document.createElement('div');
-  splitMenuEl.className = 'tc-menu split-menu';
-  document.body.appendChild(splitMenuEl);
-
-  const trigger = document.getElementById('split-trigger');
-  if (trigger) {
-    trigger.onclick = (e) => {
-      e.stopPropagation();
-      if (splitMenuEl.classList.contains('open')) closeSplitMenu();
-      else openSplitMenu();
-    };
-  }
   document.addEventListener('click', (e) => {
-    if (splitMenuEl && !splitMenuEl.contains(e.target) && e.target.id !== 'split-trigger') closeSplitMenu();
+    if (!appMenuEl.contains(e.target) && e.target !== btn) closeAppMenu();
   });
-  window.addEventListener('resize', () => {
-    closeSplitMenu();
-    updateSplitUI();
-  });
-  updateSplitUI();
-}
 
-function isMobileSwipeNav() {
-  return window.matchMedia(MOBILE_SWIPE_QUERY).matches;
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && appMenuEl.classList.contains('open')) {
+      closeAppMenu();
+      btn.focus();
+    }
+  });
 }
 
 function initNav() {
   const nav = document.getElementById('nav');
   if (!nav) return;
-
-  rebuildDesktopDock(nav);
-
-  // Mobile: 5 persistent destinations
-  const mobileCats = document.createElement('div');
-  mobileCats.className = 'dock-mobile-cats';
-  const destinations = [
-    { id: 'home', label: 'Home', icon: CATEGORY_ICONS.home, action: () => showSection('home') },
-    ...CATEGORIES.map(cat => ({
-      id: cat.id,
-      label: cat.short,
-      icon: CATEGORY_ICONS[cat.id],
-      action: () => {
-        // If already on a tool in this category, go to hub; else hub
-        const tool = getTool(currentNavId);
-        if (currentNavId === 'hub-' + cat.id) return;
-        if (tool && tool.category === cat.id && currentNavId === tool.id) {
-          showHub(cat.id);
-        } else {
-          showHub(cat.id);
-        }
-      },
-    })),
-  ];
-  destinations.forEach(dest => {
+  nav.innerHTML = '';
+  OBJECTIVES.forEach((obj) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'dock-cat-btn';
-    btn.dataset.cat = dest.id;
-    btn.innerHTML = `<span class="dock-icon">${dest.icon}</span><span class="dock-label">${dest.label}</span>`;
-    btn.onclick = dest.action;
-    mobileCats.appendChild(btn);
+    btn.className = 'dock-dest';
+    btn.dataset.objective = obj.id;
+    btn.innerHTML = `<span class="dock-icon">${DEST_ICONS[obj.id] || ''}</span><span class="dock-label">${obj.label}</span>`;
+    btn.onclick = () => navigate(obj.route);
+    nav.appendChild(btn);
   });
-  nav.appendChild(mobileCats);
-}
-
-function rebuildDesktopDock(navEl) {
-  const nav = navEl || document.getElementById('nav');
-  if (!nav) return;
-  nav.querySelectorAll('.dock-item.dock-desktop').forEach(el => el.remove());
-  const mobileCats = nav.querySelector('.dock-mobile-cats');
-  getTabs().forEach(t => {
-    const item = document.createElement('button');
-    item.className = 'dock-item dock-desktop';
-    item.dataset.s = t.id;
-    item.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span class="dock-label">${t.label}</span>`;
-    item.onclick = () => showSection(t.id);
-    if (mobileCats) nav.insertBefore(item, mobileCats);
-    else nav.appendChild(item);
-  });
-  if (currentNavId) {
-    document.querySelectorAll(`.dock-item[data-s="${currentNavId}"]`).forEach(el => el.classList.add('active'));
-  }
-}
-
-function rebuildNav() {
-  rebuildDesktopDock();
-  closeSplitMenu();
-  if (splitSecondaryId && !isFeatureEnabled(splitSecondaryId)) {
-    exitSplit();
-  } else {
-    updateSplitUI();
-  }
 }
 
 function init() {
   initBootSplash();
   initNav();
+  initAppMenu();
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    const validValues = items.filter(item => item.type !== 'label').map(item => item.val);
+    const validValues = items.filter((item) => item.type !== 'label').map((item) => item.val);
     const activeVal = getSetting(containerId, defaultVal, validValues);
     items.forEach(({ type, val, label }) => {
       if (type === 'label') {
@@ -479,27 +277,25 @@ function init() {
     [{ val: 'easy', label: 'Diatonic' }, { val: 'medium', label: 'Extended' }, { val: 'hard', label: 'Chromatic' }],
     'easy');
 
-  const activeSection = () => document.querySelector('.section.active')?.id;
-
   document.addEventListener('keydown', (e) => {
     if (e.repeat) return;
-    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
-    if (activeSection() !== 'sec-keyboard') return;
+    if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'SELECT') return;
+    if (activeSectionId() !== 'sec-keyboard') return;
     const midi = QWERTY_MAP[e.key.toLowerCase()];
     if (midi !== undefined) { e.preventDefault(); if (!S.kb.drones[midi]) toggleDrone(midi); }
   });
   document.addEventListener('keyup', (e) => {
-    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
-    if (activeSection() !== 'sec-keyboard') return;
+    if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'SELECT') return;
+    if (activeSectionId() !== 'sec-keyboard') return;
     const midi = QWERTY_MAP[e.key.toLowerCase()];
     if (midi !== undefined && S.kb.drones[midi]) toggleDrone(midi);
   });
 
-  document.querySelectorAll('.wave-btn').forEach(btn => {
+  document.querySelectorAll('.wave-btn').forEach((btn) => {
     S.kb.wave = getSetting('kb.wave', S.kb.wave, ['sine', 'triangle', 'sawtooth', 'square']);
     btn.classList.toggle('active', btn.dataset.w === S.kb.wave);
     btn.onclick = () => {
-      document.querySelectorAll('.wave-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.wave-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       S.kb.wave = btn.dataset.w;
       saveSetting('kb.wave', S.kb.wave);
@@ -516,7 +312,7 @@ function init() {
     kbVol.oninput = (e) => {
       S.kb.vol = e.target.value / 100;
       saveSetting('kb.vol', S.kb.vol);
-      Object.values(S.kb.drones).forEach(dr => {
+      Object.values(S.kb.drones).forEach((dr) => {
         if (typeof audioCtx !== 'undefined' && audioCtx) {
           dr.gain.gain.setValueAtTime(S.kb.vol, audioCtx.currentTime);
         }
@@ -533,93 +329,37 @@ function init() {
   initNowPlaying();
   initHoldRecordButton();
   initProgressHeaders();
-  initHome({ showSection, showHub });
   initStats();
-  initMusicPreferences({ showSection });
-  initSplitView();
   initScreenUx({ showSection, showHub });
 
-  window.addEventListener('musi:features-changed', () => {
-    rebuildNav();
-    refreshHome();
-    if (currentNavId && getTool(currentNavId) && !isFeatureEnabled(currentNavId)) {
-      showSection('home');
-    }
-  });
+  window.showSection = showSection;
+  window.showHub = showHub;
+  window.goBack = goBack;
+  window.showAppToast = showAppToast;
 
   const wordmark = document.getElementById('wordmark-home');
   if (wordmark) {
-    wordmark.onclick = () => showSection('home');
-    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
+    wordmark.onclick = () => navigate('#home');
+    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('#home'); } };
   }
 
-  const resolveSectionAlias = (id) => {
-    if (id === 'intervalmap') return 'intervalorbit';
-    if (id === 'tabanalyzer') return 'gpplayer';
-    return id;
-  };
-
-  const isValidSection = (id) => {
-    const resolved = resolveSectionAlias(id);
-    return resolved === 'home' ||
-      isHubId(resolved) && CATEGORIES.some(c => c.id === hubCategory(resolved)) ||
-      getTabs().some(t => t.id === resolved);
-  };
-
-  const hashTab = resolveSectionAlias(location.hash.replace('#', ''));
-  if (hashTab && isValidSection(hashTab)) {
-    showSection(hashTab, true);
-  } else {
-    // Seed history so popstate can restore Home cleanly.
-    history.replaceState({ musiNav: 'home' }, '', sectionUrl('home'));
-    updateHeaderChrome('home');
-    updateHoldRecordVisibility(null);
-  }
-
-  // Phone / browser Back: walk the screen stack instead of leaving the PWA.
-  window.addEventListener('popstate', (e) => {
-    applyingHistory = true;
-    navPushCount = Math.max(0, navPushCount - 1);
-    try {
-      let id = e.state?.musiNav;
-      if (!id) {
-        const fromHash = resolveSectionAlias(location.hash.replace('#', ''));
-        id = fromHash && isValidSection(fromHash) ? fromHash : 'home';
-      } else {
-        id = resolveSectionAlias(id);
-      }
-      if (isValidSection(id)) showSection(id, true);
-      else showSection('home', true);
-    } finally {
-      applyingHistory = false;
-    }
+  initRouter({
+    onRoute: (route) => {
+      handleRoute(route);
+    },
   });
 
-  window.addEventListener('hashchange', () => {
-    // location.hash assignments (and in-page links) create a history entry;
-    // treat them as forward navigation unless we're already applying popstate.
-    if (applyingHistory) return;
-    const id = resolveSectionAlias(location.hash.replace('#', ''));
-    applyingHistory = true;
-    try {
-      if (id && isValidSection(id)) {
-        // Hash already updated the URL; sync UI without pushing again.
-        // Count this as an in-app step when it differs from the current screen.
-        if (id !== currentNavId) navPushCount += 1;
-        showSection(id, true);
-      } else if (!id) {
-        if (currentNavId !== 'home') navPushCount += 1;
-        showSection('home', true);
-      }
-    } finally {
-      applyingHistory = false;
-    }
+  window.addEventListener('musi:features-changed', () => {
+    const route = currentRoute();
+    if (route) handleRoute(route);
   });
 
-  // Reveal PRESS START only after nav/hash routing has settled.
   requestAnimationFrame(() => {
     requestAnimationFrame(() => markBootReady());
   });
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// Exported for tests/debugging only.
+export { adoptedSections, activeSectionId, resolveFeatureIdForRoute };
