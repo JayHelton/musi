@@ -340,6 +340,108 @@
   max-width: 320px;
 }
 
+.study-review-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 2px solid color-mix(in srgb, var(--accent2) 35%, transparent);
+  border-radius: var(--radius-screen);
+  background: color-mix(in srgb, var(--card) 92%, var(--bg2) 8%);
+}
+
+.study-review-settings-title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.study-review-settings-help {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.study-review-settings-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.study-review-settings-label {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.study-review-balance {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.study-review-balance-btn {
+  min-height: var(--tap-min);
+  padding: 10px 12px;
+  border: 2px solid color-mix(in srgb, var(--shell-bright) 40%, transparent);
+  border-radius: var(--radius-pill);
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.study-review-balance-btn.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg2));
+  color: var(--accent);
+}
+
+.study-review-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.study-review-chip {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  padding: 8px 14px;
+  border: 2px solid color-mix(in srgb, var(--shell-bright) 40%, transparent);
+  border-radius: var(--radius-pill);
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.study-review-chip.on {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--accent);
+}
+
+.study-review-chip--pause.on {
+  border-color: color-mix(in srgb, var(--err) 45%, transparent);
+  background: color-mix(in srgb, var(--err) 12%, var(--card));
+  color: var(--err);
+  text-decoration: line-through;
+}
+
+.study-review-balance-btn:focus-visible,
+.study-review-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 @media (max-width: 480px) {
   .study-setup-strip {
     max-height: 108px;

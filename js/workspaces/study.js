@@ -17,7 +17,15 @@ import { getSetting } from '../persistence.js';
 import { ROOTS } from '../theory.js';
 import { SCALES } from '../scales.js';
 import { TUNING_CATALOG } from '../tunings.js';
-import { conceptLabel } from '../genreProfiles.js';
+import { conceptLabel, CONCEPTS } from '../genreProfiles.js';
+import {
+  getMusicProfile,
+  setStudyBalance,
+  toggleExclusion,
+  toggleApplication,
+  STUDY_BALANCES,
+  APPLICATION_PREFS,
+} from '../musicProfile.js';
 
 export const STUDY_SECTIONS = {
   learn: { sectionId: 'sec-studylab', featureId: 'studylab' },
@@ -190,6 +198,119 @@ export function buildReviewQueue(now = Date.now(), fixtures = {}) {
     retention,
     now,
   };
+}
+
+/**
+ * Pure review-settings model for tests and the Review panel.
+ * @param {{ profile?: object }} [fixtures]
+ */
+export function buildReviewSettingsModel(fixtures = {}) {
+  const profile = fixtures.profile ?? getMusicProfile();
+  const ids = new Set(STUDY_CATALOG.flatMap((s) => s.concepts));
+  profile.exclusions.forEach((id) => ids.add(id));
+  const pauseChoices = [...ids]
+    .filter((id) => CONCEPTS[id])
+    .sort((a, b) => conceptLabel(a).localeCompare(conceptLabel(b)))
+    .slice(0, 36)
+    .map((id) => ({
+      id,
+      label: conceptLabel(id),
+      paused: profile.exclusions.includes(id),
+    }));
+
+  return {
+    balance: profile.balance,
+    exclusions: [...profile.exclusions],
+    applications: [...profile.applications],
+    pauseChoices,
+  };
+}
+
+function renderReviewSettings(host) {
+  const model = buildReviewSettingsModel();
+  const panel = document.createElement('section');
+  panel.className = 'study-review-settings';
+  panel.setAttribute('aria-labelledby', 'study-review-settings-title');
+  panel.innerHTML = `
+    <h3 class="study-review-settings-title" id="study-review-settings-title">Review settings</h3>
+    <p class="study-review-settings-help">Tune review emphasis, paused topics, and how theory connects to practice.</p>
+  `;
+
+  const balanceBlock = document.createElement('div');
+  balanceBlock.className = 'study-review-settings-block';
+  balanceBlock.innerHTML = '<div class="study-review-settings-label">Review emphasis</div>';
+  const balanceRow = document.createElement('div');
+  balanceRow.className = 'study-review-balance';
+  balanceRow.setAttribute('role', 'group');
+  balanceRow.setAttribute('aria-label', 'Review emphasis');
+  STUDY_BALANCES.forEach((b) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `study-review-balance-btn${model.balance === b.id ? ' on' : ''}`;
+    btn.textContent = b.label;
+    btn.title = b.description;
+    btn.onclick = () => {
+      setStudyBalance(b.id);
+      renderReviewSettings(host);
+      notifyStudyProfileChanged();
+    };
+    balanceRow.appendChild(btn);
+  });
+  balanceBlock.appendChild(balanceRow);
+  panel.appendChild(balanceBlock);
+
+  const appsBlock = document.createElement('div');
+  appsBlock.className = 'study-review-settings-block';
+  appsBlock.innerHTML = '<div class="study-review-settings-label">Application focus</div>';
+  const appsRow = document.createElement('div');
+  appsRow.className = 'study-review-chips';
+  appsRow.setAttribute('role', 'group');
+  appsRow.setAttribute('aria-label', 'Application focus');
+  APPLICATION_PREFS.forEach((app) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `study-review-chip${model.applications.includes(app.id) ? ' on' : ''}`;
+    btn.textContent = app.label;
+    btn.onclick = () => {
+      toggleApplication(app.id);
+      renderReviewSettings(host);
+      notifyStudyProfileChanged();
+    };
+    appsRow.appendChild(btn);
+  });
+  appsBlock.appendChild(appsRow);
+  panel.appendChild(appsBlock);
+
+  const pauseBlock = document.createElement('div');
+  pauseBlock.className = 'study-review-settings-block';
+  pauseBlock.innerHTML = '<div class="study-review-settings-label">Paused topics</div>';
+  const pauseRow = document.createElement('div');
+  pauseRow.className = 'study-review-chips study-review-chips--pause';
+  pauseRow.setAttribute('role', 'group');
+  pauseRow.setAttribute('aria-label', 'Paused topics');
+  model.pauseChoices.forEach((choice) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `study-review-chip study-review-chip--pause${choice.paused ? ' on' : ''}`;
+    btn.textContent = choice.label;
+    btn.title = choice.paused ? 'Click to resume' : 'Click to pause';
+    btn.onclick = () => {
+      toggleExclusion(choice.id);
+      renderReviewSettings(host);
+      notifyStudyProfileChanged();
+    };
+    pauseRow.appendChild(btn);
+  });
+  pauseBlock.appendChild(pauseRow);
+  panel.appendChild(pauseBlock);
+
+  host.replaceChildren(panel);
+}
+
+function notifyStudyProfileChanged() {
+  try {
+    window.dispatchEvent(new CustomEvent('musi:profile-changed'));
+  } catch (_) { /* ignore */ }
 }
 
 function buildConceptPrompt(conceptId) {
@@ -395,6 +516,12 @@ function renderReview(host) {
     </article>
   `;
   wrap.appendChild(summary);
+
+  const settingsHost = document.createElement('div');
+  settingsHost.className = 'study-review-settings-host';
+  settingsHost.id = 'study-review-settings-host';
+  wrap.appendChild(settingsHost);
+  renderReviewSettings(settingsHost);
 
   const panel = document.createElement('div');
   panel.className = 'study-review-panel';
