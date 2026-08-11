@@ -1,1 +1,200 @@
-/* workspace-train — filled in by the workspace refactor. */
+/* Train workspace — session cockpit, progress, plans header; pads for practice bar. */
+
+.train-has-practice-bar .workspace-view {
+  padding-bottom: calc(var(--practice-bar-h, 0px) + 8px);
+}
+
+.train-session-card .train-session-meta {
+  margin: 0 0 12px;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--accent2);
+}
+
+.train-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.train-open-item {
+  margin-top: 10px;
+}
+
+.train-log-attempt {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--shell-bright) 30%, transparent);
+}
+
+.train-log-title {
+  margin: 0 0 8px;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--accent2);
+}
+
+.train-log-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.train-log-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--text) 85%, transparent);
+}
+
+.train-log-field input,
+.train-log-field select {
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 2px solid color-mix(in srgb, var(--shell-bright) 35%, transparent);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.train-log-check {
+  flex-direction: row;
+  align-items: center;
+  min-height: 44px;
+}
+
+.train-plans-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 2px solid color-mix(in srgb, var(--shell-bright) 35%, transparent);
+  border-radius: var(--radius-screen);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, #fff 8%), var(--bg2));
+}
+
+.train-plans-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-body);
+}
+
+.train-plans-session {
+  font-family: var(--font-ui);
+  color: color-mix(in srgb, var(--text) 80%, transparent);
+}
+
+.train-progress-section {
+  margin-top: 4px;
+}
+
+.train-attempt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.train-attempt-row {
+  padding: 12px 14px;
+  border: 2px solid color-mix(in srgb, var(--shell-bright) 30%, transparent);
+  border-radius: var(--radius-screen);
+  background: color-mix(in srgb, var(--card) 94%, var(--bg) 6%);
+}
+
+.train-attempt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.train-attempt-label {
+  font-family: var(--font-body);
+  font-size: 1rem;
+}
+
+.train-attempt-meta {
+  margin-top: 4px;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  color: color-mix(in srgb, var(--text) 78%, transparent);
+}
+
+.train-tempo-hist {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  color: var(--accent2);
+}
+
+.train-status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.train-status-chip.status-red {
+  background: color-mix(in srgb, var(--btn-b) 25%, var(--card));
+  color: color-mix(in srgb, var(--btn-b) 90%, #fff);
+}
+
+.train-status-chip.status-yellow {
+  background: color-mix(in srgb, var(--accent) 22%, var(--card));
+  color: var(--accent);
+}
+
+.train-status-chip.status-green {
+  background: color-mix(in srgb, var(--btn-a) 22%, var(--card));
+  color: color-mix(in srgb, var(--btn-a) 90%, #fff);
+}
+
+.train-status-chip.status-blue {
+  background: color-mix(in srgb, var(--accent2) 25%, var(--card));
+  color: var(--accent2);
+}
+
+.train-empty {
+  margin: 0;
+  padding: 8px 4px;
+  font-family: var(--font-body);
+  color: color-mix(in srgb, var(--text) 70%, transparent);
+}
+
+.drill-card-summary {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--accent2);
+}
+
+.train-due-action {
+  margin-top: 8px;
+}
+
+@media (max-width: 360px) {
+  .train-log-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .train-plans-header {
+    padding: 8px 10px;
+  }
+}
