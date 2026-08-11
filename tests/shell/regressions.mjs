@@ -136,7 +136,10 @@ export function runShellRegressions() {
     assert.ok(precache.includes(sheet), `lazy tier ${sheet} must stay precached`);
   }
 
-  assert.match(swSource, /v174-tsc-refactor/);
+  // Pin the floor, not the exact string, so a later cache bump is not a failure.
+  const version = swSource.match(/CACHE_VERSION\s*=\s*["']v(\d+)-/);
+  assert.ok(version, 'CACHE_VERSION must look like v<number>-<slug>');
+  assert.ok(Number(version[1]) >= 174, `CACHE_VERSION must be v174 or later, got v${version[1]}`);
 
   const legacyKeys = Object.keys(LEGACY_ROUTES);
   assert.ok(legacyKeys.length > 0);
