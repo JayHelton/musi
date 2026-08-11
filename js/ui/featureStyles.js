@@ -3,17 +3,21 @@
  * All listed files remain in the service-worker precache for offline use.
  */
 
+// Features that mount a Guitar Pro score need the player styles too, not just
+// the Scores screen. mountGpPlayer also requests them as a safety net.
+const GP_PLAYER_STYLES = ['css/gpplayer.css', 'css/gpimport.css', 'css/tabanalyzer.css'];
+
 const FEATURE_STYLES = {
   songwriter: ['css/songwriter.css'],
-  exercises: ['css/exercises.css', 'css/companions.css'],
-  workbooks: ['css/workbooks.css'],
+  exercises: ['css/exercises.css', 'css/companions.css', ...GP_PLAYER_STYLES],
+  workbooks: ['css/workbooks.css', 'css/companions.css', ...GP_PLAYER_STYLES],
   routines: ['css/routines.css'],
   drums: ['css/drums.css'],
   chordlab: ['css/chordworkout.css'],
   notes: ['css/notes.css'],
   practice: ['css/practice.css'],
   metronome: ['css/practice.css'],
-  gpplayer: ['css/gpplayer.css', 'css/gpimport.css', 'css/tabanalyzer.css'],
+  gpplayer: GP_PLAYER_STYLES,
   tracktosheet: ['css/tracktosheet.css'],
   intervalorbit: ['css/intervalorbit.css'],
   studylab: ['css/study-lab.css'],
@@ -31,6 +35,7 @@ const loaded = new Set();
 export function ensureFeatureStyles(featureId) {
   const sheets = FEATURE_STYLES[featureId];
   if (!sheets?.length) return;
+  if (typeof document === 'undefined' || !document.head) return;
   for (const href of sheets) {
     if (loaded.has(href)) continue;
     const existing = document.querySelector(`link[rel="stylesheet"][href="${href}"]`);

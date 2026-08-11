@@ -49,6 +49,7 @@ import {
   updateAnnotation,
   removeAnnotation,
 } from './gpAnnotations.js';
+import { ensureFeatureStyles } from './ui/featureStyles.js';
 
 let mountGeneration = 0;
 
@@ -95,6 +96,10 @@ export function mountGpPlayer(host, {
   enableHostKeyboard = true,
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
+
+  // The player mounts inside Scores, the Exercises viewer, and the Workbooks
+  // practice pane, so it cannot rely on the route to have loaded its styles.
+  ensureFeatureStyles('gpplayer');
 
   ++mountGeneration;
   let alive = true;
@@ -1234,6 +1239,11 @@ export function mountGpPlayer(host, {
   }
   layoutMetrics?.refresh();
   transport?.publishPad?.();
+  if (host.closest('.train-session-practice') && typeof window !== 'undefined') {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new CustomEvent('musi:train-practice-layout'));
+    });
+  }
 
   if (autoPlay) {
     autoPlayTimer = setTimeout(() => {
