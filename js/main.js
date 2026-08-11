@@ -153,6 +153,7 @@ function initAppMenu() {
   appMenuEl.setAttribute('role', 'menu');
   appMenuEl.hidden = true;
   appMenuEl.innerHTML = `
+    <button type="button" class="app-menu-item" role="menuitem" data-route="#train?panel=practice">Metronome &amp; Timer</button>
     <button type="button" class="app-menu-item" role="menuitem" data-route="#settings">Settings</button>
     <button type="button" class="app-menu-item" role="menuitem" data-route="#home">About Musi</button>
   `;

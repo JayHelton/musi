@@ -4,10 +4,10 @@
 
 /**
  * @param {Element} container
- * @param {{ label: string, views: Array<{id: string, label: string}>, currentView: string, onTabSelect: (id: string) => void }} opts
+ * @param {{ label: string, views: Array<{id: string, label: string}>, currentView: string, onTabSelect: (id: string) => void, headerActions?: (host: Element) => void }} opts
  * @returns {{ shell: Element, viewRegion: Element, updateTabs: (viewId: string) => void }}
  */
-export function createWorkspaceShell(container, { label, views, currentView, onTabSelect }) {
+export function createWorkspaceShell(container, { label, views, currentView, onTabSelect, headerActions }) {
   container.innerHTML = '';
   const shell = document.createElement('div');
   shell.className = 'workspace-shell';
@@ -19,6 +19,9 @@ export function createWorkspaceShell(container, { label, views, currentView, onT
   title.className = 'workspace-title';
   title.textContent = label;
   header.appendChild(title);
+
+  const headerRow = document.createElement('div');
+  headerRow.className = 'workspace-header-row';
 
   const tablist = document.createElement('div');
   tablist.className = 'workspace-tabs';
@@ -53,7 +56,14 @@ export function createWorkspaceShell(container, { label, views, currentView, onT
     onTabSelect(tabs[next].dataset.view);
   });
 
-  header.appendChild(tablist);
+  headerRow.appendChild(tablist);
+  if (headerActions) {
+    const actions = document.createElement('div');
+    actions.className = 'workspace-header-actions';
+    headerActions(actions);
+    headerRow.appendChild(actions);
+  }
+  header.appendChild(headerRow);
   shell.appendChild(header);
 
   const viewRegion = document.createElement('div');
