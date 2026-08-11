@@ -38,6 +38,9 @@ import { shortScaleName } from './scales.js';
 import { openRootPicker, openScalePicker } from './pickers.js';
 import { getMasterVolume, setMasterVolume } from './audio.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { collectAttachedWorkbookIds } from './routineModel.js';
+import { listWorkbooks, deleteWorkbooksNotAttached, pruneMissingExercisesAll } from './workbookModel.js';
+import { getExercises, getExercisesWithoutFolder, deleteExercisesWithoutFolder } from './exercises.js';
 
 const CONTEXT_SOURCE = 'music-prefs';
 const MODE_ITEMS = ITERATION_MODES.map(m => ({ val: m, label: getIterationModeLabel(m) }));
@@ -45,6 +48,7 @@ const MODE_ITEMS = ITERATION_MODES.map(m => ({ val: m, label: getIterationModeLa
 let showSectionFn = null;
 let host = null;
 let contextUnsub = null;
+let dialogRoot = null;
 
 function groupGenres() {
   const groups = new Map();
@@ -165,6 +169,12 @@ function render() {
       </div>
     </section>
 
+    <section class="mp-block" id="mp-library-cleanup">
+      <h3 class="mp-block-title">Library cleanup</h3>
+      <p class="mp-block-help">Quickly remove workbooks and exercises you are not organizing.</p>
+      <div id="mp-cleanup-root"></div>
+    </section>
+
     <section class="mp-block">
       <h3 class="mp-block-title">Features</h3>
       <p class="mp-block-help">Choose which tools appear in the toolbar and on Home. Settings stays available so you can turn them back on.</p>
@@ -210,6 +220,7 @@ function render() {
   paintMusicalContext();
   paintVolume();
   paintDeviceSync();
+  paintLibraryCleanup();
   paintFeatures();
   paintGenres(profile);
   paintGoals(profile);
@@ -518,6 +529,143 @@ function paintDeviceSync() {
     if (bundleEl) bundleEl.textContent = 'Device sync is not available.';
     if (payloadEl) payloadEl.textContent = 'Device sync is not available.';
   });
+}
+
+function ensureDialogRoot() {
+  if (dialogRoot) return dialogRoot;
+  dialogRoot = document.createElement('div');
+  dialogRoot.id = 'mp-dialog-root';
+  document.body.appendChild(dialogRoot);
+  return dialogRoot;
+}
+
+function closeDialog() {
+  if (dialogRoot) dialogRoot.innerHTML = '';
+}
+
+function openConfirm(title, body, confirmLabel, onConfirm, { danger = false } = {}) {
+  ensureDialogRoot();
+  dialogRoot.innerHTML = '';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  const dialog = document.createElement('div');
+  dialog.className = 'modal-dialog modal-confirm';
+  const heading = document.createElement('h3');
+  heading.className = 'modal-title';
+  heading.textContent = title;
+  dialog.appendChild(heading);
+  if (body) {
+    const para = document.createElement('p');
+    para.className = 'modal-body';
+    para.textContent = body;
+    dialog.appendChild(para);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn sm';
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = closeDialog;
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = danger ? 'btn modal-danger' : 'btn primary';
+  confirmBtn.type = 'button';
+  confirmBtn.textContent = confirmLabel;
+  confirmBtn.onclick = () => { closeDialog(); onConfirm(); };
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeDialog(); });
+  dialogRoot.appendChild(overlay);
+}
+
+function getUnattachedWorkbookCount() {
+  const attached = collectAttachedWorkbookIds();
+  return listWorkbooks().filter((wb) => !attached.has(wb.id)).length;
+}
+
+function paintLibraryCleanup() {
+  const root = host?.querySelector('#mp-cleanup-root');
+  if (!root) return;
+
+  root.innerHTML = `
+    <div class="mp-cleanup-row">
+      <p class="mp-cleanup-count" id="mp-cleanup-wb-count"></p>
+      <button type="button" class="btn sm" id="mp-cleanup-wb-btn">Delete unattached workbooks</button>
+    </div>
+    <div class="mp-cleanup-row">
+      <p class="mp-cleanup-count" id="mp-cleanup-ex-count"></p>
+      <button type="button" class="btn sm" id="mp-cleanup-ex-btn">Delete unfiled exercises</button>
+    </div>
+    <div id="mp-cleanup-status" class="mp-cleanup-status" aria-live="polite"></div>
+  `;
+
+  const wbCountEl = root.querySelector('#mp-cleanup-wb-count');
+  const exCountEl = root.querySelector('#mp-cleanup-ex-count');
+  const wbBtn = root.querySelector('#mp-cleanup-wb-btn');
+  const exBtn = root.querySelector('#mp-cleanup-ex-btn');
+  const statusEl = root.querySelector('#mp-cleanup-status');
+
+  function refreshCounts() {
+    const unattached = getUnattachedWorkbookCount();
+    const unfiled = getExercisesWithoutFolder().length;
+    if (wbCountEl) {
+      wbCountEl.textContent = unattached === 1
+        ? '1 workbook is not attached to any routine session.'
+        : `${unattached} workbooks are not attached to any routine session.`;
+    }
+    if (exCountEl) {
+      exCountEl.textContent = unfiled === 1
+        ? '1 exercise is in No folder.'
+        : `${unfiled} exercises are in No folder.`;
+    }
+    if (wbBtn) wbBtn.disabled = unattached === 0;
+    if (exBtn) exBtn.disabled = unfiled === 0;
+  }
+
+  function setStatus(msg) {
+    if (statusEl) statusEl.textContent = msg || '';
+  }
+
+  refreshCounts();
+
+  if (wbBtn) {
+    wbBtn.onclick = () => {
+      const n = getUnattachedWorkbookCount();
+      if (!n) return;
+      openConfirm(
+        'Delete unattached workbooks?',
+        'These workbooks are not used by any routine session. Workbooks attached to a session are kept.',
+        `Delete ${n} workbook${n === 1 ? '' : 's'}`,
+        () => {
+          const deleted = deleteWorkbooksNotAttached(collectAttachedWorkbookIds());
+          setStatus(deleted === 1 ? 'Deleted 1 workbook.' : `Deleted ${deleted} workbooks.`);
+          refreshCounts();
+        },
+        { danger: true },
+      );
+    };
+  }
+
+  if (exBtn) {
+    exBtn.onclick = () => {
+      const n = getExercisesWithoutFolder().length;
+      if (!n) return;
+      openConfirm(
+        'Delete unfiled exercises?',
+        'Exercises in "No folder" will be permanently removed, including their files on this device.',
+        `Delete ${n} exercise${n === 1 ? '' : 's'}`,
+        async () => {
+          const deleted = await deleteExercisesWithoutFolder();
+          pruneMissingExercisesAll(getExercises().map((e) => e.id));
+          setStatus(deleted === 1 ? 'Deleted 1 exercise.' : `Deleted ${deleted} exercises.`);
+          refreshCounts();
+        },
+        { danger: true },
+      );
+    };
+  }
 }
 
 function paintVolume() {

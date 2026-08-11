@@ -1402,6 +1402,15 @@ export async function deleteExerciseItems(ids) {
   return deleteExercises(ids);
 }
 
+export function getExercisesWithoutFolder() {
+  return getExercises().filter(it => !it.categoryId);
+}
+
+export async function deleteExercisesWithoutFolder() {
+  const ids = getExercisesWithoutFolder().map(it => it.id);
+  return deleteExerciseItems(ids);
+}
+
 export function deleteExerciseFolder(id) {
   return deleteCategory(id);
 }

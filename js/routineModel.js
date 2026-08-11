@@ -586,6 +586,18 @@ export function moveSessionWorkbook(routineId, sessionId, workbookId, delta) {
   return true;
 }
 
+export function collectAttachedWorkbookIds() {
+  const ids = new Set();
+  for (const rt of getStore().routines) {
+    for (const session of rt.sessions) {
+      for (const id of session.workbookIds) {
+        if (typeof id === 'string' && id) ids.add(id);
+      }
+    }
+  }
+  return ids;
+}
+
 export function pruneMissingWorkbooks(existingWorkbookIds) {
   const valid = new Set(
     existingWorkbookIds instanceof Set

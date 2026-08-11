@@ -32,6 +32,7 @@ import {
   attachWorkbooksToSession,
   detachWorkbookFromSession,
   moveSessionWorkbook,
+  collectAttachedWorkbookIds,
   pruneMissingWorkbooks,
   getRoutineStats,
   buildRoutineExport,
@@ -364,6 +365,28 @@ test('attach detach move session workbooks with duplicate rejection', () => {
 
   assert.ok(detachWorkbookFromSession(rt.id, s.id, 'wb-1'));
   assert.deepEqual(getRoutine(rt.id).sessions[0].workbookIds, ['wb-3', 'wb-2']);
+});
+
+test('collectAttachedWorkbookIds returns unique attached workbook ids', () => {
+  const rt1 = createRoutine({
+    name: 'Attached A',
+    sessions: [
+      { name: 'S1', workbookIds: ['wb-att-1', 'wb-att-2'] },
+      { name: 'S2', workbookIds: ['wb-att-2', 'wb-att-3'] },
+    ],
+  });
+  const rt2 = createRoutine({ name: 'Attached B' });
+  const s2 = addRoutineSession(rt2.id, { name: 'S3' });
+  attachWorkbooksToSession(rt2.id, s2.id, ['wb-att-3', 'wb-att-4']);
+
+  const attached = collectAttachedWorkbookIds();
+  assert.ok(attached instanceof Set);
+  for (const id of ['wb-att-1', 'wb-att-2', 'wb-att-3', 'wb-att-4']) {
+    assert.ok(attached.has(id), `expected attached set to include ${id}`);
+  }
+  assert.ok(!attached.has('wb-unattached'));
+  assert.equal(new Set(['wb-att-1', 'wb-att-2', 'wb-att-3', 'wb-att-4']).size, 4);
+  assert.ok(getRoutine(rt1.id));
 });
 
 test('pruneMissingWorkbooks removes only absent ids', () => {

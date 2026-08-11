@@ -19,6 +19,7 @@ import {
   createWorkbook,
   renameWorkbook,
   deleteWorkbook,
+  deleteWorkbooksNotAttached,
   setWorkbookFolder,
   setWorkbookLoop,
   addExercisesToWorkbook,
@@ -30,6 +31,7 @@ import {
   prevWorkbookEntry,
   getActiveWorkbookEntry,
   pruneMissingExercises,
+  pruneMissingExercisesAll,
   addCompanionToWorkbook,
   updateWorkbookCompanion,
   removeWorkbookCompanion,
@@ -239,6 +241,49 @@ test('pruneMissingExercises drops absent exercises only', () => {
   const removed = pruneMissingExercises(wb.id, ['keep', 'keep2', 'other']);
   assert.equal(removed, 1);
   assert.deepEqual(getWorkbook(wb.id).entries.map(e => e.exerciseId), ['keep', 'keep2']);
+});
+
+test('pruneMissingExercisesAll prunes across all workbooks', () => {
+  const exKeep1 = 'prune-all-unique-keep-1';
+  const exDrop1 = 'prune-all-unique-drop-1';
+  const exKeep2 = 'prune-all-unique-keep-2';
+  const exDrop2 = 'prune-all-unique-drop-2';
+  const wb1 = createWorkbook({ name: 'Prune All 1', exerciseIds: [exKeep1, exDrop1] });
+  const wb2 = createWorkbook({ name: 'Prune All 2', exerciseIds: [exDrop2, exKeep2] });
+  const beforeCount = getWorkbook(wb1.id).entries.length + getWorkbook(wb2.id).entries.length;
+  const removed = pruneMissingExercisesAll([exKeep1, exKeep2]);
+  const afterCount = getWorkbook(wb1.id).entries.length + getWorkbook(wb2.id).entries.length;
+  assert.equal(beforeCount - afterCount, 2);
+  assert.ok(removed >= 2);
+  assert.deepEqual(getWorkbook(wb1.id).entries.map(e => e.exerciseId), [exKeep1]);
+  assert.deepEqual(getWorkbook(wb2.id).entries.map(e => e.exerciseId), [exKeep2]);
+});
+
+test('deleteWorkbooksNotAttached keeps attached ids and returns delete count', () => {
+  const preserve = new Set(listWorkbooks().map(wb => wb.id));
+  const wbKeep1 = createWorkbook({ name: 'Keep 1' });
+  const wbKeep2 = createWorkbook({ name: 'Keep 2' });
+  const wbDrop1 = createWorkbook({ name: 'Drop 1' });
+  const wbDrop2 = createWorkbook({ name: 'Drop 2' });
+  preserve.add(wbKeep1.id);
+  preserve.add(wbKeep2.id);
+
+  const deletedPartial = deleteWorkbooksNotAttached(preserve);
+  assert.equal(deletedPartial, 2);
+  assert.ok(getWorkbook(wbKeep1.id));
+  assert.ok(getWorkbook(wbKeep2.id));
+  assert.equal(getWorkbook(wbDrop1.id), null);
+  assert.equal(getWorkbook(wbDrop2.id), null);
+
+  const allIds = new Set(listWorkbooks().map(wb => wb.id));
+  const deletedNone = deleteWorkbooksNotAttached(allIds);
+  assert.equal(deletedNone, 0);
+  assert.equal(listWorkbooks().length, allIds.size);
+
+  const remaining = listWorkbooks().length;
+  const deletedAll = deleteWorkbooksNotAttached(new Set());
+  assert.equal(deletedAll, remaining);
+  assert.equal(listWorkbooks().length, 0);
 });
 
 test('deleteWorkbookFolderWithContents removes folder and its workbooks only', () => {
