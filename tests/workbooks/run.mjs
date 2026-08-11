@@ -381,6 +381,7 @@ test('workbook companions round-trip, invalid dropped, and cap enforced', () => 
       { type: 'scale-ref', root: 'C' },
       { type: 'nope', root: 'C' },
       { type: 'pitch-train', root: 'D' },
+      { type: 'interval-orbit', root: 'G', mode: 'map', mapRange: 2, level: 3 },
       ...Array.from({ length: MAX_COMPANIONS }, (_, i) => ({
         type: 'scale-ref',
         root: 'E',
@@ -391,6 +392,7 @@ test('workbook companions round-trip, invalid dropped, and cap enforced', () => 
   const stored = getWorkbook(wb.id);
   assert.ok(stored.companions.length <= MAX_COMPANIONS);
   assert.ok(stored.companions.some((c) => c.type === 'pitch-train'));
+  assert.ok(stored.companions.some((c) => c.type === 'interval-orbit' && c.mapRange === 2));
   assert.ok(!stored.companions.some((c) => c.type === 'nope'));
   const reloaded = normalizeWorkbook(JSON.parse(JSON.stringify(stored)));
   assert.equal(reloaded.companions.length, stored.companions.length);

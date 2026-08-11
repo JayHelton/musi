@@ -12,6 +12,7 @@ import { orderedScaleNames } from './scales.js';
 import { TRIAD_QUALITIES, stringSetsForTuning } from './triadReference.js';
 import { SWEEP_STRING_SETS, sweepQualities, patternsForStringSet, inversionOptionsFor } from './sweepPatterns.js';
 import { TUNING_CATALOG } from './tunings.js';
+import { MAP_RANGE_DEFS, LEVEL_DEFS } from './interval-map/model.js';
 
 const SHEET_MQ = '(max-width: 768px) and (min-height: 501px)';
 const FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -213,7 +214,7 @@ export function mountWorkbookCompanionPanel(host, api) {
   const listHost = el('div', { class: 'wb-cmp-list' });
   const emptyNote = el('p', {
     class: 'wb-cmp-empty',
-    text: 'No companion tools yet. Add a scale, triad, sweep, or pitch trainer below.',
+    text: 'No companion tools yet. Add a scale, triad, sweep, pitch trainer, or interval orbit below.',
   });
   const addSection = el('section', { class: 'wb-cmp-add-section' });
   const addTitle = el('h4', { class: 'wb-cmp-section-title', text: 'Add tool' });
@@ -276,6 +277,9 @@ export function mountWorkbookCompanionPanel(host, api) {
     let inversionSel;
     let fretStartInput;
     let fretEndInput;
+    let mapRangeSel;
+    let levelSel;
+    let modeSel;
 
     if (needs.has('root')) {
       const rootId = `${prefix}-root`;
@@ -347,6 +351,41 @@ export function mountWorkbookCompanionPanel(host, api) {
       fields.appendChild(fieldWrap('Fret start', fretStartInput, fsId));
       fields.appendChild(fieldWrap('Fret end', fretEndInput, feId));
     }
+    if (needs.has('mapRange')) {
+      const mrId = `${prefix}-map-range`;
+      mapRangeSel = el('select', { class: 'wb-cmp-select', id: mrId, 'aria-label': 'Map range' });
+      for (const key of [1, 2, 3]) {
+        const def = MAP_RANGE_DEFS[key];
+        const opt = el('option', { value: String(key), text: def.name });
+        if (key === (companion.mapRange ?? 1)) opt.selected = true;
+        mapRangeSel.appendChild(opt);
+      }
+      fields.appendChild(fieldWrap('Map range', mapRangeSel, mrId));
+    }
+    if (needs.has('level')) {
+      const lvId = `${prefix}-level`;
+      levelSel = el('select', { class: 'wb-cmp-select', id: lvId, 'aria-label': 'Curriculum level' });
+      for (const key of [1, 2, 3, 4, 5]) {
+        const def = LEVEL_DEFS[key];
+        const opt = el('option', { value: String(key), text: `${def.short}: ${def.name}` });
+        if (key === (companion.level ?? 2)) opt.selected = true;
+        levelSel.appendChild(opt);
+      }
+      fields.appendChild(fieldWrap('Level', levelSel, lvId));
+    }
+    if (needs.has('mode')) {
+      const mdId = `${prefix}-mode`;
+      modeSel = el('select', { class: 'wb-cmp-select', id: mdId, 'aria-label': 'Orbit mode' });
+      for (const entry of [
+        { value: 'map', label: 'Map' },
+        { value: 'locate', label: 'Locate drill' },
+      ]) {
+        const opt = el('option', { value: entry.value, text: entry.label });
+        if (entry.value === (companion.mode || 'locate')) opt.selected = true;
+        modeSel.appendChild(opt);
+      }
+      fields.appendChild(fieldWrap('Mode', modeSel, mdId));
+    }
 
     function collectPatch() {
       const patch = { label: labelInput.value };
@@ -360,6 +399,9 @@ export function mountWorkbookCompanionPanel(host, api) {
       if (inversionSel) patch.inversion = Number(inversionSel.value);
       if (fretStartInput) patch.fretStart = Number(fretStartInput.value);
       if (fretEndInput) patch.fretEnd = Number(fretEndInput.value);
+      if (mapRangeSel) patch.mapRange = Number(mapRangeSel.value);
+      if (levelSel) patch.level = Number(levelSel.value);
+      if (modeSel) patch.mode = modeSel.value;
       return patch;
     }
 
@@ -369,7 +411,7 @@ export function mountWorkbookCompanionPanel(host, api) {
     }
 
     labelInput.addEventListener('change', applyPatch);
-    [rootSel, scaleSel, qualitySel, tuningSel, triadSetSel, sweepSetSel, patternSel, inversionSel, fretStartInput, fretEndInput]
+    [rootSel, scaleSel, qualitySel, tuningSel, triadSetSel, sweepSetSel, patternSel, inversionSel, fretStartInput, fretEndInput, mapRangeSel, levelSel, modeSel]
       .filter(Boolean)
       .forEach((ctrl) => ctrl.addEventListener('change', applyPatch));
 

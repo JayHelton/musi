@@ -3,13 +3,14 @@ import { SCALES, shortScaleName } from '../scales.js';
 import { TRIAD_QUALITIES } from '../triadReference.js';
 import { SWEEP_STRING_SETS, sweepQualities } from '../sweepPatterns.js';
 import { TUNINGS, findPresetByName } from '../tunings.js';
+import { MAP_RANGE_DEFS, LEVEL_DEFS } from '../interval-map/model.js';
 
 export const MAX_COMPANIONS = 8;
 export const MAX_LABEL_LEN = 80;
 export const MAX_FRET = 24;
 export const DEFAULT_TUNING = 'Standard';
 
-const TYPE_IDS = new Set(['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train']);
+const TYPE_IDS = new Set(['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit']);
 
 export const COMPANION_TYPES = [
   {
@@ -35,6 +36,12 @@ export const COMPANION_TYPES = [
     label: 'Pitch trainer',
     description: 'Sing-and-hold drill locked to a root and scale.',
     needs: ['root', 'scale'],
+  },
+  {
+    id: 'interval-orbit',
+    label: 'Interval orbit',
+    description: 'Locked root-centered interval map and locate drill on the fretboard.',
+    needs: ['root', 'tuning', 'fretRange', 'mapRange', 'level', 'mode'],
   },
 ];
 
@@ -107,6 +114,23 @@ function normalizeFretRange(startRaw, endRaw, defaults = { start: 0, end: 12 }) 
   return { fretStart: start, fretEnd: end };
 }
 
+function normalizeMapRange(raw) {
+  const n = Number(raw);
+  if (n === 1 || n === 2 || n === 3) return n;
+  return 1;
+}
+
+function normalizeLevel(raw) {
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 1 && n <= 5) return Math.floor(n);
+  return 2;
+}
+
+function normalizeMode(raw) {
+  const m = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return m === 'map' ? 'map' : 'locate';
+}
+
 function normalizeLabel(raw) {
   if (raw == null || raw === '') return '';
   const s = String(raw).trim();
@@ -143,6 +167,11 @@ export function defaultCompanion(type) {
   if (type === 'pitch-train') {
     base.fretStart = undefined;
     base.fretEnd = undefined;
+  }
+  if (type === 'interval-orbit') {
+    base.mapRange = 1;
+    base.level = 2;
+    base.mode = 'locate';
   }
   return base;
 }
@@ -183,13 +212,18 @@ export function normalizeCompanion(raw) {
     const frets = normalizeFretRange(raw.fretStart, raw.fretEnd, { start: 0, end: 12 });
     fretStart = frets.fretStart;
     fretEnd = frets.fretEnd;
+  } else if (type === 'interval-orbit') {
+    stringSet = undefined;
+    const frets = normalizeFretRange(raw.fretStart, raw.fretEnd, { start: 0, end: 12 });
+    fretStart = frets.fretStart;
+    fretEnd = frets.fretEnd;
   } else {
     stringSet = undefined;
     fretStart = undefined;
     fretEnd = undefined;
   }
 
-  return {
+  const base = {
     id,
     type,
     root,
@@ -204,6 +238,14 @@ export function normalizeCompanion(raw) {
     collapsed,
     label,
   };
+
+  if (type === 'interval-orbit') {
+    base.mapRange = normalizeMapRange(raw.mapRange);
+    base.level = normalizeLevel(raw.level);
+    base.mode = normalizeMode(raw.mode);
+  }
+
+  return base;
 }
 
 export function normalizeCompanions(list) {
@@ -245,6 +287,14 @@ export function describeCompanion(companion) {
   }
   if (companion.type === 'pitch-train') {
     return `Pitch · ${root} ${scaleShort} · sing & hold`;
+  }
+  if (companion.type === 'interval-orbit') {
+    const modeLabel = companion.mode === 'map' ? 'Map' : 'Locate';
+    const rangeDef = MAP_RANGE_DEFS[companion.mapRange] || MAP_RANGE_DEFS[1];
+    const rangeShort = rangeDef.id === 'local' ? 'Local'
+      : rangeDef.id === 'position' ? 'Position'
+        : 'Full';
+    return `Orbit · ${root} · ${modeLabel} · ${rangeShort} · ${tuning}`;
   }
   return TYPE_BY_ID[companion.type].label;
 }

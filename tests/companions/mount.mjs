@@ -21,7 +21,7 @@ globalThis.navigator.mediaDevices.getUserMedia = async () => {
   throw new Error('Mic denied (test)');
 };
 
-const types = ['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train'];
+const types = ['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit'];
 const handles = [];
 
 for (const type of types) {
@@ -57,6 +57,9 @@ for (const type of types) {
     const status = sub.querySelector('.ec-pitch-status');
     assert.ok(status?.textContent?.includes('Mic') || status?.classList?.contains('ec-err'),
       'pitch start without mic shows error');
+  } else if (type === 'interval-orbit') {
+    assert.ok(sub.querySelector('.ec-orbit-board'), 'orbit board');
+    assert.ok(sub.querySelector('.ec-orbit-prompt') || sub.querySelector('.ec-orbit-chips'), 'orbit controls');
   } else {
     const diagram = sub.querySelector('.ec-fretboard-scroll')
       || sub.querySelector('.ec-triad-stack')

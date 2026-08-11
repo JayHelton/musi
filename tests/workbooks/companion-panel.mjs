@@ -92,4 +92,47 @@ function makeApi(wb) {
   panel.destroy();
 }
 
+{
+  const host = mountHost();
+  const wb = createWorkbook({ name: 'Orbit panel' });
+  const api = makeApi(wb);
+  const panel = mountWorkbookCompanionPanel(host, api);
+  panel.open();
+
+  const orbitCard = [...host.querySelectorAll('.wb-cmp-type-card')]
+    .find((c) => {
+      const label = c.querySelector('.wb-cmp-type-card-label');
+      return label?.textContent?.includes('Interval orbit')
+        || c.textContent?.includes('Interval orbit');
+    });
+  assert.ok(orbitCard, 'interval orbit add card');
+  orbitCard.click();
+  panel.sync();
+
+  const orbit = getWorkbook(wb.id).companions.find((c) => c.type === 'interval-orbit');
+  assert.ok(orbit);
+  assert.equal(orbit.mode, 'locate');
+  assert.equal(orbit.mapRange, 1);
+
+  const prefix = `cmp-${orbit.id}`;
+  const mapRangeSel = host.querySelector(`#${prefix}-map-range`);
+  const levelSel = host.querySelector(`#${prefix}-level`);
+  const modeSel = host.querySelector(`#${prefix}-mode`);
+  assert.ok(mapRangeSel && levelSel && modeSel, 'orbit editor fields');
+
+  mapRangeSel.value = '3';
+  mapRangeSel.change();
+  levelSel.value = '4';
+  levelSel.change();
+  modeSel.value = 'map';
+  modeSel.change();
+
+  const updated = getWorkbook(wb.id).companions.find((c) => c.id === orbit.id);
+  assert.equal(updated.mapRange, 3);
+  assert.equal(updated.level, 4);
+  assert.equal(updated.mode, 'map');
+
+  panel.destroy();
+}
+
 console.log('workbook companion-panel: ok');

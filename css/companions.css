@@ -441,3 +441,177 @@
   flex-direction: column;
   gap: 0.4rem;
 }
+
+/* Interval orbit companion */
+.ec-orbit-board-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-radius: calc(var(--radius-screen) - 4px);
+  border: 1px solid rgba(180, 140, 255, 0.14);
+  background: rgba(18, 26, 46, 0.72);
+}
+
+.ec-orbit-board {
+  display: grid;
+  gap: 0;
+  min-width: min-content;
+  padding: 0.35rem 0.25rem 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+}
+
+.ec-orbit-fb-corner,
+.ec-orbit-fb-fretnum,
+.ec-orbit-fb-strlabel,
+.ec-orbit-fb-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.65rem;
+}
+
+.ec-orbit-fb-fretnum {
+  color: var(--muted);
+  font-size:  0.72rem;
+}
+
+.ec-orbit-fb-strlabel {
+  justify-content: flex-end;
+  padding-right: 0.25rem;
+  color: var(--shell-bright);
+  font-size: 0.72rem;
+}
+
+.ec-orbit-fb-cell {
+  position: relative;
+  border-right: 1px solid rgba(180, 140, 255, 0.08);
+  border-bottom: 1px solid rgba(180, 140, 255, 0.06);
+  cursor: pointer;
+}
+
+.ec-orbit-fb-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+.ec-orbit-nut {
+  border-left: 2px solid var(--accent-dim);
+}
+
+.ec-orbit-inlay::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(180, 140, 255, 0.22);
+  pointer-events: none;
+}
+
+.ec-orbit-root {
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.ec-orbit-in-map:not(.ec-orbit-root) {
+  background: rgba(180, 140, 255, 0.12);
+  color: var(--text);
+}
+
+.ec-orbit-emphasis:not(.ec-orbit-root) {
+  background: rgba(255, 225, 74, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 225, 74, 0.35);
+}
+
+.ec-orbit-dim {
+  opacity: 0.22;
+}
+
+.ec-orbit-out {
+  opacity: 0.14;
+}
+
+.ec-orbit-octave:not(.ec-orbit-root) {
+  color: var(--accent2);
+  font-weight: 600;
+}
+
+.ec-orbit-correct {
+  background: rgba(46, 204, 113, 0.22) !important;
+  box-shadow: inset 0 0 0 2px var(--ok);
+}
+
+.ec-orbit-wrong {
+  background: rgba(230, 57, 70, 0.18) !important;
+  box-shadow: inset 0 0 0 1px var(--err);
+}
+
+.ec-orbit-reveal {
+  background: rgba(46, 204, 113, 0.14) !important;
+  box-shadow: inset 0 0 0 1px var(--ok);
+}
+
+.ec-orbit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ec-orbit-chip {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(180, 140, 255, 0.22);
+  background: rgba(18, 26, 46, 0.85);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ec-orbit-chip[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+.ec-orbit-meta {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.ec-orbit-meta strong {
+  color: var(--accent2);
+}
+
+.ec-orbit-prompt {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.ec-orbit-status,
+.ec-orbit-progress {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.ec-orbit-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}

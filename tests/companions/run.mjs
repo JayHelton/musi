@@ -5,5 +5,6 @@
 
 await import('./types.mjs');
 await import('./mount.mjs');
+await import('./interval-orbit.mjs');
 
 console.log('companions tests: ok');

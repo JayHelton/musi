@@ -3,6 +3,7 @@ import { mountScaleRef } from './scaleRef.js';
 import { mountTriadRef } from './triadRef.js';
 import { mountSweepRef } from './sweepRef.js';
 import { mountPitchTrain } from './pitchTrain.js';
+import { mountIntervalOrbit } from './intervalOrbit.js';
 
 export {
   COMPANION_TYPES,
@@ -21,6 +22,7 @@ const MOUNTERS = {
   'triad-ref': mountTriadRef,
   'sweep-ref': mountSweepRef,
   'pitch-train': mountPitchTrain,
+  'interval-orbit': mountIntervalOrbit,
 };
 
 /**
