@@ -436,6 +436,7 @@ test('buildRoutineExport embeds referenced workbooks in first-referenced order',
         id,
         name: `Book ${id}`,
         entries: [{ exerciseId: `ex-${id}` }, { junk: true }],
+        companions: [{ type: 'scale-ref', root: 'C' }, { type: 'bad', root: 'C' }],
       };
     },
   });
@@ -444,6 +445,8 @@ test('buildRoutineExport embeds referenced workbooks in first-referenced order',
   assert.equal(envelope.workbooks.length, 3);
   assert.deepEqual(envelope.workbooks.map(w => w.id), ['wb-b', 'wb-a', 'wb-c']);
   assert.deepEqual(envelope.workbooks[0].entries, [{ exerciseId: 'ex-wb-b' }]);
+  assert.equal(envelope.workbooks[0].companions.length, 1);
+  assert.equal(envelope.workbooks[0].companions[0].type, 'scale-ref');
 });
 
 test('validateRoutineExport happy path and lenient inputs', () => {
@@ -601,11 +604,12 @@ test('applyRoutineImport links by name and creates via callback', () => {
 
   const createdIds = [];
   const byCreate = applyRoutineImport(envelope, {
-    createWorkbook: ({ name, exerciseIds }) => {
+    createWorkbook: ({ name, exerciseIds, companions }) => {
       const id = `wb-new-${createdIds.length}`;
       createdIds.push(id);
       assert.equal(name, 'Local Match');
       assert.deepEqual(exerciseIds, ['ex-a']);
+      assert.ok(Array.isArray(companions));
       return id;
     },
   });

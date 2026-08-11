@@ -30,7 +30,14 @@ import {
   prevWorkbookEntry,
   getActiveWorkbookEntry,
   pruneMissingExercises,
+  addCompanionToWorkbook,
+  updateWorkbookCompanion,
+  removeWorkbookCompanion,
+  moveWorkbookCompanion,
+  reorderWorkbookCompanions,
+  setWorkbookCompanionCollapsed,
 } from '../../js/workbookModel.js';
+import { MAX_COMPANIONS } from '../../js/exerciseCompanions/types.js';
 import {
   WB_KEY_ACTIONS,
   isWorkbookShortcutTargetBlocked,
@@ -354,4 +361,118 @@ test('nodeInBlockedShortcutZone detects role=button ancestors', () => {
   assert.ok(nodeInBlockedShortcutZone(child));
 });
 
+test('old workbook without companions normalizes to empty array', () => {
+  const wb = normalizeWorkbook({
+    id: 'wb-old',
+    name: 'Legacy',
+    folderId: '',
+    entries: [],
+    loopEnabled: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+  assert.deepEqual(wb.companions, []);
+});
+
+test('workbook companions round-trip, invalid dropped, and cap enforced', () => {
+  const wb = createWorkbook({
+    name: 'Companions',
+    companions: [
+      { type: 'scale-ref', root: 'C' },
+      { type: 'nope', root: 'C' },
+      { type: 'pitch-train', root: 'D' },
+      ...Array.from({ length: MAX_COMPANIONS }, (_, i) => ({
+        type: 'scale-ref',
+        root: 'E',
+        id: `extra-${i}`,
+      })),
+    ],
+  });
+  const stored = getWorkbook(wb.id);
+  assert.ok(stored.companions.length <= MAX_COMPANIONS);
+  assert.ok(stored.companions.some((c) => c.type === 'pitch-train'));
+  assert.ok(!stored.companions.some((c) => c.type === 'nope'));
+  const reloaded = normalizeWorkbook(JSON.parse(JSON.stringify(stored)));
+  assert.equal(reloaded.companions.length, stored.companions.length);
+});
+
+test('getWorkbook returns deep copy of companions', () => {
+  const wb = createWorkbook({ name: 'Copy safety' });
+  addCompanionToWorkbook(wb.id, 'scale-ref');
+  const copy = getWorkbook(wb.id);
+  copy.companions.push({ id: 'fake', type: 'scale-ref', root: 'F' });
+  assert.equal(getWorkbook(wb.id).companions.length, 1);
+});
+
+test('addCompanionToWorkbook by type and object respects limit', () => {
+  const wb = createWorkbook({ name: 'Add limit' });
+  const first = addCompanionToWorkbook(wb.id, 'scale-ref');
+  assert.ok(first);
+  assert.equal(first.companions.length, 1);
+  const second = addCompanionToWorkbook(wb.id, { type: 'triad-ref', root: 'A' });
+  assert.ok(second);
+  for (let i = 0; i < MAX_COMPANIONS; i++) {
+    addCompanionToWorkbook(wb.id, 'sweep-ref');
+  }
+  assert.equal(addCompanionToWorkbook(wb.id, 'pitch-train'), null);
+});
+
+test('addCompanionToWorkbook regenerates duplicate companion ids', () => {
+  const wb = createWorkbook({ name: 'Duplicate ids' });
+  const first = addCompanionToWorkbook(wb.id, {
+    id: 'shared-id',
+    type: 'scale-ref',
+    root: 'C',
+  });
+  const second = addCompanionToWorkbook(wb.id, {
+    id: 'shared-id',
+    type: 'triad-ref',
+    root: 'A',
+  });
+  assert.ok(first && second);
+  const ids = getWorkbook(wb.id).companions.map((companion) => companion.id);
+  assert.equal(new Set(ids).size, 2);
+  assert.ok(ids.includes('shared-id'));
+});
+
+test('update remove move reorder and collapse companions', () => {
+  const wb = createWorkbook({ name: 'Mutations' });
+  addCompanionToWorkbook(wb.id, 'scale-ref');
+  addCompanionToWorkbook(wb.id, 'triad-ref');
+  addCompanionToWorkbook(wb.id, 'sweep-ref');
+  const ids = getWorkbook(wb.id).companions.map((c) => c.id);
+
+  const updated = updateWorkbookCompanion(wb.id, ids[0], { root: 'G', label: 'G major' });
+  assert.ok(updated);
+  assert.equal(getWorkbook(wb.id).companions[0].root, 'G');
+  assert.equal(getWorkbook(wb.id).companions[0].label, 'G major');
+
+  assert.ok(removeWorkbookCompanion(wb.id, ids[2]));
+  assert.equal(getWorkbook(wb.id).companions.length, 2);
+
+  assert.ok(moveWorkbookCompanion(wb.id, ids[1], -1));
+  assert.equal(getWorkbook(wb.id).companions[0].id, ids[1]);
+
+  assert.ok(reorderWorkbookCompanions(wb.id, [ids[0], ids[1]]));
+  assert.deepEqual(getWorkbook(wb.id).companions.map((c) => c.id), [ids[0], ids[1]]);
+
+  const beforeUpdated = getWorkbook(wb.id).updatedAt;
+  assert.ok(setWorkbookCompanionCollapsed(wb.id, ids[0], true));
+  const collapsed = getWorkbook(wb.id);
+  assert.equal(collapsed.companions.find((c) => c.id === ids[0]).collapsed, true);
+  assert.equal(collapsed.updatedAt, beforeUpdated);
+});
+
+test('isWorkbookShortcutTargetBlocked includes companion drawer zones', () => {
+  const drawer = makeEl('div', { className: 'wb-cmp-drawer is-open' });
+  const row = makeEl('div', { parent: drawer });
+  assert.ok(isWorkbookShortcutTargetBlocked(row));
+  const sheet = makeEl('div', { className: 'wb-cmp-sheet is-open' });
+  const inner = makeEl('span', { parent: sheet });
+  assert.ok(isWorkbookShortcutTargetBlocked(inner));
+});
+
 console.log(`\n${passed} tests passed`);
+
+await import('./companion-panel.mjs');
+

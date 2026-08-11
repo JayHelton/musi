@@ -44,7 +44,15 @@ import {
   nextWorkbookEntry,
   prevWorkbookEntry,
   pruneMissingExercises,
+  addCompanionToWorkbook,
+  updateWorkbookCompanion,
+  removeWorkbookCompanion,
+  moveWorkbookCompanion,
+  reorderWorkbookCompanions,
+  setWorkbookCompanionCollapsed,
 } from './workbookModel.js';
+import { mountCompanions } from './exerciseCompanions/index.js';
+import { mountWorkbookCompanionPanel } from './workbookCompanionPanel.js';
 import { resolveWorkbookShortcutAction, WB_KEY_ACTIONS } from './workbookKeyboard.js';
 import { GPP_TRANSPORT_BPM_STEP } from './gpPlayer/transportDock.js';
 
@@ -94,6 +102,9 @@ let detailPrevBtn = null;
 let detailNextBtn = null;
 let detailLoopInput = null;
 let detailGpMountEl = null;
+let detailCompanionsMountEl = null;
+let detailCompanionsHandle = null;
+let companionPanel = null;
 let detailEntryListEl = null;
 
 function setStatus(text, isError) {
@@ -195,9 +206,61 @@ function isDetailLoadStale(token, workbookId) {
     || !isWorkbooksSectionActive();
 }
 
+const URL_LIMIT = 2048;
+
+function safeExternalUrl(value) {
+  let raw = (typeof value === 'string' ? value.trim() : '').slice(0, URL_LIMIT);
+  if (!raw) return '';
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(raw) && /^[\w.-]+\.[a-z]{2,}/i.test(raw)) {
+    raw = `https://${raw}`;
+  }
+  try {
+    const url = new URL(raw);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+  } catch (e) { /* invalid */ }
+  return '';
+}
+
+function youtubeEmbedUrl(url) {
+  const safe = safeExternalUrl(url);
+  if (!safe) return '';
+  try {
+    const u = new URL(safe);
+    const host = u.hostname.replace(/^www\./, '');
+    let id = '';
+    if (host === 'youtu.be') {
+      id = u.pathname.split('/').filter(Boolean)[0] || '';
+    } else if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+      if (u.pathname === '/watch') id = u.searchParams.get('v') || '';
+      else if (u.pathname.startsWith('/shorts/') || u.pathname.startsWith('/embed/')) {
+        id = u.pathname.split('/').filter(Boolean)[1] || '';
+      }
+    }
+    if (!/^[A-Za-z0-9_-]{6,}$/.test(id)) return '';
+    return `https://www.youtube.com/embed/${id}`;
+  } catch (e) {
+    return '';
+  }
+}
+
+function fileExt(item) {
+  const name = item?.fileName || item?.name || '';
+  const m = name.match(/\.([a-z0-9]+)$/i);
+  return m ? m[1].toLowerCase() : '';
+}
+
+function isInlineDocExercise(item) {
+  return mediaKind(item) === 'doc' && /^(txt|md|csv)$/i.test(fileExt(item));
+}
+
+function isOfficeDocExercise(item) {
+  return mediaKind(item) === 'doc' && !isInlineDocExercise(item);
+}
+
 function isWorkbookShortcutDialogOpen() {
   if (dialogRoot?.children.length) return true;
   if (playlistDrawerEl && !playlistDrawerEl.hidden) return true;
+  if (companionPanel?.isOpen()) return true;
   if (detailGpMountEl?.querySelector('.gpp-drawer.is-open, .gpp-sheet.is-open')) return true;
   return false;
 }
@@ -265,6 +328,18 @@ function wireWorkbookShortcuts() {
   document.addEventListener('keydown', onWorkbookShortcutKeydown, true);
 }
 
+function teardownDetailCompanions() {
+  if (detailCompanionsHandle) {
+    try { detailCompanionsHandle.destroy(); } catch (e) { /* ignore */ }
+    detailCompanionsHandle = null;
+  }
+  if (companionPanel) {
+    try { companionPanel.destroy(); } catch (e) { /* ignore */ }
+    companionPanel = null;
+  }
+  detailCompanionsMountEl = null;
+}
+
 function teardownDetailPlayer() {
   if (detailMountHandle) {
     try { detailMountHandle.destroy(); } catch (e) { /* ignore */ }
@@ -315,6 +390,17 @@ function setDetailGpChrome(active) {
   if (!active) closePlaylistDrawer();
 }
 
+function closeCompanionPanel() {
+  companionPanel?.close();
+}
+
+function syncCompanionGearButtons() {
+  const open = !!companionPanel?.isOpen?.();
+  detailBodyEl?.querySelectorAll('.wb-cmp-gear').forEach((btn) => {
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+}
+
 function closePlaylistDrawer() {
   if (!playlistDrawerEl) return;
   playlistDrawerEl.hidden = true;
@@ -327,6 +413,7 @@ function closePlaylistDrawer() {
 
 function openPlaylistDrawer(wb) {
   if (!playlistDrawerEl || !wb) return;
+  closeCompanionPanel();
   renderEntryList(wb);
   syncEntryHighlights(wb);
   playlistDrawerEl.hidden = false;
@@ -366,10 +453,65 @@ const HEAD_ICONS = {
   next: '<path d="m5 4 10 8-10 8z"/><path d="M19 5v14"/>',
   playlist: '<path d="M8 6h13M8 12h13M8 18h9"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>',
   add: '<path d="M12 5v14M5 12h14"/>',
+  tools: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
 };
 
 function headIcon(name) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${HEAD_ICONS[name]}</svg>`;
+}
+
+function buildCompanionGearButton() {
+  const btn = el('button', {
+    class: 'gpp-icon-btn has-label wb-cmp-gear',
+    type: 'button',
+    'aria-label': 'Workbook tools',
+    title: 'Workbook tools',
+    'aria-expanded': 'false',
+    html: `${headIcon('tools')}<span class="gpp-btn-label">Tools</span>`,
+    onClick: (e) => {
+      e.stopPropagation();
+      closePlaylistDrawer();
+      companionPanel?.toggle();
+      syncCompanionGearButtons();
+    },
+  });
+  return btn;
+}
+
+function refreshDetailCompanions(wb) {
+  if (!detailCompanionsMountEl) return;
+  if (detailCompanionsHandle) {
+    try { detailCompanionsHandle.destroy(); } catch (e) { /* ignore */ }
+    detailCompanionsHandle = null;
+  }
+  const fresh = wb || getWorkbook(openWorkbookId);
+  if (!fresh) return;
+  const companions = fresh.companions || [];
+  detailCompanionsMountEl.hidden = companions.length === 0;
+  detailCompanionsHandle = mountCompanions(detailCompanionsMountEl, companions, {
+    onCollapsedChange: (companionId, collapsed) => {
+      if (openWorkbookId) setWorkbookCompanionCollapsed(openWorkbookId, companionId, collapsed);
+    },
+  });
+  companionPanel?.sync();
+}
+
+function mountDetailCompanionUi(wb) {
+  if (!detailBodyEl || !wb) return;
+  companionPanel = mountWorkbookCompanionPanel(detailBodyEl, {
+    workbookId: wb.id,
+    getWorkbook: () => getWorkbook(wb.id),
+    onAdd: (type) => { addCompanionToWorkbook(wb.id, type); },
+    onUpdate: (companionId, patch) => { updateWorkbookCompanion(wb.id, companionId, patch); },
+    onRemove: (companionId) => { removeWorkbookCompanion(wb.id, companionId); },
+    onMove: (companionId, delta) => { moveWorkbookCompanion(wb.id, companionId, delta); },
+    onReorder: (orderedIds) => { reorderWorkbookCompanions(wb.id, orderedIds); },
+    onChanged: () => {
+      refreshDetailCompanions(getWorkbook(wb.id));
+    },
+    onOpenChange: syncCompanionGearButtons,
+  });
+  refreshDetailCompanions(wb);
 }
 
 function buildGpHeaderExtra(wb) {
@@ -449,6 +591,7 @@ function buildGpHeaderExtra(wb) {
     detailNextBtn,
     loopLabel,
     detailPlaylistBtn,
+    buildCompanionGearButton(),
     detailAddBtnHeader,
   );
 
@@ -513,6 +656,7 @@ function syncTransportDisabled(wb) {
 
 function closeWorkbookDetail() {
   teardownDetailPlayer();
+  teardownDetailCompanions();
   detailLoadToken += 1;
   detailRenderedWorkbookId = null;
   openWorkbookId = null;
@@ -670,6 +814,52 @@ function mountNonAdvanceCard(item, host) {
   }));
   card.appendChild(el('a', { class: 'btn sm', href: '#exercises', text: 'Open in Exercises' }));
   host.appendChild(card);
+}
+
+function mountInlineArtifact(item, host, objectUrl) {
+  const kind = mediaKind(item);
+  if (item.url) {
+    const embedUrl = youtubeEmbedUrl(item.url) || safeExternalUrl(item.url);
+    if (!embedUrl) {
+      mountNonAdvanceCard(item, host);
+      return;
+    }
+    host.appendChild(el('iframe', {
+      class: 'wb-player-frame wb-player-link-frame',
+      src: embedUrl,
+      title: item.name,
+      allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+      allowfullscreen: '',
+      referrerpolicy: 'strict-origin-when-cross-origin',
+    }));
+    if (!youtubeEmbedUrl(item.url)) {
+      host.appendChild(el('div', {
+        class: 'wb-player-link-note',
+        text: 'If this site blocks embedding, use Open in Exercises.',
+      }));
+    }
+    return;
+  }
+  if (!objectUrl) {
+    host.appendChild(el('div', {
+      class: 'wb-player-missing',
+      text: 'This file is missing from storage. It may have been cleared by the browser.',
+    }));
+    return;
+  }
+  if (kind === 'image') {
+    host.appendChild(el('img', {
+      class: 'wb-player-image', src: objectUrl, alt: item.name,
+    }));
+  } else if (kind === 'pdf' || isInlineDocExercise(item)) {
+    host.appendChild(el('iframe', {
+      class: 'wb-player-frame', src: objectUrl, title: item.name,
+    }));
+  } else if (isOfficeDocExercise(item)) {
+    mountNonAdvanceCard(item, host);
+  } else {
+    mountNonAdvanceCard(item, host);
+  }
 }
 
 async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, loadToken }) {
@@ -840,6 +1030,8 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
         src: detailObjectURL,
         controls: '',
         preload: 'metadata',
+        playsinline: '',
+        'webkit-playsinline': '',
       });
       mediaEl.loop = wb.loopEnabled;
       mediaEl.addEventListener('ended', () => {
@@ -855,6 +1047,20 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
 
     if (isDetailLoadStale(loadToken, workbookId)) return;
     detailGpMountEl.innerHTML = '';
+    if (exercise.attachmentId || exercise.url) {
+      if (kind === 'audio' || kind === 'video') {
+        // handled above — should not reach here
+      } else {
+        let blob = null;
+        if (exercise.attachmentId) {
+          blob = await getFileBlob(exercise.attachmentId);
+          if (isDetailLoadStale(loadToken, workbookId)) return;
+        }
+        if (blob) detailObjectURL = URL.createObjectURL(blob);
+        mountInlineArtifact(exercise, detailGpMountEl, detailObjectURL);
+        return;
+      }
+    }
     mountNonAdvanceCard(exercise, detailGpMountEl);
   } catch (err) {
     if (!isDetailLoadStale(loadToken, workbookId)) {
@@ -1064,11 +1270,18 @@ function buildDetailShell(wb) {
     text: 'On: repeat · Off: auto-advance',
     title: loopHint,
   }));
+  const transportTools = el('div', { class: 'wb-transport-tools' });
+  transportTools.appendChild(buildCompanionGearButton());
+  transport.appendChild(transportTools);
   controls.appendChild(transport);
   player.appendChild(controls);
 
   detailGpMountEl = el('div', { class: 'wb-gp-mount' });
   player.appendChild(detailGpMountEl);
+
+  detailCompanionsMountEl = el('div', { class: 'wb-companions-mount', 'aria-label': 'Workbook tools' });
+  player.appendChild(detailCompanionsMountEl);
+  mountDetailCompanionUi(wb);
 
   detailBodyEl.appendChild(player);
 
@@ -1429,6 +1642,7 @@ function renderDetail() {
   const needsShell = detailRenderedWorkbookId !== wb.id || !detailBodyEl.querySelector('.wb-player');
   if (needsShell) {
     teardownDetailPlayer();
+    teardownDetailCompanions();
     detailBodyEl.innerHTML = '';
     buildDetailShell(wb);
     detailRenderedWorkbookId = wb.id;
@@ -1520,6 +1734,10 @@ function wireEscape() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (dialogRoot && dialogRoot.children.length) return;
+    if (companionPanel?.isOpen()) {
+      companionPanel.close();
+      return;
+    }
     if (playlistDrawerEl && !playlistDrawerEl.hidden) {
       closePlaylistDrawer();
       return;

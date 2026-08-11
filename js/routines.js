@@ -1180,8 +1180,8 @@ async function onImportFile(file) {
     const text = await file.text();
     const result = applyRoutineImport(text, {
       existingWorkbooks: listWorkbooks(),
-      createWorkbook: ({ name, exerciseIds }) => {
-        const wb = createWorkbook({ name, exerciseIds });
+      createWorkbook: ({ name, exerciseIds, companions }) => {
+        const wb = createWorkbook({ name, exerciseIds, companions });
         return wb?.id || null;
       },
       existingExerciseIds: getExercises().map(ex => ex.id),

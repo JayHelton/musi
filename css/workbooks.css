@@ -150,7 +150,8 @@
   flex-shrink:0;font-variant-numeric:tabular-nums
 }
 .wb-gp-mount{
-  display:flex;flex-direction:column;overflow:hidden;min-height:0
+  display:flex;flex-direction:column;overflow:hidden;min-height:0;
+  flex:1;min-height:120px
 }
 .wb-gp-mount .gpp-root{
   flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;height:auto;max-height:none
@@ -160,6 +161,90 @@
 }
 .wb-gp-mount .gpp-score-header,.wb-gp-mount .gpp-score-actions{min-width:0;max-width:100%}
 .wb-player-media{width:100%;max-width:100%;display:block;margin:auto}
+.wb-player-image{width:100%;max-width:100%;height:auto;display:block;margin:auto;object-fit:contain}
+.wb-player-frame{
+  width:100%;max-width:100%;min-height:200px;height:min(50vh,420px);border:0;border-radius:var(--radius-screen,12px);
+  background:var(--bg2)
+}
+.wb-player-link-note{font-size:.78rem;color:var(--muted);margin-top:8px;text-align:center}
+.wb-player-doc-fallback{max-width:420px;width:100%;margin:auto}
+.wb-companions-mount{
+  flex-shrink:0;display:flex;flex-direction:column;gap:6px;min-height:0;
+  max-height:min(30vh,300px);overflow:auto;padding-top:4px;border-top:1px solid var(--border)
+}
+.wb-companions-mount .ec-stack{gap:6px}
+.wb-head-tools,.wb-transport-tools{display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
+.wb-cmp-gear.gpp-icon-btn,.wb-cmp-gear.btn{min-width:var(--tap-min,44px);min-height:var(--tap-min,44px)}
+.wb-has-gp .wb-player-controls .wb-cmp-gear{display:none}
+
+/* ---- Workbook companion settings drawer / sheet ---- */
+.wb-cmp-root{position:relative;z-index:40}
+.wb-cmp-backdrop{
+  position:fixed;inset:0;background:rgba(8,10,24,0.55);opacity:0;pointer-events:none;
+  transition:opacity .18s ease;z-index:41
+}
+.wb-cmp-backdrop.is-open{opacity:1;pointer-events:auto}
+.wb-cmp-drawer,.wb-cmp-sheet{
+  position:fixed;z-index:42;background:var(--card);border:1px solid var(--border);
+  box-shadow:0 12px 40px rgba(0,0,0,0.35);display:flex;flex-direction:column;min-height:0;
+  opacity:0;pointer-events:none;transition:transform .2s ease,opacity .18s ease
+}
+.wb-cmp-drawer{
+  top:0;right:0;width:min(420px,92vw);height:100%;max-height:100dvh;
+  border-radius:var(--radius-screen,14px) 0 0 var(--radius-screen,14px);
+  transform:translateX(104%)
+}
+.wb-cmp-drawer.is-open{opacity:1;pointer-events:auto;transform:translateX(0)}
+.wb-cmp-sheet{
+  left:0;right:0;bottom:0;max-height:min(88dvh,720px);border-radius:var(--radius-screen,16px) var(--radius-screen,16px) 0 0;
+  transform:translateY(104%)
+}
+.wb-cmp-sheet.is-open{opacity:1;pointer-events:auto;transform:translateY(0)}
+.wb-cmp-sheet-handle{
+  width:40px;height:4px;border-radius:999px;background:var(--border);margin:10px auto 0;flex-shrink:0
+}
+.wb-cmp-drawer-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;
+  border-bottom:1px solid var(--border);flex-shrink:0
+}
+.wb-cmp-drawer-title{font-family:var(--font-pixel);font-size:.62rem;color:var(--accent);letter-spacing:.04em}
+.wb-cmp-drawer-body{flex:1;min-height:0;overflow:auto;padding:12px 14px 18px}
+.wb-cmp-panel-body{display:flex;flex-direction:column;gap:16px}
+.wb-cmp-section{display:flex;flex-direction:column;gap:10px}
+.wb-cmp-section-title{
+  margin:0;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;
+  font-family:var(--font-body)
+}
+.wb-cmp-empty{margin:0;font-size:.82rem;color:var(--muted);line-height:1.45}
+.wb-cmp-list{display:flex;flex-direction:column;gap:10px}
+.wb-cmp-item{
+  border:1px solid var(--border);border-radius:var(--radius-screen,12px);background:var(--bg2);
+  padding:10px;display:flex;flex-direction:column;gap:10px
+}
+.wb-cmp-item-head{display:flex;flex-direction:column;gap:4px}
+.wb-cmp-item-type{font-size:.78rem;font-weight:650;color:var(--accent2)}
+.wb-cmp-item-desc{font-size:.8rem;color:var(--text);line-height:1.35}
+.wb-cmp-item-tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.wb-cmp-item-tools .btn{min-height:var(--tap-min,44px)}
+.wb-cmp-edit-fields{display:flex;flex-direction:column;gap:10px}
+.wb-cmp-field{display:flex;flex-direction:column;gap:4px}
+.wb-cmp-field-label{font-size:.76rem;color:var(--muted)}
+.wb-cmp-select,.wb-cmp-input{
+  width:100%;min-height:var(--tap-min,44px);padding:8px 10px;border-radius:10px;
+  border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--font-body)
+}
+.wb-cmp-type-picker{display:flex;flex-direction:column;gap:8px}
+.wb-cmp-type-card{
+  display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;
+  width:100%;min-height:var(--tap-min,44px);padding:10px 12px;border-radius:12px;
+  border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;
+  font-family:var(--font-body)
+}
+.wb-cmp-type-card:hover{border-color:var(--accent2);background:var(--hover)}
+.wb-cmp-type-card-label{font-size:.84rem;font-weight:650;color:var(--text)}
+.wb-cmp-type-card-desc{font-size:.76rem;color:var(--muted);line-height:1.35}
+.wb-cmp-cap-note{margin:0;font-size:.8rem;color:var(--warn)}
+body.wb-cmp-drawer-open{overflow:hidden}
 .wb-player-empty,.wb-player-missing{
   min-height:160px;display:flex;align-items:center;justify-content:center;text-align:center;
   padding:24px 16px;color:var(--muted);font-size:.88rem;line-height:1.45
@@ -315,6 +400,9 @@
 }
 #sec-workbooks.wb-practicing .wb-has-gp .wb-player{padding:0;gap:0}
 #sec-workbooks.wb-practicing .wb-has-gp .wb-gp-mount{flex:1;min-height:0}
+#sec-workbooks.wb-practicing .wb-has-gp .wb-companions-mount{
+  max-height:min(22vh,220px);flex-shrink:0
+}
 
 /* Workbook controls injected into .gpp-score-actions */
 .wb-gpp-head-extra{
@@ -630,6 +718,11 @@
   #sec-workbooks:not(.wb-practicing) .wb-card-actions .btn{min-height:32px}
   #sec-workbooks:not(.wb-practicing) .wb-toolbar{margin-bottom:4px}
   #sec-workbooks:not(.wb-practicing) .wb-card{padding:6px 8px}
+}
+
+@media (orientation:landscape) and (max-height:500px){
+  .wb-companions-mount{max-height:min(18vh,140px)}
+  #sec-workbooks.wb-practicing .wb-has-gp .wb-companions-mount{max-height:min(16vh,120px)}
 }
 
 /* Embedded GP height: viewport-relative only (not scroll position). */

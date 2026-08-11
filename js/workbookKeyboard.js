@@ -19,6 +19,8 @@ export function nodeInBlockedShortcutZone(node) {
     const cl = el.classList;
     if (cl?.contains('modal-overlay') || cl?.contains('modal-dialog')) return true;
     if (cl?.contains('wb-playlist-drawer') && cl.contains('is-open')) return true;
+    if (cl?.contains('wb-cmp-drawer') && cl.contains('is-open')) return true;
+    if (cl?.contains('wb-cmp-sheet') && cl.contains('is-open')) return true;
     if (cl?.contains('gpp-drawer') && cl.contains('is-open')) return true;
     if (cl?.contains('gpp-sheet') && cl.contains('is-open')) return true;
   }

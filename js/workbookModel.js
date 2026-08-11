@@ -4,6 +4,13 @@
 // Storage: localStorage key musi.workbooks. All access is defensive so the
 // module works fully in-memory when localStorage is unavailable (Node tests).
 
+import {
+  MAX_COMPANIONS,
+  defaultCompanion,
+  normalizeCompanion,
+  normalizeCompanions,
+} from './exerciseCompanions/types.js';
+
 export const WORKBOOKS_STORAGE_KEY = 'musi.workbooks';
 
 const NAME_LIMIT = 120;
@@ -93,6 +100,7 @@ export function normalizeWorkbook(raw) {
     ),
     folderId: typeof raw.folderId === 'string' ? raw.folderId : '',
     entries,
+    companions: normalizeCompanions(raw.companions),
     loopEnabled: raw.loopEnabled == null ? true : !!raw.loopEnabled,
     activeEntryId: activeEntryId || null,
     createdAt,
@@ -143,12 +151,17 @@ function copyEntry(entry) {
   return { id: entry.id, exerciseId: entry.exerciseId };
 }
 
+function copyCompanion(companion) {
+  return { ...companion };
+}
+
 function copyWorkbook(wb) {
   return {
     id: wb.id,
     name: wb.name,
     folderId: wb.folderId,
     entries: wb.entries.map(copyEntry),
+    companions: (wb.companions || []).map(copyCompanion),
     loopEnabled: wb.loopEnabled,
     activeEntryId: wb.activeEntryId,
     createdAt: wb.createdAt,
@@ -259,7 +272,7 @@ export function getWorkbook(id) {
   return wb ? copyWorkbook(wb) : null;
 }
 
-export function createWorkbook({ name, folderId, exerciseIds } = {}) {
+export function createWorkbook({ name, folderId, exerciseIds, companions } = {}) {
   const store = getStore();
   const t = nowISO();
   const wb = normalizeWorkbook({
@@ -267,6 +280,7 @@ export function createWorkbook({ name, folderId, exerciseIds } = {}) {
     name: (name || '').trim() || 'Workbook',
     folderId: resolveFolderId(folderId),
     entries: [],
+    companions: companions == null ? [] : companions,
     loopEnabled: true,
     activeEntryId: null,
     createdAt: t,
@@ -446,6 +460,103 @@ export function prevWorkbookEntry(workbookId, { wrap = true } = {}) {
   wb.activeEntryId = entry.id;
   persist();
   return copyEntry(entry);
+}
+
+// --- workbook companions ---------------------------------------------------
+
+export function addCompanionToWorkbook(workbookId, typeOrRaw) {
+  const wb = findWorkbook(workbookId);
+  if (!wb) return null;
+  if (!Array.isArray(wb.companions)) wb.companions = [];
+  if (wb.companions.length >= MAX_COMPANIONS) return null;
+  let raw = typeOrRaw;
+  if (typeof typeOrRaw === 'string') {
+    raw = defaultCompanion(typeOrRaw);
+    if (!raw) return null;
+  }
+  const norm = normalizeCompanion(raw);
+  if (!norm) return null;
+  if (wb.companions.some(companion => companion.id === norm.id)) {
+    norm.id = defaultCompanion(norm.type).id;
+  }
+  wb.companions.push(norm);
+  touchUpdated(wb);
+  persist();
+  return copyWorkbook(wb);
+}
+
+export function updateWorkbookCompanion(workbookId, companionId, patch) {
+  const wb = findWorkbook(workbookId);
+  if (!wb || !patch || typeof patch !== 'object') return null;
+  const idx = wb.companions.findIndex(c => c.id === companionId);
+  if (idx < 0) return null;
+  const current = wb.companions[idx];
+  const merged = { ...current, ...patch, id: companionId, type: current.type };
+  const norm = normalizeCompanion(merged);
+  if (!norm) return null;
+  wb.companions[idx] = norm;
+  touchUpdated(wb);
+  persist();
+  return copyWorkbook(wb);
+}
+
+export function removeWorkbookCompanion(workbookId, companionId) {
+  const wb = findWorkbook(workbookId);
+  if (!wb) return false;
+  const idx = wb.companions.findIndex(c => c.id === companionId);
+  if (idx < 0) return false;
+  wb.companions.splice(idx, 1);
+  touchUpdated(wb);
+  persist();
+  return true;
+}
+
+export function moveWorkbookCompanion(workbookId, companionId, delta) {
+  const wb = findWorkbook(workbookId);
+  if (!wb || !Number.isFinite(Number(delta)) || Number(delta) === 0) return false;
+  const idx = wb.companions.findIndex(c => c.id === companionId);
+  if (idx < 0) return false;
+  const newIdx = idx + Number(delta);
+  if (newIdx < 0 || newIdx >= wb.companions.length) return false;
+  const [item] = wb.companions.splice(idx, 1);
+  wb.companions.splice(newIdx, 0, item);
+  touchUpdated(wb);
+  persist();
+  return true;
+}
+
+export function reorderWorkbookCompanions(workbookId, orderedIds) {
+  const wb = findWorkbook(workbookId);
+  if (!wb || !Array.isArray(orderedIds)) return false;
+  const byId = new Map(wb.companions.map(c => [c.id, c]));
+  const used = new Set();
+  const next = [];
+  for (const id of orderedIds) {
+    if (typeof id !== 'string' || !id || used.has(id)) continue;
+    const companion = byId.get(id);
+    if (companion) {
+      next.push(companion);
+      used.add(id);
+    }
+  }
+  for (const companion of wb.companions) {
+    if (!used.has(companion.id)) next.push(companion);
+  }
+  wb.companions = next;
+  touchUpdated(wb);
+  persist();
+  return true;
+}
+
+// Collapse state is practice UI, not workbook content — same as activeEntryId.
+export function setWorkbookCompanionCollapsed(workbookId, companionId, collapsed) {
+  const wb = findWorkbook(workbookId);
+  if (!wb) return false;
+  const companion = wb.companions.find(c => c.id === companionId);
+  if (!companion) return false;
+  companion.collapsed = !!collapsed;
+  persist();
+  return true;
 }
 
 export function pruneMissingExercises(workbookId, existingExerciseIds) {

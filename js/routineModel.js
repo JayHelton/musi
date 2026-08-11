@@ -4,6 +4,8 @@
 // Storage: localStorage key musi.routines. All access is defensive so the
 // module works fully in-memory when localStorage is unavailable (Node tests).
 
+import { normalizeCompanions } from './exerciseCompanions/types.js';
+
 export const ROUTINES_STORAGE_KEY = 'musi.routines';
 export const ROUTINE_EXPORT_KIND = 'musi-routines';
 export const ROUTINE_EXPORT_VERSION = 1;
@@ -672,7 +674,7 @@ function normalizeExportWorkbook(raw) {
         })
         .filter(Boolean)
     : [];
-  return { id, name, entries };
+  return { id, name, entries, companions: normalizeCompanions(raw.companions) };
 }
 
 export function buildRoutineExport({ routineIds, resolveWorkbook } = {}) {
@@ -804,7 +806,11 @@ export function applyRoutineImport(raw, { existingWorkbooks = [], createWorkbook
       workbooksLinked++;
     } else if (typeof createWorkbook === 'function') {
       const exerciseIds = wb.entries.map(e => e.exerciseId);
-      const newId = createWorkbook({ name: wb.name, exerciseIds });
+      const newId = createWorkbook({
+        name: wb.name,
+        exerciseIds,
+        companions: wb.companions,
+      });
       if (newId && typeof newId === 'string') {
         idMap.set(wb.id, newId);
         workbooksCreated++;
