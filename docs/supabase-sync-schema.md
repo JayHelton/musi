@@ -617,6 +617,15 @@ passwords/OAuth/anonymous.
 
 Provider `supabase/supabase` ~> 1.10.x; auth via `SUPABASE_ACCESS_TOKEN`.
 
+Both projects are created in Musi's Supabase organization, slug
+`ylvstxlbxumgmviaiwlx`. The slug is a plain identifier, not a credential — it is
+visible in dashboard URLs and confers no access by itself. What does confer
+access is `SUPABASE_ACCESS_TOKEN`, which must be a personal access token
+belonging to a member of that organization with permission to create projects;
+`terraform apply` fails at plan time otherwise. Billing for both projects lands
+on this organization, so staging and production share one invoice unless the
+team deliberately splits them.
+
 ```hcl
 terraform {
   required_providers {
@@ -659,7 +668,12 @@ resource "supabase_settings" "production" {
 
 ```hcl
 # variables.tf
-variable "organization_id" { type = string }
+variable "organization_id" {
+  type = string
+  # Musi's Supabase organization slug. Not a secret — it appears in dashboard
+  # URLs and grants nothing on its own. Forks override it with their own org.
+  default = "ylvstxlbxumgmviaiwlx"
+}
 variable "region" {
   type    = string
   default = "us-east-1"
@@ -680,7 +694,7 @@ variable "production_redirect_urls" { type = list(string) }
 
 ```hcl
 # staging.tfvars (placeholders — do not commit secrets)
-organization_id = "your-org-slug"
+# organization_id defaults to Musi's org in variables.tf; forks override it here.
 region = "us-east-1"
 staging_db_password = "CHANGE_ME"
 staging_site_url = "https://staging.example.com"

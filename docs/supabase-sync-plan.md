@@ -325,7 +325,7 @@ infra/terraform/
   supabase-production.yml  # same, production remote
 ```
 
-**Two-project model:** separate Supabase projects for staging and production, provisioned via Terraform (`supabase_project`, `supabase_settings`). Local development uses `supabase start` (API at `http://127.0.0.1:54321`, Inbucket for OTP emails).
+**Two-project model:** separate Supabase projects for staging and production, both provisioned by Terraform (`supabase_project`, `supabase_settings`) in Musi's Supabase organization, slug `ylvstxlbxumgmviaiwlx`. The slug is committed as the default of `var.organization_id`; it is an identifier, not a credential. Local development uses `supabase start` (API at `http://127.0.0.1:54321`, Inbucket for OTP emails) and needs no organization at all.
 
 **Required secrets** (GitHub Actions repository or environment secrets):
 
@@ -526,7 +526,7 @@ See [`docs/supabase-sync-schema.md`](supabase-sync-schema.md) for example test S
 - **Sync audio recordings at all?** Phase 5 is opt-in blobs; default-off may be enough, or recordings could be excluded by `mediaKind` even when opt-in.
 - **Per-user Storage quota** numeric limit (e.g. 500 MB vs 2 GB) — affects cost and mobile expectations.
 - **Hosting origin(s)** for `additional_redirect_urls` and CORS — depends on where the static PWA is served (production + staging URLs).
-- **Staging project funding** — separate paid project vs shared org billing.
+- **Staging project tier** — the organization is settled (`ylvstxlbxumgmviaiwlx`), so what remains is whether staging runs on the free tier and accepts pausing, or on a paid instance alongside production on the same invoice.
 - **Tombstone retention window** — 90 days proposed; confirm acceptable for "delete then restore from old device" edge case.
 
 ## Suggested implementation order
