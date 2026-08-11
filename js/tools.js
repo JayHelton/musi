@@ -336,10 +336,6 @@ export function getTool(id) {
   return TOOLS.find(t => t.id === id) || null;
 }
 
-export function getCategory(id) {
-  return CATEGORIES.find(c => c.id === id) || null;
-}
-
 export function toolsInCategory(categoryId) {
   return TOOLS.filter(t => t.category === categoryId);
 }

@@ -16,10 +16,13 @@ import { initProgressHeaders } from './progressHeader.js';
 import { initStats } from './stats.js';
 import { initGlobalVolume } from './musicPreferences.js';
 import { OBJECTIVES } from './routes.js';
-import { CATEGORY_ICONS } from './tools.js';
 import { isHoldRecordRelevant } from './tools.js';
+import { DEST_ICONS } from './ui/icons.js';
+import { ensureFeatureStyles } from './ui/featureStyles.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
+import { runMigrations } from './migrations/index.js';
+import { FEATURES } from './featureRegistry.js';
 import {
   initRouter,
   navigate,
@@ -32,12 +35,7 @@ import { showRoute } from './workspaceLoader.js';
 import { adoptedSections } from './workspaces/legacyHost.js';
 import { parseRoute } from './routes.js';
 
-const DEST_ICONS = {
-  home: CATEGORY_ICONS.home,
-  train: CATEGORY_ICONS.train,
-  study: CATEGORY_ICONS.reference,
-  create: CATEGORY_ICONS.create,
-};
+const sectionToFeature = new Map(FEATURES.map((f) => [f.sectionId, f.id]));
 
 let appMenuEl = null;
 let toastTimer = null;
@@ -74,61 +72,16 @@ function updateNavActive(route) {
 
 function resolveFeatureIdForRoute(route) {
   if (!route || route.objective === 'home' || route.objective === 'settings') return null;
-  const view = route.view;
-  if (route.objective === 'train') {
-    if (view === 'plans') return 'routines';
-    if (view === 'library') {
-      if (route.params?.player === 'gp') return 'gpplayer';
-      const type = route.params?.type || 'exercise';
-      if (type === 'workbook') return 'workbooks';
-      if (type === 'drums') return 'drums';
-      return 'exercises';
-    }
-    if (view === 'fundamentals' && route.params?.drill) {
-      const drill = route.params.drill;
-      const map = {
-        scales: 'scales',
-        intervals: 'intervals',
-        sightreading: 'sightreading',
-        fretboard: 'fretboard',
-        'chord-workout': 'chordlab',
-        pitch: 'tuner',
-        ear: 'ear',
-        timing: 'timing',
-      };
-      return map[drill] || null;
-    }
-  }
-  if (route.objective === 'study') {
-    if (view === 'learn') return 'studylab';
-    if (view === 'explore' && route.params?.view) {
-      const map = {
-        scales: 'scaleref',
-        chords: 'chords',
-        triads: 'triads',
-        circle: 'circle',
-        fretboard: 'intervalorbit',
-      };
-      return map[route.params.view] || null;
-    }
-  }
-  if (route.objective === 'create') {
-    if (view === 'capture') return 'recorder';
-    if (view === 'projects') return route.params?.view === 'notes' ? 'notes' : 'songwriter';
-    if (view === 'compose') {
-      if (route.params?.panel === 'keyboard') return 'keyboard';
-      if (route.params?.view === 'import-melody') return 'tracktosheet';
-      if (route.params?.view === 'beats') return 'drums';
-      return 'chords';
-    }
-  }
-  return null;
+  const sectionId = activeSectionId();
+  if (!sectionId || sectionId === 'sec-home') return null;
+  return sectionToFeature.get(sectionId) || null;
 }
 
 async function handleRoute(route) {
   updateNavActive(route);
   await showRoute(route);
   const featureId = resolveFeatureIdForRoute(route);
+  if (featureId) ensureFeatureStyles(featureId);
   updateHoldRecordVisibility(featureId);
   document.body.classList.toggle('tool-screen', !!featureId);
   syncSetupToolbars();
@@ -248,6 +201,7 @@ function initNav() {
 
 function init() {
   initBootSplash();
+  runMigrations();
   initNav();
   initAppMenu();
 
@@ -361,5 +315,4 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 
-// Exported for tests/debugging only.
 export { adoptedSections, activeSectionId, resolveFeatureIdForRoute };

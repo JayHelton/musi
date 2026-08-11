@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { installDomShim } from '../gp-player/domShim.mjs';
 import { installLocalStorageShim } from '../shared/localStorageShim.mjs';
+import { runShellRegressions } from './regressions.mjs';
 import { FEATURES } from '../../js/featureRegistry.js';
 import {
   FEATURE_ADAPTER_IDS,
@@ -101,6 +102,11 @@ test('index.html shell markers', () => {
   assert.ok(!indexHtml.includes('sec-hub-'));
   assert.ok(!indexHtml.includes('split-trigger'));
   assert.ok(!indexHtml.includes('home-all-panel'));
+  assert.ok(!indexHtml.includes('dock-cat-btn'));
+});
+
+test('shell regressions (markup, precache, lazy graph)', () => {
+  runShellRegressions();
 });
 
 const NEW_PRECACHE = [
@@ -117,13 +123,15 @@ const NEW_PRECACHE = [
   'js/workspaces/study.js',
   'js/workspaces/create.js',
   'js/workspaces/settings.js',
+  'js/ui/icons.js',
+  'js/ui/featureStyles.js',
 ];
 
 test('service-worker precaches new shell assets', () => {
   for (const path of NEW_PRECACHE) {
     assert.match(swSource, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
-  assert.match(swSource, /v173-tsc-shell/);
+  assert.match(swSource, /v174-tsc-refactor/);
 });
 
 console.log(`\n# tests ${passed}`);

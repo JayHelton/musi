@@ -239,11 +239,6 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
-.dock-mobile-cats,
-.dock-item.dock-desktop {
-  display: none !important;
-}
-
 /* Embedded legacy sections inside workspaces */
 .embedded-section {
   display: block !important;
@@ -356,7 +351,7 @@
   }
 
   .workspace-tab {
-    min-height: 40px;
+    min-height: 44px;
     padding: 6px 10px;
     font-size: 0.85rem;
   }
