@@ -316,6 +316,22 @@ export function deleteWorkbook(id) {
   return true;
 }
 
+export function deleteWorkbooksNotAttached(attachedIds) {
+  const attached = attachedIds instanceof Set
+    ? attachedIds
+    : new Set(
+        Array.isArray(attachedIds)
+          ? attachedIds.filter(id => typeof id === 'string' && id)
+          : [],
+      );
+  const store = getStore();
+  const before = store.workbooks.length;
+  store.workbooks = store.workbooks.filter(wb => attached.has(wb.id));
+  const deleted = before - store.workbooks.length;
+  if (deleted) persist();
+  return deleted;
+}
+
 export function setWorkbookFolder(id, folderId) {
   const wb = findWorkbook(id);
   if (!wb) return false;
@@ -577,4 +593,12 @@ export function pruneMissingExercises(workbookId, existingExerciseIds) {
   touchUpdated(wb);
   persist();
   return removed;
+}
+
+export function pruneMissingExercisesAll(existingExerciseIds) {
+  let total = 0;
+  for (const wb of [...getStore().workbooks]) {
+    total += pruneMissingExercises(wb.id, existingExerciseIds);
+  }
+  return total;
 }
