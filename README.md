@@ -11,69 +11,110 @@ sound without switching apps, installing plug-ins, or waiting on a backend.
 
 ## What Musi does
 
-Musi is built around five practice modes:
+Musi is organized around four persistent destinations — **Home, Train, Study,
+Create** — plus **Settings** in the application menu. Metronome, practice timer,
+tuner, keyboard, recorder, loop controls, and the music inspector are contextual
+utilities: they ride along with practice or appear in utility drawers, not as top-level
+destinations.
 
-### Quiz
+### Home
 
-- **Scale quiz** - spell the seven diatonic modes in order with randomized,
-  non-repeating roots, scoring, streaks, and hints.
-- **Interval quiz** - identify target notes from interval prompts (rooted in the
-  shared musical context's key) across easy, medium, and hard difficulties.
-- **Sight-reading trainer** - read treble and bass staff notes with instant
-  feedback and score tracking.
-
-### Reference
-
-- **Scale reference** - browse 27 scale and mode families, step patterns,
-  intervals, semitone maps, key signatures, diatonic chords, and guitar-friendly
-  three-notes-per-string layouts.
-- **Chord builder** - select notes and octaves, hear the voicing, and analyze the
-  chord quality.
-- **Circle of fifths** - explore key relationships visually.
-
-### Tools
-
-- **Playable keyboard** - trigger notes from the UI or QWERTY keyboard, choose
-  waveforms, control volume, and sustain drones for pitch practice.
-- **Advanced metronome** - set BPM and time signatures, tap tempo, design custom
-  rhythmic measures, use dotted/triplet/rest values, toggle accents, loop, and
-  load practice presets such as shuffle, gallop, and blast beat.
+- Objective cards for Train, Study, and Create with continue actions and quick stats.
+- Resume pointers for active routines, Study Lab paths, and recent projects.
+- Study recommendations and due-review summaries when applicable.
 
 ### Train
 
-- **Fretboard trainer** - practice interval recognition across guitar tunings
-  including Standard, Drop D, Half Step Down, Drop C, Open G, Open D, and DADGAD.
-- **Interval Orbit** - root-centered interval mapping with orbit sizes, find/identify/
-  complete/formula drills, preset & custom progression improv loops, and session history.
-- **Vocal trainer** - use confidence-gated microphone pitch detection to see the
-  note, frequency, and cents offset while matching reference tones. Detection
-  rejects background noise and holds a steady note instead of flickering on small
-  voice variations. Play a configurable segment of the shared musical context's
-  scale in the selected octave - choose the starting degree, number of notes, and
-  the interval between notes (scale steps, thirds for triads, fourths, or fifths)
-  to drill triads and other segmented scales, one beat per note at the context
-  tempo.
-- **Pitch runner** - a Guitar Hero / Yousician-style scrolling pitch game in the
-  Pitch section. Note bars stream in from the right in strict 4/4 time and you
-  sing each one in tune as it crosses the hit line, with pitch on the vertical
-  axis (a piano-roll ladder), a live pitch trace, an optional metronome and
-  melody guide, and score/combo/accuracy tracking. Melody, key, scale, and tempo
-  follow the shared musical context.
-- **Ear trainer** - hear notes in the shared musical context's key and scale and
-  identify them by ear, with replay and streak tracking.
+**Today** — active practice session cockpit, free practice, routine session launch,
+manual attempt logging, and the persistent Practice Bar (metronome, timer, loop,
+transport, session notes).
+
+**Plans** — routines and ordered sessions (`Routine → Sessions → Workbooks →
+Exercises`).
+
+**Library** — exercises (tabs, PDFs, images, audio, video, links), workbooks,
+Guitar Pro scores with practice player, drum patterns, and attachment media.
+
+**Fundamentals** — grouped drills:
+
+- **Theory Recall** — scale spelling quiz (seven diatonic modes, randomized roots,
+  scoring, streaks, hints) and interval quiz (target notes from interval prompts in
+  the shared musical context, easy/medium/hard).
+- **Sight Reading** — treble and bass staff reading with instant feedback and score
+  tracking.
+- **Fretboard Drill** — interval recognition across guitar tunings including Standard,
+  Drop D, Half Step Down, Drop C, Open G, Open D, and DADGAD (full catalog in
+  `js/tunings.js`).
+- **Harmony Practice** — chord workout drills.
+- **Ear and Pitch** — vocal trainer (confidence-gated microphone pitch detection
+  with note, frequency, and cents; configurable scale-segment playback at context
+  tempo), Pitch runner (scrolling pitch game with piano-roll ladder, live trace,
+  optional metronome and melody guide, score/combo/accuracy), ear trainer (identify
+  notes in the shared key and scale with replay and streaks), and tuner panel.
+- **Rhythm** — timing drills with metronome integration.
+
+**Progress** — practice attempts, tempo history, mastery status, and due cold tests
+(48-hour and 7-day gates).
+
+### Study
+
+**Learn** — Study Lab paths with genre-aware recommendations and concept progress.
+
+**Explore** — reference surfaces driven by the shared music context:
+
+- **Scales and Modes** — browse 27 scale and mode families with step patterns,
+  intervals, semitone maps, key signatures, diatonic chords, and guitar-friendly
+  three-notes-per-string layouts.
+- **Harmony** — chord reference, triads, and circle of fifths.
+- **Fretboard Map** — Interval Orbit: root-centered interval mapping with orbit
+  sizes, find/identify/complete/formula drills, preset and custom progression
+  improv loops, and session history.
+
+**Review** — due concepts, recorded misses, and retention quizzes with the contextual
+music inspector.
+
+Every studied concept offers actions such as Practice this, Quiz this, Map on
+fretboard, Hear it, Use in a progression, and Add to a routine or workbook.
 
 ### Create
 
-- **Backing track builder** - generate and audition key-aware progressions such
-  as pop, jazz ii-V-I, blues, rock, minor, and canon-style patterns with editable
-  chord lengths and octaves.
-- **Riff generator** - create scale-aware guitar riffs, render them as tab, and
-  play them back with highlighted notes.
-- **Riff composer** - build your own note/rest timeline, set durations, and play
-  the phrase back at tempo.
-- **Voice recorder** - record vocal ideas, monitor live pitch, play back takes,
-  download audio, view detected notes, and estimate the key using pitch-class
-  analysis.
+**Projects** — songs and ideas with lyrics, recordings, notes, harmony progressions,
+linked drum patterns, and attached practice material (songwriter workspace).
+
+**Capture** — voice recorder: record vocal ideas, monitor live pitch, play back takes,
+download audio, view detected notes, estimate key from pitch-class analysis, and map
+a sung riff to guitar tab for the Guitar Pro player.
+
+**Compose** — chord builder (select notes and octaves, hear voicings, analyze quality),
+playable keyboard/drone panel, beat builder (drum machine patterns), and Import Melody
+(beta transcription from audio via Track → Sheet).
+
+### Settings (application menu)
+
+Music preferences, enabled-feature toggles (legacy compatibility), global volume,
+and device sync: export/import library bundles, settings JSON, and QR beam/receive
+for smaller payloads.
+
+### Routes
+
+Canonical hash routes:
+
+```text
+#home
+#train  #train/today  #train/plans  #train/library  #train/fundamentals  #train/progress
+#study  #study/learn  #study/explore  #study/review
+#create #create/projects #create/capture #create/compose
+#settings
+```
+
+Subviews use query parameters, for example `#train/fundamentals?drill=scales`,
+`#train/library?type=workbook&id=<id>`, `#study/explore?view=fretboard`,
+`#create/projects?id=<id>&view=lyrics`, and `#train?panel=practice` for the
+practice utility panel.
+
+Legacy bookmarks (`#scales`, `#intervalorbit`, `#songwriter`, hub aliases, and the
+full table in `js/routes.js`) still resolve and are normalized with
+`history.replaceState` so Back does not trap on old links.
 
 ## Why it is useful
 
@@ -83,17 +124,18 @@ Musi bridges the gap between a theory worksheet and a creative instrument:
   training, and fretboard fluency.
 - **For singers:** live pitch feedback turns the browser into a reference tuner,
   recorder, and intonation coach.
-- **For guitarists:** alternate tunings, tab rendering, 3-NPS references, and
-  fretboard prompts keep theory connected to the instrument.
-- **For songwriters:** backing progressions, riff generation, a composer, and a
-  recorder make it easy to capture and iterate on musical ideas.
+- **For guitarists:** alternate tunings, tab rendering, 3-NPS references, Guitar Pro
+  playback, and fretboard prompts keep theory connected to the instrument.
+- **For songwriters:** projects, chord tools, beats, melody import, and capture
+  make it easy to sketch and iterate on musical ideas.
 - **For teachers:** the app offers quick, visual exercises that can be opened on
   any modern browser or installed as a standalone PWA.
 
 ## Technical highlights
 
 - **Progressive web app:** `manifest.webmanifest` and `service-worker.js` make
-  Musi installable and offline-capable with an app-shell cache.
+  Musi installable and offline-capable with an app-shell cache; objective workspaces
+  lazy-load after first use.
 - **Static-first architecture:** the web app is plain HTML, CSS, and ES modules;
   no server, build step, or client framework is required.
 - **Browser-native audio:** Web Audio powers synthesis, metronome scheduling,
@@ -103,10 +145,12 @@ Musi bridges the gap between a theory worksheet and a creative instrument:
   tracking, recording, playback analysis, and downloadable takes.
 - **Shared theory engine:** reusable modules handle note parsing, enharmonic
   spelling, scale definitions, intervals, tunings, and frequency-to-note mapping.
+- **Shared music context:** instrument, tuning, key, scale, tempo, and meter persist
+  across Train, Study, and Create with routine/project overrides.
 - **Persistent preferences:** local storage remembers user selections and tool
   settings without requiring accounts or cloud sync.
-- **Responsive interface:** grouped desktop/mobile navigation keeps the full
-  feature set accessible across device sizes.
+- **Responsive interface:** bottom dock (mobile) and top nav (desktop) show exactly
+  Home, Train, Study, and Create with 44px touch targets.
 - **CLI companion:** the `cli/` package exposes terminal versions of core quiz
   and training activities using the same theory data as the web app.
 
@@ -144,6 +188,44 @@ For the CLI:
 cd cli
 node bin/musi.js
 ```
+
+## Development and testing
+
+Ad-hoc Node runners live under `tests/<suite>/run.mjs` (no framework, no build step).
+Run any suite with:
+
+```bash
+node tests/<suite>/run.mjs
+```
+
+Refactor and core suites:
+
+- `routes` — route parsing and legacy alias normalization
+- `shell` — shell markup, registry/adapters, service-worker precache (Node)
+- `characterization` — storage keys, routine export compatibility, legacy data
+- `music-context` — shared context persistence and overrides
+- `progress` — progress log and library facade
+- `practice` — practice session lifecycle and clock
+- `train` — Train workspace and Practice Bar
+- `study-workspace` — Study workspace and music inspector
+- `create` — projects, notes adapters, migrations
+- `settings` — Settings workspace
+
+Feature and integration suites:
+
+- `routines`, `workbooks`, `exercises`, `interval-map`, `study-lab`, `study-recs`
+- `companions`, `qr`, `gp-player`, `track-to-sheet`
+- `sync` — `tests/sync/bundle.mjs`, `profile.mjs`, `frames.mjs`, `zip.mjs`, and
+  `tests/sync/run-browser.mjs` (browser, static server required)
+
+Browser regression (headless Chrome over CDP):
+
+```bash
+python3 -m http.server 8080   # from repo root — required
+node tests/shell/run-browser.mjs
+```
+
+The browser suite exits non-zero if the static server is not reachable.
 
 ## Deploy
 

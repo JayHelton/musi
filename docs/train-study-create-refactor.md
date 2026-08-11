@@ -333,3 +333,18 @@ validation, music-context overrides and persistence, practice-session lifecycle,
 tempo phase transitions, attempt creation, migration idempotency, project and
 note adapters, routine import/export compatibility, and a smoke test asserting
 every legacy hash resolves to its documented destination.
+
+## Implementation status
+
+Shipped on this branch (derived from current code and test suites). Phases match
+the parallel delivery order used during the refactor.
+
+| Phase | Landed | Deferred / not wired |
+| --- | --- | --- |
+| **0 — Routes and loaders** | `js/routes.js` (objectives, views, `LEGACY_ROUTES`, parse/format/resolve); `js/featureRegistry.js`; `js/router.js`; `js/workspaceLoader.js`; `js/workspaces/legacyHost.js`; `js/featureAdapters.js` with lazy `mountFeature` / `stopFeaturesExcept`. Tests: `tests/routes/run.mjs`, `tests/shell/run.mjs` (registry/adapters). | — |
+| **1 — Shell and Home** | Four-destination dock + app menu; `#workspace-root`; lazy Home (`js/workspaces/home.js`); boot splash; `main.js` bootstrap with `showSection` / `showHub` / `navigateLegacy` shims; removed hub/split/tool-catalog markup (see `tests/shell/regressions.mjs`). | `features.enabled` storage and toggles kept for compatibility (`js/tools.js`, Settings). |
+| **2 — Train workspace** | `js/workspaces/train.js` — Today, Plans, Library (exercises, workbooks, scores/GP player, drums), Fundamentals drills, Progress; routine session item expansion; manual attempt log on Today. Tests: `tests/train/run.mjs`. | Fundamentals drill modules still write quiz stats via `js/stats.js` only — they do not auto-call `progressLog.logAttempt`. |
+| **3 — Practice and library** | `js/practice/practiceSession.js` (single metronome owner, session restore); `js/ui/practiceBar.js`; `js/progress/progressLog.js`; `js/library/libraryService.js` facade over exercises/workbooks/routines/scores/media. Tests: `tests/practice/run.mjs`, `tests/progress/run.mjs`. | `libraryService.listLibrary()` has an empty `project` branch — `listProjectLibraryItems()` in `projectModel.js` is not wired. |
+| **4 — Study workspace** | `js/workspaces/study.js` — Learn (Study Lab), Explore (scales, harmony, fretboard map), Review; `js/core/musicContext.js`; contextual `js/core/musicInspector.js` with study actions. Tests: `tests/study-workspace/run.mjs`, `tests/music-context/run.mjs`, `tests/study-lab/run.mjs`, `tests/study-recs/run.mjs`. | Inspector is context-driven (route/concept selection), not click-to-inspect on the fretboard. |
+| **5 — Create workspace** | `js/workspaces/create.js` — Projects (songwriter + project tabs), Capture (recorder), Compose (chords, keyboard, beats, import melody); `js/create/projectModel.js` with song/notes adapters. Tests: `tests/create/run.mjs`, `tests/track-to-sheet/run.mjs`. | Legacy `#sec-backing` / `#sec-riff` sections remain in `index.html` but are not adopted by any workspace (`initBacking` / `initRiff` never imported). |
+| **6 — Migrations, Settings, regression** | `js/migrations/index.js` (versions 1–4: projects-from-songs, notes-inbox, practice-defaults, progress-seed); `js/workspaces/settings.js`; characterization and browser suites. Tests: `tests/characterization/run.mjs`, `tests/settings/run.mjs`, `tests/shell/run-browser.mjs`. | Cloud sync modules remain local-only export/import/QR — no network sync in this release. |
