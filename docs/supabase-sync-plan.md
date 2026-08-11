@@ -139,11 +139,21 @@ Musi today is a fully local progressive web app: routines, exercises, workbooks,
 
 | Option | Pros | Cons |
 | ------ | ---- | ---- |
-| **Terraform provider + Supabase CLI** (`config.toml`, `schemas/`, `db diff`, pgTAP, GitHub Actions) | Reproducible staging/production; schema drift visible in PRs | Two-tool setup; `db push` vs `seed buckets` sharp edge |
-| Supabase CLI only (dashboard projects) | Faster initial setup | No project provisioning automation; drift risk |
-| Manual dashboard only | Lowest upfront effort | Unreviewable changes; not acceptable for production |
+| **Supabase GitHub integration for deployment + Terraform for project and settings** | Integration applies migrations, functions, and buckets on push to `main` with no deploy secrets; Terraform covers what the integration ignores | Two-tool split (integration vs Terraform); auth/API settings must stay in Terraform |
+| Hand-rolled GitHub Actions CLI release pipeline (`link` → `db push` → `seed buckets` → `functions deploy`) | Full control in-repo | More moving parts, more secrets, re-implements what the integration does for free |
+| Dashboard-only clicking | Lowest upfront effort | Unreviewable changes; not acceptable for production |
 
-**Decision:** `supabase/config.toml`, declarative `supabase/schemas/` diffed into migrations, pgTAP in `supabase/tests/`, `infra/terraform/` with official `supabase/supabase` provider for staging and production projects. GitHub Actions: PR verify (`db reset`, `db lint`, `test db`); release (`link` → `db push` → `seed buckets --linked` → `functions deploy`). Workflows deploy database/auth/storage config only — never the PWA.
+**Decision:** The Supabase GitHub integration (working directory `.`, **Deploy to production** on push to `main`) applies migrations, Edge Functions declared in `config.toml`, and Storage buckets declared in `config.toml`. Terraform (`infra/terraform/`, official `supabase/supabase` provider) owns project creation and all auth/API/storage settings **because the integration ignores them by default**. Declarative `supabase/schemas/` diffed into migrations remains the source of truth for schema. One GitHub Actions job (`.github/workflows/supabase-verify.yml`) verifies against the local stack (`db reset`, `db lint`, `test db`). Connecting the repository does not deploy the Musi PWA — the integration reads only the `supabase/` working directory.
+
+### D12 — One environment, no staging
+
+| Option | Pros | Cons |
+| ------ | ---- | ---- |
+| **Production only; local stack as rehearsal** | One paid project; one settings surface; matches trunk-based delivery | No remote pre-production rehearsal beyond local `supabase start` |
+| Separate staging Supabase project | Remote rehearsal before production | Second paid project and a second set of settings to keep in sync, for a product where the cloud is optional |
+| Supabase preview branches (automatic branching) | Ephemeral project per pull request | Pro plan; ~$0.01344/branch/hour on Micro compute; billed outside spend cap; keyed to pull requests this trunk-based repo does not create |
+
+**Decision:** One production Supabase project only. The local stack (`supabase start` / `supabase db reset`) is the only pre-production rehearsal. Blast radius is bounded because auth and sync are optional — a failed migration degrades cloud sync while the offline-first PWA keeps working unchanged. Compensating controls: `supabase db reset` plus pgTAP locally before pushing; additive and backwards-compatible migrations; subscribe to Supabase deployment-failure emails (migration conflicts, function deployment failure, invalid configuration).
 
 ## Goals & non-goals
 
@@ -156,7 +166,7 @@ Musi today is a fully local progressive web app: routines, exercises, workbooks,
 - Device list UI showing registered installs.
 - Per-user quotas, tombstone retention, conflict/status surfacing, export + account deletion via Edge Function.
 - App fully functional with zero Supabase config; existing QR/ZIP device sync unchanged.
-- Infrastructure as code for staging and production Supabase projects.
+- Infrastructure as code for one production Supabase project (Terraform + GitHub integration).
 
 **Non-goals**
 - Hosting or deploying the PWA on Supabase (no Supabase Hosting, no SSR, no serving app pages from Edge Functions except the single `account` function).
@@ -225,7 +235,7 @@ Musi today is a fully local progressive web app: routines, exercises, workbooks,
 
 Full client algorithm, auth flow, UI spec, and test plan: [`docs/supabase-sync-client.md`](supabase-sync-client.md).
 
-SQL DDL, RLS, Realtime trigger, Storage policies, `config.toml`, Terraform, and GitHub Actions: [`docs/supabase-sync-schema.md`](supabase-sync-schema.md).
+SQL DDL, RLS, Realtime trigger, Storage policies, `config.toml`, Terraform, GitHub integration, and the verify workflow: [`docs/supabase-sync-schema.md`](supabase-sync-schema.md).
 
 ## Data flow in one screenful
 
@@ -303,7 +313,7 @@ Workbook `entries[]` and routine `sessions[]` are nested inside their parent `wo
 
 ```
 supabase/
-  config.toml              # auth, storage buckets, functions, remotes
+  config.toml              # buckets + functions (read by the integration); auth is local-only
   schemas/                 # declarative SQL (diffed to migrations)
     010_extensions.sql
     020_sync_tables.sql
@@ -314,49 +324,58 @@ supabase/
   functions/account/       # Edge Function: export + delete account
 
 infra/terraform/
-  main.tf                  # supabase_project + supabase_settings
+  main.tf                  # supabase_project + supabase_settings (production)
   variables.tf
-  *.tfvars                 # staging / production (not committed)
+  production.tfvars        # not committed
   README.md
 
 .github/workflows/
-  supabase-verify.yml      # PR: db reset, lint, test db
-  supabase-staging.yml     # link → db push → seed buckets → functions deploy
-  supabase-production.yml  # same, production remote
+  supabase-verify.yml      # db reset, lint, test db (local stack; no secrets)
 ```
 
-**Two-project model:** separate Supabase projects for staging and production, both provisioned by Terraform (`supabase_project`, `supabase_settings`) in Musi's Supabase organization, slug `ylvstxlbxumgmviaiwlx`. The slug is committed as the default of `var.organization_id`; it is an identifier, not a credential. Local development uses `supabase start` (API at `http://127.0.0.1:54321`, Inbucket for OTP emails) and needs no organization at all.
+**Single-project model:** one production Supabase project provisioned by Terraform (`supabase_project`, `supabase_settings`) in Musi's Supabase organization, slug `ylvstxlbxumgmviaiwlx`. The slug is committed as the default of `var.organization_id`; it is an identifier, not a credential. Local development uses `supabase start` (API at `http://127.0.0.1:54321`, Inbucket for OTP emails) and needs no organization at all.
 
-**Required secrets** (GitHub Actions repository or environment secrets):
+**GitHub integration** (Dashboard → Project Settings → Integrations → GitHub): authorize, choose this repository, set **Working directory** to `.`, enable **Deploy to production** on push/merge to `main`, leave **automatic branching** off. This is a one-time manual step performed after Terraform creates the project, and it is the one part of the setup that is not itself code — the Terraform provider has no resource for the GitHub connection. On each push to `main` the integration applies new migrations, deploys Edge Functions declared in `config.toml`, and deploys Storage buckets declared in `config.toml`. All other configuration — including API, Auth, and seed files — is ignored by default.
+
+**Required secrets:**
 
 | Secret | Used for |
 | ------ | -------- |
-| `SUPABASE_ACCESS_TOKEN` | CLI and Terraform provider authentication |
-| `STAGING_PROJECT_ID` | Staging `supabase link` |
-| `PRODUCTION_PROJECT_ID` | Production `supabase link` |
-| `STAGING_DB_PASSWORD` | Staging `db push`, `db reset` |
-| `PRODUCTION_DB_PASSWORD` | Production `db push`, `db reset` |
-| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | Auth email (production; dashboard or `supabase secrets set`) |
+| `SUPABASE_ACCESS_TOKEN` | Terraform provider authentication only |
+| Production database password | Terraform project creation only (not stored in GitHub Actions) |
+| SMTP credentials | Production Auth email (dashboard; not used by any workflow) |
 
-**Sharp edge:** `supabase db push` does **not** create Storage buckets. Release workflows must run `supabase seed buckets --linked` after `db push`. See [`docs/supabase-sync-schema.md`](supabase-sync-schema.md) for bucket definitions in `config.toml`.
+Deployment via the GitHub integration needs no project ref or database password secret — the integration owns production deploy credentials. `supabase db push` remains a manual escape hatch for exceptional recovery, not the normal path.
 
-These workflows deploy database, auth, storage, and Edge Function configuration only. PWA deployment to the static host is unchanged and separate.
+**Sharp edge:** the integration ignores `[auth]` and `[api]` blocks in `config.toml`. Those settings must be applied by Terraform (`supabase_settings`) or they silently do nothing in production. After Terraform apply, `supabase link` + diff against the linked project catches drift.
+
+| Concern | Owner |
+| ------- | ----- |
+| Schema (`schemas/` + migrations) | Declarative SQL in repo; applied by GitHub integration on push to `main` |
+| Edge Functions and Storage buckets | Declared in `config.toml`; applied by GitHub integration |
+| Auth / API / storage settings | Terraform `supabase_settings` |
+| Project creation and region | Terraform |
+| Local development | `config.toml` + `supabase start` |
+| Verification | `.github/workflows/supabase-verify.yml` + local `supabase db reset` before push |
+
+None of this deploys the PWA. The GitHub integration reads only the `supabase/` working directory; application code at the repo root is never built or deployed by Supabase. PWA deployment to the static host is unchanged and separate.
 
 ## Phased delivery
 
 ### Phase 0 — IaC skeleton and local stack only
 
-**Scope:** Zero app-code changes. Supabase project layout, schema, RLS, Realtime trigger stub, Storage bucket declarations, Terraform skeleton, GitHub Actions verify job.
+**Scope:** Zero app-code changes. Supabase project layout, schema, RLS, Realtime trigger stub, Storage bucket declarations, Terraform for one production project, GitHub integration, verify workflow.
 
-- `supabase/config.toml` with `[storage.buckets.attachments]`, `[functions.account]`, remotes placeholders.
+- `supabase/config.toml` with `[storage.buckets.attachments]` and `[functions.account]` (the two blocks the integration reads), local `[auth]` values, and a single `[remotes.production]` block for drift checks.
 - Declarative `supabase/schemas/` → `supabase db diff` → `migrations/`.
 - pgTAP tests proving cross-user reads and writes are denied on `sync_records`.
-- `infra/terraform/` project stubs (`main.tf`, `variables.tf`, `*.tfvars`, `README.md`).
+- `infra/terraform/` for one production project (`main.tf`, `variables.tf`, `production.tfvars`, `README.md`).
+- Supabase Dashboard GitHub integration: working directory `.`, **Deploy to production** on, automatic branching off, deployment-failure email notifications on.
 - `.github/workflows/supabase-verify.yml`: `supabase db reset`, `db lint`, `test db`.
 
 **Touch:** `supabase/`, `infra/terraform/`, `.github/workflows/`
 
-**Exit criteria:** `supabase db reset` green locally; `supabase test db` passes RLS isolation tests; no changes to `js/`, `index.html`, or `service-worker.js`.
+**Exit criteria:** `supabase db reset` green locally; `supabase test db` passes RLS isolation tests; first successful GitHub integration deploy visible in the Supabase dashboard; no changes to `js/`, `index.html`, or `service-worker.js`.
 
 ### Phase 1 — Local sync plumbing (fully offline)
 
@@ -380,7 +399,7 @@ These workflows deploy database, auth, storage, and Edge Function configuration 
 - `js/cloud/auth.js` — OTP primary, magic link secondary, PKCE, `musi.auth` session, device registration in `sync_devices`.
 - `js/cloud/cloudUI.js` + `css/cloud.css` in Settings (when config non-empty).
 - `service-worker.js` — Supabase origin bypass, precache cloud modules, `CACHE_VERSION` bump.
-- Staging `config.toml` auth redirect URLs.
+- Local `config.toml` auth redirect URLs for `supabase start`; production auth settings via Terraform.
 
 **Touch:** `js/cloud/*`, `js/vendor/`, `scripts/vendor-supabase.mjs`, `css/cloud.css`, `js/musicPreferences.js`, `service-worker.js`, `supabase/config.toml`
 
@@ -431,17 +450,19 @@ These workflows deploy database, auth, storage, and Edge Function configuration 
 - Conflict indicator when LWW tiebreak or counter merge produces notable divergence.
 - `supabase/functions/account/` — data export bundle + delete user (service-role).
 - Update `README.md` and Device sync / Account copy (no longer "no account needed" as universal claim — cloud is optional).
-- Production SMTP; staging/production release workflows live.
+- Production SMTP (dashboard); production auth/API settings applied and verified via Terraform.
 
-**Touch:** `supabase/functions/account/`, `supabase/schemas/`, `.github/workflows/supabase-staging.yml`, `.github/workflows/supabase-production.yml`, `js/cloud/cloudUI.js`, `README.md`, `js/musicPreferences.js`
+**Touch:** `supabase/functions/account/`, `supabase/schemas/`, `infra/terraform/`, `js/cloud/cloudUI.js`, `README.md`, `js/musicPreferences.js`
 
-**Exit criteria:** Quota exceeded returns clear error; tombstones older than 90 days purged in test; export download matches ZIP semantics; account deletion removes `sync_records` and Storage objects; release workflow deploys to staging; copy accurately describes optional cloud sync.
+**Exit criteria:** Quota exceeded returns clear error; tombstones older than 90 days purged in test; export download matches ZIP semantics; account deletion removes `sync_records` and Storage objects; production auth settings match Terraform; copy accurately describes optional cloud sync.
 
 Every phase leaves `main` shippable. With empty `cloudConfig`, the app is fully usable and indistinguishable from pre-cloud Musi.
 
 ## Verification (no test framework)
 
 Per `AGENTS.md`, there is no lint/test/build tooling for the web app. Verification combines node runners, pgTAP, and manual browser exercise.
+
+The single GitHub Actions job (`.github/workflows/supabase-verify.yml`) runs against the local stack and needs no secrets. Because the Supabase GitHub integration deploys to production on the same push to `main`, that job alerts rather than gates — a failing verify run does not block the integration deploy. The real gate is local `supabase db reset` + `supabase test db` before pushing, consistent with the repo's existing pre-push verification rule.
 
 ### Node runners (`tests/cloud/`)
 
@@ -512,11 +533,15 @@ See [`docs/supabase-sync-schema.md`](supabase-sync-schema.md) for example test S
 | 250 MB blobs and Storage egress cost | Opt-in per device; lazy download; CRC32 dedupe; per-user Storage quota (Open questions) |
 | Clock skew breaking LWW | Prefer server `updated_at` on push; `device_id` tiebreak; counter domains use merge not LWW |
 | Sync loop / echo storms | Suppress own `device_id` on broadcast; debounced reconciler; content_hash skip when unchanged |
-| Free-tier project pausing | Terraform-managed paid tier for production; monitoring on staging |
+| Free-tier project pausing | Terraform-managed paid tier for production |
 | OTP email deliverability without custom SMTP | Custom SMTP required for production (Open questions); Inbucket for local dev |
 | Bad merge wiping user content | Pre-merge local ZIP via existing `syncBundle`; explicit Merge / Keep cloud / Keep this device choice |
 | Partial-failure push batches | Batch with per-row error handling; retry queue in `musi-sync` IDB; cursor not advanced until ack |
-| Schema drift between `schemas/` and live project | PR verify job runs `db reset` + `test db`; release only via `db push` from linked migration history |
+| No staging environment | Local stack is the only rehearsal; `supabase db reset` + pgTAP before push; additive, backwards-compatible migrations |
+| Auto-deploy on push with no CI gate (trunk-based) | Local verification before push; Supabase deployment-failure emails; bounded blast radius because sync is optional |
+| Integration silently ignores `[auth]` / `[api]` in `config.toml` | Terraform `supabase_settings` ownership; `supabase link` drift check after apply |
+| Automatic branching enabled by accident | Leave off in dashboard; Pro-plan per-branch-hour compute charges with no PR workflow to justify them |
+| Schema drift between `schemas/` and live project | Verify job runs `db reset` + `test db`; integration applies committed migrations on push to `main` |
 | Realtime disconnect silent | Low-frequency poll + focus pull; status indicator in Account block |
 | Tombstone accumulation | 90-day `pg_cron` purge; compaction after confirmed apply |
 
@@ -525,8 +550,9 @@ See [`docs/supabase-sync-schema.md`](supabase-sync-schema.md) for example test S
 - **SMTP provider** for production OTP (Resend, Postmark, SendGrid, etc.) — needs human choice and DNS setup.
 - **Sync audio recordings at all?** Phase 5 is opt-in blobs; default-off may be enough, or recordings could be excluded by `mediaKind` even when opt-in.
 - **Per-user Storage quota** numeric limit (e.g. 500 MB vs 2 GB) — affects cost and mobile expectations.
-- **Hosting origin(s)** for `additional_redirect_urls` and CORS — depends on where the static PWA is served (production + staging URLs).
-- **Staging project tier** — the organization is settled (`ylvstxlbxumgmviaiwlx`), so what remains is whether staging runs on the free tier and accepts pausing, or on a paid instance alongside production on the same invoice.
+- **Hosting origin(s)** for `additional_redirect_urls` and CORS — depends on where the static PWA is served.
+- **Auth config on integration deploy** — Supabase states API/Auth config is "ignored **by default**"; confirm in the dashboard after the first production deploy that `[auth]` in `config.toml` is genuinely not applied (Terraform remains the source of truth either way).
+- **Pull requests** — Musi is trunk-based today; preview branching and Supabase's required-status-check advice only matter if the repo ever adopts PRs.
 - **Tombstone retention window** — 90 days proposed; confirm acceptable for "delete then restore from old device" edge case.
 
 ## Suggested implementation order
@@ -537,4 +563,4 @@ See [`docs/supabase-sync-schema.md`](supabase-sync-schema.md) for example test S
 4. **Phase 3** — Push/pull JSON records; core user-visible sync value; depends on Phase 1 mapping and Phase 2 session.
 5. **Phase 4** — Realtime and device list; latency improvement on top of working pull; not required for correctness.
 6. **Phase 5** — Storage blobs; highest bandwidth/cost surface; opt-in gating limits exposure.
-7. **Phase 6** — Quotas, export/delete, copy updates; production hardening after feature path proven on staging.
+7. **Phase 6** — Quotas, export/delete, copy updates; production hardening after feature path proven locally and on production.

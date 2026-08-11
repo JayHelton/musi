@@ -25,8 +25,8 @@ supabase/
 ├── tests/
 ├── functions/account/index.ts
 └── seed.sql
-infra/terraform/          # main.tf, variables.tf, *.tfvars, README.md
-.github/workflows/        # supabase-verify.yml, supabase-staging.yml, supabase-production.yml
+infra/terraform/          # main.tf, variables.tf, terraform.tfvars, README.md
+.github/workflows/        # supabase-verify.yml
 ```
 
 | Path | Purpose | Commit? |
@@ -36,8 +36,8 @@ infra/terraform/          # main.tf, variables.tf, *.tfvars, README.md
 | `supabase/migrations/*.sql` | Generated + hand-written apply chain | Yes |
 | `supabase/tests/*.sql` | pgTAP (`supabase test db`) | Yes |
 | `supabase/functions/account/index.ts` | Account delete + export | Yes |
-| `infra/terraform/*` | Staging + production projects | Yes |
-| `.github/workflows/supabase-*.yml` | CI/CD (DB, auth, storage, functions) | Yes |
+| `infra/terraform/*` | Production project + settings | Yes |
+| `.github/workflows/supabase-verify.yml` | Local-stack verification on push | Yes |
 | `*.tfvars`, `.env` with secrets | Tokens, passwords, SMTP | **No** |
 
 ---
@@ -65,7 +65,7 @@ checked in and reviewable.
 | **pg_cron schedules** | Hand-written migrations | DML / extension |
 | `realtime.messages` RLS | Hand-written migrations | Extension coupling |
 | `storage.objects` policies | Hand-written migrations | Outside schemas path |
-| Bucket creation on remote | `supabase seed buckets --linked` | `db push` skips buckets |
+| Bucket creation on remote | GitHub integration from `config.toml` | Integration deploys declared buckets |
 
 Pin order via `[db.migrations] schema_paths = [...]` in `config.toml` when needed.
 
@@ -337,9 +337,10 @@ create policy realtime_sync_send on realtime.messages for insert to authenticate
 ## Storage
 
 Private bucket `attachments`; path `{user_id}/{attachment_id}`. `sync_blobs` +
-CRC32 dedupe index metadata; bytes in Storage. **Create bucket:**
-`supabase seed buckets --linked` (`db push` does not create buckets from
-`config.toml`).
+CRC32 dedupe index metadata; bytes in Storage. **Create bucket:** the GitHub
+integration deploys buckets declared in `config.toml` on push to `main`.
+`supabase seed buckets --linked` remains a manual fallback for buckets outside
+the integration path.
 
 ```sql
 -- supabase/migrations/20260102000002_storage_objects_rls.sql
@@ -525,6 +526,9 @@ All other sync operations: client → PostgREST/Storage under RLS.
 
 Secrets via `env(...)` or dashboard — never commit real values.
 
+Supabase's integration documentation says other settings are ignored **by default**
+— re-confirm exact behaviour in the dashboard once the integration is connected.
+
 ```toml
 project_id = "local"  # overridden by supabase link
 
@@ -556,6 +560,8 @@ public = false
 file_size_limit = "250MiB"
 allowed_mime_types = []
 
+# Local-development source of truth for auth. Production auth settings are applied
+# by Terraform supabase_settings — the GitHub integration does not apply [auth].
 [auth]
 enabled = true
 site_url = "https://YOUR_STATIC_HOST.example"  # PWA origin — not Supabase
@@ -593,13 +599,8 @@ verify_jwt = true
 enabled = true
 smtp_port = 54325            # local OTP capture
 
-[remotes.staging]
-project_id = "env(STAGING_PROJECT_ID)"
-
-[remotes.staging.auth]
-site_url = "https://staging.YOUR_STATIC_HOST.example"
-additional_redirect_urls = ["https://staging.YOUR_STATIC_HOST.example", "http://localhost:8080"]
-
+# Used by supabase link for drift detection and manual CLI ops — not applied by
+# the GitHub integration.
 [remotes.production]
 project_id = "env(PRODUCTION_PROJECT_ID)"
 
@@ -617,14 +618,16 @@ passwords/OAuth/anonymous.
 
 Provider `supabase/supabase` ~> 1.10.x; auth via `SUPABASE_ACCESS_TOKEN`.
 
-Both projects are created in Musi's Supabase organization, slug
+One production project in Musi's Supabase organization, slug
 `ylvstxlbxumgmviaiwlx`. The slug is a plain identifier, not a credential — it is
 visible in dashboard URLs and confers no access by itself. What does confer
 access is `SUPABASE_ACCESS_TOKEN`, which must be a personal access token
 belonging to a member of that organization with permission to create projects;
-`terraform apply` fails at plan time otherwise. Billing for both projects lands
-on this organization, so staging and production share one invoice unless the
-team deliberately splits them.
+`terraform apply` fails at plan time otherwise.
+
+With the GitHub integration ignoring `[auth]` and `[api]` in `config.toml`,
+Terraform is the sole automated owner of production auth and API settings — this
+removes the previous two-tools-fighting ambiguity rather than adding to it.
 
 ```hcl
 terraform {
@@ -638,30 +641,17 @@ terraform {
 }
 provider "supabase" {}
 
-resource "supabase_project" "staging" {
+resource "supabase_project" "musi" {
   organization_id   = var.organization_id
-  name              = "musi-sync-staging"
-  database_password = var.staging_db_password
+  name              = "musi-sync"
+  database_password = var.db_password
   region            = var.region
 }
-resource "supabase_project" "production" {
-  organization_id   = var.organization_id
-  name              = "musi-sync-production"
-  database_password = var.production_db_password
-  region            = var.region
-}
-resource "supabase_settings" "staging" {
-  project_ref = supabase_project.staging.id
+resource "supabase_settings" "musi" {
+  project_ref = supabase_project.musi.id
   api   = jsonencode({ db_schema = "public,storage", max_rows = 1000 })
-  auth  = jsonencode({ site_url = var.staging_site_url,
-    additional_redirect_urls = var.staging_redirect_urls, jwt_expiry = 3600 })
-  storage = jsonencode({ file_size_limit = 262144000 })
-}
-resource "supabase_settings" "production" {
-  project_ref = supabase_project.production.id
-  api   = jsonencode({ db_schema = "public,storage", max_rows = 1000 })
-  auth  = jsonencode({ site_url = var.production_site_url,
-    additional_redirect_urls = var.production_redirect_urls, jwt_expiry = 3600 })
+  auth  = jsonencode({ site_url = var.site_url,
+    additional_redirect_urls = var.redirect_urls, jwt_expiry = 3600 })
   storage = jsonencode({ file_size_limit = 262144000 })
 }
 ```
@@ -678,64 +668,114 @@ variable "region" {
   type    = string
   default = "us-east-1"
 }
-variable "staging_db_password" {
+variable "db_password" {
   type      = string
   sensitive = true
 }
-variable "production_db_password" {
-  type      = string
-  sensitive = true
-}
-variable "staging_site_url" { type = string }
-variable "production_site_url" { type = string }
-variable "staging_redirect_urls" { type = list(string) }
-variable "production_redirect_urls" { type = list(string) }
+variable "site_url" { type = string }
+variable "redirect_urls" { type = list(string) }
 ```
 
 ```hcl
-# staging.tfvars (placeholders — do not commit secrets)
+# terraform.tfvars (placeholders — do not commit secrets)
 # organization_id defaults to Musi's org in variables.tf; forks override it here.
 region = "us-east-1"
-staging_db_password = "CHANGE_ME"
-staging_site_url = "https://staging.example.com"
-staging_redirect_urls = ["https://staging.example.com", "http://localhost:8080"]
+db_password = "CHANGE_ME"
+site_url = "https://example.com"
+redirect_urls = ["https://example.com", "http://localhost:8080"]
 ```
 
 ```hcl
 import {
-  to = supabase_project.production
+  to = supabase_project.musi
   id = "abcdefghijklmnop"
 }
-# terraform import supabase_project.production abcdefghijklmnop
+# terraform import supabase_project.musi abcdefghijklmnop
 ```
 
-| Knob | Terraform | `config.toml` |
-| ---- | --------- | ------------- |
-| Project, region, DB password | Yes | No |
-| `site_url`, redirects | Yes | `[remotes.*.auth]` — keep identical |
-| JWT expiry, signup | Yes | Yes — mirror values |
-| SMTP | Dashboard/env | `[auth.email.smtp]` |
-| DDL, RLS, functions | No | Migrations via `db push` |
-| Buckets | No | `seed buckets --linked` |
+| Knob | Owner |
+| ---- | ----- |
+| Project creation, region, database password | Terraform |
+| Auth settings (`site_url`, redirects, JWT expiry) | Terraform `supabase_settings` |
+| API settings (`max_rows`, schemas) | Terraform `supabase_settings` |
+| Storage settings (`file_size_limit`) | Terraform `supabase_settings` |
+| SMTP credentials | Dashboard or `supabase secrets set` |
+| Local dev auth/API (mirrors production values) | `config.toml` `[auth]`, `[api]` |
+| Bucket and function declarations | `config.toml` |
+| Applying migrations, deploying functions, deploying buckets | GitHub integration on push to `main` |
+| DDL, RLS, RPCs | Migrations (applied by integration) |
+| `seed.sql` | Local only (`supabase db reset`) |
 
-`supabase link` diffs local `config.toml` against remote to detect drift. Pick
-one owner per knob to avoid Terraform and `config.toml` fighting.
+`supabase link` diffs local `config.toml` against remote to detect drift on
+auth-related remotes blocks.
 
 ---
 
-## GitHub Actions
+## Deployment — Supabase GitHub integration
 
-Trunk-based: staging on every `main` push; production gated by Environment
-approval + `workflow_dispatch`.
+Deployment is push-to-`main` via the Supabase GitHub integration. This replaces
+the previous CLI release pipeline (`supabase db push`, `supabase functions deploy`).
 
-**These workflows deploy database, auth, storage, and function config only —
-never the Musi PWA.**
+**The integration deploys database migrations, Edge Functions, and Storage
+buckets only — never the Musi PWA.** It reads only the `supabase/` working
+directory; application code at the repository root is never built or deployed.
+
+**All other configurations, including API, Auth, and seed files, are ignored by
+default.** The integration will not apply `[auth]`, `[auth.email]`,
+`[auth.rate_limit]`, or `[api]` from `config.toml` to production.
+
+### Setup checklist
+
+Run this after `terraform apply` has created the project — the integration is
+configured against an existing project. It is also the one piece of this setup
+that is **not** infrastructure as code: the Terraform provider exposes
+`supabase_project`, `supabase_settings`, and `supabase_branch`, but no resource
+for the GitHub connection, so these steps are performed once by hand in the
+dashboard and recorded here instead.
+
+1. Supabase Dashboard → Project Settings → Integrations → GitHub Integration
+2. Authorize GitHub → authorize Supabase on GitHub
+3. Choose the repository
+4. **Working directory:** `.` (`supabase/` is at the repository root)
+5. **Deploy to production:** on
+6. **Automatic branching:** off
+7. Enable deployment failure email notifications
+
+| Integration deploys | Integration ignores | Ignored item owner |
+| ------------------- | ------------------- | ------------------ |
+| New migrations | `[api]` settings | Terraform `supabase_settings` |
+| Edge Functions in `config.toml` | `[auth]`, `[auth.email]`, `[auth.rate_limit]` | Terraform `supabase_settings` |
+| Storage buckets in `config.toml` | `seed.sql` | Local `supabase db reset` |
+
+Automatic branching is off. It is a Pro-plan feature billed at roughly
+`$0.01344` per branch per hour on the Micro compute tier; branch compute bills
+only while awake, appears as "Branching Compute Hours", is not covered by the
+spend cap and not eligible for compute credits; preview branches auto-pause on
+inactivity and auto-delete when the PR merges or closes. Musi is trunk-based
+and does not use pull requests, so automatic branching buys nothing. Supabase's
+"required status check" recommendation only applies to PR-based repos and does
+not apply here. If Musi ever adopted pull requests, turn automatic branching on
+and add the required status check.
+
+The deployment workflow runs as a directed acyclic graph; if a parent step
+fails, dependent steps are skipped (for example a failed migration skips
+seeding on preview branches — not relevant here with branching off).
+
+### Verification workflow
+
+Alerts rather than gates: the integration deploys on the same push to `main`,
+so a failing verify job does not block deployment. Mitigation: run
+`supabase db reset` and `supabase test db` locally before pushing (per the
+repo's existing pre-push verification rule) and subscribe to Supabase failure
+email notifications.
 
 ```yaml
 # .github/workflows/supabase-verify.yml
+# No secrets and no linked project — runs entirely against the local stack.
 name: Supabase verify
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths: ['supabase/**', '.github/workflows/supabase-verify.yml']
 jobs:
   verify:
@@ -743,77 +783,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v3
-      - run: supabase start
-      - run: supabase db reset   # start already boots DB; reset reapplies migrations for lint/tests
+      - run: supabase db start
+      - run: supabase db reset
       - run: supabase db lint
       - run: supabase test db
       - name: Fail on schema drift
         run: |
           supabase db diff -f ci_drift_check
-          # Drift = untracked file under supabase/migrations/; empty diff leaves porcelain clean.
           if [ -n "$(git status --porcelain supabase/migrations)" ]; then
             echo "::error::schemas drift from migrations"
             git diff supabase/migrations && exit 1
           fi
 ```
 
-```yaml
-# .github/workflows/supabase-staging.yml
-name: Supabase staging
-on:
-  push:
-    branches: [main]
-    paths: ['supabase/**', 'infra/terraform/**', '.github/workflows/supabase-staging.yml']
-jobs:
-  deploy-staging:
-    runs-on: ubuntu-latest
-    environment: staging
-    env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
-      PROJECT_ID: ${{ secrets.STAGING_PROJECT_ID }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v3
-      - run: supabase link --project-ref "$PROJECT_ID"
-      - run: supabase db push
-      - run: supabase seed buckets --linked
-      - run: supabase functions deploy account --project-ref "$PROJECT_ID"
-```
-
-```yaml
-# .github/workflows/supabase-production.yml
-name: Supabase production
-on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['supabase/**', '.github/workflows/supabase-production.yml']
-jobs:
-  deploy-production:
-    runs-on: ubuntu-latest
-    environment: production  # required reviewers
-    env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
-      PROJECT_ID: ${{ secrets.PRODUCTION_PROJECT_ID }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v3
-      - run: supabase link --project-ref "$PROJECT_ID"
-      - run: supabase db push
-      - run: supabase seed buckets --linked
-      - run: supabase functions deploy account --project-ref "$PROJECT_ID"
-```
-
 | Secret | Scope | Used by |
 | ------ | ----- | ------- |
-| `SUPABASE_ACCESS_TOKEN` | Org | All workflows, Terraform |
-| `STAGING_PROJECT_ID` | Staging ref | Staging workflow |
-| `PRODUCTION_PROJECT_ID` | Production ref | Production workflow |
-| `STAGING_DB_PASSWORD` | Staging DB | Staging `db push` |
-| `PRODUCTION_DB_PASSWORD` | Production DB | Production `db push` |
-| `SMTP_*` | Auth email | Dashboard / `supabase secrets set` |
+| `SUPABASE_ACCESS_TOKEN` | Org | Terraform only |
+| `db_password` (production) | Project creation | Terraform `supabase_project` only |
+| `SMTP_*` | Auth email | Dashboard or `supabase secrets set` — not needed by any workflow |
+
+No project ref or database password is needed for deployment — the GitHub
+integration owns the linked project credentials.
 
 ---
 
@@ -880,6 +870,8 @@ select * from finish(); rollback;
 4. `supabase db reset`
 5. `supabase test db`
 6. Commit schema + migration together
+7. Push to `main` — this is the deployment. Migrations reaching production is a
+   consequence of `git push`; the GitHub integration applies them automatically.
 
 | Resource | Value |
 | -------- | ----- |
@@ -896,11 +888,16 @@ select * from finish(); rollback;
 2. `supabase db pull` — baseline migration from live schema
 3. **Caution:** two representations (pull + `schemas/`). Reconcile deliberately
    before the next `db diff`.
-4. Move to declarative: edit `schemas/` → diff → push staging → verify →
-   production
-5. `supabase seed buckets --linked`
-6. Deploy `account`; configure SMTP/auth URLs
-7. Adopt in Terraform via `import` block if desired
+4. Connect the repo: GitHub Integration, working directory `.`, Deploy to
+   production on, automatic branching off
+5. Confirm the first integration deploy (migrations, functions, buckets)
+6. Apply auth/API settings via Terraform `supabase_settings`
+7. Configure SMTP in dashboard
+8. Adopt in Terraform via `import` block if desired
+
+`supabase seed buckets --linked` remains the manual fallback for creating buckets
+outside the integration path. `supabase db push` remains a manual CLI escape
+hatch but is not the normal release path.
 
 Never edit production only in Studio — `db diff` will not see it.
 
@@ -910,10 +907,11 @@ Never edit production only in Studio — `db diff` will not see it.
 
 | Risk | Mitigation |
 | ---- | ---------- |
-| Diff misses policies/grants | Hand-written migrations; PR drift check |
-| Forgetting `seed buckets` | Explicit CI step; README callout |
-| Terraform vs `config.toml` overlap | One owner per knob; `supabase link` drift check |
-| Production before staging | Staging on every `main` push; production Environment gate |
+| Diff misses policies/grants | Hand-written migrations; drift check in verify workflow |
+| No staging environment | Local stack is the only rehearsal — `supabase db reset` + pgTAP before push; additive, backwards-compatible migrations |
+| Auto-deploy on push to `main` with no gate | Local verification before push; Supabase failure email notifications; blast radius bounded because cloud sync is optional — a failed migration degrades sync but never breaks the offline-first PWA |
+| Integration ignores auth/API `config.toml` changes | Terraform owns production auth/API; `supabase link` drift checks on remotes blocks |
+| Accidental automatic branching enabled | Keep branching off; Pro-plan per-branch compute charges (~`$0.01344`/hr on Micro) |
 | Retention vs stale cursor | `sync_watermarks.purged_through_rev` + `sync_bounds(cursor)` |
 | Opaque quota errors | Map `P0001` messages in client |
 | Free-tier project pause | Paid instance for production |
