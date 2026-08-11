@@ -46,6 +46,8 @@ const state = {
   loading: false,
 };
 
+let pendingGpScoreId = null;
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -559,22 +561,46 @@ async function saveSelectedBarsAsExercise() {
   }
 }
 
-async function openLibraryItem(item) {
+async function loadSavedGpExercise(item) {
   if (!item?.attachmentId) {
     setStatus('That library item has no file attached.', 'error');
-    return;
+    return false;
   }
-  if (state.loading) return;
+  if (state.loading) return false;
   setStatus(`Opening “${item.name}”…`);
   const blob = await getFileBlob(item.attachmentId);
   if (!blob) {
     setStatus('This file is missing from storage. Re-upload it or delete the library entry.', 'error');
-    return;
+    return false;
   }
   const file = new File([blob], item.fileName || `${item.name}.gp`, {
     type: item.type || 'application/octet-stream',
   });
   await loadFile(file, { exerciseId: item.id, attachmentId: item.attachmentId });
+  return true;
+}
+
+async function openLibraryItem(item) {
+  await loadSavedGpExercise(item);
+}
+
+export async function openGpScoreByExerciseId(exerciseId) {
+  const item = getExercise(exerciseId);
+  if (!item) return false;
+  return loadSavedGpExercise(item);
+}
+
+export function requestGpScore(exerciseId) {
+  if (typeof exerciseId !== 'string' || !exerciseId) return;
+  if (state.bound) {
+    openGpScoreByExerciseId(exerciseId);
+  } else {
+    pendingGpScoreId = exerciseId;
+  }
+}
+
+export function getOpenGpExerciseId() {
+  return state.exerciseId || null;
 }
 
 function renderLibrary() {
@@ -684,6 +710,11 @@ export function initGpPlayer() {
   }
   remountIfNeeded();
   renderLibrary();
+  if (pendingGpScoreId) {
+    const id = pendingGpScoreId;
+    pendingGpScoreId = null;
+    openGpScoreByExerciseId(id);
+  }
 }
 
 export function stopGpPlayer() {

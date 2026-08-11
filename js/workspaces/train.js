@@ -113,6 +113,8 @@ const STATUS_LABELS = {
 let shellApi = null;
 let viewRegion = null;
 let activeFeatureIds = [];
+let lastPaintedView = null;
+let lastPaintedSectionId = null;
 let practiceBarHost = null;
 let practiceBarApi = null;
 let sessionUnsub = null;
@@ -717,9 +719,84 @@ function resolveFundamentals(route) {
   return TRAIN_SECTIONS.fundamentals[drill] || null;
 }
 
+function updateLibraryChipActive(activeId) {
+  if (!viewRegion) return;
+  const row = viewRegion.querySelector('.workspace-chips');
+  if (!row) return;
+  row.querySelectorAll('.workspace-chip').forEach((btn, index) => {
+    const chipId = LIBRARY_CHIPS[index]?.id;
+    const active = chipId === activeId;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+}
+
+async function applyLibraryItemId(route) {
+  const id = route.params?.id;
+  if (!id) return;
+  if (route.params?.player === 'gp') {
+    const { requestGpScore } = await import('../gpPlayer.js');
+    requestGpScore(id);
+    return;
+  }
+  if (route.params?.type === 'workbook') {
+    const { openWorkbookById } = await import('../workbooks.js');
+    openWorkbookById(id);
+    return;
+  }
+  if ((route.params?.type || 'exercise') === 'exercise') {
+    const { requestExerciseOpen } = await import('../exercises.js');
+    requestExerciseOpen(id);
+  }
+}
+
 async function paintView(route) {
   const view = effectiveView(route);
   shellApi?.updateTabs(view);
+
+  if (view === 'library') {
+    const mapping = resolveLibrary(route);
+    const sectionId = mapping?.sectionId || null;
+    const libType = route.params?.player === 'gp' ? 'gp' : (route.params?.type || 'exercise');
+    const sameLibraryShell = lastPaintedView === 'library'
+      && lastPaintedSectionId === sectionId
+      && sectionId != null
+      && viewRegion?.querySelector('.workspace-feature-host');
+
+    if (sameLibraryShell) {
+      updateLibraryChipActive(libType);
+      await applyLibraryItemId(route);
+      syncPracticeBar();
+      return;
+    }
+
+    lastPaintedView = 'library';
+    lastPaintedSectionId = sectionId;
+    releaseAllExcept([]);
+    activeFeatureIds = [];
+    viewRegion.innerHTML = '';
+    renderChipRow(viewRegion, LIBRARY_CHIPS, libType, (id) => {
+      if (id === 'gp') setParams({ player: 'gp', type: null });
+      else setParams({ type: id, player: null });
+    });
+    if (mapping) {
+      const featureHost = document.createElement('div');
+      featureHost.className = 'workspace-feature-host';
+      viewRegion.appendChild(featureHost);
+      adoptSection(mapping.sectionId, featureHost);
+      activeFeatureIds = [mapping.featureId];
+      await mountFeature(mapping.featureId);
+      stopFeaturesExcept(activeFeatureIds);
+      await applyLibraryItemId(route);
+    } else {
+      stopFeaturesExcept([]);
+    }
+    syncPracticeBar();
+    return;
+  }
+
+  lastPaintedView = view;
+  lastPaintedSectionId = null;
   releaseAllExcept([]);
   activeFeatureIds = [];
   viewRegion.innerHTML = '';
@@ -738,26 +815,6 @@ async function paintView(route) {
     return;
   }
 
-  if (view === 'library') {
-    const libType = route.params?.player === 'gp' ? 'gp' : (route.params?.type || 'exercise');
-    renderChipRow(viewRegion, LIBRARY_CHIPS, libType, (id) => {
-      if (id === 'gp') setParams({ player: 'gp', type: null });
-      else setParams({ type: id, player: null });
-    });
-    const mapping = resolveLibrary(route);
-    if (mapping) {
-      const featureHost = document.createElement('div');
-      featureHost.className = 'workspace-feature-host';
-      viewRegion.appendChild(featureHost);
-      adoptSection(mapping.sectionId, featureHost);
-      activeFeatureIds = [mapping.featureId];
-      await mountFeature(mapping.featureId);
-      stopFeaturesExcept(activeFeatureIds);
-    }
-    syncPracticeBar();
-    return;
-  }
-
   if (view === 'fundamentals') {
     const mapping = resolveFundamentals(route);
     if (!mapping) {
@@ -766,6 +823,7 @@ async function paintView(route) {
       syncPracticeBar();
       return;
     }
+    lastPaintedSectionId = mapping.sectionId;
     const featureHost = document.createElement('div');
     featureHost.className = 'workspace-feature-host';
     viewRegion.appendChild(featureHost);
@@ -780,6 +838,7 @@ async function paintView(route) {
   if (view === 'plans') {
     renderPlansHeader(viewRegion, route);
     const mapping = TRAIN_SECTIONS.plans;
+    lastPaintedSectionId = mapping.sectionId;
     const featureHost = document.createElement('div');
     featureHost.className = 'workspace-feature-host';
     viewRegion.appendChild(featureHost);
@@ -840,4 +899,6 @@ export function unmount() {
   shellApi = null;
   viewRegion = null;
   activeFeatureIds = [];
+  lastPaintedView = null;
+  lastPaintedSectionId = null;
 }

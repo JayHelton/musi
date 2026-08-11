@@ -643,6 +643,7 @@ const selectedIds = new Set();
 let listEl, catListEl, titleEl, statusEl, bulkBarEl, fileInput, bulkFileInput, uploadBtn, bulkUploadBtn, addLinkBtn, addCatForm, addCatInput;
 let sectionEl, workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
 let activeExerciseId = null;
+let pendingExerciseOpenId = null;
 let viewerURL = null;
 let viewerGpMount = null;
 let viewerTakePanel = null;
@@ -1760,6 +1761,7 @@ function teardownPlayer() {
 export async function openExerciseViewer(id) {
   const item = getExercise(id);
   if (!item || !ensurePlayerElements()) return;
+  if (id === activeExerciseId) return;
   wirePlayerControls();
 
   const gen = ++openGeneration;
@@ -1796,6 +1798,19 @@ export async function openExerciseViewer(id) {
 export function closeExerciseViewer() {
   openGeneration += 1;
   teardownPlayer();
+}
+
+export function requestExerciseOpen(id) {
+  if (typeof id !== 'string' || !id) return;
+  if (listEl) {
+    if (getExercise(id)) openExerciseViewer(id);
+  } else {
+    pendingExerciseOpenId = id;
+  }
+}
+
+export function getOpenExerciseId() {
+  return activeExerciseId;
 }
 
 // --- confirm / prompt modals (reuse shared modal styles) -------------------
@@ -2061,6 +2076,11 @@ export function initExercises() {
 
   setStatus('');
   render();
+  if (pendingExerciseOpenId) {
+    const pendingId = pendingExerciseOpenId;
+    pendingExerciseOpenId = null;
+    if (getExercise(pendingId)) openExerciseViewer(pendingId);
+  }
 }
 
 // Close the viewer when navigating away from the Exercises section.
