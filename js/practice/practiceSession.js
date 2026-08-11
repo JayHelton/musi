@@ -119,6 +119,9 @@ function normalizeItem(raw) {
     label: typeof raw.label === 'string' ? raw.label : '',
     targetType,
     targetId,
+    workbookId: typeof raw.workbookId === 'string' ? raw.workbookId : '',
+    workbookName: typeof raw.workbookName === 'string' ? raw.workbookName : '',
+    entryId: typeof raw.entryId === 'string' ? raw.entryId : '',
   };
 }
 
@@ -139,6 +142,8 @@ function copySessionState(s) {
     id: s.id,
     sourceType: s.sourceType,
     sourceId: s.sourceId,
+    sourceLabel: s.sourceLabel,
+    routineId: s.routineId,
     startedAt: s.startedAt,
     elapsedMs: s.elapsedMs,
     timerTargetMs: s.timerTargetMs,
@@ -412,6 +417,8 @@ function flushSnapshot() {
     id: session.id,
     sourceType: session.sourceType,
     sourceId: session.sourceId,
+    sourceLabel: session.sourceLabel,
+    routineId: session.routineId,
     startedAt: session.startedAt,
     elapsedMs: sampleElapsedMs(),
     timerTargetMs: session.timerTargetMs,
@@ -517,6 +524,8 @@ export function startSession(config = {}) {
     id: sessionId(),
     sourceType,
     sourceId: typeof config.sourceId === 'string' ? config.sourceId : '',
+    sourceLabel: typeof config.sourceLabel === 'string' ? config.sourceLabel : '',
+    routineId: typeof config.routineId === 'string' ? config.routineId : '',
     startedAt: new Date().toISOString(),
     elapsedMs: 0,
     timerTargetMs: config.timerTargetMs != null
@@ -740,6 +749,8 @@ export function restoreSession() {
     id: typeof raw.id === 'string' ? raw.id : sessionId(),
     sourceType: SOURCE_TYPES.has(raw.sourceType) ? raw.sourceType : 'free',
     sourceId: typeof raw.sourceId === 'string' ? raw.sourceId : '',
+    sourceLabel: typeof raw.sourceLabel === 'string' ? raw.sourceLabel : '',
+    routineId: typeof raw.routineId === 'string' ? raw.routineId : '',
     startedAt: typeof raw.startedAt === 'string' ? raw.startedAt : new Date().toISOString(),
     elapsedMs: Math.max(0, Math.floor(Number(raw.elapsedMs) || 0)),
     timerTargetMs: raw.timerTargetMs != null

@@ -3,13 +3,14 @@
  */
 
 import { OBJECTIVES } from '../routes.js';
-import { navigate, setParams } from '../router.js';
+import { navigate, setParams, openPanel } from '../router.js';
 import { adoptSection, releaseAllExcept } from './legacyHost.js';
 import { mountFeature, stopFeaturesExcept } from '../featureAdapters.js';
 import { createWorkspaceShell, renderChipRow } from './workspaceShell.js';
-import { listRoutines, setActiveRoutineSession } from '../routineModel.js';
+import { listRoutines, setActiveRoutineSession, setRoutineSessionCompleted } from '../routineModel.js';
 import { getWorkbook } from '../workbookModel.js';
 import { getExercise } from '../exercises.js';
+import { openWorkbookById, subscribeWorkbookEntry } from '../workbooks.js';
 import { getStatsSnapshot } from '../stats.js';
 import {
   listAttempts,
@@ -28,6 +29,7 @@ import {
   getSession,
   recordAttempt,
   subscribeSession,
+  setActiveItem,
 } from '../practice/practiceSession.js';
 import { mountPracticeBar, isPracticeBarMounted } from '../ui/practiceBar.js';
 
@@ -115,9 +117,230 @@ let viewRegion = null;
 let activeFeatureIds = [];
 let lastPaintedView = null;
 let lastPaintedSectionId = null;
+let currentRoute = null;
+let lastRoutedViewKey = null;
+let practicePanelRoot = null;
+let practicePanelEl = null;
+let practicePanelOpen = false;
+let panelOpenerEl = null;
+let panelKeydownHandler = null;
+let panelSessionUnsub = null;
 let practiceBarHost = null;
 let practiceBarApi = null;
+let practiceHostBoundsRaf = 0;
+let practiceHostResizeObs = null;
+let practiceBarResizeObs = null;
+let practiceHostMutationObs = null;
 let sessionUnsub = null;
+let workbookEntryUnsub = null;
+let syncFromSession = false;
+
+const PRACTICE_PANEL_IDS = {
+  metronome: 'sec-metronome',
+  practice: 'sec-practice',
+};
+
+const PRACTICE_PANEL_FEATURES = ['metronome', 'practice'];
+
+const METRO_LOCK_SELECTORS = [
+  '#m-play',
+  '#m-tap',
+  '#m-bpm',
+  '#m-bpm-slider',
+  '#m-bpm-down',
+  '#m-bpm-up',
+  '#m-timer-reset',
+  '.metro-bpm-preset',
+  '#m-phases-toggle',
+  '#m-phase-add',
+  '.m-phase-del',
+];
+
+function isPracticePanelRoute(route) {
+  return route?.params?.panel === 'practice';
+}
+
+function routeViewKey(route) {
+  if (!route) return '';
+  const view = effectiveView(route);
+  const params = { ...route.params };
+  delete params.panel;
+  return `${view}:${JSON.stringify(params)}`;
+}
+
+function isPanelOnlyRouteChange(prev, next) {
+  if (!prev || !next) return false;
+  return prev.objective === next.objective && routeViewKey(prev) === routeViewKey(next);
+}
+
+function viewSectionIds() {
+  return lastPaintedSectionId ? [lastPaintedSectionId] : [];
+}
+
+function sectionsToKeep(extra = []) {
+  const keep = new Set(extra);
+  if (isPracticePanelRoute(currentRoute)) {
+    keep.add(PRACTICE_PANEL_IDS.metronome);
+    keep.add(PRACTICE_PANEL_IDS.practice);
+  }
+  return [...keep];
+}
+
+function featuresToKeep(extra = []) {
+  const keep = new Set([...activeFeatureIds, ...extra]);
+  if (isPracticePanelRoute(currentRoute)) {
+    PRACTICE_PANEL_FEATURES.forEach((id) => keep.add(id));
+  }
+  return [...keep];
+}
+
+function stopViewFeatures(keepIds = []) {
+  stopFeaturesExcept(featuresToKeep(keepIds));
+}
+
+function syncPanelMetronomeLock() {
+  if (!practicePanelEl) return;
+  const locked = hasActiveSession();
+  practicePanelEl.classList.toggle('train-utility-locked', locked);
+  const note = practicePanelEl.querySelector('.train-metro-session-note');
+  if (note) note.hidden = !locked;
+
+  const metroSection = document.getElementById('sec-metronome');
+  if (metroSection) {
+    METRO_LOCK_SELECTORS.forEach((sel) => {
+      metroSection.querySelectorAll(sel).forEach((el) => {
+        if ('disabled' in el) el.disabled = locked;
+      });
+    });
+  }
+
+  const practiceSection = document.getElementById('sec-practice');
+  if (practiceSection) {
+    practiceSection.querySelectorAll('#pt-start, #pt-auto, #pt-reset, .pt-preset').forEach((el) => {
+      if ('disabled' in el) el.disabled = locked;
+    });
+  }
+}
+
+function unbindPracticePanelSession() {
+  if (panelSessionUnsub) {
+    panelSessionUnsub();
+    panelSessionUnsub = null;
+  }
+}
+
+function bindPracticePanelSession() {
+  if (panelSessionUnsub) return;
+  panelSessionUnsub = subscribeSession(() => {
+    syncPanelMetronomeLock();
+  });
+}
+
+function closePracticePanelDom() {
+  if (panelKeydownHandler) {
+    document.removeEventListener('keydown', panelKeydownHandler);
+    panelKeydownHandler = null;
+  }
+  unbindPracticePanelSession();
+  if (practicePanelRoot) {
+    practicePanelRoot.remove();
+    practicePanelRoot = null;
+    practicePanelEl = null;
+  }
+  practicePanelOpen = false;
+  shellApi?.shell?.classList.remove('train-utility-open');
+}
+
+function closePracticePanelRoute() {
+  if (!isPracticePanelRoute(currentRoute)) return;
+  setParams({ panel: null });
+}
+
+function tearDownPracticePanel() {
+  const opener = panelOpenerEl;
+  closePracticePanelDom();
+  releaseAllExcept(sectionsToKeep(viewSectionIds()));
+  stopViewFeatures(activeFeatureIds);
+  if (opener && document.contains(opener)) opener.focus();
+  panelOpenerEl = null;
+}
+
+async function openPracticePanel() {
+  if (!shellApi?.shell || practicePanelOpen) return;
+
+  practicePanelRoot = document.createElement('div');
+  practicePanelRoot.className = 'train-utility-layer';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'train-utility-backdrop';
+  backdrop.addEventListener('click', () => closePracticePanelRoute());
+
+  practicePanelEl = document.createElement('div');
+  practicePanelEl.className = 'train-utility-panel';
+  practicePanelEl.setAttribute('role', 'dialog');
+  practicePanelEl.setAttribute('aria-modal', 'true');
+  practicePanelEl.setAttribute('aria-labelledby', 'train-utility-panel-title');
+
+  const head = document.createElement('header');
+  head.className = 'train-utility-panel-head';
+  head.innerHTML = `
+    <h3 id="train-utility-panel-title" class="train-utility-panel-title">Metronome &amp; Timer</h3>
+    <button type="button" class="btn sm train-utility-panel-close" aria-label="Close">Close</button>
+  `;
+
+  const body = document.createElement('div');
+  body.className = 'train-utility-panel-body';
+  body.innerHTML = '<p class="train-metro-session-note" hidden>During a practice session, the practice bar controls the metronome.</p>';
+
+  const sectionsHost = document.createElement('div');
+  sectionsHost.className = 'train-utility-sections';
+  body.appendChild(sectionsHost);
+
+  practicePanelEl.append(head, body);
+  practicePanelRoot.append(backdrop, practicePanelEl);
+  shellApi.shell.appendChild(practicePanelRoot);
+  shellApi.shell.classList.add('train-utility-open');
+  practicePanelOpen = true;
+
+  head.querySelector('.train-utility-panel-close')?.addEventListener('click', () => {
+    closePracticePanelRoute();
+  });
+
+  adoptSection(PRACTICE_PANEL_IDS.metronome, sectionsHost);
+  adoptSection(PRACTICE_PANEL_IDS.practice, sectionsHost);
+  await mountFeature('metronome');
+  await mountFeature('practice');
+  stopViewFeatures(activeFeatureIds);
+  bindPracticePanelSession();
+  syncPanelMetronomeLock();
+
+  panelKeydownHandler = (e) => {
+    if (e.key === 'Escape' && isPracticePanelRoute(currentRoute)) {
+      e.preventDefault();
+      closePracticePanelRoute();
+    }
+  };
+  document.addEventListener('keydown', panelKeydownHandler);
+
+  const closeBtn = head.querySelector('.train-utility-panel-close');
+  if (closeBtn) closeBtn.focus();
+}
+
+async function syncPracticePanel(route) {
+  const shouldOpen = isPracticePanelRoute(route);
+  if (shouldOpen && !practicePanelOpen) {
+    await openPracticePanel();
+    return;
+  }
+  if (!shouldOpen && practicePanelOpen) {
+    tearDownPracticePanel();
+    return;
+  }
+  if (shouldOpen && practicePanelOpen) {
+    syncPanelMetronomeLock();
+    stopViewFeatures(activeFeatureIds);
+  }
+}
 
 function defaultView() {
   return OBJECTIVES.find((o) => o.id === 'train')?.defaultView || 'today';
@@ -168,6 +391,9 @@ export function buildSessionItems(routine, session, deps = {}) {
         label: ex?.name || entry.exerciseId,
         targetType: 'exercise',
         targetId: entry.exerciseId,
+        workbookId: wb.id,
+        workbookName: wb.name,
+        entryId: entry.id,
       });
     }
   }
@@ -184,11 +410,18 @@ function sessionMetronomeFromRoutine(session) {
   };
 }
 
+function formatRoutineSourceLabel(routine, session) {
+  const parts = [routine?.name, session?.name].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Routine session';
+}
+
 function beginRoutineSession(routine, session) {
   const items = buildSessionItems(routine, session);
   startSession({
     sourceType: 'routine-session',
     sourceId: session.id,
+    sourceLabel: formatRoutineSourceLabel(routine, session),
+    routineId: routine.id,
     items,
     timerTargetMs: session.durationMin != null ? session.durationMin * 60 * 1000 : null,
     metronome: sessionMetronomeFromRoutine(session),
@@ -247,10 +480,90 @@ function openLibraryItem(item) {
   }
 }
 
+function syncSessionShellClass() {
+  const live = !!getSession()?.items?.length;
+  shellApi?.shell?.classList.toggle('train-session-live', live);
+}
+
+function syncPracticeHostBounds() {
+  cancelAnimationFrame(practiceHostBoundsRaf);
+  practiceHostBoundsRaf = requestAnimationFrame(() => {
+    practiceHostBoundsRaf = requestAnimationFrame(() => {
+      const host = viewRegion?.querySelector('.train-practice-host.train-session-practice')
+        || document.querySelector('.train-practice-host.train-session-practice');
+      const bar = practiceBarHost || document.getElementById('practice-bar-host');
+      if (!host || !bar || bar.hidden) {
+        host?.style.removeProperty('--train-practice-host-top');
+        host?.style.removeProperty('--train-practice-host-max');
+        host?.style.removeProperty('max-height');
+        return;
+      }
+      const hostTop = host.getBoundingClientRect().top;
+      const barTop = bar.getBoundingClientRect().top;
+      const maxH = Math.max(120, Math.floor(barTop - hostTop - 4));
+      host.style.setProperty('--train-practice-host-top', `${Math.round(hostTop)}px`);
+      host.style.setProperty('--train-practice-host-max', `${maxH}px`);
+    });
+  });
+}
+
+function schedulePracticeHostBoundsBurst() {
+  syncPracticeHostBounds();
+  if (typeof window === 'undefined') return;
+  window.setTimeout(syncPracticeHostBounds, 50);
+  window.setTimeout(syncPracticeHostBounds, 250);
+  window.setTimeout(syncPracticeHostBounds, 800);
+  window.setTimeout(syncPracticeHostBounds, 1600);
+}
+
+function bindPracticeHostBounds() {
+  unbindPracticeHostBounds();
+  const host = viewRegion?.querySelector('.train-practice-host.train-session-practice');
+  if (!host || !practiceBarHost) return;
+  if (typeof ResizeObserver !== 'undefined') {
+    practiceHostResizeObs = new ResizeObserver(() => schedulePracticeHostBoundsBurst());
+    practiceBarResizeObs = new ResizeObserver(() => schedulePracticeHostBoundsBurst());
+    practiceHostResizeObs.observe(host);
+    practiceBarResizeObs.observe(practiceBarHost);
+  }
+  if (typeof MutationObserver !== 'undefined') {
+    practiceHostMutationObs = new MutationObserver(() => {
+      if (host.querySelector('.gpp-root, .wb-detail-body')) schedulePracticeHostBoundsBurst();
+    });
+    practiceHostMutationObs.observe(host, { childList: true, subtree: true });
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', syncPracticeHostBounds);
+    window.addEventListener('musi:train-practice-layout', schedulePracticeHostBoundsBurst);
+  }
+  schedulePracticeHostBoundsBurst();
+}
+
+function unbindPracticeHostBounds() {
+  cancelAnimationFrame(practiceHostBoundsRaf);
+  practiceHostBoundsRaf = 0;
+  practiceHostResizeObs?.disconnect();
+  practiceBarResizeObs?.disconnect();
+  practiceHostMutationObs?.disconnect();
+  practiceHostResizeObs = null;
+  practiceBarResizeObs = null;
+  practiceHostMutationObs = null;
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', syncPracticeHostBounds);
+    window.removeEventListener('musi:train-practice-layout', schedulePracticeHostBoundsBurst);
+  }
+  const host = viewRegion?.querySelector('.train-practice-host.train-session-practice')
+    || document.querySelector('.train-practice-host.train-session-practice');
+  host?.style.removeProperty('--train-practice-host-top');
+  host?.style.removeProperty('--train-practice-host-max');
+  host?.style.removeProperty('max-height');
+}
+
 function syncPracticeBar() {
   if (!hasActiveSession()) {
     tearDownPracticeBar();
     shellApi?.shell?.classList.remove('train-has-practice-bar');
+    syncSessionShellClass();
     return;
   }
   if (!practiceBarHost) {
@@ -264,9 +577,12 @@ function syncPracticeBar() {
     practiceBarApi.update();
   }
   shellApi?.shell?.classList.add('train-has-practice-bar');
+  syncSessionShellClass();
+  bindPracticeHostBounds();
 }
 
 function tearDownPracticeBar() {
+  unbindPracticeHostBounds();
   if (practiceBarApi) {
     practiceBarApi.destroy();
     practiceBarApi = null;
@@ -276,57 +592,47 @@ function tearDownPracticeBar() {
     practiceBarHost = null;
   }
   shellApi?.shell?.classList.remove('train-has-practice-bar');
+  syncSessionShellClass();
 }
 
-function renderSessionCockpit(host, session) {
-  const item = session.items.find((it) => it.id === session.activeItemId);
-  const idx = session.activeItemId
-    ? session.items.findIndex((it) => it.id === session.activeItemId)
-    : -1;
-  const pos = session.items.length && idx >= 0
-    ? `Item ${idx + 1} of ${session.items.length}`
-    : 'Free practice';
-  const sourceLabel = session.sourceType === 'routine-session'
-    ? 'Routine session'
-    : session.sourceType === 'free'
-      ? 'Free practice'
-      : session.sourceType;
+function sessionDisplayTitle(session) {
+  if (session.sourceLabel) return session.sourceLabel;
+  if (session.sourceType === 'routine-session') return 'Routine session';
+  if (session.sourceType === 'free') return 'Free practice';
+  return session.sourceType;
+}
 
-  const card = document.createElement('article');
-  card.className = 'objective-card train-session-card';
-  card.innerHTML = `
-    <div class="objective-card-kicker">Live session</div>
-    <h3 class="objective-card-title">${escapeHtml(sourceLabel)}</h3>
-    <p class="objective-card-body train-session-active">
-      ${item ? escapeHtml(item.label || item.targetId) : 'No item selected'}
-    </p>
-    <p class="train-session-meta">${escapeHtml(pos)} · ${fmtClock(session.elapsedMs)}${
-      session.timerTargetMs != null ? ` / ${fmtClock(session.timerTargetMs)}` : ''
-    }</p>
-    <div class="train-session-actions">
-      <button type="button" class="btn primary" data-action="resume-pause">
-        ${session.status === 'paused' ? 'Resume' : 'Pause'}
-      </button>
-      <button type="button" class="btn" data-action="end-session">End session</button>
-    </div>
-  `;
+function activeSessionItem(session) {
+  if (!session?.activeItemId) return null;
+  return session.items.find((it) => it.id === session.activeItemId) || null;
+}
 
-  card.querySelector('[data-action="resume-pause"]')?.addEventListener('click', () => {
-    if (session.status === 'paused') resumeSession();
-    else pauseSession();
-    renderToday(host);
-  });
-  card.querySelector('[data-action="end-session"]')?.addEventListener('click', () => {
-    endSession();
-    tearDownPracticeBar();
-    renderToday(host);
-  });
+function sessionItemIndex(session) {
+  if (!session?.activeItemId) return -1;
+  return session.items.findIndex((it) => it.id === session.activeItemId);
+}
 
-  if (item) {
-    const logSection = document.createElement('div');
-    logSection.className = 'train-log-attempt';
-    logSection.innerHTML = `
-      <h4 class="train-log-title">Log attempt</h4>
+function buildOutlineGroups(session) {
+  const groups = [];
+  const seen = new Set();
+  for (const item of session.items) {
+    if (!item.workbookId || seen.has(item.workbookId)) continue;
+    seen.add(item.workbookId);
+    groups.push({
+      workbookId: item.workbookId,
+      workbookName: item.workbookName || item.workbookId,
+      items: session.items.filter((it) => it.workbookId === item.workbookId),
+    });
+  }
+  return groups;
+}
+
+function appendLogAttemptDetails(card, session, item, onUpdate) {
+  const details = document.createElement('details');
+  details.className = 'train-log-details';
+  details.innerHTML = `
+    <summary class="train-log-summary">Log attempt</summary>
+    <div class="train-log-attempt">
       <div class="train-log-fields">
         <label class="train-log-field">BPM
           <input type="number" class="train-log-bpm" min="30" max="300" value="${session.metronome?.bpm ?? 120}">
@@ -358,112 +664,291 @@ function renderSessionCockpit(host, session) {
         </label>
       </div>
       <button type="button" class="btn primary train-log-submit">Log attempt</button>
-    `;
-    logSection.querySelector('.train-log-submit')?.addEventListener('click', () => {
-      const bpm = Number(logSection.querySelector('.train-log-bpm')?.value);
-      const accRaw = logSection.querySelector('.train-log-accuracy')?.value;
-      const accuracy = accRaw === '' ? null : Number(accRaw) / 100;
-      const cleanTake = !!logSection.querySelector('.train-log-clean')?.checked;
-      const effortRaw = logSection.querySelector('.train-log-effort')?.value;
-      const effort = effortRaw === '' ? null : Number(effortRaw);
-      const status = logSection.querySelector('.train-log-status')?.value || null;
-      const partial = {
-        targetType: item.targetType,
-        targetId: item.targetId,
-        bpm: Number.isFinite(bpm) ? bpm : undefined,
-        accuracy: accuracy != null && Number.isFinite(accuracy) ? accuracy : null,
-        cleanTake: cleanTake || null,
-        effort,
-        status: status || null,
-      };
-      if (hasActiveSession()) recordAttempt(partial);
-      else logAttempt(partial);
-      renderToday(host);
-    });
-    card.appendChild(logSection);
-
-    const openBtn = document.createElement('button');
-    openBtn.type = 'button';
-    openBtn.className = 'btn train-open-item';
-    openBtn.textContent = 'Open in library';
-    openBtn.addEventListener('click', () => openLibraryItem(item));
-    card.appendChild(openBtn);
-  }
-
-  host.appendChild(card);
-
-  const nextItem = idx >= 0 && idx < session.items.length - 1
-    ? session.items[idx + 1]
-    : null;
-  if (nextItem) {
-    const nextCard = document.createElement('article');
-    nextCard.className = 'objective-card';
-    nextCard.innerHTML = `
-      <div class="objective-card-kicker">Next up</div>
-      <h3 class="objective-card-title">${escapeHtml(nextItem.label || nextItem.targetId)}</h3>
-      <button type="button" class="btn" data-action="open-next">Open next item</button>
-    `;
-    nextCard.querySelector('[data-action="open-next"]')?.addEventListener('click', () => {
-      openLibraryItem(nextItem);
-    });
-    host.appendChild(nextCard);
-  }
+    </div>
+  `;
+  details.querySelector('.train-log-submit')?.addEventListener('click', () => {
+    const bpm = Number(details.querySelector('.train-log-bpm')?.value);
+    const accRaw = details.querySelector('.train-log-accuracy')?.value;
+    const accuracy = accRaw === '' ? null : Number(accRaw) / 100;
+    const cleanTake = !!details.querySelector('.train-log-clean')?.checked;
+    const effortRaw = details.querySelector('.train-log-effort')?.value;
+    const effort = effortRaw === '' ? null : Number(effortRaw);
+    const status = details.querySelector('.train-log-status')?.value || null;
+    const partial = {
+      targetType: item.targetType,
+      targetId: item.targetId,
+      bpm: Number.isFinite(bpm) ? bpm : undefined,
+      accuracy: accuracy != null && Number.isFinite(accuracy) ? accuracy : null,
+      cleanTake: cleanTake || null,
+      effort,
+      status: status || null,
+    };
+    if (hasActiveSession()) recordAttempt(partial);
+    else logAttempt(partial);
+    onUpdate();
+  });
+  card.appendChild(details);
 }
 
-function renderToday(host) {
-  host.innerHTML = '';
-  const session = getSession();
+function buildSessionHeaderEl(session, host) {
+  const item = activeSessionItem(session);
+  const idx = sessionItemIndex(session);
+  const pos = session.items.length && idx >= 0
+    ? `Item ${idx + 1} of ${session.items.length}`
+    : '';
+  const isLastItem = session.items.length > 0 && idx === session.items.length - 1;
+  const wbName = item?.workbookName || '';
+  const clock = `${fmtClock(session.elapsedMs)}${
+    session.timerTargetMs != null ? ` / ${fmtClock(session.timerTargetMs)}` : ''
+  }`;
+  const metaParts = [wbName, pos, clock].filter(Boolean);
 
-  if (session) {
-    renderSessionCockpit(host, session);
-    syncPracticeBar();
-  } else {
-    const active = findActiveRoutineSession();
-    const next = active ? null : findNextRoutine();
-    const card = document.createElement('article');
-    card.className = 'objective-card';
+  const card = document.createElement('article');
+  card.className = 'objective-card train-session-header-card train-session-header-compact';
+  card.innerHTML = `
+    <h3 class="train-session-title">${escapeHtml(sessionDisplayTitle(session))}</h3>
+    <p class="train-session-meta">${escapeHtml(metaParts.join(' · '))}</p>
+    <div class="train-session-actions">
+      <button type="button" class="btn sm primary" data-action="resume-pause">
+        ${session.status === 'paused' ? 'Resume' : 'Pause'}
+      </button>
+      ${isLastItem ? '<button type="button" class="btn sm primary" data-action="finish-session">Finish session</button>' : ''}
+      <button type="button" class="btn sm" data-action="end-session">End session</button>
+    </div>
+  `;
 
-    if (active) {
-      card.innerHTML = `
-        <div class="objective-card-kicker">Active routine</div>
-        <h3 class="objective-card-title">${escapeHtml(active.routine.name)}</h3>
-        <p class="objective-card-body">Session: ${escapeHtml(active.session.name || 'In progress')}</p>
-        <button type="button" class="btn primary" data-action="start-session">Start session</button>
+  card.querySelector('[data-action="resume-pause"]')?.addEventListener('click', () => {
+    if (session.status === 'paused') resumeSession();
+    else pauseSession();
+    refreshTodaySessionChrome(host);
+  });
+  card.querySelector('[data-action="finish-session"]')?.addEventListener('click', () => {
+    finishRoutineSession(session);
+    renderToday(host);
+  });
+  card.querySelector('[data-action="end-session"]')?.addEventListener('click', () => {
+    endSession();
+    tearDownPracticeBar();
+    releaseTodayWorkbookSurface();
+    renderToday(host);
+  });
+
+  return card;
+}
+
+function buildFullOutlineGroups(session, idx, host) {
+  const groups = buildOutlineGroups(session);
+  const frag = document.createDocumentFragment();
+  groups.forEach((group, groupIdx) => {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'train-outline-group';
+    groupEl.innerHTML = `
+      <h4 class="drill-group-title train-outline-wb-title">
+        Workbook ${groupIdx + 1} of ${groups.length} · ${escapeHtml(group.workbookName)}
+      </h4>
+    `;
+    const list = document.createElement('div');
+    list.className = 'train-outline-list';
+    group.items.forEach((outlineItem) => {
+      const globalIdx = session.items.findIndex((it) => it.id === outlineItem.id);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'train-outline-item';
+      if (outlineItem.id === session.activeItemId) btn.classList.add('is-current');
+      else if (globalIdx >= 0 && globalIdx < idx) btn.classList.add('is-done');
+      btn.innerHTML = `
+        <span class="train-outline-num">${globalIdx + 1}</span>
+        <span class="train-outline-label">${escapeHtml(outlineItem.label || outlineItem.targetId)}</span>
       `;
-      card.querySelector('[data-action="start-session"]')?.addEventListener('click', () => {
-        beginRoutineSession(active.routine, active.session);
-        renderToday(host);
+      btn.addEventListener('click', () => {
+        setActiveItem(outlineItem.id);
       });
-    } else if (next) {
-      card.innerHTML = `
-        <div class="objective-card-kicker">Next up</div>
-        <h3 class="objective-card-title">${escapeHtml(next.routine.name)}</h3>
-        <p class="objective-card-body">${escapeHtml(next.session.name || 'Next session')}</p>
-        <button type="button" class="btn primary" data-action="start-session">Start session</button>
-        <button type="button" class="btn" data-action="plans">View plans</button>
-      `;
-      card.querySelector('[data-action="start-session"]')?.addEventListener('click', () => {
-        beginRoutineSession(next.routine, next.session);
-        renderToday(host);
-      });
-      card.querySelector('[data-action="plans"]')?.addEventListener('click', () => {
-        navigate('#train/plans');
-      });
-    } else {
-      card.innerHTML = `
-        <div class="objective-card-kicker">Free practice</div>
-        <h3 class="objective-card-title">Start free practice</h3>
-        <p class="objective-card-body">Pick a drill or open your library.</p>
-        <button type="button" class="btn primary" data-action="free">Start free practice</button>
-      `;
-      card.querySelector('[data-action="free"]')?.addEventListener('click', () => {
-        beginFreePractice();
-        renderToday(host);
-      });
-    }
-    host.appendChild(card);
+      list.appendChild(btn);
+    });
+    groupEl.appendChild(list);
+    frag.appendChild(groupEl);
+  });
+  return frag;
+}
+
+function buildSessionOutlineEl(session, host) {
+  const idx = sessionItemIndex(session);
+  const item = activeSessionItem(session);
+  const wbName = item?.workbookName || 'Session outline';
+
+  const section = document.createElement('section');
+  section.className = 'train-session-nav';
+
+  const strip = document.createElement('div');
+  strip.className = 'train-step-strip';
+  strip.setAttribute('role', 'tablist');
+  strip.setAttribute('aria-label', 'Session items');
+  session.items.forEach((outlineItem, globalIdx) => {
+    const label = outlineItem.label || outlineItem.targetId;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'train-step-pill';
+    btn.setAttribute('role', 'tab');
+    btn.textContent = String(globalIdx + 1);
+    btn.title = label;
+    btn.setAttribute('aria-label', `${globalIdx + 1}. ${label}`);
+    btn.setAttribute('aria-selected', outlineItem.id === session.activeItemId ? 'true' : 'false');
+    if (outlineItem.id === session.activeItemId) btn.classList.add('is-current');
+    else if (globalIdx < idx) btn.classList.add('is-done');
+    btn.addEventListener('click', () => {
+      setActiveItem(outlineItem.id);
+    });
+    strip.appendChild(btn);
+  });
+  section.appendChild(strip);
+
+  const details = document.createElement('details');
+  details.className = 'train-outline-details';
+  const summary = document.createElement('summary');
+  summary.className = 'train-outline-summary';
+  summary.textContent = wbName;
+  details.appendChild(summary);
+
+  const expanded = document.createElement('div');
+  expanded.className = 'train-outline-expanded';
+  expanded.appendChild(buildFullOutlineGroups(session, idx, host));
+
+  if (item) {
+    appendLogAttemptDetails(expanded, session, item, () => refreshTodaySessionChrome(host));
+    const libLink = document.createElement('a');
+    libLink.className = 'btn sm train-open-library-link';
+    libLink.href = `#train/library?type=workbook&id=${encodeURIComponent(item.workbookId)}`;
+    libLink.textContent = 'Open in library';
+    expanded.appendChild(libLink);
   }
 
+  details.appendChild(expanded);
+  section.appendChild(details);
+
+  return section;
+}
+
+function refreshTodaySessionChrome(host) {
+  const region = host || viewRegion;
+  if (!region) return;
+  const session = getSession();
+  if (!session?.items?.length) return;
+  const wrap = region.querySelector('.train-today-live');
+  if (!wrap) return;
+  const outlineOpen = wrap.querySelector('.train-outline-details')?.open;
+  const logOpen = wrap.querySelector('.train-log-details')?.open;
+  const header = wrap.querySelector('.train-session-header-card');
+  const outline = wrap.querySelector('.train-session-nav');
+  const freshHeader = buildSessionHeaderEl(session, region);
+  const freshOutline = buildSessionOutlineEl(session, region);
+  if (outlineOpen) freshOutline.querySelector('.train-outline-details')?.setAttribute('open', '');
+  if (logOpen) freshOutline.querySelector('.train-log-details')?.setAttribute('open', '');
+  if (header) header.replaceWith(freshHeader);
+  else wrap.prepend(freshHeader);
+  if (outline) outline.replaceWith(freshOutline);
+  else {
+    const featureHost = wrap.querySelector('.train-practice-host');
+    if (featureHost) wrap.insertBefore(freshOutline, featureHost);
+    else wrap.appendChild(freshOutline);
+  }
+  schedulePracticeHostBoundsBurst();
+}
+
+function finishRoutineSession(session) {
+  if (session.routineId && session.sourceId) {
+    setRoutineSessionCompleted(session.routineId, session.sourceId, true);
+  }
+  endSession();
+  tearDownPracticeBar();
+  releaseTodayWorkbookSurface();
+}
+
+function releaseTodayWorkbookSurface() {
+  shellApi?.shell?.classList.remove('train-session-live');
+  releaseAllExcept(sectionsToKeep([]));
+  stopViewFeatures([]);
+  activeFeatureIds = [];
+  lastPaintedSectionId = null;
+}
+
+function syncWorkbookToItem(item) {
+  if (!item?.workbookId) return;
+  syncFromSession = true;
+  openWorkbookById(item.workbookId, { entryId: item.entryId || null });
+  syncFromSession = false;
+}
+
+function handleWorkbookEntryChange(payload) {
+  if (syncFromSession) return;
+  const session = getSession();
+  if (!session?.items?.length || !payload.workbookId) return;
+
+  const activeItem = activeSessionItem(session);
+  // Workbook loop-wrap at end of a block: advance session to the next workbook instead.
+  if (payload.index === 0 && activeItem && payload.workbookId === activeItem.workbookId) {
+    const wbItems = session.items.filter((it) => it.workbookId === activeItem.workbookId);
+    const lastInWb = wbItems[wbItems.length - 1];
+    if (activeItem.id === lastInWb?.id) {
+      const sessionIdx = session.items.findIndex((it) => it.id === activeItem.id);
+      const nextSessionItem = session.items[sessionIdx + 1];
+      if (nextSessionItem && nextSessionItem.workbookId !== activeItem.workbookId) {
+        syncFromSession = true;
+        setActiveItem(nextSessionItem.id);
+        openWorkbookById(nextSessionItem.workbookId, { entryId: nextSessionItem.entryId || null });
+        syncFromSession = false;
+        refreshTodaySessionChrome();
+        return;
+      }
+      if (!nextSessionItem) {
+        syncFromSession = true;
+        openWorkbookById(activeItem.workbookId, { entryId: activeItem.entryId || null });
+        syncFromSession = false;
+        refreshTodaySessionChrome();
+        return;
+      }
+    }
+  }
+
+  const match = session.items.find(
+    (it) => it.workbookId === payload.workbookId && it.entryId === payload.entryId,
+  );
+  if (match && match.id !== session.activeItemId) {
+    syncFromSession = true;
+    setActiveItem(match.id);
+    syncFromSession = false;
+  }
+  refreshTodaySessionChrome();
+}
+
+async function renderTodaySessionPlayer(host, session) {
+  host.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'train-today-live';
+  wrap.appendChild(buildSessionHeaderEl(session, host));
+  wrap.appendChild(buildSessionOutlineEl(session, host));
+
+  const featureHost = document.createElement('div');
+  featureHost.className = 'workspace-feature-host train-practice-host train-session-practice';
+  wrap.appendChild(featureHost);
+  host.appendChild(wrap);
+
+  syncPracticeBar();
+  syncPracticeHostBounds();
+
+  adoptSection('sec-workbooks', featureHost);
+  activeFeatureIds = ['workbooks'];
+  await mountFeature('workbooks');
+  stopViewFeatures(activeFeatureIds);
+  lastPaintedSectionId = 'sec-workbooks';
+
+  const item = activeSessionItem(session);
+  if (item) syncWorkbookToItem(item);
+  schedulePracticeHostBoundsBurst();
+}
+
+function appendTodayQuickLinks(host) {
+  if (getSession()?.items?.length) return;
+  host.querySelector('.workspace-quick-links')?.remove();
   const links = document.createElement('div');
   links.className = 'workspace-quick-links';
   links.innerHTML = `
@@ -473,6 +958,100 @@ function renderToday(host) {
   links.querySelector('[data-link="plans"]')?.addEventListener('click', () => navigate('#train/plans'));
   links.querySelector('[data-link="library"]')?.addEventListener('click', () => navigate('#train/library'));
   host.appendChild(links);
+}
+
+async function renderToday(host) {
+  host.innerHTML = '';
+  const session = getSession();
+
+  if (session?.items?.length) {
+    await renderTodaySessionPlayer(host, session);
+    syncPracticeBar();
+    appendTodayQuickLinks(host);
+    return;
+  }
+
+  if (session) {
+    const card = document.createElement('article');
+    card.className = 'objective-card train-session-header-card';
+    card.innerHTML = `
+      <div class="objective-card-kicker">Live session</div>
+      <h3 class="objective-card-title">${escapeHtml(sessionDisplayTitle(session))}</h3>
+      <p class="train-session-meta">${fmtClock(session.elapsedMs)}${
+        session.timerTargetMs != null ? ` / ${fmtClock(session.timerTargetMs)}` : ''
+      }</p>
+      <div class="train-session-actions">
+        <button type="button" class="btn primary" data-action="resume-pause">
+          ${session.status === 'paused' ? 'Resume' : 'Pause'}
+        </button>
+        <button type="button" class="btn" data-action="end-session">End session</button>
+      </div>
+    `;
+    card.querySelector('[data-action="resume-pause"]')?.addEventListener('click', () => {
+      if (session.status === 'paused') resumeSession();
+      else pauseSession();
+      renderToday(host);
+    });
+    card.querySelector('[data-action="end-session"]')?.addEventListener('click', () => {
+      endSession();
+      tearDownPracticeBar();
+      renderToday(host);
+    });
+    host.appendChild(card);
+    syncPracticeBar();
+    appendTodayQuickLinks(host);
+    return;
+  }
+
+  const active = findActiveRoutineSession();
+  const next = active ? null : findNextRoutine();
+  const card = document.createElement('article');
+  card.className = 'objective-card';
+
+  if (active) {
+    card.innerHTML = `
+      <div class="objective-card-kicker">Active routine</div>
+      <h3 class="objective-card-title">${escapeHtml(active.routine.name)}</h3>
+      <p class="objective-card-body">Session: ${escapeHtml(active.session.name || 'In progress')}</p>
+      <button type="button" class="btn primary" data-action="start-session">Start session</button>
+    `;
+    card.querySelector('[data-action="start-session"]')?.addEventListener('click', async () => {
+      beginRoutineSession(active.routine, active.session);
+      await renderTodaySessionPlayer(host, getSession());
+      syncPracticeBar();
+      appendTodayQuickLinks(host);
+    });
+  } else if (next) {
+    card.innerHTML = `
+      <div class="objective-card-kicker">Next up</div>
+      <h3 class="objective-card-title">${escapeHtml(next.routine.name)}</h3>
+      <p class="objective-card-body">${escapeHtml(next.session.name || 'Next session')}</p>
+      <button type="button" class="btn primary" data-action="start-session">Start session</button>
+      <button type="button" class="btn" data-action="plans">View plans</button>
+    `;
+    card.querySelector('[data-action="start-session"]')?.addEventListener('click', async () => {
+      beginRoutineSession(next.routine, next.session);
+      await renderTodaySessionPlayer(host, getSession());
+      syncPracticeBar();
+      appendTodayQuickLinks(host);
+    });
+    card.querySelector('[data-action="plans"]')?.addEventListener('click', () => {
+      navigate('#train/plans');
+    });
+  } else {
+    card.innerHTML = `
+      <div class="objective-card-kicker">Free practice</div>
+      <h3 class="objective-card-title">Start free practice</h3>
+      <p class="objective-card-body">Pick a drill or open your library.</p>
+      <button type="button" class="btn primary" data-action="free">Start free practice</button>
+    `;
+    card.querySelector('[data-action="free"]')?.addEventListener('click', () => {
+      beginFreePractice();
+      renderToday(host);
+    });
+  }
+  host.appendChild(card);
+  appendTodayQuickLinks(host);
 }
 
 /**
@@ -772,7 +1351,7 @@ async function paintView(route) {
 
     lastPaintedView = 'library';
     lastPaintedSectionId = sectionId;
-    releaseAllExcept([]);
+    releaseAllExcept(sectionsToKeep([]));
     activeFeatureIds = [];
     viewRegion.innerHTML = '';
     renderChipRow(viewRegion, LIBRARY_CHIPS, libType, (id) => {
@@ -786,31 +1365,59 @@ async function paintView(route) {
       adoptSection(mapping.sectionId, featureHost);
       activeFeatureIds = [mapping.featureId];
       await mountFeature(mapping.featureId);
-      stopFeaturesExcept(activeFeatureIds);
+      stopViewFeatures(activeFeatureIds);
       await applyLibraryItemId(route);
     } else {
-      stopFeaturesExcept([]);
+      stopViewFeatures([]);
     }
+    syncPracticeBar();
+    return;
+  }
+
+  if (view === 'today') {
+    lastPaintedView = 'today';
+    const session = getSession();
+    const hasRoutineItems = session?.items?.length > 0;
+    const sameTodayShell = hasRoutineItems
+      && viewRegion?.querySelector('.train-today-live .train-practice-host');
+
+    if (hasRoutineItems) {
+      if (sameTodayShell) {
+        refreshTodaySessionChrome();
+        const item = activeSessionItem(session);
+        if (item) syncWorkbookToItem(item);
+        schedulePracticeHostBoundsBurst();
+      } else {
+        releaseAllExcept(sectionsToKeep([]));
+        activeFeatureIds = [];
+        viewRegion.innerHTML = '';
+        await renderTodaySessionPlayer(viewRegion, session);
+      }
+      appendTodayQuickLinks(viewRegion);
+      stopViewFeatures(['workbooks']);
+      syncPracticeBar();
+      return;
+    }
+
+    lastPaintedSectionId = null;
+    releaseAllExcept(sectionsToKeep([]));
+    activeFeatureIds = [];
+    viewRegion.innerHTML = '';
+    renderToday(viewRegion);
+    stopViewFeatures([]);
     syncPracticeBar();
     return;
   }
 
   lastPaintedView = view;
   lastPaintedSectionId = null;
-  releaseAllExcept([]);
+  releaseAllExcept(sectionsToKeep([]));
   activeFeatureIds = [];
   viewRegion.innerHTML = '';
 
-  if (view === 'today') {
-    renderToday(viewRegion);
-    stopFeaturesExcept([]);
-    syncPracticeBar();
-    return;
-  }
-
   if (view === 'progress') {
     renderProgress(viewRegion);
-    stopFeaturesExcept([]);
+    stopViewFeatures([]);
     syncPracticeBar();
     return;
   }
@@ -819,7 +1426,7 @@ async function paintView(route) {
     const mapping = resolveFundamentals(route);
     if (!mapping) {
       renderFundamentalsGrid(viewRegion);
-      stopFeaturesExcept([]);
+      stopViewFeatures([]);
       syncPracticeBar();
       return;
     }
@@ -830,7 +1437,7 @@ async function paintView(route) {
     adoptSection(mapping.sectionId, featureHost);
     activeFeatureIds = [mapping.featureId];
     await mountFeature(mapping.featureId);
-    stopFeaturesExcept(activeFeatureIds);
+    stopViewFeatures(activeFeatureIds);
     syncPracticeBar();
     return;
   }
@@ -845,7 +1452,7 @@ async function paintView(route) {
     adoptSection(mapping.sectionId, featureHost);
     activeFeatureIds = [mapping.featureId];
     await mountFeature(mapping.featureId);
-    stopFeaturesExcept(activeFeatureIds);
+    stopViewFeatures(activeFeatureIds);
     syncPracticeBar();
   }
 }
@@ -853,12 +1460,28 @@ async function paintView(route) {
 function bindSessionRefresh() {
   if (sessionUnsub) return;
   sessionUnsub = subscribeSession((state, meta) => {
-    if (meta?.reason === 'end') tearDownPracticeBar();
-    else syncPracticeBar();
-    const view = shellApi?.viewRegion;
-    if (view && effectiveView({ view: shellApi?.currentView }) === 'today') {
+    if (meta?.reason === 'end') {
+      tearDownPracticeBar();
+      releaseTodayWorkbookSurface();
+    } else {
+      syncPracticeBar();
+    }
+    if (meta?.reason === 'item' && state?.items?.length) {
+      const item = state.items.find((it) => it.id === state.activeItemId);
+      if (item?.workbookId) syncWorkbookToItem(item);
+    }
+    if (viewRegion && shellApi?.currentView === 'today') {
+      if (meta?.reason === 'tick' || meta?.reason === 'item' || meta?.reason === 'pause'
+        || meta?.reason === 'resume' || meta?.reason === 'attempt') {
+        refreshTodaySessionChrome();
+      }
     }
   });
+}
+
+function bindWorkbookEntrySync() {
+  if (workbookEntryUnsub) return;
+  workbookEntryUnsub = subscribeWorkbookEntry(handleWorkbookEntryChange);
 }
 
 /**
@@ -867,25 +1490,47 @@ function bindSessionRefresh() {
  */
 export async function mount(container, route) {
   restoreSession();
+  currentRoute = route;
+  lastRoutedViewKey = routeViewKey(route);
   const view = effectiveView(route);
   shellApi = createWorkspaceShell(container, {
     label: 'Train',
     views: VIEW_LABELS,
     currentView: view,
     onTabSelect: (id) => navigate({ objective: 'train', view: id, params: {} }),
+    headerActions: (host) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'workspace-utility-btn';
+      btn.textContent = 'Metronome';
+      btn.addEventListener('click', () => {
+        panelOpenerEl = btn;
+        openPanel('practice');
+      });
+      host.appendChild(btn);
+    },
   });
   shellApi.currentView = view;
   viewRegion = shellApi.viewRegion;
   bindSessionRefresh();
+  bindWorkbookEntrySync();
   await paintView(route);
+  await syncPracticePanel(route);
 }
 
 /**
  * @param {object} route
  */
 export async function update(route) {
+  const prev = currentRoute;
+  currentRoute = route;
   shellApi.currentView = effectiveView(route);
-  await paintView(route);
+  const panelOnly = isPanelOnlyRouteChange(prev, route);
+  if (!panelOnly) {
+    lastRoutedViewKey = routeViewKey(route);
+    await paintView(route);
+  }
+  await syncPracticePanel(route);
 }
 
 export function unmount() {
@@ -893,7 +1538,13 @@ export function unmount() {
     sessionUnsub();
     sessionUnsub = null;
   }
+  if (workbookEntryUnsub) {
+    workbookEntryUnsub();
+    workbookEntryUnsub = null;
+  }
+  syncFromSession = false;
   tearDownPracticeBar();
+  closePracticePanelDom();
   releaseAllExcept([]);
   stopFeaturesExcept([]);
   shellApi = null;
@@ -901,4 +1552,7 @@ export function unmount() {
   activeFeatureIds = [];
   lastPaintedView = null;
   lastPaintedSectionId = null;
+  currentRoute = null;
+  lastRoutedViewKey = null;
+  panelOpenerEl = null;
 }
