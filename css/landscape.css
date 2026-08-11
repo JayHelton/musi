@@ -85,10 +85,13 @@
   .timing-layout{grid-template-columns:1fr;gap:10px;max-width:100%}
   .pr-card{max-width:100%}
 
-  /* ---- Dock (four-destination bar) ---- */
+  /* ---- Dock (5-category mobile bar from initNav) ---- */
   .dock{min-height:var(--dock-h);justify-content:center;overflow:visible;padding:4px env(safe-area-inset-right,0px) max(4px,env(safe-area-inset-bottom,0px)) env(safe-area-inset-left,0px)}
-  .dock-dest{min-height:44px;padding:4px 2px;font-size:.55rem;gap:1px}
-  .dock-dest .dock-icon,.dock-dest .dock-icon svg{width:18px;height:18px}
+  .dock-desktop{display:none!important}
+  .dock-mobile{display:none!important}
+  .dock-mobile-cats{display:flex}
+  .dock-cat-btn{min-height:40px;padding:4px 2px;font-size:.55rem;gap:1px}
+  .dock-cat-btn .dock-icon,.dock-cat-btn .dock-icon svg{width:18px;height:18px}
 
   /* ---- Header (split view only on desktop) ---- */
   .header-actions{display:none}
@@ -158,8 +161,8 @@
   .wordmark{font-size:.78rem;letter-spacing:1px}
   main{padding:6px max(12px,env(safe-area-inset-right,0px)) calc(var(--dock-h) + 8px) max(12px,env(safe-area-inset-left,0px))}
   .section-head h2{font-size:1rem}
-  .dock-dest{min-height:44px;padding:3px 1px;font-size:.5rem}
-  .dock-dest .dock-icon,.dock-dest .dock-icon svg{width:16px;height:16px}
+  .dock-cat-btn{min-height:36px;padding:3px 1px;font-size:.5rem}
+  .dock-cat-btn .dock-icon,.dock-cat-btn .dock-icon svg{width:16px;height:16px}
   .sidebar-list .sl-scroll{max-height:72px;padding:6px 8px}
   .sl-item{min-height:32px;padding:5px 10px;font-size:.75rem}
   .quiz-card{padding:8px 10px;margin-bottom:6px}

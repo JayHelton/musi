@@ -62,27 +62,39 @@
   }
   body.boot-locked{overflow:hidden}
 </style>
-<!-- Shell tier -->
 <link rel="stylesheet" href="css/boot-splash.css">
 <link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/theme-gbc.css">
-<link rel="stylesheet" href="css/shell.css">
-<link rel="stylesheet" href="css/ux-shell.css">
-<link rel="stylesheet" href="css/mobile-ux.css">
-<link rel="stylesheet" href="css/landscape.css">
-<link rel="stylesheet" href="css/modals.css">
-<link rel="stylesheet" href="css/practice-bar.css">
-<link rel="stylesheet" href="css/workspace-train.css">
-<link rel="stylesheet" href="css/workspace-study.css">
-<link rel="stylesheet" href="css/workspace-create.css">
-<!-- Shared components tier -->
 <link rel="stylesheet" href="css/quiz.css">
+<link rel="stylesheet" href="css/tools.css">
 <link rel="stylesheet" href="css/trainers.css">
-<link rel="stylesheet" href="css/selection-sheet.css">
+<link rel="stylesheet" href="css/generators.css">
 <link rel="stylesheet" href="css/visualizer.css">
 <link rel="stylesheet" href="css/recorder.css">
-<link rel="stylesheet" href="css/tools.css">
+<link rel="stylesheet" href="css/mobile-ux.css">
+<link rel="stylesheet" href="css/modals.css">
+<link rel="stylesheet" href="css/songwriter.css">
+<link rel="stylesheet" href="css/exercises.css">
+<link rel="stylesheet" href="css/companions.css">
+<link rel="stylesheet" href="css/workbooks.css">
+<link rel="stylesheet" href="css/routines.css">
+<link rel="stylesheet" href="css/drums.css">
+<link rel="stylesheet" href="css/chordworkout.css">
+<link rel="stylesheet" href="css/notes.css">
+<link rel="stylesheet" href="css/practice.css">
+<link rel="stylesheet" href="css/tabanalyzer.css">
+<link rel="stylesheet" href="css/tracktosheet.css">
+<link rel="stylesheet" href="css/gpplayer.css">
+<link rel="stylesheet" href="css/gpimport.css">
+<link rel="stylesheet" href="css/intervalorbit.css">
+<link rel="stylesheet" href="css/selection-sheet.css">
+<link rel="stylesheet" href="css/ux-shell.css">
+<link rel="stylesheet" href="css/ux-chords-orbit.css">
+<link rel="stylesheet" href="css/triads.css">
 <link rel="stylesheet" href="css/study-recs.css">
+<link rel="stylesheet" href="css/study-lab.css">
+<link rel="stylesheet" href="css/sync.css">
+<link rel="stylesheet" href="css/theme-gbc.css">
+<link rel="stylesheet" href="css/landscape.css">
 </head>
 <body class="boot-locked">
 <div id="boot-splash" class="boot-splash" role="dialog" aria-label="Loading musi" aria-busy="true">
@@ -142,8 +154,8 @@
 <header>
   <h1 class="wordmark" id="wordmark-home" role="button" tabindex="0" title="Home">musi</h1>
   <div class="header-actions">
-    <button id="app-menu-btn" class="header-icon-btn app-menu-btn" type="button" aria-haspopup="menu" aria-label="Menu" title="Menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    <button id="split-trigger" class="header-icon-btn split-trigger" type="button" aria-label="Split view" title="Split view">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>
     </button>
   </div>
 </header>
@@ -179,9 +191,8 @@
 
 <nav id="nav" class="dock"></nav>
 <main>
-  <div id="workspace-root"></div>
   <!-- HOME -->
-  <section id="sec-home" class="section">
+  <section id="sec-home" class="section active">
     <div class="section-head">
       <div class="section-kicker">Practice</div>
       <h2>musi</h2>
@@ -201,18 +212,30 @@
         </button>
         <button type="button" class="gbc-btn gbc-btn-ghost" id="gbc-cta-browse">
           <span class="gbc-btn-dot" aria-hidden="true">X</span>
-          Open library
+          Browse tools
         </button>
       </div>
     </div>
     <div id="home-continue" class="home-continue"></div>
+    <div id="home-quickstart" class="home-section"></div>
     <div id="home-study-rec" class="home-study-rec" aria-live="polite"></div>
     <div id="home-stats" class="home-stats" hidden>
       <div class="home-stats-grid" id="home-stats-grid"></div>
     </div>
-    <div id="home-objectives"></div>
-    <div id="home-secondary"></div>
+    <div id="home-categories" class="home-section"></div>
+    <details id="home-all-panel" class="home-section home-all-panel">
+      <summary class="home-section-label home-panel-summary">
+        <span>All tools</span>
+      </summary>
+      <div class="home-all-rows"></div>
+    </details>
   </section>
+
+  <!-- CATEGORY HUBS (mobile) -->
+  <section id="sec-hub-train" class="section hub-section"></section>
+  <section id="sec-hub-reference" class="section hub-section"></section>
+  <section id="sec-hub-create" class="section hub-section"></section>
+  <section id="sec-hub-tools" class="section hub-section"></section>
 
   <!-- SCALE QUIZ -->
   <section id="sec-scales" class="section">
@@ -1781,7 +1804,7 @@
       <div class="gpp-library" id="gpp-library">
         <div class="gpp-library-head">
           <div class="gpp-library-title">Saved scores</div>
-          <a class="btn sm" href="#train/library?type=exercise">Open Exercises</a>
+          <a class="btn sm" href="#exercises">Open Exercises</a>
         </div>
         <div class="gpp-library-list" id="gpp-library-list"></div>
       </div>
@@ -1854,7 +1877,7 @@
         <div class="tts-library" id="tts-library">
           <div class="tts-library-head">
             <div class="tts-library-title">Saved stems</div>
-            <a class="btn sm" href="#train/library?type=exercise">Open Exercises</a>
+            <a class="btn sm" href="#exercises">Open Exercises</a>
           </div>
           <div class="tts-library-list" id="tts-library-list"></div>
         </div>
@@ -1931,6 +1954,5 @@
     });
   }
 </script>
-<div id="app-toast" class="app-toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

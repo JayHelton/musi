@@ -97,6 +97,24 @@ select:focus,input[type=text]:focus,input[type=number]:focus{outline:none;border
 /* Glassmorphism utility */
 .glass{backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(11,16,32,0.85);border:1px solid var(--border)}
 
+/* Mobile dock group menus */
+.dock-mobile{display:none}
+.dock-group{position:relative}
+.dock-group-trigger{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 14px;cursor:pointer;color:var(--muted);font-size:.65rem;background:none;border:none;flex-shrink:0;transition:color 0.2s ease;position:relative;font-family:inherit}
+.dock-group-trigger .dock-icon{width:22px;height:22px}
+.dock-group-trigger:hover{color:var(--text)}
+.dock-group-trigger.active{color:var(--accent)}
+.dock-group-trigger.active::after{content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent)}
+.dock-group-menu{display:none;position:fixed;transform:translateX(-50%);background:rgba(11,16,32,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:6px;min-width:140px;box-shadow:0 -4px 24px rgba(0,0,0,0.6);z-index:200}
+.dock-group-menu.open{display:flex;flex-direction:column;gap:2px;animation:menuSlideUp 0.15s ease}
+@keyframes menuSlideUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.dock-menu-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border:none;background:none;color:var(--text);cursor:pointer;font-size:.85rem;border-radius:10px;transition:all 0.15s ease;font-family:inherit;white-space:nowrap}
+.dock-menu-item .dock-icon{width:18px;height:18px;flex-shrink:0}
+.dock-menu-item:hover{background:var(--hover)}
+.dock-menu-item.active{color:var(--accent);background:var(--accent-dim)}
+.dock-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:150}
+.dock-overlay.visible{display:block}
+
 @media(min-width:1280px){:root{--content-max:1240px;--content-pad:28px}}
 @media(min-width:1500px){:root{--content-max:1440px;--content-pad:32px}}
 @media(min-width:1800px){:root{--content-max:1680px;--content-pad:36px}}
@@ -132,6 +150,13 @@ select:focus,input[type=text]:focus,input[type=number]:focus{outline:none;border
   .sl-item{flex:0 0 auto;min-height:40px;display:flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--bg2);padding:8px 14px;white-space:nowrap;scroll-snap-align:start}
   .sl-item.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
   .sl-group-label{flex:0 0 auto;display:flex;align-items:center;padding:0 2px 0 4px;font-size:.58rem;white-space:nowrap}
+  .dock-desktop{display:none!important}
+  .dock-mobile{display:flex;width:100%;justify-content:space-around;align-items:center}
+  .dock{justify-content:center;overflow:visible}
+  .dock-group-trigger{min-width:52px;min-height:50px}
+  .dock-group-menu{padding:8px;min-width:170px}
+  .dock-group-menu.open{gap:6px}
+  .dock-menu-item{min-height:48px;padding:12px 16px}
   .score-bar{flex-wrap:wrap;gap:10px;font-size:.85rem}
   .note-action-row{flex-wrap:wrap}
   .quiz-card{padding:16px;margin-bottom:10px;border-radius:14px}
@@ -148,6 +173,8 @@ select:focus,input[type=text]:focus,input[type=number]:focus{outline:none;border
   .section-head h2{font-size:1.15rem}
   .quiz-card{padding:14px 12px}
   .question{font-size:1rem}
+  .dock-group-trigger{padding:6px 8px;font-size:.55rem}
+  .dock-group-trigger .dock-icon{width:20px;height:20px}
   .sidebar{flex-direction:column}
   .sidebar-list{width:100%}
   .sidebar-list .sl-scroll{max-height:none}

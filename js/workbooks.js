@@ -76,9 +76,7 @@ function el(tag, props = {}, children = []) {
 }
 
 let bound = false;
-/** @type {{ id: string, entryId?: string | null } | null} */
-let pendingWorkbookOpen = null;
-const workbookEntryListeners = new Set();
+let pendingWorkbookOpenId = null;
 let selectedFolder = 'all';
 let openWorkbookId = null;
 let escapeWired = false;
@@ -656,46 +654,6 @@ function syncTransportDisabled(wb) {
   if (detailLoopInput) detailLoopInput.disabled = disabled;
 }
 
-function notifyWorkbookEntry(payload) {
-  for (const fn of workbookEntryListeners) {
-    try { fn(payload); } catch (e) { /* ignore */ }
-  }
-}
-
-function buildWorkbookEntryPayload(wbId) {
-  if (!wbId) {
-    return { workbookId: null, entryId: null, exerciseId: null, index: null, total: null };
-  }
-  const wb = getWorkbook(wbId);
-  const active = getActiveWorkbookEntry(wbId);
-  const total = wb?.entries?.length ?? 0;
-  if (!active) {
-    return { workbookId: wbId, entryId: null, exerciseId: null, index: null, total };
-  }
-  return {
-    workbookId: wbId,
-    entryId: active.entry.id,
-    exerciseId: active.entry.exerciseId,
-    index: active.index,
-    total,
-  };
-}
-
-function notifyWorkbookEntryChange(wbId) {
-  notifyWorkbookEntry(buildWorkbookEntryPayload(wbId));
-}
-
-function activateWorkbookEntry(wbId, entryId) {
-  setActiveWorkbookEntry(wbId, entryId);
-  notifyWorkbookEntryChange(wbId);
-}
-
-function stepWorkbookEntry(wbId, direction) {
-  if (direction === 'next') nextWorkbookEntry(wbId, { wrap: true });
-  else prevWorkbookEntry(wbId, { wrap: true });
-  notifyWorkbookEntryChange(wbId);
-}
-
 function closeWorkbookDetail() {
   teardownDetailPlayer();
   teardownDetailCompanions();
@@ -705,11 +663,10 @@ function closeWorkbookDetail() {
   if (workspaceEl) workspaceEl.classList.remove('is-open');
   if (detailPaneEl) detailPaneEl.hidden = true;
   syncPracticeMode();
-  notifyWorkbookEntry(buildWorkbookEntryPayload(null));
 }
 
 export function requestWorkbookOpen(id) {
-  if (typeof id === 'string' && id) pendingWorkbookOpen = { id };
+  if (typeof id === 'string' && id) pendingWorkbookOpenId = id;
 }
 
 function openWorkbookDetail(id) {
@@ -718,56 +675,6 @@ function openWorkbookDetail(id) {
   if (detailPaneEl) detailPaneEl.hidden = false;
   syncPracticeMode();
   render();
-  notifyWorkbookEntryChange(id);
-}
-
-function applyOpenWorkbook({ id, entryId = null }) {
-  if (openWorkbookId === id) {
-    if (entryId) {
-      const wb = getWorkbook(id);
-      const belongs = wb?.entries.some((e) => e.id === entryId);
-      if (belongs) {
-        const active = getActiveWorkbookEntry(id);
-        if (active?.entry.id === entryId) return true;
-        activateWorkbookEntry(id, entryId);
-        const fresh = getWorkbook(id);
-        syncEntryHighlights(fresh);
-        syncPositionReadout(fresh);
-        syncPlayerHead(fresh);
-        closePlaylistDrawer();
-        loadCurrentExercise({ autoPlay: false });
-      }
-    }
-    return true;
-  }
-  if (entryId) {
-    const wb = getWorkbook(id);
-    if (wb?.entries.some((e) => e.id === entryId)) {
-      setActiveWorkbookEntry(id, entryId);
-    }
-  }
-  openWorkbookDetail(id);
-  return true;
-}
-
-export function openWorkbookById(id, { entryId = null } = {}) {
-  if (typeof id !== 'string' || !id || !getWorkbook(id)) return false;
-  const pending = { id, entryId: entryId || null };
-  if (!listEl) {
-    pendingWorkbookOpen = pending;
-    return true;
-  }
-  return applyOpenWorkbook(pending);
-}
-
-export function getOpenWorkbookId() {
-  return openWorkbookId;
-}
-
-export function subscribeWorkbookEntry(fn) {
-  if (typeof fn !== 'function') return () => {};
-  workbookEntryListeners.add(fn);
-  return () => workbookEntryListeners.delete(fn);
 }
 
 // --- modals (shared modal-* styles) ----------------------------------------
@@ -1033,7 +940,7 @@ function advance({ autoPlay } = {}) {
   const wb = getWorkbook(openWorkbookId);
   if (!wb || !wb.entries.length) return;
   const wasPlaying = autoPlay === undefined ? getDetailPlayingState() : !!autoPlay;
-  stepWorkbookEntry(wb.id, 'next');
+  nextWorkbookEntry(wb.id, { wrap: true });
   const fresh = getWorkbook(wb.id);
   syncEntryHighlights(fresh);
   syncPositionReadout(fresh);
@@ -1174,7 +1081,7 @@ function goPrev() {
   const wb = getWorkbook(openWorkbookId);
   if (!wb || !wb.entries.length) return;
   const wasPlaying = getDetailPlayingState();
-  stepWorkbookEntry(wb.id, 'prev');
+  prevWorkbookEntry(wb.id, { wrap: true });
   const fresh = getWorkbook(wb.id);
   syncEntryHighlights(fresh);
   syncPositionReadout(fresh);
@@ -1260,7 +1167,7 @@ function buildEntryRow(wb, entry, index) {
   row.appendChild(actions);
 
   row.addEventListener('click', () => {
-    activateWorkbookEntry(wb.id, entry.id);
+    setActiveWorkbookEntry(wb.id, entry.id);
     const fresh = getWorkbook(wb.id);
     syncEntryHighlights(fresh);
     syncPositionReadout(fresh);
@@ -1893,11 +1800,11 @@ export function initWorkbooks() {
   }
 
   setStatus('');
-  if (pendingWorkbookOpen) {
-    const pending = pendingWorkbookOpen;
-    pendingWorkbookOpen = null;
-    if (getWorkbook(pending.id)) {
-      applyOpenWorkbook(pending);
+  if (pendingWorkbookOpenId) {
+    const pendingId = pendingWorkbookOpenId;
+    pendingWorkbookOpenId = null;
+    if (getWorkbook(pendingId)) {
+      openWorkbookDetail(pendingId);
       return;
     }
   }

@@ -1,14 +1,22 @@
-// Settings — defaults, audio, library transfer, storage, and advanced profile controls.
+// Music Preferences — genre priorities, learning goals, study balance,
+// application preference, and temporary topic exclusions.
 
-import { GENRE_LIST, GENRE_PRIORITIES, LEARNING_GOALS } from './genreProfiles.js';
+import { GENRE_LIST, GENRE_PRIORITIES, LEARNING_GOALS, CONCEPTS, conceptLabel } from './genreProfiles.js';
 import {
   getMusicProfile,
-  saveMusicProfile,
   setGenrePriority,
   removeGenre,
+  toggleGoal,
+  toggleApplication,
+  toggleExclusion,
+  setStudyBalance,
+  STUDY_BALANCES,
+  APPLICATION_PREFS,
   genreSummary,
-  activeGenreEntries,
+  hasActiveGenres,
 } from './musicProfile.js';
+import { buildRecommendations } from './studyRecommendations.js';
+import { STUDY_CATALOG } from './studyCatalog.js';
 import {
   CATEGORIES,
   TOOLS,
@@ -17,10 +25,17 @@ import {
   setFeatureEnabled,
   getEnabledFeatureIdsRaw,
 } from './tools.js';
-import { getMusicContext, setMusicContext, subscribeMusicContext } from './core/musicContext.js';
-import { ROOTS } from './theory.js';
-import { SCALES, shortScaleName } from './scales.js';
-import { TUNING_CATALOG } from './tunings.js';
+import {
+  getContext,
+  setContext,
+  subscribeContext,
+  TEMPO_MIN,
+  TEMPO_MAX,
+  ITERATION_MODES,
+  getIterationModeLabel,
+} from './musicalContext.js';
+import { shortScaleName } from './scales.js';
+import { openRootPicker, openScalePicker } from './pickers.js';
 import { getMasterVolume, setMasterVolume } from './audio.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { collectAttachedWorkbookIds } from './routineModel.js';
@@ -28,61 +43,16 @@ import { listWorkbooks, deleteWorkbooksNotAttached, pruneMissingExercisesAll } f
 import { getExercises, getExercisesWithoutFolder, deleteExercisesWithoutFolder } from './exercises.js';
 
 const CONTEXT_SOURCE = 'music-prefs';
-const TEMPO_MIN = 30;
-const TEMPO_MAX = 300;
-const INSTRUMENTS = [
-  { id: 'guitar', label: 'Guitar' },
-  { id: 'bass', label: 'Bass' },
-  { id: 'piano', label: 'Piano' },
-  { id: 'voice', label: 'Voice' },
-  { id: 'drums', label: 'Drums' },
-];
+const MODE_ITEMS = ITERATION_MODES.map(m => ({ val: m, label: getIterationModeLabel(m) }));
 
-const NAV_PROTECTED_FEATURES = new Set(['home', 'train', 'study', 'create', 'settings', 'musicprefs']);
-
+let showSectionFn = null;
 let host = null;
 let contextUnsub = null;
 let dialogRoot = null;
 
-/**
- * Pure settings model for tests and render.
- * @param {{ profile?: object, context?: object }} [fixtures]
- */
-export function buildSettingsModel(fixtures = {}) {
-  const profile = fixtures.profile ?? getMusicProfile();
-  const ctx = fixtures.context ?? getMusicContext();
-  const genres = activeGenreEntries(profile)
-    .slice()
-    .sort((a, b) => (b.priority === 'primary' ? 1 : 0) - (a.priority === 'primary' ? 1 : 0));
-  return {
-    defaults: {
-      instrument: ctx.instrument,
-      tuningId: ctx.tuningId,
-      root: ctx.root,
-      scaleId: ctx.scaleId,
-      tempoBpm: ctx.tempoBpm,
-      keySignaturePreference: ctx.keySignaturePreference,
-    },
-    profile: {
-      primaryGenre: genres[0]?.id || '',
-      primaryGoal: profile.goals[0] || '',
-      genreSummary: genreSummary(profile),
-    },
-    volume: Number(getSetting('global.volume', getMasterVolume())),
-  };
-}
-
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 function groupGenres() {
   const groups = new Map();
-  GENRE_LIST.forEach((g) => {
+  GENRE_LIST.forEach(g => {
     const key = g.group || 'Other';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(g);
@@ -91,7 +61,7 @@ function groupGenres() {
 }
 
 function genrePriority(profile, genreId) {
-  return profile.genres.find((g) => g.id === genreId)?.priority || null;
+  return profile.genres.find(g => g.id === genreId)?.priority || null;
 }
 
 function render() {
@@ -100,48 +70,90 @@ function render() {
     contextUnsub();
     contextUnsub = null;
   }
+  const profile = getMusicProfile();
+  const rec = buildRecommendations({ limit: 1 });
 
   host.innerHTML = `
     <div class="section-head">
       <div class="section-kicker">Settings</div>
-      <h2>Settings</h2>
-      <p>Defaults, audio, library transfer, and storage. Study review options live under Study › Review.</p>
+      <h2>Settings & Preferences</h2>
+      <p>Choose which tools appear in the app, and tune genre settings that shape study context and priority — not shortcuts.</p>
     </div>
 
-    <section class="mp-block mp-panel" aria-labelledby="mp-defaults-title">
-      <h3 class="mp-block-title" id="mp-defaults-title">Defaults</h3>
-      <p class="mp-block-help">Instrument, key, tempo, and spelling shared across Train, Study, and Create.</p>
-      <div class="study-setup-strip mp-defaults-grid" id="mp-defaults-grid"></div>
-      <div class="study-setup-strip mp-profile-simple" id="mp-profile-simple"></div>
+    <div class="mp-banner">
+      <div class="mp-banner-kicker">Active profile</div>
+      <div class="mp-banner-title">${escapeHtml(genreSummary(profile))}</div>
+      <div class="mp-banner-sub">${hasActiveGenres(profile)
+        ? 'Recommendations combine foundation, genre relevance, weakness, and review urgency.'
+        : 'Add genres below to personalize recommendations. Foundation studies remain available either way.'}</div>
+    </div>
+
+    <section class="mp-block" id="mp-context-block">
+      <h3 class="mp-block-title">Musical context</h3>
+      <p class="mp-block-help">Default key, scale, and tempo shared across compatible tools.</p>
+      <div class="context-field">
+        <div class="context-field-label">Key</div>
+        <button type="button" class="setup-chip context-pick-btn" id="mp-ctx-root-btn" aria-label="Change root">
+          <span class="setup-chip-value" id="mp-ctx-root-val">C</span>
+          <span class="setup-chip-hint">Change</span>
+        </button>
+        <div class="context-mode-row">
+          <div class="context-field-label context-mode-label">Key progression</div>
+          <div class="seg-row compact" id="mp-ctx-root-mode"></div>
+        </div>
+      </div>
+      <div class="context-field">
+        <div class="context-field-label">Mode / Scale</div>
+        <button type="button" class="setup-chip context-pick-btn" id="mp-ctx-scale-btn" aria-label="Change scale">
+          <span class="setup-chip-value" id="mp-ctx-scale-val">Major</span>
+          <span class="setup-chip-hint">Change</span>
+        </button>
+        <div class="quick-scale-row" id="mp-ctx-quick-scales" aria-label="Quick scales"></div>
+        <div class="context-mode-row">
+          <div class="context-field-label context-mode-label">Scale progression</div>
+          <div class="seg-row compact" id="mp-ctx-scale-mode"></div>
+        </div>
+      </div>
+      <div class="context-field">
+        <div class="context-field-label">Tempo</div>
+        <div class="context-tempo-row">
+          <button type="button" class="context-step" id="mp-ctx-tempo-down" aria-label="Slower">-</button>
+          <input type="number" id="mp-ctx-tempo" class="context-tempo-input" min="${TEMPO_MIN}" max="${TEMPO_MAX}" inputmode="numeric">
+          <span class="context-tempo-unit">BPM</span>
+          <button type="button" class="context-step" id="mp-ctx-tempo-up" aria-label="Faster">+</button>
+        </div>
+      </div>
     </section>
 
-    <section class="mp-block mp-panel" aria-labelledby="mp-audio-title">
-      <h3 class="mp-block-title" id="mp-audio-title">Audio</h3>
+    <section class="mp-block" id="mp-volume-block">
+      <h3 class="mp-block-title">Volume</h3>
       <p class="mp-block-help">Global audio level for trainers, playback, and synth.</p>
       <div class="mp-volume-row">
-        <label class="mp-field-label" for="mp-volume-slider">Volume</label>
         <input id="mp-volume-slider" type="range" min="0" max="150" step="1" value="100" aria-label="Global volume">
         <span id="mp-volume-value" class="mp-volume-value">100%</span>
       </div>
     </section>
 
-    <section class="mp-block mp-panel" aria-labelledby="mp-library-title">
-      <h3 class="mp-block-title" id="mp-library-title">Library &amp; transfer</h3>
-      <p class="mp-block-help">Move your library to another device — no account needed.</p>
+    <section class="mp-block" id="mp-sync-block">
+      <h3 class="mp-block-title">Device sync</h3>
+      <p class="mp-block-help">Move your library to another phone or PC — no account needed.</p>
+
       <details class="sync-advanced" id="mp-sync-advanced">
         <summary class="sync-advanced-summary">Advanced options</summary>
         <div class="sync-scopes-label">What to include</div>
         <div class="sync-scope-list" id="mp-sync-scopes"></div>
       </details>
+
       <div class="sync-method sync-method-library">
         <div class="sync-estimate" id="mp-sync-bundle-estimate" aria-live="polite">Calculating…</div>
-        <p class="sync-hint sync-hint-compact">Quick Share, USB, or cloud drive moves the file between devices.</p>
+        <p class="sync-hint sync-hint-compact">Quick Share, a USB cable, or Drive moves the file between Android and Windows.</p>
         <div class="sync-btn-row">
           <button type="button" class="btn sm primary" id="mp-sync-export-library">Export library</button>
           <button type="button" class="btn sm" id="mp-sync-import">Import</button>
         </div>
         <input type="file" id="mp-sync-import-input" class="sync-file-input" accept=".zip,.json,application/zip,application/json" hidden>
       </div>
+
       <div class="sync-method sync-method-settings sync-method-secondary">
         <p class="sync-hint sync-hint-compact">Settings and progress only — no exercise files.</p>
         <div class="sync-estimate sync-estimate-sub" id="mp-sync-payload-estimate" aria-live="polite">Calculating…</div>
@@ -155,215 +167,148 @@ function render() {
           <button type="button" class="btn sm sync-btn-secondary" id="mp-sync-receive">Receive via QR</button>
         </div>
       </div>
-      <div class="mp-library-cleanup" id="mp-cleanup-root"></div>
     </section>
 
-    <section class="mp-block mp-panel" aria-labelledby="mp-storage-title">
-      <h3 class="mp-block-title" id="mp-storage-title">Storage &amp; offline</h3>
-      <p class="mp-block-help">Local persistence and offline readiness on this device.</p>
-      <dl class="music-inspector-facts mp-storage-facts" id="mp-storage-facts"></dl>
+    <section class="mp-block" id="mp-library-cleanup">
+      <h3 class="mp-block-title">Library cleanup</h3>
+      <p class="mp-block-help">Quickly remove workbooks and exercises you are not organizing.</p>
+      <div id="mp-cleanup-root"></div>
     </section>
 
-    <details class="mp-block mp-panel mp-advanced" id="mp-advanced">
-      <summary class="mp-block-title mp-advanced-summary">Advanced</summary>
-      <p class="mp-block-help">Optional tool visibility and detailed genre priorities. Navigation destinations cannot be hidden.</p>
+    <section class="mp-block">
+      <h3 class="mp-block-title">Features</h3>
+      <p class="mp-block-help">Choose which tools appear in the toolbar and on Home. Settings stays available so you can turn them back on.</p>
       <div class="mp-feature-groups" id="mp-features"></div>
-      <h4 class="mp-subtitle">Genre priorities</h4>
+    </section>
+
+    <section class="mp-block">
+      <h3 class="mp-block-title">Genre priorities</h3>
+      <p class="mp-block-help">Primary and secondary genres raise related concepts. General theory stays required.</p>
       <div class="mp-genre-groups" id="mp-genre-groups"></div>
-    </details>
+    </section>
+
+    <section class="mp-block">
+      <h3 class="mp-block-title">Learning goals</h3>
+      <p class="mp-block-help">Goals nudge application framing and concept weight.</p>
+      <div class="mp-chip-grid" id="mp-goals"></div>
+    </section>
+
+    <section class="mp-block">
+      <h3 class="mp-block-title">Study balance</h3>
+      <p class="mp-block-help">Choose how aggressively genre color competes with foundation and review.</p>
+      <div class="mp-balance" id="mp-balance"></div>
+    </section>
+
+    <section class="mp-block">
+      <h3 class="mp-block-title">Application preference</h3>
+      <p class="mp-block-help">Frames practice prompts after theory work — you still supply the musical answer.</p>
+      <div class="mp-chip-grid" id="mp-apps"></div>
+    </section>
+
+    <section class="mp-block">
+      <h3 class="mp-block-title">Pause topics</h3>
+      <p class="mp-block-help">Temporarily exclude a concept without deleting it from your profile.</p>
+      <div class="mp-chip-grid mp-exclusions" id="mp-exclusions"></div>
+    </section>
+
+    <section class="mp-block">
+      <h3 class="mp-block-title">Preview</h3>
+      <div class="mp-preview" id="mp-preview"></div>
+    </section>
   `;
 
-  paintDefaults();
-  paintSimpleProfile();
+  paintMusicalContext();
   paintVolume();
   paintDeviceSync();
   paintLibraryCleanup();
-  paintStorageInfo();
   paintFeatures();
-  paintGenres(getMusicProfile());
+  paintGenres(profile);
+  paintGoals(profile);
+  paintBalance(profile);
+  paintApps(profile);
+  paintExclusions(profile);
+  paintPreview(rec);
 }
 
-function paintDefaults() {
-  const grid = host?.querySelector('#mp-defaults-grid');
-  if (!grid) return;
-
-  const ctx = getMusicContext();
-  grid.innerHTML = `
-    <label class="study-setup-field">
-      <span class="study-setup-label">Instrument</span>
-      <select id="mp-default-instrument" class="study-setup-select"></select>
-    </label>
-    <label class="study-setup-field">
-      <span class="study-setup-label">Tuning</span>
-      <select id="mp-default-tuning" class="study-setup-select"></select>
-    </label>
-    <label class="study-setup-field">
-      <span class="study-setup-label">Key</span>
-      <select id="mp-default-root" class="study-setup-select"></select>
-    </label>
-    <label class="study-setup-field">
-      <span class="study-setup-label">Mode / scale</span>
-      <select id="mp-default-scale" class="study-setup-select"></select>
-    </label>
-    <label class="study-setup-field">
-      <span class="study-setup-label">Tempo</span>
-      <div class="context-tempo-row">
-        <button type="button" class="context-step" id="mp-default-tempo-down" aria-label="Slower">-</button>
-        <input type="number" id="mp-default-tempo" class="context-tempo-input study-setup-select" min="${TEMPO_MIN}" max="${TEMPO_MAX}" inputmode="numeric" aria-label="Tempo BPM">
-        <span class="context-tempo-unit">BPM</span>
-        <button type="button" class="context-step" id="mp-default-tempo-up" aria-label="Faster">+</button>
-      </div>
-    </label>
-    <label class="study-setup-field">
-      <span class="study-setup-label">Accidentals</span>
-      <select id="mp-default-acc" class="study-setup-select">
-        <option value="sharps">Sharps</option>
-        <option value="flats">Flats</option>
-      </select>
-    </label>
-  `;
-
-  const instSel = grid.querySelector('#mp-default-instrument');
-  INSTRUMENTS.forEach((item) => {
-    const opt = document.createElement('option');
-    opt.value = item.id;
-    opt.textContent = item.label;
-    if (item.id === ctx.instrument) opt.selected = true;
-    instSel.appendChild(opt);
-  });
-
-  const tuningSel = grid.querySelector('#mp-default-tuning');
-  TUNING_CATALOG.forEach((preset) => {
-    const opt = document.createElement('option');
-    opt.value = preset.id;
-    opt.textContent = preset.name;
-    if (preset.id === ctx.tuningId) opt.selected = true;
-    tuningSel.appendChild(opt);
-  });
-
-  const rootSel = grid.querySelector('#mp-default-root');
-  ROOTS.forEach((r) => {
-    const opt = document.createElement('option');
-    opt.value = r;
-    opt.textContent = r;
-    if (r === ctx.root) opt.selected = true;
-    rootSel.appendChild(opt);
-  });
-
-  const scaleSel = grid.querySelector('#mp-default-scale');
-  Object.keys(SCALES).forEach((name) => {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = shortScaleName(name);
-    if (name === ctx.scaleId) opt.selected = true;
-    scaleSel.appendChild(opt);
-  });
-
-  const tempoInput = grid.querySelector('#mp-default-tempo');
-  const accSel = grid.querySelector('#mp-default-acc');
-  tempoInput.value = ctx.tempoBpm;
-  accSel.value = ctx.keySignaturePreference;
-
-  const apply = () => {
-    setMusicContext({
-      instrument: instSel.value,
-      tuningId: tuningSel.value,
-      root: rootSel.value,
-      scaleId: scaleSel.value,
-      tempoBpm: Number(tempoInput.value),
-      keySignaturePreference: accSel.value,
-    }, CONTEXT_SOURCE);
-  };
-
-  instSel.onchange = apply;
-  tuningSel.onchange = apply;
-  rootSel.onchange = apply;
-  scaleSel.onchange = apply;
-  accSel.onchange = apply;
-  tempoInput.onchange = apply;
-  grid.querySelector('#mp-default-tempo-down').onclick = () => {
-    setMusicContext({ tempoBpm: getMusicContext().tempoBpm - 1 }, CONTEXT_SOURCE);
-  };
-  grid.querySelector('#mp-default-tempo-up').onclick = () => {
-    setMusicContext({ tempoBpm: getMusicContext().tempoBpm + 1 }, CONTEXT_SOURCE);
-  };
-
-  contextUnsub = subscribeMusicContext((next) => {
-    if (instSel.value !== (next.instrument || '')) instSel.value = next.instrument || 'guitar';
-    if (tuningSel.value !== next.tuningId) tuningSel.value = next.tuningId;
-    if (rootSel.value !== next.root) rootSel.value = next.root;
-    if (scaleSel.value !== next.scaleId) scaleSel.value = next.scaleId;
-    if (Number(tempoInput.value) !== next.tempoBpm) tempoInput.value = next.tempoBpm;
-    if (accSel.value !== next.keySignaturePreference) accSel.value = next.keySignaturePreference;
+function buildSegmented(container, items, activeVal, onPick) {
+  container.innerHTML = '';
+  items.forEach(({ val, label }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'seg-btn' + (val === activeVal ? ' active' : '');
+    btn.dataset.val = val;
+    btn.textContent = label;
+    btn.onclick = () => onPick(val);
+    container.appendChild(btn);
   });
 }
 
-function paintSimpleProfile() {
-  const root = host?.querySelector('#mp-profile-simple');
-  if (!root) return;
-  const model = buildSettingsModel();
-  root.innerHTML = `
-    <label class="study-setup-field">
-      <span class="study-setup-label">Primary genre</span>
-      <select id="mp-simple-genre" class="study-setup-select" aria-label="Primary genre">
-        <option value="">General theory</option>
-        ${GENRE_LIST.map((g) =>
-          `<option value="${g.id}"${model.profile.primaryGenre === g.id ? ' selected' : ''}>${escapeHtml(g.label)}</option>`
-        ).join('')}
-      </select>
-    </label>
-    <label class="study-setup-field">
-      <span class="study-setup-label">Learning goal</span>
-      <select id="mp-simple-goal" class="study-setup-select" aria-label="Learning goal">
-        <option value="">None selected</option>
-        ${LEARNING_GOALS.map((g) =>
-          `<option value="${g.id}"${model.profile.primaryGoal === g.id ? ' selected' : ''}>${escapeHtml(g.label)}</option>`
-        ).join('')}
-      </select>
-    </label>
-    <p class="mp-block-help mp-profile-hint">${escapeHtml(model.profile.genreSummary)}</p>
-  `;
-
-  const genreSel = root.querySelector('#mp-simple-genre');
-  const goalSel = root.querySelector('#mp-simple-goal');
-
-  genreSel.onchange = () => {
-    const id = genreSel.value;
-    if (!id) {
-      const profile = getMusicProfile();
-      profile.genres.forEach((g) => removeGenre(g.id));
-    } else {
-      setGenrePriority(id, 'primary');
-    }
-    paintSimpleProfile();
-    notifyProfileChanged();
-  };
-
-  goalSel.onchange = () => {
-    const id = goalSel.value;
-    saveMusicProfile({ goals: id ? [id] : [], onboarded: true });
-    paintSimpleProfile();
-    notifyProfileChanged();
-  };
+function markSegmentActive(container, val) {
+  container.querySelectorAll('.seg-btn').forEach(el => {
+    el.classList.toggle('active', el.dataset.val === val);
+  });
 }
 
-function paintVolume() {
-  const slider = host?.querySelector('#mp-volume-slider');
-  const valueLabel = host?.querySelector('#mp-volume-value');
-  if (!slider) return;
+function syncContextBlock(c) {
+  const rootVal = host?.querySelector('#mp-ctx-root-val');
+  const scaleVal = host?.querySelector('#mp-ctx-scale-val');
+  const tempoInput = host?.querySelector('#mp-ctx-tempo');
+  const rootModeRow = host?.querySelector('#mp-ctx-root-mode');
+  const scaleModeRow = host?.querySelector('#mp-ctx-scale-mode');
+  if (rootVal) rootVal.textContent = c.root;
+  if (scaleVal) scaleVal.textContent = shortScaleName(c.scale);
+  if (tempoInput && Number(tempoInput.value) !== c.tempo) tempoInput.value = c.tempo;
+  if (rootModeRow) markSegmentActive(rootModeRow, c.rootMode);
+  if (scaleModeRow) markSegmentActive(scaleModeRow, c.scaleMode);
+  renderQuickScales();
+}
 
-  const saved = Number(getSetting('global.volume', getMasterVolume()));
-  const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
-  setMasterVolume(initial);
-  slider.value = String(Math.round(getMasterVolume() * 100));
-  if (valueLabel) valueLabel.textContent = `${Math.round(getMasterVolume() * 100)}%`;
+function renderQuickScales() {
+  const row = host?.querySelector('#mp-ctx-quick-scales');
+  if (!row) return;
+  import('./pickers.js').then(({ getQuickScales }) => {
+    const c = getContext();
+    const scales = getQuickScales(5);
+    row.innerHTML = '';
+    scales.forEach(name => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-scale-chip' + (name === c.scale ? ' active' : '');
+      btn.textContent = shortScaleName(name);
+      btn.onclick = () => setContext({ scale: name }, CONTEXT_SOURCE);
+      row.appendChild(btn);
+    });
+  });
+}
 
-  slider.oninput = (e) => {
-    const vol = Number(e.target.value) / 100;
-    setMasterVolume(vol);
-    saveSetting('global.volume', getMasterVolume());
-    if (valueLabel) valueLabel.textContent = `${Math.round(getMasterVolume() * 100)}%`;
+function paintMusicalContext() {
+  const rootModeRow = host?.querySelector('#mp-ctx-root-mode');
+  const scaleModeRow = host?.querySelector('#mp-ctx-scale-mode');
+  const tempoInput = host?.querySelector('#mp-ctx-tempo');
+  if (!rootModeRow || !scaleModeRow || !tempoInput) return;
+
+  const c = getContext();
+  buildSegmented(rootModeRow, MODE_ITEMS, c.rootMode, val => {
+    setContext({ rootMode: val }, CONTEXT_SOURCE);
+  });
+  buildSegmented(scaleModeRow, MODE_ITEMS, c.scaleMode, val => {
+    setContext({ scaleMode: val }, CONTEXT_SOURCE);
+  });
+
+  host.querySelector('#mp-ctx-root-btn').onclick = async () => {
+    await openRootPicker({ value: getContext().root, source: CONTEXT_SOURCE });
   };
+  host.querySelector('#mp-ctx-scale-btn').onclick = async () => {
+    await openScalePicker({ value: getContext().scale, source: CONTEXT_SOURCE });
+  };
+
+  tempoInput.value = c.tempo;
+  tempoInput.onchange = () => setContext({ tempo: Number(tempoInput.value) }, CONTEXT_SOURCE);
+  host.querySelector('#mp-ctx-tempo-down').onclick = () => setContext({ tempo: getContext().tempo - 1 }, CONTEXT_SOURCE);
+  host.querySelector('#mp-ctx-tempo-up').onclick = () => setContext({ tempo: getContext().tempo + 1 }, CONTEXT_SOURCE);
+
+  renderQuickScales();
+  contextUnsub = subscribeContext((ctx) => syncContextBlock(ctx));
 }
 
 let syncEstimateTimer = null;
@@ -420,7 +365,11 @@ async function updateSyncEstimate(scopes) {
   try {
     const { buildSnapshot } = await import('./sync/syncProfile.js');
     const { encodePayload, estimateTransfer } = await import('./sync/frames.js');
-    const { DEFAULT_BEAM_FPS, formatPayloadBeamEstimate, evaluateQrBeamGate } = await import('./sync/syncUI.js');
+    const {
+      DEFAULT_BEAM_FPS,
+      formatPayloadBeamEstimate,
+      evaluateQrBeamGate,
+    } = await import('./sync/syncUI.js');
     const snapshot = buildSnapshot({ scopes });
     const bytes = await encodePayload(snapshot);
     if (gen !== syncEstimateGen) return;
@@ -430,7 +379,12 @@ async function updateSyncEstimate(scopes) {
       payloadEl.textContent = formatPayloadBeamEstimate(bytes.length, est, { prefixAbout: true });
     }
 
-    const gate = evaluateQrBeamGate({ scopes, bundleEstimate, payloadByteLength: bytes.length });
+    const gate = evaluateQrBeamGate({
+      scopes,
+      bundleEstimate,
+      payloadByteLength: bytes.length,
+    });
+
     if (qrWarningEl) {
       if (gate.warningText) {
         qrWarningEl.hidden = false;
@@ -440,6 +394,7 @@ async function updateSyncEstimate(scopes) {
         qrWarningEl.textContent = '';
       }
     }
+
     if (beamBtn) {
       beamBtn.disabled = !gate.allowBeam;
       beamBtn.title = gate.tooltip || '';
@@ -478,17 +433,20 @@ function paintDeviceSync() {
     });
 
     const readScopes = () => {
+      const boxes = scopeRoot.querySelectorAll('[data-sync-scope]');
       const ids = [];
-      scopeRoot.querySelectorAll('[data-sync-scope]').forEach((box) => {
+      boxes.forEach((box) => {
         if (box.checked) ids.push(box.dataset.syncScope);
       });
       return ids.length ? ids : [...allIds];
     };
+
     const scopesForEstimate = () => effectiveSyncScopes(readScopes, allIds);
 
     scopeRoot.querySelectorAll('[data-sync-scope]').forEach((box) => {
       box.onchange = () => {
-        saveSetting('sync.scopes', readScopes());
+        const ids = readScopes();
+        saveSetting('sync.scopes', ids);
         scheduleSyncEstimate(scopesForEstimate());
       };
     });
@@ -517,6 +475,7 @@ function paintDeviceSync() {
         await openBundleExport({ scopes: [...allIds], trigger: exportLibraryBtn });
       };
     }
+
     if (importBtn && importInput) {
       importBtn.onclick = () => importInput.click();
       importInput.onchange = async () => {
@@ -529,6 +488,7 @@ function paintDeviceSync() {
         } catch (_) { /* ignore */ }
       };
     }
+
     if (exportBtn) {
       exportBtn.onclick = () => {
         const scopes = scopesForEstimate();
@@ -547,13 +507,16 @@ function paintDeviceSync() {
         }).catch(() => { /* ignore */ });
       };
     }
+
     if (beamBtn) {
       beamBtn.onclick = async () => {
         if (beamBtn.disabled) return;
+        const scopes = scopesForEstimate();
         const { openBeamDialog } = await import('./sync/syncUI.js');
-        await openBeamDialog({ scopes: scopesForEstimate(), trigger: beamBtn });
+        await openBeamDialog({ scopes, trigger: beamBtn });
       };
     }
+
     if (receiveBtn) {
       receiveBtn.onclick = async () => {
         const { openReceiveDialog } = await import('./sync/syncUI.js');
@@ -566,59 +529,6 @@ function paintDeviceSync() {
     if (bundleEl) bundleEl.textContent = 'Device sync is not available.';
     if (payloadEl) payloadEl.textContent = 'Device sync is not available.';
   });
-}
-
-function paintStorageInfo() {
-  const facts = host?.querySelector('#mp-storage-facts');
-  if (!facts) return;
-
-  const offlineReady = typeof navigator !== 'undefined' && 'serviceWorker' in navigator
-    && !!navigator.serviceWorker.controller;
-  const idbOk = (() => {
-    try { return typeof indexedDB !== 'undefined' && !!indexedDB; } catch (_) { return false; }
-  })();
-
-  facts.innerHTML = `
-    <div class="music-inspector-fact"><dt>Offline app</dt><dd id="mp-storage-offline">${offlineReady ? 'Ready' : 'Install or reload to cache'}</dd></div>
-    <div class="music-inspector-fact"><dt>File storage</dt><dd>${idbOk ? 'Available' : 'Unavailable'}</dd></div>
-    <div class="music-inspector-fact"><dt>Disk use</dt><dd id="mp-storage-quota" aria-live="polite">Calculating…</dd></div>
-    <div class="music-inspector-fact"><dt>Persistent</dt><dd id="mp-storage-persist" aria-live="polite">Checking…</dd></div>
-  `;
-
-  const quotaEl = facts.querySelector('#mp-storage-quota');
-  const persistEl = facts.querySelector('#mp-storage-persist');
-
-  if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
-    navigator.storage.estimate().then((est) => {
-      const used = est.usage != null ? formatBytes(est.usage) : 'Unknown';
-      const quota = est.quota != null ? formatBytes(est.quota) : 'Unknown';
-      if (quotaEl) quotaEl.textContent = `${used} of ${quota}`;
-    }).catch(() => {
-      if (quotaEl) quotaEl.textContent = 'Could not read';
-    });
-  } else if (quotaEl) {
-    quotaEl.textContent = 'Not reported by browser';
-  }
-
-  if (typeof navigator !== 'undefined' && navigator.storage?.persisted) {
-    navigator.storage.persisted().then((yes) => {
-      if (persistEl) persistEl.textContent = yes ? 'Protected from eviction' : 'May be cleared under pressure';
-    }).catch(() => {
-      if (persistEl) persistEl.textContent = 'Unknown';
-    });
-  } else if (persistEl) {
-    persistEl.textContent = 'Not reported by browser';
-  }
-
-  import('./attachments.js').then(({ ensurePersistentStorage }) => ensurePersistentStorage()).catch(() => {});
-}
-
-function formatBytes(n) {
-  if (!Number.isFinite(n)) return '0 B';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function ensureDialogRoot() {
@@ -671,7 +581,8 @@ function openConfirm(title, body, confirmLabel, onConfirm, { danger = false } = 
 }
 
 function getUnattachedWorkbookCount() {
-  return listWorkbooks().filter((wb) => !collectAttachedWorkbookIds().has(wb.id)).length;
+  const attached = collectAttachedWorkbookIds();
+  return listWorkbooks().filter((wb) => !attached.has(wb.id)).length;
 }
 
 function paintLibraryCleanup() {
@@ -679,7 +590,6 @@ function paintLibraryCleanup() {
   if (!root) return;
 
   root.innerHTML = `
-    <h4 class="mp-subtitle">Library cleanup</h4>
     <div class="mp-cleanup-row">
       <p class="mp-cleanup-count" id="mp-cleanup-wb-count"></p>
       <button type="button" class="btn sm" id="mp-cleanup-wb-btn">Delete unattached workbooks</button>
@@ -714,6 +624,10 @@ function paintLibraryCleanup() {
     if (exBtn) exBtn.disabled = unfiled === 0;
   }
 
+  function setStatus(msg) {
+    if (statusEl) statusEl.textContent = msg || '';
+  }
+
   refreshCounts();
 
   if (wbBtn) {
@@ -722,11 +636,11 @@ function paintLibraryCleanup() {
       if (!n) return;
       openConfirm(
         'Delete unattached workbooks?',
-        'These workbooks are not used by any routine session.',
+        'These workbooks are not used by any routine session. Workbooks attached to a session are kept.',
         `Delete ${n} workbook${n === 1 ? '' : 's'}`,
         () => {
           const deleted = deleteWorkbooksNotAttached(collectAttachedWorkbookIds());
-          statusEl.textContent = deleted === 1 ? 'Deleted 1 workbook.' : `Deleted ${deleted} workbooks.`;
+          setStatus(deleted === 1 ? 'Deleted 1 workbook.' : `Deleted ${deleted} workbooks.`);
           refreshCounts();
         },
         { danger: true },
@@ -740,12 +654,12 @@ function paintLibraryCleanup() {
       if (!n) return;
       openConfirm(
         'Delete unfiled exercises?',
-        'Exercises in "No folder" will be permanently removed.',
+        'Exercises in "No folder" will be permanently removed, including their files on this device.',
         `Delete ${n} exercise${n === 1 ? '' : 's'}`,
         async () => {
           const deleted = await deleteExercisesWithoutFolder();
           pruneMissingExercisesAll(getExercises().map((e) => e.id));
-          statusEl.textContent = deleted === 1 ? 'Deleted 1 exercise.' : `Deleted ${deleted} exercises.`;
+          setStatus(deleted === 1 ? 'Deleted 1 exercise.' : `Deleted ${deleted} exercises.`);
           refreshCounts();
         },
         { danger: true },
@@ -754,26 +668,47 @@ function paintLibraryCleanup() {
   }
 }
 
+function paintVolume() {
+  const slider = host?.querySelector('#mp-volume-slider');
+  const valueLabel = host?.querySelector('#mp-volume-value');
+  if (!slider) return;
+
+  const saved = Number(getSetting('global.volume', getMasterVolume()));
+  const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
+  setMasterVolume(initial);
+  slider.value = String(Math.round(getMasterVolume() * 100));
+  if (valueLabel) valueLabel.textContent = Math.round(getMasterVolume() * 100) + '%';
+
+  slider.oninput = (e) => {
+    const vol = Number(e.target.value) / 100;
+    setMasterVolume(vol);
+    saveSetting('global.volume', getMasterVolume());
+    if (valueLabel) valueLabel.textContent = Math.round(getMasterVolume() * 100) + '%';
+  };
+}
+
 function paintFeatures() {
-  const root = host?.querySelector('#mp-features');
+  const root = host.querySelector('#mp-features');
   if (!root) return;
   root.innerHTML = '';
   const stored = getEnabledFeatureIdsRaw();
-  const enabledSet = stored === undefined ? new Set(TOOLS.map((t) => t.id)) : new Set(stored);
+  const enabledSet = stored === undefined
+    ? new Set(TOOLS.map(t => t.id))
+    : new Set(stored);
 
-  CATEGORIES.forEach((cat) => {
-    const tools = toolsInCategory(cat.id).filter((t) => !NAV_PROTECTED_FEATURES.has(t.id));
+  CATEGORIES.forEach(cat => {
+    const tools = toolsInCategory(cat.id);
     if (!tools.length) return;
     const block = document.createElement('div');
     block.className = 'mp-feature-group';
     block.innerHTML = `<div class="mp-genre-group-label">${escapeHtml(cat.label)}</div>`;
     const list = document.createElement('div');
     list.className = 'mp-feature-list';
-    tools.forEach((tool) => {
+    tools.forEach(tool => {
       const locked = tool.id === 'musicprefs';
       const on = locked || enabledSet.has(tool.id);
       const row = document.createElement('label');
-      row.className = `mp-feature-row${on ? ' on' : ''}${locked ? ' locked' : ''}`;
+      row.className = 'mp-feature-row' + (on ? ' on' : '') + (locked ? ' locked' : '');
       row.innerHTML = `
         <input type="checkbox" class="mp-feature-check" data-tool="${tool.id}"${on ? ' checked' : ''}${locked ? ' disabled' : ''}>
         <span class="mp-feature-icon">${TOOL_ICONS[tool.id] || ''}</span>
@@ -789,18 +724,25 @@ function paintFeatures() {
     root.appendChild(block);
   });
 
-  root.querySelectorAll('.mp-feature-check').forEach((input) => {
+  root.querySelectorAll('.mp-feature-check').forEach(input => {
     if (input.disabled) return;
     input.onchange = () => {
-      setFeatureEnabled(input.dataset.tool, input.checked);
+      const id = input.dataset.tool;
+      setFeatureEnabled(id, input.checked);
       notifyFeaturesChanged();
       paintFeatures();
     };
   });
 }
 
+function notifyFeaturesChanged() {
+  try {
+    window.dispatchEvent(new CustomEvent('musi:features-changed'));
+  } catch (_) { /* ignore */ }
+}
+
 function paintGenres(profile) {
-  const root = host?.querySelector('#mp-genre-groups');
+  const root = host.querySelector('#mp-genre-groups');
   if (!root) return;
   root.innerHTML = '';
   groupGenres().forEach((genres, groupName) => {
@@ -809,10 +751,10 @@ function paintGenres(profile) {
     block.innerHTML = `<div class="mp-genre-group-label">${escapeHtml(groupName)}</div>`;
     const list = document.createElement('div');
     list.className = 'mp-genre-list';
-    genres.forEach((g) => {
+    genres.forEach(g => {
       const pri = genrePriority(profile, g.id);
       const row = document.createElement('div');
-      row.className = `mp-genre-row${pri && pri !== 'inactive' ? ' active' : ''}`;
+      row.className = 'mp-genre-row' + (pri && pri !== 'inactive' ? ' active' : '');
       row.innerHTML = `
         <div class="mp-genre-meta">
           <div class="mp-genre-name">${escapeHtml(g.label)}</div>
@@ -820,9 +762,9 @@ function paintGenres(profile) {
         </div>
         <label class="mp-select-wrap">
           <span class="sr-only">Priority for ${escapeHtml(g.label)}</span>
-          <select data-genre="${g.id}" class="mp-priority-select study-setup-select">
+          <select data-genre="${g.id}" class="mp-priority-select">
             <option value="">Not selected</option>
-            ${GENRE_PRIORITIES.map((p) =>
+            ${GENRE_PRIORITIES.map(p =>
               `<option value="${p.id}"${pri === p.id ? ' selected' : ''}>${escapeHtml(p.label)}</option>`
             ).join('')}
           </select>
@@ -834,25 +776,131 @@ function paintGenres(profile) {
     root.appendChild(block);
   });
 
-  root.querySelectorAll('.mp-priority-select').forEach((sel) => {
+  root.querySelectorAll('.mp-priority-select').forEach(sel => {
     sel.onchange = () => {
       const id = sel.dataset.genre;
-      if (!sel.value) removeGenre(id);
-      else setGenrePriority(id, sel.value);
-      paintGenres(getMusicProfile());
-      paintSimpleProfile();
-      notifyProfileChanged();
+      const val = sel.value;
+      if (!val) removeGenre(id);
+      else setGenrePriority(id, val);
+      render();
+      notifyHome();
     };
   });
 }
 
-function notifyFeaturesChanged() {
-  try {
-    window.dispatchEvent(new CustomEvent('musi:features-changed'));
-  } catch (_) { /* ignore */ }
+function paintGoals(profile) {
+  const root = host.querySelector('#mp-goals');
+  if (!root) return;
+  root.innerHTML = '';
+  LEARNING_GOALS.forEach(goal => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mp-chip' + (profile.goals.includes(goal.id) ? ' on' : '');
+    btn.textContent = goal.label;
+    btn.onclick = () => {
+      toggleGoal(goal.id);
+      render();
+      notifyHome();
+    };
+    root.appendChild(btn);
+  });
 }
 
-function notifyProfileChanged() {
+function paintBalance(profile) {
+  const root = host.querySelector('#mp-balance');
+  if (!root) return;
+  root.innerHTML = '';
+  STUDY_BALANCES.forEach(b => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mp-balance-card' + (profile.balance === b.id ? ' on' : '');
+    btn.innerHTML = `
+      <span class="mp-balance-label">${escapeHtml(b.label)}</span>
+      <span class="mp-balance-desc">${escapeHtml(b.description)}</span>
+    `;
+    btn.onclick = () => {
+      setStudyBalance(b.id);
+      render();
+      notifyHome();
+    };
+    root.appendChild(btn);
+  });
+}
+
+function paintApps(profile) {
+  const root = host.querySelector('#mp-apps');
+  if (!root) return;
+  root.innerHTML = '';
+  APPLICATION_PREFS.forEach(app => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mp-chip' + (profile.applications.includes(app.id) ? ' on' : '');
+    btn.textContent = app.label;
+    btn.onclick = () => {
+      toggleApplication(app.id);
+      render();
+      notifyHome();
+    };
+    root.appendChild(btn);
+  });
+}
+
+function paintExclusions(profile) {
+  const root = host.querySelector('#mp-exclusions');
+  if (!root) return;
+  // Offer concepts that appear in the catalog, plus any already excluded.
+  const ids = new Set(STUDY_CATALOG.flatMap(s => s.concepts));
+  profile.exclusions.forEach(id => ids.add(id));
+  const list = [...ids]
+    .filter(id => CONCEPTS[id])
+    .sort((a, b) => conceptLabel(a).localeCompare(conceptLabel(b)))
+    .slice(0, 36);
+
+  root.innerHTML = '';
+  list.forEach(id => {
+    const on = profile.exclusions.includes(id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mp-chip mp-chip-mute' + (on ? ' on' : '');
+    btn.textContent = conceptLabel(id);
+    btn.title = on ? 'Click to resume' : 'Click to pause';
+    btn.onclick = () => {
+      toggleExclusion(id);
+      render();
+      notifyHome();
+    };
+    root.appendChild(btn);
+  });
+}
+
+function paintPreview(recBundle) {
+  const root = host.querySelector('#mp-preview');
+  if (!root) return;
+  const rec = recBundle.primary;
+  if (!rec) {
+    root.innerHTML = `<p class="mp-preview-empty">No study available with the current exclusions.</p>`;
+    return;
+  }
+  root.innerHTML = `
+    <div class="mp-preview-kicker">${escapeHtml(rec.categoryLabel)}</div>
+    <div class="mp-preview-title">${escapeHtml(rec.title)}</div>
+    <p class="mp-preview-body">${escapeHtml(rec.narrative)}</p>
+    <ul class="mp-preview-reasons">
+      ${rec.reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+    </ul>
+    <p class="mp-preview-guard">${escapeHtml(rec.guardrail)}</p>
+  `;
+}
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function notifyHome() {
   try {
     window.dispatchEvent(new CustomEvent('musi:profile-changed'));
   } catch (_) { /* ignore */ }
@@ -864,7 +912,8 @@ export function initGlobalVolume() {
   setMasterVolume(initial);
 }
 
-export function initMusicPreferences() {
+export function initMusicPreferences({ showSection } = {}) {
+  showSectionFn = showSection;
   host = document.getElementById('music-prefs-root');
   if (!host) return;
   render();
