@@ -2,6 +2,41 @@
 
 ## Cursor Cloud specific instructions
 
+### Communication style (ASD-STE100 Simplified Technical English)
+
+**All agent output must use ASD-STE100 Simplified Technical English.** This is the
+controlled-language standard that ASD (AeroSpace and Defence Industries Association of
+Europe) maintains.
+
+- **Scope:** this applies to everything the agent writes: chat replies and progress
+  updates, final summaries, commit messages, PR titles and descriptions, code comments,
+  and any documentation or product copy added to the repo.
+- **Words:** use approved words in their approved meaning only. One word carries one
+  meaning and one part of speech. Prefer the simplest common word (for example "use"
+  over "utilise", "start" over "commence", "fix" over "remediate").
+- **Sentence length:** keep procedural sentences to 20 words or fewer. Keep descriptive
+  sentences to 25 words or fewer. Write one instruction per sentence.
+- **Voice and tense:** use the active voice and name the actor. Avoid the passive voice.
+  Use simple verb tenses: present, past, and future. Do not use participial phrases as
+  verbs (avoid "-ing" forms that stand in for a verb).
+- **Articles and noun strings:** keep articles ("a", "an", "the") in place. Do not drop
+  them to save space. Avoid noun clusters of more than three words. Break long noun
+  strings apart with prepositions.
+- **Literal writing:** avoid slang, idiom, jargon, metaphor, and humour. Write
+  literally.
+- **Structure:** write steps in the order the reader must do them. Keep paragraphs to six
+  sentences or fewer.
+- **Terminology:** pick one term for a thing and reuse it. Do not use synonyms for
+  variety.
+- **Exceptions:** do not reword verbatim material to fit the standard. Verbatim material
+  includes quoted code, identifiers, file paths, commands, command output, error text,
+  existing product copy and UI strings, and direct quotations from the user or from
+  third-party documents. Technical terms specific to this project count as approved
+  project vocabulary. Use them as-is. Examples are musical terms such as "interval",
+  "mode", and "chord quality", and the Game Boy Color theme tokens.
+- **Conflict:** when ASD-STE100 style rules conflict with technical accuracy, accuracy
+  wins. Restructure the sentence instead of stating something incorrect.
+
 ### Agent workflow (Composer 2.5 sub-agents)
 
 **Sub-agent implementation is required.** Use Composer 2.5 sub-agents for task
