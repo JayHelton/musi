@@ -1,6 +1,6 @@
 # Cloud Sync — Database & Infrastructure Reference
 
-Supabase-side schema, storage, Realtime, Edge Function, and Terraform for
+Supabase-side schema, storage, Realtime, Edge Function, and deployment reference for
 optional Musi cloud sync. Master scope lives in
 [`docs/supabase-sync-plan.md`](supabase-sync-plan.md); client design in
 [`docs/supabase-sync-client.md`](supabase-sync-client.md).
@@ -24,7 +24,6 @@ supabase/
 ├── migrations/
 ├── tests/
 └── functions/account/index.ts
-infra/terraform/          # main.tf, variables.tf, terraform.tfvars, README.md
 ```
 
 | Path | Purpose | Commit? |
@@ -34,8 +33,7 @@ infra/terraform/          # main.tf, variables.tf, terraform.tfvars, README.md
 | `supabase/migrations/*.sql` | Generated + hand-written apply chain | Yes |
 | `supabase/tests/*.sql` | pgTAP (`supabase test db`) | Yes |
 | `supabase/functions/account/index.ts` | Account delete + export | Yes |
-| `infra/terraform/*` | Production project + settings | Yes |
-| `*.tfvars`, `.env` with secrets | Tokens, passwords, SMTP | **No** |
+| `.env` with secrets | SMTP credentials for local dev | **No** |
 
 ---
 
@@ -519,13 +517,14 @@ All other sync operations: client → PostgREST/Storage under RLS.
 
 ## config.toml
 
-Secrets via `env(...)` or dashboard — never commit real values.
+Secrets via `env(...)` for local development — never commit real values. Production SMTP is configured in the Dashboard.
+
+The `[api]`, `[auth]`, `[auth.email]`, and `[auth.rate_limit]` blocks below are **local-development settings only**. Production values are managed in the Supabase Dashboard; the GitHub integration ignores these blocks by default. Bucket and function declarations are deployed by the integration.
 
 ```toml
 project_id = "local"  # local stack only
 
-# [api] and [auth] values below are local development only.
-# Production API and Auth settings come from Terraform supabase_settings.
+# --- Local development only (integration ignores [api] and [auth] in production) ---
 
 [api]
 enabled = true
@@ -550,10 +549,14 @@ enabled = true
 enabled = true
 file_size_limit = "250MiB"
 
+# --- Deployed by GitHub integration on push to main ---
+
 [storage.buckets.attachments]
 public = false
 file_size_limit = "250MiB"
 allowed_mime_types = []
+
+# --- Local development only ---
 
 [auth]
 enabled = true
@@ -571,10 +574,10 @@ max_frequency = "1s"
 
 [auth.email.smtp]
 enabled = true
-host = "env(SMTP_HOST)"      # SECRET — custom SMTP required in production
+host = "env(SMTP_HOST)"      # local dev only — production SMTP is Dashboard-managed
 port = 587
-user = "env(SMTP_USER)"      # SECRET
-pass = "env(SMTP_PASS)"      # SECRET
+user = "env(SMTP_USER)"
+pass = "env(SMTP_PASS)"
 admin_email = "noreply@YOUR_DOMAIN.example"
 sender_name = "Musi"
 
@@ -584,6 +587,8 @@ sign_in_sign_ups = 30
 token_verifications = 30
 token_refresh = 150
 anonymous_users = 0          # v1: no anonymous auth
+
+# --- Deployed by GitHub integration on push to main ---
 
 [functions.account]
 verify_jwt = true
@@ -598,127 +603,36 @@ passwords/OAuth/anonymous.
 
 ---
 
-## Terraform
+## Deployment — Supabase Dashboard + GitHub integration
 
-Provider `supabase/supabase` ~> 1.10.x; auth via `SUPABASE_ACCESS_TOKEN`.
-
-One production project in Musi's Supabase organization, slug
-`ylvstxlbxumgmviaiwlx`. The slug is a plain identifier, not a credential — it is
-visible in dashboard URLs and confers no access by itself. What does confer
-access is `SUPABASE_ACCESS_TOKEN`, which must be a personal access token
-belonging to a member of that organization with permission to create projects;
-`terraform apply` fails at plan time otherwise.
-
-The GitHub integration ignores `[auth]` and `[api]` in `config.toml`; Terraform
-owns production auth and API settings.
-
-```hcl
-terraform {
-  required_providers {
-    supabase = {
-      source  = "supabase/supabase"
-      version = "~> 1.10.0"
-    }
-  }
-  # backend "s3" {} or Terraform Cloud — see infra/terraform/README.md
-}
-provider "supabase" {}
-
-resource "supabase_project" "musi" {
-  organization_id   = var.organization_id
-  name              = "musi-sync"
-  database_password = var.db_password
-  region            = var.region
-}
-resource "supabase_settings" "musi" {
-  project_ref = supabase_project.musi.id
-  api   = jsonencode({ db_schema = "public,storage", max_rows = 1000 })
-  auth  = jsonencode({ site_url = var.site_url,
-    additional_redirect_urls = var.redirect_urls, jwt_expiry = 3600 })
-  storage = jsonencode({ file_size_limit = 262144000 })
-}
-```
-
-```hcl
-# variables.tf
-variable "organization_id" {
-  type = string
-  # Musi's Supabase organization slug. Not a secret — it appears in dashboard
-  # URLs and grants nothing on its own. Forks override it with their own org.
-  default = "ylvstxlbxumgmviaiwlx"
-}
-variable "region" {
-  type    = string
-  default = "us-east-1"
-}
-variable "db_password" {
-  type      = string
-  sensitive = true
-}
-variable "site_url" { type = string }
-variable "redirect_urls" { type = list(string) }
-```
-
-```hcl
-# terraform.tfvars (placeholders — do not commit secrets)
-# organization_id defaults to Musi's org in variables.tf; forks override it here.
-region = "us-east-1"
-db_password = "CHANGE_ME"
-site_url = "https://example.com"
-redirect_urls = ["https://example.com", "http://localhost:8080"]
-```
-
-```hcl
-import {
-  to = supabase_project.musi
-  id = "abcdefghijklmnop"
-}
-# terraform import supabase_project.musi abcdefghijklmnop
-```
-
-| Knob | Owner |
-| ---- | ----- |
-| Project creation, region, database password | Terraform |
-| Auth settings (`site_url`, redirects, JWT expiry) | Terraform `supabase_settings` |
-| API settings (`max_rows`, schemas) | Terraform `supabase_settings` |
-| Storage settings (`file_size_limit`) | Terraform `supabase_settings` |
-| SMTP credentials | Dashboard or `supabase secrets set` |
-| Local dev auth/API | `config.toml` `[auth]`, `[api]` |
-| Bucket and function declarations | `config.toml` |
-| Applying migrations, deploying functions, deploying buckets | GitHub integration on push to `main` |
-| DDL, RLS, RPCs | Migrations (applied by integration) |
-
----
-
-## Deployment — Supabase GitHub integration
-
-One production Supabase project. Push to `main` deploys via the Supabase GitHub
-integration.
+One production Supabase project. The Supabase Dashboard creates and configures the project; the connected GitHub repository deploys versioned `supabase/` artifacts on push to `main`.
 
 **The integration deploys database migrations, Edge Functions declared in
 `config.toml`, and Storage buckets declared in `config.toml` — never the Musi
 PWA.** Application code at the repository root is never built or deployed.
 
-**API, Auth, and seed configuration in `config.toml` are ignored.** Terraform
-owns production API and Auth settings.
+**API, Auth, and seed configuration in `config.toml` are ignored by default.**
+Production Auth and API settings are configured in the Dashboard.
 
-### Setup
+### Setup checklist
 
-Run after `terraform apply` has created the project. The GitHub connection is
-configured once in the dashboard (not exposed by the Terraform provider).
+1. Create or open the production project in the Supabase Dashboard.
+2. Configure Auth/API redirect URLs, JWT expiry, and SMTP in the Dashboard.
+3. Dashboard → Project Settings → Integrations → GitHub Integration
+4. Authorize GitHub → authorize Supabase on GitHub
+5. Choose the repository
+6. **Working directory:** `.` (`supabase/` is at the repository root)
+7. **Deploy to production:** on (push/merge to `main`)
+8. **Automatic branching:** off
 
-1. Supabase Dashboard → Project Settings → Integrations → GitHub Integration
-2. Authorize GitHub → authorize Supabase on GitHub
-3. Choose the repository
-4. **Working directory:** `.` (`supabase/` is at the repository root)
-5. **Deploy to production:** on
-6. **Automatic branching:** off
+The connected integration owns deployment credentials — no separate access tokens or database passwords are required in the repository.
 
-| Integration deploys | Integration ignores | Owner |
-| ------------------- | ------------------- | ----- |
-| New migrations | `[api]` | Terraform `supabase_settings` |
-| Edge Functions in `config.toml` | `[auth]`, `[auth.email]`, `[auth.rate_limit]` | Terraform `supabase_settings` |
-| Storage buckets in `config.toml` | Seed configuration | — |
+| Integration deploys | Integration ignores (Dashboard-managed) |
+| ------------------- | --------------------------------------- |
+| New migrations | `[api]` |
+| Edge Functions in `config.toml` | `[auth]`, `[auth.email]`, `[auth.rate_limit]` |
+| Storage buckets in `config.toml` | Seed configuration |
+| | SMTP credentials (Dashboard) |
 
 ---
 
@@ -803,11 +717,10 @@ select * from finish(); rollback;
    an existing schema
 2. **Caution:** two representations (pull + `schemas/`). Reconcile deliberately
    before the next `db diff`.
-3. Apply or import via Terraform: project, `supabase_settings` (auth/API)
+3. Configure Auth/API/SMTP in the Supabase Dashboard
 4. Connect the repo: GitHub Integration, working directory `.`, Deploy to
    production on, automatic branching off
 5. Confirm the first integration deploy (migrations, functions, buckets)
-6. Configure SMTP in dashboard
 
 Never edit production only in Studio — `db diff` will not see it.
 
@@ -818,10 +731,10 @@ Never edit production only in Studio — `db diff` will not see it.
 | Risk | Mitigation |
 | ---- | ---------- |
 | Diff misses policies/grants | Hand-written migrations; review before push |
-| Integration ignores auth/API `config.toml` changes | Terraform owns production auth/API |
+| Dashboard drift from documented Auth/API settings | Dashboard is the source of truth; verify redirect URLs and SMTP after changes; do not expect `[auth]` / `[api]` `config.toml` edits to update production |
 | Breaking migration on auto-deploy | Additive, backwards-compatible migrations; local `supabase db reset` + pgTAP before push |
 | Retention vs stale cursor | `sync_watermarks.purged_through_rev` + `sync_bounds(cursor)` |
 | Opaque quota errors | Map `P0001` messages in client |
-| Free-tier project pause | Paid instance for production |
+| Free-tier project pause | Paid instance for production (Dashboard) |
 | Broadcast payload leak | Strip `payload` in broadcast copy |
 | Service role misuse | `verify_jwt`; derive user only from JWT |
