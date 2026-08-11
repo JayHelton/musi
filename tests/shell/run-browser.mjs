@@ -11,6 +11,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LEGACY_ROUTES } from '../../js/routes.js';
+import { SEED_SOURCE, SEED_IDS } from './seedFixture.mjs';
 
 const BASE = process.argv[2] || 'http://localhost:8080';
 const PORT = 9340;
@@ -219,6 +220,28 @@ async function waitForApp(send, sessionId) {
     await sleep(250);
   }
   throw new Error('app did not become ready within 30s');
+}
+
+async function waitForExpr(send, sessionId, expression, timeoutMs = 20000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const value = await tryEvalPage(send, sessionId, expression);
+    if (value) return value;
+    await sleep(250);
+  }
+  throw new Error(`timeout waiting for: ${expression}`);
+}
+
+async function installSeedFixture(send, sessionId, rpc, baseUrl) {
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: SEED_SOURCE }, sessionId);
+  await send('Page.navigate', { url: baseUrl + '/' }, sessionId);
+  await waitForDocument(send, sessionId, rpc);
+  await waitForApp(send, sessionId);
+  const idbStatus = await evalPage(send, sessionId, 'window.__seedAttachments()', true);
+  if (idbStatus !== 'ok') throw new Error(`IndexedDB seed failed: ${idbStatus}`);
+  await send('Page.navigate', { url: baseUrl + '/#home' }, sessionId);
+  await waitForDocument(send, sessionId, rpc);
+  await waitForApp(send, sessionId);
 }
 
 async function checkStaticServer(baseUrl) {
@@ -487,6 +510,170 @@ try {
       if (layout.small.length) throw new Error(`undersized targets: ${layout.small.join(', ')}`);
     });
   }
+
+  // Practice-flow regressions need seeded library data. Install after clean-state checks above.
+  await installSeedFixture(send, sessionId, rpc, BASE);
+
+  await check('Start Session on Today keeps hash and mounts workbook GP player', async () => {
+    await clearTestErrors(send, sessionId);
+    await navigateHash(send, sessionId, '#train/today');
+    await evalPage(send, sessionId, `
+      (function() {
+        const btn = document.querySelector('[data-action="start-session"]');
+        if (btn) btn.click();
+        return true;
+      })()
+    `);
+    await waitForExpr(send, sessionId, `
+      (function() {
+        const hash = location.hash;
+        const root = document.querySelector('.train-practice-host.train-session-practice .gpp-root');
+        return hash === '#train/today' && !!root;
+      })()
+    `, 25000);
+    await testErrors(send, sessionId);
+  });
+
+  await check('workbook practice score loads gpplayer.css styling', async () => {
+    await clearTestErrors(send, sessionId);
+    await navigateHash(send, sessionId, '#train/today');
+    await waitForExpr(send, sessionId, `
+      (function() {
+        return !!document.querySelector('.train-practice-host.train-session-practice .gpp-root');
+      })()
+    `, 25000);
+    const styled = await evalPage(send, sessionId, `
+      (function() {
+        const sheets = [...document.styleSheets];
+        const hasGpSheet = sheets.some((ss) => {
+          try { return ss.href && ss.href.includes('gpplayer.css'); } catch (e) { return false; }
+        });
+        const chrome = document.querySelector('.train-practice-host .gpp-chrome');
+        const display = chrome ? getComputedStyle(chrome).display : '';
+        return { hasGpSheet, display };
+      })()
+    `);
+    if (!styled.hasGpSheet) throw new Error('css/gpplayer.css not present in document.styleSheets');
+    if (styled.display !== 'flex') {
+      throw new Error(`gpp-chrome display expected flex, got ${styled.display || 'missing'}`);
+    }
+    await testErrors(send, sessionId);
+  });
+
+  await check('next session item changes mounted score', async () => {
+    await clearTestErrors(send, sessionId);
+    await navigateHash(send, sessionId, '#train/today');
+    await waitForExpr(send, sessionId, `
+      (function() {
+        return !!document.querySelector('.train-practice-host.train-session-practice .gpp-root');
+      })()
+    `, 25000);
+    const before = await evalPage(send, sessionId, `
+      (function() {
+        const el = document.querySelector('.train-outline-item.is-current .train-outline-label');
+        return el ? el.textContent.trim() : '';
+      })()
+    `);
+    if (before !== SEED_IDS.exercise1Name) {
+      throw new Error(`expected first item ${SEED_IDS.exercise1Name}, got ${before}`);
+    }
+    await evalPage(send, sessionId, `
+      (function() {
+        const buttons = [...document.querySelectorAll('.practice-bar-btn.practice-bar-nav')];
+        const next = buttons.find((b) => b.querySelector('.practice-bar-btn-label')?.textContent.trim() === 'Next');
+        if (next && !next.disabled) next.click();
+        return true;
+      })()
+    `);
+    const after = await waitForExpr(send, sessionId, `
+      (function() {
+        const el = document.querySelector('.train-outline-item.is-current .train-outline-label');
+        return el ? el.textContent.trim() : '';
+      })()
+    `, 15000);
+    if (after !== SEED_IDS.exercise2Name) {
+      throw new Error(`expected second item ${SEED_IDS.exercise2Name}, got ${after}`);
+    }
+    await testErrors(send, sessionId);
+  });
+
+  await check('library deep link opens seeded workbook detail', async () => {
+    await clearTestErrors(send, sessionId);
+    await navigateHash(send, sessionId, `#train/library?type=workbook&id=${SEED_IDS.workbook1}`);
+    const info = await evalPage(send, sessionId, `
+      (function() {
+        const pane = document.getElementById('wb-detail-pane');
+        const title = document.getElementById('wb-detail-title');
+        return {
+          visible: !!(pane && !pane.hidden),
+          title: title ? title.textContent.trim() : '',
+        };
+      })()
+    `);
+    if (!info.visible) throw new Error('workbook detail pane not visible');
+    if (info.title !== SEED_IDS.workbook1Name) {
+      throw new Error(`expected title ${SEED_IDS.workbook1Name}, got ${info.title}`);
+    }
+    await testErrors(send, sessionId);
+  });
+
+  await check('library deep link opens seeded exercise viewer', async () => {
+    await clearTestErrors(send, sessionId);
+    await navigateHash(send, sessionId, `#train/library?type=exercise&id=${SEED_IDS.exercise1}`);
+    const info = await evalPage(send, sessionId, `
+      (function() {
+        const pane = document.getElementById('ex-player-pane');
+        const title = document.getElementById('ex-player-title');
+        return {
+          visible: !!(pane && !pane.hidden),
+          title: title ? title.textContent.trim() : '',
+        };
+      })()
+    `);
+    if (!info.visible) throw new Error('exercise viewer pane not visible');
+    if (info.title !== SEED_IDS.exercise1Name) {
+      throw new Error(`expected title ${SEED_IDS.exercise1Name}, got ${info.title}`);
+    }
+    await testErrors(send, sessionId);
+  });
+
+  await check('library deep link loads seeded Guitar Pro score', async () => {
+    await clearTestErrors(send, sessionId);
+    await navigateHash(send, sessionId, `#train/library?player=gp&id=${SEED_IDS.exercise1}`);
+    await waitForExpr(send, sessionId, `
+      (function() {
+        const sec = document.getElementById('sec-gpplayer');
+        return !!(sec && sec.classList.contains('gpp-score-loaded'));
+      })()
+    `);
+    await testErrors(send, sessionId);
+  });
+
+  await check('train panel=practice opens metronome and closes cleanly', async () => {
+    await clearTestErrors(send, sessionId);
+    await navigateHash(send, sessionId, '#train?panel=practice');
+    const openInfo = await evalPage(send, sessionId, `
+      (function() {
+        const metro = document.querySelector('#workspace-root #sec-metronome');
+        return {
+          hash: location.hash,
+          hasMetro: !!metro,
+        };
+      })()
+    `);
+    if (!openInfo.hash.includes('panel=practice')) {
+      throw new Error(`panel param missing from hash: ${openInfo.hash}`);
+    }
+    if (!openInfo.hasMetro) throw new Error('#sec-metronome not in #workspace-root');
+    await evalPage(send, sessionId, `
+      document.querySelector('.train-utility-panel-close')?.click(); true
+    `);
+    await sleep(500);
+    await waitForApp(send, sessionId);
+    const after = await evalPage(send, sessionId, 'location.hash');
+    if (after.includes('panel=practice')) throw new Error(`panel still open: ${after}`);
+    await testErrors(send, sessionId);
+  });
 
   await send('Target.closeTarget', { targetId });
   ws.close();

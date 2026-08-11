@@ -372,6 +372,24 @@ test('endSession clears timers so process can exit', () => {
   assert.equal(hasActiveSession(), false);
 });
 
+const { runSessionWiringTests } = await import('./session-wiring.mjs');
+runSessionWiringTests({
+  test,
+  startSession,
+  getSession,
+  endSession,
+  restoreSession,
+  SESSION_STORAGE_KEY,
+  resetAll,
+  __setMetronomeDriverForTests,
+  makeRecordingDriver,
+  getSetting,
+  invalidateSettingsCache,
+  storage,
+});
+
 await import('./session-clock.mjs');
 
-console.log(`\n${passed} tests passed`);
+console.log(`\n# tests ${passed}`);
+console.log(`# pass ${passed}`);
+console.log(`# fail 0`);

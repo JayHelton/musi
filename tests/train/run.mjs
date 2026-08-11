@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { installDomShim } from '../gp-player/domShim.mjs';
 import { installLocalStorageShim } from '../shared/localStorageShim.mjs';
 import { runPracticeBarTests } from './practice-bar.mjs';
+import { runBuildSessionItemsTests } from './build-session-items.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '../..');
@@ -105,41 +106,7 @@ await test('TRAIN_SECTIONS maps every view param to a sec-* id in index.html', (
   }
 });
 
-await test('buildSessionItems preserves workbook order and expands exercises', () => {
-  const routine = { id: 'rt-1', name: 'Test' };
-  const session = {
-    id: 'rs-1',
-    workbookIds: ['wb-a', 'wb-b'],
-  };
-  const workbooks = {
-    'wb-a': {
-      id: 'wb-a',
-      entries: [
-        { id: 'e1', exerciseId: 'ex-1' },
-        { id: 'e2', exerciseId: 'ex-2' },
-      ],
-    },
-    'wb-b': {
-      id: 'wb-b',
-      entries: [{ id: 'e3', exerciseId: 'ex-3' }],
-    },
-  };
-  const exercises = {
-    'ex-1': { id: 'ex-1', name: 'First' },
-    'ex-2': { id: 'ex-2', name: 'Second' },
-    'ex-3': { id: 'ex-3', name: 'Third' },
-  };
-  const items = buildSessionItems(routine, session, {
-    getWorkbook: (id) => workbooks[id] || null,
-    getExercise: (id) => exercises[id] || null,
-  });
-  assert.equal(items.length, 3);
-  assert.equal(items[0].targetId, 'ex-1');
-  assert.equal(items[1].targetId, 'ex-2');
-  assert.equal(items[2].targetId, 'ex-3');
-  assert.equal(items[0].label, 'First');
-  assert.equal(items[0].targetType, 'exercise');
-});
+runBuildSessionItemsTests({ test, buildSessionItems });
 
 await test('buildProgressModel returns summaries due cold tests and weak areas', () => {
   progressMod.clearProgressLog();
