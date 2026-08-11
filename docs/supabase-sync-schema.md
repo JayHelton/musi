@@ -1,6 +1,6 @@
 # Cloud Sync — Database & Infrastructure Reference
 
-Supabase-side schema, storage, Realtime, Edge Function, Terraform, and CI for
+Supabase-side schema, storage, Realtime, Edge Function, and Terraform for
 optional Musi cloud sync. Master scope lives in
 [`docs/supabase-sync-plan.md`](supabase-sync-plan.md); client design in
 [`docs/supabase-sync-client.md`](supabase-sync-client.md).
@@ -23,21 +23,18 @@ supabase/
 │   └── 040_sync_indexes.sql
 ├── migrations/
 ├── tests/
-├── functions/account/index.ts
-└── seed.sql
+└── functions/account/index.ts
 infra/terraform/          # main.tf, variables.tf, terraform.tfvars, README.md
-.github/workflows/        # supabase-verify.yml
 ```
 
 | Path | Purpose | Commit? |
 | ---- | ------- | ------- |
-| `supabase/config.toml` | Auth, storage buckets, remotes, `schema_paths` | Yes |
+| `supabase/config.toml` | Local auth/API, storage buckets, functions, `schema_paths` | Yes |
 | `supabase/schemas/*.sql` | Declarative DDL for diff engine | Yes |
 | `supabase/migrations/*.sql` | Generated + hand-written apply chain | Yes |
 | `supabase/tests/*.sql` | pgTAP (`supabase test db`) | Yes |
 | `supabase/functions/account/index.ts` | Account delete + export | Yes |
 | `infra/terraform/*` | Production project + settings | Yes |
-| `.github/workflows/supabase-verify.yml` | Local-stack verification on push | Yes |
 | `*.tfvars`, `.env` with secrets | Tokens, passwords, SMTP | **No** |
 
 ---
@@ -337,10 +334,8 @@ create policy realtime_sync_send on realtime.messages for insert to authenticate
 ## Storage
 
 Private bucket `attachments`; path `{user_id}/{attachment_id}`. `sync_blobs` +
-CRC32 dedupe index metadata; bytes in Storage. **Create bucket:** the GitHub
-integration deploys buckets declared in `config.toml` on push to `main`.
-`supabase seed buckets --linked` remains a manual fallback for buckets outside
-the integration path.
+CRC32 dedupe index metadata; bytes in Storage. The GitHub integration deploys
+buckets declared in `config.toml` on push to `main`.
 
 ```sql
 -- supabase/migrations/20260102000002_storage_objects_rls.sql
@@ -526,23 +521,23 @@ All other sync operations: client → PostgREST/Storage under RLS.
 
 Secrets via `env(...)` or dashboard — never commit real values.
 
-Supabase's integration documentation says other settings are ignored **by default**
-— re-confirm exact behaviour in the dashboard once the integration is connected.
-
 ```toml
-project_id = "local"  # overridden by supabase link
+project_id = "local"  # local stack only
+
+# [api] and [auth] values below are local development only.
+# Production API and Auth settings come from Terraform supabase_settings.
 
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "storage", "graphql_public"]  # match linked project defaults
+schemas = ["public", "storage", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
 port = 54322
 shadow_port = 54320
-major_version = 17  # must match the linked Supabase project's Postgres major version
+major_version = 17  # must match the production Supabase project's Postgres major version
 
 [db.migrations]
 schema_paths = ["./schemas/010_extensions.sql","./schemas/020_sync_tables.sql",
@@ -560,8 +555,6 @@ public = false
 file_size_limit = "250MiB"
 allowed_mime_types = []
 
-# Local-development source of truth for auth. Production auth settings are applied
-# by Terraform supabase_settings — the GitHub integration does not apply [auth].
 [auth]
 enabled = true
 site_url = "https://YOUR_STATIC_HOST.example"  # PWA origin — not Supabase
@@ -598,15 +591,6 @@ verify_jwt = true
 [inbucket]
 enabled = true
 smtp_port = 54325            # local OTP capture
-
-# Used by supabase link for drift detection and manual CLI ops — not applied by
-# the GitHub integration.
-[remotes.production]
-project_id = "env(PRODUCTION_PROJECT_ID)"
-
-[remotes.production.auth]
-site_url = "https://YOUR_STATIC_HOST.example"
-additional_redirect_urls = ["https://YOUR_STATIC_HOST.example"]
 ```
 
 Auth v1: passwordless email, 6-digit OTP primary, magic link secondary, PKCE; no
@@ -625,9 +609,8 @@ access is `SUPABASE_ACCESS_TOKEN`, which must be a personal access token
 belonging to a member of that organization with permission to create projects;
 `terraform apply` fails at plan time otherwise.
 
-With the GitHub integration ignoring `[auth]` and `[api]` in `config.toml`,
-Terraform is the sole automated owner of production auth and API settings — this
-removes the previous two-tools-fighting ambiguity rather than adding to it.
+The GitHub integration ignores `[auth]` and `[api]` in `config.toml`; Terraform
+owns production auth and API settings.
 
 ```hcl
 terraform {
@@ -700,38 +683,29 @@ import {
 | API settings (`max_rows`, schemas) | Terraform `supabase_settings` |
 | Storage settings (`file_size_limit`) | Terraform `supabase_settings` |
 | SMTP credentials | Dashboard or `supabase secrets set` |
-| Local dev auth/API (mirrors production values) | `config.toml` `[auth]`, `[api]` |
+| Local dev auth/API | `config.toml` `[auth]`, `[api]` |
 | Bucket and function declarations | `config.toml` |
 | Applying migrations, deploying functions, deploying buckets | GitHub integration on push to `main` |
 | DDL, RLS, RPCs | Migrations (applied by integration) |
-| `seed.sql` | Local only (`supabase db reset`) |
-
-`supabase link` diffs local `config.toml` against remote to detect drift on
-auth-related remotes blocks.
 
 ---
 
 ## Deployment — Supabase GitHub integration
 
-Deployment is push-to-`main` via the Supabase GitHub integration. This replaces
-the previous CLI release pipeline (`supabase db push`, `supabase functions deploy`).
+One production Supabase project. Push to `main` deploys via the Supabase GitHub
+integration.
 
-**The integration deploys database migrations, Edge Functions, and Storage
-buckets only — never the Musi PWA.** It reads only the `supabase/` working
-directory; application code at the repository root is never built or deployed.
+**The integration deploys database migrations, Edge Functions declared in
+`config.toml`, and Storage buckets declared in `config.toml` — never the Musi
+PWA.** Application code at the repository root is never built or deployed.
 
-**All other configurations, including API, Auth, and seed files, are ignored by
-default.** The integration will not apply `[auth]`, `[auth.email]`,
-`[auth.rate_limit]`, or `[api]` from `config.toml` to production.
+**API, Auth, and seed configuration in `config.toml` are ignored.** Terraform
+owns production API and Auth settings.
 
-### Setup checklist
+### Setup
 
-Run this after `terraform apply` has created the project — the integration is
-configured against an existing project. It is also the one piece of this setup
-that is **not** infrastructure as code: the Terraform provider exposes
-`supabase_project`, `supabase_settings`, and `supabase_branch`, but no resource
-for the GitHub connection, so these steps are performed once by hand in the
-dashboard and recorded here instead.
+Run after `terraform apply` has created the project. The GitHub connection is
+configured once in the dashboard (not exposed by the Terraform provider).
 
 1. Supabase Dashboard → Project Settings → Integrations → GitHub Integration
 2. Authorize GitHub → authorize Supabase on GitHub
@@ -739,71 +713,12 @@ dashboard and recorded here instead.
 4. **Working directory:** `.` (`supabase/` is at the repository root)
 5. **Deploy to production:** on
 6. **Automatic branching:** off
-7. Enable deployment failure email notifications
 
-| Integration deploys | Integration ignores | Ignored item owner |
-| ------------------- | ------------------- | ------------------ |
-| New migrations | `[api]` settings | Terraform `supabase_settings` |
+| Integration deploys | Integration ignores | Owner |
+| ------------------- | ------------------- | ----- |
+| New migrations | `[api]` | Terraform `supabase_settings` |
 | Edge Functions in `config.toml` | `[auth]`, `[auth.email]`, `[auth.rate_limit]` | Terraform `supabase_settings` |
-| Storage buckets in `config.toml` | `seed.sql` | Local `supabase db reset` |
-
-Automatic branching is off. It is a Pro-plan feature billed at roughly
-`$0.01344` per branch per hour on the Micro compute tier; branch compute bills
-only while awake, appears as "Branching Compute Hours", is not covered by the
-spend cap and not eligible for compute credits; preview branches auto-pause on
-inactivity and auto-delete when the PR merges or closes. Musi is trunk-based
-and does not use pull requests, so automatic branching buys nothing. Supabase's
-"required status check" recommendation only applies to PR-based repos and does
-not apply here. If Musi ever adopted pull requests, turn automatic branching on
-and add the required status check.
-
-The deployment workflow runs as a directed acyclic graph; if a parent step
-fails, dependent steps are skipped (for example a failed migration skips
-seeding on preview branches — not relevant here with branching off).
-
-### Verification workflow
-
-Alerts rather than gates: the integration deploys on the same push to `main`,
-so a failing verify job does not block deployment. Mitigation: run
-`supabase db reset` and `supabase test db` locally before pushing (per the
-repo's existing pre-push verification rule) and subscribe to Supabase failure
-email notifications.
-
-```yaml
-# .github/workflows/supabase-verify.yml
-# No secrets and no linked project — runs entirely against the local stack.
-name: Supabase verify
-on:
-  push:
-    branches: [main]
-    paths: ['supabase/**', '.github/workflows/supabase-verify.yml']
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v3
-      - run: supabase db start
-      - run: supabase db reset
-      - run: supabase db lint
-      - run: supabase test db
-      - name: Fail on schema drift
-        run: |
-          supabase db diff -f ci_drift_check
-          if [ -n "$(git status --porcelain supabase/migrations)" ]; then
-            echo "::error::schemas drift from migrations"
-            git diff supabase/migrations && exit 1
-          fi
-```
-
-| Secret | Scope | Used by |
-| ------ | ----- | ------- |
-| `SUPABASE_ACCESS_TOKEN` | Org | Terraform only |
-| `db_password` (production) | Project creation | Terraform `supabase_project` only |
-| `SMTP_*` | Auth email | Dashboard or `supabase secrets set` — not needed by any workflow |
-
-No project ref or database password is needed for deployment — the GitHub
-integration owns the linked project credentials.
+| Storage buckets in `config.toml` | Seed configuration | — |
 
 ---
 
@@ -884,20 +799,15 @@ select * from finish(); rollback;
 
 ## Applying to an existing project
 
-1. `supabase link --project-ref <ref>`
-2. `supabase db pull` — baseline migration from live schema
-3. **Caution:** two representations (pull + `schemas/`). Reconcile deliberately
+1. `supabase db pull` — baseline migration from live schema, only if adopting
+   an existing schema
+2. **Caution:** two representations (pull + `schemas/`). Reconcile deliberately
    before the next `db diff`.
+3. Apply or import via Terraform: project, `supabase_settings` (auth/API)
 4. Connect the repo: GitHub Integration, working directory `.`, Deploy to
    production on, automatic branching off
 5. Confirm the first integration deploy (migrations, functions, buckets)
-6. Apply auth/API settings via Terraform `supabase_settings`
-7. Configure SMTP in dashboard
-8. Adopt in Terraform via `import` block if desired
-
-`supabase seed buckets --linked` remains the manual fallback for creating buckets
-outside the integration path. `supabase db push` remains a manual CLI escape
-hatch but is not the normal release path.
+6. Configure SMTP in dashboard
 
 Never edit production only in Studio — `db diff` will not see it.
 
@@ -907,14 +817,11 @@ Never edit production only in Studio — `db diff` will not see it.
 
 | Risk | Mitigation |
 | ---- | ---------- |
-| Diff misses policies/grants | Hand-written migrations; drift check in verify workflow |
-| No staging environment | Local stack is the only rehearsal — `supabase db reset` + pgTAP before push; additive, backwards-compatible migrations |
-| Auto-deploy on push to `main` with no gate | Local verification before push; Supabase failure email notifications; blast radius bounded because cloud sync is optional — a failed migration degrades sync but never breaks the offline-first PWA |
-| Integration ignores auth/API `config.toml` changes | Terraform owns production auth/API; `supabase link` drift checks on remotes blocks |
-| Accidental automatic branching enabled | Keep branching off; Pro-plan per-branch compute charges (~`$0.01344`/hr on Micro) |
+| Diff misses policies/grants | Hand-written migrations; review before push |
+| Integration ignores auth/API `config.toml` changes | Terraform owns production auth/API |
+| Breaking migration on auto-deploy | Additive, backwards-compatible migrations; local `supabase db reset` + pgTAP before push |
 | Retention vs stale cursor | `sync_watermarks.purged_through_rev` + `sync_bounds(cursor)` |
 | Opaque quota errors | Map `P0001` messages in client |
 | Free-tier project pause | Paid instance for production |
-| Secret leakage in logs | GitHub Secrets only; never echo passwords |
 | Broadcast payload leak | Strip `payload` in broadcast copy |
 | Service role misuse | `verify_jwt`; derive user only from JWT |
