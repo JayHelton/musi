@@ -1,5 +1,13 @@
 /* Shell navigation: four-destination dock, workspaces, app menu, toast. */
 
+main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* At least one viewport below the site header so flex:1 children can shrink. */
+  min-height: calc(100dvh - var(--site-header-h, 48px));
+}
+
 #workspace-root {
   min-height: 0;
   flex: 1;
@@ -20,6 +28,139 @@
   flex-direction: column;
   gap: 10px;
   padding: 0 4px;
+}
+
+.workspace-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.workspace-utility-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 14px;
+  border: 2px solid color-mix(in srgb, var(--accent2) 55%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--card) 88%, var(--shell) 12%);
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.workspace-utility-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.workspace-shell.train-utility-open {
+  position: relative;
+}
+
+.train-utility-layer {
+  position: fixed;
+  top: var(--site-header-h, 48px);
+  left: 0;
+  right: 0;
+  bottom: calc(var(--dock-h) + 12px);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+  padding: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+}
+
+.train-utility-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  pointer-events: auto;
+}
+
+.train-utility-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  max-height: min(72vh, 100%);
+  margin: 8px 0 0;
+  border: 2px solid color-mix(in srgb, var(--shell-bright) 45%, transparent);
+  border-radius: var(--radius-screen);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, #fff 6%), var(--bg2));
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--bg) 55%, transparent);
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.train-utility-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 2px solid color-mix(in srgb, var(--shell-bright) 30%, transparent);
+  flex-shrink: 0;
+}
+
+.train-utility-panel-title {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.train-utility-panel-close {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.train-utility-panel-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px 16px;
+}
+
+.train-metro-session-note {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+}
+
+.train-utility-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.train-utility-sections .embedded-section > .section-head > h2 {
+  font-size: 1rem;
+}
+
+.train-utility-locked #sec-metronome .metro-simple-actions,
+.train-utility-locked #sec-metronome .metro-step-row,
+.train-utility-locked #sec-metronome #m-timer-wrap,
+.train-utility-locked #sec-practice .pt-controls {
+  opacity: 0.55;
 }
 
 .workspace-title {
@@ -58,6 +199,7 @@
 
 .workspace-tab:focus-visible,
 .workspace-chip:focus-visible,
+.workspace-utility-btn:focus-visible,
 .dock-dest:focus-visible,
 .app-menu-item:focus-visible,
 .drill-card:focus-visible,
@@ -81,6 +223,8 @@
 .workspace-feature-host {
   min-height: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .workspace-chips {
@@ -251,8 +395,38 @@
   padding-top: 0;
 }
 
+.embedded-section > .section-head > .section-kicker {
+  display: none;
+}
+
 .embedded-section .tool-back {
   display: none !important;
+}
+
+/* Immersive feature modes: GP score, exercise viewer, workbook practice */
+.workspace-shell:has(#sec-gpplayer.gpp-score-loaded),
+.workspace-shell:has(#sec-exercises.ex-viewing),
+.workspace-shell:has(#sec-workbooks.wb-practicing) {
+  gap: 4px;
+}
+
+.workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-header,
+.workspace-shell:has(#sec-exercises.ex-viewing) .workspace-header,
+.workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-header {
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-view,
+.workspace-shell:has(#sec-exercises.ex-viewing) .workspace-view,
+.workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-view {
+  gap: 4px;
+}
+
+.workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-title,
+.workspace-shell:has(#sec-exercises.ex-viewing) .workspace-title,
+.workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-title {
+  display: none;
 }
 
 /* App menu */
@@ -340,8 +514,83 @@
     justify-content: space-between;
   }
 
+  .workspace-header-row {
+    flex: 1;
+    justify-content: flex-end;
+  }
+
   .workspace-tabs {
     justify-content: flex-end;
+  }
+
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-tab,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-tab,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-tab,
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-chip,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-chip,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-chip {
+    min-height: 38px;
+    padding: 6px 12px;
+  }
+
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-chips,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-chips,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-chips {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded),
+  .workspace-shell:has(#sec-exercises.ex-viewing),
+  .workspace-shell:has(#sec-workbooks.wb-practicing) {
+    gap: 4px;
+  }
+
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-title,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-title,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-title,
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-chips,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-chips,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-chips {
+    display: none;
+  }
+
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-header,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-header,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-header {
+    gap: 0;
+    padding: 0 2px;
+  }
+
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-tabs,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-tabs,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
+    width: 100%;
+    padding-bottom: 2px;
+  }
+
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-tabs::-webkit-scrollbar,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-tabs::-webkit-scrollbar,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-tab,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-tab,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-tab {
+    flex-shrink: 0;
+  }
+
+  .workspace-shell:has(#sec-gpplayer.gpp-score-loaded) .workspace-view,
+  .workspace-shell:has(#sec-exercises.ex-viewing) .workspace-view,
+  .workspace-shell:has(#sec-workbooks.wb-practicing) .workspace-view {
+    gap: 4px;
   }
 }
 
@@ -350,10 +599,15 @@
     gap: 6px;
   }
 
-  .workspace-tab {
+  .workspace-tab,
+  .workspace-utility-btn {
     min-height: 44px;
     padding: 6px 10px;
     font-size: 0.85rem;
+  }
+
+  .train-utility-panel {
+    max-height: min(68vh, calc(100% - 4px));
   }
 
   .dock-dest .dock-label {
