@@ -14,6 +14,13 @@
   display: none;
 }
 
+/* The dock moves to the top of the page here, so nothing holds the bottom edge. */
+@media (min-width: 769px) {
+  .practice-bar-host {
+    bottom: 0;
+  }
+}
+
 .practice-bar {
   pointer-events: auto;
   max-width: var(--content-max, 960px);

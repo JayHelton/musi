@@ -35,6 +35,9 @@ main {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  width: 100%;
+  align-self: stretch;
 }
 
 .workspace-header-actions {
@@ -43,6 +46,20 @@ main {
   align-items: center;
   gap: 8px;
   margin-left: auto;
+  min-width: 0;
+}
+
+/* The tabs take their own line, so `margin-left: auto` on the actions cannot
+   claim the row width and push the tabs out of view. */
+@media (max-width: 768px) {
+  .workspace-header-row > .workspace-tabs {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .workspace-header-actions {
+    margin-left: 0;
+  }
 }
 
 .workspace-utility-btn {
