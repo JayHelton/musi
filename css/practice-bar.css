@@ -46,6 +46,19 @@
   padding: 8px 10px;
 }
 
+.practice-bar-primary,
+.practice-bar-tray {
+  display: contents;
+}
+
+.practice-bar-more {
+  display: none;
+}
+
+.practice-bar-times {
+  display: contents;
+}
+
 .practice-bar-transport {
   max-height: min(42vh, 220px);
   overflow-x: auto;
@@ -155,6 +168,7 @@
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   padding: 0 4px;
 }
 
@@ -198,34 +212,178 @@
   resize: vertical;
 }
 
-@media (max-width: 480px) {
-  .practice-bar-transport {
-    gap: 4px;
-    padding: 6px 8px;
+@media (max-width: 768px) {
+  .practice-bar-primary,
+  .practice-bar-tray,
+  .practice-bar-times {
+    display: flex;
+    align-items: center;
+    min-width: 0;
   }
 
-  .practice-bar-btn {
-    min-width: 40px;
-    min-height: 40px;
-    padding: 2px 6px;
-  }
-
-  .practice-bar-bpm-step-lg {
-    display: none;
-  }
-}
-
-@media (max-height: 500px) and (orientation: landscape) {
-  .practice-bar-transport {
-    max-height: 38vh;
+  .practice-bar-primary {
+    flex: 1 1 auto;
     flex-wrap: nowrap;
+    gap: 4px;
   }
 
-  .practice-bar-btn-label {
+  .practice-bar-tray {
     display: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 10px 4px;
+    border-bottom: 1px solid color-mix(in srgb, var(--shell-bright) 30%, transparent);
+    background: color-mix(in srgb, var(--bg2) 88%, var(--card) 12%);
+  }
+
+  .practice-bar-host.is-tray-open .practice-bar-tray {
+    display: flex;
+  }
+
+  .practice-bar-more {
+    display: inline-flex;
+  }
+
+  .practice-bar-times {
+    flex: 1 1 auto;
+    gap: 4px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .practice-bar-transport {
+    flex-wrap: nowrap;
+    max-height: none;
+    overflow: visible;
+    padding: 6px 8px;
+    gap: 0;
   }
 
   .practice-bar-btn {
     min-width: 44px;
+    min-height: 44px;
+    padding: 2px 6px;
+  }
+
+  .practice-bar-bpm {
+    min-width: 44px;
+    padding: 2px 4px;
+  }
+
+  .practice-bar-bpm-value {
+    font-size: 1rem;
+  }
+
+  .practice-bar-bpm-unit {
+    font-size: 0.58rem;
+  }
+
+  /* The clock has to survive, so the word in front of it goes instead. */
+  .practice-bar-time-label {
+    display: none;
+  }
+
+  .practice-bar-time {
+    font-size: 0.78rem;
+    min-height: 44px;
+    padding: 0 2px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* A timed session counts down, so the elapsed clock is redundant. A free
+     session has no countdown, and then the elapsed clock is the only one. */
+  .practice-bar-times:has(.practice-bar-countdown:not([hidden])) .practice-bar-elapsed {
+    display: none;
+  }
+
+  .practice-bar-countdown {
+    flex-shrink: 0;
+  }
+
+  .practice-bar-btn-label {
+    font-size: 0.62rem;
+  }
+
+  .practice-bar-nav .practice-bar-btn-label,
+  .practice-bar-end .practice-bar-btn-label {
+    font-size: 0.58rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .practice-bar-transport {
+    gap: 0;
+    padding: 6px 8px;
+  }
+
+  .practice-bar-primary {
+    gap: 4px;
+  }
+
+  .practice-bar-bpm-step-lg {
+    display: inline-flex;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .practice-bar-primary,
+  .practice-bar-tray,
+  .practice-bar-times {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .practice-bar-primary {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .practice-bar-tray {
+    display: none;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 8px 2px;
+    border-bottom: 1px solid color-mix(in srgb, var(--shell-bright) 30%, transparent);
+    overflow-x: auto;
+  }
+
+  .practice-bar-host.is-tray-open .practice-bar-tray {
+    display: flex;
+  }
+
+  .practice-bar-more {
+    display: inline-flex;
+  }
+
+  .practice-bar-times {
+    flex: 0 1 auto;
+    gap: 4px;
+    overflow: hidden;
+  }
+
+  .practice-bar-transport {
+    flex-wrap: nowrap;
+    max-height: none;
+    overflow: visible;
+    padding: 4px 8px;
+    gap: 0;
+  }
+
+  .practice-bar-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .practice-bar-time {
+    font-size: 0.72rem;
+    min-height: 44px;
+  }
+
+  .practice-bar-subdiv {
+    min-width: 64px;
+    font-size: 0.85rem;
   }
 }

@@ -612,6 +612,162 @@
   margin-top: 8px;
 }
 
+@media (max-width: 768px) {
+  .train-today-live .train-session-header-compact {
+    padding: 6px 8px;
+  }
+
+  .train-today-live .train-session-header-compact.objective-card {
+    padding: 6px 8px;
+  }
+
+  .train-today-live .train-session-header-compact .train-session-title {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .train-today-live .train-session-header-compact .train-session-meta {
+    margin: 2px 0 6px;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .train-today-live .train-session-actions {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .train-today-live .train-session-actions .btn.sm {
+    min-height: 44px;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .train-session-practice #sec-workbooks .wb-detail-head,
+  .train-session-practice #sec-workbooks .wb-player-controls,
+  .train-session-practice #sec-workbooks .wb-gpp-head-extra,
+  .train-session-practice #sec-workbooks .gpp-score-header,
+  .train-session-practice #sec-workbooks .gpp-measure-nav-host {
+    display: none !important;
+  }
+
+  .train-session-practice #sec-workbooks .wb-detail-body {
+    padding: 0 !important;
+    border: none !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .train-today-live {
+    gap: 4px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .train-today-live .train-session-header-compact {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+  }
+
+  .train-today-live .train-session-header-compact .train-session-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.76rem;
+  }
+
+  .train-today-live .train-session-header-compact .train-session-meta {
+    display: none;
+  }
+
+  .train-today-live .train-session-actions {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    margin: 0;
+    gap: 4px;
+  }
+
+  .train-today-live .train-session-actions .btn.sm {
+    min-height: 44px;
+    flex: 0 1 auto;
+    padding: 2px 8px;
+    font-size: 0.68rem;
+  }
+
+  .train-today-live .train-session-nav {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    gap: 4px;
+    margin: 0;
+    padding-right: 4px;
+  }
+
+  .train-today-live .train-outline-details {
+    display: none;
+  }
+
+  .train-today-live .train-practice-host {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .train-step-pill {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    font-size: 0.92rem;
+  }
+
+  .train-session-practice #sec-workbooks .wb-detail-head,
+  .train-session-practice #sec-workbooks .wb-player-controls,
+  .train-session-practice #sec-workbooks .wb-gpp-head-extra,
+  .train-session-practice #sec-workbooks .gpp-score-header,
+  .train-session-practice #sec-workbooks .gpp-measure-nav-host {
+    display: none !important;
+  }
+
+  .train-session-practice #sec-workbooks .wb-detail-body {
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  .train-session-practice #sec-workbooks .gpp-transport-dock {
+    padding: 4px 8px 5px;
+    gap: 2px;
+  }
+
+  .train-session-practice #sec-workbooks .gpp-transport-primary {
+    gap: 3px;
+  }
+
+  .train-session-practice #sec-workbooks .gpp-transport-btn {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 6px;
+    font-size: 0.82rem;
+  }
+
+  .train-session-practice #sec-workbooks .gpp-transport-secondary {
+    gap: 4px;
+    font-size: 0.72rem;
+  }
+}
+
 @media (max-width: 360px) {
   .train-log-fields {
     grid-template-columns: 1fr;

@@ -39,6 +39,7 @@ let unsubSession = null;
 let recorder = null;
 let recording = false;
 let notesExpanded = false;
+let trayExpanded = false;
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -117,9 +118,17 @@ function destroyRecorder() {
   recording = false;
 }
 
+function setTrayOpen(open) {
+  trayExpanded = !!open;
+  if (!hostEl) return;
+  hostEl.classList.toggle('is-tray-open', trayExpanded);
+}
+
 function buildBar() {
   const root = el('div', { class: 'practice-bar', role: 'region', 'aria-label': 'Practice transport' });
+  const tray = el('div', { class: 'practice-bar-tray' });
   const row = el('div', { class: 'practice-bar-row practice-bar-transport' });
+  const primary = el('div', { class: 'practice-bar-primary' });
 
   const playBtn = el('button', {
     class: 'practice-bar-btn practice-bar-play',
@@ -171,7 +180,16 @@ function buildBar() {
   });
 
   const elapsedEl = el('span', { class: 'practice-bar-time practice-bar-elapsed', 'aria-live': 'polite' });
+  elapsedEl.append(
+    el('span', { class: 'practice-bar-time-label', text: 'Elapsed' }),
+    el('span', { class: 'practice-bar-time-value' }),
+  );
+
   const countdownEl = el('span', { class: 'practice-bar-time practice-bar-countdown' });
+  countdownEl.append(
+    el('span', { class: 'practice-bar-time-label', text: 'Left' }),
+    el('span', { class: 'practice-bar-time-value' }),
+  );
 
   const loopEl = el('span', { class: 'practice-bar-loop', hidden: 'hidden', 'aria-live': 'polite' });
 
@@ -221,24 +239,30 @@ function buildBar() {
   });
   endBtn.appendChild(el('span', { class: 'practice-bar-btn-label', text: 'End' }));
 
-  row.append(
-    playBtn,
+  const moreBtn = el('button', {
+    class: 'practice-bar-btn practice-bar-more',
+    type: 'button',
+    'aria-expanded': 'false',
+    'aria-label': 'More practice controls',
+  });
+  moreBtn.appendChild(el('span', { class: 'practice-bar-btn-label', text: 'More' }));
+
+  const timesWrap = el('div', { class: 'practice-bar-times' });
+  timesWrap.append(elapsedEl, countdownEl);
+
+  primary.append(playBtn, bpmDisplay, timesWrap, prevBtn, nextBtn, endBtn, moreBtn);
+  tray.append(
     bpmDownLarge,
     bpmDown,
-    bpmDisplay,
     bpmUp,
     bpmUpLarge,
     subdivSelect,
-    elapsedEl,
-    countdownEl,
     loopEl,
     recordBtn,
-    prevBtn,
     restartBtn,
-    nextBtn,
     notesToggle,
-    endBtn,
   );
+  row.append(primary);
 
   const notesPanel = el('div', { class: 'practice-bar-notes', hidden: 'hidden' });
   const notesArea = el('textarea', {
@@ -249,10 +273,12 @@ function buildBar() {
   });
   notesPanel.appendChild(notesArea);
 
-  root.append(row, notesPanel);
+  root.append(tray, row, notesPanel);
 
   return {
     root,
+    tray,
+    moreBtn,
     playBtn,
     bpmValue,
     subdivSelect,
@@ -285,13 +311,18 @@ function renderState(refs, state) {
   refs.bpmValue.textContent = String(state.metronome?.bpm ?? 120);
   refs.subdivSelect.value = state.metronome?.subdivision || 'quarter';
 
-  refs.elapsedEl.textContent = `Elapsed ${fmtClock(state.elapsedMs)}`;
+  const elapsedText = fmtClock(state.elapsedMs);
+  refs.elapsedEl.querySelector('.practice-bar-time-value').textContent = elapsedText;
+  refs.elapsedEl.setAttribute('aria-label', `Elapsed ${elapsedText}`);
   if (state.timerTargetMs != null) {
     const remain = Math.max(0, state.timerTargetMs - state.elapsedMs);
-    refs.countdownEl.textContent = `Left ${fmtClock(remain)}`;
+    const remainText = fmtClock(remain);
+    refs.countdownEl.querySelector('.practice-bar-time-value').textContent = remainText;
+    refs.countdownEl.setAttribute('aria-label', `Left ${remainText}`);
     refs.countdownEl.hidden = false;
   } else {
-    refs.countdownEl.textContent = '';
+    refs.countdownEl.querySelector('.practice-bar-time-value').textContent = '';
+    refs.countdownEl.removeAttribute('aria-label');
     refs.countdownEl.hidden = true;
   }
 
@@ -409,6 +440,14 @@ function wireHandlers(refs) {
   refs.restartBtn.addEventListener('click', () => restartItem());
   refs.nextBtn.addEventListener('click', () => nextItem());
 
+  refs.moreBtn.addEventListener('click', () => {
+    const open = !trayExpanded;
+    setTrayOpen(open);
+    refs.moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    refs.moreBtn.querySelector('.practice-bar-btn-label').textContent = open ? 'Less' : 'More';
+    syncBarHeight();
+  });
+
   refs.notesToggle.addEventListener('click', () => {
     notesExpanded = !notesExpanded;
     refs.notesPanel.hidden = !notesExpanded;
@@ -452,6 +491,7 @@ export function mountPracticeBar(host) {
 
   const refs = buildBar();
   hostEl.appendChild(refs.root);
+  setTrayOpen(false);
   wireHandlers(refs);
 
   const onSession = (state, meta) => {
@@ -460,6 +500,7 @@ export function mountPracticeBar(host) {
       hostEl.innerHTML = '';
       hostEl.hidden = true;
       setPracticeBarHeight('0px');
+      setTrayOpen(false);
       return;
     }
     hostEl.hidden = false;
@@ -504,6 +545,7 @@ export function mountPracticeBar(host) {
       hostEl = null;
       barApi = null;
       notesExpanded = false;
+      trayExpanded = false;
     },
   };
   return barApi;
