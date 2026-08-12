@@ -1,0 +1,4 @@
+{
+  "name": "Musi",
+  "install": "./scripts/cloud-agent-install.sh"
+}

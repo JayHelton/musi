@@ -126,6 +126,19 @@ commit with feature spec or implementation changes.
 After an upgrade, read the release notes. Re-run verification on an existing
 feature if templates changed.
 
+## Cursor Cloud
+
+Cloud Agents install `uv` and `specify-cli` through
+`scripts/cloud-agent-install.sh`. The install script runs from
+`.cursor/environment.json` or from the dashboard `install` field.
+
+After install, agents can run `specify` and use Cursor skills under
+`.cursor/skills/`.
+
+If you set up a personal dashboard environment separately, you must click
+Save when the agent proposes changes. The repo file overrides the dashboard
+when agents start from a revision that contains `.cursor/environment.json`.
+
 ## More help
 
 - Upstream repo: [github/spec-kit](https://github.com/github/spec-kit)
