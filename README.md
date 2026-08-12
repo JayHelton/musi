@@ -75,6 +75,19 @@ Musi is built around five practice modes:
   download audio, view detected notes, and estimate the key using pitch-class
   analysis.
 
+## Home and navigation
+
+- **Home** - a routine dashboard. It shows one card for every stored routine, a
+  `New Routine` action, an `Import Routine` action, and a collapsed `Browse tools`
+  panel. Home shows no hero, no continue card, no quick-start grid, no study
+  recommendation, and no category grid.
+- **Routines** - routine content behaves as a stack of layers: the routines list,
+  the routine overview, the session detail, the workbook detail, and then an
+  exercise or a study companion. One Back press moves up exactly one layer.
+- **Settings** - default musical context, audio volume, device sync, cloud
+  account, library cleanup, and feature visibility. Settings holds no genre control.
+- **Study Lab** - opens a default study. It uses no genre profile.
+
 ## Why it is useful
 
 Musi bridges the gap between a theory worksheet and a creative instrument:

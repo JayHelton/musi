@@ -258,7 +258,7 @@ SQL DDL, RLS, Realtime trigger, Storage policies, `config.toml`, and GitHub inte
 | ------ | ------------ | --------- |
 | `settings` | `musi:settings` remainder (minus extracted subkeys) | `settings:bag`, `settings:global.volume`, `settings:context.*`, … |
 | `settings` | `features.enabled` | `settings:features.enabled` |
-| `settings` | `profile.music` | `settings:profile.music` |
+| `settings` | `profile.music` | `settings:profile.music`. `profile.music` is now inert data; sync carries it as an opaque key. |
 | `settings` | `musi.gpAutoFollow` | `settings:musi.gpAutoFollow` |
 | `settings` | `musi.gpParchmentZoom` | `settings:musi.gpParchmentZoom` |
 | `progress` | `stats` | `progress:stats` |

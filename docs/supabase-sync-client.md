@@ -163,7 +163,7 @@ snapshot `data` bag and flat `sync_records` rows.
 | ------ | ------------ | --------- | ------- | ---------------- |
 | `settings` | `musi:settings` remainder (see below) | `settings:bag` | JSON object: all keys in remainder not excluded | Max `updatedAt` among nested values, else shadow change time |
 | `settings` | `features.enabled` | `settings:features.enabled` | string[] of tool ids | Incoming-wins scalar; no per-field timestamp — use shadow |
-| `settings` | `profile.music` | `settings:profile.music` | full profile object | `profile.music.updatedAt` (epoch ms) |
+| `settings` | `profile.music` | `settings:profile.music` | full profile object | `profile.music.updatedAt` (epoch ms). `profile.music` is now inert data; sync carries it as an opaque key. |
 | `settings` | `musi.gpAutoFollow` | `settings:musi.gpAutoFollow` | string `"true"` / `"false"` | Incoming-wins; shadow time |
 | `settings` | `musi.gpParchmentZoom` | `settings:musi.gpParchmentZoom` | string number | Incoming-wins; shadow time |
 | `settings` | `global.volume`, `context.*` | `settings:global.volume`, `settings:context.root`, … | scalar JSON values from remainder | Shadow change time |
