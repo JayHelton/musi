@@ -37,6 +37,47 @@ declared in `config.toml`, and Storage buckets declared in `config.toml`.
 `config.toml`. Set production Auth, API, redirect URLs, and SMTP in the
 Dashboard.
 
+## Who may sign in
+
+The publishable key sits in the browser, so anybody can call the sign-up
+endpoint. Musi therefore closes the door twice.
+
+1. **The database gate.** `migrations/20260103000000_restrict_signup.sql` adds a
+   trigger on `auth.users`. The trigger rejects any new account whose email is
+   not in `public.signup_allowlist`. The list starts empty, and an empty list
+   denies every new account. Add your own address one time, in the Dashboard
+   under SQL Editor:
+
+```sql
+insert into public.signup_allowlist (email, note)
+values ('you@example.com', 'owner');
+```
+
+2. **The Dashboard switch.** Open Authentication → Sign In / Providers and turn
+   off **Allow new users to sign up**. The integration ignores `[auth]` in
+   `config.toml`, so this switch lives in the Dashboard only.
+
+Use both. The trigger is version controlled and survives a Dashboard change.
+The switch stops the request earlier and saves email quota.
+
+Neither gate touches an account that already exists. To remove a person, delete
+the user in the Dashboard and delete the matching allow-list row.
+
+## Why one user cannot reach the data of another
+
+| Control | Effect |
+| ------- | ------ |
+| `revoke all ... from anon` | A caller with only the publishable key gets `permission denied`. No read, no write. |
+| `grant ... to authenticated` plus RLS | A signed-in caller reaches rows where `user_id = auth.uid()` and no others. |
+| `force row level security` | The rule holds even for the table owner. |
+| `user_id` default `auth.uid()` | The client never sends `user_id`. The `with check` clause rejects a spoofed value. |
+| Private `attachments` bucket | Storage policies match the first path segment against `auth.uid()`. |
+| `realtime.messages` policy | A client may only listen on the topic `sync:<its own user id>`. |
+| Payload, row, and storage caps | 256 KB per record, 50 000 rows, and 2 GB per user. |
+
+The service-role key never leaves Supabase. Only the `account` Edge Function
+uses it, and that function derives the user from the JWT.
+
 ## Schema workflow
 
 - Put tables, functions, and triggers in `schemas/`.

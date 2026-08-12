@@ -1,6 +1,25 @@
-import { getClient } from './client.js';
+import { getClient, peekClient } from './client.js';
 
 const AUTH_LISTENERS = new Set();
+
+let supabaseListenerAttached = false;
+
+/**
+ * Attaches one shared Supabase auth listener, but only when a client already
+ * exists or a session is stored. A signed-out visitor therefore never fetches
+ * the vendored bundle at boot.
+ */
+async function attachSupabaseListener() {
+  if (supabaseListenerAttached) return;
+  const client = peekClient() || (hasStoredSession() ? await getClient() : null);
+  if (!client || supabaseListenerAttached) return;
+  supabaseListenerAttached = true;
+  client.auth.onAuthStateChange((event, session) => {
+    AUTH_LISTENERS.forEach((listener) => {
+      try { listener(event, session); } catch (_) { /* ignore */ }
+    });
+  });
+}
 
 function browserOnline() {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
@@ -57,8 +76,26 @@ export function describeDevice() {
   };
 }
 
+export const AUTH_STORAGE_KEY = 'musi.auth';
+
+/**
+ * Reports a stored sign-in without a network call and without the client.
+ * Boot and the Settings panel use it so a signed-out visitor never downloads
+ * the vendored Supabase bundle.
+ */
+export function hasStoredSession() {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return !!localStorage.getItem(AUTH_STORAGE_KEY);
+  } catch (_) {
+    return false;
+  }
+}
+
 export async function getSession() {
   try {
+    // Build no client only to learn that nobody signed in on this device.
+    if (!peekClient() && !hasStoredSession()) return null;
     const client = await getClient();
     if (!client) return null;
     const { data, error } = await client.auth.getSession();
@@ -90,10 +127,14 @@ export async function sendOtp(email) {
   try {
     const client = await getClient();
     if (!client) return { ok: false, error: { message: 'Cloud sync is not enabled.' } };
-    const { error } = await client.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true },
-    });
+    // Supabase sends a link when the email template has no {{ .Token }} tag.
+    // The return address keeps that link on this page, where the PKCE exchange
+    // in exchangeCodeFromUrl finishes the sign-in.
+    const options = { shouldCreateUser: true };
+    if (typeof location !== 'undefined' && location.origin) {
+      options.emailRedirectTo = `${location.origin}${location.pathname}${location.hash || ''}`;
+    }
+    const { error } = await client.auth.signInWithOtp({ email, options });
     if (error) return { ok: false, error };
     return { ok: true, error: null };
   } catch (err) {
@@ -111,6 +152,7 @@ export async function verifyOtp(email, token) {
       type: 'email',
     });
     if (error) return { ok: false, error, session: null };
+    await attachSupabaseListener();
     return { ok: true, error: null, session: data?.session ?? null };
   } catch (err) {
     return { ok: false, error: err, session: null };
@@ -131,22 +173,9 @@ export async function signOut() {
 
 export function onAuthChange(fn) {
   AUTH_LISTENERS.add(fn);
-  let unsubSupabase = () => {};
-
-  (async () => {
-    const client = await getClient();
-    if (!client) return;
-    const { data } = client.auth.onAuthStateChange((event, session) => {
-      AUTH_LISTENERS.forEach((listener) => {
-        try { listener(event, session); } catch (_) { /* ignore */ }
-      });
-    });
-    unsubSupabase = () => data?.subscription?.unsubscribe?.();
-  })();
-
+  attachSupabaseListener();
   return () => {
     AUTH_LISTENERS.delete(fn);
-    unsubSupabase();
   };
 }
 
@@ -257,6 +286,22 @@ export function describeAuthError(error) {
 
   if (status === 429 || msg.includes('rate') || msg.includes('too many')) {
     return { message: 'Too many attempts. Wait a minute and try again.', retryAfterMs: 60_000 };
+  }
+
+  // The project owner limits who may open an account. The database gate and the
+  // Dashboard switch both land here.
+  const errorCode = String(error?.code || error?.error_code || '').toLowerCase();
+  if (
+    msg.includes('signup_not_allowed')
+    || msg.includes('signups not allowed')
+    || msg.includes('database error saving new user')
+    || errorCode === 'signup_disabled'
+    || errorCode === 'email_provider_disabled'
+  ) {
+    return {
+      message: 'This Musi project does not accept new accounts. Ask the owner for access.',
+      retryAfterMs: null,
+    };
   }
 
   if (

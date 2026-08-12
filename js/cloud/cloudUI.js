@@ -111,7 +111,7 @@ function renderCodeSent() {
   const left = resendSecondsLeft();
   const resendDisabled = left > 0;
   return `
-    <p class="sync-hint cloud-intro">Enter the 6-digit code from your email.</p>
+    <p class="sync-hint cloud-intro">Enter the 6-digit code from your email. If the email holds a link instead, open the link on this device.</p>
     <p class="cloud-email-readout">${escapeHtml(pendingEmail)}</p>
     <label class="cloud-field">
       <span class="cloud-field-label">Code</span>

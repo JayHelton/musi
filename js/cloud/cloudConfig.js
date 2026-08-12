@@ -1,9 +1,18 @@
-/** Optional Supabase cloud sync — empty defaults keep the app fully offline. */
+/**
+ * Optional Supabase cloud sync.
+ *
+ * These values point at the Musi project. The publishable key is made for the
+ * browser: it grants no admin power, and Row Level Security keeps every row
+ * private to its owner. Never put the service-role key here.
+ *
+ * A fork replaces both values, or overrides them with a `cloud-config.json`
+ * file beside `index.html`. Empty values turn the whole feature off.
+ */
 
 const DEFAULTS = Object.freeze({
-  SUPABASE_URL: '',
-  SUPABASE_PUBLISHABLE_KEY: '',
-  enabled: false,
+  SUPABASE_URL: 'https://gtokzekwpsdmvfdjsuag.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_7bf_TsbCkMTZ3_WguOQaiA_gI03_O1-',
+  enabled: true,
 });
 
 export const CLOUD_CONFIG_DEFAULTS = DEFAULTS;
