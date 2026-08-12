@@ -1143,20 +1143,29 @@ function setupExercises() {
   const head = sec.querySelector('.section-head');
   if (head) head.after(bar);
 
-  // Mobile: hide the desktop filter list (broken as horizontal pills) but keep
-  // the add-folder form. Desktop keeps the full sidebar list.
+  // Mobile: keep the folder list on the main page so rename/delete stay in reach.
+  // Hide the compact folder bar; the list covers select, rename, and delete.
   if (!document.getElementById('ex-folder-style')) {
     const style = document.createElement('style');
     style.id = 'ex-folder-style';
     style.textContent = `
       @media ${MOBILE_UX_MQ}{
         #sec-exercises .ex-layout{display:flex;flex-direction:column}
-        #sec-exercises .ex-sidebar .sidebar-list{display:none}
         #sec-exercises .ex-sidebar{display:flex;flex-direction:column;gap:8px;width:100%}
+        #sec-exercises .ex-sidebar .sidebar-list{display:block}
+        #sec-exercises .ex-sidebar .sl-scroll,
+        #sec-exercises #ex-category-list{
+          display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;
+          gap:2px!important;overflow-x:hidden!important;overflow-y:auto!important;
+          max-height:min(42vh,320px);scroll-snap-type:none!important;padding:6px;-webkit-overflow-scrolling:touch
+        }
+        #sec-exercises .ex-cat-item{
+          flex:0 0 auto!important;width:100%!important;min-height:44px;
+          border-radius:10px;white-space:normal
+        }
+        #sec-exercises .ex-cat-tools{opacity:1;pointer-events:auto}
         #sec-exercises .ex-add-cat{display:flex}
-        #sec-exercises .ex-folder-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-        #sec-exercises .ex-folder-del{background:rgba(230,57,70,0.14);color:var(--err);font-weight:600;box-shadow:inset 0 0 0 1px rgba(230,57,70,0.5)}
-        #sec-exercises .ex-folder-del[hidden]{display:none!important}
+        #sec-exercises .ex-folder-bar{display:none!important}
       }
       @media (min-width:769px) and ${NOT_LANDSCAPE_PHONE_MQ}{
         #sec-exercises .ex-folder-bar{display:none}
