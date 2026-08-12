@@ -1,7 +1,9 @@
 import { getSetting, saveSetting } from './persistence.js';
 import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory, isFeatureEnabled } from './tools.js';
-import { getContext } from './musicalContext.js';
-import { shortScaleName } from './scales.js';
+import { buildRoutineCardModels } from './routineDashboardModel.js';
+import { listRoutines, getRoutineStats, getActiveRoutineSession } from './routineModel.js';
+import { openRoutineById, createRoutineFromPrompt, importRoutineFromFile } from './routines.js';
+import { onDataChanged } from './dataEvents.js';
 
 let showSectionFn = null;
 let showHubFn = null;
@@ -34,77 +36,6 @@ function lastTool() {
   return id && visibleTool(id) ? id : null;
 }
 
-function continueSetupLine(toolId) {
-  const c = getContext();
-  const bits = [];
-  if (['scaleref', 'chords', 'triads', 'fretboard', 'intervalorbit', 'chordlab', 'scales', 'tuner'].includes(toolId)) {
-    bits.push(`${c.root} ${shortScaleName(c.scale)}`);
-  }
-  if (['metronome', 'timing', 'practice', 'intervalorbit'].includes(toolId)) {
-    bits.push(`${c.tempo} BPM`);
-  }
-  const tuning = getSetting('picker.lastTuning', getSetting('chordref.tuning', getSetting('io.tuning', null)));
-  if (tuning && ['scaleref', 'chords', 'triads', 'fretboard', 'intervalorbit', 'chordlab'].includes(toolId)) {
-    bits.push(tuning);
-  }
-  const sub = getSetting(`subview.${toolId}`, null);
-  if (sub) bits.push(String(sub).replace(/^\w/, ch => ch.toUpperCase()));
-  return bits.filter(Boolean).join(' · ') || (getTool(toolId)?.description || '');
-}
-
-function renderContinue(host) {
-  const id = lastTool();
-  if (!id) {
-    host.innerHTML = '';
-    host.style.display = 'none';
-    return;
-  }
-  host.style.display = '';
-  const tool = getTool(id);
-  host.innerHTML = `
-    <button type="button" class="home-continue-card" data-id="${id}">
-      <span class="home-continue-kicker">Continue</span>
-      <span class="home-continue-title">${tool.title}</span>
-      <span class="home-continue-setup">${continueSetupLine(id)}</span>
-    </button>
-  `;
-  host.querySelector('button').onclick = () => showSectionFn(id);
-}
-
-function renderQuickStart(host) {
-  const fav = favorites().slice(0, 4);
-  const pinned = fav.length ? fav : ['intervalorbit', 'scaleref', 'metronome', 'tuner'].filter(id => visibleTool(id));
-  host.innerHTML = '';
-  const label = document.createElement('div');
-  label.className = 'home-section-label';
-  label.textContent = 'Quick Start';
-  host.appendChild(label);
-  const grid = document.createElement('div');
-  grid.className = 'home-quick';
-  pinned.forEach(id => {
-    const tool = getTool(id);
-    if (!tool) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'home-quick-card';
-    btn.innerHTML = `
-      <span class="hq-icon">${TOOL_ICONS[id] || ''}</span>
-      <span class="hq-title">${tool.label}</span>
-      <span class="home-quick-fav" data-fav="${id}" aria-label="Favorite">${favorites().includes(id) ? '★' : '☆'}</span>
-    `;
-    btn.onclick = (e) => {
-      if (e.target.closest('[data-fav]')) {
-        e.stopPropagation();
-        toggleFavorite(id);
-        return;
-      }
-      showSectionFn(id);
-    };
-    grid.appendChild(btn);
-  });
-  host.appendChild(grid);
-}
-
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -113,26 +44,87 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function renderCategories(host) {
-  host.innerHTML = '';
-  const label = document.createElement('div');
-  label.className = 'home-section-label';
-  label.textContent = 'Categories';
-  host.appendChild(label);
-  const grid = document.createElement('div');
-  grid.className = 'home-cats';
-  CATEGORIES.forEach(cat => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'home-cat-link';
-    btn.innerHTML = `<span class="dock-icon">${CATEGORY_ICONS[cat.id] || ''}</span><span>${cat.label}</span>`;
-    btn.onclick = () => {
-      if (typeof showHubFn === 'function') showHubFn(cat.id);
-      else showSectionFn('hub-' + cat.id);
+function routineCardHtml(card) {
+  const pct = Math.round((card.progress || 0) * 100);
+  const desc = card.description
+    ? `<div class="hrc-desc">${escapeHtml(card.description)}</div>`
+    : '';
+  const session = card.currentSessionName
+    ? `<div class="hrc-session">${escapeHtml(card.currentSessionName)}</div>`
+    : '';
+  return `
+    <button type="button" class="home-routine-card" data-routine-id="${escapeHtml(card.id)}" aria-label="${escapeHtml(card.name)}">
+      <div class="hrc-name">${escapeHtml(card.name)}</div>
+      ${desc}
+      ${session}
+      <div class="hrc-counts">${card.completedCount} / ${card.totalCount} sessions</div>
+      <div class="hrc-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+        <div class="hrc-progress-fill" style="width: ${pct}%"></div>
+      </div>
+    </button>
+  `;
+}
+
+function wireRoutineActions(host) {
+  const onNew = host.querySelector('[data-action="new-routine"]');
+  const onImport = host.querySelector('[data-action="import-routine"]');
+  if (onNew) {
+    onNew.onclick = () => {
+      createRoutineFromPrompt({ onDone: () => render() });
     };
-    grid.appendChild(btn);
+  }
+  if (onImport) {
+    onImport.onclick = () => {
+      importRoutineFromFile({ onDone: () => render() });
+    };
+  }
+}
+
+function wireRoutineCards(host) {
+  host.querySelectorAll('.home-routine-card').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.routineId;
+      if (!id) return;
+      openRoutineById(id);
+      showSectionFn('routines');
+    };
   });
-  host.appendChild(grid);
+}
+
+function renderRoutines(host) {
+  if (!host) return;
+  const cards = buildRoutineCardModels(listRoutines(), {
+    getStats: (routine) => getRoutineStats(routine),
+    getActiveSession: (routine) => getActiveRoutineSession(routine.id),
+  });
+
+  if (!cards.length) {
+    host.innerHTML = `
+      <div class="home-routines-empty">
+        <div class="hre-title">No routines yet</div>
+        <div class="hre-body">Create a routine or import a Musi routine file.</div>
+        <button type="button" class="btn primary" data-action="new-routine">New Routine</button>
+        <button type="button" class="btn" data-action="import-routine">Import Routine</button>
+      </div>
+    `;
+    wireRoutineActions(host);
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="home-routines-head">
+      <h2 class="home-routines-title">Routines</h2>
+      <div class="home-routines-actions">
+        <button type="button" class="btn primary" data-action="new-routine">New Routine</button>
+        <button type="button" class="btn" data-action="import-routine">Import Routine</button>
+      </div>
+    </div>
+    <div class="home-routine-grid">
+      ${cards.map(routineCardHtml).join('')}
+    </div>
+  `;
+  wireRoutineActions(host);
+  wireRoutineCards(host);
 }
 
 function renderAllTools(panel) {
@@ -173,7 +165,6 @@ function renderAllTools(panel) {
         e.stopPropagation();
         toggleFavorite(t.id);
       };
-      // Make whole row tappable except star
       row.addEventListener('click', (e) => {
         if (e.target.closest('.ht-fav')) return;
         showSectionFn(t.id);
@@ -186,14 +177,10 @@ function renderAllTools(panel) {
 }
 
 function render() {
-  const continueHost = document.getElementById('home-continue');
-  const quickHost = document.getElementById('home-quickstart');
-  const catsHost = document.getElementById('home-categories');
+  const routinesHost = document.getElementById('home-routines');
   const allPanel = document.getElementById('home-all-panel');
 
-  if (continueHost) renderContinue(continueHost);
-  if (quickHost) renderQuickStart(quickHost);
-  if (catsHost) renderCategories(catsHost);
+  if (routinesHost) renderRoutines(routinesHost);
   if (allPanel) {
     allPanel.open = false;
     renderAllTools(allPanel);
@@ -284,53 +271,10 @@ function toolRow(tool, { showSection, onFavorite }) {
   return row;
 }
 
-function wireHero() {
-  const primary = document.getElementById('gbc-cta-primary');
-  const browse = document.getElementById('gbc-cta-browse');
-  const clock = document.getElementById('gbc-clock');
-
-  if (clock && !clock.dataset.wired) {
-    clock.dataset.wired = '1';
-    const tick = () => {
-      const d = new Date();
-      clock.textContent = d.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-    };
-    tick();
-    setInterval(tick, 30000);
-  }
-
-  if (primary) {
-    const continueId = lastTool();
-    primary.onclick = () => {
-      showSectionFn(continueId || 'studylab');
-    };
-    const label = document.getElementById('gbc-cta-primary-label');
-    if (label) {
-      label.textContent = continueId ? 'Continue' : 'Start practice';
-    }
-  }
-
-  if (browse) {
-    browse.onclick = () => {
-      const panel = document.getElementById('home-all-panel');
-      if (!panel) return;
-      panel.open = true;
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      const search = panel.querySelector('.home-all-search');
-      if (search) search.focus();
-    };
-  }
-}
-
 export function initHome(config) {
   showSectionFn = config.showSection;
   showHubFn = config.showHub;
   render();
-  wireHero();
   if (!window.__musiProfileListener) {
     window.__musiProfileListener = true;
     window.addEventListener('musi:profile-changed', () => {
@@ -343,9 +287,14 @@ export function initHome(config) {
       refreshHome();
     });
   }
+  if (!window.__musiRoutinesListener) {
+    window.__musiRoutinesListener = true;
+    onDataChanged((detail) => {
+      if (detail.domain === 'routines') refreshHome();
+    });
+  }
 }
 
 export function refreshHome() {
   render();
-  wireHero();
 }
