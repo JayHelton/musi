@@ -70,6 +70,9 @@ Useful existing exports for the Home dashboard: `listRoutines`, `getRoutine`,
 
 Import always resets `activeSessionId` to `null` on an imported routine.
 
+`listRoutines()` sorts by `updatedAt` descending and adds no second key. Home therefore
+needs its own `name` tiebreak for FR-005.
+
 ### Routine navigation today
 
 `js/main.js` calls `showSection(id)`, which toggles the `active` class on a section. It
