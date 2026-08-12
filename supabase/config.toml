@@ -63,6 +63,21 @@ max_frequency = "1s"
 # admin_email = "noreply@YOUR_DOMAIN.example"
 # sender_name = "Musi"
 
+# Google sign-in for the LOCAL stack only. The GitHub integration ignores every
+# [auth] block, so this does not reach production. Set the provider for
+# production in the Supabase Dashboard, or through the Management API.
+#
+# To use Google with `supabase start`, export the two variables and remove the
+# comment marks:
+#   export GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+#   export GOOGLE_SECRET=...
+#
+# [auth.external.google]
+# enabled = true
+# client_id = "env(GOOGLE_CLIENT_ID)"
+# secret = "env(GOOGLE_SECRET)"
+# skip_nonce_check = false
+
 [auth.rate_limit]
 email_sent = 4
 sign_in_sign_ups = 30
