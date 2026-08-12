@@ -14,6 +14,8 @@ const SESSION_BACK_LABEL = '← Session';
 
 const LAYER_ORDER = ['routine', 'session', 'workbook', 'companion', 'exercise'];
 
+const OPEN_PATCH_ORDER = ['routine', 'session', 'workbook', 'exercise', 'companion'];
+
 function emptyRoute() {
   return {
     routine: null,
@@ -66,11 +68,55 @@ function workbookStatusEl() {
   return document.getElementById('wb-status');
 }
 
-function validateOpenPatch(current, patch) {
-  const merged = { ...current };
-  for (const key of Object.keys(patch)) {
-    if (patch[key]) merged[key] = patch[key];
+function layerIdentityKey(layerName, route) {
+  switch (layerName) {
+    case 'routine':
+      return route.routine ?? '';
+    case 'session':
+      return `${route.routine ?? ''}\x00${route.session ?? ''}`;
+    case 'workbook':
+      return `${route.routine ?? ''}\x00${route.session ?? ''}\x00${route.workbook ?? ''}`;
+    case 'exercise':
+      return `${route.routine ?? ''}\x00${route.session ?? ''}\x00${route.workbook ?? ''}\x00${route.exercise ?? ''}`;
+    case 'companion':
+      return `${route.routine ?? ''}\x00${route.session ?? ''}\x00${route.workbook ?? ''}\x00${route.companion ?? ''}`;
+    default:
+      return '';
   }
+}
+
+function mergeOpenPatch(current, patch) {
+  let deepestIdx = -1;
+  for (const key of OPEN_PATCH_ORDER) {
+    if (patch[key]) deepestIdx = OPEN_PATCH_ORDER.indexOf(key);
+  }
+  if (deepestIdx < 0) return { ...current };
+
+  const merged = emptyRoute();
+  for (let i = 0; i <= deepestIdx; i += 1) {
+    const key = OPEN_PATCH_ORDER[i];
+    if (patch[key]) {
+      merged[key] = patch[key];
+    } else if (i < deepestIdx) {
+      merged[key] = current[key];
+    }
+  }
+
+  if (patch.companion && !patch.workbook) {
+    merged.workbook = null;
+  }
+  if (patch.companion && !patch.exercise) {
+    merged.exercise = null;
+  }
+  if (patch.exercise) {
+    merged.companion = null;
+  }
+
+  return merged;
+}
+
+function validateOpenPatch(current, patch) {
+  const merged = mergeOpenPatch(current, patch);
   const normalized = parseRoutineRoute(buildRoutineParams(merged));
   for (const key of Object.keys(patch)) {
     if (patch[key] && !normalized[key]) return false;
@@ -361,6 +407,8 @@ export function createRoutineNavigator({
       commonLen < currentChain.length
       && commonLen < targetChain.length
       && currentChain[commonLen] === targetChain[commonLen]
+      && layerIdentityKey(currentChain[commonLen], oldRoute)
+        === layerIdentityKey(targetChain[commonLen], targetRoute)
     ) {
       commonLen += 1;
     }
@@ -390,7 +438,8 @@ export function createRoutineNavigator({
     const topLayer = targetChain[targetChain.length - 1];
     const topLayerChanged =
       currentChain.length !== targetChain.length
-      || currentChain[currentChain.length - 1] !== topLayer;
+      || currentChain[currentChain.length - 1] !== topLayer
+      || layerIdentityKey(topLayer, oldRoute) !== layerIdentityKey(topLayer, targetRoute);
 
     if (wentUp) {
       if (routeLayer(targetRoute) !== 'list') {
@@ -511,10 +560,7 @@ export function createRoutineNavigator({
     open(patch) {
       if (!validateOpenPatch(state.route, patch)) return;
 
-      const merged = { ...state.route };
-      for (const key of Object.keys(patch)) {
-        if (patch[key]) merged[key] = patch[key];
-      }
+      const merged = mergeOpenPatch(state.route, patch);
 
       const parsed = parseRoutineRoute(buildRoutineParams(merged));
       const resolved = resolveRoutineRoute(parsed, makeResolveData());

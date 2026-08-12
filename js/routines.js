@@ -231,7 +231,7 @@ function navOpen(patch) {
 function navApplyRoutine(routineId) {
   const nav = routineNavigatorRef;
   if (!nav) return false;
-  nav.applyRoute({ routine: routineId }, { source: 'internal' });
+  nav.open({ routine: routineId });
   return true;
 }
 

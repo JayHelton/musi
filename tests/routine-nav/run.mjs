@@ -655,4 +655,79 @@ test('navigator parent layer receives no unmount while a child mounts', () => {
   assert.equal(recorder.count('routine.unmount'), 0);
 });
 
+function makeSiblingNavigator() {
+  const recorder = makeCallRecorder();
+  const routines = {
+    A: { id: 'A', sessions: [{ id: 'sA1', name: 'A one' }, { id: 'sA2', name: 'A two' }] },
+    B: { id: 'B', sessions: [{ id: 'sB1', name: 'B one' }] },
+  };
+
+  const navigator = createRoutineNavigator({
+    root: makeFakeElement(),
+    getRoutine: (id) => routines[id] ?? null,
+    getSession: (routine, sessionId) => routine.sessions.find((s) => s.id === sessionId) ?? null,
+    getWorkbook: () => null,
+    getExercise: () => null,
+    getCompanion: () => null,
+    shell: makeFakeShell(recorder),
+    layers: {
+      routine: makeFakeLayer('routine', recorder, 'routines'),
+      session: makeFakeLayer('session', recorder, 'routines'),
+      workbook: makeFakeLayer('workbook', recorder, 'workbooks'),
+      exercise: makeFakeLayer('exercise', recorder, 'workbooks'),
+      companion: makeFakeLayer('companion', recorder, 'workbooks'),
+    },
+  });
+
+  return { navigator, recorder };
+}
+
+test('navigator open remounts the routine layer when the routine sibling changes', () => {
+  const { navigator, recorder } = makeSiblingNavigator();
+
+  navigator.applyRoute({ routine: 'A' }, { source: 'boot' });
+  recorder.clear();
+
+  navigator.open({ routine: 'B' });
+
+  assert.equal(recorder.count('pushRoute'), 1);
+  assert.equal(recorder.count('routine.mount'), 1);
+  assert.equal(navigator.currentRoute().routine, 'B');
+  assert.equal(navigator.currentRoute().session, null);
+});
+
+test('navigator open remounts the session layer when the session sibling changes', () => {
+  const { navigator, recorder } = makeSiblingNavigator();
+
+  navigator.applyRoute({ routine: 'A', session: 'sA1' }, { source: 'boot' });
+  recorder.clear();
+
+  navigator.open({ session: 'sA2' });
+
+  assert.equal(recorder.count('pushRoute'), 1);
+  assert.equal(recorder.count('session.mount'), 1);
+  assert.equal(recorder.count('routine.unmount'), 0);
+  assert.equal(navigator.currentRoute().session, 'sA2');
+});
+
+test('navigator open drops the session when the routine sibling changes', () => {
+  const { navigator, recorder } = makeSiblingNavigator();
+
+  navigator.applyRoute({ routine: 'A', session: 'sA1' }, { source: 'boot' });
+  recorder.clear();
+
+  navigator.open({ routine: 'B' });
+
+  assert.equal(recorder.count('pushRoute'), 1);
+  assert.equal(recorder.count('session.unmount'), 1);
+  assert.equal(recorder.count('routine.mount'), 1);
+  assert.deepEqual(navigator.currentRoute(), {
+    routine: 'B',
+    session: null,
+    workbook: null,
+    exercise: null,
+    companion: null,
+  });
+});
+
 console.log(`\n${passed} tests passed`);
