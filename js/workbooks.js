@@ -574,6 +574,40 @@ function mountDetailCompanionUi(wb) {
   refreshDetailCompanions(wb);
 }
 
+function buildGpTransportExtra() {
+  const wrap = el('div', { class: 'wb-gpp-transport-extra' });
+
+  detailPrevBtn = el('button', {
+    class: 'gpp-transport-btn wb-gpp-transport-btn',
+    type: 'button',
+    'aria-label': 'Previous exercise',
+    title: 'Previous exercise',
+    html: headIcon('prev'),
+    onClick: (e) => { e.stopPropagation(); goPrev(); },
+  });
+
+  detailPositionEl = el('span', { class: 'wb-head-position', 'aria-live': 'polite' });
+
+  detailNextBtn = el('button', {
+    class: 'gpp-transport-btn wb-gpp-transport-btn',
+    type: 'button',
+    'aria-label': 'Next exercise',
+    title: 'Next exercise',
+    html: headIcon('next'),
+    onClick: (e) => { e.stopPropagation(); advance(); },
+  });
+
+  wrap.append(detailPrevBtn, detailPositionEl, detailNextBtn);
+  return wrap;
+}
+
+function syncGpWorkbookChrome(wb) {
+  syncPositionReadout(wb);
+  syncLoopToggle(wb);
+  syncTransportDisabled(wb);
+  syncPlaylistLabel(wb);
+}
+
 function buildGpHeaderExtra(wb) {
   const wrap = el('div', { class: 'wb-gpp-head-extra' });
 
@@ -589,26 +623,6 @@ function buildGpHeaderExtra(wb) {
       render();
     },
   }));
-
-  detailPositionEl = el('span', { class: 'wb-head-position', 'aria-live': 'polite' });
-
-  detailPrevBtn = el('button', {
-    class: 'gpp-icon-btn has-label',
-    type: 'button',
-    'aria-label': 'Previous exercise',
-    title: 'Previous exercise',
-    html: `${headIcon('prev')}<span class="gpp-btn-label">Prev</span>`,
-    onClick: (e) => { e.stopPropagation(); goPrev(); },
-  });
-
-  detailNextBtn = el('button', {
-    class: 'gpp-icon-btn has-label',
-    type: 'button',
-    'aria-label': 'Next exercise',
-    title: 'Next exercise',
-    html: `${headIcon('next')}<span class="gpp-btn-label">Next</span>`,
-    onClick: (e) => { e.stopPropagation(); advance(); },
-  });
 
   const loopHint = 'Loop on repeats the current exercise; loop off advances to the next one automatically.';
   const loopLabel = el('label', {
@@ -646,19 +660,12 @@ function buildGpHeaderExtra(wb) {
   });
 
   wrap.append(
-    detailPositionEl,
-    detailPrevBtn,
-    detailNextBtn,
     loopLabel,
     detailPlaylistBtn,
     buildCompanionGearButton(),
     detailAddBtnHeader,
   );
 
-  syncPositionReadout(wb);
-  syncLoopToggle(wb);
-  syncTransportDisabled(wb);
-  syncPlaylistLabel(wb);
   return wrap;
 }
 
@@ -951,6 +958,9 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       initialLoopStartBeat: item.startBeat,
       initialLoopEndBeat: item.endBeat,
     } : {};
+    const transportExtra = buildGpTransportExtra();
+    const headerExtra = buildGpHeaderExtra(wb);
+    syncGpWorkbookChrome(wb);
     return mountGpPlayer(host, {
       gpResult: exerciseGp,
       title: item.name,
@@ -965,7 +975,8 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       initialTuning: item.tuning,
       initialRetuneMode: item.retuneMode,
       exerciseScope: segment && !sliced,
-      headerExtra: buildGpHeaderExtra(wb),
+      headerExtra,
+      transportExtra,
       onPracticeSettingsChange: (settings) => {
         const patch = filterPracticeSettingsPatch(settings, { sliced });
         updateExercisePracticeSettings(item.id, patch);
