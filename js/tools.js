@@ -287,7 +287,7 @@ export const TOOLS = [
     label: 'Settings & Preferences',
     short: 'Settings',
     category: 'tools',
-    description: 'Feature visibility, genre priorities, learning goals, and study recommendation balance.',
+    description: 'Musical context, volume, device sync, import and export, library cleanup, and feature visibility.',
     title: 'Settings & Preferences',
     holdRecord: false,
   },

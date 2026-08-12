@@ -120,7 +120,6 @@ function formatRoutineMeta(stats) {
     parts.push(`${stats.completedSessionCount} done`);
   }
   parts.push(plural(stats.uniqueWorkbookCount, 'workbook'));
-  if (stats.totalMinutes > 0) parts.push(`${stats.totalMinutes} min`);
   return parts.join(' · ');
 }
 
@@ -132,7 +131,6 @@ function formatSessionMeta(session) {
   const parts = [];
   const wbCount = session.workbookIds?.length || 0;
   parts.push(plural(wbCount, 'workbook'));
-  if (session.durationMin != null) parts.push(`${session.durationMin} min`);
   const m = session.metronome || {};
   parts.push(`${m.bpm || 100} BPM · ${m.beats || 4}/4 · ${subdivLabel(m.subdiv)}`);
   return parts.join(' · ');
@@ -276,6 +274,7 @@ export function createRoutineLayerDescriptors() {
       },
       heading: () => routineOverviewHeading(),
       status: () => statusEl || document.getElementById('rt-status'),
+      scroller: () => document.getElementById('rt-overview-pane'),
     },
     session: {
       host: () => 'routines',
@@ -292,6 +291,7 @@ export function createRoutineLayerDescriptors() {
       },
       heading: () => sessionTitleEl || document.getElementById('rt-session-title'),
       status: () => sessionStatusElement(),
+      scroller: () => document.getElementById('rt-session-body'),
     },
   };
 }
@@ -691,9 +691,6 @@ function renderOverview() {
     }));
   }
   chips.appendChild(el('span', { class: 'rt-stat-chip', text: plural(stats.uniqueWorkbookCount, 'workbook') }));
-  if (stats.totalMinutes > 0) {
-    chips.appendChild(el('span', { class: 'rt-stat-chip', text: `${stats.totalMinutes} min total` }));
-  }
   overviewEl.appendChild(chips);
 
   const completedCount = rt.sessions.filter(s => s.completed).length;
@@ -1042,23 +1039,6 @@ function renderMetronomeCard(rt, session) {
     },
   });
   playRow.appendChild(playBtnRef);
-
-  const durationWrap = el('div', { class: 'rt-metro-duration' });
-  durationWrap.appendChild(document.createTextNode('Target duration (min)'));
-  const durationInput = el('input', {
-    type: 'number', min: '1', max: '600', placeholder: 'None',
-    'aria-label': 'Target duration in minutes',
-    value: session.durationMin != null ? String(session.durationMin) : '',
-  });
-  durationInput.addEventListener('change', () => {
-    const raw = durationInput.value.trim();
-    updateRoutineSession(rt.id, session.id, {
-      durationMin: raw ? Number(raw) : null,
-    });
-    refreshLibraryMeta();
-  });
-  durationWrap.appendChild(durationInput);
-  playRow.appendChild(durationWrap);
   card.appendChild(playRow);
 
   beatDotsEl = el('div', { class: 'rt-beat-dots', 'aria-label': 'Beat indicator' });

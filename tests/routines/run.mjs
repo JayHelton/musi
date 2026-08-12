@@ -968,6 +968,53 @@ test('buildRoutineCardModels reports full progress when every session is complet
   assert.equal(cards[0].currentSessionName, null);
 });
 
+test('setActiveRoutineSession does not change completed', () => {
+  const rt = createRoutine({
+    name: 'Active No Complete',
+    sessions: [{ name: 'Done', completed: true }, { name: 'Open' }],
+  });
+  const ids = getRoutine(rt.id).sessions.map(s => s.id);
+  assert.ok(setActiveRoutineSession(rt.id, ids[1]));
+  const stored = getRoutine(rt.id);
+  assert.equal(stored.sessions[0].completed, true);
+  assert.equal(stored.sessions[1].completed, false);
+});
+
+test('updateRoutineSession keeps durationMin when patch omits it', () => {
+  const rt = createRoutine({ name: 'Duration Keep' });
+  const s = addRoutineSession(rt.id, { name: 'Timed', durationMin: 30 });
+  assert.ok(updateRoutineSession(rt.id, s.id, { name: 'Timed Renamed', notes: 'keep' }));
+  const session = getRoutine(rt.id).sessions.find(x => x.id === s.id);
+  assert.equal(session.name, 'Timed Renamed');
+  assert.equal(session.notes, 'keep');
+  assert.equal(session.durationMin, 30);
+});
+
+test('setRoutineSessionCompleted changes one routine only', () => {
+  const rt1 = createRoutine({
+    name: 'Routine One',
+    sessions: [{ name: 'A' }, { name: 'B' }],
+  });
+  const rt2 = createRoutine({
+    name: 'Routine Two',
+    sessions: [{ name: 'C', completed: true }, { name: 'D' }],
+  });
+  const id1 = getRoutine(rt1.id).sessions[0].id;
+  const id2 = getRoutine(rt2.id).sessions[1].id;
+  assert.ok(setRoutineSessionCompleted(rt1.id, id1, true));
+  const one = getRoutine(rt1.id);
+  const two = getRoutine(rt2.id);
+  assert.equal(one.sessions[0].completed, true);
+  assert.equal(one.sessions[1].completed, false);
+  assert.equal(two.sessions[0].completed, true);
+  assert.equal(two.sessions[1].completed, false);
+  assert.ok(setRoutineSessionCompleted(rt2.id, id2, true));
+  const twoAfter = getRoutine(rt2.id);
+  assert.equal(getRoutine(rt1.id).sessions[0].completed, true);
+  assert.equal(twoAfter.sessions[0].completed, true);
+  assert.equal(twoAfter.sessions[1].completed, true);
+});
+
 test('invalidateRoutinesCache allows store re-init after cache clear', () => {
   invalidateRoutinesCache();
   const rt = createRoutine({ name: 'After invalidate' });

@@ -75,7 +75,7 @@ test('triad qualities from harmonic minor degrees', () => {
   assert.equal(q0, 'minor');
 });
 
-test('genre concepts emphasize flat2 / tritone', () => {
+test('intervalsForConcepts maps flat2 to 1 and tritone to 6', () => {
   const ints = intervalsForConcepts(['flat2', 'tritone', 'phrygian']);
   assert.ok(ints.includes(1));
   assert.ok(ints.includes(6));
