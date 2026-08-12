@@ -243,7 +243,7 @@ The genre subkey is `profile.music`.
 7. From the empty state, activate `New Routine`. The creation flow runs and Home shows the new card. — SC-002
 8. From the empty state, activate `Import Routine`. The import flow runs and Home shows the imported card. — SC-007
 9. On Home, confirm these blocks are absent: pocket theory hero, continue-practice card, start-study action, study recommendation card, genre profile prompt, foundation-study prompt, quick-start tool cards, category cards, and expanded tool catalog. — SC-005
-10. Home still shows one small secondary `Browse tools` action. It opens the existing tool browser. — FR-009
+10. Home still shows a collapsed `Browse tools` panel. The panel summary reads `Browse tools`. The panel holds the tool list. — FR-009
 11. Open the Guitar routine. Before and after, read `localStorage` for `musi.routines`. Drums and Harsh Vocals data stay unchanged. — SC-004
 
 ### User Story 2 — Move through routine layers and step back one layer
@@ -308,7 +308,19 @@ Each command must end with the listed line.
 node tests/routines/run.mjs
 ```
 
-Expected final line: `34 tests passed`
+Expected final line: `52 tests passed`
+
+```bash
+node tests/routine-nav/run.mjs
+```
+
+Expected final line: `43 tests passed`
+
+```bash
+node tests/genre-removal/run.mjs
+```
+
+Expected final line: `4 tests passed`
 
 ```bash
 node tests/workbooks/run.mjs
