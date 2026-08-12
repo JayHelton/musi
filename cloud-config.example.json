@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy this file to cloud-config.json and put your own values in it. Git ignores cloud-config.json. Musi shows the Cloud account panel in Settings only when both values are present. The publishable (anon) key is safe in a browser: Row Level Security is the boundary. Never put the service-role key here.",
+  "SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "YOUR_PUBLISHABLE_ANON_KEY",
+  "enabled": true
+}

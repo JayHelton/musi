@@ -160,22 +160,38 @@ The QR and ZIP device sync stays available for people who prefer no account.
 The upstream build ships with cloud sync **off**. A checkout makes no request to
 Supabase, shows no account panel, and loads no cloud code.
 
+**The Cloud account panel stays hidden until you supply these values.** That is
+the off switch. If you do not see the panel in Settings, Musi found no
+configuration.
+
 To turn it on for your own copy:
 
 1. Create a Supabase project. Apply the schema in `supabase/`. See
    `supabase/README.md` for the local loop and the deploy path.
-2. Put a `cloud-config.json` file beside `index.html` (git ignores this file):
+2. Copy your project URL and your **publishable (anon)** key from the Supabase
+   Dashboard, under Project Settings → API.
+3. Give the values to Musi in one of two ways:
 
-```json
-{
-  "SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
-  "SUPABASE_PUBLISHABLE_KEY": "your-publishable-anon-key",
-  "enabled": true
-}
+**On your own machine**, copy the example file and edit it:
+
+```bash
+cp cloud-config.example.json cloud-config.json
 ```
 
-3. Serve the app over HTTP and open **Settings → Cloud account**.
-4. Sign in with your email. Supabase sends a 6-digit code.
+Git ignores `cloud-config.json`, so your file stays out of the repository.
+
+**On a deployed site** (GitHub Pages, Netlify, S3), that ignored file never
+reaches the server. Put the same two values in the `DEFAULTS` object in
+`js/cloud/cloudConfig.js` and commit them. The publishable key is made for the
+browser, and Row Level Security is the real boundary. Never commit the
+service-role key.
+
+4. Serve the app over HTTP. Opening `index.html` directly stops the config fetch
+   and the panel stays hidden.
+5. Open **Settings → Cloud account** and sign in with your email. Supabase sends
+   a 6-digit code.
+6. After you change any JavaScript or CSS, do a hard reload. The service worker
+   can hold the old files.
 
 The first device to sign in with an empty cloud uploads its library and becomes
 the source of truth. After that the cloud copy is authoritative, and each other
