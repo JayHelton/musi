@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://musi.local/schemas/routine-export.v1.json",
+  "title": "Musi routine export v1",
+  "description": "This schema records the existing Musi routine export format that buildRoutineExport produces. The Routine-First Declutter feature must not change this format. The importer accepts more than this schema: validateRoutineExport also accepts a bare routine array and a single routine object from older files, so an import test must not use this schema as its only gate. The schema describes the serialized file. An in-memory export object can carry a type-specific companion key, for example stringSet, with the value undefined, and JSON serialization drops that key.",
+  "type": "object",
+  "required": ["app", "kind", "version", "createdAt", "routines", "workbooks"],
+  "additionalProperties": false,
+  "properties": {
+    "app": {
+      "type": "string",
+      "const": "musi",
+      "description": "Application identifier."
+    },
+    "kind": {
+      "type": "string",
+      "const": "musi-routines",
+      "description": "Export kind constant from ROUTINE_EXPORT_KIND."
+    },
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Export version constant from ROUTINE_EXPORT_VERSION."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when buildRoutineExport created the file."
+    },
+    "routines": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/routine" },
+      "description": "Routine snapshots copied from storage. The array is empty when the selection matches no routine."
+    },
+    "workbooks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/exportWorkbook" },
+      "description": "Workbook snapshots for ids referenced by the exported routines."
+    }
+  },
+  "$defs": {
+    "routine": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "description",
+        "sessions",
+        "activeSessionId",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Routine identifier."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Routine display name."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Optional routine description."
+        },
+        "sessions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/session" },
+          "description": "Ordered session list."
+        },
+        "activeSessionId": {
+          "type": ["string", "null"],
+          "description": "Current-session bookmark for this routine."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 last-change timestamp."
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "notes",
+        "workbookIds",
+        "durationMin",
+        "metronome",
+        "completed"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Session identifier."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Session display name."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 20000,
+          "description": "Session notes."
+        },
+        "workbookIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Ordered workbook id references."
+        },
+        "durationMin": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 600,
+          "description": "Inert compatibility data. The user interface must not show this value."
+        },
+        "metronome": { "$ref": "#/$defs/metronome" },
+        "completed": {
+          "type": "boolean",
+          "description": "Session completion flag."
+        }
+      }
+    },
+    "metronome": {
+      "type": "object",
+      "required": ["bpm", "beats", "subdiv", "accentFirst"],
+      "additionalProperties": false,
+      "properties": {
+        "bpm": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 300,
+          "description": "Beats per minute."
+        },
+        "beats": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "description": "Beats per bar."
+        },
+        "subdiv": {
+          "type": "string",
+          "enum": ["quarter", "eighth", "triplet", "sixteenth"],
+          "description": "Subdivision id from SESSION_SUBDIVISIONS."
+        },
+        "accentFirst": {
+          "type": "boolean",
+          "description": "Whether the first beat receives an accent."
+        }
+      }
+    },
+    "exportWorkbook": {
+      "type": "object",
+      "required": ["id", "name", "entries", "companions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Workbook identifier."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Workbook display name."
+        },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/exportWorkbookEntry" },
+          "description": "Exercise references. Export keeps exerciseId only."
+        },
+        "companions": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/companion" },
+          "description": "Study companion panels embedded in the workbook snapshot."
+        }
+      }
+    },
+    "exportWorkbookEntry": {
+      "type": "object",
+      "required": ["exerciseId"],
+      "additionalProperties": false,
+      "properties": {
+        "exerciseId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Referenced exercise identifier."
+        }
+      }
+    },
+    "companion": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "root",
+        "scale",
+        "quality",
+        "patternId",
+        "inversion",
+        "tuning",
+        "collapsed",
+        "label"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Companion identifier."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "scale-ref",
+            "triad-ref",
+            "sweep-ref",
+            "pitch-train",
+            "interval-orbit",
+            "ear-train"
+          ],
+          "description": "Companion type id from COMPANION_TYPES."
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Locked root note."
+        },
+        "scale": {
+          "type": "string",
+          "description": "Scale name from SCALES."
+        },
+        "quality": {
+          "type": "string",
+          "description": "Triad quality id."
+        },
+        "stringSet": {
+          "type": "integer",
+          "description": "String-set index. Present for triad-ref and sweep-ref."
+        },
+        "patternId": {
+          "type": "string",
+          "description": "Sweep pattern id."
+        },
+        "inversion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Voicing inversion index."
+        },
+        "tuning": {
+          "type": "string",
+          "description": "Guitar tuning preset name."
+        },
+        "fretStart": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 24,
+          "description": "Fretboard range start. Omitted for pitch-train and ear-train."
+        },
+        "fretEnd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 24,
+          "description": "Fretboard range end. Omitted for pitch-train and ear-train."
+        },
+        "collapsed": {
+          "type": "boolean",
+          "description": "Panel collapsed state."
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Optional custom label."
+        },
+        "mapRange": {
+          "type": "integer",
+          "enum": [1, 2, 3],
+          "description": "Interval-orbit map range. Present for interval-orbit only."
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Interval-orbit level. Present for interval-orbit only."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["map", "locate"],
+          "description": "Interval-orbit mode. Present for interval-orbit only."
+        },
+        "earContext": {
+          "type": "string",
+          "enum": ["root", "single", "melodic"],
+          "description": "Ear-trainer context. Present for ear-train only."
+        },
+        "earPool": {
+          "type": "string",
+          "enum": ["diatonic", "chromatic"],
+          "description": "Ear-trainer note pool. Present for ear-train only."
+        },
+        "earAnswer": {
+          "type": "string",
+          "enum": ["note", "degree", "interval"],
+          "description": "Ear-trainer answer mode. Present for ear-train only."
+        }
+      }
+    }
+  }
+}
