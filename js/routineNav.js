@@ -82,10 +82,6 @@ function validateOpenPatch(current, patch) {
  * @param {{ shell: object, onBack: () => void, onEntryReplace?: unknown }} config
  */
 export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }) {
-  function activateWorkbooks() {
-    shell.activateSection('workbooks', { keep: ['routines'] });
-  }
-
   function setSessionBackTarget() {
     workbooks.setWorkbookBackTarget({
       label: SESSION_BACK_LABEL,
@@ -94,7 +90,6 @@ export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }
   }
 
   function mountWorkbook(ctx) {
-    activateWorkbooks();
     setSessionBackTarget();
     workbooks.openWorkbookForRoute({
       workbookId: ctx.route.workbook,
@@ -104,7 +99,6 @@ export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }
   }
 
   function mountExercise(ctx) {
-    activateWorkbooks();
     setSessionBackTarget();
     workbooks.openWorkbookForRoute({
       workbookId: ctx.route.workbook,
@@ -114,7 +108,6 @@ export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }
   }
 
   function mountCompanion(ctx) {
-    activateWorkbooks();
     setSessionBackTarget();
     const workbookId = ctx.workbook?.id || ctx.route.workbook;
     workbooks.openWorkbookForRoute({
@@ -217,14 +210,42 @@ export function createRoutineNavigator({
     return sectionElement(layer.host());
   }
 
+  function getScrollerElement(layerName) {
+    const layer = layers[layerName];
+    if (!layer || typeof layer.scroller !== 'function') return null;
+    return layer.scroller();
+  }
+
+  function activateSectionForStack(targetRoute, targetChain) {
+    if (!shell || typeof shell.activateSection !== 'function') return;
+
+    if (targetChain.length === 0 || !targetRoute.routine) {
+      shell.activateSection('routines', { keep: [] });
+      return;
+    }
+
+    const topLayer = targetChain[targetChain.length - 1];
+    const layer = layers[topLayer];
+    if (!layer) {
+      shell.activateSection('routines', { keep: [] });
+      return;
+    }
+
+    const hostId = layer.host();
+    const keep = hostId === 'workbooks' ? { keep: ['routines'] } : { keep: [] };
+    shell.activateSection(hostId, keep);
+  }
+
   function saveScrollForRoute(route) {
     const layerName = routeLayer(route);
     if (layerName === 'list') return;
     const hostEl = getHostElement(layerName);
+    const scrollerEl = getScrollerElement(layerName);
     const windowY = typeof window !== 'undefined' ? window.scrollY : 0;
     state.scrollPositions.set(routeKey(route), {
       windowY,
       hostScrollTop: hostEl ? hostEl.scrollTop : 0,
+      scrollerScrollTop: scrollerEl ? scrollerEl.scrollTop : 0,
     });
   }
 
@@ -234,18 +255,30 @@ export function createRoutineNavigator({
     if (!positions) return;
 
     const layerName = routeLayer(route);
+    const scrollerScrollTop = positions.scrollerScrollTop || 0;
+    const allZero =
+      positions.windowY === 0
+      && positions.hostScrollTop === 0
+      && scrollerScrollTop === 0;
+
     const apply = () => {
       if (typeof window !== 'undefined') {
         window.scrollTo(0, positions.windowY);
       }
       const hostEl = getHostElement(layerName);
       if (hostEl) hostEl.scrollTop = positions.hostScrollTop;
+      const scrollerEl = getScrollerElement(layerName);
+      if (scrollerEl) scrollerEl.scrollTop = scrollerScrollTop;
     };
 
     if (typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(() => requestAnimationFrame(apply));
     } else {
       apply();
+    }
+
+    if (!allZero && typeof setTimeout !== 'undefined') {
+      setTimeout(apply, 80);
     }
   }
 
@@ -350,6 +383,7 @@ export function createRoutineNavigator({
 
     if (targetChain.length === 0) {
       clearScrollPositions();
+      activateSectionForStack(targetRoute, targetChain);
       return;
     }
 
@@ -367,6 +401,8 @@ export function createRoutineNavigator({
     if (meta.source === 'boot' || wentUp || targetChain.length > currentChain.length || topLayerChanged) {
       focusHeading(topLayer);
     }
+
+    activateSectionForStack(targetRoute, targetChain);
   }
 
   function applyEntryRouteChange(newRoute) {
@@ -386,6 +422,7 @@ export function createRoutineNavigator({
     }
 
     state.route = newRoute;
+    activateSectionForStack(newRoute, getLayerChain(newRoute));
     onRouteChange?.(newRoute, { source: 'internal', entryChange: true });
   }
 
@@ -450,7 +487,6 @@ export function createRoutineNavigator({
         } else {
           shell.replaceRoute(route);
         }
-        showRepairMessage(route, reason);
       } else {
         clearAllStatus();
       }
@@ -459,12 +495,16 @@ export function createRoutineNavigator({
         unmountAllLayers(state.route);
         state.route = emptyRoute();
         clearScrollPositions();
+        showRepairMessage(route, reason);
         onRouteChange?.(state.route, { source, repair: reason });
         return;
       }
 
       const targetChain = getLayerChain(route);
       reconcileStack(route, targetChain, { source });
+      if (dropped.length > 0) {
+        showRepairMessage(route, reason);
+      }
       onRouteChange?.(route, { source, repair: reason });
     },
 

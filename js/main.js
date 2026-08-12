@@ -396,10 +396,11 @@ function applyRoute({ id, params = {}, mode = 'push', source = 'internal' }) {
         navPushCount += 1;
       }
     }
-    applySection(ROUTINE_ROUTE_ID);
     const navigator = getRoutineNavigator();
     if (navigator) {
       navigator.applyRoute(params, { source });
+    } else {
+      applySection(ROUTINE_ROUTE_ID);
     }
     return;
   }
@@ -609,6 +610,9 @@ function rebuildNav() {
 }
 
 function init() {
+  if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+  }
   initBootSplash();
   initNav();
 
