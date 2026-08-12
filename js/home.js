@@ -2,12 +2,6 @@ import { getSetting, saveSetting } from './persistence.js';
 import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory, isFeatureEnabled } from './tools.js';
 import { getContext } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
-import {
-  buildRecommendations,
-  completeRecommendedStudy,
-} from './studyRecommendations.js';
-import { hasActiveGenres, getMusicProfile } from './musicProfile.js';
-import { startStudyLab } from './studyLab.js';
 
 let showSectionFn = null;
 let showHubFn = null;
@@ -119,102 +113,6 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function renderStudyRec(host) {
-  if (!host) return;
-  const profile = getMusicProfile();
-  const bundle = buildRecommendations({ limit: 1 });
-  const rec = bundle.primary;
-
-  if (!hasActiveGenres(profile)) {
-    host.innerHTML = `
-      <div class="home-rec-empty">
-        <div class="home-rec-kicker">Recommended Study</div>
-        <div class="home-rec-empty-title">Set your genre profile</div>
-        <p class="home-rec-empty-body">
-          Save genres and learning goals so study recommendations can emphasize relevant scales,
-          harmony, and fretboard contexts — without replacing foundation theory.
-        </p>
-        <div class="home-rec-actions">
-          <button type="button" class="btn primary" data-action="prefs">Settings</button>
-          ${rec ? `<button type="button" class="btn" data-action="start" data-id="${escapeHtml(rec.id)}">Try foundation study</button>` : ''}
-        </div>
-      </div>
-    `;
-    host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => showSectionFn('musicprefs'));
-    host.querySelector('[data-action="start"]')?.addEventListener('click', (e) => {
-      startStudy(e.currentTarget.dataset.id);
-    });
-    return;
-  }
-
-  if (!rec) {
-    host.innerHTML = `
-      <div class="home-rec-empty">
-        <div class="home-rec-kicker">Recommended Study</div>
-        <div class="home-rec-empty-title">No study matches current filters</div>
-        <p class="home-rec-empty-body">Clear a paused topic in Settings, or switch study balance.</p>
-        <div class="home-rec-actions">
-          <button type="button" class="btn primary" data-action="prefs">Settings</button>
-        </div>
-      </div>
-    `;
-    host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => showSectionFn('musicprefs'));
-    return;
-  }
-
-  const focus = (rec.focus || []).slice(0, 5)
-    .map(step => `<li>${escapeHtml(step)}</li>`)
-    .join('');
-  const reasons = (rec.reasons || [])
-    .map(r => `<li>${escapeHtml(r)}</li>`)
-    .join('');
-  const app = rec.application
-    ? `<div class="home-rec-app"><strong>Application</strong>${escapeHtml(rec.application)}</div>`
-    : '';
-
-  host.innerHTML = `
-    <article class="home-rec-card" aria-label="Recommended study">
-      <div class="home-rec-kicker">Recommended Study</div>
-      <div class="home-rec-head">
-        <div class="home-rec-title">${escapeHtml(rec.title)}</div>
-        <div class="home-rec-cat">${escapeHtml(rec.categoryLabel)}</div>
-      </div>
-      <details class="home-rec-details">
-        <summary class="home-rec-summary">Session details</summary>
-        <div class="home-rec-body">
-          <p class="home-rec-narrative">${escapeHtml(rec.narrative)}</p>
-          <div class="home-rec-meta">Profile · ${escapeHtml(bundle.genreSummary)}</div>
-          <div class="home-rec-focus-label">Today’s focus</div>
-          <ol class="home-rec-focus">${focus}</ol>
-          <div class="home-rec-why-label">Why this was selected</div>
-          <ul class="home-rec-reasons">${reasons}</ul>
-          ${app}
-        </div>
-      </details>
-      <div class="home-rec-actions">
-        <button type="button" class="btn primary" data-action="start" data-id="${escapeHtml(rec.id)}">Start study</button>
-        <button type="button" class="btn" data-action="done" data-id="${escapeHtml(rec.id)}">Mark reviewed</button>
-        <button type="button" class="btn" data-action="prefs">Adjust profile</button>
-      </div>
-    </article>
-  `;
-
-  host.querySelector('[data-action="start"]')?.addEventListener('click', (e) => {
-    startStudy(e.currentTarget.dataset.id);
-  });
-  host.querySelector('[data-action="done"]')?.addEventListener('click', (e) => {
-    completeRecommendedStudy(e.currentTarget.dataset.id);
-    render();
-  });
-  host.querySelector('[data-action="prefs"]')?.addEventListener('click', () => showSectionFn('musicprefs'));
-}
-
-function startStudy(studyId) {
-  if (!studyId) return;
-  startStudyLab(studyId);
-  showSectionFn('studylab');
-}
-
 function renderCategories(host) {
   host.innerHTML = '';
   const label = document.createElement('div');
@@ -289,14 +187,12 @@ function renderAllTools(panel) {
 
 function render() {
   const continueHost = document.getElementById('home-continue');
-  const recHost = document.getElementById('home-study-rec');
   const quickHost = document.getElementById('home-quickstart');
   const catsHost = document.getElementById('home-categories');
   const allPanel = document.getElementById('home-all-panel');
 
   if (continueHost) renderContinue(continueHost);
   if (quickHost) renderQuickStart(quickHost);
-  if (recHost) renderStudyRec(recHost);
   if (catsHost) renderCategories(catsHost);
   if (allPanel) {
     allPanel.open = false;
@@ -409,17 +305,12 @@ function wireHero() {
 
   if (primary) {
     const continueId = lastTool();
-    const rec = buildRecommendations({ limit: 1 }).primary;
     primary.onclick = () => {
-      if (!continueId && rec) {
-        startStudy(rec.id);
-        return;
-      }
       showSectionFn(continueId || 'studylab');
     };
     const label = document.getElementById('gbc-cta-primary-label');
     if (label) {
-      label.textContent = continueId ? 'Continue' : (rec ? 'Start study' : 'Start practice');
+      label.textContent = continueId ? 'Continue' : 'Start practice';
     }
   }
 

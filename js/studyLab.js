@@ -8,11 +8,7 @@ import { ROOTS } from './theory.js';
 import { SCALES, shortScaleName } from './scales.js';
 import { renderFretboard } from './interval-map/fretboardView.js';
 import { getStudyById } from './studyCatalog.js';
-import {
-  beginRecommendedStudy,
-  completeRecommendedStudy,
-  buildRecommendations,
-} from './studyRecommendations.js';
+import { recordStudyStarted, recordStudyCompleted } from './studyProgress.js';
 import { buildWalkthrough, DEGREE_LABELS, midiLabel } from './studyLabModel.js';
 import { createStudyLabMic } from './studyLabMic.js';
 
@@ -406,7 +402,8 @@ async function activateStep() {
   }
 
   if (step.type === 'complete') {
-    if (lab.studyId) completeRecommendedStudy(lab.studyId);
+    const study = lab.studyId ? getStudyById(lab.studyId) : null;
+    if (study) recordStudyCompleted(study);
   }
 }
 
@@ -426,11 +423,12 @@ function prevUseful() {
   activateStep();
 }
 
+const DEFAULT_STUDY_ID = 'major-scale-construction';
+
 export function startStudyLab(studyId) {
-  const study = getStudyById(studyId) || buildRecommendations({ limit: 1 }).primary;
-  const id = study?.id || studyId;
-  if (id) beginRecommendedStudy(id);
-  const catalogStudy = getStudyById(id) || study;
+  const catalogStudy = getStudyById(studyId) || getStudyById(DEFAULT_STUDY_ID);
+  const id = catalogStudy?.id || DEFAULT_STUDY_ID;
+  if (catalogStudy) recordStudyStarted(catalogStudy);
   const ctx = getContext();
   lab.studyId = id;
   lab.tuning = getSetting('sl.tuning', getSetting('io.tuning', 'Standard'));
@@ -539,7 +537,8 @@ function renderShell() {
   el('sl-skip').onclick = () => nextStep();
   el('sl-back').onclick = () => prevUseful();
   el('sl-finish').onclick = () => {
-    if (lab.studyId) completeRecommendedStudy(lab.studyId);
+    const study = lab.studyId ? getStudyById(lab.studyId) : null;
+    if (study) recordStudyCompleted(study);
     lab.stepIndex = (lab.walkthrough?.steps.length || 1) - 1;
     activateStep();
   };
@@ -561,10 +560,8 @@ function rebuildWalkthroughKeepingStep() {
 export function initStudyLab() {
   if (!lab.initialized) {
     lab.initialized = true;
-    // If navigated here without a study, use primary recommendation
     if (!lab.walkthrough) {
-      const primary = buildRecommendations({ limit: 1 }).primary;
-      startStudyLab(primary?.id || 'major-scale-construction');
+      startStudyLab(DEFAULT_STUDY_ID);
       return;
     }
   }
