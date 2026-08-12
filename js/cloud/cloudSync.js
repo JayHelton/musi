@@ -191,14 +191,14 @@ async function pullAllRemoteRows() {
   return rows;
 }
 
-async function runApplyRemote(rows, mode) {
+async function runApplyRemote(rows, mode, scopes) {
   applyingRemote = true;
   try {
     const deviceId = status.deviceId || await getDeviceId();
     const filtered = (rows || []).filter((row) => row.device_id !== deviceId);
     if (!filtered.length) return { applied: [], deleted: [] };
 
-    const result = await applyRemoteRecords(filtered, { mode });
+    const result = await applyRemoteRecords(filtered, { mode, scopes });
     for (const row of filtered) {
       const domain = row.domain;
       const recordId = row.record_id || row.recordId;
@@ -446,12 +446,41 @@ export async function pushNow() {
   if (status.state === 'pushing') setStatus({ state: 'idle' });
 }
 
+// A new install is never empty: Musi writes default settings and seeds three
+// exercise categories on the first run. Only these domains prove that the user
+// built a library on this device, so only these domains can force a question.
+const CONTENT_DOMAINS = new Set([
+  'notes',
+  'songs',
+  'exercises',
+  'workbooks',
+  'workbookFolders',
+  'routines',
+  'gpAnnotations',
+  'drumPatterns',
+  'attachmentsMeta',
+]);
+
+function countContentRecords(records) {
+  return (records || []).filter((rec) => CONTENT_DOMAINS.has(rec.domain)).length;
+}
+
+function splitRowsByScope(rows) {
+  const content = [];
+  const rest = [];
+  (rows || []).forEach((row) => {
+    if (CONTENT_DOMAINS.has(row.domain) || row.domain === 'exerciseCategories') content.push(row);
+    else rest.push(row);
+  });
+  return { content, rest };
+}
+
 async function runFirstSyncAuto() {
   const meta = await getSyncMeta();
   if (meta.firstSyncDone) return;
 
   const { records } = await collectLocalRecords();
-  const localCount = records.length;
+  const localCount = countContentRecords(records);
   const { count: cloudCount } = await countRemoteRows();
 
   const ctx = {
@@ -478,10 +507,16 @@ async function runFirstSyncAuto() {
   }
 
   if (ctx.hasCloudData && !ctx.hasLocalData) {
+    // The cloud is the source for this device. Musi replaces the seeded content
+    // so the device does not keep a second set of default categories, and it
+    // merges the settings and the progress so nothing on this device is lost.
     const rows = await pullAllRemoteRows();
-    await runApplyRemote(rows, 'merge');
+    const { content, rest } = splitRowsByScope(rows);
+    await runApplyRemote(content, 'replace', ['content']);
+    await runApplyRemote(rest, 'merge', ['settings', 'progress']);
     const maxRev = rows.length ? rows[rows.length - 1].rev : 0;
     if (maxRev) await setRev(maxRev);
+    await rebuildShadowFromLocal();
     await setSyncMeta({ firstSyncDone: true });
     setStatus({ firstSyncNeeded: false, firstSyncContext: null, state: 'idle' });
     return;

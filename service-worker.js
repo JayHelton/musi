@@ -268,10 +268,23 @@ const EXTRA_SYNC_ORIGINS = [
   // 'https://supabase.example.com',
 ];
 
+// Every Supabase API lives under one of these path prefixes. The app has no
+// build step, so the worker cannot read cloud-config.json. The path shape
+// covers a hosted project, a self-hosted origin, and a local stack alike.
+const SUPABASE_API_PREFIXES = [
+  "/auth/v1/",
+  "/rest/v1/",
+  "/storage/v1/",
+  "/realtime/v1/",
+  "/functions/v1/",
+];
+
 function isSupabaseSyncRequest(url) {
   if (url.hostname.endsWith(".supabase.co")) return true;
   if (url.hostname.endsWith(".supabase.in")) return true;
-  return EXTRA_SYNC_ORIGINS.includes(url.origin);
+  if (EXTRA_SYNC_ORIGINS.includes(url.origin)) return true;
+  if (url.origin === self.location.origin) return false;
+  return SUPABASE_API_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
 }
 
 self.addEventListener("fetch", (event) => {
@@ -282,9 +295,8 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  // Never cache Supabase auth, REST, Storage, or Realtime traffic.
-  // A local stack on 127.0.0.1:54321 is a different origin and already bypasses
-  // same-origin branches; self-hosters must add their origin to EXTRA_SYNC_ORIGINS.
+  // Never cache Supabase auth, REST, Storage, or Realtime traffic. Without this
+  // check the cross-origin branch below would serve stale sync data.
   if (isSupabaseSyncRequest(url)) return;
 
   // Runtime cloud-config.json must always come from the network.

@@ -341,7 +341,12 @@ function counterMergeProgressInEnvelope(envelope, mode) {
   return { ...envelope, data };
 }
 
-export async function applyRemoteRecords(rows, { mode = 'merge' } = {}) {
+/**
+ * Writes server rows to the local stores.
+ * `scopes` limits the write to the given snapshot scopes. A first pull uses it
+ * to replace the content of a new device but to merge its settings.
+ */
+export async function applyRemoteRecords(rows, { mode = 'merge', scopes } = {}) {
   const normalized = (Array.isArray(rows) ? rows : []).map(normalizeServerRow);
   const clientRows = normalized.map((row) => ({
     domain: row.domain,
@@ -360,7 +365,7 @@ export async function applyRemoteRecords(rows, { mode = 'merge' } = {}) {
     data,
   }, mode);
 
-  const applyResult = await applySnapshot(envelope, { mode });
+  const applyResult = await applySnapshot(envelope, { mode, scopes });
   const counts = { ...(applyResult.counts || {}) };
   const errors = [...(applyResult.errors || [])];
   const applied = [...(applyResult.applied || [])];
