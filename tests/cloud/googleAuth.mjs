@@ -50,6 +50,16 @@ const EXISTING_ERROR_CASES = [
   },
 ];
 
+/** Stands in for the public settings endpoint of the Auth API. */
+function stubSettingsFetch(external) {
+  const prev = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ external }),
+  });
+  return () => { globalThis.fetch = prev; };
+}
+
 export async function run(test) {
   // The router in js/main.js reads the hash and accepts a tool id such as
   // `musicprefs`. It does not accept `sec-musicprefs`, which is the id of the
@@ -89,6 +99,7 @@ export async function run(test) {
       origin: 'http://localhost:8080',
       pathname: '/',
     };
+    const restoreFetch = stubSettingsFetch({ google: true });
     const { client } = installFakeTransport();
     try {
       const result = await signInWithGoogle();
@@ -106,11 +117,51 @@ export async function run(test) {
       }
     } finally {
       restoreTransport();
+      restoreFetch();
       globalThis.location = prevLocation;
     }
   });
 
+  // The provider switch lives in the Supabase Dashboard. When it is off, the
+  // redirect would land the user on a raw error page of the API, so Musi must
+  // stop first and explain the state in the panel.
+  await test('signInWithGoogle stops before the redirect when google is off', async () => {
+    const restoreFetch = stubSettingsFetch({ google: false });
+    const { client } = installFakeTransport();
+    try {
+      const result = await signInWithGoogle();
+      if (result.ok) throw new Error('expected the sign-in to stop');
+      if (client.auth._oauthCalls.length !== 0) {
+        throw new Error('expected no redirect when the provider is off');
+      }
+      const described = describeAuthError(result.error);
+      if (described.message !== 'Google sign-in is not turned on for this project yet.') {
+        throw new Error(`unexpected message: ${described.message}`);
+      }
+    } finally {
+      restoreTransport();
+      restoreFetch();
+    }
+  });
+
+  await test('signInWithGoogle still redirects when the settings check fails', async () => {
+    const prevFetch = globalThis.fetch;
+    globalThis.fetch = async () => { throw new Error('network down'); };
+    const { client } = installFakeTransport();
+    try {
+      const result = await signInWithGoogle();
+      if (!result.ok) throw new Error('expected the sign-in to continue');
+      if (client.auth._oauthCalls.length !== 1) {
+        throw new Error('expected one redirect');
+      }
+    } finally {
+      restoreTransport();
+      globalThis.fetch = prevFetch;
+    }
+  });
+
   await test('signInWithGoogle returns ok false when provider reports an error', async () => {
+    const restoreFetch = stubSettingsFetch({ google: true });
     const { client } = installFakeTransport();
     try {
       client.auth.signInWithOAuth = async () => ({
@@ -125,6 +176,7 @@ export async function run(test) {
       }
     } finally {
       restoreTransport();
+      restoreFetch();
     }
   });
 

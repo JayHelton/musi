@@ -1,4 +1,5 @@
 import { getClient, peekClient } from './client.js';
+import { getCloudConfig } from './cloudConfig.js';
 
 const AUTH_LISTENERS = new Set();
 
@@ -135,10 +136,42 @@ export function authRedirectUrl() {
   return `${location.origin}${location.pathname}#musicprefs`;
 }
 
+/**
+ * Reports whether the project accepts a provider.
+ *
+ * `signInWithOAuth` sends the browser away at once. It asks no question first,
+ * so a provider that is off leaves the user on a raw error page of the API.
+ * Musi therefore reads the public settings and stops before the redirect.
+ * A failed check returns `null`, and the caller then tries the redirect anyway.
+ */
+export async function isProviderEnabled(provider) {
+  try {
+    const config = getCloudConfig();
+    if (!config.SUPABASE_URL || typeof fetch !== 'function') return null;
+    const res = await fetch(`${config.SUPABASE_URL}/auth/v1/settings`, {
+      headers: { apikey: config.SUPABASE_PUBLISHABLE_KEY },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const external = json?.external;
+    if (!external || typeof external[provider] !== 'boolean') return null;
+    return external[provider];
+  } catch (_) {
+    return null;
+  }
+}
+
 export async function signInWithGoogle() {
   try {
     const client = await getClient();
     if (!client) return { ok: false, error: { message: 'Cloud sync is not enabled.' } };
+
+    const enabled = await isProviderEnabled('google');
+    if (enabled === false) {
+      return { ok: false, error: { message: 'provider is not enabled' } };
+    }
+
     const { error } = await client.auth.signInWithOAuth({
       provider: 'google',
       options: {
