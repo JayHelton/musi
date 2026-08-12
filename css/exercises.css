@@ -47,6 +47,9 @@
 .ex-cat-item:focus-within .ex-cat-tools{
   opacity:1;pointer-events:auto
 }
+@media (hover:none){
+  .ex-cat-tools{opacity:1;pointer-events:auto}
+}
 .ex-cat-tool{
   border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;
   line-height:1;padding:6px;border-radius:6px;font-family:inherit;min-width:28px;min-height:28px
@@ -323,6 +326,7 @@
     scroll-snap-type:none!important;padding:4px!important;-webkit-overflow-scrolling:touch
   }
   #sec-exercises .ex-cat-item{min-height:36px;padding:6px 8px;border-radius:8px}
+  .ex-cat-tools{opacity:1;pointer-events:auto}
   #sec-exercises .ex-cat-name{font-size:.78rem}
   #sec-exercises .ex-add-cat{
     padding:0;border:none;background:transparent;flex-shrink:0

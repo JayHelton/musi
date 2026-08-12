@@ -45,6 +45,9 @@
 .wb-folder-item:focus-within .wb-folder-tools{
   opacity:1;pointer-events:auto
 }
+@media (hover:none){
+  .wb-folder-tools{opacity:1;pointer-events:auto}
+}
 .wb-folder-tool{
   border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;
   line-height:1;padding:6px;border-radius:6px;font-family:inherit;min-width:28px;min-height:28px
@@ -658,6 +661,7 @@ body.wb-cmp-drawer-open{overflow:hidden}
     scroll-snap-type:none!important;padding:4px!important;-webkit-overflow-scrolling:touch
   }
   #sec-workbooks:not(.wb-practicing) .wb-folder-item{min-height:36px;padding:6px 8px;border-radius:8px}
+  .wb-folder-tools{opacity:1;pointer-events:auto}
   #sec-workbooks:not(.wb-practicing) .wb-folder-name{font-size:.78rem}
   #sec-workbooks:not(.wb-practicing) .wb-add-folder{padding:0;border:none;background:transparent;flex-shrink:0}
   #sec-workbooks:not(.wb-practicing) .wb-add-folder input{font-size:.78rem;padding:6px 8px;min-height:36px}
