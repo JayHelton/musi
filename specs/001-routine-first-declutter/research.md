@@ -103,7 +103,10 @@ a way to show a host section without touching the address.
 Home renders from the card models.
 
 **Rationale**: Every value already exists. `getRoutineStats` returns
-`completedSessionCount` and `sessionCount`, which FR-003 needs.
+`completedSessionCount` and `sessionCount`, which FR-003 needs. The card model module must
+apply the full sort itself, because `listRoutines()` sorts by `updatedAt` descending only.
+Two routines with the same `updatedAt` value keep their insertion order today, so the
+module adds the `name` tiebreak that FR-005 requires.
 `getActiveRoutineSession` resolves the `activeSessionId` bookmark, and it falls back to
 the first incomplete session when the bookmark is absent or already complete. It returns
 `null` when every session is complete, which matches the edge case where the card omits
