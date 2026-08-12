@@ -5,16 +5,16 @@
 -- the rows of another user, but an open project still lets a stranger create an
 -- account and use the quota. This migration adds a second gate at the database.
 --
--- The allow list starts EMPTY, and an empty list denies every new account.
--- Add your own address before you sign in for the first time:
+-- The list holds the owner of this project and nobody else. An empty list
+-- denies every new account, so the seed at the end of this file is the only
+-- door. To let a second person in, add a row in the Supabase Dashboard, under
+-- SQL Editor:
 --
 --   insert into public.signup_allowlist (email, note)
---   values ('you@example.com', 'owner');
+--   values ('them@example.com', 'why');
 --
--- Run that line in the Supabase Dashboard, under SQL Editor. To let a second
--- person in later, add another row. To lock the project again, delete the rows.
--- An account that already exists keeps working: this gate stops new accounts
--- only.
+-- To close the door again, delete the row. An account that already exists keeps
+-- working: this gate stops new accounts only.
 
 create table if not exists public.signup_allowlist (
   email       text primary key,
@@ -52,3 +52,9 @@ revoke all on function public.enforce_signup_allowlist() from public, anon, auth
 drop trigger if exists enforce_signup_allowlist on auth.users;
 create trigger enforce_signup_allowlist before insert on auth.users
   for each row execute function public.enforce_signup_allowlist();
+
+-- The owner of this project. This address already appears in the commit history
+-- of this public repository, so the file adds no new exposure.
+insert into public.signup_allowlist (email, note)
+values ('jaydhelton@gmail.com', 'owner')
+on conflict (email) do nothing;

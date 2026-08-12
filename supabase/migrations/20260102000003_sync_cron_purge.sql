@@ -1,12 +1,22 @@
 -- supabase/migrations/20260102000003_sync_cron_purge.sql
+--
+-- Schedule the daily tombstone purge. The job keeps a deleted record for 90
+-- days, so a device that syncs late still learns about the delete.
+--
+-- Dollar quoting needs care here. The job body is itself a dollar-quoted
+-- string, so the outer block and the inner body must use different tags.
+-- A plain `$$` for both ends the outer block early and breaks the migration.
+--
+-- A stack without pg_cron must not fail the migration chain, so the block traps
+-- every error and reports it as a notice. Musi works without the purge.
 
-do $$ begin
-  execute $cron$
-    select cron.unschedule('purge_sync_tombstones') where exists (
-      select 1 from cron.job where jobname = 'purge_sync_tombstones'
-    )
-  $cron$;
-  perform cron.schedule('purge_sync_tombstones', '0 4 * * *', $$
+do $purge_setup$
+begin
+  if exists (select 1 from cron.job where jobname = 'purge_sync_tombstones') then
+    perform cron.unschedule('purge_sync_tombstones');
+  end if;
+
+  perform cron.schedule('purge_sync_tombstones', '0 4 * * *', $job$
     with deleted_records as (
       delete from public.sync_records where deleted and updated_at < now() - interval '90 days'
       returning user_id, rev
@@ -27,7 +37,8 @@ do $$ begin
     on conflict (user_id) do update set
       purged_through_rev = greatest(sync_watermarks.purged_through_rev, excluded.purged_through_rev),
       max_rev = excluded.max_rev, updated_at = now();
-  $$);
+  $job$);
 exception when others then
   raise notice 'pg_cron purge_sync_tombstones not scheduled: %', sqlerrm;
-end $$;
+end
+$purge_setup$;
