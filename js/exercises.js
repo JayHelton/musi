@@ -867,6 +867,12 @@ function syncFolderChipLabel() {
   if (label) label.textContent = currentTitleText();
 }
 
+// The Node test shim implements only part of the DOM, so check before dispatch.
+function emitFoldersChanged() {
+  if (typeof CustomEvent !== 'function' || typeof document.dispatchEvent !== 'function') return;
+  document.dispatchEvent(new CustomEvent('musi:exercise-folders-change'));
+}
+
 function renderCategories() {
   if (!catListEl) return;
   catListEl.innerHTML = '';
@@ -916,6 +922,7 @@ function renderCategories() {
     makeRow(opt.id, opt.label, opt.count, editable ? { editable: true, id: opt.id } : {});
   });
   syncFolderChipLabel();
+  emitFoldersChanged();
 }
 
 function currentTitleText() {
@@ -1417,6 +1424,15 @@ export function deleteExerciseFolder(id) {
 
 export async function deleteExerciseFolderWithContents(id) {
   return deleteCategoryWithContents(id);
+}
+
+/** Opens the folder delete dialog for a folder id. The mobile folder bar uses this. */
+export function requestExerciseFolderDelete(id) {
+  if (!id || id === 'all' || id === 'uncategorized') return false;
+  const cat = getStore().categories.find(c => c.id === id);
+  if (!cat) return false;
+  onDeleteCategory(id, cat.name);
+  return true;
 }
 
 /** Persist practice-player settings back onto an exercise (tempo loop, rest, track). */

@@ -22,13 +22,14 @@ import {
   getSelectedExerciseFolderLabel,
   selectExerciseFolder,
   createExerciseFolder,
+  requestExerciseFolderDelete,
 } from './exercises.js';
 
 let showSectionFn = null;
 
 const MOBILE_UX_MQ = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 const LANDSCAPE_PHONE_MQ = '(orientation: landscape) and (max-height: 500px)';
-const NOT_LANDSCAPE_PHONE_MQ = 'not ((orientation: landscape) and (max-height: 500px))';
+const NOT_LANDSCAPE_PHONE_MQ = '(not ((orientation: landscape) and (max-height: 500px)))';
 
 const SETUP_SHEET_BASE = `
   display:none;position:fixed;z-index:480;overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -1137,6 +1138,7 @@ function setupExercises() {
       <span class="setup-chip-hint">Folder</span>
     </button>
     <button type="button" class="btn sm" id="ex-new-folder-btn">+ Folder</button>
+    <button type="button" class="btn sm ex-folder-del" id="ex-del-folder-btn" hidden>Delete folder</button>
   `;
   const head = sec.querySelector('.section-head');
   if (head) head.after(bar);
@@ -1153,6 +1155,8 @@ function setupExercises() {
         #sec-exercises .ex-sidebar{display:flex;flex-direction:column;gap:8px;width:100%}
         #sec-exercises .ex-add-cat{display:flex}
         #sec-exercises .ex-folder-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+        #sec-exercises .ex-folder-del{background:rgba(230,57,70,0.14);color:var(--err);font-weight:600;box-shadow:inset 0 0 0 1px rgba(230,57,70,0.5)}
+        #sec-exercises .ex-folder-del[hidden]{display:none!important}
       }
       @media (min-width:769px) and ${NOT_LANDSCAPE_PHONE_MQ}{
         #sec-exercises .ex-folder-bar{display:none}
@@ -1160,6 +1164,18 @@ function setupExercises() {
     `;
     document.head.appendChild(style);
   }
+
+  const syncFolderBar = () => {
+    const label = document.getElementById('ex-folder-label');
+    if (label) label.textContent = getSelectedExerciseFolderLabel();
+    const delBtn = document.getElementById('ex-del-folder-btn');
+    if (delBtn) {
+      const folder = getSelectedExerciseFolder();
+      const isReal = folder && folder !== 'all' && folder !== 'uncategorized';
+      delBtn.hidden = !isReal;
+      if (isReal) delBtn.setAttribute('aria-label', `Delete folder "${getSelectedExerciseFolderLabel()}"`);
+    }
+  };
 
   const promptNewFolder = () => {
     const name = window.prompt('New folder name');
@@ -1169,11 +1185,14 @@ function setupExercises() {
       window.alert('Enter a folder name.');
       return;
     }
-    const label = document.getElementById('ex-folder-label');
-    if (label) label.textContent = getSelectedExerciseFolderLabel();
+    syncFolderBar();
   };
 
   document.getElementById('ex-new-folder-btn')?.addEventListener('click', promptNewFolder);
+  document.getElementById('ex-del-folder-btn')?.addEventListener('click', () => {
+    requestExerciseFolderDelete(getSelectedExerciseFolder());
+  });
+  document.addEventListener('musi:exercise-folders-change', () => syncFolderBar());
 
   document.getElementById('ex-folder-pick').onclick = async () => {
     const folders = getExerciseFolderOptions();
@@ -1197,9 +1216,10 @@ function setupExercises() {
       return;
     }
     selectExerciseFolder(next);
-    const label = document.getElementById('ex-folder-label');
-    if (label) label.textContent = getSelectedExerciseFolderLabel();
+    syncFolderBar();
   };
+
+  syncFolderBar();
 
   // Combine upload / add link into one primary on mobile folder bar
   const upload = document.getElementById('ex-upload-btn')
