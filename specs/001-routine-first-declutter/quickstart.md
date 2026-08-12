@@ -332,7 +332,10 @@ Expected final line: `companions tests: ok`
 node tests/cloud/run.mjs
 ```
 
-Expected final line: `63 passed`
+Expected final line: `67 passed`
+
+The cloud suite grows when other work lands. Treat a higher count as normal. Treat a
+failure or a lower count as a problem.
 
 ```bash
 node tests/sync/profile.mjs
