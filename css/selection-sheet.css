@@ -263,6 +263,32 @@
   color: var(--accent);
   font-weight: 700;
 }
+.sel-item-action {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.sel-item-action:hover,
+.sel-item-action:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+.sel-item-action.sel-item-del {
+  color: var(--err);
+  font-weight: 700;
+}
+.sel-item-action.sel-item-del:hover,
+.sel-item-action.sel-item-del:focus-visible {
+  background: rgba(230, 57, 70, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(230, 57, 70, 0.35);
+}
 
 .sel-sheet-empty {
   padding: 36px 16px;

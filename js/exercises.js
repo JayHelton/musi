@@ -306,14 +306,14 @@ export function selectExerciseFolder(id) {
   return selectedCategory;
 }
 
-/** Create a folder/tag and refresh the UI. Stays on All so the new folder is visible. */
+/** Create a folder/tag and refresh the UI. Selects the folder so mobile Delete is available. */
 export function createExerciseFolder(name) {
   const clean = clampText((name || '').trim(), CAT_LIMIT);
   if (!clean) return { ok: false, reason: 'empty' };
   const store = getStore();
   const exists = store.categories.find(c => c.name.toLowerCase() === clean.toLowerCase());
   if (exists) {
-    setSelectedCategory('all');
+    setSelectedCategory(exists.id);
     if (wired) {
       setStatus(`Folder “${exists.name}” already exists.`);
       render();
@@ -321,8 +321,8 @@ export function createExerciseFolder(name) {
     return { ok: true, created: false, category: exists };
   }
   const cat = addCategory(clean);
-  setSelectedCategory('all');
-  // Keep new folders closed; user opens them when ready.
+  setSelectedCategory(cat.id);
+  // Keep new folders collapsed; user opens them when ready.
   expandedFolders.delete(cat.id);
   if (wired) {
     setStatus(`Created folder “${cat.name}”. Assign exercises with the folder menu on each row.`);
@@ -1832,7 +1832,7 @@ function closeDialog() {
   if (dialogRoot) dialogRoot.innerHTML = '';
 }
 
-function openConfirm(title, body, confirmLabel, onConfirm) {
+function openConfirm(title, body, confirmLabel, onConfirm, { danger = false } = {}) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
   const overlay = el('div', { class: 'modal-overlay' });
@@ -1843,7 +1843,7 @@ function openConfirm(title, body, confirmLabel, onConfirm) {
   const actions = el('div', { class: 'modal-actions' });
   actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: closeDialog }));
   actions.appendChild(el('button', {
-    class: 'btn primary', type: 'button', text: confirmLabel,
+    class: danger ? 'btn modal-danger' : 'btn primary', type: 'button', text: confirmLabel,
     onClick: () => { closeDialog(); onConfirm(); },
   }));
   dialog.appendChild(actions);
@@ -1988,6 +1988,7 @@ function onDeleteCategory(id, name) {
         deleteCategory(id);
         afterDelete();
       },
+      { danger: true },
     );
     return;
   }
@@ -2020,6 +2021,7 @@ function onDeleteExercise(item) {
       await deleteExercise(item.id);
       render();
     },
+    { danger: true },
   );
 }
 

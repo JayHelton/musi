@@ -146,6 +146,30 @@ await test('folder-only delete unfiles exercises in that folder', async () => {
   assert.ok(items.find(it => it.id === 'ex-loose' && it.categoryId === ''));
 });
 
+await test('createExerciseFolder selects the new folder', async () => {
+  seedStore({ categories: [], items: [] });
+  const { createExerciseFolder, getSelectedExerciseFolder } = await loadExercises();
+
+  const result = createExerciseFolder('Fresh Folder');
+  assert.equal(result.ok, true);
+  assert.equal(result.created, true);
+  assert.ok(result.category?.id);
+  assert.equal(getSelectedExerciseFolder(), result.category.id);
+});
+
+await test('createExerciseFolder selects an existing folder with the same name', async () => {
+  seedStore({
+    categories: [{ id: 'cat-dup', name: 'Dup' }],
+    items: [],
+  });
+  const { createExerciseFolder, getSelectedExerciseFolder } = await loadExercises();
+
+  const result = createExerciseFolder('dup');
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  assert.equal(getSelectedExerciseFolder(), 'cat-dup');
+});
+
 await test('requestExerciseFolderDelete guard inputs open no dialog', async () => {
   seedStore({
     categories: [{ id: 'cat-real', name: 'Real Folder' }],

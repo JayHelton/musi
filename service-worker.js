@@ -1,5 +1,9 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
+<<<<<<< HEAD
 const CACHE_VERSION = "v183-google-signin";
+=======
+const CACHE_VERSION = "v181-folder-sheet-delete";
+>>>>>>> d3542be (Let phones delete folders from the folder sheet)
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the

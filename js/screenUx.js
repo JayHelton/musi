@@ -10,7 +10,7 @@ import {
   formatChordLabel, getQuickScales, cycleEnharmonicPref, getEnharmonicPref,
 } from './pickers.js';
 import { stepChord } from './chordReference.js';
-import { openSelectionSheet } from './selectionSheet.js';
+import { openSelectionSheet, closeSelectionSheet } from './selectionSheet.js';
 import {
   renderSetupSummary, initSubviewTabs, renderCompactProgress,
   openOverflowMenu, renderFilterSummary, setEditorNavState, setDrillFocus,
@@ -1185,6 +1185,9 @@ function setupExercises() {
       window.alert('Enter a folder name.');
       return;
     }
+    if (result.category?.id) {
+      selectExerciseFolder(result.category.id);
+    }
     syncFolderBar();
   };
 
@@ -1197,11 +1200,22 @@ function setupExercises() {
   document.getElementById('ex-folder-pick').onclick = async () => {
     const folders = getExerciseFolderOptions();
     const items = [
-      ...folders.map(f => ({
-        id: f.id,
-        label: f.label,
-        meta: String(f.count),
-      })),
+      ...folders.map(f => {
+        const row = {
+          id: f.id,
+          label: f.label,
+          meta: String(f.count),
+        };
+        if (f.id !== 'all' && f.id !== 'uncategorized') {
+          row.actions = [{
+            id: 'delete',
+            label: `Delete folder ${f.label}`,
+            className: 'sel-item-del',
+            icon: '×',
+          }];
+        }
+        return row;
+      }),
       { id: '__new__', label: '+ New folder', sub: 'Create a tag for grouping exercises' },
     ];
     const next = await openSelectionSheet({
@@ -1209,6 +1223,13 @@ function setupExercises() {
       items,
       value: getSelectedExerciseFolder(),
       search: folders.length > 6,
+      onItemAction: (actionId, id) => {
+        if (actionId !== 'delete') return;
+        closeSelectionSheet();
+        requestAnimationFrame(() => {
+          requestExerciseFolderDelete(id);
+        });
+      },
     });
     if (next == null) return;
     if (next === '__new__') {

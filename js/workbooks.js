@@ -750,7 +750,7 @@ function closeDialog() {
   if (dialogRoot) dialogRoot.innerHTML = '';
 }
 
-function openConfirm(title, body, confirmLabel, onConfirm) {
+function openConfirm(title, body, confirmLabel, onConfirm, { danger = false } = {}) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
   const overlay = el('div', { class: 'modal-overlay' });
@@ -761,7 +761,7 @@ function openConfirm(title, body, confirmLabel, onConfirm) {
   const actions = el('div', { class: 'modal-actions' });
   actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: closeDialog }));
   actions.appendChild(el('button', {
-    class: 'btn primary', type: 'button', text: confirmLabel,
+    class: danger ? 'btn modal-danger' : 'btn primary', type: 'button', text: confirmLabel,
     onClick: () => { closeDialog(); onConfirm(); },
   }));
   dialog.appendChild(actions);
@@ -1775,6 +1775,7 @@ function onDeleteFolder(id, name) {
         if (selectedFolder === id) selectedFolder = 'all';
         render();
       },
+      { danger: true },
     );
     return;
   }

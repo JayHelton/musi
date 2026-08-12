@@ -78,7 +78,8 @@ function closeActive(reason = 'dismiss') {
  *
  * @param {object} opts
  * @param {string} opts.title
- * @param {Array} opts.items - { id, label, sub?, meta?, category?, keywords?, disabled? }
+ * @param {Array} opts.items - { id, label, sub?, meta?, category?, keywords?, disabled?, actions? }
+ *   actions: [{ id, label, className?, icon? }] — trailing row buttons (e.g. delete)
  * @param {string|string[]} [opts.value] - current selection
  * @param {boolean} [opts.multiple]
  * @param {Array} [opts.categories] - [{ id, label }]
@@ -90,6 +91,7 @@ function closeActive(reason = 'dismiss') {
  * @param {Function} [opts.onSelect] - (id, item) => void  (single mode, immediate)
  * @param {Function} [opts.onConfirm] - (ids) => void (multi mode)
  * @param {Function} [opts.onToggleFavorite] - (id) => void
+ * @param {Function} [opts.onItemAction] - (actionId, itemId, item) => void
  * @param {Function} [opts.renderItem] - optional custom renderer (item, el) => void
  * @param {boolean} [opts.grid] - render as grid instead of list
  * @param {string} [opts.gridClass]
@@ -232,12 +234,19 @@ export function openSelectionSheet(opts = {}) {
               </span>
               <span class="sel-item-trailing">
                 ${opts.onToggleFavorite ? `<span class="sel-item-fav${(opts.favorites || []).includes(item.id) ? ' on' : ''}" data-fav="${escapeHtml(item.id)}" aria-label="Favorite" role="button" tabindex="-1">${(opts.favorites || []).includes(item.id) ? '★' : '☆'}</span>` : ''}
+                ${Array.isArray(item.actions) && item.actions.length ? item.actions.map(action => `<span class="sel-item-action ${action.className || ''}" data-item-action="${escapeHtml(action.id)}" role="button" tabindex="-1" aria-label="${escapeHtml(action.label)}">${action.icon || escapeHtml(action.label)}</span>`).join('') : ''}
                 ${isSelected(item.id) ? '<span class="sel-item-check" aria-hidden="true">✓</span>' : ''}
               </span>
             `;
           }
 
           btn.onclick = (e) => {
+            const actionEl = e.target.closest?.('[data-item-action]');
+            if (actionEl && typeof opts.onItemAction === 'function') {
+              e.stopPropagation();
+              opts.onItemAction(actionEl.getAttribute('data-item-action'), item.id, item);
+              return;
+            }
             const fav = e.target.closest?.('[data-fav]');
             if (fav && opts.onToggleFavorite) {
               e.stopPropagation();
