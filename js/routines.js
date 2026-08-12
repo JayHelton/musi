@@ -36,7 +36,6 @@ import {
   getWorkbook,
   createWorkbook,
 } from './workbookModel.js';
-import { requestWorkbookOpen } from './workbooks.js';
 import { getExercises } from './exercises.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { metro, stopMetronome } from './metronome.js';
@@ -66,7 +65,7 @@ function el(tag, props = {}, children = []) {
 
 let bound = false;
 let escapeWired = false;
-let pendingRoutineOpenId = null;
+let routineNavigatorRef = null;
 let fallbackImportFileEl = null;
 let selectedRoutineId = null;
 let openSessionId = null;
@@ -216,9 +215,85 @@ function syncPlayButton(playing) {
   playBtnRef.classList.toggle('primary', !playing);
 }
 
-function navigateToWorkbooks() {
-  if (typeof window.showSection === 'function') window.showSection('workbooks');
-  else location.hash = '#workbooks';
+export function setRoutineNavigator(nav) {
+  routineNavigatorRef = nav;
+}
+
+function ensureRoutinesReady() {
+  if (!routineListEl) initRoutines();
+}
+
+function navOpen(patch) {
+  const nav = routineNavigatorRef;
+  if (!nav) return false;
+  nav.open(patch);
+  return true;
+}
+
+function navApplyRoutine(routineId) {
+  const nav = routineNavigatorRef;
+  if (!nav) return false;
+  nav.applyRoute({ routine: routineId }, { source: 'internal' });
+  return true;
+}
+
+function navBack() {
+  const nav = routineNavigatorRef;
+  if (!nav) return false;
+  nav.back();
+  return true;
+}
+
+function routineOverviewHeading() {
+  return overviewEl?.querySelector('.rt-overview-name')
+    || document.getElementById('rt-current-title');
+}
+
+function sessionStatusElement() {
+  return document.getElementById('rt-session-status') || statusEl || document.getElementById('rt-status');
+}
+
+export function createRoutineLayerDescriptors() {
+  return {
+    routine: {
+      host: () => 'routines',
+      mount(ctx) {
+        ensureRoutinesReady();
+        const routineId = ctx.route.routine;
+        if (!routineId) return;
+        if (selectedRoutineId !== routineId) {
+          flushDescAutosave();
+          showCompletedSessions = false;
+        }
+        selectedRoutineId = routineId;
+        render();
+      },
+      unmount(ctx) {
+        flushDescAutosave();
+        selectedRoutineId = null;
+        showCompletedSessions = false;
+        render();
+      },
+      heading: () => routineOverviewHeading(),
+      status: () => statusEl || document.getElementById('rt-status'),
+    },
+    session: {
+      host: () => 'routines',
+      mount(ctx) {
+        ensureRoutinesReady();
+        const routineId = ctx.route.routine;
+        const sessionId = ctx.route.session;
+        if (!routineId || !sessionId) return;
+        openSession(routineId, sessionId);
+      },
+      unmount(ctx) {
+        closeSessionPane();
+        render();
+      },
+      heading: () => sessionTitleEl || document.getElementById('rt-session-title'),
+      status: () => sessionStatusElement(),
+    },
+  };
 }
 
 function downloadRoutineExport(envelope) {
@@ -474,9 +549,10 @@ function renderSidebar() {
         if (selectedRoutineId !== rt.id) {
           flushDescAutosave();
           flushNotesAutosave();
-          closeSessionPane();
           showCompletedSessions = false;
         }
+        if (navApplyRoutine(rt.id)) return;
+        if (selectedRoutineId !== rt.id) closeSessionPane();
         selectedRoutineId = rt.id;
         render();
       },
@@ -505,7 +581,7 @@ function renderToolbar() {
       const n = rt.sessions.length + 1;
       const session = addRoutineSession(rt.id, { name: `Session ${n}` });
       if (session) {
-        openSession(rt.id, session.id);
+        if (!navOpen({ session: session.id })) openSession(rt.id, session.id);
         setStatus('Session added.');
       }
     },
@@ -674,7 +750,9 @@ function buildSessionCard(rt, session, fullIdx, displayStep) {
 
   const body = el('div', {
     class: 'rt-session-card-body',
-    onClick: () => openSession(rt.id, session.id),
+    onClick: () => {
+      if (!navOpen({ session: session.id })) openSession(rt.id, session.id);
+    },
   });
   body.appendChild(el('span', { class: 'rt-session-card-name', text: session.name }));
   const metaParts = [formatSessionMeta(session)];
@@ -727,7 +805,10 @@ function buildSessionCard(rt, session, fullIdx, displayStep) {
   }));
   actions.appendChild(el('button', {
     class: 'btn sm' + (isComplete ? ' primary' : ''), type: 'button', text: 'Open',
-    onClick: (e) => { e.stopPropagation(); openSession(rt.id, session.id); },
+    onClick: (e) => {
+      e.stopPropagation();
+      if (!navOpen({ session: session.id })) openSession(rt.id, session.id);
+    },
   }));
   actions.appendChild(el('button', {
     class: 'btn sm', type: 'button', text: 'Delete', 'aria-label': `Delete ${session.name}`,
@@ -1048,8 +1129,9 @@ function renderWorkbooksCard(rt, session) {
         actions.appendChild(el('button', {
           class: 'btn sm primary', type: 'button', text: 'Practice',
           onClick: () => {
-            requestWorkbookOpen(wbId);
-            navigateToWorkbooks();
+            if (!navOpen({ workbook: wbId })) {
+              if (typeof window.showSection === 'function') window.showSection('workbooks');
+            }
           },
         }));
       }
@@ -1161,27 +1243,6 @@ function renderNotesCard(rt, session) {
 
 // --- actions -----------------------------------------------------------------
 
-function selectRoutineById(routineId) {
-  if (!getRoutine(routineId)) return;
-  if (selectedRoutineId !== routineId) {
-    flushDescAutosave();
-    flushNotesAutosave();
-    closeSessionPane();
-    showCompletedSessions = false;
-  }
-  selectedRoutineId = routineId;
-  render();
-}
-
-export function openRoutineById(routineId) {
-  if (typeof routineId !== 'string' || !routineId) return;
-  if (!routineListEl) {
-    pendingRoutineOpenId = routineId;
-    return;
-  }
-  selectRoutineById(routineId);
-}
-
 export function createRoutineFromPrompt(options = {}) {
   openPrompt('New routine', '', 'Create', (name) => {
     const clean = (name || '').trim();
@@ -1269,6 +1330,7 @@ function wireEscape() {
     }
     if (!openSessionId) return;
     if (!isRoutinesSectionActive()) return;
+    if (navBack()) return;
     closeSessionPane();
     render();
   });
@@ -1331,6 +1393,7 @@ export function initRoutines() {
     }
     if (sessionBackBtn) {
       sessionBackBtn.addEventListener('click', () => {
+        if (navBack()) return;
         closeSessionPane();
         render();
       });
@@ -1341,14 +1404,6 @@ export function initRoutines() {
   const wbIds = listWorkbooks().map(wb => wb.id);
   pruneMissingWorkbooks(wbIds);
   setStatus('');
-  if (pendingRoutineOpenId) {
-    const pendingId = pendingRoutineOpenId;
-    pendingRoutineOpenId = null;
-    if (getRoutine(pendingId)) {
-      selectRoutineById(pendingId);
-      return;
-    }
-  }
   render();
 }
 

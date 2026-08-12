@@ -176,7 +176,9 @@ export function resolveRoutineRoute(route, data) {
 
     if (route.exercise) {
       const entries = Array.isArray(workbook.entries) ? workbook.entries : [];
-      const found = entries.some(entry => entry && entry.exerciseId === route.exercise);
+      const found = entries.some(
+        entry => entry && (entry.id === route.exercise || entry.exerciseId === route.exercise),
+      );
       if (!found) {
         return {
           route: {

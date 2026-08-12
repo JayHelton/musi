@@ -5,6 +5,10 @@
 
 import assert from 'node:assert/strict';
 import {
+  installWindowShim,
+  installDocumentShim,
+} from '../cloud/harness.mjs';
+import {
   parseAppRoute,
   buildAppRoute,
   routeUrl,
@@ -20,6 +24,25 @@ import {
   routeDepth,
   resolveRoutineRoute,
 } from '../../js/routineRoute.js';
+
+installWindowShim();
+installDocumentShim();
+globalThis.window.scrollY = 0;
+globalThis.window.scrollTo = () => {};
+globalThis.requestAnimationFrame = (fn) => {
+  fn();
+  return 0;
+};
+
+const hostElements = new Map();
+globalThis.document.getElementById = (id) => {
+  if (!hostElements.has(id)) {
+    hostElements.set(id, { textContent: '', scrollTop: 0, setAttribute() {}, focus() {} });
+  }
+  return hostElements.get(id);
+};
+
+const { createRoutineNavigator } = await import('../../js/routineNav.js');
 
 let passed = 0;
 
@@ -437,6 +460,199 @@ test('buildRoutineParams writes only present keys', () => {
     }),
     { routine: 'r1', session: 's1' },
   );
+});
+
+function makeCallRecorder() {
+  const calls = [];
+  return {
+    calls,
+    record(type, ...args) {
+      calls.push({ type, args });
+    },
+    clear() {
+      calls.length = 0;
+    },
+    count(type) {
+      return calls.filter((entry) => entry.type === type).length;
+    },
+  };
+}
+
+function makeFakeElement() {
+  return {
+    textContent: '',
+    scrollTop: 0,
+    setAttribute() {},
+    focus() {},
+  };
+}
+
+function makeFakeShell(recorder) {
+  return {
+    activateSection(sectionId, options) {
+      recorder.record('activateSection', sectionId, options);
+    },
+    pushRoute(route) {
+      recorder.record('pushRoute', route);
+    },
+    replaceRoute(route) {
+      recorder.record('replaceRoute', route);
+    },
+    backToRoute(parentRoute) {
+      recorder.record('backToRoute', parentRoute);
+    },
+    goHome() {
+      recorder.record('goHome');
+    },
+    hasInAppHistory() {
+      return false;
+    },
+  };
+}
+
+function makeFakeLayer(name, recorder, hostId) {
+  const headingEl = makeFakeElement();
+  const statusEl = makeFakeElement();
+  return {
+    host: () => hostId || name,
+    mount(ctx) {
+      recorder.record(`${name}.mount`, ctx);
+    },
+    unmount(ctx) {
+      recorder.record(`${name}.unmount`, ctx);
+    },
+    heading: () => headingEl,
+    status: () => statusEl,
+    headingEl,
+    statusEl,
+  };
+}
+
+function makeNavigator(overrides = {}) {
+  const recorder = overrides.recorder || makeCallRecorder();
+  const routine = { id: 'rt-1', sessions: [{ id: 'rs-1', workbookIds: ['wb-1'] }] };
+  const workbook = {
+    id: 'wb-1',
+    entries: [{ id: 'wbe-1', exerciseId: 'ex-1' }],
+  };
+
+  const layers = {
+    routine: makeFakeLayer('routine', recorder, 'routines'),
+    session: makeFakeLayer('session', recorder, 'routines'),
+    workbook: makeFakeLayer('workbook', recorder, 'workbooks'),
+    exercise: makeFakeLayer('exercise', recorder, 'workbooks'),
+    companion: makeFakeLayer('companion', recorder, 'workbooks'),
+  };
+
+  const navigator = createRoutineNavigator({
+    root: makeFakeElement(),
+    getRoutine: overrides.getRoutine || ((id) => (id === 'rt-1' ? routine : null)),
+    getSession:
+      overrides.getSession
+      || ((routineValue, sessionId) => routineValue.sessions.find((item) => item.id === sessionId) || null),
+    getWorkbook: overrides.getWorkbook || ((id) => (id === 'wb-1' ? workbook : null)),
+    getExercise:
+      overrides.getExercise
+      || ((workbookId, exerciseId) => {
+        if (workbookId === 'wb-1' && exerciseId === 'ex-1') {
+          return { id: 'ex-1' };
+        }
+        return null;
+      }),
+    getCompanion: overrides.getCompanion || (() => null),
+    shell: makeFakeShell(recorder),
+    layers,
+    ...overrides.config,
+  });
+
+  return { navigator, layers, recorder };
+}
+
+test('navigator open calls pushRoute once and mounts one layer', () => {
+  const recorder = makeCallRecorder();
+  const { navigator } = makeNavigator({ recorder });
+
+  navigator.applyRoute({ routine: 'rt-1' }, { source: 'boot' });
+  recorder.clear();
+
+  navigator.open({ session: 'rs-1' });
+
+  assert.equal(recorder.count('pushRoute'), 1);
+  assert.equal(recorder.count('session.mount'), 1);
+});
+
+test('navigator back calls backToRoute once and unmounts one layer', () => {
+  const recorder = makeCallRecorder();
+  const { navigator } = makeNavigator({ recorder });
+
+  navigator.applyRoute(
+    { routine: 'rt-1', session: 'rs-1', workbook: 'wb-1' },
+    { source: 'boot' },
+  );
+  recorder.clear();
+
+  navigator.back();
+
+  assert.equal(recorder.count('backToRoute'), 1);
+
+  navigator.applyRoute({ routine: 'rt-1', session: 'rs-1' }, { source: 'popstate' });
+
+  assert.equal(recorder.count('workbook.unmount'), 1);
+  assert.equal(recorder.count('session.unmount'), 0);
+  assert.equal(recorder.count('routine.unmount'), 0);
+});
+
+test('navigator applyRoute with popstate source writes no history', () => {
+  const recorder = makeCallRecorder();
+  const { navigator } = makeNavigator({ recorder });
+
+  navigator.applyRoute(
+    { routine: 'rt-1', session: 'rs-1', workbook: 'wb-1' },
+    { source: 'boot' },
+  );
+  recorder.clear();
+
+  navigator.applyRoute({ routine: 'rt-1', session: 'rs-1' }, { source: 'popstate' });
+
+  assert.equal(recorder.count('pushRoute'), 0);
+  assert.equal(recorder.count('replaceRoute'), 0);
+});
+
+test('navigator repair writes exactly one replace and shows one message', () => {
+  const recorder = makeCallRecorder();
+  const { navigator, layers } = makeNavigator({ recorder });
+
+  navigator.applyRoute(
+    { routine: 'rt-1', session: 'rs-1', workbook: 'wb-1' },
+    { source: 'boot' },
+  );
+  recorder.clear();
+
+  navigator.applyRoute(
+    {
+      routine: 'rt-1',
+      session: 'rs-1',
+      workbook: 'wb-1',
+      exercise: 'ex-missing',
+    },
+    { source: 'boot' },
+  );
+
+  assert.equal(recorder.count('replaceRoute'), 1);
+  assert.equal(layers.workbook.statusEl.textContent, 'Item not found');
+});
+
+test('navigator parent layer receives no unmount while a child mounts', () => {
+  const recorder = makeCallRecorder();
+  const { navigator } = makeNavigator({ recorder });
+
+  navigator.applyRoute({ routine: 'rt-1' }, { source: 'boot' });
+  recorder.clear();
+
+  navigator.open({ session: 'rs-1' });
+
+  assert.equal(recorder.count('session.mount'), 1);
+  assert.equal(recorder.count('routine.unmount'), 0);
 });
 
 console.log(`\n${passed} tests passed`);
