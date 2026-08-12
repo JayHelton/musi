@@ -104,7 +104,8 @@ Musi bridges the gap between a theory worksheet and a creative instrument:
 - **Shared theory engine:** reusable modules handle note parsing, enharmonic
   spelling, scale definitions, intervals, tunings, and frequency-to-note mapping.
 - **Persistent preferences:** local storage remembers user selections and tool
-  settings without requiring accounts or cloud sync.
+  settings. Musi needs no account. An optional cloud account can keep the same
+  library on more than one device.
 - **Responsive interface:** grouped desktop/mobile navigation keeps the full
   feature set accessible across device sizes.
 - **CLI companion:** the `cli/` package exposes terminal versions of core quiz
@@ -117,9 +118,12 @@ Musi bridges the gap between a theory worksheet and a creative instrument:
 +-- index.html              # App shell and feature sections
 +-- css/                    # Modular styles by feature area
 +-- js/                     # ES modules for theory, tools, trainers, and audio
++-- js/cloud/               # Optional Supabase account and library sync
++-- js/vendor/              # Vendored Supabase client (offline install)
 +-- icons/                  # PWA icons
 +-- manifest.webmanifest    # Install metadata
 +-- service-worker.js       # Offline app-shell cache
++-- supabase/               # Optional cloud sync schema, policies, and function
 +-- cli/                    # Node CLI companion
 ```
 
@@ -145,11 +149,46 @@ cd cli
 node bin/musi.js
 ```
 
+## Optional cloud sync
+
+Musi works fully offline and needs no account. If you want the same library on
+a phone, a tablet, and a desktop, you can turn on an optional cloud account.
+Musi then keeps notes, songs, exercises, workbooks, routines, score
+annotations, drum patterns, practice progress, and shared settings in step.
+The QR and ZIP device sync stays available for people who prefer no account.
+
+The upstream build ships with cloud sync **off**. A checkout makes no request to
+Supabase, shows no account panel, and loads no cloud code.
+
+To turn it on for your own copy:
+
+1. Create a Supabase project. Apply the schema in `supabase/`. See
+   `supabase/README.md` for the local loop and the deploy path.
+2. Put a `cloud-config.json` file beside `index.html` (git ignores this file):
+
+```json
+{
+  "SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "your-publishable-anon-key",
+  "enabled": true
+}
+```
+
+3. Serve the app over HTTP and open **Settings → Cloud account**.
+4. Sign in with your email. Supabase sends a 6-digit code.
+
+The first device to sign in with an empty cloud uploads its library and becomes
+the source of truth. After that the cloud copy is authoritative, and each other
+device pulls it on demand. Row Level Security keeps every row private to its
+owner. The publishable key is safe in the browser; never put the service-role
+key in the app.
+
 ## Deploy
 
 Musi can be deployed anywhere that serves static files, including GitHub Pages,
 Netlify, Vercel static output, S3, or a basic web server. The service worker is
 written with relative paths so the app can run from a domain root or a sub-path.
+Supabase never hosts or builds the app.
 
 ## Purpose
 
