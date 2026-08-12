@@ -157,9 +157,7 @@ body.split-mode .section.split-secondary{border-left:1px solid var(--border);pad
   .tool-card-open{width:100%}
 }
 
-/* ---- Home: simplified statistics ---- */
-.home-stats{margin-bottom:22px}
-.home-stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+/* ---- Home stat tiles (stats.js; host removed from Home) ---- */
 .stat-tile{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:16px 14px;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.5);min-height:96px}
 .stat-tile.wide{grid-column:span 2}
 .stat-tile.highlight{border-color:rgba(255,225,74,0.45);background:linear-gradient(180deg,var(--accent-dim),var(--card))}
@@ -170,7 +168,6 @@ body.split-mode .section.split-secondary{border-left:1px solid var(--border);pad
 .stat-tile-sub{font-size:.74rem;color:var(--muted)}
 .stat-tile.wide .stat-tile-value{font-size:1.25rem;color:var(--text)}
 @media(max-width:768px){
-  .home-stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .stat-tile{min-height:84px;padding:14px 12px}
   .stat-tile.wide{grid-column:span 2}
   .stat-tile-value{font-size:1.5rem}

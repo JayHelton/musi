@@ -33,7 +33,7 @@ import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { initProgressHeaders } from './progressHeader.js';
 import { initHome, refreshHome, renderHub } from './home.js';
-import { initStats, renderStats } from './stats.js';
+import { initStats } from './stats.js';
 import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
 import { initStudyLab, stopStudyLab } from './studyLab.js';
 import {
@@ -230,7 +230,6 @@ function showSection(id, skipHash) {
   }
 
   if (id === 'home') {
-    renderStats();
     refreshHome();
     stopOtherTools([]);
     updateHoldRecordVisibility(null);
