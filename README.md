@@ -234,3 +234,12 @@ Musi is designed to make music theory practical, audible, and creative. It gives
 learners the repetition they need, gives players immediate sound and visual
 feedback, and gives creators a compact sketchpad for ideas - all from a fast,
 installable web app.
+
+## Spec-Driven Development
+
+Musi uses [GitHub Spec Kit](https://github.com/github/spec-kit) for spec-driven
+development. Specs, plans, and tasks live under `specs/`. Cursor skills in
+`.cursor/skills/` run each workflow step.
+
+See [docs/spec-kit.md](docs/spec-kit.md) for prerequisites, install steps, and
+the full skill list.

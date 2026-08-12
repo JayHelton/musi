@@ -130,3 +130,15 @@ dark/modern dashboard style.
   features (quizzes, references, circle of fifths, etc.) verify fine in a browser.
 - The CLI ear trainer optionally uses a system audio player (`afplay`/`paplay`/`aplay`/
   `ffplay`/`play`); it degrades gracefully if none is present. `NO_COLOR=1` disables CLI colors.
+
+### Spec Kit (Spec-Driven Development)
+
+Use Spec Kit skills for non-trivial features when they are present in this repo.
+
+- **Constitution:** `.specify/memory/constitution.md` — plans and tasks must align with it.
+- **Feature specs:** `specs/` — one directory per feature (`spec.md`, `plan.md`, `tasks.md`).
+- **Workflow:** run Cursor skills in order: `/speckit-specify`, `/speckit-plan`,
+  `/speckit-tasks`, `/speckit-implement`, `/speckit-converge` (see `docs/spec-kit.md`).
+- **Details:** read `docs/spec-kit.md` for install, skills, and upgrade notes.
+- **Do not** remove or bypass `.specify/` or `.cursor/skills/speckit-*` scaffolding unless
+  the user explicitly asks for that.
