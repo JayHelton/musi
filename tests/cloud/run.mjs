@@ -17,6 +17,7 @@ import { runReconcileTests } from './reconcile.mjs';
 import { run as runTransportFakeTests } from './transportFake.mjs';
 import { run as runSyncFlowTests } from './syncFlow.mjs';
 import { run as runCloudSyncFlowTests } from './cloudSyncFlow.mjs';
+import { run as runFileSyncTests } from './fileSync.mjs';
 
 const store = installLocalStorageShim();
 const listeners = installWindowShim();
@@ -39,6 +40,7 @@ await runReconcileTests(test);
 await runTransportFakeTests(test);
 await runSyncFlowTests(test);
 await runCloudSyncFlowTests(test);
+await runFileSyncTests(test);
 
 console.log(`\n${passed} passed`);
 process.exit(0);

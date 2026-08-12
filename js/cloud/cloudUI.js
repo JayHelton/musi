@@ -10,6 +10,10 @@ import {
   listDevices,
   revokeDevice,
 } from './auth.js';
+import {
+  isFileSyncEnabled,
+  setFileSyncEnabled,
+} from './blobSync.js';
 
 let rootEl = null;
 let syncApi = null;
@@ -165,6 +169,33 @@ function renderFirstSync(status) {
   `;
 }
 
+function fileStatusText(status) {
+  const uploads = status?.files?.uploads || 0;
+  const downloads = status?.files?.downloads || 0;
+  if (status?.files?.busy) return 'File sync is running…';
+  if (uploads === 0 && downloads === 0) return 'Files are in step';
+  const parts = [];
+  if (uploads > 0) parts.push(`${uploads} to upload`);
+  if (downloads > 0) parts.push(`${downloads} to download`);
+  return `Files: ${parts.join(', ')}`;
+}
+
+function renderFileSyncControls(status) {
+  const checked = isFileSyncEnabled() ? ' checked' : '';
+  return `
+    <div class="cloud-file-section">
+      <p class="sync-estimate cloud-file-status">${escapeHtml(fileStatusText(status))}</p>
+      <label class="cloud-toggle-row">
+        <input type="checkbox" id="mp-cloud-file-sync"${checked}>
+        <span>Sync exercise files and recordings on this device</span>
+      </label>
+      <div class="sync-btn-row cloud-file-actions">
+        <button type="button" class="btn sm" id="mp-cloud-sync-files">Sync files now</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderMassDelete(status) {
   const md = status.massDelete || {};
   return `
@@ -217,6 +248,8 @@ function renderSignedIn(status, devices) {
       </div>
     </div>
 
+    ${renderFileSyncControls(status)}
+
     <div class="sync-btn-row cloud-action-row">
       <button type="button" class="btn sm primary" id="mp-cloud-sync-now">Sync now</button>
       <button type="button" class="btn sm" id="mp-cloud-push">Send this device to the cloud</button>
@@ -258,6 +291,12 @@ async function getStatusSnapshot() {
       userId: null,
       deviceId: null,
       online: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
+      files: {
+        uploads: 0,
+        downloads: 0,
+        busy: false,
+        lastError: null,
+      },
     };
   }
   return api.getSyncStatus();
@@ -396,6 +435,15 @@ function wireSignedIn(status) {
 
   rootEl.querySelector('#mp-cloud-pull')?.addEventListener('click', async () => {
     if (api?.pullNow) await api.pullNow();
+  });
+
+  rootEl.querySelector('#mp-cloud-file-sync')?.addEventListener('change', (event) => {
+    setFileSyncEnabled(event.target.checked);
+    refreshCloudUI();
+  });
+
+  rootEl.querySelector('#mp-cloud-sync-files')?.addEventListener('click', async () => {
+    if (api?.syncFilesNow) await api.syncFilesNow();
   });
 
   rootEl.querySelector('#mp-cloud-retry')?.addEventListener('click', async () => {

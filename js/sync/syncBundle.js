@@ -26,8 +26,8 @@ import {
   createZipWriter,
   readZipEntries,
   extractZipEntry,
-  crc32,
 } from './zip.js';
+import { crc32Blob, crc32Hex } from './crc32.js';
 
 export const BUNDLE_KIND = 'musi-library-bundle';
 export const BUNDLE_VERSION = 1;
@@ -138,26 +138,6 @@ function throwIfAborted(signal) {
   if (signal?.aborted) {
     throw new DOMException('Import cancelled.', 'AbortError');
   }
-}
-
-async function crc32Blob(blob) {
-  if (!blob) return 0;
-  let running = 0xffffffff;
-  if (typeof blob.stream === 'function') {
-    const reader = blob.stream().getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value && value.length) running = crc32(value, running);
-    }
-    return (running ^ 0xffffffff) >>> 0;
-  }
-  const buf = await blob.arrayBuffer();
-  return (crc32(new Uint8Array(buf), running) ^ 0xffffffff) >>> 0;
-}
-
-function crc32Hex(value) {
-  return (value >>> 0).toString(16).padStart(8, '0');
 }
 
 function parseJsonKey(raw) {

@@ -48,6 +48,13 @@ import {
   refreshRealtimeAuth,
   realtimeState,
 } from './realtimeLink.js';
+import {
+  syncFiles,
+  downloadMissingFiles,
+  countPendingFiles,
+  markFileDeleted,
+  isFileSyncEnabled,
+} from './blobSync.js';
 import { getAccessToken } from './auth.js';
 import { SYNC_SCOPES } from '../sync/syncProfile.js';
 
@@ -86,6 +93,12 @@ let status = {
   realtime: 'off',
   error: null,
   online: browserOnline(),
+  files: {
+    uploads: 0,
+    downloads: 0,
+    busy: false,
+    lastError: null,
+  },
 };
 
 function browserOnline() {
@@ -141,10 +154,70 @@ async function refreshPendingCounts() {
   const shadow = await getAllShadow();
   const { records } = await collectLocalRecords();
   const diff = await diffAgainstShadow(records, shadow);
+  const fileCounts = status.signedIn && status.userId
+    ? await countPendingFiles({ userId: status.userId })
+    : { uploads: 0, downloads: 0 };
   setStatus({
     pendingUploads: diff.upserts.length,
     pendingDeletes: unpushed.length || diff.tombstones.length,
+    files: {
+      uploads: fileCounts.uploads,
+      downloads: fileCounts.downloads,
+      busy: status.files?.busy || false,
+      lastError: status.files?.lastError || null,
+    },
   });
+}
+
+async function runFileSyncPass({ downloadIds } = {}) {
+  if (!status.signedIn || !status.userId || !isFileSyncEnabled()) {
+    await refreshPendingCounts();
+    return null;
+  }
+  if (!canUseNetwork()) {
+    await refreshPendingCounts();
+    return null;
+  }
+
+  setStatus({
+    files: {
+      ...status.files,
+      busy: true,
+    },
+  });
+
+  let result;
+  try {
+    if (downloadIds?.length) {
+      result = await downloadMissingFiles({
+        userId: status.userId,
+        ids: downloadIds,
+      });
+    } else {
+      result = await syncFiles({ userId: status.userId });
+    }
+  } catch (error) {
+    result = {
+      uploaded: 0,
+      downloaded: 0,
+      skipped: [],
+      failed: 1,
+      pendingUploads: status.files?.uploads || 0,
+      pendingDownloads: status.files?.downloads || 0,
+      errors: [{ attachmentId: null, phase: 'sync', ...describeTransportError(error) }],
+    };
+  }
+
+  const lastError = result?.errors?.length ? result.errors[0] : null;
+  setStatus({
+    files: {
+      uploads: result?.pendingUploads ?? 0,
+      downloads: result?.pendingDownloads ?? 0,
+      busy: false,
+      lastError,
+    },
+  });
+  return result;
 }
 
 async function exportSafetyZip() {
@@ -238,6 +311,14 @@ async function doPush(upserts, tombstones) {
     deviceId,
   });
 
+  for (const tombstone of mergedTombstones) {
+    if (tombstone.domain !== 'attachmentsMeta') continue;
+    const key = shadowKey(tombstone.domain, tombstone.recordId);
+    if (acked.has(key)) {
+      await markFileDeleted(tombstone.recordId, { userId: status.userId });
+    }
+  }
+
   for (const [key, rev] of acked) {
     const sep = key.indexOf(':');
     if (sep < 0) continue;
@@ -305,8 +386,10 @@ async function doPull() {
     const foreign = rows.filter((row) => row.device_id !== deviceId);
     if (foreign.length) {
       applyingRemote = true;
+      let pendingBlobs = [];
       try {
-        await applyRemoteRecords(foreign, { mode: 'merge' });
+        const applyResult = await applyRemoteRecords(foreign, { mode: 'merge' });
+        pendingBlobs = applyResult?.pendingBlobs || [];
         for (const row of foreign) {
           const domain = row.domain;
           const recordId = row.record_id;
@@ -323,6 +406,9 @@ async function doPull() {
         pulledAny = true;
       } finally {
         applyingRemote = false;
+      }
+      if (pendingBlobs.length && isFileSyncEnabled()) {
+        await runFileSyncPass({ downloadIds: pendingBlobs });
       }
     }
 
@@ -392,6 +478,8 @@ async function reconcileInternal() {
     const pullOk = await doPull();
     if (!pullOk && status.state === 'error') return;
 
+    await runFileSyncPass();
+
     await refreshPendingCounts();
     setStatus({ state: 'idle', massDelete: null, error: null });
   } catch (error) {
@@ -419,6 +507,12 @@ export async function syncNow() {
   if (!status.signedIn) return;
   if (status.firstSyncNeeded) return;
   await reconcileInternal();
+}
+
+export async function syncFilesNow() {
+  if (!status.signedIn) return;
+  if (status.firstSyncNeeded) return;
+  await runFileSyncPass();
 }
 
 export async function pullNow() {
@@ -793,6 +887,12 @@ export async function handleSignedOut({ eraseLocal = false } = {}) {
     realtime: 'off',
     error: null,
     online: browserOnline(),
+    files: {
+      uploads: 0,
+      downloads: 0,
+      busy: false,
+      lastError: null,
+    },
   });
 }
 

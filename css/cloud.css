@@ -207,6 +207,42 @@
   line-height: 1.35;
 }
 
+#mp-cloud-block .cloud-file-section {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-screen, 18px);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    rgba(18, 26, 46, 0.55);
+}
+
+#mp-cloud-block .cloud-file-status {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+#mp-cloud-block .cloud-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-family: var(--font-body, "Pixelify Sans", sans-serif);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--text);
+  cursor: pointer;
+}
+
+#mp-cloud-block .cloud-toggle-row input {
+  margin-top: 3px;
+  accent-color: var(--accent2, var(--shell-bright));
+}
+
+#mp-cloud-block .cloud-file-actions {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
 #mp-cloud-block .cloud-action-row,
 #mp-cloud-block .cloud-signout-row {
   margin-top: 14px;

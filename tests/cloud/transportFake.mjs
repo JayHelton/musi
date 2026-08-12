@@ -18,11 +18,68 @@ function createFakeStore() {
   return {
     records: new Map(),
     devices: new Map(),
+    syncBlobs: new Map(),
+    storageObjects: new Map(),
     revCounter: 0,
+    blobRevCounter: 0,
     purgedThroughRev: 0,
     maxRev: 0,
     fullResyncRequired: false,
   };
+}
+
+function upsertSyncBlobs(rows, store) {
+  const list = Array.isArray(rows) ? rows : [rows];
+  const acked = [];
+  list.forEach((row) => {
+    store.blobRevCounter += 1;
+    const rev = store.blobRevCounter;
+    const attachmentId = row.attachment_id;
+    const existing = store.syncBlobs.get(attachmentId) || {};
+    const next = {
+      ...existing,
+      attachment_id: attachmentId,
+      crc32: row.crc32,
+      size_bytes: row.size_bytes,
+      mime_type: row.mime_type ?? existing.mime_type ?? null,
+      storage_path: row.storage_path,
+      deleted: row.deleted === true,
+      updated_at: new Date().toISOString(),
+      rev,
+    };
+    store.syncBlobs.set(attachmentId, next);
+    acked.push(next);
+  });
+  return acked;
+}
+
+function querySyncBlobs(store, filters) {
+  let rows = [...store.syncBlobs.values()];
+  filters.forEach((filter) => {
+    if (filter.op === 'eq') {
+      rows = rows.filter((row) => row[filter.col] === filter.val);
+    }
+    if (filter.op === 'is') {
+      rows = rows.filter((row) => row[filter.col] === filter.val);
+    }
+  });
+  return rows;
+}
+
+function updateSyncBlobs(store, filters, patch) {
+  const targets = querySyncBlobs(store, filters);
+  targets.forEach((row) => {
+    store.blobRevCounter += 1;
+    const next = {
+      ...row,
+      ...patch,
+      attachment_id: row.attachment_id,
+      rev: store.blobRevCounter,
+      updated_at: new Date().toISOString(),
+    };
+    store.syncBlobs.set(row.attachment_id, next);
+  });
+  return targets;
 }
 
 function upsertRows(rows, store) {
@@ -132,6 +189,10 @@ function makeTableBuilder(table, store) {
       state.filters.push({ op: 'eq', col, val });
       return builder;
     },
+    is(col, val) {
+      state.filters.push({ op: 'is', col, val });
+      return builder;
+    },
     order(col, opts = {}) {
       state.orderCol = col;
       state.orderAsc = opts.ascending !== false;
@@ -168,6 +229,19 @@ function makeTableBuilder(table, store) {
   };
 
   function execute() {
+    if (table === 'sync_blobs') {
+      if (state.upsertRows) {
+        const data = upsertSyncBlobs(state.upsertRows, store);
+        return Promise.resolve({ data, error: null });
+      }
+      if (state.updatePatch) {
+        const data = updateSyncBlobs(store, state.filters, state.updatePatch);
+        return Promise.resolve({ data, error: null });
+      }
+      const data = querySyncBlobs(store, state.filters);
+      return Promise.resolve({ data, error: null });
+    }
+
     if (table === 'sync_devices') {
       if (state.upsertRows) {
         const data = upsertDevices(state.upsertRows, store);
@@ -254,6 +328,48 @@ function makeChannel() {
   };
 }
 
+function makeStorageApi(store) {
+  return {
+    from(bucket) {
+      return {
+        upload(path, blob, opts = {}) {
+          const key = `${bucket}:${path}`;
+          store.storageObjects.set(key, {
+            blob,
+            contentType: opts.contentType || blob?.type || '',
+          });
+          return Promise.resolve({ data: { path }, error: null });
+        },
+        download(path) {
+          const key = `${bucket}:${path}`;
+          const entry = store.storageObjects.get(key);
+          if (!entry) {
+            return Promise.resolve({ data: null, error: { message: 'Object not found' } });
+          }
+          return Promise.resolve({ data: entry.blob, error: null });
+        },
+        remove(paths) {
+          (paths || []).forEach((path) => {
+            store.storageObjects.delete(`${bucket}:${path}`);
+          });
+          return Promise.resolve({ data: paths, error: null });
+        },
+        list(prefix = '') {
+          const names = [];
+          store.storageObjects.forEach((_entry, key) => {
+            const marker = `${bucket}:`;
+            if (!key.startsWith(marker)) return;
+            const path = key.slice(marker.length);
+            if (prefix && !path.startsWith(prefix)) return;
+            names.push({ name: path });
+          });
+          return Promise.resolve({ data: names, error: null });
+        },
+      };
+    },
+  };
+}
+
 export function createFakeSupabase(store = fakeStore) {
   const activeStore = store || createFakeStore();
   const sessionRef = { current: null };
@@ -262,6 +378,7 @@ export function createFakeSupabase(store = fakeStore) {
 
   const client = {
     auth,
+    storage: makeStorageApi(activeStore),
     from(table) {
       return makeTableBuilder(table, activeStore);
     },
