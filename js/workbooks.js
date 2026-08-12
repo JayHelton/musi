@@ -114,6 +114,8 @@ let detailEntryListEl = null;
 
 let workbookBackTarget = null;
 const workbookEntryChangeHandlers = new Set();
+const workbookCompanionChangeHandlers = new Set();
+let routeDrivenCompanionChange = false;
 
 function setStatus(text, isError) {
   if (!statusEl) return;
@@ -553,6 +555,13 @@ function refreshDetailCompanions(wb) {
   detailCompanionsHandle = mountCompanions(detailCompanionsMountEl, companions, {
     onCollapsedChange: (companionId, collapsed) => {
       if (openWorkbookId) setWorkbookCompanionCollapsed(openWorkbookId, companionId, collapsed);
+      if (routeDrivenCompanionChange) return;
+      const workbookId = openWorkbookId;
+      if (!workbookId) return;
+      const payload = { workbookId, companionId, collapsed };
+      workbookCompanionChangeHandlers.forEach((handler) => {
+        try { handler(payload); } catch (e) { /* ignore */ }
+      });
     },
   });
   companionPanel?.sync();
@@ -819,7 +828,12 @@ export function openWorkbookForRoute({ workbookId, exerciseId, companionId } = {
   wb = getWorkbook(workbookId);
 
   if (companionId) {
-    activateCompanionSubview(workbookId, companionId);
+    routeDrivenCompanionChange = true;
+    try {
+      activateCompanionSubview(workbookId, companionId);
+    } finally {
+      routeDrivenCompanionChange = false;
+    }
     return { ok: true };
   }
 
@@ -864,6 +878,10 @@ export function setWorkbookBackTarget(target) {
 
 export function onWorkbookEntryChange(handler) {
   if (typeof handler === 'function') workbookEntryChangeHandlers.add(handler);
+}
+
+export function onWorkbookCompanionChange(handler) {
+  if (typeof handler === 'function') workbookCompanionChangeHandlers.add(handler);
 }
 
 function openWorkbookDetail(id) {

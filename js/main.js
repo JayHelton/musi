@@ -320,7 +320,6 @@ const routineShell = {
     navPushCount += 1;
   },
   replaceRoute(route) {
-    if (applyingHistory) return;
     const params = buildRoutineParams(route);
     const url = sectionUrl(ROUTINE_ROUTE_ID, params);
     history.replaceState({ musiNav: ROUTINE_ROUTE_ID, params }, '', url);
@@ -335,7 +334,8 @@ const routineShell = {
     if (nav) nav.applyRoute(buildRoutineParams(parentRoute), { source: 'internal' });
   },
   goHome() {
-    showSection('home');
+    applySection('home');
+    history.replaceState({ musiNav: 'home', params: {} }, '', sectionUrl('home'));
   },
   hasInAppHistory() {
     return navPushCount > 0;
@@ -361,7 +361,11 @@ function getRoutineNavigator() {
       shell: routineShell,
       layers: {
         ...createRoutineLayerDescriptors(),
-        ...createWorkbookLayerDescriptors({ shell: routineShell, onEntryReplace }),
+        ...createWorkbookLayerDescriptors({
+          shell: routineShell,
+          onEntryReplace,
+          onBack: () => { const nav = getRoutineNavigator(); if (nav) nav.back(); },
+        }),
       },
       homeStatus: () => document.getElementById('home-status'),
     });

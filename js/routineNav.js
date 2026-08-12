@@ -7,12 +7,7 @@ import {
   ROUTINE_ROUTE_ID,
 } from './routineRoute.js';
 import { buildAppRoute } from './appRoute.js';
-import {
-  openWorkbookForRoute,
-  closeWorkbookLayer,
-  setWorkbookBackTarget,
-  onWorkbookEntryChange,
-} from './workbooks.js';
+import * as workbooks from './workbooks.js';
 
 const NOT_FOUND_MESSAGE = 'Item not found';
 const SESSION_BACK_LABEL = '← Session';
@@ -92,7 +87,7 @@ export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }
   }
 
   function setSessionBackTarget() {
-    setWorkbookBackTarget({
+    workbooks.setWorkbookBackTarget({
       label: SESSION_BACK_LABEL,
       onBack,
     });
@@ -101,7 +96,7 @@ export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }
   function mountWorkbook(ctx) {
     activateWorkbooks();
     setSessionBackTarget();
-    openWorkbookForRoute({
+    workbooks.openWorkbookForRoute({
       workbookId: ctx.route.workbook,
       exerciseId: null,
       companionId: null,
@@ -111,7 +106,7 @@ export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }
   function mountExercise(ctx) {
     activateWorkbooks();
     setSessionBackTarget();
-    openWorkbookForRoute({
+    workbooks.openWorkbookForRoute({
       workbookId: ctx.route.workbook,
       exerciseId: ctx.route.exercise,
       companionId: null,
@@ -122,7 +117,7 @@ export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }
     activateWorkbooks();
     setSessionBackTarget();
     const workbookId = ctx.workbook?.id || ctx.route.workbook;
-    openWorkbookForRoute({
+    workbooks.openWorkbookForRoute({
       workbookId,
       exerciseId: null,
       companionId: ctx.route.companion,
@@ -130,8 +125,8 @@ export function createWorkbookLayerDescriptors({ shell, onBack, onEntryReplace }
   }
 
   function unmountWorkbookLayer() {
-    setWorkbookBackTarget(null);
-    closeWorkbookLayer();
+    workbooks.setWorkbookBackTarget(null);
+    workbooks.closeWorkbookLayer();
   }
 
   const workbookDescriptor = {
@@ -183,6 +178,7 @@ export function createRoutineNavigator({
   };
 
   let entryChangeUnsub = null;
+  let companionChangeUnsub = null;
 
   function makeResolveData() {
     return {
@@ -290,7 +286,14 @@ export function createRoutineNavigator({
     if (layerName === 'list') return;
     const layer = layers[layerName];
     const statusEl = layer?.status?.();
-    if (statusEl) statusEl.textContent = NOT_FOUND_MESSAGE;
+    if (statusEl) {
+      statusEl.textContent = NOT_FOUND_MESSAGE;
+      return;
+    }
+    if (homeStatus) {
+      const el = homeStatus();
+      if (el) el.textContent = NOT_FOUND_MESSAGE;
+    }
   }
 
   function mountLayer(layerName, ctx) {
@@ -315,6 +318,10 @@ export function createRoutineNavigator({
   function reconcileStack(targetRoute, targetChain, meta) {
     const currentChain = [...state.mountedLayers];
     const oldRoute = state.route;
+
+    if (meta.source !== 'boot' && targetChain.length > currentChain.length) {
+      saveScrollForRoute(oldRoute);
+    }
 
     let commonLen = 0;
     while (
@@ -347,16 +354,17 @@ export function createRoutineNavigator({
     }
 
     const topLayer = targetChain[targetChain.length - 1];
+    const topLayerChanged =
+      currentChain.length !== targetChain.length
+      || currentChain[currentChain.length - 1] !== topLayer;
 
-    if (meta.source === 'boot' || wentUp) {
-      if (wentUp) {
-        const parent = parentRoute(targetRoute);
-        if (parent && routeLayer(parent) !== 'list') {
-          restoreScroll(parent);
-        }
+    if (wentUp) {
+      if (routeLayer(targetRoute) !== 'list') {
+        restoreScroll(targetRoute);
       }
-      focusHeading(topLayer);
-    } else if (targetChain.length > currentChain.length) {
+    }
+
+    if (meta.source === 'boot' || wentUp || targetChain.length > currentChain.length || topLayerChanged) {
       focusHeading(topLayer);
     }
   }
@@ -381,8 +389,9 @@ export function createRoutineNavigator({
     onRouteChange?.(newRoute, { source: 'internal', entryChange: true });
   }
 
-  function wireEntryChange() {
-    const unsub = onWorkbookEntryChange(({ workbookId, exerciseId }) => {
+  function wireEntryChange(nav) {
+    if (typeof workbooks.onWorkbookEntryChange !== 'function') return;
+    workbooks.onWorkbookEntryChange(({ workbookId, exerciseId }) => {
       const route = state.route;
       if (!route.routine || !route.workbook || route.workbook !== workbookId) return;
       const layer = routeLayer(route);
@@ -393,15 +402,41 @@ export function createRoutineNavigator({
         exercise: exerciseId,
         companion: null,
       };
-      shell.replaceRoute(newRoute);
+      if (route.exercise) {
+        shell.replaceRoute(newRoute);
+      } else {
+        shell.pushRoute(newRoute);
+      }
       applyEntryRouteChange(newRoute);
     });
-    if (typeof unsub === 'function') {
-      entryChangeUnsub = unsub;
-    }
   }
 
-  wireEntryChange();
+  function wireCompanionChange(nav) {
+    if (typeof workbooks.onWorkbookCompanionChange !== 'function') return;
+    workbooks.onWorkbookCompanionChange(({ workbookId, companionId, collapsed }) => {
+      const route = state.route;
+      if (!route.routine || route.workbook !== workbookId) return;
+
+      if (collapsed) return;
+
+      if (!route.companion) {
+        nav.open({ companion: companionId });
+        return;
+      }
+
+      if (route.companion === companionId) return;
+
+      const newRoute = {
+        ...route,
+        workbook: workbookId,
+        companion: companionId,
+        exercise: null,
+      };
+      shell.replaceRoute(newRoute);
+      reconcileStack(newRoute, getLayerChain(newRoute), { source: 'internal' });
+      onRouteChange?.(newRoute, { source: 'internal', companionChange: true });
+    });
+  }
 
   const navigator = {
     applyRoute(params, { source } = {}) {
@@ -449,18 +484,8 @@ export function createRoutineNavigator({
       const newChain = getLayerChain(newRoute);
       if (newChain.length === 0) return;
 
-      const newLayer = newChain[newChain.length - 1];
-      if (state.mountedLayers.includes(newLayer)) return;
-
-      saveScrollForRoute(state.route);
       shell.pushRoute(newRoute);
-
-      const ctx = buildCtx(newRoute);
-      mountLayer(newLayer, ctx);
-      state.mountedLayers.push(newLayer);
-      state.route = newRoute;
-
-      focusHeading(newLayer);
+      reconcileStack(newRoute, newChain, { source: 'open' });
       onRouteChange?.(newRoute, { source: 'open' });
     },
 
@@ -489,8 +514,15 @@ export function createRoutineNavigator({
         entryChangeUnsub();
         entryChangeUnsub = null;
       }
+      if (companionChangeUnsub) {
+        companionChangeUnsub();
+        companionChangeUnsub = null;
+      }
     },
   };
+
+  wireEntryChange(navigator);
+  wireCompanionChange(navigator);
 
   return navigator;
 }
