@@ -169,10 +169,24 @@
 .wb-player-link-note{font-size:.78rem;color:var(--muted);margin-top:8px;text-align:center}
 .wb-player-doc-fallback{max-width:420px;width:100%;margin:auto}
 .wb-companions-mount{
-  flex-shrink:0;display:flex;flex-direction:column;gap:6px;min-height:0;
-  max-height:min(30vh,300px);overflow:auto;padding-top:4px;border-top:1px solid var(--border)
+  display:flex;flex-direction:column;gap:6px;min-height:0
 }
 .wb-companions-mount .ec-stack{gap:6px}
+.wb-detail-tabs{flex-shrink:0;margin:0}
+.wb-detail-panes{
+  flex:1;min-height:0;display:flex;flex-direction:column
+}
+.wb-detail-panes .subview-panel[hidden]{display:none!important}
+.wb-detail-body:has(.wb-has-companions){
+  display:flex;flex-direction:column;overflow:hidden
+}
+.wb-player.wb-has-companions{
+  flex:1;min-height:0;display:flex;flex-direction:column
+}
+.wb-has-companions .wb-detail-panes .wb-gp-mount,
+.wb-has-companions .wb-detail-panes .wb-companions-mount{
+  flex:1;min-height:0;overflow:auto
+}
 .wb-head-tools,.wb-transport-tools{display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
 .wb-cmp-gear.gpp-icon-btn,.wb-cmp-gear.btn{min-width:var(--tap-min,44px);min-height:var(--tap-min,44px)}
 .wb-has-gp .wb-player-controls .wb-cmp-gear{display:none}
@@ -386,6 +400,7 @@ body.wb-cmp-drawer-open{overflow:hidden}
 #sec-workbooks.wb-practicing .wb-transport .btn{min-height:32px;padding:4px 8px;font-size:.75rem}
 #sec-workbooks.wb-practicing .wb-loop-toggle{font-size:.75rem;gap:4px;white-space:nowrap}
 #sec-workbooks.wb-practicing .wb-loop-hint{display:none}
+#sec-workbooks.wb-practicing .wb-detail-panes{flex:1;min-height:0}
 #sec-workbooks.wb-practicing .wb-gp-mount{flex:1;min-height:0;border:none;background:transparent;border-radius:0}
 #sec-workbooks.wb-practicing .wb-gp-mount .gpp-chrome{
   flex:1;min-height:0;height:auto;max-height:none
@@ -399,9 +414,10 @@ body.wb-cmp-drawer-open{overflow:hidden}
   box-shadow:none
 }
 #sec-workbooks.wb-practicing .wb-has-gp .wb-player{padding:0;gap:0}
+#sec-workbooks.wb-practicing .wb-has-gp .wb-detail-panes{flex:1;min-height:0}
 #sec-workbooks.wb-practicing .wb-has-gp .wb-gp-mount{flex:1;min-height:0}
-#sec-workbooks.wb-practicing .wb-has-gp .wb-companions-mount{
-  max-height:min(22vh,220px);flex-shrink:0
+#sec-workbooks.wb-practicing .wb-has-companions .wb-detail-tabs{
+  flex-shrink:0;padding:4px 8px 0
 }
 
 /* Workbook controls injected into .gpp-score-actions */
@@ -721,8 +737,10 @@ body.wb-cmp-drawer-open{overflow:hidden}
 }
 
 @media (orientation:landscape) and (max-height:500px){
-  .wb-companions-mount{max-height:min(18vh,140px)}
-  #sec-workbooks.wb-practicing .wb-has-gp .wb-companions-mount{max-height:min(16vh,120px)}
+  .wb-has-companions .wb-detail-panes .wb-companions-mount,
+  .wb-has-companions .wb-detail-panes .wb-gp-mount{
+    flex:1;min-height:0;overflow:auto
+  }
 }
 
 /* Embedded GP height: viewport-relative only (not scroll position). */

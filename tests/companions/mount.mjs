@@ -21,7 +21,7 @@ globalThis.navigator.mediaDevices.getUserMedia = async () => {
   throw new Error('Mic denied (test)');
 };
 
-const types = ['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit'];
+const types = ['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train'];
 const handles = [];
 
 for (const type of types) {
@@ -60,6 +60,11 @@ for (const type of types) {
   } else if (type === 'interval-orbit') {
     assert.ok(sub.querySelector('.ec-orbit-board'), 'orbit board');
     assert.ok(sub.querySelector('.ec-orbit-prompt') || sub.querySelector('.ec-orbit-chips'), 'orbit controls');
+  } else if (type === 'ear-train') {
+    const earControls = sub.querySelector('.ec-ear-controls');
+    assert.ok(earControls, 'ear controls');
+    assert.ok(sub.querySelector('.ec-ear-answers'), 'ear answers');
+    assert.ok(earControls.querySelector('button'), 'ear play button');
   } else {
     const diagram = sub.querySelector('.ec-fretboard-scroll')
       || sub.querySelector('.ec-triad-stack')
@@ -75,6 +80,7 @@ for (const type of types) {
 }
 
 for (const h of handles) {
+  assert.doesNotThrow(() => h.stop());
   assert.doesNotThrow(() => h.destroy());
 }
 

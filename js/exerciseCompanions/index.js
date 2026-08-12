@@ -4,6 +4,7 @@ import { mountTriadRef } from './triadRef.js';
 import { mountSweepRef } from './sweepRef.js';
 import { mountPitchTrain } from './pitchTrain.js';
 import { mountIntervalOrbit } from './intervalOrbit.js';
+import { mountEarTrain } from './earTrain.js';
 
 export {
   COMPANION_TYPES,
@@ -23,6 +24,7 @@ const MOUNTERS = {
   'sweep-ref': mountSweepRef,
   'pitch-train': mountPitchTrain,
   'interval-orbit': mountIntervalOrbit,
+  'ear-train': mountEarTrain,
 };
 
 /**

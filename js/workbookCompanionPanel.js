@@ -214,7 +214,7 @@ export function mountWorkbookCompanionPanel(host, api) {
   const listHost = el('div', { class: 'wb-cmp-list' });
   const emptyNote = el('p', {
     class: 'wb-cmp-empty',
-    text: 'No companion tools yet. Add a scale, triad, sweep, pitch trainer, or interval orbit below.',
+    text: 'No companion tools yet. Add a scale, triad, sweep, pitch trainer, ear trainer, or interval orbit below.',
   });
   const addSection = el('section', { class: 'wb-cmp-add-section' });
   const addTitle = el('h4', { class: 'wb-cmp-section-title', text: 'Add tool' });
@@ -280,6 +280,9 @@ export function mountWorkbookCompanionPanel(host, api) {
     let mapRangeSel;
     let levelSel;
     let modeSel;
+    let earContextSel;
+    let earPoolSel;
+    let earAnswerSel;
 
     if (needs.has('root')) {
       const rootId = `${prefix}-root`;
@@ -386,6 +389,47 @@ export function mountWorkbookCompanionPanel(host, api) {
       }
       fields.appendChild(fieldWrap('Mode', modeSel, mdId));
     }
+    if (needs.has('earContext')) {
+      const ecId = `${prefix}-ear-context`;
+      earContextSel = el('select', { class: 'wb-cmp-select', id: ecId, 'aria-label': 'Ear context' });
+      for (const entry of [
+        { value: 'root', label: 'Root first' },
+        { value: 'single', label: 'Single tone' },
+        { value: 'melodic', label: 'Melodic interval' },
+      ]) {
+        const opt = el('option', { value: entry.value, text: entry.label });
+        if (entry.value === (companion.earContext || 'root')) opt.selected = true;
+        earContextSel.appendChild(opt);
+      }
+      fields.appendChild(fieldWrap('Context', earContextSel, ecId));
+    }
+    if (needs.has('earPool')) {
+      const epId = `${prefix}-ear-pool`;
+      earPoolSel = el('select', { class: 'wb-cmp-select', id: epId, 'aria-label': 'Ear pool' });
+      for (const entry of [
+        { value: 'diatonic', label: 'Diatonic' },
+        { value: 'chromatic', label: 'Chromatic' },
+      ]) {
+        const opt = el('option', { value: entry.value, text: entry.label });
+        if (entry.value === (companion.earPool || 'diatonic')) opt.selected = true;
+        earPoolSel.appendChild(opt);
+      }
+      fields.appendChild(fieldWrap('Pool', earPoolSel, epId));
+    }
+    if (needs.has('earAnswer')) {
+      const eaId = `${prefix}-ear-answer`;
+      earAnswerSel = el('select', { class: 'wb-cmp-select', id: eaId, 'aria-label': 'Answer as' });
+      for (const entry of [
+        { value: 'note', label: 'Note' },
+        { value: 'degree', label: 'Degree' },
+        { value: 'interval', label: 'Interval' },
+      ]) {
+        const opt = el('option', { value: entry.value, text: entry.label });
+        if (entry.value === (companion.earAnswer || 'note')) opt.selected = true;
+        earAnswerSel.appendChild(opt);
+      }
+      fields.appendChild(fieldWrap('Answer as', earAnswerSel, eaId));
+    }
 
     function collectPatch() {
       const patch = { label: labelInput.value };
@@ -402,6 +446,9 @@ export function mountWorkbookCompanionPanel(host, api) {
       if (mapRangeSel) patch.mapRange = Number(mapRangeSel.value);
       if (levelSel) patch.level = Number(levelSel.value);
       if (modeSel) patch.mode = modeSel.value;
+      if (earContextSel) patch.earContext = earContextSel.value;
+      if (earPoolSel) patch.earPool = earPoolSel.value;
+      if (earAnswerSel) patch.earAnswer = earAnswerSel.value;
       return patch;
     }
 
@@ -411,7 +458,7 @@ export function mountWorkbookCompanionPanel(host, api) {
     }
 
     labelInput.addEventListener('change', applyPatch);
-    [rootSel, scaleSel, qualitySel, tuningSel, triadSetSel, sweepSetSel, patternSel, inversionSel, fretStartInput, fretEndInput, mapRangeSel, levelSel, modeSel]
+    [rootSel, scaleSel, qualitySel, tuningSel, triadSetSel, sweepSetSel, patternSel, inversionSel, fretStartInput, fretEndInput, mapRangeSel, levelSel, modeSel, earContextSel, earPoolSel, earAnswerSel]
       .filter(Boolean)
       .forEach((ctrl) => ctrl.addEventListener('change', applyPatch));
 

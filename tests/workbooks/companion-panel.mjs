@@ -135,4 +135,32 @@ function makeApi(wb) {
   panel.destroy();
 }
 
+{
+  const host = mountHost();
+  const wb = createWorkbook({ name: 'Ear train panel' });
+  const api = makeApi(wb);
+  const panel = mountWorkbookCompanionPanel(host, api);
+  panel.open();
+
+  const earCard = [...host.querySelectorAll('.wb-cmp-type-card')]
+    .find((c) => {
+      const label = c.querySelector('.wb-cmp-type-card-label');
+      return label?.textContent?.includes('Ear trainer')
+        || c.textContent?.includes('Ear trainer');
+    });
+  assert.ok(earCard, 'ear trainer add card');
+  earCard.click();
+  panel.sync();
+
+  const ear = getWorkbook(wb.id).companions[0];
+  assert.equal(ear.type, 'ear-train');
+  assert.equal(ear.earContext, 'root');
+  assert.equal(ear.earPool, 'diatonic');
+  assert.equal(ear.earAnswer, 'note');
+
+  panel.destroy();
+}
+
+// Exercise/Tools pane switching is covered by browser verification.
+
 console.log('workbook companion-panel: ok');

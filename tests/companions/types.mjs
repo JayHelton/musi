@@ -9,9 +9,9 @@ import {
   describeCompanion,
 } from '../../js/exerciseCompanions/types.js';
 
-assert.equal(COMPANION_TYPES.length, 5);
+assert.equal(COMPANION_TYPES.length, 6);
 assert.deepEqual(COMPANION_TYPES.map((t) => t.id), [
-  'scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit',
+  'scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train',
 ]);
 
 const scaleDef = defaultCompanion('scale-ref');
@@ -29,6 +29,15 @@ assert.equal(orbitDef.fretEnd, 12);
 assert.equal(orbitDef.mapRange, 1);
 assert.equal(orbitDef.level, 2);
 assert.equal(orbitDef.mode, 'locate');
+
+const earDef = defaultCompanion('ear-train');
+assert.equal(earDef.type, 'ear-train');
+assert.equal(earDef.root, 'C');
+assert.equal(earDef.scale, 'Major (Ionian)');
+assert.equal(earDef.earContext, 'root');
+assert.equal(earDef.earPool, 'diatonic');
+assert.equal(earDef.earAnswer, 'note');
+assert.equal(earDef.fretStart, undefined);
 
 const good = normalizeCompanion({
   type: 'scale-ref',
@@ -147,5 +156,39 @@ const orbitDesc = describeCompanion({
   tuning: 'Standard',
 });
 assert.match(orbitDesc, /Orbit · G · Locate · Local · Standard/);
+
+const earNorm = normalizeCompanion({
+  type: 'ear-train',
+  root: 'D',
+  scale: 'Dorian',
+  earContext: 'melodic',
+  earPool: 'chromatic',
+  earAnswer: 'interval',
+});
+assert.ok(earNorm);
+assert.equal(earNorm.earContext, 'melodic');
+assert.equal(earNorm.earPool, 'chromatic');
+assert.equal(earNorm.earAnswer, 'interval');
+
+const earClamp = normalizeCompanion({
+  type: 'ear-train',
+  root: 'E',
+  earContext: 'bad',
+  earPool: 'whole-tone',
+  earAnswer: 'chord',
+});
+assert.ok(earClamp);
+assert.equal(earClamp.earContext, 'root');
+assert.equal(earClamp.earPool, 'diatonic');
+assert.equal(earClamp.earAnswer, 'note');
+
+const earDesc = describeCompanion({
+  type: 'ear-train',
+  root: 'C',
+  scale: 'Major (Ionian)',
+  earContext: 'root',
+  earAnswer: 'note',
+});
+assert.match(earDesc, /Ear · C Major · root first · note/);
 
 console.log('companions types: ok');

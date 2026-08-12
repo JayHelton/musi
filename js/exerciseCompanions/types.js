@@ -10,7 +10,11 @@ export const MAX_LABEL_LEN = 80;
 export const MAX_FRET = 24;
 export const DEFAULT_TUNING = 'Standard';
 
-const TYPE_IDS = new Set(['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit']);
+const TYPE_IDS = new Set(['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train']);
+
+const EAR_CONTEXTS = new Set(['root', 'single', 'melodic']);
+const EAR_POOLS = new Set(['diatonic', 'chromatic']);
+const EAR_ANSWERS = new Set(['note', 'degree', 'interval']);
 
 export const COMPANION_TYPES = [
   {
@@ -42,6 +46,12 @@ export const COMPANION_TYPES = [
     label: 'Interval orbit',
     description: 'Locked root-centered interval map and locate drill on the fretboard.',
     needs: ['root', 'tuning', 'fretRange', 'mapRange', 'level', 'mode'],
+  },
+  {
+    id: 'ear-train',
+    label: 'Ear trainer',
+    description: 'Listen and name a note, degree, or interval locked to a root and scale.',
+    needs: ['root', 'scale', 'earContext', 'earPool', 'earAnswer'],
   },
 ];
 
@@ -131,6 +141,21 @@ function normalizeMode(raw) {
   return m === 'map' ? 'map' : 'locate';
 }
 
+function normalizeEarContext(raw) {
+  const v = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return EAR_CONTEXTS.has(v) ? v : 'root';
+}
+
+function normalizeEarPool(raw) {
+  const v = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return EAR_POOLS.has(v) ? v : 'diatonic';
+}
+
+function normalizeEarAnswer(raw) {
+  const v = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return EAR_ANSWERS.has(v) ? v : 'note';
+}
+
 function normalizeLabel(raw) {
   if (raw == null || raw === '') return '';
   const s = String(raw).trim();
@@ -172,6 +197,13 @@ export function defaultCompanion(type) {
     base.mapRange = 1;
     base.level = 2;
     base.mode = 'locate';
+  }
+  if (type === 'ear-train') {
+    base.fretStart = undefined;
+    base.fretEnd = undefined;
+    base.earContext = 'root';
+    base.earPool = 'diatonic';
+    base.earAnswer = 'note';
   }
   return base;
 }
@@ -217,7 +249,7 @@ export function normalizeCompanion(raw) {
     const frets = normalizeFretRange(raw.fretStart, raw.fretEnd, { start: 0, end: 12 });
     fretStart = frets.fretStart;
     fretEnd = frets.fretEnd;
-  } else {
+  } else if (type === 'ear-train' || type === 'pitch-train') {
     stringSet = undefined;
     fretStart = undefined;
     fretEnd = undefined;
@@ -243,6 +275,12 @@ export function normalizeCompanion(raw) {
     base.mapRange = normalizeMapRange(raw.mapRange);
     base.level = normalizeLevel(raw.level);
     base.mode = normalizeMode(raw.mode);
+  }
+
+  if (type === 'ear-train') {
+    base.earContext = normalizeEarContext(raw.earContext);
+    base.earPool = normalizeEarPool(raw.earPool);
+    base.earAnswer = normalizeEarAnswer(raw.earAnswer);
   }
 
   return base;
@@ -295,6 +333,15 @@ export function describeCompanion(companion) {
       : rangeDef.id === 'position' ? 'Position'
         : 'Full';
     return `Orbit · ${root} · ${modeLabel} · ${rangeShort} · ${tuning}`;
+  }
+  if (companion.type === 'ear-train') {
+    const ctxLabel = companion.earContext === 'single' ? 'single tone'
+      : companion.earContext === 'melodic' ? 'melodic'
+        : 'root first';
+    const ansLabel = companion.earAnswer === 'degree' ? 'degree'
+      : companion.earAnswer === 'interval' ? 'interval'
+        : 'note';
+    return `Ear · ${root} ${scaleShort} · ${ctxLabel} · ${ansLabel}`;
   }
   return TYPE_BY_ID[companion.type].label;
 }

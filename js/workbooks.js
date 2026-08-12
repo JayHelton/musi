@@ -53,6 +53,7 @@ import {
 } from './workbookModel.js';
 import { mountCompanions } from './exerciseCompanions/index.js';
 import { mountWorkbookCompanionPanel } from './workbookCompanionPanel.js';
+import { initSubviewTabs } from './uxPrimitives.js';
 import { resolveWorkbookShortcutAction, WB_KEY_ACTIONS } from './workbookKeyboard.js';
 import { GPP_TRANSPORT_BPM_STEP } from './gpPlayer/transportDock.js';
 
@@ -104,6 +105,10 @@ let detailLoopInput = null;
 let detailGpMountEl = null;
 let detailCompanionsMountEl = null;
 let detailCompanionsHandle = null;
+let detailTabsEl = null;
+let detailPanesEl = null;
+let detailTabsApi = null;
+let detailHadCompanions = false;
 let companionPanel = null;
 let detailEntryListEl = null;
 
@@ -338,6 +343,10 @@ function teardownDetailCompanions() {
     companionPanel = null;
   }
   detailCompanionsMountEl = null;
+  detailTabsEl = null;
+  detailPanesEl = null;
+  detailTabsApi = null;
+  detailHadCompanions = false;
 }
 
 function teardownDetailPlayer() {
@@ -478,6 +487,57 @@ function buildCompanionGearButton() {
   return btn;
 }
 
+function syncDetailTabs(wb) {
+  if (!detailTabsEl || !detailGpMountEl || !detailCompanionsMountEl) return;
+  const fresh = wb || getWorkbook(openWorkbookId);
+  const hasCompanions = (fresh?.companions || []).length > 0;
+  const player = detailPanesEl?.parentElement;
+
+  detailTabsEl.hidden = !hasCompanions;
+  if (player) player.classList.toggle('wb-has-companions', hasCompanions);
+
+  if (!hasCompanions) {
+    if (detailTabsApi?.active === 'tools') {
+      detailCompanionsHandle?.stop?.();
+    }
+    detailGpMountEl.hidden = false;
+    detailGpMountEl.classList.add('active');
+    detailCompanionsMountEl.hidden = true;
+    detailCompanionsMountEl.classList.remove('active');
+    detailHadCompanions = false;
+    return;
+  }
+
+  const justGotFirst = !detailHadCompanions;
+  detailHadCompanions = true;
+
+  if (!detailTabsApi) {
+    detailTabsApi = initSubviewTabs(detailTabsEl, [
+      { id: 'exercise', label: 'Exercise' },
+      { id: 'tools', label: 'Tools' },
+    ], {
+      settingsKey: 'wb.detailTab',
+      defaultId: 'exercise',
+      className: 'subview-tabs wb-detail-tabs',
+      onChange: (id) => {
+        if (id === 'exercise') {
+          detailCompanionsHandle?.stop?.();
+        } else {
+          detailCompanionsHandle?.refresh?.();
+        }
+      },
+    });
+  }
+
+  if (justGotFirst) {
+    // Stay on Exercise when the first companion is added.
+    detailTabsApi.setActive('exercise', { silent: true });
+  } else {
+    // Re-apply the active tab so pane visibility matches after remounts.
+    detailTabsApi.setActive(detailTabsApi.active, { silent: true });
+  }
+}
+
 function refreshDetailCompanions(wb) {
   if (!detailCompanionsMountEl) return;
   if (detailCompanionsHandle) {
@@ -487,13 +547,13 @@ function refreshDetailCompanions(wb) {
   const fresh = wb || getWorkbook(openWorkbookId);
   if (!fresh) return;
   const companions = fresh.companions || [];
-  detailCompanionsMountEl.hidden = companions.length === 0;
   detailCompanionsHandle = mountCompanions(detailCompanionsMountEl, companions, {
     onCollapsedChange: (companionId, collapsed) => {
       if (openWorkbookId) setWorkbookCompanionCollapsed(openWorkbookId, companionId, collapsed);
     },
   });
   companionPanel?.sync();
+  syncDetailTabs(fresh);
 }
 
 function mountDetailCompanionUi(wb) {
@@ -1276,12 +1336,37 @@ function buildDetailShell(wb) {
   controls.appendChild(transport);
   player.appendChild(controls);
 
-  detailGpMountEl = el('div', { class: 'wb-gp-mount' });
-  player.appendChild(detailGpMountEl);
+  detailTabsEl = el('div', {
+    id: 'wb-detail-tabs',
+    class: 'subview-tabs wb-detail-tabs',
+    hidden: true,
+  });
 
-  detailCompanionsMountEl = el('div', { class: 'wb-companions-mount', 'aria-label': 'Workbook tools' });
-  player.appendChild(detailCompanionsMountEl);
+  detailPanesEl = el('div', { class: 'wb-detail-panes' });
+
+  detailGpMountEl = el('div', {
+    class: 'wb-gp-mount subview-panel active',
+    'data-subview-for': 'wb-detail-tabs',
+    'data-subview': 'exercise',
+  });
+  detailCompanionsMountEl = el('div', {
+    class: 'wb-companions-mount subview-panel',
+    'aria-label': 'Workbook tools',
+    'data-subview-for': 'wb-detail-tabs',
+    'data-subview': 'tools',
+    hidden: true,
+  });
+
+  detailPanesEl.appendChild(detailGpMountEl);
+  detailPanesEl.appendChild(detailCompanionsMountEl);
+  player.appendChild(detailTabsEl);
+  player.appendChild(detailPanesEl);
+
+  detailTabsApi = null;
+  detailHadCompanions = false;
+
   mountDetailCompanionUi(wb);
+  syncDetailTabs(wb);
 
   detailBodyEl.appendChild(player);
 

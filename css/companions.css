@@ -615,3 +615,57 @@
   flex-direction: column;
   gap: 0.5rem;
 }
+
+/* Ear trainer companion */
+.ec-ear-question {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.ec-ear-question .highlight {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ec-ear-feedback {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+}
+
+.ec-ear-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ec-ear-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ec-ear-answers.note-btn-row .letter-btn {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.ec-ear-answers.int-picker .int-btn {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+
+.ec-ear-score {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
