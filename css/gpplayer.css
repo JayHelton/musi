@@ -1033,6 +1033,20 @@
   flex-wrap: nowrap;
 }
 
+.gpp-transport-dock.has-extra .gpp-transport-primary {
+  flex-wrap: wrap;
+}
+
+.gpp-transport-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-right: 6px;
+  margin-right: 2px;
+  border-right: 1px solid rgba(58, 42, 24, 0.35);
+}
+
 .gpp-transport-secondary {
   display: flex;
   align-items: center;
@@ -2327,6 +2341,11 @@ html.gpp-player-locked body {
     min-width: 44px;
     min-height: 40px;
     font-size: 1rem;
+  }
+  .gpp-transport-extra {
+    gap: 3px;
+    padding-right: 5px;
+    margin-right: 1px;
   }
   .gpp-loop-select-toggle {
     min-height: 36px;

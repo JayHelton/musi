@@ -149,6 +149,58 @@ assert.equal(bpmResetBtn.disabled, true, 'reset disabled after returning to scor
 
 tempoMount.destroy();
 
+// ---- transport dock extra slot ----
+function hasAncestorWithClass(node, cls) {
+  let cur = node?.parentElement;
+  while (cur) {
+    if (cur.classList?.contains(cls)) return true;
+    cur = cur.parentElement;
+  }
+  return false;
+}
+
+let extraClicked = false;
+const extraNextBtn = document.createElement('button');
+extraNextBtn.setAttribute('aria-label', 'Next exercise');
+extraNextBtn.addEventListener('click', () => { extraClicked = true; });
+const extraNode = document.createElement('div');
+extraNode.appendChild(extraNextBtn);
+
+const extraHost = document.createElement('div');
+const extraMount = mountGpPlayer(extraHost, {
+  gpResult: fakeGp,
+  title: 'Transport extra',
+  transportExtra: extraNode,
+});
+
+const extraDock = extraHost.querySelector('.gpp-transport-dock');
+const extraGroup = extraHost.querySelector('.gpp-transport-extra');
+const primaryRow = extraHost.querySelector('.gpp-transport-primary');
+assert.ok(extraDock, 'dock should render when transportExtra is provided');
+assert.ok(extraGroup, 'extra group should render');
+assert.ok(extraDock.classList.contains('has-extra'), 'dock should carry has-extra');
+assert.equal(primaryRow?.firstChild, extraGroup, 'extra group is first child of primary row');
+assert.ok(hasAncestorWithClass(extraNextBtn, 'gpp-transport-extra'), 'button sits under extra group');
+assert.ok(hasAncestorWithClass(extraNextBtn, 'gpp-transport-dock'), 'button sits under transport dock');
+
+extraClicked = false;
+extraNextBtn.click();
+assert.equal(extraClicked, true, 'injected button click handler still runs');
+
+const noExtraHost = document.createElement('div');
+const noExtraMount = mountGpPlayer(noExtraHost, { gpResult: fakeGp, title: 'No transport extra' });
+const noExtraDock = noExtraHost.querySelector('.gpp-transport-dock');
+assert.ok(noExtraDock, 'dock should render without transportExtra');
+assert.ok(!noExtraDock.classList.contains('has-extra'), 'dock without extra omits has-extra');
+assert.ok(!noExtraHost.querySelector('.gpp-transport-extra'), 'no extra group without transportExtra');
+
+extraMount.destroy();
+noExtraMount.destroy();
+assert.equal(extraHost.innerHTML, '', 'destroy clears extra host');
+assert.equal(extraHost.children.length, 0, 'destroy leaves extra host empty');
+assert.equal(noExtraHost.innerHTML, '', 'destroy clears no-extra host');
+assert.equal(noExtraHost.children.length, 0, 'destroy leaves no-extra host empty');
+
 // ---- standalone wiring with exerciseImport ----
 const host = document.createElement('div');
 const mounted = mountGpPlayer(host, {
