@@ -22,6 +22,13 @@ export function mountTransportDock(host, api = {}) {
   const primary = el('div', { class: 'gpp-transport-primary' });
   const secondary = el('div', { class: 'gpp-transport-secondary' });
 
+  if (api.extraNode) {
+    dock.classList.add('has-extra');
+    const extraGroup = el('div', { class: 'gpp-transport-extra' });
+    extraGroup.appendChild(api.extraNode);
+    primary.appendChild(extraGroup);
+  }
+
   const prevBtn = el('button', {
     class: 'gpp-transport-btn',
     type: 'button',

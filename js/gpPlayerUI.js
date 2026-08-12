@@ -73,6 +73,7 @@ export function mountGpPlayer(host, {
   preferredTrackIndex = 0,
   onAnalyze = null,
   headerExtra = null,
+  transportExtra = null,
   hideTitle = false,
   initialLoopEnabled = false,
   initialLoopStart = null,
@@ -835,6 +836,7 @@ export function mountGpPlayer(host, {
   });
 
   transport = mountTransportDock(transportHost, {
+    extraNode: transportExtra,
     onPrev: () => {
       const scope = stateController.getScope();
       const cur = navMeasureIndex();
