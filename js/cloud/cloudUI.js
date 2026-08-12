@@ -28,6 +28,7 @@ let authUnsub = null;
 let onlineUnsub = null;
 let eraseConfirmArmed = false;
 let localError = null;
+let lastStructuralSig = null;
 
 async function loadSyncApi() {
   if (syncApi) return syncApi;
@@ -62,7 +63,7 @@ function lastSyncedText(status) {
 function statusDotClass(status) {
   if (!status?.online) return 'warn';
   if (status?.state === 'error') return 'error';
-  if (['reconciling', 'pushing', 'pulling'].includes(status?.state)) return 'busy';
+  if (['reconciling', 'pushing', 'pulling'].includes(status?.state) || status?.files?.busy) return 'busy';
   if (status?.state === 'paused') return 'warn';
   return 'ok';
 }
@@ -72,7 +73,16 @@ function statusLabel(status) {
   if (!status.online || status.state === 'offline') return 'Offline — saved on this device';
   if (status.state === 'paused') return 'Paused';
   if (status.state === 'error') return 'Could not sync';
-  if (['reconciling', 'pushing', 'pulling'].includes(status.state)) return 'Syncing…';
+  // The file pass runs after the record pass, so the record state still reads
+  // "pulling" while a file moves. Name the real work instead.
+  if (status.files?.busy) {
+    if (status.files.phase === 'upload') return 'Sending files…';
+    if (status.files.phase === 'download') return 'Getting files…';
+    return 'Checking files…';
+  }
+  if (status.state === 'reconciling') return 'Checking for changes…';
+  if (status.state === 'pushing') return 'Sending changes…';
+  if (status.state === 'pulling') return 'Getting changes…';
   return 'Up to date';
 }
 
@@ -177,9 +187,16 @@ function renderFirstSync(status) {
 }
 
 function fileStatusText(status) {
-  const uploads = status?.files?.uploads || 0;
-  const downloads = status?.files?.downloads || 0;
-  if (status?.files?.busy) return 'File sync is running…';
+  const files = status?.files || {};
+  const uploads = files.uploads || 0;
+  const downloads = files.downloads || 0;
+  if (files.busy) {
+    if (files.total > 0 && files.phase) {
+      const verb = files.phase === 'upload' ? 'upload' : 'download';
+      return `Files: ${verb} ${files.done} of ${files.total}`;
+    }
+    return 'Files: the check is running';
+  }
   if (uploads === 0 && downloads === 0) return 'Files are in step';
   const parts = [];
   if (uploads > 0) parts.push(`${uploads} to upload`);
@@ -187,11 +204,27 @@ function fileStatusText(status) {
   return `Files: ${parts.join(', ')}`;
 }
 
+function fileProgressWidth(status) {
+  const files = status?.files || {};
+  if (!files.busy || !files.total) return 0;
+  return Math.min(100, Math.round((files.done / files.total) * 100));
+}
+
+function showFileProgress(status) {
+  const files = status?.files || {};
+  return files.busy && files.total > 0;
+}
+
 function renderFileSyncControls(status) {
   const checked = isFileSyncEnabled() ? ' checked' : '';
+  const progressHidden = showFileProgress(status) ? '' : ' hidden';
+  const progressWidth = fileProgressWidth(status);
   return `
     <div class="cloud-file-section">
-      <p class="sync-estimate cloud-file-status">${escapeHtml(fileStatusText(status))}</p>
+      <p class="sync-estimate cloud-file-status" id="mp-cloud-file-status">${escapeHtml(fileStatusText(status))}</p>
+      <div class="cloud-progress" id="mp-cloud-progress"${progressHidden}>
+        <div class="cloud-progress-bar"><span class="cloud-progress-fill" style="width: ${progressWidth}%"></span></div>
+      </div>
       <label class="cloud-toggle-row">
         <input type="checkbox" id="mp-cloud-file-sync"${checked}>
         <span>Sync exercise files and recordings on this device</span>
@@ -230,10 +263,10 @@ function renderSignedIn(status, devices) {
     <div class="cloud-signed-in-head">
       <p class="cloud-email-readout">${escapeHtml(status.email || '')}</p>
       <div class="cloud-status-row">
-        <span class="cloud-status-dot ${dotClass}" aria-hidden="true"></span>
-        <span class="cloud-status-label">${escapeHtml(label)}</span>
+        <span class="cloud-status-dot ${dotClass}" id="mp-cloud-status-dot" aria-hidden="true"></span>
+        <span class="cloud-status-label" id="mp-cloud-status-label">${escapeHtml(label)}</span>
       </div>
-      <p class="sync-estimate cloud-last-sync">${escapeHtml(lastSyncedText(status))}</p>
+      <p class="sync-estimate cloud-last-sync" id="mp-cloud-last-sync">${escapeHtml(lastSyncedText(status))}</p>
     </div>
 
     ${status.firstSyncNeeded ? renderFirstSync(status) : ''}
@@ -303,10 +336,49 @@ async function getStatusSnapshot() {
         downloads: 0,
         busy: false,
         lastError: null,
+        phase: null,
+        done: 0,
+        total: 0,
       },
     };
   }
   return api.getSyncStatus();
+}
+
+function computeStructuralSig(status, devices) {
+  const errMsg = localError || status.error;
+  return JSON.stringify({
+    uiState,
+    firstSyncNeeded: !!status.firstSyncNeeded,
+    massDelete: status.massDelete ? 'yes' : 'no',
+    hasError: !!errMsg,
+    eraseConfirmArmed,
+    devices: (devices || []).map((d) => d.device_id).sort().join('|'),
+  });
+}
+
+function updateLiveStatus(status) {
+  if (!rootEl) return;
+
+  const dot = rootEl.querySelector('#mp-cloud-status-dot');
+  if (dot) {
+    dot.className = `cloud-status-dot ${statusDotClass(status)}`;
+  }
+
+  const label = rootEl.querySelector('#mp-cloud-status-label');
+  if (label) label.textContent = statusLabel(status);
+
+  const lastSync = rootEl.querySelector('#mp-cloud-last-sync');
+  if (lastSync) lastSync.textContent = lastSyncedText(status);
+
+  const fileStatus = rootEl.querySelector('#mp-cloud-file-status');
+  if (fileStatus) fileStatus.textContent = fileStatusText(status);
+
+  const progress = rootEl.querySelector('#mp-cloud-progress');
+  const fill = rootEl.querySelector('.cloud-progress-fill');
+  const visible = showFileProgress(status);
+  if (progress) progress.hidden = !visible;
+  if (fill) fill.style.width = `${fileProgressWidth(status)}%`;
 }
 
 async function paint() {
@@ -314,6 +386,7 @@ async function paint() {
 
   if (syncUnavailable) {
     rootEl.innerHTML = renderUnavailable();
+    lastStructuralSig = null;
     return;
   }
 
@@ -325,18 +398,22 @@ async function paint() {
 
   if (uiState === 'signed-out') {
     rootEl.innerHTML = renderSignedOut();
+    lastStructuralSig = null;
     wireSignedOut();
     return;
   }
 
   if (uiState === 'code-sent') {
     rootEl.innerHTML = renderCodeSent();
+    lastStructuralSig = null;
     wireCodeSent();
     return;
   }
 
   const status = await getStatusSnapshot();
   const { devices } = await listDevices();
+  const sig = computeStructuralSig(status, devices);
+  lastStructuralSig = sig;
   rootEl.innerHTML = renderSignedIn(status, devices);
   wireSignedIn(status);
 }
@@ -548,7 +625,26 @@ export async function mountCloudUI(root) {
 
   const api = syncApi;
   if (api?.onSyncStatus) {
-    statusUnsub = api.onSyncStatus(() => refreshCloudUI());
+    statusUnsub = api.onSyncStatus(async () => {
+      if (!rootEl || uiState !== 'signed-in' || syncUnavailable) {
+        refreshCloudUI();
+        return;
+      }
+      const status = await getStatusSnapshot();
+      const { devices } = await listDevices();
+      const sig = computeStructuralSig(status, devices);
+      if (
+        lastStructuralSig !== null
+        && sig === lastStructuralSig
+        && rootEl.querySelector('#mp-cloud-status-dot')
+      ) {
+        updateLiveStatus(status);
+        return;
+      }
+      lastStructuralSig = sig;
+      rootEl.innerHTML = renderSignedIn(status, devices);
+      wireSignedIn(status);
+    });
   }
 
   if (typeof window !== 'undefined') {
@@ -585,6 +681,7 @@ export function unmountCloudUI() {
   uiState = 'signed-out';
   eraseConfirmArmed = false;
   localError = null;
+  lastStructuralSig = null;
 }
 
 export function refreshCloudUI() {

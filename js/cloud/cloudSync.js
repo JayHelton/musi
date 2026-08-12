@@ -63,6 +63,10 @@ export const CLOUD_STATUS_EVENT = 'musi:cloud-status';
 const RECONCILE_DEBOUNCE_MS = 500;
 const VISIBILITY_PULL_MS = 60_000;
 const INTERVAL_PULL_MS = 5 * 60_000;
+const FILE_PROGRESS_THROTTLE_MS = 250;
+
+let fileProgressThrottleTimer = null;
+let fileProgressFirstPending = true;
 
 const subscribers = new Set();
 let initialized = false;
@@ -98,6 +102,9 @@ let status = {
     downloads: 0,
     busy: false,
     lastError: null,
+    phase: null,
+    done: 0,
+    total: 0,
   },
 };
 
@@ -135,6 +142,45 @@ function setStatus(patch) {
   publishStatus();
 }
 
+function resetFileProgressThrottle() {
+  fileProgressFirstPending = true;
+  if (fileProgressThrottleTimer) {
+    clearTimeout(fileProgressThrottleTimer);
+    fileProgressThrottleTimer = null;
+  }
+}
+
+function publishFilesProgressThrottled(force = false) {
+  const files = status.files || {};
+  const isComplete = files.total > 0 && files.done >= files.total;
+
+  if (force || fileProgressFirstPending || isComplete) {
+    fileProgressFirstPending = false;
+    if (fileProgressThrottleTimer) {
+      clearTimeout(fileProgressThrottleTimer);
+      fileProgressThrottleTimer = null;
+    }
+    publishStatus();
+    return;
+  }
+
+  if (!fileProgressThrottleTimer) {
+    fileProgressThrottleTimer = setTimeout(() => {
+      fileProgressThrottleTimer = null;
+      publishStatus();
+    }, FILE_PROGRESS_THROTTLE_MS);
+  }
+}
+
+function patchFiles(filesPatch, { forcePublish = false } = {}) {
+  status = {
+    ...status,
+    files: { ...status.files, ...filesPatch },
+    realtime: realtimeState(),
+  };
+  publishFilesProgressThrottled(forcePublish);
+}
+
 export function getSyncStatus() {
   return { ...status, realtime: realtimeState() };
 }
@@ -165,6 +211,9 @@ async function refreshPendingCounts() {
       downloads: fileCounts.downloads,
       busy: status.files?.busy || false,
       lastError: status.files?.lastError || null,
+      phase: status.files?.phase ?? null,
+      done: status.files?.done ?? 0,
+      total: status.files?.total ?? 0,
     },
   });
 }
@@ -179,12 +228,20 @@ async function runFileSyncPass({ downloadIds } = {}) {
     return null;
   }
 
+  resetFileProgressThrottle();
   setStatus({
     files: {
       ...status.files,
       busy: true,
+      phase: null,
+      done: 0,
+      total: 0,
     },
   });
+
+  const onProgress = ({ phase, done, total }) => {
+    patchFiles({ phase, done, total });
+  };
 
   let result;
   try {
@@ -192,9 +249,10 @@ async function runFileSyncPass({ downloadIds } = {}) {
       result = await downloadMissingFiles({
         userId: status.userId,
         ids: downloadIds,
+        onProgress,
       });
     } else {
-      result = await syncFiles({ userId: status.userId });
+      result = await syncFiles({ userId: status.userId, onProgress });
     }
   } catch (error) {
     result = {
@@ -209,12 +267,24 @@ async function runFileSyncPass({ downloadIds } = {}) {
   }
 
   const lastError = result?.errors?.length ? result.errors[0] : null;
+  const lastTotal = status.files?.total || 0;
+  if (lastTotal > 0) {
+    patchFiles({
+      phase: status.files?.phase ?? null,
+      done: lastTotal,
+      total: lastTotal,
+    }, { forcePublish: true });
+  }
+  resetFileProgressThrottle();
   setStatus({
     files: {
       uploads: result?.pendingUploads ?? 0,
       downloads: result?.pendingDownloads ?? 0,
       busy: false,
       lastError,
+      phase: null,
+      done: 0,
+      total: 0,
     },
   });
   return result;
@@ -892,6 +962,9 @@ export async function handleSignedOut({ eraseLocal = false } = {}) {
       downloads: 0,
       busy: false,
       lastError: null,
+      phase: null,
+      done: 0,
+      total: 0,
     },
   });
 }

@@ -239,6 +239,26 @@
   margin-bottom: 10px;
 }
 
+#mp-cloud-block .cloud-progress {
+  margin-bottom: 10px;
+}
+
+#mp-cloud-block .cloud-progress-bar {
+  height: 6px;
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  overflow: hidden;
+}
+
+#mp-cloud-block .cloud-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--accent);
+  transition: width 0.15s ease-out;
+}
+
 #mp-cloud-block .cloud-toggle-row {
   display: flex;
   align-items: flex-start;
