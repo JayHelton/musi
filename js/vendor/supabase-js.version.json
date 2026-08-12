@@ -1,0 +1,8 @@
+{
+  "package": "@supabase/supabase-js",
+  "version": "2.112.3",
+  "esbuild": "0.28.2",
+  "bytes": 216267,
+  "sha256": "1a97202b3a1d491a13d551dba32e8670127ab6ab0411a3113419a22f891caaaf",
+  "generatedBy": "scripts/vendor-supabase.mjs"
+}
