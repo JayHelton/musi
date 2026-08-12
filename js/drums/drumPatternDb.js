@@ -3,6 +3,8 @@
 // degrades to a safe no-op when IndexedDB is unavailable (privacy mode, old
 // browsers), so the rest of the drum feature keeps working without persistence.
 
+import { emitDataChanged } from '../dataEvents.js';
+
 const DB_NAME = 'musi-drums';
 const DB_VERSION = 1;
 const STORE = 'patterns';
@@ -58,7 +60,10 @@ export async function savePattern(pattern) {
   return new Promise((resolve) => {
     try {
       const req = store(db, 'readwrite').put(rec);
-      req.onsuccess = () => resolve(rec);
+      req.onsuccess = () => {
+        emitDataChanged('drumPatterns');
+        resolve(rec);
+      };
       req.onerror = () => resolve(null);
     } catch (e) { resolve(null); }
   });
@@ -98,7 +103,10 @@ export async function deletePattern(id) {
   return new Promise((resolve) => {
     try {
       const req = store(db, 'readwrite').delete(id);
-      req.onsuccess = () => resolve(true);
+      req.onsuccess = () => {
+        emitDataChanged('drumPatterns');
+        resolve(true);
+      };
       req.onerror = () => resolve(false);
     } catch (e) { resolve(false); }
   });
@@ -111,7 +119,10 @@ export async function putPatternRaw(record) {
   return new Promise((resolve) => {
     try {
       const req = store(db, 'readwrite').put(record);
-      req.onsuccess = () => resolve(record);
+      req.onsuccess = () => {
+        emitDataChanged('drumPatterns');
+        resolve(record);
+      };
       req.onerror = () => resolve(null);
     } catch (e) { resolve(null); }
   });

@@ -392,12 +392,13 @@ function dispatchAppEvents(scopeIds) {
   }
 }
 
-async function invalidateModuleCaches() {
+export async function invalidateModuleCaches() {
   const specs = [
     { path: '../persistence.js', fn: 'invalidateSettingsCache' },
     { path: '../notes.js', fn: 'invalidateNotesCache' },
     { path: '../songwriter.js', fn: 'invalidateSongsCache' },
     { path: '../exercises.js', fn: 'invalidateExercisesCache' },
+    { path: '../workbookModel.js', fn: 'invalidateWorkbooksCache' },
     { path: '../routineModel.js', fn: 'invalidateRoutinesCache' },
     { path: '../gpAnnotations.js', fn: 'invalidateGpAnnotationsCache' },
   ];

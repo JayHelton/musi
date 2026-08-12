@@ -10,6 +10,7 @@ import {
   normalizeCompanion,
   normalizeCompanions,
 } from './exerciseCompanions/types.js';
+import { emitDataChanged } from './dataEvents.js';
 
 export const WORKBOOKS_STORAGE_KEY = 'musi.workbooks';
 
@@ -140,7 +141,13 @@ function getStore() {
 
 function persist() {
   if (!storeCache) return;
-  writeKey(WORKBOOKS_STORAGE_KEY, JSON.stringify(storeCache));
+  if (writeKey(WORKBOOKS_STORAGE_KEY, JSON.stringify(storeCache))) {
+    emitDataChanged('workbooks');
+  }
+}
+
+export function invalidateWorkbooksCache() {
+  storeCache = null;
 }
 
 function findWorkbook(id) {

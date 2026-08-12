@@ -1,3 +1,5 @@
+import { emitDataChanged } from './dataEvents.js';
+
 const SETTINGS_KEY = 'musi:settings';
 
 let settingsCache = null;
@@ -33,6 +35,7 @@ function writeSettings(settings) {
 
   try {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    emitDataChanged('settings');
   } catch (e) {
     // Ignore storage quota/privacy failures so settings changes still work in-memory.
   }

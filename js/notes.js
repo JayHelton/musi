@@ -6,6 +6,7 @@
 // localStorage is unavailable.
 
 import { setMasterDetailView } from './uxPrimitives.js';
+import { emitDataChanged } from './dataEvents.js';
 
 const STORAGE_KEY = 'musi.notes';
 const TITLE_LIMIT = 120;
@@ -88,7 +89,9 @@ function getNotes() {
 
 function persistNotes() {
   if (!notesCache) return;
-  writeKey(STORAGE_KEY, JSON.stringify(notesCache));
+  if (writeKey(STORAGE_KEY, JSON.stringify(notesCache))) {
+    emitDataChanged('notes');
+  }
 }
 
 export function invalidateNotesCache() {

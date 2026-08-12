@@ -30,6 +30,7 @@ import {
 import { BULK_ACCEPT_ATTR, UPLOAD_ACCEPT_ATTR, classifyUploadFile } from './exercisesBulk.js';
 import { openBulkUploadDialog, closeBulkUploadDialog } from './exercisesBulkUI.js';
 import { mountExerciseTakePanel } from './exerciseTakePanel.js';
+import { emitDataChanged } from './dataEvents.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -225,7 +226,9 @@ function getStore() {
 
 function persist() {
   if (!storeCache) return;
-  writeKey(STORAGE_KEY, JSON.stringify(storeCache));
+  if (writeKey(STORAGE_KEY, JSON.stringify(storeCache))) {
+    emitDataChanged('exercises');
+  }
 }
 
 export function invalidateExercisesCache() {

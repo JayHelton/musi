@@ -5,6 +5,7 @@
 // module works fully in-memory when localStorage is unavailable (Node tests).
 
 import { normalizeCompanions } from './exerciseCompanions/types.js';
+import { emitDataChanged } from './dataEvents.js';
 
 export const ROUTINES_STORAGE_KEY = 'musi.routines';
 export const ROUTINE_EXPORT_KIND = 'musi-routines';
@@ -191,7 +192,9 @@ function getStore() {
 
 function persist() {
   if (!storeCache) return;
-  writeKey(ROUTINES_STORAGE_KEY, JSON.stringify(storeCache));
+  if (writeKey(ROUTINES_STORAGE_KEY, JSON.stringify(storeCache))) {
+    emitDataChanged('routines');
+  }
 }
 
 export function invalidateRoutinesCache() {

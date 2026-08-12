@@ -5,6 +5,8 @@
 // All storage access is defensive so the feature degrades gracefully when
 // localStorage is unavailable.
 
+import { emitDataChanged } from './dataEvents.js';
+
 const STORAGE_KEY = 'musi.gpAnnotations';
 const TITLE_LIMIT = 80;
 const TEXT_LIMIT = 20000;
@@ -153,7 +155,9 @@ function getStore() {
 
 function persistStore() {
   if (!storeCache) return;
-  writeKey(STORAGE_KEY, JSON.stringify(storeCache));
+  if (writeKey(STORAGE_KEY, JSON.stringify(storeCache))) {
+    emitDataChanged('gpAnnotations');
+  }
 }
 
 export function invalidateGpAnnotationsCache() {

@@ -20,6 +20,7 @@ import {
 } from './attachments.js';
 import { requestMicStream, releaseMicStream } from './audio.js';
 import { setMasterDetailView } from './uxPrimitives.js';
+import { emitDataChanged } from './dataEvents.js';
 
 const STORAGE_KEY = 'musi.songs';
 const TITLE_LIMIT = 120;
@@ -127,7 +128,9 @@ function getSongs() {
 
 function persistSongs() {
   if (!songsCache) return;
-  writeKey(STORAGE_KEY, JSON.stringify(songsCache));
+  if (writeKey(STORAGE_KEY, JSON.stringify(songsCache))) {
+    emitDataChanged('songs');
+  }
 }
 
 export function invalidateSongsCache() {

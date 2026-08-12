@@ -11,6 +11,8 @@
 // browser) in which case calls resolve to a safe no-op / null and the rest of
 // the app keeps working without saved-audio features.
 
+import { emitDataChanged } from './dataEvents.js';
+
 const DB_NAME = 'musi-attachments';
 const DB_VERSION = 1;
 const STORE = 'files';
@@ -120,7 +122,10 @@ export async function saveAudio({ blob, name, type, fileName, size, source } = {
   return new Promise((resolve) => {
     try {
       const req = store(db, 'readwrite').put(rec);
-      req.onsuccess = () => resolve(metaOf(rec));
+      req.onsuccess = () => {
+        emitDataChanged('attachmentsMeta');
+        resolve(metaOf(rec));
+      };
       req.onerror = () => resolve(null);
     } catch (e) {
       resolve(null);
@@ -187,7 +192,10 @@ export async function renameAudio(id, name) {
         if (!rec) { resolve(false); return; }
         rec.name = (name && String(name).trim()) || rec.name;
         const putReq = s.put(rec);
-        putReq.onsuccess = () => resolve(true);
+        putReq.onsuccess = () => {
+          emitDataChanged('attachmentsMeta');
+          resolve(true);
+        };
         putReq.onerror = () => resolve(false);
       };
       getReq.onerror = () => resolve(false);
@@ -203,7 +211,10 @@ export async function deleteAudio(id) {
   return new Promise((resolve) => {
     try {
       const req = store(db, 'readwrite').delete(id);
-      req.onsuccess = () => resolve(true);
+      req.onsuccess = () => {
+        emitDataChanged('attachmentsMeta');
+        resolve(true);
+      };
       req.onerror = () => resolve(false);
     } catch (e) {
       resolve(false);
@@ -274,7 +285,10 @@ export async function putFileWithId({
   return new Promise((resolve) => {
     try {
       const req = store(db, 'readwrite').put(rec);
-      req.onsuccess = () => resolve(metaOf(rec));
+      req.onsuccess = () => {
+        emitDataChanged('attachmentsMeta');
+        resolve(metaOf(rec));
+      };
       req.onerror = () => resolve(null);
     } catch (e) {
       resolve(null);

@@ -1,5 +1,6 @@
 // Authoritative GP player state (no DOM).
 
+import { emitDataChanged } from '../dataEvents.js';
 import { transformModel } from '../tab/tabModel.js';
 import {
   beatsFromMeasureRange,
@@ -39,11 +40,17 @@ function readZoom() {
 }
 
 function writeBool(key, val) {
-  try { localStorage.setItem(key, val ? 'true' : 'false'); } catch (e) { /* ignore */ }
+  try {
+    localStorage.setItem(key, val ? 'true' : 'false');
+    emitDataChanged('settings');
+  } catch (e) { /* ignore */ }
 }
 
 function writeZoom(z) {
-  try { localStorage.setItem(PARCHMENT_ZOOM_KEY, String(z)); } catch (e) { /* ignore */ }
+  try {
+    localStorage.setItem(PARCHMENT_ZOOM_KEY, String(z));
+    emitDataChanged('settings');
+  } catch (e) { /* ignore */ }
 }
 
 /**
