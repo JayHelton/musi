@@ -2,11 +2,12 @@ import { getSetting, saveSetting } from './persistence.js';
 import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory, isFeatureEnabled } from './tools.js';
 import { buildRoutineCardModels } from './routineDashboardModel.js';
 import { listRoutines, getRoutineStats, getActiveRoutineSession } from './routineModel.js';
-import { openRoutineById, createRoutineFromPrompt, importRoutineFromFile } from './routines.js';
+import { createRoutineFromPrompt, importRoutineFromFile } from './routines.js';
 import { onDataChanged } from './dataEvents.js';
 
 let showSectionFn = null;
 let showHubFn = null;
+let openRouteFn = null;
 
 function visibleTool(id) {
   return getTool(id) && isFeatureEnabled(id);
@@ -85,7 +86,10 @@ function wireRoutineCards(host) {
     btn.onclick = () => {
       const id = btn.dataset.routineId;
       if (!id) return;
-      openRoutineById(id);
+      if (openRouteFn) {
+        openRouteFn('routines', { routine: id });
+        return;
+      }
       showSectionFn('routines');
     };
   });
@@ -274,6 +278,7 @@ function toolRow(tool, { showSection, onFavorite }) {
 export function initHome(config) {
   showSectionFn = config.showSection;
   showHubFn = config.showHub;
+  openRouteFn = config.openRoute;
   render();
   if (!window.__musiProfileListener) {
     window.__musiProfileListener = true;

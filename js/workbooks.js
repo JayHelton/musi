@@ -112,6 +112,9 @@ let detailHadCompanions = false;
 let companionPanel = null;
 let detailEntryListEl = null;
 
+let workbookBackTarget = null;
+const workbookEntryChangeHandlers = new Set();
+
 function setStatus(text, isError) {
   if (!statusEl) return;
   statusEl.textContent = text || '';
@@ -574,20 +577,75 @@ function mountDetailCompanionUi(wb) {
   refreshDetailCompanions(wb);
 }
 
+function workbookBackShortLabel() {
+  const label = workbookBackTarget?.label ?? '← Workbooks';
+  return label.replace(/^←\s*/, '') || 'Workbooks';
+}
+
+function onWorkbookBackClick(e) {
+  e?.stopPropagation?.();
+  if (workbookBackTarget) {
+    workbookBackTarget.onBack();
+    return;
+  }
+  closeWorkbookDetail();
+  render();
+}
+
+function syncWorkbookBackControls() {
+  const label = workbookBackTarget?.label ?? '← Workbooks';
+  const shortLabel = workbookBackShortLabel();
+  if (detailBackBtn) detailBackBtn.textContent = label;
+  const gpBack = detailBodyEl?.querySelector('.wb-head-back');
+  if (gpBack) {
+    gpBack.setAttribute('aria-label', `Back to ${shortLabel.toLowerCase()}`);
+    gpBack.title = `Back to ${shortLabel.toLowerCase()}`;
+    const lbl = gpBack.querySelector('.gpp-btn-label');
+    if (lbl) lbl.textContent = shortLabel;
+  }
+}
+
+function resolveWorkbookEntry(wb, routeExerciseId) {
+  if (!wb || !routeExerciseId) return null;
+  let entry = wb.entries.find(e => e.id === routeExerciseId);
+  if (!entry) entry = wb.entries.find(e => e.exerciseId === routeExerciseId);
+  return entry || null;
+}
+
+function notifyWorkbookEntryChange() {
+  const workbookId = openWorkbookId;
+  if (!workbookId) return;
+  const active = getActiveWorkbookEntry(workbookId);
+  if (!active) return;
+  const payload = { workbookId, exerciseId: active.entry.id };
+  workbookEntryChangeHandlers.forEach((handler) => {
+    try { handler(payload); } catch (e) { /* ignore */ }
+  });
+}
+
+function activateCompanionSubview(workbookId, companionId) {
+  const wb = getWorkbook(workbookId);
+  if (!wb) return;
+  closePlaylistDrawer();
+  setWorkbookCompanionCollapsed(workbookId, companionId, false);
+  syncDetailTabs(wb);
+  if (detailTabsApi) {
+    detailTabsApi.setActive('tools');
+    detailCompanionsHandle?.refresh?.();
+  }
+}
+
 function buildGpHeaderExtra(wb) {
   const wrap = el('div', { class: 'wb-gpp-head-extra' });
+  const shortLabel = workbookBackShortLabel();
 
   wrap.appendChild(el('button', {
     class: 'gpp-icon-btn has-label wb-head-back',
     type: 'button',
-    'aria-label': 'Back to workbooks',
-    title: 'Back to workbooks',
-    html: `${headIcon('back')}<span class="gpp-btn-label">Workbooks</span>`,
-    onClick: (e) => {
-      e.stopPropagation();
-      closeWorkbookDetail();
-      render();
-    },
+    'aria-label': `Back to ${shortLabel.toLowerCase()}`,
+    title: `Back to ${shortLabel.toLowerCase()}`,
+    html: `${headIcon('back')}<span class="gpp-btn-label">${shortLabel}</span>`,
+    onClick: onWorkbookBackClick,
   }));
 
   detailPositionEl = el('span', { class: 'wb-head-position', 'aria-live': 'polite' });
@@ -727,6 +785,85 @@ function closeWorkbookDetail() {
 
 export function requestWorkbookOpen(id) {
   if (typeof id === 'string' && id) pendingWorkbookOpenId = id;
+}
+
+export function openWorkbookForRoute({ workbookId, exerciseId, companionId } = {}) {
+  if (typeof workbookId !== 'string' || !workbookId || !getWorkbook(workbookId)) {
+    return { ok: false, reason: 'workbook-missing' };
+  }
+
+  let wb = getWorkbook(workbookId);
+  let targetEntry = null;
+  if (exerciseId) {
+    targetEntry = resolveWorkbookEntry(wb, exerciseId);
+    if (!targetEntry) return { ok: false, reason: 'exercise-missing' };
+  }
+
+  if (companionId) {
+    const hasCompanion = (wb.companions || []).some(c => c.id === companionId);
+    if (!hasCompanion) return { ok: false, reason: 'companion-missing' };
+  }
+
+  const sameWorkbook = openWorkbookId === workbookId;
+
+  if (!sameWorkbook) {
+    openWorkbookDetail(workbookId);
+  } else {
+    openWorkbookId = workbookId;
+    if (workspaceEl) workspaceEl.classList.add('is-open');
+    if (detailPaneEl) detailPaneEl.hidden = false;
+    syncPracticeMode();
+    syncWorkbookBackControls();
+  }
+
+  wb = getWorkbook(workbookId);
+
+  if (companionId) {
+    activateCompanionSubview(workbookId, companionId);
+    return { ok: true };
+  }
+
+  if (exerciseId && targetEntry) {
+    const active = getActiveWorkbookEntry(workbookId);
+    if (!active || active.entry.id !== targetEntry.id) {
+      setActiveWorkbookEntry(workbookId, targetEntry.id);
+      const fresh = getWorkbook(workbookId);
+      syncEntryHighlights(fresh);
+      syncPositionReadout(fresh);
+      syncPlayerHead(fresh);
+      closePlaylistDrawer();
+      loadCurrentExercise({ autoPlay: false });
+    } else {
+      closePlaylistDrawer();
+    }
+    return { ok: true };
+  }
+
+  teardownDetailPlayer();
+  openPlaylistDrawer(wb);
+  syncEntryHighlights(wb);
+  syncPositionReadout(wb);
+  syncPlayerHead(wb);
+  return { ok: true };
+}
+
+export function closeWorkbookLayer() {
+  closeWorkbookDetail();
+  closePlaylistDrawer();
+  workbookBackTarget = null;
+}
+
+export function setWorkbookBackTarget(target) {
+  if (target && typeof target.onBack === 'function') {
+    workbookBackTarget = { label: target.label ?? '← Back', onBack: target.onBack };
+  } else {
+    workbookBackTarget = null;
+  }
+  syncWorkbookBackControls();
+}
+
+export function onWorkbookEntryChange(handler) {
+  if (typeof handler === 'function') workbookEntryChangeHandlers.add(handler);
 }
 
 function openWorkbookDetail(id) {
@@ -1005,6 +1142,7 @@ function advance({ autoPlay } = {}) {
   syncEntryHighlights(fresh);
   syncPositionReadout(fresh);
   syncPlayerHead(fresh);
+  notifyWorkbookEntryChange();
   loadCurrentExercise({ autoPlay: wasPlaying });
 }
 
@@ -1146,6 +1284,7 @@ function goPrev() {
   syncEntryHighlights(fresh);
   syncPositionReadout(fresh);
   syncPlayerHead(fresh);
+  notifyWorkbookEntryChange();
   loadCurrentExercise({ autoPlay: wasPlaying });
 }
 
@@ -1232,6 +1371,7 @@ function buildEntryRow(wb, entry, index) {
     syncEntryHighlights(fresh);
     syncPositionReadout(fresh);
     syncPlayerHead(fresh);
+    notifyWorkbookEntryChange();
     closePlaylistDrawer();
     loadCurrentExercise({ autoPlay: false });
   });
@@ -1740,6 +1880,7 @@ function renderDetail() {
     syncPlayerHead(fresh);
     syncTransportDisabled(fresh);
   }
+  syncWorkbookBackControls();
   refreshPracticeMetrics();
 }
 
@@ -1862,10 +2003,7 @@ export function initWorkbooks() {
     bound = true;
     if (newBtn) newBtn.addEventListener('click', onNewWorkbook);
     if (detailBackBtn) {
-      detailBackBtn.addEventListener('click', () => {
-        closeWorkbookDetail();
-        render();
-      });
+      detailBackBtn.addEventListener('click', onWorkbookBackClick);
     }
     if (addFolderForm) {
       addFolderForm.addEventListener('submit', (e) => {

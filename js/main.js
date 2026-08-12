@@ -20,7 +20,7 @@ import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './re
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises } from './exercises.js';
 import { initWorkbooks, stopWorkbooks } from './workbooks.js';
-import { initRoutines, stopRoutines } from './routines.js';
+import { initRoutines, stopRoutines, createRoutineLayerDescriptors, setRoutineNavigator } from './routines.js';
 import { initNotes, stopNotes } from './notes.js';
 import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
 import { initDrums, stopDrums } from './drums/drumsUI.js';
@@ -42,6 +42,11 @@ import {
 } from './tools.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
+import { parseAppRoute, routeUrl } from './appRoute.js';
+import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
+import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
+import { getRoutine } from './routineModel.js';
+import { getWorkbook } from './workbookModel.js';
 
 const ICONS = TOOL_ICONS;
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
@@ -131,9 +136,47 @@ function hubCategory(id) {
   return id.replace(/^hub-/, '');
 }
 
-function sectionUrl(id) {
-  if (!id || id === 'home') return location.pathname + location.search;
-  return `${location.pathname}${location.search}#${id}`;
+function sectionUrl(id, params = {}) {
+  return routeUrl({ id: id || 'home', params });
+}
+
+function resolveSectionAlias(id) {
+  if (id === 'intervalmap') return 'intervalorbit';
+  if (id === 'tabanalyzer') return 'gpplayer';
+  return id;
+}
+
+function isValidSection(id) {
+  const resolved = resolveSectionAlias(id);
+  return resolved === 'home' ||
+    isHubId(resolved) && CATEGORIES.some(c => c.id === hubCategory(resolved)) ||
+    getTabs().some(t => t.id === resolved);
+}
+
+function getRoutineSession(routine, sessionId) {
+  if (!routine || !sessionId) return null;
+  const sessions = Array.isArray(routine.sessions) ? routine.sessions : [];
+  return sessions.find(s => s && s.id === sessionId) || null;
+}
+
+function getWorkbookExercise(workbookId, exerciseId) {
+  const workbook = getWorkbook(workbookId);
+  if (!workbook || !exerciseId) return null;
+  const entries = Array.isArray(workbook.entries) ? workbook.entries : [];
+  return entries.find(e => e && (e.exerciseId === exerciseId || e.id === exerciseId)) || null;
+}
+
+function findRoutineCompanion(session, companionId) {
+  if (!session || !companionId) return null;
+  const workbookIds = Array.isArray(session.workbookIds) ? session.workbookIds : [];
+  for (const workbookId of workbookIds) {
+    const workbook = getWorkbook(workbookId);
+    if (!workbook) continue;
+    const companions = Array.isArray(workbook.companions) ? workbook.companions : [];
+    const companion = companions.find(c => c && c.id === companionId);
+    if (companion) return { workbook, companion };
+  }
+  return null;
 }
 
 function updateHoldRecordVisibility(id) {
@@ -176,13 +219,7 @@ function goBack(fallback) {
   return false;
 }
 
-function showSection(id, skipHash) {
-  const toolForGate = getTool(id);
-  if (toolForGate && !isFeatureEnabled(id)) {
-    showSection('home', skipHash);
-    return;
-  }
-
+function applySection(id, { keep = [] } = {}) {
   if (splitSecondaryId) {
     const sec = document.getElementById('sec-' + splitSecondaryId);
     if (sec) sec.classList.remove('active', 'split-secondary');
@@ -196,24 +233,10 @@ function showSection(id, skipHash) {
   const sec = document.getElementById('sec-' + id);
   if (!sec) return;
 
-  const prevId = currentNavId;
   sec.classList.add('active');
   currentNavId = id;
 
   document.querySelectorAll(`.dock-item[data-s="${id}"]`).forEach(el => el.classList.add('active'));
-
-  // Screen history: push on forward nav so phone Back walks Home → hub → tool.
-  // skipHash / applyingHistory only sync the URL+state (boot, popstate, hashchange).
-  if (!applyingHistory) {
-    const url = sectionUrl(id);
-    const histState = { musiNav: id };
-    if (skipHash || prevId === id) {
-      history.replaceState(histState, '', url);
-    } else {
-      history.pushState(histState, '', url);
-      navPushCount += 1;
-    }
-  }
 
   if (isHubId(id)) {
     const cat = hubCategory(id);
@@ -244,7 +267,6 @@ function showSection(id, skipHash) {
     saveSetting('nav.lastCategory', tool.category);
   }
 
-  // Wire back button — same stack as the phone Back button
   const back = sec.querySelector('.tool-back');
   if (back && tool) {
     const hubLabel = CATEGORIES.find(c => c.id === tool.category)?.label || 'Back';
@@ -252,13 +274,147 @@ function showSection(id, skipHash) {
     back.textContent = `← ${hubLabel}`;
   }
 
-  stopOtherTools([id]);
+  stopOtherTools([id, ...keep]);
   initTool(id);
   updateHoldRecordVisibility(id);
   updateHeaderChrome(id);
   updateSplitUI();
   refreshHome();
   syncSetupToolbars();
+}
+
+function showSection(id, skipHash, params = {}) {
+  const toolForGate = getTool(id);
+  if (toolForGate && !isFeatureEnabled(id)) {
+    showSection('home', skipHash);
+    return;
+  }
+
+  const prevId = currentNavId;
+
+  if (!applyingHistory) {
+    const url = sectionUrl(id, params);
+    const histState = { musiNav: id, params };
+    if (skipHash || prevId === id) {
+      history.replaceState(histState, '', url);
+    } else {
+      history.pushState(histState, '', url);
+      navPushCount += 1;
+    }
+  }
+
+  applySection(id);
+}
+
+let routineNavigator = null;
+
+const routineShell = {
+  activateSection(sectionId, { keep = [] } = {}) {
+    applySection(sectionId, { keep });
+  },
+  pushRoute(route) {
+    if (applyingHistory) return;
+    const params = buildRoutineParams(route);
+    const url = sectionUrl(ROUTINE_ROUTE_ID, params);
+    history.pushState({ musiNav: ROUTINE_ROUTE_ID, params }, '', url);
+    navPushCount += 1;
+  },
+  replaceRoute(route) {
+    if (applyingHistory) return;
+    const params = buildRoutineParams(route);
+    const url = sectionUrl(ROUTINE_ROUTE_ID, params);
+    history.replaceState({ musiNav: ROUTINE_ROUTE_ID, params }, '', url);
+  },
+  backToRoute(parentRoute) {
+    if (navPushCount > 0) {
+      history.back();
+      return;
+    }
+    routineShell.replaceRoute(parentRoute);
+    const nav = getRoutineNavigator();
+    if (nav) nav.applyRoute(buildRoutineParams(parentRoute), { source: 'internal' });
+  },
+  goHome() {
+    showSection('home');
+  },
+  hasInAppHistory() {
+    return navPushCount > 0;
+  },
+};
+
+function onEntryReplace(route) {
+  routineShell.replaceRoute(route);
+}
+
+function getRoutineNavigator() {
+  if (routineNavigator) return routineNavigator;
+  try {
+    const root = document.getElementById('sec-routines');
+    if (!root) return null;
+    routineNavigator = createRoutineNavigator({
+      root,
+      getRoutine,
+      getSession: getRoutineSession,
+      getWorkbook,
+      getExercise: getWorkbookExercise,
+      getCompanion: findRoutineCompanion,
+      shell: routineShell,
+      layers: {
+        ...createRoutineLayerDescriptors(),
+        ...createWorkbookLayerDescriptors({ shell: routineShell, onEntryReplace }),
+      },
+      homeStatus: () => document.getElementById('home-status'),
+    });
+    setRoutineNavigator(routineNavigator);
+    return routineNavigator;
+  } catch (_) {
+    return null;
+  }
+}
+
+function gatedSectionId(id) {
+  const toolForGate = getTool(id);
+  if (toolForGate && !isFeatureEnabled(id)) return 'home';
+  return id;
+}
+
+function applyRoute({ id, params = {}, mode = 'push', source = 'internal' }) {
+  const resolved = resolveSectionAlias(id);
+
+  if (resolved === ROUTINE_ROUTE_ID) {
+    if (!applyingHistory && mode !== 'none') {
+      const url = sectionUrl(ROUTINE_ROUTE_ID, params);
+      const histState = { musiNav: ROUTINE_ROUTE_ID, params };
+      if (mode === 'replace') {
+        history.replaceState(histState, '', url);
+      } else if (mode === 'push') {
+        history.pushState(histState, '', url);
+        navPushCount += 1;
+      }
+    }
+    applySection(ROUTINE_ROUTE_ID);
+    const navigator = getRoutineNavigator();
+    if (navigator) {
+      navigator.applyRoute(params, { source });
+    }
+    return;
+  }
+
+  const targetId = resolved && isValidSection(resolved) ? gatedSectionId(resolved) : 'home';
+  const routeParams = targetId === resolved ? params : {};
+
+  if (mode === 'push') {
+    showSection(targetId, false, routeParams);
+    return;
+  }
+  if (mode === 'replace') {
+    if (!applyingHistory) {
+      history.replaceState({ musiNav: targetId, params: routeParams }, '', sectionUrl(targetId, routeParams));
+    }
+    applySection(targetId);
+    return;
+  }
+  applySection(targetId);
 }
 window.showSection = showSection;
 window.showHub = showHub;
@@ -532,7 +688,11 @@ function init() {
   initNowPlaying();
   initHoldRecordButton();
   initProgressHeaders();
-  initHome({ showSection, showHub });
+  initHome({
+    showSection,
+    showHub,
+    openRoute: (id, params) => applyRoute({ id, params, mode: 'push', source: 'internal' }),
+  });
   initStats();
   initMusicPreferences({ showSection });
   initSplitView();
@@ -552,25 +712,12 @@ function init() {
     wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
   }
 
-  const resolveSectionAlias = (id) => {
-    if (id === 'intervalmap') return 'intervalorbit';
-    if (id === 'tabanalyzer') return 'gpplayer';
-    return id;
-  };
-
-  const isValidSection = (id) => {
-    const resolved = resolveSectionAlias(id);
-    return resolved === 'home' ||
-      isHubId(resolved) && CATEGORIES.some(c => c.id === hubCategory(resolved)) ||
-      getTabs().some(t => t.id === resolved);
-  };
-
-  const hashTab = resolveSectionAlias(location.hash.replace('#', ''));
-  if (hashTab && isValidSection(hashTab)) {
-    showSection(hashTab, true);
+  const bootRoute = parseAppRoute(location.hash);
+  const bootId = resolveSectionAlias(bootRoute.id);
+  if (bootId && isValidSection(bootId)) {
+    applyRoute({ id: bootId, params: bootRoute.params, mode: 'replace', source: 'boot' });
   } else {
-    // Seed history so popstate can restore Home cleanly.
-    history.replaceState({ musiNav: 'home' }, '', sectionUrl('home'));
+    history.replaceState({ musiNav: 'home', params: {} }, '', sectionUrl('home'));
     updateHeaderChrome('home');
     updateHoldRecordVisibility(null);
   }
@@ -581,34 +728,32 @@ function init() {
     navPushCount = Math.max(0, navPushCount - 1);
     try {
       let id = e.state?.musiNav;
+      let params = e.state?.params || {};
       if (!id) {
-        const fromHash = resolveSectionAlias(location.hash.replace('#', ''));
-        id = fromHash && isValidSection(fromHash) ? fromHash : 'home';
-      } else {
-        id = resolveSectionAlias(id);
+        const parsed = parseAppRoute(location.hash);
+        id = parsed.id;
+        params = parsed.params;
       }
-      if (isValidSection(id)) showSection(id, true);
-      else showSection('home', true);
+      id = resolveSectionAlias(id);
+      if (isValidSection(id)) applyRoute({ id, params, mode: 'none', source: 'popstate' });
+      else applyRoute({ id: 'home', params: {}, mode: 'none', source: 'popstate' });
     } finally {
       applyingHistory = false;
     }
   });
 
   window.addEventListener('hashchange', () => {
-    // location.hash assignments (and in-page links) create a history entry;
-    // treat them as forward navigation unless we're already applying popstate.
     if (applyingHistory) return;
-    const id = resolveSectionAlias(location.hash.replace('#', ''));
+    const parsed = parseAppRoute(location.hash);
+    const id = resolveSectionAlias(parsed.id);
     applyingHistory = true;
     try {
       if (id && isValidSection(id)) {
-        // Hash already updated the URL; sync UI without pushing again.
-        // Count this as an in-app step when it differs from the current screen.
         if (id !== currentNavId) navPushCount += 1;
-        showSection(id, true);
+        applyRoute({ id, params: parsed.params, mode: 'none', source: 'hashchange' });
       } else if (!id) {
         if (currentNavId !== 'home') navPushCount += 1;
-        showSection('home', true);
+        applyRoute({ id: 'home', params: {}, mode: 'none', source: 'hashchange' });
       }
     } finally {
       applyingHistory = false;
