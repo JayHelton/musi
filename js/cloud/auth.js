@@ -123,6 +123,36 @@ export async function getAccessToken() {
   return session?.access_token ?? null;
 }
 
+/**
+ * Return address Supabase must send the user back to after OAuth.
+ *
+ * The route hash is `#musicprefs`. `sec-musicprefs` is the id of the DOM
+ * element, and the router does not accept it, so a wrong value here drops the
+ * user on the Home screen.
+ */
+export function authRedirectUrl() {
+  if (typeof location === 'undefined') return '';
+  return `${location.origin}${location.pathname}#musicprefs`;
+}
+
+export async function signInWithGoogle() {
+  try {
+    const client = await getClient();
+    if (!client) return { ok: false, error: { message: 'Cloud sync is not enabled.' } };
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: authRedirectUrl(),
+        queryParams: { prompt: 'select_account' },
+      },
+    });
+    if (error) return { ok: false, error };
+    return { ok: true, error: null };
+  } catch (err) {
+    return { ok: false, error: err };
+  }
+}
+
 export async function sendOtp(email) {
   try {
     const client = await getClient();
@@ -179,7 +209,11 @@ export function onAuthChange(fn) {
   };
 }
 
-/** PKCE redirect: exchange ?code= and keep the #sec-* hash route. */
+// Boot and the Settings panel both ask for the exchange. A one-time code works
+// one time only, so the second call must reuse the result of the first.
+let codeExchange = null;
+
+/** PKCE redirect: exchange ?code= and keep the route hash. */
 export async function exchangeCodeFromUrl() {
   if (typeof window === 'undefined' || typeof location === 'undefined') {
     return { ok: true, error: null };
@@ -187,7 +221,12 @@ export async function exchangeCodeFromUrl() {
   const url = new URL(location.href);
   const code = url.searchParams.get('code');
   if (!code) return { ok: true, error: null };
+  if (codeExchange) return codeExchange;
+  codeExchange = runCodeExchange(url, code);
+  return codeExchange;
+}
 
+async function runCodeExchange(url, code) {
   try {
     const client = await getClient();
     if (!client) return { ok: false, error: { message: 'Cloud sync is not enabled.' } };
@@ -300,6 +339,25 @@ export function describeAuthError(error) {
   ) {
     return {
       message: 'This Musi project does not accept new accounts. Ask the owner for access.',
+      retryAfterMs: null,
+    };
+  }
+
+  if (
+    msg.includes('unsupported provider')
+    || msg.includes('provider is not enabled')
+    || msg.includes('validation_failed')
+  ) {
+    return { message: 'Google sign-in is not turned on for this project yet.', retryAfterMs: null };
+  }
+
+  if (
+    msg.includes('redirect')
+    || msg.includes('redirect_to')
+    || msg.includes('requested path is invalid')
+  ) {
+    return {
+      message: 'This address is not on the allow list of the project. Check the URL configuration.',
       retryAfterMs: null,
     };
   }

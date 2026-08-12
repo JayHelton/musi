@@ -18,6 +18,7 @@ import { run as runTransportFakeTests } from './transportFake.mjs';
 import { run as runSyncFlowTests } from './syncFlow.mjs';
 import { run as runCloudSyncFlowTests } from './cloudSyncFlow.mjs';
 import { run as runFileSyncTests } from './fileSync.mjs';
+import { run as runGoogleAuthTests } from './googleAuth.mjs';
 
 const store = installLocalStorageShim();
 const listeners = installWindowShim();
@@ -41,6 +42,7 @@ await runTransportFakeTests(test);
 await runSyncFlowTests(test);
 await runCloudSyncFlowTests(test);
 await runFileSyncTests(test);
+await runGoogleAuthTests(test);
 
 console.log(`\n${passed} passed`);
 process.exit(0);

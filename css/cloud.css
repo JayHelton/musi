@@ -4,6 +4,23 @@
   margin-top: 4px;
 }
 
+#mp-cloud-block .cloud-google-row {
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+#mp-cloud-block .cloud-google-btn {
+  width: 100%;
+}
+
+#mp-cloud-block .cloud-email-fallback {
+  margin-top: 14px;
+}
+
+#mp-cloud-block .cloud-email-fallback .cloud-field {
+  margin-top: 4px;
+}
+
 #mp-cloud-block .cloud-field {
   display: flex;
   flex-direction: column;

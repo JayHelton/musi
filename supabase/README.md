@@ -63,6 +63,31 @@ The switch stops the request earlier and saves email quota.
 Neither gate touches an account that already exists. To remove a person, delete
 the user in the Dashboard and delete the matching allow-list row.
 
+The sign-up allow list also applies to Google sign-in. The trigger on
+`auth.users` runs when Supabase creates the user row, no matter which provider
+started the sign-in.
+
+## Google sign-in
+
+Musi uses Google as the primary sign-in method. Email OTP stays in the UI as a
+fallback.
+
+1. In the Google Cloud console, create an OAuth client of type **Web
+   application**. Add the Supabase callback URL as an authorised redirect URI:
+   `https://<project-ref>.supabase.co/auth/v1/callback`.
+2. In the Supabase Dashboard, open Authentication → Sign In / Providers →
+   Google. Turn it on and paste the client ID and the client secret.
+3. In the Supabase Dashboard, open Authentication → URL Configuration. Set
+   **Site URL** to the address where Musi runs, for example
+   `https://jayhelton.github.io/musi/`. Add the same address under **Redirect
+   URLs**, plus `http://localhost:8080/` for local work.
+4. Step 3 matters because Supabase sends the user to the default address when
+   the return address is not on the allow list. The default address is
+   `http://localhost:3000`, which is wrong for Musi.
+
+Add the person's email to `public.signup_allowlist` before they use Google
+sign-in for the first time.
+
 ## Why one user cannot reach the data of another
 
 | Control | Effect |

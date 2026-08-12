@@ -281,7 +281,8 @@ function makeTableBuilder(table, store) {
 
 function createAuthApi(sessionRef) {
   const listeners = new Set();
-  return {
+  const oauthCalls = [];
+  const auth = {
     getSession: async () => ({ data: { session: sessionRef.current }, error: null }),
     getUser: async () => {
       const user = sessionRef.current?.user ?? null;
@@ -292,6 +293,13 @@ function createAuthApi(sessionRef) {
       return { data: { subscription: { unsubscribe: () => listeners.delete(cb) } } };
     },
     signInWithOtp: async () => ({ data: {}, error: null }),
+    signInWithOAuth: async (params) => {
+      oauthCalls.push(params);
+      return {
+        data: { url: 'https://accounts.google.com/o/oauth2/auth?fake=1' },
+        error: null,
+      };
+    },
     verifyOtp: async ({ email }) => {
       sessionRef.current = {
         access_token: 'fake-token',
@@ -309,7 +317,9 @@ function createAuthApi(sessionRef) {
     _emit(event, session) {
       listeners.forEach((fn) => fn(event, session));
     },
+    _oauthCalls: oauthCalls,
   };
+  return auth;
 }
 
 function makeChannel() {

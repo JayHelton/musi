@@ -188,10 +188,32 @@ service-role key.
 
 4. Serve the app over HTTP. Opening `index.html` directly stops the config fetch
    and the panel stays hidden.
-5. Open **Settings → Cloud account** and sign in with your email. Supabase sends
-   a 6-digit code.
+5. Set up Google sign-in (see below). Then open **Settings → Cloud account** and
+   click **Continue with Google**. Musi also keeps an email code path in a
+   collapsed section for fallback.
 6. After you change any JavaScript or CSS, do a hard reload. The service worker
    can hold the old files.
+
+### Google sign-in setup
+
+1. In the Google Cloud console, create an OAuth client of type **Web
+   application**. Add the Supabase callback URL as an authorised redirect URI:
+   `https://<project-ref>.supabase.co/auth/v1/callback`. For the project in
+   `js/cloud/cloudConfig.js` that address is
+   `https://gtokzekwpsdmvfdjsuag.supabase.co/auth/v1/callback`.
+2. In the Supabase Dashboard, open Authentication → Sign In / Providers →
+   Google. Turn it on and paste the client ID and the client secret.
+3. In the Supabase Dashboard, open Authentication → URL Configuration. Set
+   **Site URL** to the address where Musi runs, for example
+   `https://jayhelton.github.io/musi/`. Add the same address under **Redirect
+   URLs**, plus `http://localhost:8080/` for local work.
+4. Step 3 matters because Supabase sends the user to the default address when
+   the return address is not on the allow list. The default address is
+   `http://localhost:3000`, which is wrong for Musi.
+
+The sign-up allow list still applies to Google sign-in. The database trigger
+runs when Supabase creates the user row. Add your email to
+`public.signup_allowlist` before the first sign-in (see `supabase/README.md`).
 
 The first device to sign in with an empty cloud uploads its library and becomes
 the source of truth. After that the cloud copy is authoritative, and each other

@@ -3,6 +3,7 @@ import {
   getSession,
   sendOtp,
   verifyOtp,
+  signInWithGoogle,
   signOut,
   onAuthChange,
   exchangeCodeFromUrl,
@@ -99,14 +100,20 @@ function resendSecondsLeft() {
 
 function renderSignedOut() {
   return `
-    <p class="sync-hint cloud-intro">Sign in with your email. Musi sends a 6-digit code.</p>
-    <label class="cloud-field">
-      <span class="cloud-field-label">Email</span>
-      <input type="email" id="mp-cloud-email" class="cloud-input" inputmode="email" autocomplete="email" placeholder="you@example.com">
-    </label>
-    <div class="sync-btn-row">
-      <button type="button" class="btn sm primary" id="mp-cloud-send">Send code</button>
+    <p class="sync-hint cloud-intro">Sign in with your Google account to sync this library.</p>
+    <div class="sync-btn-row cloud-google-row">
+      <button type="button" class="btn sm primary cloud-google-btn" id="mp-cloud-google">Continue with Google</button>
     </div>
+    <details class="sync-advanced cloud-email-fallback">
+      <summary class="sync-advanced-summary">Sign in with an email code instead</summary>
+      <label class="cloud-field">
+        <span class="cloud-field-label">Email</span>
+        <input type="email" id="mp-cloud-email" class="cloud-input" inputmode="email" autocomplete="email" placeholder="you@example.com">
+      </label>
+      <div class="sync-btn-row">
+        <button type="button" class="btn sm primary" id="mp-cloud-send">Send code</button>
+      </div>
+    </details>
     <div class="cloud-inline-error" id="mp-cloud-error" hidden></div>
   `;
 }
@@ -335,8 +342,23 @@ async function paint() {
 }
 
 function wireSignedOut() {
+  const googleBtn = rootEl.querySelector('#mp-cloud-google');
   const emailInput = rootEl.querySelector('#mp-cloud-email');
   const sendBtn = rootEl.querySelector('#mp-cloud-send');
+
+  if (googleBtn) {
+    googleBtn.onclick = async () => {
+      googleBtn.disabled = true;
+      showInlineError('');
+      const result = await signInWithGoogle();
+      if (!result.ok) {
+        const described = describeAuthError(result.error);
+        showInlineError(described.message);
+        googleBtn.disabled = false;
+      }
+    };
+  }
+
   if (!sendBtn || !emailInput) return;
 
   sendBtn.onclick = async () => {
