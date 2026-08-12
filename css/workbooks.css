@@ -439,6 +439,16 @@ body.wb-cmp-drawer-open{overflow:hidden}
 }
 .wb-head-loop input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);margin:0}
 
+/* Exercise navigation in the GP transport dock */
+.wb-gpp-transport-extra{
+  display:inline-flex;align-items:center;gap:4px;flex-shrink:0
+}
+.gpp-transport-extra .wb-gpp-transport-btn svg{width:18px;height:18px;flex-shrink:0}
+.gpp-transport-extra .wb-head-position{
+  font-family:var(--font-ui);font-size:.82rem;color:rgba(30,20,8,0.72);
+  font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0;padding:0 3px
+}
+
 /* Playlist overlay drawer */
 .wb-playlist-drawer{
   position:fixed;inset:0;z-index:200;display:flex;align-items:stretch;
@@ -523,10 +533,8 @@ body.wb-cmp-drawer-open{overflow:hidden}
     padding-top:2px;border-top:1px solid var(--border);justify-content:flex-start
   }
   #sec-workbooks.wb-practicing .wb-has-gp .wb-head-back .gpp-btn-label{font-size:.72rem}
-  #sec-workbooks.wb-practicing .wb-has-gp .wb-head-position{font-size:.75rem}
   #sec-workbooks.wb-practicing .wb-gp-mount .gpp-btn-label{display:none}
   #sec-workbooks.wb-practicing .wb-has-gp .wb-gpp-head-extra .gpp-btn-label{display:none}
-  #sec-workbooks.wb-practicing .wb-has-gp .wb-head-position{display:inline}
   #sec-workbooks.wb-practicing .wb-has-gp .wb-gpp-head-extra .gpp-icon-btn.has-label{
     overflow:hidden;text-overflow:clip
   }
@@ -544,6 +552,7 @@ body.wb-cmp-drawer-open{overflow:hidden}
   #sec-workbooks.wb-practicing .wb-gp-mount .gpp-measure-nav-btn{
     min-height:22px;min-width:22px;padding:1px 4px;font-size:.62rem
   }
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-transport-extra .wb-head-position{font-size:.75rem}
 }
 
 @media (orientation:landscape) and (max-height:500px){
@@ -581,6 +590,7 @@ body.wb-cmp-drawer-open{overflow:hidden}
   #sec-workbooks.wb-practicing .wb-gp-mount .gpp-measure-nav-btn{
     min-height:18px;min-width:18px;padding:0 3px;font-size:.58rem
   }
+  #sec-workbooks.wb-practicing .wb-gp-mount .gpp-transport-extra .wb-head-position{font-size:.72rem}
 }
 
 @media(max-width:900px){
