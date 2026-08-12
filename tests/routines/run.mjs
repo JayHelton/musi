@@ -4,6 +4,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   ROUTINES_STORAGE_KEY,
   ROUTINE_EXPORT_KIND,
@@ -48,6 +49,46 @@ function test(name, fn) {
   fn();
   passed += 1;
   console.log(`ok  ${name}`);
+}
+
+const ROUTINE_EXPORT_SCHEMA_PATH = new URL(
+  '../../specs/001-routine-first-declutter/contracts/routine-export.v1.json',
+  import.meta.url,
+);
+
+function loadRoutineExportSchema() {
+  return JSON.parse(readFileSync(ROUTINE_EXPORT_SCHEMA_PATH, 'utf8'));
+}
+
+/** Check root required keys, const fields, and durationMin on each session. */
+function validateExportAgainstSchema(exportObj, schema) {
+  const errors = [];
+  const rootRequired = schema.required || [];
+  for (const key of rootRequired) {
+    if (!(key in exportObj)) {
+      errors.push(`missing required key: ${key}`);
+    }
+  }
+  for (const [key, def] of Object.entries(schema.properties || {})) {
+    if (def && Object.prototype.hasOwnProperty.call(def, 'const') && key in exportObj) {
+      if (exportObj[key] !== def.const) {
+        errors.push(`${key} must be ${JSON.stringify(def.const)}`);
+      }
+    }
+  }
+  const routines = exportObj.routines;
+  if (Array.isArray(routines)) {
+    for (let r = 0; r < routines.length; r += 1) {
+      const sessions = routines[r] && routines[r].sessions;
+      if (!Array.isArray(sessions)) continue;
+      for (let s = 0; s < sessions.length; s += 1) {
+        if (!Object.prototype.hasOwnProperty.call(sessions[s], 'durationMin')) {
+          errors.push(`routines[${r}].sessions[${s}] missing durationMin`);
+        }
+      }
+    }
+  }
+  return errors;
 }
 
 test('storage key and export constants', () => {
@@ -678,6 +719,140 @@ test('routineExportFilename single and multi', () => {
     routines: [{ name: 'A' }, { name: 'B' }],
   });
   assert.match(multi, /^musi-routines-\d{4}-\d{2}-\d{2}\.json$/);
+});
+
+test('buildRoutineExport keeps app kind version createdAt routines and workbooks', () => {
+  const rt = createRoutine({ name: 'Envelope Keys' });
+  const envelope = buildRoutineExport({
+    routineIds: [rt.id],
+    resolveWorkbook: () => null,
+  });
+  assert.equal(envelope.app, 'musi');
+  assert.equal(envelope.kind, ROUTINE_EXPORT_KIND);
+  assert.equal(envelope.version, ROUTINE_EXPORT_VERSION);
+  assert.equal(typeof envelope.createdAt, 'string');
+  assert.ok(Array.isArray(envelope.routines));
+  assert.ok(Array.isArray(envelope.workbooks));
+  assert.equal(envelope.routines.length, 1);
+});
+
+test('session durationMin survives serializeRoutineExport and applyRoutineImport', () => {
+  const rt = createRoutine({
+    name: 'Duration Round Trip',
+    sessions: [{ name: 'Timed', durationMin: 42 }],
+  });
+  const envelope = buildRoutineExport({
+    routineIds: [rt.id],
+    resolveWorkbook: () => null,
+  });
+  const json = serializeRoutineExport(envelope);
+  const parsed = JSON.parse(json);
+  assert.equal(parsed.routines[0].sessions[0].durationMin, 42);
+
+  const result = applyRoutineImport(json);
+  assert.equal(result.ok, true);
+  assert.equal(result.imported[0].sessions[0].durationMin, 42);
+});
+
+test('applyRoutineImport resets activeSessionId to null', () => {
+  const rt = createRoutine({
+    name: 'Active Reset',
+    sessions: [{ name: 'A' }, { name: 'B' }],
+  });
+  const ids = getRoutine(rt.id).sessions.map(s => s.id);
+  setActiveRoutineSession(rt.id, ids[1]);
+  const envelope = buildRoutineExport({
+    routineIds: [rt.id],
+    resolveWorkbook: () => null,
+  });
+  assert.equal(envelope.routines[0].activeSessionId, ids[1]);
+
+  const result = applyRoutineImport(envelope);
+  assert.equal(result.ok, true);
+  assert.equal(result.imported[0].activeSessionId, null);
+});
+
+test('two imports of one export file produce two routines', () => {
+  const envelope = buildRoutineExport({
+    routineIds: [createRoutine({ name: 'Double Import' }).id],
+    resolveWorkbook: () => null,
+  });
+  const first = applyRoutineImport(envelope);
+  const second = applyRoutineImport(envelope);
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.notEqual(first.imported[0].id, second.imported[0].id);
+  assert.ok(getRoutine(first.imported[0].id));
+  assert.ok(getRoutine(second.imported[0].id));
+});
+
+test('getRoutineStats reports sessionCount completedSessionCount totalMinutes for mixed completion', () => {
+  const rt = createRoutine({
+    name: 'Mixed Stats',
+    sessions: [
+      { name: 'Done', durationMin: 10, completed: true },
+      { name: 'Pending', durationMin: 20 },
+      { name: 'Open', durationMin: null },
+    ],
+  });
+  const stats = getRoutineStats(rt.id);
+  assert.equal(stats.sessionCount, 3);
+  assert.equal(stats.completedSessionCount, 1);
+  assert.equal(stats.totalMinutes, 30);
+});
+
+test('getActiveRoutineSession returns session that activeSessionId names', () => {
+  const rt = createRoutine({
+    name: 'Named Active',
+    sessions: [{ name: 'First' }, { name: 'Second' }],
+  });
+  const ids = getRoutine(rt.id).sessions.map(s => s.id);
+  setActiveRoutineSession(rt.id, ids[1]);
+  const active = getActiveRoutineSession(rt.id);
+  assert.equal(active.session.id, ids[1]);
+  assert.equal(active.session.name, 'Second');
+  assert.equal(active.index, 1);
+});
+
+test('getActiveRoutineSession falls back to first incomplete session when bookmark is complete', () => {
+  const rt = createRoutine({
+    name: 'Fallback Incomplete',
+    sessions: [{ name: 'Done', completed: true }, { name: 'Next' }],
+  });
+  const ids = getRoutine(rt.id).sessions.map(s => s.id);
+  setActiveRoutineSession(rt.id, ids[0]);
+  const active = getActiveRoutineSession(rt.id);
+  assert.equal(active.session.id, ids[1]);
+  assert.equal(active.session.name, 'Next');
+  assert.equal(active.index, 1);
+});
+
+test('getActiveRoutineSession returns null when every session is complete', () => {
+  const rt = createRoutine({
+    name: 'All Complete Active',
+    sessions: [
+      { name: 'A', completed: true },
+      { name: 'B', completed: true },
+    ],
+  });
+  const ids = getRoutine(rt.id).sessions.map(s => s.id);
+  setActiveRoutineSession(rt.id, ids[0]);
+  assert.equal(getActiveRoutineSession(rt.id), null);
+});
+
+test('serialized export matches routine-export.v1.json required keys const values and durationMin', () => {
+  const rt = createRoutine({
+    name: 'Schema Export',
+    sessions: [{ name: 'S', durationMin: 15 }],
+  });
+  const envelope = buildRoutineExport({
+    routineIds: [rt.id],
+    resolveWorkbook: () => null,
+  });
+  const parsed = JSON.parse(serializeRoutineExport(envelope));
+  const schema = loadRoutineExportSchema();
+  const errors = validateExportAgainstSchema(parsed, schema);
+  assert.deepEqual(errors, []);
 });
 
 test('invalidateRoutinesCache allows store re-init after cache clear', () => {
