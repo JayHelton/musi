@@ -42,6 +42,7 @@ import {
   serializeRoutineExport,
   routineExportFilename,
 } from '../../js/routineModel.js';
+import { buildRoutineCardModels } from '../../js/routineDashboardModel.js';
 
 let passed = 0;
 
@@ -853,6 +854,118 @@ test('serialized export matches routine-export.v1.json required keys const value
   const schema = loadRoutineExportSchema();
   const errors = validateExportAgainstSchema(parsed, schema);
   assert.deepEqual(errors, []);
+});
+
+test('buildRoutineCardModels returns empty list for no routines', () => {
+  const cards = buildRoutineCardModels([], {
+    getStats: () => ({ sessionCount: 0, completedSessionCount: 0 }),
+    getActiveSession: () => null,
+  });
+  assert.deepEqual(cards, []);
+});
+
+test('buildRoutineCardModels sorts three routines by updatedAt descending', () => {
+  const routines = [
+    normalizeRoutine({
+      id: 'rt-1',
+      name: 'A',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+    normalizeRoutine({
+      id: 'rt-2',
+      name: 'B',
+      updatedAt: '2026-01-03T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+    normalizeRoutine({
+      id: 'rt-3',
+      name: 'C',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  ];
+  const cards = buildRoutineCardModels(routines, {
+    getStats: () => ({ sessionCount: 0, completedSessionCount: 0 }),
+    getActiveSession: () => null,
+  });
+  assert.deepEqual(cards.map(c => c.id), ['rt-2', 'rt-3', 'rt-1']);
+});
+
+test('buildRoutineCardModels sorts same updatedAt by name ascending', () => {
+  const ts = '2026-01-01T00:00:00.000Z';
+  const routines = [
+    normalizeRoutine({ id: 'rt-z', name: 'Zulu', updatedAt: ts, createdAt: ts }),
+    normalizeRoutine({ id: 'rt-a', name: 'Alpha', updatedAt: ts, createdAt: ts }),
+  ];
+  const cards = buildRoutineCardModels(routines, {
+    getStats: () => ({ sessionCount: 0, completedSessionCount: 0 }),
+    getActiveSession: () => null,
+  });
+  assert.deepEqual(cards.map(c => c.id), ['rt-a', 'rt-z']);
+});
+
+test('buildRoutineCardModels card carries display fields', () => {
+  const rt = normalizeRoutine({
+    id: 'rt-card',
+    name: 'Morning',
+    description: 'Daily practice',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    sessions: [{ id: 'rs-1', name: 'Warm-up' }],
+  });
+  const cards = buildRoutineCardModels([rt], {
+    getStats: () => ({ sessionCount: 2, completedSessionCount: 1 }),
+    getActiveSession: () => ({ session: { name: 'Warm-up' }, index: 0 }),
+  });
+  assert.equal(cards.length, 1);
+  const card = cards[0];
+  assert.equal(card.id, 'rt-card');
+  assert.equal(card.name, 'Morning');
+  assert.equal(card.description, 'Daily practice');
+  assert.equal(card.currentSessionName, 'Warm-up');
+  assert.equal(card.completedCount, 1);
+  assert.equal(card.totalCount, 2);
+  assert.equal(card.progress, 0.5);
+  assert.equal(card.updatedAt, '2026-01-01T00:00:00.000Z');
+});
+
+test('buildRoutineCardModels reports zero sessions and no current session', () => {
+  const rt = normalizeRoutine({
+    id: 'rt-empty',
+    name: 'Empty',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  });
+  const cards = buildRoutineCardModels([rt], {
+    getStats: routine => getRoutineStats(routine),
+    getActiveSession: () => null,
+  });
+  assert.equal(cards[0].totalCount, 0);
+  assert.equal(cards[0].completedCount, 0);
+  assert.equal(cards[0].progress, 0);
+  assert.equal(cards[0].currentSessionName, null);
+});
+
+test('buildRoutineCardModels reports full progress when every session is complete', () => {
+  const rt = normalizeRoutine({
+    id: 'rt-done',
+    name: 'Done',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    sessions: [
+      { id: 'rs-1', name: 'A', completed: true },
+      { id: 'rs-2', name: 'B', completed: true },
+    ],
+  });
+  const cards = buildRoutineCardModels([rt], {
+    getStats: routine => getRoutineStats(routine),
+    getActiveSession: () => null,
+  });
+  assert.equal(cards[0].completedCount, 2);
+  assert.equal(cards[0].totalCount, 2);
+  assert.equal(cards[0].progress, 1);
+  assert.equal(cards[0].currentSessionName, null);
 });
 
 test('invalidateRoutinesCache allows store re-init after cache clear', () => {

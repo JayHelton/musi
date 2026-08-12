@@ -66,6 +66,8 @@ function el(tag, props = {}, children = []) {
 
 let bound = false;
 let escapeWired = false;
+let pendingRoutineOpenId = null;
+let fallbackImportFileEl = null;
 let selectedRoutineId = null;
 let openSessionId = null;
 let showCompletedSessions = false;
@@ -1159,7 +1161,28 @@ function renderNotesCard(rt, session) {
 
 // --- actions -----------------------------------------------------------------
 
-function onNewRoutine() {
+function selectRoutineById(routineId) {
+  if (!getRoutine(routineId)) return;
+  if (selectedRoutineId !== routineId) {
+    flushDescAutosave();
+    flushNotesAutosave();
+    closeSessionPane();
+    showCompletedSessions = false;
+  }
+  selectedRoutineId = routineId;
+  render();
+}
+
+export function openRoutineById(routineId) {
+  if (typeof routineId !== 'string' || !routineId) return;
+  if (!routineListEl) {
+    pendingRoutineOpenId = routineId;
+    return;
+  }
+  selectRoutineById(routineId);
+}
+
+export function createRoutineFromPrompt(options = {}) {
   openPrompt('New routine', '', 'Create', (name) => {
     const clean = (name || '').trim();
     if (!clean) {
@@ -1171,10 +1194,28 @@ function onNewRoutine() {
     closeSessionPane();
     setStatus('Routine created.');
     render();
+    options.onDone?.(rt);
   });
 }
 
-async function onImportFile(file) {
+function onNewRoutine() {
+  createRoutineFromPrompt();
+}
+
+function getImportFileInput() {
+  if (importFileEl) return importFileEl;
+  if (!fallbackImportFileEl) {
+    fallbackImportFileEl = el('input', {
+      type: 'file',
+      accept: 'application/json,.json',
+      hidden: 'true',
+    });
+    document.body.appendChild(fallbackImportFileEl);
+  }
+  return fallbackImportFileEl;
+}
+
+async function processRoutineImportFile(file, options = {}) {
   if (!file) return;
   try {
     const text = await file.text();
@@ -1200,9 +1241,21 @@ async function onImportFile(file) {
       parts.push(`${result.missingExercises} exercise${result.missingExercises === 1 ? '' : 's'} missing — upload them in Exercises (media does not travel in the JSON)`);
     }
     setStatus(parts.join('. ') + '.');
+    options.onDone?.(result);
   } catch (e) {
     setStatus('Could not read that file.', true);
   }
+}
+
+export function importRoutineFromFile(options = {}) {
+  const input = getImportFileInput();
+  input.value = '';
+  input.onchange = () => {
+    const file = input.files?.[0];
+    processRoutineImportFile(file, options);
+    input.value = '';
+  };
+  input.click();
 }
 
 function wireEscape() {
@@ -1261,14 +1314,7 @@ export function initRoutines() {
   if (!bound) {
     bound = true;
     if (newBtn) newBtn.addEventListener('click', onNewRoutine);
-    if (importBtn && importFileEl) {
-      importBtn.addEventListener('click', () => importFileEl.click());
-      importFileEl.addEventListener('change', () => {
-        const file = importFileEl.files?.[0];
-        onImportFile(file);
-        importFileEl.value = '';
-      });
-    }
+    if (importBtn) importBtn.addEventListener('click', () => importRoutineFromFile());
     if (exportAllBtn) {
       exportAllBtn.addEventListener('click', () => {
         const routines = listRoutines();
@@ -1295,6 +1341,14 @@ export function initRoutines() {
   const wbIds = listWorkbooks().map(wb => wb.id);
   pruneMissingWorkbooks(wbIds);
   setStatus('');
+  if (pendingRoutineOpenId) {
+    const pendingId = pendingRoutineOpenId;
+    pendingRoutineOpenId = null;
+    if (getRoutine(pendingId)) {
+      selectRoutineById(pendingId);
+      return;
+    }
+  }
   render();
 }
 
