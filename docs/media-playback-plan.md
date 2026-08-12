@@ -120,14 +120,16 @@ Workbook HTML media uses the same pattern: one `detailObjectURL`, one `detailMed
 
 ### Global now-playing bar is not wired to file media
 
-`index.html` defines `#now-playing`. `js/nowPlaying.js` exposes `showNowPlaying(label, onStop)` with a label and a stop callback only.
+`index.html` defines `#now-playing`. `js/nowPlaying.js` exposes `showNowPlaying(label, onStop)`. The function stores the stop callback, returns when the bar is missing, sets the label, then adds the `visible` class.
 
-```4:17:js/nowPlaying.js
+```4:11:js/nowPlaying.js
 export function showNowPlaying(label, onStop) {
   currentLabel = label;
   stopCallback = onStop;
   const bar = document.getElementById('now-playing');
-  if (!bar) bar.classList.add('visible');
+  if (!bar) return;
+  bar.querySelector('.np-label').textContent = label;
+  bar.classList.add('visible');
 }
 ```
 
