@@ -1143,8 +1143,7 @@ function setupExercises() {
   const head = sec.querySelector('.section-head');
   if (head) head.after(bar);
 
-  // Mobile: keep the folder list on the main page so rename/delete stay in reach.
-  // Hide the compact folder bar; the list covers select, rename, and delete.
+  // Mobile: folder list on the main page for select/rename/delete; bar keeps Add/upload on phones.
   if (!document.getElementById('ex-folder-style')) {
     const style = document.createElement('style');
     style.id = 'ex-folder-style';
@@ -1165,7 +1164,13 @@ function setupExercises() {
         }
         #sec-exercises .ex-cat-tools{opacity:1;pointer-events:auto}
         #sec-exercises .ex-add-cat{display:flex}
-        #sec-exercises .ex-folder-bar{display:none!important}
+        #sec-exercises .ex-folder-bar{
+          display:flex!important;flex-wrap:wrap;align-items:center;gap:8px
+        }
+        #sec-exercises #ex-folder-pick,
+        #sec-exercises #ex-new-folder-btn,
+        #sec-exercises #ex-del-folder-btn{display:none!important}
+        #sec-exercises #ex-add-primary{flex:1;min-width:8rem}
       }
       @media (min-width:769px) and ${NOT_LANDSCAPE_PHONE_MQ}{
         #sec-exercises .ex-folder-bar{display:none}

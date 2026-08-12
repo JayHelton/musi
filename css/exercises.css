@@ -285,7 +285,7 @@
 }
 
 @media(max-width:768px){
-  /* Folder list stays on the main page; compact folder bar is hidden on phones */
+  /* Toolbar actions stay hidden; Add lives on the folder bar */
   #sec-exercises .ex-toolbar-actions{display:none}
   .ex-bulk-bar-actions .btn{flex:1 1 auto;min-width:0}
   #sec-exercises .ex-add-cat{
