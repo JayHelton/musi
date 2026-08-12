@@ -1,0 +1,3 @@
+-- Declarative source for supabase db diff.
+-- Base migration 20260101000000_sync_schema.sql mirrors this file set in dependency order.
+-- Indexes are defined in 020_sync_tables.sql per the schema reference.

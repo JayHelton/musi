@@ -1,0 +1,76 @@
+project_id = "musi"
+
+# --- Local development only (integration ignores [api] and [auth] in production) ---
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17  # must match the production Supabase project's Postgres major version
+
+[db.migrations]
+schema_paths = ["./schemas/010_extensions.sql","./schemas/020_sync_tables.sql",
+  "./schemas/030_sync_functions.sql","./schemas/040_sync_indexes.sql"]
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+file_size_limit = "250MiB"
+
+# --- Deployed by GitHub integration on push to main ---
+
+[storage.buckets.attachments]
+public = false
+file_size_limit = "250MiB"
+allowed_mime_types = []
+
+# --- Local development only ---
+
+[auth]
+enabled = true
+# PWA origin — not Supabase. Self-hosters: add your static host origin to additional_redirect_urls.
+site_url = "http://localhost:8080"
+additional_redirect_urls = ["http://localhost:8080", "http://127.0.0.1:8080"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false   # OTP/magic-link sign-in
+otp_expiry = 3600
+max_frequency = "1s"
+
+# Production SMTP is Dashboard-managed. Local dev uses Inbucket (see [inbucket]).
+# [auth.email.smtp]
+# enabled = true
+# host = "env(SMTP_HOST)"
+# port = 587
+# user = "env(SMTP_USER)"
+# pass = "env(SMTP_PASS)"
+# admin_email = "noreply@YOUR_DOMAIN.example"
+# sender_name = "Musi"
+
+[auth.rate_limit]
+email_sent = 4
+sign_in_sign_ups = 30
+token_verifications = 30
+token_refresh = 150
+anonymous_users = 0          # v1: no anonymous auth
+
+# --- Deployed by GitHub integration on push to main ---
+
+[functions.account]
+verify_jwt = true
+
+[inbucket]
+enabled = true
+smtp_port = 54325            # local OTP capture
