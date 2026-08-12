@@ -66,6 +66,13 @@
   border-radius:var(--radius-screen,16px);
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28)
 }
+.rt-overview-head{
+  display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap
+}
+.rt-overview-head .rt-overview-name{
+  flex:1;min-width:0;margin-bottom:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
 .rt-overview-name{font-size:1.05rem;font-weight:650;color:var(--text);margin-bottom:8px}
 .rt-overview-desc-wrap{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .rt-overview-desc{
@@ -139,10 +146,10 @@
 
 /* ---- Routine layer stack (overview parent + session child) ---- */
 .rt-workspace.is-open{position:relative}
-#rt-session-back{
+#rt-session-back,#rt-overview-back{
   min-height:var(--tap-min);display:inline-flex;align-items:center;justify-content:center
 }
-#rt-session-back:focus-visible{
+#rt-session-back:focus-visible,#rt-overview-back:focus-visible{
   outline:2px solid var(--accent);outline-offset:2px;
   box-shadow:0 0 0 2px var(--accent-dim)
 }

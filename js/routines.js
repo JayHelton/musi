@@ -242,6 +242,14 @@ function navBack() {
   return true;
 }
 
+function onOverviewBack() {
+  if (navBack()) return;
+  flushDescAutosave();
+  selectedRoutineId = null;
+  showCompletedSessions = false;
+  render();
+}
+
 function routineOverviewHeading() {
   return overviewEl?.querySelector('.rt-overview-name')
     || document.getElementById('rt-current-title');
@@ -661,7 +669,17 @@ function renderOverview() {
   }
 
   const stats = getRoutineStats(rt);
-  overviewEl.appendChild(el('div', { class: 'rt-overview-name', text: rt.name }));
+  const overviewHead = el('div', { class: 'rt-overview-head' });
+  overviewHead.appendChild(el('button', {
+    class: 'btn sm',
+    type: 'button',
+    id: 'rt-overview-back',
+    text: '\u2190 Routines',
+    'aria-label': 'Back to routines',
+    onClick: onOverviewBack,
+  }));
+  overviewHead.appendChild(el('div', { class: 'rt-overview-name', text: rt.name }));
+  overviewEl.appendChild(overviewHead);
 
   const descWrap = el('div', { class: 'rt-overview-desc-wrap' });
   descRoutineId = rt.id;
