@@ -29,7 +29,7 @@ let showSectionFn = null;
 
 const MOBILE_UX_MQ = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 const LANDSCAPE_PHONE_MQ = '(orientation: landscape) and (max-height: 500px)';
-const NOT_LANDSCAPE_PHONE_MQ = 'not ((orientation: landscape) and (max-height: 500px))';
+const NOT_LANDSCAPE_PHONE_MQ = '(not ((orientation: landscape) and (max-height: 500px)))';
 
 const SETUP_SHEET_BASE = `
   display:none;position:fixed;z-index:480;overflow-y:auto;-webkit-overflow-scrolling:touch;
