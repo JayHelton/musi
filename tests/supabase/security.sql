@@ -105,7 +105,28 @@ end
 $check$;
 
 \echo ''
-\echo '== 5. policy coverage =='
+\echo '== 5. the API roles cannot call the helper functions =='
+-- Supabase grants EXECUTE on a new function in `public` to anon and to
+-- authenticated. The migration removes those grants. Only sync_bounds and
+-- purge_my_sync_data stay open, and only for a signed-in caller.
+select p.proname as check,
+       case
+         when p.proname in ('sync_bounds', 'purge_my_sync_data') then
+           case when has_function_privilege('anon', p.oid, 'execute') then 'FAIL (anon)'
+                when not has_function_privilege('authenticated', p.oid, 'execute') then 'FAIL (user locked out)'
+                else 'PASS' end
+         else
+           case when has_function_privilege('anon', p.oid, 'execute')
+                  or has_function_privilege('authenticated', p.oid, 'execute')
+                then 'FAIL' else 'PASS' end
+       end as result
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+order by p.proname;
+
+\echo ''
+\echo '== 6. policy coverage =='
 select 'storage.objects policies' as check,
        case when count(*) = 4 then 'PASS' else 'FAIL (' || count(*) || ')' end as result
 from pg_policies where schemaname = 'storage' and tablename = 'objects'
@@ -115,7 +136,7 @@ select 'realtime.messages policies',
 from pg_policies where schemaname = 'realtime' and tablename = 'messages';
 
 \echo ''
-\echo '== 6. row level security is enabled and forced =='
+\echo '== 7. row level security is enabled and forced =='
 select relname as check,
        case when relrowsecurity and relforcerowsecurity then 'PASS' else 'FAIL' end as result
 from pg_class where relname in ('sync_records','sync_devices','sync_blobs','sync_watermarks')
