@@ -38,6 +38,7 @@ import { shortScaleName } from './scales.js';
 import { openRootPicker, openScalePicker } from './pickers.js';
 import { getMasterVolume, setMasterVolume } from './audio.js';
 import { getSetting, saveSetting } from './persistence.js';
+import { loadCloudConfig, isCloudEnabled } from './cloud/cloudConfig.js';
 import { collectAttachedWorkbookIds } from './routineModel.js';
 import { listWorkbooks, deleteWorkbooksNotAttached, pruneMissingExercisesAll } from './workbookModel.js';
 import { getExercises, getExercisesWithoutFolder, deleteExercisesWithoutFolder } from './exercises.js';
@@ -136,7 +137,7 @@ function render() {
 
     <section class="mp-block" id="mp-sync-block">
       <h3 class="mp-block-title">Device sync</h3>
-      <p class="mp-block-help">Move your library to another phone or PC — no account needed.</p>
+      <p class="mp-block-help">Move your library to another phone or PC. This works without an account.</p>
 
       <details class="sync-advanced" id="mp-sync-advanced">
         <summary class="sync-advanced-summary">Advanced options</summary>
@@ -167,6 +168,12 @@ function render() {
           <button type="button" class="btn sm sync-btn-secondary" id="mp-sync-receive">Receive via QR</button>
         </div>
       </div>
+    </section>
+
+    <section class="mp-block" id="mp-cloud-block" hidden>
+      <h3 class="mp-block-title">Cloud account</h3>
+      <p class="mp-block-help">Sign in to keep your library the same on every device. An account is optional.</p>
+      <div id="mp-cloud-root"></div>
     </section>
 
     <section class="mp-block" id="mp-library-cleanup">
@@ -220,6 +227,7 @@ function render() {
   paintMusicalContext();
   paintVolume();
   paintDeviceSync();
+  paintCloudSync();
   paintLibraryCleanup();
   paintFeatures();
   paintGenres(profile);
@@ -404,6 +412,36 @@ async function updateSyncEstimate(scopes) {
     if (gen === syncEstimateGen && payloadEl) {
       payloadEl.textContent = 'Could not estimate payload size.';
     }
+  }
+}
+
+let cloudUiUnmount = null;
+
+async function paintCloudSync() {
+  const block = host?.querySelector('#mp-cloud-block');
+  if (!block) return;
+
+  if (cloudUiUnmount) {
+    cloudUiUnmount();
+    cloudUiUnmount = null;
+  }
+
+  await loadCloudConfig();
+  if (!isCloudEnabled()) {
+    block.hidden = true;
+    return;
+  }
+
+  block.hidden = false;
+  const root = block.querySelector('#mp-cloud-root');
+  if (!root) return;
+
+  try {
+    const cloudUI = await import('./cloud/cloudUI.js');
+    await cloudUI.mountCloudUI(root);
+    cloudUiUnmount = cloudUI.unmountCloudUI;
+  } catch (_) {
+    block.hidden = true;
   }
 }
 

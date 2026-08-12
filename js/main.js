@@ -620,6 +620,18 @@ function init() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => markBootReady());
   });
+
+  // Optional cloud sync: gated so empty config never loads Supabase or blocks boot.
+  (async () => {
+    try {
+      const { loadCloudConfig, isCloudEnabled } = await import('./cloud/cloudConfig.js');
+      await loadCloudConfig();
+      if (isCloudEnabled()) {
+        const { initCloudSync } = await import('./cloud/cloudSync.js');
+        await initCloudSync();
+      }
+    } catch (_) { /* cloud sync is optional */ }
+  })();
 }
 
 document.addEventListener('DOMContentLoaded', init);

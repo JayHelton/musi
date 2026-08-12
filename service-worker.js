@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v180-folder-delete-touch";
+const CACHE_VERSION = "v181-cloud-sync";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -85,6 +85,19 @@ const PRECACHE_URLS = [
   "js/sync/zip.js",
   "js/sync/syncBundle.js",
   "js/sync/syncUI.js",
+  "js/dataEvents.js",
+  "js/cloud/cloudConfig.js",
+  "js/cloud/client.js",
+  "js/cloud/auth.js",
+  "js/cloud/recordMap.js",
+  "js/cloud/shadowStore.js",
+  "js/cloud/reconcile.js",
+  "js/cloud/transport.js",
+  "js/cloud/realtimeLink.js",
+  "js/cloud/cloudSync.js",
+  "js/cloud/cloudUI.js",
+  "js/vendor/supabase-js.esm.js",
+  "css/cloud.css",
   "js/qr/qrEncode.js",
   "js/qr/qrDecode.js",
   "js/progressHeader.js",
@@ -250,6 +263,17 @@ self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
 });
 
+// Self-hosters: add your Supabase origin here (must match cloud-config.json).
+const EXTRA_SYNC_ORIGINS = [
+  // 'https://supabase.example.com',
+];
+
+function isSupabaseSyncRequest(url) {
+  if (url.hostname.endsWith(".supabase.co")) return true;
+  if (url.hostname.endsWith(".supabase.in")) return true;
+  return EXTRA_SYNC_ORIGINS.includes(url.origin);
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -257,6 +281,14 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
+
+  // Never cache Supabase auth, REST, Storage, or Realtime traffic.
+  // A local stack on 127.0.0.1:54321 is a different origin and already bypasses
+  // same-origin branches; self-hosters must add their origin to EXTRA_SYNC_ORIGINS.
+  if (isSupabaseSyncRequest(url)) return;
+
+  // Runtime cloud-config.json must always come from the network.
+  if (url.pathname.endsWith("cloud-config.json")) return;
 
   // For navigations, serve the cached app shell when offline.
   if (request.mode === "navigate") {
