@@ -55,10 +55,10 @@ python3 -m http.server 8080     # then exercise http://localhost:8080
 **Purpose**: Record the green baseline, then lock the stored data behavior with
 characterization tests. These tests must pass before and after every later task.
 
-- [ ] T001 Run the baseline suites and record the final line of each: `node tests/routines/run.mjs`, `node tests/workbooks/run.mjs`, `node tests/study-lab/run.mjs`, `node tests/study-recs/run.mjs`, `node tests/companions/run.mjs`, `node tests/cloud/run.mjs`, `node tests/sync/profile.mjs`, and `cd cli && node bin/musi.js --help`
-- [ ] T002 Add export characterization tests to `tests/routines/run.mjs`: `buildRoutineExport` keeps `app`, `kind`, `version`, `createdAt`, `routines`, and `workbooks`; a session keeps its `durationMin` value through `serializeRoutineExport` and `applyRoutineImport`; `applyRoutineImport` resets `activeSessionId` to `null`; two imports of one file produce two routines
-- [ ] T003 Add derived-value characterization tests to `tests/routines/run.mjs`: `getRoutineStats` returns `sessionCount`, `completedSessionCount`, and `totalMinutes` for a routine with mixed completion; `getActiveRoutineSession` returns the session that `activeSessionId` names; `getActiveRoutineSession` falls back to the first incomplete session when the bookmark is complete; `getActiveRoutineSession` returns `null` when every session is complete
-- [ ] T004 [P] Add a JSON Schema check to `tests/routines/run.mjs` that reads `specs/001-routine-first-declutter/contracts/routine-export.v1.json` and validates a serialized export against the required fields, the `const` values, and the presence of `durationMin`
+- [X] T001 Run the baseline suites and record the final line of each: `node tests/routines/run.mjs`, `node tests/workbooks/run.mjs`, `node tests/study-lab/run.mjs`, `node tests/study-recs/run.mjs`, `node tests/companions/run.mjs`, `node tests/cloud/run.mjs`, `node tests/sync/profile.mjs`, and `cd cli && node bin/musi.js --help`
+- [X] T002 Add export characterization tests to `tests/routines/run.mjs`: `buildRoutineExport` keeps `app`, `kind`, `version`, `createdAt`, `routines`, and `workbooks`; a session keeps its `durationMin` value through `serializeRoutineExport` and `applyRoutineImport`; `applyRoutineImport` resets `activeSessionId` to `null`; two imports of one file produce two routines
+- [X] T003 Add derived-value characterization tests to `tests/routines/run.mjs`: `getRoutineStats` returns `sessionCount`, `completedSessionCount`, and `totalMinutes` for a routine with mixed completion; `getActiveRoutineSession` returns the session that `activeSessionId` names; `getActiveRoutineSession` falls back to the first incomplete session when the bookmark is complete; `getActiveRoutineSession` returns `null` when every session is complete
+- [X] T004 [P] Add a JSON Schema check to `tests/routines/run.mjs` that reads `specs/001-routine-first-declutter/contracts/routine-export.v1.json` and validates a serialized export against the required fields, the `const` values, and the presence of `durationMin`
 
 **Checkpoint**: The stored shape and the export format now have a test guard. Every later
 phase must keep these tests green.
@@ -74,8 +74,8 @@ are small and each one leaves the app runnable.
 path in `js/home.js`. T005 and T006 both block User Story 4, because User Story 4 deletes
 the modules that these two files import today.
 
-- [ ] T005 Remove the genre call sites from `js/home.js`: delete `renderStudyRec` and `startStudy`, delete the imports of `./studyRecommendations.js` and `./musicProfile.js`, delete the `buildRecommendations` branch in `wireHero` so the primary label falls back to `Continue` or `Start practice`, and delete the `#home-study-rec` write from `render`
-- [ ] T006 [P] Remove the recommendation dependency from `js/studyLab.js`: delete the import of `./studyRecommendations.js`, select the default study `major-scale-construction` from `js/studyCatalog.js` with `getStudyById` when the caller names no study, and call `recordStudyStarted` and `recordStudyCompleted` from `js/studyProgress.js` directly
+- [X] T005 Remove the genre call sites from `js/home.js`: delete `renderStudyRec` and `startStudy`, delete the imports of `./studyRecommendations.js` and `./musicProfile.js`, delete the `buildRecommendations` branch in `wireHero` so the primary label falls back to `Continue` or `Start practice`, and delete the `#home-study-rec` write from `render`
+- [X] T006 [P] Remove the recommendation dependency from `js/studyLab.js`: delete the import of `./studyRecommendations.js`, select the default study `major-scale-construction` from `js/studyCatalog.js` with `getStudyById` when the caller names no study, and call `recordStudyStarted` and `recordStudyCompleted` from `js/studyProgress.js` directly
 
 **Checkpoint**: Home renders without the recommendation card. Study Lab opens a study with
 no genre configuration. `js/musicPreferences.js` is now the only remaining importer of the
@@ -95,20 +95,20 @@ opens its routine. Confirm that the removed Home blocks no longer render.
 
 ### Tests for User Story 1
 
-- [ ] T007 [US1] Add dashboard model tests to `tests/routines/run.mjs`: an empty routine list returns an empty card list; three routines sort by `updatedAt` descending; two routines with the same `updatedAt` sort by `name` ascending; a card carries `name`, `description`, `currentSessionName`, `completedCount`, `totalCount`, and `progress`; a routine with no session reports a total of zero and no current session name; a routine with every session complete reports a full progress value
+- [X] T007 [US1] Add dashboard model tests to `tests/routines/run.mjs`: an empty routine list returns an empty card list; three routines sort by `updatedAt` descending; two routines with the same `updatedAt` sort by `name` ascending; a card carries `name`, `description`, `currentSessionName`, `completedCount`, `totalCount`, and `progress`; a routine with no session reports a total of zero and no current session name; a routine with every session complete reports a full progress value
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Create `js/routineDashboardModel.js` with the pure exports `buildRoutineCardModels(routines, { getStats, getActiveSession })` and `sortRoutineCards(cards)`, and apply the `updatedAt` descending sort with the `name` ascending tiebreak, because `listRoutines()` in `js/routineModel.js` sorts by `updatedAt` only
-- [ ] T009 [P] [US1] Add the export `openRoutineById(routineId)` to `js/routines.js` so another screen can select a routine, following the existing `requestWorkbookOpen` pattern in `js/workbooks.js`. User Story 2 replaces this bridge with a route call
-- [ ] T010 [P] [US1] Add the exports `createRoutineFromPrompt(options)` and `importRoutineFromFile(options)` to `js/routines.js`, moving the bodies of the private `onNewRoutine` and `onImportFile` so both flows keep one owner and both work from Home
-- [ ] T011 [US1] Update the `#sec-home` markup in `index.html`: delete `#gbc-hero`, `#home-continue`, `#home-quickstart`, `#home-study-rec`, `#home-stats`, and `#home-categories`; add `#home-routines`; add a small `#home-status` region with `role="status"`; keep `#home-all-panel` collapsed as the secondary `Browse tools` action
-- [ ] T012 [US1] Rewrite `render` in `js/home.js` to draw the `Routines` heading, the routine cards from `js/routineDashboardModel.js`, the `New Routine` action, the `Import Routine` action, and the empty state with the title `No routines yet` and the text `Create a routine or import a Musi routine file.`; delete `renderContinue`, `renderQuickStart`, and `renderCategories`; keep `renderHub`, `toolRow`, `renderAllTools`, and the favorites helpers
-- [ ] T013 [US1] Subscribe Home to routine changes in `initHome` in `js/home.js` with `onDataChanged` from `js/dataEvents.js`, and re-render when `detail.domain` equals `routines`
-- [ ] T014 [US1] Remove the `renderStats()` call from the Home branch of `showSection` in `js/main.js`, and keep `js/stats.js` in place for `recordAttempt`
-- [ ] T015 [P] [US1] Add the routine card styles and the empty state styles to `css/routines.css` with a responsive grid, and reuse `--card`, `--border`, `--accent`, `--muted`, `--radius-screen`, `--radius-pill`, `--font-pixel`, `--font-body`, and `--font-ui`; add no new colour value and no new font family
-- [ ] T016 [US1] Make the whole card one control in `js/home.js`: give it a button role, an accessible name that reads the routine name, a visible focus ring in `css/routines.css`, and no separate start control
-- [ ] T017 [US1] Delete the style rules that lost their last consumer in `css/theme-gbc.css`, `css/mobile-ux.css`, and `css/ux-shell.css`, which include the `.home-rec-*`, `.home-continue`, `.home-quick-*`, `.home-cat-*`, and `.gbc-hero*` rules
+- [X] T008 [US1] Create `js/routineDashboardModel.js` with the pure exports `buildRoutineCardModels(routines, { getStats, getActiveSession })` and `sortRoutineCards(cards)`, and apply the `updatedAt` descending sort with the `name` ascending tiebreak, because `listRoutines()` in `js/routineModel.js` sorts by `updatedAt` only
+- [X] T009 [P] [US1] Add the export `openRoutineById(routineId)` to `js/routines.js` so another screen can select a routine, following the existing `requestWorkbookOpen` pattern in `js/workbooks.js`. User Story 2 replaces this bridge with a route call
+- [X] T010 [P] [US1] Add the exports `createRoutineFromPrompt(options)` and `importRoutineFromFile(options)` to `js/routines.js`, moving the bodies of the private `onNewRoutine` and `onImportFile` so both flows keep one owner and both work from Home
+- [X] T011 [US1] Update the `#sec-home` markup in `index.html`: delete `#gbc-hero`, `#home-continue`, `#home-quickstart`, `#home-study-rec`, `#home-stats`, and `#home-categories`; add `#home-routines`; add a small `#home-status` region with `role="status"`; keep `#home-all-panel` collapsed as the secondary `Browse tools` action
+- [X] T012 [US1] Rewrite `render` in `js/home.js` to draw the `Routines` heading, the routine cards from `js/routineDashboardModel.js`, the `New Routine` action, the `Import Routine` action, and the empty state with the title `No routines yet` and the text `Create a routine or import a Musi routine file.`; delete `renderContinue`, `renderQuickStart`, and `renderCategories`; keep `renderHub`, `toolRow`, `renderAllTools`, and the favorites helpers
+- [X] T013 [US1] Subscribe Home to routine changes in `initHome` in `js/home.js` with `onDataChanged` from `js/dataEvents.js`, and re-render when `detail.domain` equals `routines`
+- [X] T014 [US1] Remove the `renderStats()` call from the Home branch of `showSection` in `js/main.js`, and keep `js/stats.js` in place for `recordAttempt`
+- [X] T015 [P] [US1] Add the routine card styles and the empty state styles to `css/routines.css` with a responsive grid, and reuse `--card`, `--border`, `--accent`, `--muted`, `--radius-screen`, `--radius-pill`, `--font-pixel`, `--font-body`, and `--font-ui`; add no new colour value and no new font family
+- [X] T016 [US1] Make the whole card one control in `js/home.js`: give it a button role, an accessible name that reads the routine name, a visible focus ring in `css/routines.css`, and no separate start control
+- [X] T017 [US1] Delete the style rules that lost their last consumer in `css/theme-gbc.css`, `css/mobile-ux.css`, and `css/ux-shell.css`, which include the `.home-rec-*`, `.home-continue`, `.home-quick-*`, `.home-cat-*`, and `.gbc-hero*` rules
 
 **Checkpoint**: Home is routine-first. `node tests/routines/run.mjs` passes. The manual
 checks 1 to 11 in `quickstart.md` pass.
@@ -127,28 +127,28 @@ deep address in a new tab and confirm the rebuilt layers.
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Create `tests/routine-nav/run.mjs` and cover the `js/appRoute.js` rows of the test matrix in `contracts/routine-route.md`: parse with and without a leading `#`, parse an empty value, decode a percent-encoded id, keep the last value of a repeated key, build with an empty parameter set, build in the fixed key order, and build then parse to the same route
-- [ ] T019 [US2] Extend `tests/routine-nav/run.mjs` with the `js/routineRoute.js` rows of the same matrix: `routeLayer` and `parentRoute` for all six states, `routeDepth` from 0 to 4, a `session` key without a `routine` key, an `exercise` key beside a `companion` key, and the five repair cases that produce the reasons `routine-missing`, `session-missing`, `workbook-missing`, `exercise-missing`, and `companion-missing`, including a companion held by the second attached workbook
+- [X] T018 [P] [US2] Create `tests/routine-nav/run.mjs` and cover the `js/appRoute.js` rows of the test matrix in `contracts/routine-route.md`: parse with and without a leading `#`, parse an empty value, decode a percent-encoded id, keep the last value of a repeated key, build with an empty parameter set, build in the fixed key order, and build then parse to the same route
+- [X] T019 [US2] Extend `tests/routine-nav/run.mjs` with the `js/routineRoute.js` rows of the same matrix: `routeLayer` and `parentRoute` for all six states, `routeDepth` from 0 to 4, a `session` key without a `routine` key, an `exercise` key beside a `companion` key, and the five repair cases that produce the reasons `routine-missing`, `session-missing`, `workbook-missing`, `exercise-missing`, and `companion-missing`, including a companion held by the second attached workbook
 
 ### Implementation for User Story 2
 
-- [ ] T020 [P] [US2] Create `js/appRoute.js` with the pure exports `parseAppRoute`, `buildAppRoute`, `routeUrl`, and `sameRoute`, following the ten rules in section 2 of `contracts/routine-route.md`
-- [ ] T021 [P] [US2] Create `js/routineRoute.js` with the pure exports `ROUTINE_ROUTE_ID`, `ROUTINE_PARAM_KEYS`, `parseRoutineRoute`, `buildRoutineParams`, `routeLayer`, `parentRoute`, `routeDepth`, and `resolveRoutineRoute`, following sections 3.1 to 3.5 of `contracts/routine-route.md`
-- [ ] T022 [US2] Split `showSection` in `js/main.js` into `applySection(id, { keep })`, which swaps the visible section and runs `stopOtherTools([id, ...keep])` and `initTool(id)` and writes no history, and `showSection(id, skipHash, params)`, which writes the history entry and then calls `applySection`; keep every existing call site working
-- [ ] T023 [US2] Add `applyRoute({ id, params, mode })` to `js/main.js`, call it from the boot path, the `popstate` listener, and the `hashchange` listener, use `js/appRoute.js` inside `sectionUrl`, and store `{ musiNav: id, params }` in the history state
-- [ ] T024 [US2] Create `js/routineNav.js` with `createRoutineNavigator(config)` per `contracts/routine-navigator.md`, including `applyRoute`, `open`, `back`, `currentRoute`, `currentLayer`, and `destroy`, plus the scroll save and restore, the heading focus with `focus({ preventScroll: true })`, and the shell adapter calls
-- [ ] T025 [US2] Build the shell adapter in `js/main.js` with `activateSection`, `pushRoute`, `replaceRoute`, `backToRoute`, `goHome`, and `hasInAppHistory`, and hand the routine parameters to the navigator when the route id is `routines`
-- [ ] T026 [US2] Add the routine layer descriptor and the session layer descriptor in `js/routines.js`, drive `selectedRoutineId` and `openSessionId` from the route instead of from click state, and change the `#rt-session-back` handler to call the navigator `back` method
-- [ ] T027 [US2] Replace the Home card bridge: change the card handler in `js/home.js` to open the route `#routines?routine=<id>` through the navigator, and delete the `openRoutineById` export from `js/routines.js` that T009 added
-- [ ] T028 [US2] Add the four seam exports to `js/workbooks.js` per `contracts/workbook-layer-seam.md`: `openWorkbookForRoute`, `closeWorkbookLayer`, `setWorkbookBackTarget`, and `onWorkbookEntryChange`; make `openWorkbookForRoute` idempotent so a repeated route does not restart playback; read the stored back target every time the render path draws a back control, including inside `buildGpHeaderExtra`
-- [ ] T029 [US2] Add the workbook layer descriptor and the exercise layer descriptor in `js/routineNav.js`, request `activateSection('workbooks', { keep: ['routines'] })`, set the back label `← Session`, and show the entry list when the route holds no `exercise` key and the player when it holds one
-- [ ] T030 [US2] Add the companion layer in `js/routineNav.js`: resolve the companion through `session.workbookIds` with the `getCompanion` lookup, open that workbook, activate the Tools subview, expand the companion, and make Back return the session layer
-- [ ] T031 [US2] Replace the section jump in `js/routines.js`: change the `Practice` control in `renderWorkbooksCard` to call the navigator `open` method with the workbook key, and delete the private `navigateToWorkbooks` helper and the `requestWorkbookOpen` call that it used
-- [ ] T032 [US2] Follow the selected entry in `js/routineNav.js`: subscribe with `onWorkbookEntryChange` and ask the shell to replace the address with the new `exercise` value, so a previous, next, or automatic advance adds no history entry
-- [ ] T033 [US2] Handle the direct link in `js/routineNav.js`: rebuild every parent layer on a boot apply, and make the visible Musi Back control replace the address with the parent route when `hasInAppHistory()` returns false
-- [ ] T034 [US2] Handle an invalid identifier in `js/routineNav.js`: replace the address with the repaired route, show the message `Item not found` on the status element of the deepest valid layer through the routines `setStatus` function, use `#home-status` when the routine identifier itself fails, and clear the message on the next successful apply
-- [ ] T035 [US2] Add navigator tests to `tests/routine-nav/run.mjs` with a fake shell and fake layer descriptors that record the call order, and assert the five cases in section 9 of `contracts/routine-navigator.md`
-- [ ] T036 [P] [US2] Add the layer styles to `css/routines.css` so a child layer covers its parent on a phone width and sits beside it on a desktop width, and reuse the existing `rt-*` classes and the theme tokens
+- [X] T020 [P] [US2] Create `js/appRoute.js` with the pure exports `parseAppRoute`, `buildAppRoute`, `routeUrl`, and `sameRoute`, following the ten rules in section 2 of `contracts/routine-route.md`
+- [X] T021 [P] [US2] Create `js/routineRoute.js` with the pure exports `ROUTINE_ROUTE_ID`, `ROUTINE_PARAM_KEYS`, `parseRoutineRoute`, `buildRoutineParams`, `routeLayer`, `parentRoute`, `routeDepth`, and `resolveRoutineRoute`, following sections 3.1 to 3.5 of `contracts/routine-route.md`
+- [X] T022 [US2] Split `showSection` in `js/main.js` into `applySection(id, { keep })`, which swaps the visible section and runs `stopOtherTools([id, ...keep])` and `initTool(id)` and writes no history, and `showSection(id, skipHash, params)`, which writes the history entry and then calls `applySection`; keep every existing call site working
+- [X] T023 [US2] Add `applyRoute({ id, params, mode })` to `js/main.js`, call it from the boot path, the `popstate` listener, and the `hashchange` listener, use `js/appRoute.js` inside `sectionUrl`, and store `{ musiNav: id, params }` in the history state
+- [X] T024 [US2] Create `js/routineNav.js` with `createRoutineNavigator(config)` per `contracts/routine-navigator.md`, including `applyRoute`, `open`, `back`, `currentRoute`, `currentLayer`, and `destroy`, plus the scroll save and restore, the heading focus with `focus({ preventScroll: true })`, and the shell adapter calls
+- [X] T025 [US2] Build the shell adapter in `js/main.js` with `activateSection`, `pushRoute`, `replaceRoute`, `backToRoute`, `goHome`, and `hasInAppHistory`, and hand the routine parameters to the navigator when the route id is `routines`
+- [X] T026 [US2] Add the routine layer descriptor and the session layer descriptor in `js/routines.js`, drive `selectedRoutineId` and `openSessionId` from the route instead of from click state, and change the `#rt-session-back` handler to call the navigator `back` method
+- [X] T027 [US2] Replace the Home card bridge: change the card handler in `js/home.js` to open the route `#routines?routine=<id>` through the navigator, and delete the `openRoutineById` export from `js/routines.js` that T009 added
+- [X] T028 [US2] Add the four seam exports to `js/workbooks.js` per `contracts/workbook-layer-seam.md`: `openWorkbookForRoute`, `closeWorkbookLayer`, `setWorkbookBackTarget`, and `onWorkbookEntryChange`; make `openWorkbookForRoute` idempotent so a repeated route does not restart playback; read the stored back target every time the render path draws a back control, including inside `buildGpHeaderExtra`
+- [X] T029 [US2] Add the workbook layer descriptor and the exercise layer descriptor in `js/routineNav.js`, request `activateSection('workbooks', { keep: ['routines'] })`, set the back label `← Session`, and show the entry list when the route holds no `exercise` key and the player when it holds one
+- [X] T030 [US2] Add the companion layer in `js/routineNav.js`: resolve the companion through `session.workbookIds` with the `getCompanion` lookup, open that workbook, activate the Tools subview, expand the companion, and make Back return the session layer
+- [X] T031 [US2] Replace the section jump in `js/routines.js`: change the `Practice` control in `renderWorkbooksCard` to call the navigator `open` method with the workbook key, and delete the private `navigateToWorkbooks` helper and the `requestWorkbookOpen` call that it used
+- [X] T032 [US2] Follow the selected entry in `js/routineNav.js`: subscribe with `onWorkbookEntryChange` and ask the shell to replace the address with the new `exercise` value, so a previous, next, or automatic advance adds no history entry
+- [X] T033 [US2] Handle the direct link in `js/routineNav.js`: rebuild every parent layer on a boot apply, and make the visible Musi Back control replace the address with the parent route when `hasInAppHistory()` returns false
+- [X] T034 [US2] Handle an invalid identifier in `js/routineNav.js`: replace the address with the repaired route, show the message `Item not found` on the status element of the deepest valid layer through the routines `setStatus` function, use `#home-status` when the routine identifier itself fails, and clear the message on the next successful apply
+- [X] T035 [US2] Add navigator tests to `tests/routine-nav/run.mjs` with a fake shell and fake layer descriptors that record the call order, and assert the five cases in section 9 of `contracts/routine-navigator.md`
+- [X] T036 [P] [US2] Add the layer styles to `css/routines.css` so a child layer covers its parent on a phone width and sits beside it on a desktop width, and reuse the existing `rt-*` classes and the theme tokens
 
 **Checkpoint**: The layer stack works for every depth. `node tests/routine-nav/run.mjs`
 passes. The manual checks 12 to 22 in `quickstart.md` pass.
@@ -166,14 +166,14 @@ and confirm that `durationMin` survives.
 
 ### Tests for User Story 3
 
-- [ ] T037 [US3] Add session-open tests to `tests/routines/run.mjs`: `setActiveRoutineSession` does not change `completed`; `updateRoutineSession` keeps an existing `durationMin` value when the caller passes other fields; `setRoutineSessionCompleted` changes one routine only and leaves every other routine untouched
+- [X] T037 [US3] Add session-open tests to `tests/routines/run.mjs`: `setActiveRoutineSession` does not change `completed`; `updateRoutineSession` keeps an existing `durationMin` value when the caller passes other fields; `setRoutineSessionCompleted` changes one routine only and leaves every other routine untouched
 
 ### Implementation for User Story 3
 
-- [ ] T038 [US3] Delete the target duration control from `renderMetronomeCard` in `js/routines.js`, which includes the text node `Target duration (min)`, the input with the `aria-label` `Target duration in minutes`, and the placeholder `None`; keep the stored value and keep every metronome control
-- [ ] T039 [US3] Audit `js/routines.js` and `js/routineMetronome.js` for any elapsed display, countdown display, automatic timer start, or time summary, and delete what you find; keep the beat indicator and the `Play` and `Stop` controls
-- [ ] T040 [US3] Remove the total-minutes stat chip from `renderOverview` in `js/routines.js` if it renders `totalMinutes` from `getRoutineStats`, and keep `getRoutineStats` unchanged because the export and the tests use it
-- [ ] T041 [US3] Confirm that no routine layer creates a transient practice-session record: check the mount path of every layer descriptor in `js/routineNav.js` and the session layer mount in `js/routines.js`
+- [X] T038 [US3] Delete the target duration control from `renderMetronomeCard` in `js/routines.js`, which includes the text node `Target duration (min)`, the input with the `aria-label` `Target duration in minutes`, and the placeholder `None`; keep the stored value and keep every metronome control
+- [X] T039 [US3] Audit `js/routines.js` and `js/routineMetronome.js` for any elapsed display, countdown display, automatic timer start, or time summary, and delete what you find; keep the beat indicator and the `Play` and `Stop` controls
+- [X] T040 [US3] Remove the total-minutes stat chip from `renderOverview` in `js/routines.js` if it renders `totalMinutes` from `getRoutineStats`, and keep `getRoutineStats` unchanged because the export and the tests use it
+- [X] T041 [US3] Confirm that no routine layer creates a transient practice-session record: check the mount path of every layer descriptor in `js/routineNav.js` and the session layer mount in `js/routines.js`
 
 **Checkpoint**: No clock appears anywhere in the routine flow. `node tests/routines/run.mjs`
 passes. The manual checks 23 to 27 in `quickstart.md` pass.
@@ -191,17 +191,17 @@ confirm that the app leaves it untouched.
 
 ### Tests for User Story 4
 
-- [ ] T042 [P] [US4] Create `tests/genre-removal/run.mjs` as a source guard: assert that `js/genreProfiles.js`, `js/musicProfile.js`, and `js/studyRecommendations.js` do not exist; assert that no file under `js/` imports them; assert that no file under `js/` reads or writes `profile.music` except the sync passthrough allowlist `js/sync/syncProfile.js`, `js/sync/syncUI.js`, `js/cloud/recordMap.js`, and `js/cloud/reconcile.js`; assert that `index.html` links no `css/study-recs.css`. The suite fails until T043 to T047 complete
+- [X] T042 [P] [US4] Create `tests/genre-removal/run.mjs` as a source guard: assert that `js/genreProfiles.js`, `js/musicProfile.js`, and `js/studyRecommendations.js` do not exist; assert that no file under `js/` imports them; assert that no file under `js/` reads or writes `profile.music` except the sync passthrough allowlist `js/sync/syncProfile.js`, `js/sync/syncUI.js`, `js/cloud/recordMap.js`, and `js/cloud/reconcile.js`; assert that `index.html` links no `css/study-recs.css`. The suite fails until T043 to T047 complete
 
 ### Implementation for User Story 4
 
-- [ ] T043 [US4] Delete the genre blocks from `js/musicPreferences.js`: the `Active profile` banner, `Genre priorities` with `#mp-genre-groups`, `Learning goals` with `#mp-goals`, `Study balance` with `#mp-balance`, `Application preference` with `#mp-apps`, `Pause topics` with `#mp-exclusions`, and `Preview` with `#mp-preview`, plus their painters and the imports of the genre modules; keep `#mp-context-block`, `#mp-volume-block`, `#mp-sync-block`, `#mp-cloud-block`, `#mp-library-cleanup`, and `#mp-features`
-- [ ] T044 [US4] Rewrite the Settings help text in `js/musicPreferences.js` so no sentence mentions a genre, a learning goal, a study balance, or a recommendation
-- [ ] T045 [US4] Delete `js/genreProfiles.js`, `js/musicProfile.js`, and `js/studyRecommendations.js`
-- [ ] T046 [P] [US4] Delete `tests/study-recs/run.mjs`, and rename the test `genre concepts emphasize flat2 / tritone` in `tests/study-lab/run.mjs` so the name matches its concept-to-interval assertion
-- [ ] T047 [US4] Rename the stylesheet with `git mv css/study-recs.css css/settings.css`, delete the genre-only rules from it, which include `.home-rec-*`, `.mp-genre-*`, `.mp-balance*`, `.mp-preview*`, and `.mp-banner*`, keep the shared Settings rules `.mp-block`, `.mp-feature-*`, and `.mp-cleanup-*`, and update the stylesheet link in `index.html`
-- [ ] T048 [P] [US4] Rewrite the `musicprefs` description in `js/tools.js`, because it still reads `Feature visibility, genre priorities, learning goals, and study recommendation balance.`
-- [ ] T049 [US4] Confirm the opaque sync passthrough: keep `profile.music` and `study.progress` in `js/sync/syncProfile.js`, `js/sync/syncUI.js`, `js/cloud/recordMap.js`, and `js/cloud/reconcile.js`, read neither key for behavior, run no migration, and confirm that `node tests/sync/profile.mjs` and `node tests/cloud/run.mjs` pass with no fixture edit
+- [X] T043 [US4] Delete the genre blocks from `js/musicPreferences.js`: the `Active profile` banner, `Genre priorities` with `#mp-genre-groups`, `Learning goals` with `#mp-goals`, `Study balance` with `#mp-balance`, `Application preference` with `#mp-apps`, `Pause topics` with `#mp-exclusions`, and `Preview` with `#mp-preview`, plus their painters and the imports of the genre modules; keep `#mp-context-block`, `#mp-volume-block`, `#mp-sync-block`, `#mp-cloud-block`, `#mp-library-cleanup`, and `#mp-features`
+- [X] T044 [US4] Rewrite the Settings help text in `js/musicPreferences.js` so no sentence mentions a genre, a learning goal, a study balance, or a recommendation
+- [X] T045 [US4] Delete `js/genreProfiles.js`, `js/musicProfile.js`, and `js/studyRecommendations.js`
+- [X] T046 [P] [US4] Delete `tests/study-recs/run.mjs`, and rename the test `genre concepts emphasize flat2 / tritone` in `tests/study-lab/run.mjs` so the name matches its concept-to-interval assertion
+- [X] T047 [US4] Rename the stylesheet with `git mv css/study-recs.css css/settings.css`, delete the genre-only rules from it, which include `.home-rec-*`, `.mp-genre-*`, `.mp-balance*`, `.mp-preview*`, and `.mp-banner*`, keep the shared Settings rules `.mp-block`, `.mp-feature-*`, and `.mp-cleanup-*`, and update the stylesheet link in `index.html`
+- [X] T048 [P] [US4] Rewrite the `musicprefs` description in `js/tools.js`, because it still reads `Feature visibility, genre priorities, learning goals, and study recommendation balance.`
+- [X] T049 [US4] Confirm the opaque sync passthrough: keep `profile.music` and `study.progress` in `js/sync/syncProfile.js`, `js/sync/syncUI.js`, `js/cloud/recordMap.js`, and `js/cloud/reconcile.js`, read neither key for behavior, run no migration, and confirm that `node tests/sync/profile.mjs` and `node tests/cloud/run.mjs` pass with no fixture edit
 
 **Checkpoint**: `node tests/genre-removal/run.mjs` passes. Settings and Study Lab work with
 no genre configuration. The manual checks 28 to 32 in `quickstart.md` pass.
@@ -212,14 +212,14 @@ no genre configuration. The manual checks 28 to 32 in `quickstart.md` pass.
 
 **Purpose**: Ship-readiness work that spans the stories.
 
-- [ ] T050 Update `service-worker.js`: add `js/appRoute.js`, `js/routineRoute.js`, `js/routineDashboardModel.js`, `js/routineNav.js`, and `css/settings.css` to `PRECACHE_URLS`; remove `js/genreProfiles.js`, `js/musicProfile.js`, and `css/study-recs.css`; bump `CACHE_VERSION` to a new string
-- [ ] T051 [P] Update `README.md` where it describes the Home layout or the genre settings
-- [ ] T052 [P] Add one sentence to `docs/supabase-sync-client.md` and `docs/supabase-sync-plan.md` that states `profile.music` is now inert data that sync carries as an opaque key
-- [ ] T053 Run every suite: `node tests/routines/run.mjs`, `node tests/routine-nav/run.mjs`, `node tests/genre-removal/run.mjs`, `node tests/workbooks/run.mjs`, `node tests/study-lab/run.mjs`, `node tests/companions/run.mjs`, `node tests/cloud/run.mjs`, `node tests/sync/profile.mjs`, and `cd cli && node bin/musi.js --help`
-- [ ] T054 Run every manual check in `quickstart.md` in a browser over `python3 -m http.server 8080`, and confirm that the browser error log stays empty on Home, in Settings, and in Study Lab
-- [ ] T055 Run the import and export check in `quickstart.md`, and confirm that `durationMin` survives the round trip and that no screen shows it
-- [ ] T056 Confirm the theme rule from FR-050: the routine cards and the routine layers add no new colour value and no new font family, measured against `css/base.css` and `css/theme-gbc.css`
-- [ ] T057 Delete every temporary debug statement that the implementation added, and confirm that `js/` holds no leftover console call from this work
+- [X] T050 Update `service-worker.js`: add `js/appRoute.js`, `js/routineRoute.js`, `js/routineDashboardModel.js`, `js/routineNav.js`, and `css/settings.css` to `PRECACHE_URLS`; remove `js/genreProfiles.js`, `js/musicProfile.js`, and `css/study-recs.css`; bump `CACHE_VERSION` to a new string
+- [X] T051 [P] Update `README.md` where it describes the Home layout or the genre settings
+- [X] T052 [P] Add one sentence to `docs/supabase-sync-client.md` and `docs/supabase-sync-plan.md` that states `profile.music` is now inert data that sync carries as an opaque key
+- [X] T053 Run every suite: `node tests/routines/run.mjs`, `node tests/routine-nav/run.mjs`, `node tests/genre-removal/run.mjs`, `node tests/workbooks/run.mjs`, `node tests/study-lab/run.mjs`, `node tests/companions/run.mjs`, `node tests/cloud/run.mjs`, `node tests/sync/profile.mjs`, and `cd cli && node bin/musi.js --help`
+- [X] T054 Run every manual check in `quickstart.md` in a browser over `python3 -m http.server 8080`, and confirm that the browser error log stays empty on Home, in Settings, and in Study Lab
+- [X] T055 Run the import and export check in `quickstart.md`, and confirm that `durationMin` survives the round trip and that no screen shows it
+- [X] T056 Confirm the theme rule from FR-050: the routine cards and the routine layers add no new colour value and no new font family, measured against `css/base.css` and `css/theme-gbc.css`
+- [X] T057 Delete every temporary debug statement that the implementation added, and confirm that `js/` holds no leftover console call from this work
 
 ---
 
