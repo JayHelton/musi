@@ -23,14 +23,18 @@ enabled = true
 
 [storage]
 enabled = true
-file_size_limit = "250MiB"
+file_size_limit = "50MiB"
 
 # --- Deployed by GitHub integration on push to main ---
 
+# The bucket limit must stay at or below the limit of the Supabase plan. A free
+# project rejects a larger value, and the whole deploy then stops. Raise this
+# value on a paid plan if you want to sync a bigger file.
+# Musi does not restrict the mime type: the library holds Guitar Pro files,
+# PDFs, images, audio, and video.
 [storage.buckets.attachments]
 public = false
-file_size_limit = "250MiB"
-allowed_mime_types = []
+file_size_limit = "50MiB"
 
 # --- Local development only ---
 
