@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v202-gp-player-dock-fit";
+const CACHE_VERSION = "v203-gp-follow-scroll";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -170,6 +170,7 @@ const PRECACHE_URLS = [
   "js/gpPlayer/tempoRange.js",
   "js/gpPlayer/playerState.js",
   "js/gpPlayer/parchmentView.js",
+  "js/gpPlayer/followScroll.js",
   "js/gpPlayer/loopSelection.js",
   "js/gpPlayer/measureNav.js",
   "js/gpPlayer/transportDock.js",

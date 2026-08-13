@@ -6,11 +6,11 @@ import {
   drumHitLabel,
   drumTabLegendFor,
 } from '../drums/notation.js';
+import { createFollowScrollGuard } from './followScroll.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
 import { layoutScore, LAYOUT_BASE_PX, ONE_BAR_MAX_WIDTH_PX } from './scoreLayout.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
-const USER_SCROLL_COOLDOWN_MS = 2500;
 const LONG_PRESS_MS = 450;
 const NOTE_PAD_START = 9;
 const NOTE_PAD_END = 7;
@@ -178,7 +178,7 @@ export function mountParchmentView(host, {
   let lastActiveBeatKey = '';
   let scoreLayout = null;
   let unitPx = 1;
-  let userScrollUntil = 0;
+  const followGuard = createFollowScrollGuard({ cooldownMs: 2500 });
   let destroyed = false;
 
   let measureEls = [];
@@ -213,9 +213,31 @@ export function mountParchmentView(host, {
     : null;
   if (ro) ro.observe(host);
 
-  viewport.addEventListener('scroll', () => {
-    userScrollUntil = Date.now() + USER_SCROLL_COOLDOWN_MS;
-  }, { passive: true });
+  function onViewportScroll() {
+    followGuard.noteScroll();
+  }
+
+  function onUserScrollGesture() {
+    followGuard.noteUserGesture();
+  }
+
+  function onViewportKeydown(e) {
+    const key = e.key;
+    if (
+      key === 'ArrowUp' || key === 'ArrowDown'
+      || key === 'PageUp' || key === 'PageDown'
+      || key === 'Home' || key === 'End'
+      || key === ' ' || key === 'Space'
+    ) {
+      followGuard.noteUserGesture();
+    }
+  }
+
+  viewport.addEventListener('scroll', onViewportScroll, { passive: true });
+  viewport.addEventListener('wheel', onUserScrollGesture, { passive: true });
+  viewport.addEventListener('touchstart', onUserScrollGesture, { passive: true });
+  viewport.addEventListener('touchmove', onUserScrollGesture, { passive: true });
+  viewport.addEventListener('keydown', onViewportKeydown);
 
   function measures() {
     return model?.measures || [];
@@ -1058,7 +1080,10 @@ export function mountParchmentView(host, {
       pad: topPad,
       maxScrollTop: maxScroll,
     });
-    if (next != null) viewport.scrollTop = next;
+    if (next != null) {
+      followGuard.noteOwnScroll();
+      viewport.scrollTop = next;
+    }
   }
 
   function scrollActiveIntoView(mi) {
@@ -1073,8 +1098,10 @@ export function mountParchmentView(host, {
     const eRect = el.getBoundingClientRect();
     const hPad = 12;
     if (eRect.left < vRect.left + hPad) {
+      followGuard.noteOwnScroll();
       viewport.scrollLeft += eRect.left - vRect.left - hPad;
     } else if (eRect.right > vRect.right - hPad) {
+      followGuard.noteOwnScroll();
       viewport.scrollLeft += eRect.right - vRect.right + hPad;
     }
   }
@@ -1136,7 +1163,7 @@ export function mountParchmentView(host, {
     }
     positionPlayhead(beat, mi);
 
-    if (playing && follow && Date.now() > userScrollUntil) {
+    if (playing && follow && !followGuard.isPaused()) {
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => scrollActiveIntoView(mi));
     }
@@ -1193,7 +1220,7 @@ export function mountParchmentView(host, {
   }
 
   function resumeAutoFollow() {
-    userScrollUntil = 0;
+    followGuard.resume();
     follow = true;
   }
 
@@ -1202,6 +1229,11 @@ export function mountParchmentView(host, {
     clearLongPress();
     cancelAnimationFrame(rafId);
     if (ro) ro.disconnect();
+    viewport.removeEventListener('scroll', onViewportScroll);
+    viewport.removeEventListener('wheel', onUserScrollGesture);
+    viewport.removeEventListener('touchstart', onUserScrollGesture);
+    viewport.removeEventListener('touchmove', onUserScrollGesture);
+    viewport.removeEventListener('keydown', onViewportKeydown);
     host.removeEventListener('pointermove', onPointerMove);
     host.removeEventListener('pointerup', onPointerUp);
     host.removeEventListener('pointercancel', onPointerUp);
