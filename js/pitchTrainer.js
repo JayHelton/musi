@@ -21,6 +21,13 @@ import {
 } from './pitchMetrics.js';
 import { stopTuner, tuner } from './vocalTrainer.js';
 import { runner, stopPitchRunner } from './pitchRunner.js';
+import {
+  recordAttempt,
+  loadAttempts,
+  summarizeAttempts,
+  weakMidiSet,
+  getRegisterBounds,
+} from './pitchProgress.js';
 
 const WINDOW_CENTS = 50;
 const DISPLAY_SMOOTH_MS = 120;
@@ -381,6 +388,8 @@ function pickAdaptiveTarget() {
   const lo = Math.min(pt.rangeLow, pt.rangeHigh);
   const hi = Math.max(pt.rangeLow, pt.rangeHigh);
   const pool = pt.pool.length ? pt.pool : chromaticMidisInRange(lo, hi);
+  const summary = summarizeAttempts(loadAttempts(), getRegisterBounds(pt.customPresets));
+  const boostMidis = weakMidiSet(summary);
 
   if (pt.task === 'interval' && pt.sequence.length) {
     const candidates = [];
@@ -393,7 +402,7 @@ function pickAdaptiveTarget() {
     if (!candidates.length) return;
     const semis = INTERVAL_SEMITONES[pt.intervalId] ?? 2;
     const delta = pt.intervalDirection === 'descending' ? -semis : semis;
-    const target = pickNextCenterMidi(candidates, pt.noteStats);
+    const target = pickNextCenterMidi(candidates, pt.noteStats, boostMidis);
     pt.anchorMidi = target - delta;
     pt.sequence = [target];
     pt.noteIdx = 0;
@@ -401,7 +410,7 @@ function pickAdaptiveTarget() {
   }
 
   if ((pt.task === 'center' || pt.task === 'land') && pool.length) {
-    const target = pickNextCenterMidi(pool, pt.noteStats);
+    const target = pickNextCenterMidi(pool, pt.noteStats, boostMidis);
     pt.sequence = [target];
     pt.noteIdx = 0;
   }
@@ -553,6 +562,71 @@ function recordNoteResult(midi, result) {
   pt.noteStats[midi] = s;
 }
 
+function persistPitchAttempt(result) {
+  if (!result) return;
+  const midi = currentTargetMidi();
+  recordAttempt({
+    timestamp: Date.now(),
+    task: pt.task,
+    targetMidi: midi,
+    profile: pt.profile,
+    holdDurationMs: pt.matcher?.holdMs ?? pt.holdMs,
+    centerErrorCents: result.centerErrorCents,
+    stabilityCents: result.stabilityCents,
+    meanAbsoluteErrorCents: result.meanAbsoluteErrorCents,
+    voicedCoverage: result.voicedCoverage,
+    inTuneCoverage: result.inTuneCoverage,
+    settleTimeMs: result.settleTimeMs,
+    passed: !!result.passed,
+  });
+  renderTrendsPanel();
+}
+
+function renderTrendsPanel() {
+  const panel = el('pt-trends');
+  if (!panel) return;
+  const attempts = loadAttempts();
+  if (!attempts.length) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+    return;
+  }
+
+  const summary = summarizeAttempts(attempts, getRegisterBounds(pt.customPresets));
+  const centerErr = summary.avgAbsCenterError != null
+    ? Math.round(summary.avgAbsCenterError)
+    : '—';
+  const bias = summary.biasCents;
+  let biasLine = 'Bias: centered';
+  if (bias != null && Number.isFinite(bias)) {
+    if (Math.abs(bias) < 0.5) biasLine = 'Bias: centered';
+    else if (bias > 0) biasLine = `Bias: ${Math.round(bias)}\u00A2 sharp`;
+    else biasLine = `Bias: ${Math.round(Math.abs(bias))}\u00A2 flat`;
+  }
+  const stability = summary.avgStability != null
+    ? `\u00B1${Math.round(summary.avgStability)}\u00A2`
+    : '—';
+  const settle = summary.avgSettleMs != null
+    ? `${Math.round(summary.avgSettleMs)} ms`
+    : '—';
+  const passRate = summary.passRate != null
+    ? `${Math.round(summary.passRate * 100)}%`
+    : '—';
+  const weakLabels = summary.weakNotes
+    .slice(0, 5)
+    .map(row => midiToLabel(row.midi).full)
+    .join(', ');
+
+  panel.innerHTML =
+    `<span class="pt-trends-row">Center err: ${centerErr}\u00A2</span>` +
+    `<span class="pt-trends-row">${biasLine}</span>` +
+    `<span class="pt-trends-row">Stability: ${stability}</span>` +
+    `<span class="pt-trends-row">Settle: ${settle}</span>` +
+    `<span class="pt-trends-row">Pass rate: ${passRate}</span>` +
+    (weakLabels ? `<span class="pt-trends-row">Weak: ${weakLabels}</span>` : '');
+  panel.hidden = false;
+}
+
 function formatCenterLine(cents) {
   if (cents == null || !Number.isFinite(cents)) return `Center: ${NO_STABLE_FUNDAMENTAL}`;
   const dir = cents > 0 ? 'sharp' : cents < 0 ? 'flat' : 'centered';
@@ -634,6 +708,7 @@ function onMatched() {
   pt.completed += 1;
   const midi = currentTargetMidi();
   recordNoteResult(midi, result);
+  persistPitchAttempt(result);
   pt.noteConsecutivePasses += 1;
   applyFeedbackVisibility();
   showResultPanel(result);
@@ -650,7 +725,10 @@ function onAttemptFailed() {
   pt.failHandled = true;
   const result = pt.matcher.finalize();
   const midi = currentTargetMidi();
-  if (result) recordNoteResult(midi, result);
+  if (result) {
+    recordNoteResult(midi, result);
+    persistPitchAttempt(result);
+  }
   pt.noteConsecutivePasses = 0;
   applyFeedbackVisibility();
   showResultPanel(result || { failureReason: NO_STABLE_FUNDAMENTAL, passed: false });
@@ -1047,6 +1125,7 @@ function initPitchTrainer() {
     if (!pt.running) rebuildPreviewStage();
     setReplayButtonActive(false);
     applyFeedbackVisibility();
+    renderTrendsPanel();
     return;
   }
   pt.initialized = true;
@@ -1227,6 +1306,7 @@ function initPitchTrainer() {
   updateTaskVisibility();
   rebuildPreviewStage();
   applyFeedbackVisibility();
+  renderTrendsPanel();
 }
 
 window.togglePitchTrainer = togglePitchTrainer;

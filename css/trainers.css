@@ -235,6 +235,9 @@
 .pt-overflow{position:absolute;right:6px;top:4px;font-size:1.1rem;color:var(--warn);z-index:6;font-weight:700;opacity:0;transition:opacity .12s ease}
 .pt-overflow.active{opacity:1}
 .pt-result{margin-top:10px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-screen,16px);font-family:var(--font-ui,"VT323",monospace);font-size:.95rem;color:var(--text);text-align:center;line-height:1.5}
+.pt-trends{width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-screen,16px);font-family:var(--font-ui,"VT323",monospace);font-size:.85rem;color:var(--muted);text-align:left;line-height:1.45}
+.pt-trends b{color:var(--accent);font-weight:600}
+.pt-trends-row{display:block}
 .pt-melody-note{width:100%;margin:-6px 0 4px;font-size:.75rem;color:var(--muted);text-align:left}
 .pt-meter.pt-feedback-reduced .pt-puck{opacity:.65}
 .pt-meter.pt-feedback-result{visibility:hidden;height:0;margin:0;overflow:hidden}

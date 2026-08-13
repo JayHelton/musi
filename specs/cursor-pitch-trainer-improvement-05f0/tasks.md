@@ -353,15 +353,15 @@ Stage 2 until this checkpoint is green.
 - [x] Task 14: Attempt result panel and correction text
 - [x] Task 15: Meter, zones, and visual smoothing
 - [x] Task 16: Feedback progression
-- [ ] Task 17: Timestamp Runner scoring
-- [ ] Task 18: Runner note results
-- [ ] Task 19: Runner tests
+- [x] Task 17: Timestamp Runner scoring
+- [x] Task 18: Runner note results
+- [x] Task 19: Runner tests
 - [ ] Task 20: Raw mono constraints and settings inspect
 - [ ] Task 21: AudioWorklet capture
 - [ ] Task 22: Worker detector and typed-array reuse
 - [ ] Task 23: Detector benchmark and adaptive noise floor
-- [ ] Task 24: Attempt persistence
-- [ ] Task 25: Trends by note and register
+- [x] Task 24: Attempt persistence
+- [x] Task 25: Trends by note and register
 - [ ] Task 26: Mic exclusivity tests
 - [ ] Task 27: Service worker, cache, and manual checklist
 - [ ] Task 28: Full runner and CLI smoke

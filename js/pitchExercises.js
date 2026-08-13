@@ -435,9 +435,11 @@ export function buildSequenceForTask({
  * Pick the next target MIDI from candidates using adaptive note stats.
  * Higher priority for large errors, recent fails, and fewer consecutive passes.
  */
-export function pickNextCenterMidi(candidates, stats = {}) {
+export function pickNextCenterMidi(candidates, stats = {}, boostMidis = []) {
   if (!candidates.length) return null;
   if (candidates.length === 1) return candidates[0];
+
+  const boostSet = new Set(boostMidis || []);
 
   const weights = candidates.map(midi => {
     const s = stats[midi] || { attempts: 0, fails: 0, lastErrorAbs: 0, consecutivePasses: 0 };
@@ -447,6 +449,7 @@ export function pickNextCenterMidi(candidates, stats = {}) {
     if (s.consecutivePasses >= 2) score *= 0.2;
     else if (s.consecutivePasses === 1) score *= 0.6;
     score += Math.max(0, 3 - s.attempts) * 0.5;
+    if (boostSet.has(midi)) score += 3;
     return Math.max(0.05, score);
   });
 
