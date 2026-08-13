@@ -356,12 +356,14 @@ Stage 2 until this checkpoint is green.
 - [x] Task 17: Timestamp Runner scoring
 - [x] Task 18: Runner note results
 - [x] Task 19: Runner tests
-- [ ] Task 20: Raw mono constraints and settings inspect
-- [ ] Task 21: AudioWorklet capture
-- [ ] Task 22: Worker detector and typed-array reuse
-- [ ] Task 23: Detector benchmark and adaptive noise floor
+- [x] Task 20: Raw mono constraints and settings inspect
+- [x] Task 21: AudioWorklet capture
+- [x] Task 22: Worker detector and typed-array reuse
+- [x] Task 23: Detector benchmark and adaptive noise floor
 - [x] Task 24: Attempt persistence
 - [x] Task 25: Trends by note and register
-- [ ] Task 26: Mic exclusivity tests
-- [ ] Task 27: Service worker, cache, and manual checklist
-- [ ] Task 28: Full runner and CLI smoke
+- [x] Task 26: Mic exclusivity tests
+- [x] Task 27: Service worker, cache, and manual checklist
+- [x] Task 28: Full runner and CLI smoke
+
+Manual device checks in `manual-checklist.md` are **not complete**. All items stay unchecked until a real device test runs.

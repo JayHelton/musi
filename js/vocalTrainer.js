@@ -4,14 +4,16 @@ import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext } from './musicalContext.js';
 import { SCALES } from './scales.js';
 import { createPitchTracker } from './pitch.js';
-import { pt, stopPitchTrainer } from './pitchTrainer.js';
-import { runner, stopPitchRunner } from './pitchRunner.js';
+import {
+  inspectTrackSettings,
+  registerPitchMicStop,
+  stopOtherPitchMicTools,
+} from './pitchMic.js';
 
 // Ensure the other mic-driven tools in this section release the microphone
 // before the tuner grabs it.
 function stopPitchTrainerIfRunning() {
-  if (pt && pt.running) stopPitchTrainer();
-  if (runner && runner.running) stopPitchRunner();
+  stopOtherPitchMicTools('tuner');
 }
 
 const tuner = {
@@ -26,6 +28,7 @@ const tuner = {
   scalePlaying: false,
   scaleVoices: [],
   scaleTimers: [],
+  trackSettings: null,
 };
 
 function tunerLoop() {
@@ -62,18 +65,20 @@ function tunerLoop() {
 
 // Mic constraints tuned for focusing on a single nearby voice: browser noise
 // suppression and echo cancellation help reject room/background noise and
-// speaker bleed, while a mono channel keeps the pitch analysis clean. The
-// clarity gate in the tracker is level-independent, so auto gain control is
-// harmless and helps quiet singers register.
+// speaker bleed when the user listens through speakers. A tuner with speakers
+// needs AEC so the reference tone does not mask the mic input. The clarity gate
+// in the tracker is level-independent, so auto gain control is harmless.
 function buildTunerConstraints() {
-  return {
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      channelCount: 1,
-    },
-  };
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getSupportedConstraints) {
+    return { audio: true };
+  }
+  const supported = navigator.mediaDevices.getSupportedConstraints();
+  const audio = {};
+  if (supported.echoCancellation) audio.echoCancellation = true;
+  if (supported.noiseSuppression) audio.noiseSuppression = true;
+  if (supported.autoGainControl) audio.autoGainControl = true;
+  if (supported.channelCount) audio.channelCount = 1;
+  return Object.keys(audio).length ? { audio } : { audio: true };
 }
 
 async function startTuner() {
@@ -87,6 +92,7 @@ async function startTuner() {
       // Some devices reject specific constraints; fall back to a plain request.
       tuner.stream = await requestMicStream({ audio: true });
     }
+    tuner.trackSettings = inspectTrackSettings(tuner.stream);
     const source = audioCtx.createMediaStreamSource(tuner.stream);
     tuner.analyser = audioCtx.createAnalyser();
     // A larger window gives the autocorrelation enough periods to lock onto low
@@ -414,6 +420,7 @@ function initTuner() {
 
   refreshScaleControls();
   subscribeContext(refreshScaleControls);
+  registerPitchMicStop('tuner', stopTuner);
 }
 
 window.toggleTuner = toggleTuner;
