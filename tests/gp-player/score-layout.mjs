@@ -6,7 +6,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseGuitarPro } from '../../js/tab/guitarPro.js';
-import { layoutScore } from '../../js/gpPlayer/scoreLayout.js';
+import {
+  fitScaleForBar,
+  layoutScore,
+  ROW_CHROME_UNITS,
+  scaleThatFits,
+} from '../../js/gpPlayer/scoreLayout.js';
 import { makeFixtures } from './fixtures/makeFixtures.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -109,6 +114,57 @@ async function layoutForFixture(name, extraOptions = {}) {
     ...extraOptions,
   });
   return { model, layout };
+}
+
+function availableWidthPx(widthPx) {
+  return Math.max(100, widthPx - ROW_CHROME_UNITS);
+}
+
+function denseTwoDigitSixteenthModel() {
+  const beats = Array.from({ length: 16 }, (_, i) => ({
+    measureIndex: 0,
+    voiceIndex: 0,
+    start: i * 0.25,
+    duration: 0.25,
+    noteValue: 16,
+    dots: 0,
+    tuplet: null,
+    rest: false,
+    noteIndices: [i],
+  }));
+  const events = beats.map((beat, i) => ({
+    start: i * 0.25,
+    stringIndex: 0,
+    fret: 12,
+    dead: false,
+    duration: 0.25,
+  }));
+  return {
+    tuning: 'Standard',
+    strings: [
+      { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+    ],
+    events,
+    beats,
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+}
+
+function layoutForModel(model, extraOptions = {}) {
+  return layoutScore(model, {
+    widthPx: 900,
+    zoom: 1,
+    showRhythm: true,
+    showNotationStaff: false,
+    drumMode: false,
+    minFretFontPx: 12,
+    ...extraOptions,
+  });
 }
 
 ensureFixtures();
@@ -248,6 +304,9 @@ let techniqueReport = null;
     for (const widthPx of [360, 414, 900, 1600]) {
       const { layout } = await layoutForFixture(name, { widthPx });
       for (const bar of layout.bars) {
+        if (bar.minWidthUnits > bar.widthUnits + 0.01) {
+          continue;
+        }
         const notes = bar.glyphs
           .filter((g) => noteKinds.has(g.kind))
           .sort((a, b) => a.y - b.y || a.x - b.x);
@@ -300,6 +359,69 @@ let techniqueReport = null;
       }
     }
   }
+}
+
+// A dense bar must fit a narrow row, and minWidthUnits must stay stable.
+{
+  const model = denseTwoDigitSixteenthModel();
+  const narrowWidthPx = 340;
+  const narrow = layoutForModel(model, { widthPx: narrowWidthPx });
+  const wide = layoutForModel(model, { widthPx: 1600 });
+  const rowWidth = availableWidthPx(narrowWidthPx);
+
+  for (const bar of narrow.bars) {
+    assert.ok(
+      bar.widthUnits <= rowWidth + 0.01,
+      `bar ${bar.barIndex} width (${bar.widthUnits}) must fit row (${rowWidth})`,
+    );
+    assert.ok(
+      bar.minWidthUnits >= bar.widthUnits,
+      `bar ${bar.barIndex} minWidthUnits (${bar.minWidthUnits}) must be >= widthUnits (${bar.widthUnits})`,
+    );
+    assert.ok(bar.widthUnits >= 96, 'bar width must stay above MIN_BAR_UNITS');
+  }
+
+  for (const sys of narrow.systems) {
+    let sum = 0;
+    for (const idx of sys.barIndices) {
+      sum += narrow.bars[idx].widthUnits;
+    }
+    assert.ok(
+      sum <= sys.widthPx + 0.01,
+      `system bar widths (${sum}) must fit system width (${sys.widthPx})`,
+    );
+  }
+
+  assert.equal(
+    narrow.bars[0].minWidthUnits,
+    wide.bars[0].minWidthUnits,
+    'minWidthUnits must not change when widthPx changes',
+  );
+
+  assert.ok(
+    narrow.bars[0].widthUnits < wide.bars[0].widthUnits,
+    'a dense bar at a narrow width must be narrower than at a wide width',
+  );
+}
+
+// fitScaleForBar and scaleThatFits
+{
+  assert.equal(fitScaleForBar({ availablePx: 0, barUnits: 400 }), null);
+  assert.equal(fitScaleForBar({ availablePx: 500, barUnits: 0 }), null);
+
+  const fit = fitScaleForBar({ availablePx: 500, barUnits: 400, chromeUnits: 32 });
+  assert.ok(Math.abs(fit - (500 / 432)) < 1e-9, `fitScaleForBar plain case is ${fit}, want ${500 / 432}`);
+
+  const held = scaleThatFits({
+    availablePx: 500,
+    barUnits: 400,
+    desiredScale: 2,
+    minScale: 1,
+    chromeUnits: 32,
+  });
+  assert.ok(held <= 2, 'scaleThatFits must not exceed desiredScale');
+  assert.ok(held >= 1, 'scaleThatFits must not fall below minScale');
+  assert.ok(Math.abs(held - fit) < 1e-9, 'scaleThatFits must hold a large desired scale down to fit');
 }
 
 console.log('gp-player score-layout: ok');

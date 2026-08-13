@@ -275,6 +275,7 @@ export function mountGpPlayer(host, {
   let highlightedAnnoId = null;
   let noteSelectActive = false;
   let showStandardNotation = !!initialShowStandardNotation;
+  let parchmentZoomLimit = Infinity;
   let reducedMotion = false;
   let reducedMotionMq = null;
   let reducedMotionHandler = null;
@@ -1130,7 +1131,18 @@ export function mountGpPlayer(host, {
     onSelectionChange: (sel) => {
       loopController?.handleSelectionChange(sel);
     },
+    onZoomLimit: (limit) => {
+      if (limit === parchmentZoomLimit) return;
+      parchmentZoomLimit = limit;
+      settingsDrawer?.sync?.();
+    },
   });
+  if (typeof parchment?.getZoomLimit === 'function') {
+    const seeded = parchment.getZoomLimit();
+    if (typeof seeded === 'number' && Number.isFinite(seeded)) {
+      parchmentZoomLimit = seeded;
+    }
+  }
 
   loopController = createLoopSelectionController({
     getState: () => state,
@@ -1296,6 +1308,7 @@ export function mountGpPlayer(host, {
       uidPrefix,
       onChange: onSettingsChange,
       getShowNotation: () => showStandardNotation,
+      getZoomLimit: () => parchmentZoomLimit,
     });
   } catch (e) {
     console.error(e);
@@ -1792,6 +1805,7 @@ export function mountGpPlayer(host, {
       stateController.destroy();
       player.destroy();
       parchment?.destroy();
+      parchmentZoomLimit = Infinity;
       measureNav?.destroy();
       transport?.destroy();
       practiceRail?.destroy();

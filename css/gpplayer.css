@@ -1712,6 +1712,12 @@
   text-transform: uppercase;
   color: var(--accent);
 }
+.gpp-zoom-limit-note {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
 .gpp-control-row {
   display: flex;
   align-items: center;

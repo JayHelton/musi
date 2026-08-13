@@ -27,6 +27,7 @@ const PAGES = [
   'realtime-dropouts.html',
   'realtime-ui-jank.html',
   'follow-scroll.html',
+  'zoom-overflow.html',
 ];
 
 const argvPages = process.argv.slice(2);

@@ -8,7 +8,13 @@ import {
 } from '../drums/notation.js';
 import { createFollowScrollGuard } from './followScroll.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
-import { layoutScore, LAYOUT_BASE_PX, ONE_BAR_MAX_WIDTH_PX } from './scoreLayout.js';
+import {
+  fitScaleForBar,
+  layoutScore,
+  LAYOUT_BASE_PX,
+  ONE_BAR_MAX_WIDTH_PX,
+  scaleThatFits,
+} from './scoreLayout.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
 const LONG_PRESS_MS = 450;
@@ -29,6 +35,10 @@ const AUTO_SCALE_WIDTH_1600 = 1600;
 const AUTO_SCALE_AT_900 = 1.2;
 const AUTO_SCALE_AT_1200 = 1.35;
 const AUTO_SCALE_AT_1600 = 1.5;
+// The floor keeps the fret text at the base size.
+const MIN_FIT_SCALE = 1;
+// A measure border sits outside the width the flex row assigns.
+const ROW_EDGE_INSET_PX = 4;
 
 function previewAnnoText(text, max = 56) {
   const t = (text || '').trim().replace(/\s+/g, ' ');
@@ -143,6 +153,7 @@ export function mountParchmentView(host, {
   loopSelectMode = false,
   noteSelectMode = false,
   autoFollow = true,
+  onZoomLimit = null,
 } = {}) {
   const noop = {
     update() {},
@@ -155,6 +166,7 @@ export function mountParchmentView(host, {
     setShowStandardNotation() {},
     setActivePosition() {},
     resumeAutoFollow() {},
+    getZoomLimit() { return 1; },
     destroy() {},
   };
   if (!host) return noop;
@@ -200,6 +212,10 @@ export function mountParchmentView(host, {
   let longPressTimer = null;
   let longPressTarget = null;
   let suppressClickUntil = 0;
+  let zoomLimit = Infinity;
+  let reportedZoomLimit = null;
+  let lastBuildLayoutWidthPx = 0;
+  let lastBuildHostW = 0;
 
   const viewport = document.createElement('div');
   viewport.className = 'gpp-parch-viewport';
@@ -208,10 +224,44 @@ export function mountParchmentView(host, {
   viewport.appendChild(sheet);
   host.appendChild(viewport);
 
+  function measureLayoutWidthPx() {
+    const raw = viewport?.clientWidth;
+    if (typeof getComputedStyle === 'function' && viewport && raw > 0) {
+      const style = getComputedStyle(viewport);
+      const padL = parseFloat(style.paddingLeft) || 0;
+      const padR = parseFloat(style.paddingRight) || 0;
+      const w = raw - padL - padR;
+      if (Number.isFinite(w) && w > 20) return w;
+    }
+    return host.clientWidth || 600;
+  }
+
+  function reportZoomLimitIfChanged(limit) {
+    const rounded = limit === Infinity ? Infinity : Math.round(limit * 100) / 100;
+    zoomLimit = rounded;
+    if (typeof onZoomLimit === 'function' && rounded !== reportedZoomLimit) {
+      reportedZoomLimit = rounded;
+      onZoomLimit(rounded);
+    }
+  }
+
   const ro = typeof ResizeObserver !== 'undefined'
-    ? new ResizeObserver(() => rebuild())
+    ? new ResizeObserver(() => {
+      const hostWNow = host.clientWidth || 0;
+      const layoutWNow = measureLayoutWidthPx();
+      if (
+        Math.abs(hostWNow - lastBuildHostW) <= 1
+        && Math.abs(layoutWNow - lastBuildLayoutWidthPx) <= 1
+      ) {
+        return;
+      }
+      rebuild();
+    })
     : null;
-  if (ro) ro.observe(host);
+  if (ro) {
+    ro.observe(host);
+    ro.observe(viewport);
+  }
 
   function onViewportScroll() {
     followGuard.noteScroll();
@@ -536,20 +586,19 @@ export function mountParchmentView(host, {
     lastActiveBeatKey = '';
 
     const ms = measures();
-    if (!ms.length) return;
-
     const hostW = host.clientWidth || 600;
-    const scale = effectiveScale(hostW, currentZoom);
-    sheet.style.setProperty('--gpp-scale', String(scale));
-    const layoutFontPx = Math.max(12, Math.round(LAYOUT_BASE_PX * scale));
-    sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * scale))}px`);
-    sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * scale))}px`);
+    const layoutWidthRawPx = measureLayoutWidthPx();
+    const layoutWidthPx = layoutWidthRawPx - ROW_EDGE_INSET_PX;
+    lastBuildHostW = hostW;
+    lastBuildLayoutWidthPx = layoutWidthRawPx;
 
-    // The layout works in units. One unit becomes `scale` pixels on screen.
-    // Pass the width in units, so the layout can fill the row exactly, and
-    // draw the text at the same scale as the glyph boxes. When the two used
-    // different scales, the fret numbers grew past their boxes and ran into
-    // each other and into the rhythm ticks.
+    if (!ms.length) {
+      reportZoomLimitIfChanged(Infinity);
+      return;
+    }
+
+    const desired = effectiveScale(hostW, currentZoom);
+
     // The one measure per row rule follows the real screen, not the measured
     // host and not the zoom. A container can report a width that does not
     // match the device, and the learner still holds a phone.
@@ -557,15 +606,57 @@ export function mountParchmentView(host, {
       ? window.innerWidth
       : hostW;
     const onePerRow = Math.min(viewportW, hostW) <= ONE_BAR_MAX_WIDTH_PX;
-    scoreLayout = layoutScore(model, {
-      widthPx: hostW / scale,
-      zoom: 1,
-      showNotationStaff: showNotation,
-      showRhythm,
-      drumMode: isDrum,
-      minFretFontPx: LAYOUT_BASE_PX,
-      maxMeasuresPerSystem: onePerRow ? 1 : undefined,
+
+    // The layout works in units. One unit becomes `scale` pixels on screen.
+    // Pass the width in units, so the layout can fill the row exactly, and
+    // draw the text at the same scale as the glyph boxes. When the two used
+    // different scales, the fret numbers grew past their boxes and ran into
+    // each other and into the rhythm ticks.
+    function buildLayoutAtScale(scale) {
+      return layoutScore(model, {
+        widthPx: layoutWidthPx / scale,
+        zoom: 1,
+        showNotationStaff: showNotation,
+        showRhythm,
+        drumMode: isDrum,
+        minFretFontPx: LAYOUT_BASE_PX,
+        maxMeasuresPerSystem: onePerRow ? 1 : undefined,
+      });
+    }
+
+    let scale = desired;
+    scoreLayout = buildLayoutAtScale(scale);
+
+    let widestMinUnits = 0;
+    for (const bar of scoreLayout.bars) {
+      const minUnits = bar.minWidthUnits ?? bar.widthUnits;
+      if (minUnits > widestMinUnits) widestMinUnits = minUnits;
+    }
+
+    const fittedScale = scaleThatFits({
+      availablePx: layoutWidthPx,
+      barUnits: widestMinUnits,
+      desiredScale: desired,
+      minScale: MIN_FIT_SCALE,
     });
+    if (fittedScale !== scale) {
+      scale = fittedScale;
+      scoreLayout = buildLayoutAtScale(scale);
+    }
+
+    const fit = widestMinUnits > 0
+      ? fitScaleForBar({ availablePx: layoutWidthPx, barUnits: widestMinUnits })
+      : null;
+    const limit = fit == null
+      ? Infinity
+      : Math.max(MIN_FIT_SCALE, fit) / autoScaleForHostWidth(hostW);
+    reportZoomLimitIfChanged(limit);
+
+    sheet.style.setProperty('--gpp-scale', String(scale));
+    const layoutFontPx = Math.max(12, Math.round(LAYOUT_BASE_PX * scale));
+    sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * scale))}px`);
+    sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * scale))}px`);
+
     unitPx = scale;
     sheet.style.fontSize = `${Math.max(12, Math.round(scoreLayout.fontPx * scale))}px`;
     void layoutFontPx;
@@ -1224,6 +1315,10 @@ export function mountParchmentView(host, {
     follow = true;
   }
 
+  function getZoomLimit() {
+    return zoomLimit;
+  }
+
   function destroy() {
     destroyed = true;
     clearLongPress();
@@ -1254,6 +1349,7 @@ export function mountParchmentView(host, {
     setShowStandardNotation,
     setActivePosition,
     resumeAutoFollow,
+    getZoomLimit,
     destroy,
   };
 }

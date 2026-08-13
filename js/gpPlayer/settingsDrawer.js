@@ -27,6 +27,7 @@ export function mountSettingsDrawer(host, {
   onChange,
   uidPrefix = 'gpp',
   getShowNotation = () => false,
+  getZoomLimit = () => Infinity,
 } = {}) {
   const noop = {
     open() {},
@@ -108,6 +109,41 @@ export function mountSettingsDrawer(host, {
   const controlsBody = el('div', { class: 'gpp-settings-body' });
   let controls = null;
 
+  function zoomLimitMaxPct() {
+    let limit = Infinity;
+    try {
+      const raw = getZoomLimit?.();
+      if (typeof raw === 'number' && Number.isFinite(raw)) limit = raw;
+    } catch (e) { /* no limit */ }
+    if (limit === Infinity) return 250;
+    const pct = Math.floor(limit * 100);
+    return Math.max(75, Math.min(250, pct));
+  }
+
+  function applyZoomLimit() {
+    if (!controls?.zoomInput) return;
+    const maxPct = zoomLimitMaxPct();
+    controls.zoomInput.max = String(maxPct);
+    const curPct = Number(controls.zoomInput.value) || 100;
+    if (curPct > maxPct) {
+      controls.zoomInput.value = String(maxPct);
+      controls.zoomPct.textContent = `${maxPct}%`;
+      stateController.setParchmentZoom(maxPct / 100);
+      onChange?.({ zoom: true });
+    } else {
+      controls.zoomPct.textContent = `${controls.zoomInput.value}%`;
+    }
+    if (controls.zoomLimitNote) {
+      if (maxPct < 250) {
+        controls.zoomLimitNote.textContent =
+          `Zoom stops at ${maxPct}%, so the score fits the width.`;
+        controls.zoomLimitNote.hidden = false;
+      } else {
+        controls.zoomLimitNote.hidden = true;
+      }
+    }
+  }
+
   function buildControls() {
     controlsBody.innerHTML = '';
 
@@ -131,6 +167,7 @@ export function mountSettingsDrawer(host, {
       'aria-label': 'Score zoom percent',
     });
     const zoomPct = el('span', { class: 'gpp-pct', text: '100%' });
+    const zoomLimitNote = el('div', { class: 'gpp-zoom-limit-note', hidden: true });
     const zoomPresets = el('div', { class: 'gpp-control-row' });
     [100, 150, 200].forEach((pct) => {
       zoomPresets.appendChild(el('button', {
@@ -162,6 +199,7 @@ export function mountSettingsDrawer(host, {
           el('span', { class: 'gpp-control-label', text: 'Zoom' }),
           el('div', { class: 'gpp-control-row' }, [zoomInput, zoomPct]),
           zoomPresets,
+          zoomLimitNote,
         ]),
         el('label', { class: 'gpp-check', for: ids.autoFollow }, [
           autoFollowCheck, el('span', { text: 'Auto-follow playback' }),
@@ -235,7 +273,7 @@ export function mountSettingsDrawer(host, {
 
     return {
       restInput, transposeInput, tuningSelect, retuneFinger, retunePitch,
-      zoomInput, zoomPct, autoFollowCheck, notationCheck, pitchSection, scoreSection,
+      zoomInput, zoomPct, zoomLimitNote, autoFollowCheck, notationCheck, pitchSection, scoreSection,
     };
   }
 
@@ -253,7 +291,9 @@ export function mountSettingsDrawer(host, {
   }
 
   function setZoomPct(pct) {
-    stateController.setParchmentZoom(pct / 100);
+    const maxPct = zoomLimitMaxPct();
+    const clamped = Math.min(Number(pct) || 100, maxPct);
+    stateController.setParchmentZoom(clamped / 100);
     onChange?.({ zoom: true });
     sync();
   }
@@ -285,7 +325,7 @@ export function mountSettingsDrawer(host, {
     controls.retuneFinger.checked = st.retuneMode !== 'pitches';
     controls.retunePitch.checked = st.retuneMode === 'pitches';
     controls.zoomInput.value = String(Math.round(st.parchmentZoom * 100));
-    controls.zoomPct.textContent = `${controls.zoomInput.value}%`;
+    applyZoomLimit();
     controls.autoFollowCheck.checked = !!st.autoFollow;
     controls.notationCheck.checked = !!getShowNotation();
     if (controls.pitchSection) controls.pitchSection.hidden = st.viewKind !== 'guitar';

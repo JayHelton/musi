@@ -56,6 +56,9 @@ const VIEWPORT_PAD = 12;
 // rhythm tick below it. Each beat column therefore keeps a clear gap after
 // its widest text.
 const MIN_COL_GAP_UNITS = 9;
+// A row that cannot hold the ideal gap gives gap space up first. The floor
+// still keeps a space between two fret numbers.
+const MIN_COL_GAP_FLOOR_UNITS = 3;
 const CHAR_WIDTH_RATIO = 0.62;
 // A phone screen holds one measure per row. Two measures on a 360 CSS pixel
 // screen leave about 160 pixels for each bar, and the fret numbers then run
@@ -99,6 +102,7 @@ function defaultOptions(options = {}) {
     tuningLabel: options.tuningLabel ?? '',
     maxMeasuresPerSystem: Math.max(1, Math.floor(maxPerSystem)),
     minContentUnits: Number(options.minContentUnits) || 0,
+    maxContentUnits: Number(options.maxContentUnits) || 0,
   };
 }
 
@@ -241,6 +245,19 @@ function buildBarSlice(model, barIndex) {
     strings: model.strings || [],
     tuningLabel,
   };
+}
+
+/** Content width for one bar at a given column gap. */
+function barContentWidth(cols, measureLen, charUnits, colGapUnits, minContentUnits, minRelGap) {
+  const colUnits = charUnits + colGapUnits;
+  return Math.max(
+    MIN_BAR_UNITS - BAR_PAD_START - BAR_PAD_END,
+    measureLen * UNITS_PER_QUARTER,
+    cols.reduce((w, c) => w + Math.max(c.width * UNITS_PER_QUARTER, colUnits), 0),
+    cols.length * colUnits,
+    minRelGap > 0 ? Math.min(colUnits / minRelGap, MAX_BAR_CONTENT_UNITS) : 0,
+    minContentUnits,
+  );
 }
 
 /** The smallest distance between two column starts, as a fraction of a bar. */
@@ -857,20 +874,43 @@ export function layoutBar(bar, options = {}) {
   // Without that gap a two digit fret runs into the next one, and the tail of
   // the number sits on top of the rhythm tick below it.
   const charUnits = maxChars * (geoPx * CHAR_WIDTH_RATIO);
-  const colUnits = charUnits + MIN_COL_GAP_UNITS;
   // The glyphs sit at a position that follows the written time, so the
   // closest pair of columns decides the width. A bar with a triplet needs
   // more room than the note count alone suggests.
   const minRelGap = smallestRelGap(cols);
-  const contentW = Math.max(
-    MIN_BAR_UNITS - BAR_PAD_START - BAR_PAD_END,
-    measureLen * UNITS_PER_QUARTER,
-    cols.reduce((w, c) => w + Math.max(c.width * UNITS_PER_QUARTER, colUnits), 0),
-    cols.length * colUnits,
-    minRelGap > 0 ? Math.min(colUnits / minRelGap, MAX_BAR_CONTENT_UNITS) : 0,
-    opts.minContentUnits,
+  const colCount = Math.max(1, cols.length);
+  let colGapUnits = MIN_COL_GAP_UNITS;
+  if (opts.maxContentUnits > 0) {
+    const thatFitGap = opts.maxContentUnits / colCount - charUnits;
+    colGapUnits = Math.max(
+      MIN_COL_GAP_FLOOR_UNITS,
+      Math.min(MIN_COL_GAP_UNITS, thatFitGap),
+    );
+  }
+  const idealContentW = barContentWidth(
+    cols,
+    measureLen,
+    charUnits,
+    MIN_COL_GAP_UNITS,
+    0,
+    minRelGap,
   );
+  let contentW = barContentWidth(
+    cols,
+    measureLen,
+    charUnits,
+    colGapUnits,
+    opts.minContentUnits,
+    minRelGap,
+  );
+  if (opts.maxContentUnits > 0) {
+    contentW = Math.max(
+      MIN_BAR_UNITS - BAR_PAD_START - BAR_PAD_END,
+      Math.min(contentW, opts.maxContentUnits),
+    );
+  }
   const widthUnits = BAR_PAD_START + contentW + BAR_PAD_END;
+  const minWidthUnits = BAR_PAD_START + idealContentW + BAR_PAD_END;
 
   for (const lane of lanes) lane.w = widthUnits;
 
@@ -905,6 +945,7 @@ export function layoutBar(bar, options = {}) {
   return {
     barIndex: opts.barIndex,
     widthUnits,
+    minWidthUnits,
     fontPx,
     lanes,
     glyphs,
@@ -962,6 +1003,10 @@ export function layoutScore(model, options = {}) {
   const minContentUnits = opts.maxMeasuresPerSystem === 1
     ? Math.max(0, availableWidthPx(opts.widthPx) - BAR_PAD_START - BAR_PAD_END)
     : opts.minContentUnits;
+  const maxContentUnits = Math.max(
+    0,
+    availableWidthPx(opts.widthPx) - BAR_PAD_START - BAR_PAD_END,
+  );
 
   const bars = [];
   let prevTimeSig = null;
@@ -970,6 +1015,7 @@ export function layoutScore(model, options = {}) {
     const barLayout = layoutBar(slice, {
       ...opts,
       minContentUnits,
+      maxContentUnits,
       barIndex: i,
       prevTimeSig,
       tuningLabel: slice.tuningLabel,
@@ -984,4 +1030,38 @@ export function layoutScore(model, options = {}) {
   return { bars, systems, fontPx, warnings };
 }
 
-export { RHYTHM_KINDS, LANE_NAMES, TECHNIQUE_ARIA, LAYOUT_BASE_PX, ONE_BAR_MAX_WIDTH_PX };
+export const ROW_CHROME_UNITS = VIEWPORT_PAD + GUTTER_UNITS;
+
+/**
+ * The largest view scale at which a bar of `barUnits` fits `availablePx`.
+ * @returns {number|null} null when the inputs cannot give an answer
+ */
+export function fitScaleForBar({ availablePx, barUnits, chromeUnits = ROW_CHROME_UNITS }) {
+  if (!Number.isFinite(availablePx) || availablePx <= 0) return null;
+  if (!Number.isFinite(barUnits) || barUnits <= 0) return null;
+  return availablePx / (barUnits + chromeUnits);
+}
+
+/**
+ * The scale the view must use: the scale it wants, held down to the scale that
+ * fits, and never below `minScale`.
+ */
+export function scaleThatFits({
+  availablePx,
+  barUnits,
+  desiredScale,
+  minScale = 1,
+  chromeUnits = ROW_CHROME_UNITS,
+}) {
+  const fit = fitScaleForBar({ availablePx, barUnits, chromeUnits });
+  if (fit === null) return desiredScale;
+  return Math.min(desiredScale, Math.max(minScale, fit));
+}
+
+export {
+  RHYTHM_KINDS,
+  LANE_NAMES,
+  TECHNIQUE_ARIA,
+  LAYOUT_BASE_PX,
+  ONE_BAR_MAX_WIDTH_PX,
+};

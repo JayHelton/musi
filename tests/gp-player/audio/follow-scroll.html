@@ -44,6 +44,7 @@
     const PLAY_SEC = 12;
     const PIN_PAD_PX = 16;
     const AUTO_FOLLOW_KEY = 'musi.gpAutoFollow';
+    const ZOOM_KEY = 'musi.gpParchmentZoom';
     const MAX_LONGEST_LAG_MS = 400;
     const MAX_WORST_LAG_ROWS = 1.5;
     const MIN_BARS_PLAYED = 4;
@@ -141,6 +142,10 @@
     runMain(async () => {
       forceFullMotion();
       localStorage.setItem(AUTO_FOLLOW_KEY, 'true');
+      // Another harness page shares this browser profile and stores its own
+      // zoom. Start from 100 percent, so the row height stays the same on
+      // every run.
+      localStorage.setItem(ZOOM_KEY, '1');
       writeln(`auto-follow localStorage key: ${AUTO_FOLLOW_KEY}`);
 
       const { mountGpPlayer } = await import('/js/gpPlayerUI.js');

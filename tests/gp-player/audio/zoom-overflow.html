@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player zoom overflow</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    #host { width: 420px; height: 500px; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Measure horizontal overflow in the score viewport at each zoom step.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+
+    const BARS = 12;
+    const HOST_WIDTHS = [420, 1200];
+    const HOST_HEIGHT = 500;
+    const ZOOM_STEPS = [75, 100, 125, 150, 175, 200, 225, 250];
+    const MAX_OVERFLOW_PX = 1;
+    const LAYOUT_WAIT_MS = 250;
+    const INITIAL_WAIT_MS = 600;
+
+    function makeGpResult(barCount) {
+      const strings = [
+        { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+        { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+        { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+        { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+        { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+        { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+      ];
+      const events = [];
+      const measures = [];
+      for (let bar = 0; bar < barCount; bar += 1) {
+        measures.push({
+          startSlot: bar * 4,
+          endSlot: bar * 4 + 4,
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          timeSig: [4, 4],
+        });
+        for (let n = 0; n < 16; n += 1) {
+          const fret = 10 + (n % 10);
+          events.push({
+            slot: bar * 4 + Math.floor(n / 4),
+            stringIndex: 5,
+            fret,
+            midi: 40 + fret,
+            pc: (40 + fret) % 12,
+            dead: false,
+            start: bar * 4 + n * 0.25,
+            duration: 0.25,
+            techniques: [],
+          });
+        }
+      }
+      return {
+        tempo: 120,
+        tracks: [{
+          index: 0,
+          name: 'Guitar',
+          tuning: 'Standard',
+          noteCount: events.length,
+          model: {
+            tuning: 'Standard',
+            strings,
+            events,
+            measures,
+            slots: barCount * 4,
+            tempo: 120,
+            totalBeats: barCount * 4,
+            techniqueCounts: {},
+            warnings: [],
+          },
+        }],
+        drumTracks: [],
+      };
+    }
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function setZoomPercent(pct) {
+      const slider = document.querySelector('.gpp-slider[aria-label="Score zoom percent"]');
+      if (!slider) throw new Error('zoom slider missing');
+      slider.value = String(pct);
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function measureLayout() {
+      const viewport = document.querySelector('.gpp-parch-viewport');
+      const sheet = document.querySelector('.gpp-parch-sheet');
+      if (!viewport) return { error: 'gpp-parch-viewport missing' };
+      if (!sheet) return { error: 'gpp-parch-sheet missing' };
+
+      const overflowPx = viewport.scrollWidth - viewport.clientWidth;
+      const rows = document.querySelectorAll('.gpp-parch-system');
+      let worstRowOverflowPx = 0;
+      for (const row of rows) {
+        worstRowOverflowPx = Math.max(worstRowOverflowPx, row.scrollWidth - row.clientWidth);
+      }
+
+      const scaleRaw = getComputedStyle(sheet).getPropertyValue('--gpp-scale').trim();
+      const scale = parseFloat(scaleRaw);
+      if (!Number.isFinite(scale)) return { error: '--gpp-scale missing or invalid on gpp-parch-sheet' };
+
+      const firstRow = document.querySelector('.gpp-parch-system');
+      const barsInFirstRow = firstRow
+        ? firstRow.querySelectorAll('.gpp-parch-measure').length
+        : 0;
+
+      return { overflowPx, worstRowOverflowPx, scale, barsInFirstRow };
+    }
+
+    async function runHostWidth(host, mountGpPlayer, hostWidth) {
+      host.style.width = `${hostWidth}px`;
+      host.style.height = `${HOST_HEIGHT}px`;
+
+      const mount = mountGpPlayer(host, {
+        gpResult: makeGpResult(BARS),
+        title: 'Zoom overflow measurement',
+      });
+      await sleep(INITIAL_WAIT_MS);
+
+      const tableRows = [];
+      let largestScale = 0;
+      let widthPass = true;
+
+      for (const zoom of ZOOM_STEPS) {
+        setZoomPercent(zoom);
+        await sleep(LAYOUT_WAIT_MS);
+        const m = measureLayout();
+        if (m.error) {
+          mount.destroy();
+          throw new Error(`${m.error} at zoom ${zoom}%`);
+        }
+
+        largestScale = Math.max(largestScale, m.scale);
+        const stepOk = m.overflowPx <= MAX_OVERFLOW_PX && m.worstRowOverflowPx <= MAX_OVERFLOW_PX;
+        if (!stepOk) widthPass = false;
+
+        tableRows.push({
+          zoom: String(zoom),
+          scale: m.scale.toFixed(3),
+          barsInRow: String(m.barsInFirstRow),
+          overflowPx: String(m.overflowPx),
+          worstRowOverflowPx: String(m.worstRowOverflowPx),
+          ok: stepOk ? 'yes' : 'no',
+        });
+      }
+
+      mount.destroy();
+
+      writeln(`zoom-overflow: horizontal scroll at host width ${hostWidth}px`);
+      writeln(`bars: ${BARS}  host height px: ${HOST_HEIGHT}`);
+      writeln(`overflow limit: ${MAX_OVERFLOW_PX} px`);
+      printTable(tableRows, [
+        { key: 'zoom', label: 'zoom' },
+        { key: 'scale', label: 'scale' },
+        { key: 'barsInRow', label: 'bars in row' },
+        { key: 'overflowPx', label: 'overflow px' },
+        { key: 'worstRowOverflowPx', label: 'worst row overflow px' },
+        { key: 'ok', label: 'ok' },
+      ]);
+      writeln(`largest scale at ${hostWidth}px: ${largestScale.toFixed(3)}`);
+
+      return widthPass;
+    }
+
+    runMain(async () => {
+      const { mountGpPlayer } = await import('/js/gpPlayerUI.js');
+      const host = document.getElementById('host');
+      let pass = true;
+
+      for (const hostWidth of HOST_WIDTHS) {
+        const widthPass = await runHostWidth(host, mountGpPlayer, hostWidth);
+        if (!widthPass) pass = false;
+      }
+
+      reportResult(pass);
+    });
+  </script>
+</body>
+</html>
