@@ -469,6 +469,22 @@ function makeTimeline({ passes, events, tempoSegments, totalSec, rate, warnings,
     loopWindow({ startBarIndex, endBarIndex }) {
       return loopWindowImpl(startBarIndex, endBarIndex, passes, rate);
     },
+    /**
+     * Convert a play-order quarter position to wall seconds at the current
+     * rate. The metronome uses this so its clicks follow every tempo change
+     * in the score. A scalar tempo cannot do that.
+     */
+    secondsAtQuarter(quarter) {
+      return quarterToSec(quarter, tempoSegments) / rate;
+    },
+    /** Convert wall seconds at the current rate to a play-order quarter. */
+    quarterAtSeconds(sec) {
+      return secToQuarter(Math.max(0, (Number(sec) || 0) * rate), tempoSegments);
+    },
+    /** The play-order quarter where each sounding bar starts. */
+    barStartQuarters() {
+      return passes.map((p) => p.startQuarter);
+    },
   };
   return timeline;
 }

@@ -183,6 +183,48 @@ export function countInBeatCount(config, model, measureIndex = 0) {
   return Math.max(1, config.countInBeats);
 }
 
+/** Label for the on-screen count-in overlay. */
+export function countInOverlayLabel(remaining, total) {
+  const t = Math.max(0, Math.round(Number(total) || 0));
+  const r = Math.max(0, Math.round(Number(remaining) || 0));
+  if (!t || r <= 0) return '';
+  return String(r);
+}
+
+/** Label for the loop rest countdown overlay. */
+export function loopRestOverlayLabel(remainingSec) {
+  const sec = Number(remainingSec);
+  if (!Number.isFinite(sec) || sec <= 0) return '';
+  return String(Math.ceil(sec));
+}
+
+/**
+ * Track count-in beats during playback start.
+ * @returns {{ start:(total:number)=>void, tick:()=>string, clear:()=>void }}
+ */
+export function createCountInDisplay() {
+  let total = 0;
+  let remaining = 0;
+  return {
+    start(beats) {
+      total = Math.max(1, Math.round(Number(beats) || 1));
+      remaining = total;
+    },
+    tick() {
+      const label = countInOverlayLabel(remaining, total);
+      if (remaining > 0) remaining -= 1;
+      return label;
+    },
+    clear() {
+      total = 0;
+      remaining = 0;
+    },
+    get remaining() {
+      return remaining;
+    },
+  };
+}
+
 function prefsStorageKey(scoreKey) {
   return scoreKey ? `${METRO_PREFS_KEY}.${scoreKey}` : METRO_PREFS_KEY;
 }

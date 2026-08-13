@@ -1,4 +1,4 @@
-// Track mixer drawer content — enable, solo, view per guitar/bass/drum track.
+// Track mixer drawer content — enable, solo, volume per guitar/bass/drum track.
 
 import { el } from './dom.js';
 
@@ -58,12 +58,13 @@ export function mountTrackMixer(host, { stateController, onChange, onViewTrack }
     const enabled = kind === 'guitar'
       ? state.enabledGuitars[index]
       : state.enabledDrums[index];
+    const volume = stateController.getTrackVolume(kind, index);
 
     const enableCb = el('input', {
       type: 'checkbox',
       class: 'gpp-mix-mute',
       checked: enabled ? 'checked' : false,
-      'aria-label': `Enable ${track.name}`,
+      'aria-label': `Mute ${track.name}`,
     });
     const soloBtn = el('button', {
       class: 'btn sm gpp-mix-solo',
@@ -72,11 +73,22 @@ export function mountTrackMixer(host, { stateController, onChange, onViewTrack }
       'aria-label': `Solo ${track.name}`,
       title: 'Solo this track',
     });
+    const volInput = el('input', {
+      type: 'range',
+      class: 'gpp-mix-volume',
+      min: '0',
+      max: '100',
+      step: '1',
+      value: String(Math.round(volume * 100)),
+      'aria-label': `Volume ${track.name}`,
+      title: `Volume for ${track.name}`,
+    });
     const nameBtn = el('button', {
       class: 'gpp-mix-name',
       type: 'button',
       text: track.name || (kind === 'drum' ? 'Drums' : 'Track'),
       title: 'View this track in the score',
+      'aria-label': `View ${track.name}`,
     });
     const typeEl = el('span', { class: 'gpp-mix-type', text: trackTypeLabel(track, kind) });
     const viewEl = isViewing
@@ -94,7 +106,7 @@ export function mountTrackMixer(host, { stateController, onChange, onViewTrack }
         + (enabled ? '' : ' is-muted')
         + (isSolo ? ' is-solo' : '')
         + (isViewing ? ' is-viewing' : ''),
-    }, [enableCb, soloBtn, nameBtn, typeEl, viewEl]);
+    }, [enableCb, soloBtn, volInput, nameBtn, typeEl, viewEl]);
 
     enableCb.addEventListener('change', () => {
       stateController.setTrackEnabled(kind, index, enableCb.checked);
@@ -106,12 +118,17 @@ export function mountTrackMixer(host, { stateController, onChange, onViewTrack }
       onChange?.();
       sync();
     });
+    volInput.addEventListener('input', () => {
+      const gain = Math.max(0, Math.min(1, Number(volInput.value) / 100));
+      stateController.setTrackVolume(kind, index, gain);
+      onChange?.({ volume: true, kind, index, gain });
+    });
     const viewHandler = () => onViewTrack?.(kind, index);
     nameBtn.addEventListener('click', viewHandler);
     if (viewEl.tagName === 'BUTTON') viewEl.addEventListener('click', viewHandler);
 
     list.appendChild(row);
-    return { row, enableCb, soloBtn, kind, index };
+    return { row, enableCb, soloBtn, volInput, kind, index };
   }
 
   function sync() {

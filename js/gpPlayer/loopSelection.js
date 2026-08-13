@@ -1,11 +1,10 @@
-// Loop selection controller — wires loopSelectMode ↔ parchment ↔ state.
+// Loop selection controller — wires parchment and measure nav to state.
 
 /**
  * @param {{
  *   getState: ()=>object,
  *   applyRange?: (startBeat:number, endBeat:number)=>void,
  *   clearRange?: ()=>void,
- *   setSelectMode?: (on:boolean)=>void,
  *   parchment: object,
  *   onLoopChanged?: ()=>void,
  * }} opts
@@ -14,16 +13,12 @@ export function createLoopSelectionController({
   getState,
   applyRange,
   clearRange,
-  setSelectMode,
   parchment,
   onLoopChanged,
 } = {}) {
-  let enabled = false;
-
   function syncFromState() {
     const st = getState?.();
     if (!st || !parchment) return;
-    enabled = !!st.loopSelectMode;
     const rangeActive = !!st.loopEnabled
       && st.loopStartBeat != null
       && st.loopEndBeat != null;
@@ -32,20 +27,6 @@ export function createLoopSelectionController({
     } else {
       parchment.setSelection(null);
     }
-    parchment.setLoopSelectMode?.(enabled);
-  }
-
-  function enable() {
-    enabled = true;
-    setSelectMode?.(true);
-    parchment?.setLoopSelectMode?.(true);
-    syncFromState();
-  }
-
-  function disable() {
-    enabled = false;
-    setSelectMode?.(false);
-    parchment?.setLoopSelectMode?.(false);
   }
 
   function clear() {
@@ -62,17 +43,25 @@ export function createLoopSelectionController({
   }
 
   function handleSelectionChange(sel) {
-    if (!enabled) return;
     applySelection(sel);
   }
 
+  function applyMeasureRange(startIdx, endIdx) {
+    const st = getState?.();
+    const measures = st?.viewModel?.measures || [];
+    if (!measures.length) return;
+    const lo = Math.max(0, Math.min(startIdx, endIdx));
+    const hi = Math.min(measures.length - 1, Math.max(startIdx, endIdx));
+    const startBeat = measures[lo]?.startBeat ?? 0;
+    const endBeat = measures[hi]?.endBeat ?? startBeat + 1;
+    if (endBeat > startBeat) applySelection({ startBeat, endBeat });
+  }
+
   return {
-    enable,
-    disable,
     clear,
     applySelection,
+    applyMeasureRange,
     syncFromState,
     handleSelectionChange,
-    isEnabled: () => enabled,
   };
 }

@@ -111,17 +111,17 @@ plainMount.destroy();
 assert.equal(plainHost.innerHTML, '', 'destroy should clear host');
 assert.equal(plainHost.children.length, 0, 'destroy should leave host empty');
 
-// ---- transport dock tempo controls ----
+// ---- transport dock tempo controls (practice rail) ----
 const tempoHost = document.createElement('div');
 const tempoMount = mountGpPlayer(tempoHost, { gpResult: fakeGp, title: 'Tempo dock' });
-const tempoDock = tempoHost.querySelector('.gpp-transport-tempo');
-assert.ok(tempoDock, 'transport dock should render tempo group');
-const dockBpmInput = tempoHost.querySelector('[aria-label="Tempo BPM"]');
+const practiceRailEl = tempoHost.querySelector('.gpp-practice-rail');
+assert.ok(practiceRailEl, 'practice rail should render tempo group');
+const dockBpmInput = tempoHost.querySelector('.gpp-practice-bpm-input');
 const bpmUpBtn = tempoHost.querySelector('[aria-label="Increase tempo by 5 BPM"]');
 const bpmDownBtn = tempoHost.querySelector('[aria-label="Decrease tempo by 5 BPM"]');
 const bpmResetBtn = tempoHost.querySelector('[aria-label="Reset tempo to score BPM"]');
-assert.ok(dockBpmInput, 'dock should render BPM input');
-assert.ok(bpmUpBtn && bpmDownBtn && bpmResetBtn, 'dock should render tempo step and reset buttons');
+assert.ok(dockBpmInput, 'practice rail should render BPM input');
+assert.ok(bpmUpBtn && bpmDownBtn && bpmResetBtn, 'practice rail should render tempo step and reset buttons');
 assert.equal(dockBpmInput.getAttribute('min'), '40');
 assert.equal(dockBpmInput.getAttribute('max'), '320');
 assert.equal(tempoMount.getState().bpm, 120);
@@ -175,7 +175,7 @@ const extraMount = mountGpPlayer(extraHost, {
 
 const extraDock = extraHost.querySelector('.gpp-transport-dock');
 const extraGroup = extraHost.querySelector('.gpp-transport-extra');
-const primaryRow = extraHost.querySelector('.gpp-transport-primary');
+const primaryRow = extraHost.querySelector('.gpp-transport-row-primary');
 assert.ok(extraDock, 'dock should render when transportExtra is provided');
 assert.ok(extraGroup, 'extra group should render');
 assert.ok(extraDock.classList.contains('has-extra'), 'dock should carry has-extra');
@@ -286,5 +286,35 @@ assert.equal(afterLoop.loopStart, beforeLoop.loopStart, 'loopStart restored afte
 assert.equal(afterLoop.loopEnd, beforeLoop.loopEnd, 'loopEnd restored after toggle');
 
 loopMount.destroy();
+
+// ---- User Story 3: main-screen practice controls (no panel open) ----
+const us3Host = document.createElement('div');
+const us3Mount = mountGpPlayer(us3Host, { gpResult: fakeGp, title: 'US3 controls' });
+
+const trackTabs = us3Host.querySelector('.gpp-track-tabs');
+assert.ok(trackTabs, 'track tab strip should render on the main screen');
+const tabButtons = trackTabs.querySelectorAll('.gpp-track-tab');
+assert.ok(tabButtons.length >= 2, 'track strip should list at least two tracks');
+
+const practiceRail = us3Host.querySelector('.gpp-practice-rail');
+assert.ok(practiceRail, 'practice rail should render on the main screen');
+assert.ok(practiceRail.querySelector('[aria-label="Playback speed"]'), 'practice rail should include speed control');
+assert.ok(practiceRail.querySelector('[aria-label="Loop"]'), 'practice rail should include loop toggle');
+assert.ok(practiceRail.querySelector('[aria-label="Metronome"]'), 'practice rail should include metronome toggle');
+assert.ok(practiceRail.querySelector('[aria-label="Count-in"]'), 'practice rail should include count-in toggle');
+
+const us3Dock = us3Host.querySelector('.gpp-transport-dock');
+assert.ok(us3Dock, 'transport dock should render');
+const rowPrimary = us3Host.querySelector('.gpp-transport-row-primary');
+const rowPractice = us3Host.querySelector('.gpp-transport-row-practice');
+assert.ok(rowPrimary, 'transport dock row one should render');
+assert.ok(rowPractice, 'transport dock row two should render');
+assert.ok(rowPractice.contains(practiceRail), 'practice rail should sit in row two');
+assert.ok(!rowPrimary.contains(practiceRail), 'practice rail should not sit in row one');
+
+const openDrawer = us3Host.querySelector('.gpp-drawer.is-open, .gpp-sheet.is-open');
+assert.ok(!openDrawer, 'no panel should be open on mount');
+
+us3Mount.destroy();
 
 console.log('gp player wiring: ok');

@@ -43,23 +43,51 @@ const TECHNIQUE_TEXT = {
 const TECHNIQUE_ABOVE = new Set(['bend', 'vibrato', 'harmonic', 'trill', 'tremolo', 'tap']);
 const TECHNIQUE_BELOW = new Set(['slide', 'hammer', 'pull', 'palmMute', 'slap', 'pop']);
 
-const BAR_PAD_START = 18;
+// The string name column sits at the left of the staff. The first note and
+// the time signature must start after it, or the text runs together.
+const BAR_PAD_START = 42;
 const BAR_PAD_END = 10;
-const MIN_BAR_UNITS = 40;
-const UNITS_PER_QUARTER = 14;
+const MIN_BAR_UNITS = 96;
+const UNITS_PER_QUARTER = 20;
 const MAX_MEASURES_PER_SYSTEM = 8;
 const GUTTER_UNITS = 20;
 const VIEWPORT_PAD = 12;
+// A fret number must never touch the next one, and it must never touch a
+// rhythm tick below it. Each beat column therefore keeps a clear gap after
+// its widest text.
+const MIN_COL_GAP_UNITS = 9;
+const CHAR_WIDTH_RATIO = 0.62;
+// A phone screen holds one measure per row. Two measures on a 360 CSS pixel
+// screen leave about 160 pixels for each bar, and the fret numbers then run
+// into each other.
+const ONE_BAR_MAX_WIDTH_PX = 700;
+// Layout geometry uses this base size. The view scales a unit by
+// fontPx / LAYOUT_BASE_PX when it draws.
+const LAYOUT_BASE_PX = 12;
+// A bar with one very short note among long ones would otherwise grow without
+// a limit. The learner can scroll, but a bar must stay readable.
+const MAX_BAR_CONTENT_UNITS = 4000;
 
+/**
+ * The fret text size in layout units.
+ *
+ * Every glyph box uses layout units, and the view multiplies a unit by its own
+ * scale when it draws. The text size therefore stays at the base size here.
+ * The view applies the same scale to the text, so the box and the text always
+ * match. FR-030 needs at least 12 CSS pixels at 360 CSS pixels wide, and the
+ * base size meets that with a view scale of 1.
+ */
 function clampFontPx(widthPx, zoom, minFretFontPx) {
-  const refWidth = widthPx < 200 ? 360 : widthPx;
-  const scale = refWidth / 360;
-  return Math.max(minFretFontPx, Math.round(minFretFontPx * scale * zoom * 10) / 10);
+  void widthPx;
+  return Math.max(minFretFontPx, Math.round(LAYOUT_BASE_PX * zoom * 10) / 10);
 }
 
 function defaultOptions(options = {}) {
+  const widthPx = Number(options.widthPx) || 900;
+  const maxPerSystem = Number(options.maxMeasuresPerSystem)
+    || (widthPx <= ONE_BAR_MAX_WIDTH_PX ? 1 : MAX_MEASURES_PER_SYSTEM);
   return {
-    widthPx: Number(options.widthPx) || 900,
+    widthPx,
     zoom: Number(options.zoom) || 1,
     showNotationStaff: Boolean(options.showNotationStaff),
     showRhythm: options.showRhythm !== false,
@@ -69,6 +97,8 @@ function defaultOptions(options = {}) {
     isFirstSystem: Boolean(options.isFirstSystem),
     prevTimeSig: options.prevTimeSig ?? null,
     tuningLabel: options.tuningLabel ?? '',
+    maxMeasuresPerSystem: Math.max(1, Math.floor(maxPerSystem)),
+    minContentUnits: Number(options.minContentUnits) || 0,
   };
 }
 
@@ -182,6 +212,17 @@ function buildBarSlice(model, barIndex) {
     strings: model.strings || [],
     tuningLabel,
   };
+}
+
+/** The smallest distance between two column starts, as a fraction of a bar. */
+function smallestRelGap(cols) {
+  const starts = [...new Set(cols.map((c) => c.relStart))].sort((a, b) => a - b);
+  let min = Infinity;
+  for (let i = 1; i < starts.length; i += 1) {
+    const gap = starts[i] - starts[i - 1];
+    if (gap > 1e-9 && gap < min) min = gap;
+  }
+  return min === Infinity ? 0 : min;
 }
 
 function beatColumns(bar, measureLen) {
@@ -360,11 +401,15 @@ function addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, drumMode, stri
 
   for (const ev of bar.events) {
     const beatStart = Number(ev.start);
-    const xCenter = xForBeat(cols, beatStart, contentW, fontPx);
       const si = Number(ev.stringIndex) || 0;
       const row = Math.max(0, Math.min(stringCount - 1, stringCount - 1 - si));
       const y = tabLane.y + row * stringH + stringH * 0.15;
       const w = Math.max(fontPx * 0.7, String(ev.fret ?? '').length * fontPx * 0.55);
+      // A grace note sounds before the main note of the beat, so it must draw
+      // to the left of it. Both notes share one beat position, and without
+      // this shift the two numbers sit on top of each other.
+      const graceShift = ev.grace ? w * 0.9 + fontPx * 0.2 : 0;
+      const xCenter = xForBeat(cols, beatStart, contentW, fontPx) - graceShift;
 
       if (ev.dead) {
         pushGlyph(glyphs, {
@@ -741,27 +786,58 @@ export function layoutBar(bar, options = {}) {
   const opts = defaultOptions(options);
   const warnings = [];
   const fontPx = clampFontPx(opts.widthPx, opts.zoom, opts.minFretFontPx);
+  // Every glyph box, every lane, and every bar width uses layout units. The
+  // view multiplies a unit by fontPx / LAYOUT_BASE_PX when it draws. Geometry
+  // must therefore use the base size, not fontPx. When geometry used fontPx,
+  // a wide screen made each glyph box grow twice and the fret numbers ran
+  // into each other.
+  const geoPx = LAYOUT_BASE_PX;
   const stringCount = Math.max(1, (bar.strings || []).length);
   const { lanes, totalH, stringH } = laneLayout(
-    fontPx,
+    geoPx,
     stringCount,
     opts.showNotationStaff,
     opts.showRhythm,
   );
 
-  const { len: measureLen } = measureSpan(bar.measure);
-  const cols = beatColumns(bar, Math.max(0.25, measureLen));
+  // A bar can hold more written time than its time signature names. The
+  // layout must span the real content, or every late note clamps to the bar
+  // end and the notes pile up away from their rhythm marks.
+  const { len: nominalLen, start: barStart } = measureSpan(bar.measure);
+  let contentLen = nominalLen;
+  for (const beat of bar.beats) {
+    contentLen = Math.max(contentLen, beat.start - barStart + (beat.duration || 0));
+  }
+  for (const rest of bar.rests) {
+    contentLen = Math.max(contentLen, rest.start - barStart + (rest.duration || 0));
+  }
+  for (const ev of bar.events) {
+    if (!Number.isFinite(ev.start)) continue;
+    contentLen = Math.max(contentLen, ev.start - barStart + (ev.duration || 0));
+  }
+  const measureLen = Math.max(0.25, contentLen);
+  const cols = beatColumns(bar, measureLen);
   let maxChars = 1;
   for (const ev of bar.events) {
     const label = ev.dead ? 'x' : String(ev.fret ?? '');
     maxChars = Math.max(maxChars, label.length);
   }
-  const charUnits = maxChars * (fontPx * 0.55);
+  // Each beat column needs room for its widest fret text plus a clear gap.
+  // Without that gap a two digit fret runs into the next one, and the tail of
+  // the number sits on top of the rhythm tick below it.
+  const charUnits = maxChars * (geoPx * CHAR_WIDTH_RATIO);
+  const colUnits = charUnits + MIN_COL_GAP_UNITS;
+  // The glyphs sit at a position that follows the written time, so the
+  // closest pair of columns decides the width. A bar with a triplet needs
+  // more room than the note count alone suggests.
+  const minRelGap = smallestRelGap(cols);
   const contentW = Math.max(
     MIN_BAR_UNITS - BAR_PAD_START - BAR_PAD_END,
     measureLen * UNITS_PER_QUARTER,
-    cols.reduce((w, c) => w + Math.max(c.width * UNITS_PER_QUARTER, charUnits), 0),
-    cols.length * (charUnits + 4),
+    cols.reduce((w, c) => w + Math.max(c.width * UNITS_PER_QUARTER, colUnits), 0),
+    cols.length * colUnits,
+    minRelGap > 0 ? Math.min(colUnits / minRelGap, MAX_BAR_CONTENT_UNITS) : 0,
+    opts.minContentUnits,
   );
   const widthUnits = BAR_PAD_START + contentW + BAR_PAD_END;
 
@@ -770,13 +846,13 @@ export function layoutBar(bar, options = {}) {
   const glyphs = [];
   const overlays = [];
 
-  addMeasureChrome(glyphs, lanes, bar, opts, contentW, fontPx);
-  addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, fontPx, opts.showRhythm);
-  addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, opts.drumMode, bar.strings || []);
-  addTechniqueGlyphs(glyphs, overlays, lanes, bar, cols, contentW, fontPx);
+  addMeasureChrome(glyphs, lanes, bar, opts, contentW, geoPx);
+  addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, geoPx, opts.showRhythm);
+  addTabGlyphs(glyphs, lanes, bar, cols, contentW, geoPx, opts.drumMode, bar.strings || []);
+  addTechniqueGlyphs(glyphs, overlays, lanes, bar, cols, contentW, geoPx);
 
   if (opts.showNotationStaff) {
-    addNotationGlyphs(glyphs, lanes, cols, contentW, fontPx, bar, bar.strings || []);
+    addNotationGlyphs(glyphs, lanes, cols, contentW, geoPx, bar, bar.strings || []);
   }
 
   // Strip internal refs before return.
@@ -801,16 +877,21 @@ export function layoutBar(bar, options = {}) {
   };
 }
 
-function packSystems(bars, widthPx, fontPx) {
-  const unitScale = fontPx / 12;
-  const gutterPx = GUTTER_UNITS * unitScale;
-  const available = Math.max(100, widthPx - VIEWPORT_PAD - gutterPx);
+// The caller passes the width it has, measured in layout units. Geometry and
+// width therefore share one space, and no value needs a second scale here.
+function availableWidthPx(widthPx) {
+  return Math.max(100, widthPx - VIEWPORT_PAD - GUTTER_UNITS);
+}
+
+function packSystems(bars, widthPx, maxPerSystem) {
+  const unitScale = 1;
+  const available = availableWidthPx(widthPx);
   const systems = [];
   let i = 0;
   while (i < bars.length) {
     const row = [];
     let sum = 0;
-    while (i < bars.length && row.length < MAX_MEASURES_PER_SYSTEM) {
+    while (i < bars.length && row.length < maxPerSystem) {
       const w = bars[i].widthUnits * unitScale;
       if (row.length > 0 && sum + w > available) break;
       row.push(i);
@@ -840,12 +921,19 @@ export function layoutScore(model, options = {}) {
     return { bars: [], systems: [], fontPx, warnings };
   }
 
+  // With one measure per row the bar must fill the row. A narrow bar in a
+  // wide row wastes the space that the fret numbers need.
+  const minContentUnits = opts.maxMeasuresPerSystem === 1
+    ? Math.max(0, availableWidthPx(opts.widthPx) - BAR_PAD_START - BAR_PAD_END)
+    : opts.minContentUnits;
+
   const bars = [];
   let prevTimeSig = null;
   for (let i = 0; i < model.measures.length; i += 1) {
     const slice = buildBarSlice(model, i);
     const barLayout = layoutBar(slice, {
       ...opts,
+      minContentUnits,
       barIndex: i,
       prevTimeSig,
       tuningLabel: slice.tuningLabel,
@@ -856,8 +944,8 @@ export function layoutScore(model, options = {}) {
     if (slice.measure.timeSig) prevTimeSig = slice.measure.timeSig;
   }
 
-  const systems = packSystems(bars, opts.widthPx, fontPx);
+  const systems = packSystems(bars, opts.widthPx, opts.maxMeasuresPerSystem);
   return { bars, systems, fontPx, warnings };
 }
 
-export { RHYTHM_KINDS, LANE_NAMES, TECHNIQUE_ARIA };
+export { RHYTHM_KINDS, LANE_NAMES, TECHNIQUE_ARIA, LAYOUT_BASE_PX, ONE_BAR_MAX_WIDTH_PX };

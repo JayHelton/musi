@@ -577,17 +577,9 @@ const settings = mountSettingsDrawer(settingsHost, {
 });
 assert.ok(typeof settings.sync === 'function');
 const settingsSections = settingsHost.querySelectorAll('.gpp-settings-section');
-assert.ok(settingsSections.length >= 4, 'settings should have collapsible sections');
+assert.ok(settingsSections.length >= 3, 'settings should have collapsible sections');
 const settingsBodies = settingsHost.querySelectorAll('.gpp-settings-body');
 assert.equal(settingsBodies.length, 1, 'drawer and sheet should share one control body');
-const bpmInput = settingsHost.querySelector('[id$="-bpm"]');
-const bpmSlider = settingsHost.querySelector('[id$="-bpm-slider"]');
-assert.ok(bpmInput, 'tempo input should exist');
-assert.ok(bpmSlider, 'tempo percent slider should exist');
-assert.equal(bpmInput.getAttribute('min'), String(GPP_MIN_BPM));
-assert.equal(bpmInput.getAttribute('max'), String(GPP_MAX_BPM));
-assert.equal(bpmSlider.getAttribute('min'), String(GPP_MIN_TEMPO_PCT));
-assert.equal(bpmSlider.getAttribute('max'), String(GPP_MAX_TEMPO_PCT));
 assert.ok(!settingsHost.querySelector('.gpp-analysis-results'), 'settings drawer must not host analysis');
 settings.sync();
 settings.destroy();
@@ -860,10 +852,24 @@ const sixteenthHost = document.createElement('div');
 const sixteenthParch = mountParchmentView(sixteenthHost, { guitarModel: sixteenthBarModel });
 const quarterMinW = measureMinWidth(rhythmHost, 0);
 const sixteenthMinW = measureMinWidth(sixteenthHost, 0);
+// A phone row holds one measure, and that measure fills the row. Both bars
+// therefore reach the same width on a narrow host.
 assert.ok(
-  sixteenthMinW > quarterMinW,
-  `sixteenth bar min-width (${sixteenthMinW}) should exceed quarter bar (${quarterMinW})`,
+  sixteenthMinW >= quarterMinW,
+  `sixteenth bar min-width (${sixteenthMinW}) must be at least the quarter bar (${quarterMinW})`,
 );
+// On a wide screen a row holds several measures, and then a denser bar must
+// claim more room. FR-020 asks the spacing to follow the written length.
+{
+  const { layoutScore } = await import('../../js/gpPlayer/scoreLayout.js');
+  const wide = { widthPx: 1600 };
+  const quarterWide = layoutScore(quarterBarModel, wide).bars[0].widthUnits;
+  const sixteenthWide = layoutScore(sixteenthBarModel, wide).bars[0].widthUnits;
+  assert.ok(
+    sixteenthWide > quarterWide,
+    `on a wide screen the sixteenth bar (${sixteenthWide}) must be wider than the quarter bar (${quarterWide})`,
+  );
+}
 quarterParch.destroy();
 sixteenthParch.destroy();
 
@@ -873,10 +879,22 @@ const twoDigitHost = document.createElement('div');
 const twoDigitParch = mountParchmentView(twoDigitHost, { guitarModel: twoDigitRhythmModel });
 const singleDigitMinW = measureMinWidth(digitHost, 0);
 const twoDigitMinW = measureMinWidth(twoDigitHost, 0);
+// One measure fills a phone row, so both bars reach the row width here. The
+// wide screen check below proves that a two digit fret claims more room.
 assert.ok(
-  twoDigitMinW > singleDigitMinW,
-  `two-digit fret bar min-width (${twoDigitMinW}) should exceed single-digit (${singleDigitMinW})`,
+  twoDigitMinW >= singleDigitMinW,
+  `two-digit fret bar min-width (${twoDigitMinW}) must be at least the single-digit bar (${singleDigitMinW})`,
 );
+{
+  const { layoutScore } = await import('../../js/gpPlayer/scoreLayout.js');
+  const wide = { widthPx: 1600 };
+  const singleWide = layoutScore(singleDigitRhythmModel, wide).bars[0].widthUnits;
+  const twoWide = layoutScore(twoDigitRhythmModel, wide).bars[0].widthUnits;
+  assert.ok(
+    twoWide > singleWide,
+    `on a wide screen a two digit fret bar (${twoWide}) must be wider than a single digit bar (${singleWide})`,
+  );
+}
 singleDigitParch.destroy();
 twoDigitParch.destroy();
 
@@ -886,14 +904,23 @@ const denseHost = document.createElement('div');
 const denseParch = mountParchmentView(denseHost, { guitarModel: denseFourBarModel() });
 const sparseSystemCount = sparseHost.querySelectorAll('.gpp-parch-system').length;
 const denseSystemCount = denseHost.querySelectorAll('.gpp-parch-system').length;
-assert.ok(
-  denseSystemCount > sparseSystemCount,
-  `dense score should use more systems (${denseSystemCount}) than sparse (${sparseSystemCount})`,
-);
-const soloDenseSystem = [...denseHost.querySelectorAll('.gpp-parch-system')].find(
-  (sys) => systemMeasureCount(sys) === 1,
-);
-assert.ok(soloDenseSystem, 'at least one dense bar should occupy its own system row');
+// A phone row holds one measure, so a four bar score always uses four rows.
+assert.equal(sparseSystemCount, 4, 'a phone row holds one measure');
+assert.equal(denseSystemCount, 4, 'a phone row holds one measure');
+const everySystemHasOneBar = [...denseHost.querySelectorAll('.gpp-parch-system')]
+  .every((sys) => systemMeasureCount(sys) === 1);
+assert.ok(everySystemHasOneBar, 'every phone row must hold exactly one measure');
+// On a wide screen a dense score still needs more rows than a sparse one.
+{
+  const { layoutScore } = await import('../../js/gpPlayer/scoreLayout.js');
+  const wide = { widthPx: 1600 };
+  const sparseRows = layoutScore(sparseFourBarModel(), wide).systems.length;
+  const denseRows = layoutScore(denseFourBarModel(), wide).systems.length;
+  assert.ok(
+    denseRows > sparseRows,
+    `on a wide screen a dense score needs more rows (${denseRows}) than a sparse score (${sparseRows})`,
+  );
+}
 sparseParch.destroy();
 denseParch.destroy();
 
@@ -1094,30 +1121,15 @@ const loopCtrlOn = createLoopSelectionController({
 });
 loopCtrlOn.syncFromState();
 assert.deepEqual(loopParchment.selection, { startBeat: 0, endBeat: 8 }, 'loop enabled should paint selection');
-assert.equal(loopParchment.loopSelectMode, true, 'loop select mode should sync from state');
 
-// ---- settingsDrawer: bar dropdown enables loop ----
-const psLoopDrop = createPlayerState(fakeGp, { preferredTrackIndex: 0 });
-psLoopDrop.state.loopEnabled = false;
-const loopDropHost = document.createElement('div');
-const loopDropDrawer = mountSettingsDrawer(loopDropHost, {
-  stateController: psLoopDrop,
-  uidPrefix: 'smoke-loop-drop',
-});
-const loopStartSel = loopDropHost.querySelector('[id$="-loop-start"]');
-const loopEndSel = loopDropHost.querySelector('[id$="-loop-end"]');
-assert.ok(loopStartSel && loopEndSel, 'loop bar selects should exist');
-assert.equal(psLoopDrop.state.loopStart, 0, 'default loop start should be first bar');
-assert.equal(psLoopDrop.state.loopEnd, 1, 'fakeGp has two bars (indices 0–1)');
-loopEndSel.value = '0';
-loopEndSel.change();
-assert.equal(psLoopDrop.state.loopEnabled, true, 'changing loop end bar should enable loop');
-assert.equal(psLoopDrop.state.loopStart, 0);
-assert.equal(psLoopDrop.state.loopEnd, 0, 'bar 1 only range');
-assert.equal(psLoopDrop.state.loopStartBeat, 0);
-assert.equal(psLoopDrop.state.loopEndBeat, 1);
-loopDropDrawer.destroy();
-psLoopDrop.destroy();
+// ---- practiceRail: loop toggle on main screen ----
+const loopRailHost = document.createElement('div');
+const loopRailMount = mountGpPlayer(loopRailHost, { gpResult: fakeGp, title: 'Loop rail' });
+const loopBtn = loopRailHost.querySelector('[aria-label="Loop"]');
+assert.ok(loopBtn, 'practice rail loop toggle should exist');
+loopBtn.click();
+assert.equal(loopRailMount.isLoopEnabled(), true, 'loop toggle should enable loop');
+loopRailMount.destroy();
 
 // ---- annotationsDrawer: Add note hints ----
 const annoHost = document.createElement('div');

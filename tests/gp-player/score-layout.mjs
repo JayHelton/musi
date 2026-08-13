@@ -215,6 +215,63 @@ let techniqueReport = null;
   assert.equal(covered.length, layout.bars.length, 'systems cover every bar');
 }
 
+// A phone row holds one measure only.
+{
+  const fixtures = ['large-200bar.gp5', 'meter-change.gp5', 'ties-rhythm.gp5'];
+  for (const name of fixtures) {
+    const { layout } = await layoutForFixture(name, { widthPx: 360 });
+    for (const sys of layout.systems) {
+      assert.equal(
+        sys.barIndices.length,
+        1,
+        `${name} at 360 CSS pixels wide must hold one measure in each row`,
+      );
+    }
+  }
+  // A wide screen may hold several measures in one row.
+  const wide = await layoutForFixture('large-200bar.gp5', { widthPx: 1600 });
+  assert.ok(
+    wide.layout.systems.some((s) => s.barIndices.length > 1),
+    'a wide screen may hold several measures in one row',
+  );
+}
+
+// No note text may touch the next note text on the same string, and no note
+// text may reach into the rhythm lane below the tab staff.
+{
+  const fixtures = [
+    'techniques.gp5', 'ties-rhythm.gp5', 'meter-change.gp5',
+    'odd-meter-13-16.gp5', 'two-voices.gp5', 'seven-string.gp5',
+  ];
+  const noteKinds = new Set(['fret', 'deadNote', 'drumHit']);
+  for (const name of fixtures) {
+    for (const widthPx of [360, 414, 900, 1600]) {
+      const { layout } = await layoutForFixture(name, { widthPx });
+      for (const bar of layout.bars) {
+        const notes = bar.glyphs
+          .filter((g) => noteKinds.has(g.kind))
+          .sort((a, b) => a.y - b.y || a.x - b.x);
+        for (let i = 1; i < notes.length; i += 1) {
+          if (Math.abs(notes[i].y - notes[i - 1].y) > 0.01) continue;
+          const gap = notes[i].x - (notes[i - 1].x + notes[i - 1].w);
+          assert.ok(
+            gap >= 0,
+            `${name} at ${widthPx} px: bar ${bar.barIndex} note text overlaps by ${(-gap).toFixed(2)} units`,
+          );
+        }
+        const rhythm = bar.lanes.find((l) => l.name === 'rhythm');
+        if (!rhythm) continue;
+        for (const note of notes) {
+          assert.ok(
+            note.y + note.h <= rhythm.y + 0.01,
+            `${name} at ${widthPx} px: bar ${bar.barIndex} note text reaches into the rhythm lane`,
+          );
+        }
+      }
+    }
+  }
+}
+
 console.log('gp-player score-layout: ok');
 if (techniqueReport) {
   console.log(`technique coverage: ${techniqueReport.drawnTotal}/${techniqueReport.fileTotal} (${(techniqueReport.ratio * 100).toFixed(1)}%)`);

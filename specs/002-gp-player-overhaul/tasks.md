@@ -197,25 +197,25 @@ switch track. Count actions and time for each task. Confirm no menu step is requ
 
 ### Tests for User Story 3
 
-- [ ] T064 [US3] Extend `tests/gp-player/wiring.mjs` to assert that `mountGpPlayer` renders the track tab strip, the practice rail, and the two-row transport dock without opening a panel
+- [X] T064 [US3] Extend `tests/gp-player/wiring.mjs` to assert that `mountGpPlayer` renders the track tab strip, the practice rail, and the two-row transport dock without opening a panel
 
 ### Implementation for User Story 3
 
-- [ ] T065 [US3] Create `js/gpPlayer/trackTabs.js` with an always visible track strip that switches track in one action (depends on T064)
-- [ ] T066 [US3] Create `js/gpPlayer/practiceRail.js` with main-screen speed, loop toggle, loop range display, clear loop, metronome toggle, and count-in toggle (depends on T064)
-- [ ] T067 [US3] Create `js/gpPlayer/panelManager.js` with `open(id)` that closes other panels first and `close(id)` that detaches every listener and observer for that panel (depends on T064)
-- [ ] T068 [US3] Create `js/gpPlayer/shortcutHelp.js` with the single shortcut table and the help panel content per FR-041 (depends on T064)
-- [ ] T069 [US3] Rewrite `js/gpPlayer/transportDock.js` as a two-row dock that hosts the practice rail from `practiceRail.js` and keeps keyboard focus order (depends on T066)
-- [ ] T070 [US3] Add loop drag on the bar strip in `js/gpPlayer/measureNav.js` and wire it through `js/gpPlayer/loopSelection.js` with no mode toggle (depends on T066)
-- [ ] T071 [US3] Add long-press loop drag on the staff in `js/gpPlayer/parchmentView.js` per decision D17 (depends on T070)
-- [ ] T072 [US3] Remove the `Loop Selection` mode toggle from `js/gpPlayer/settingsDrawer.js` and route loop drag only through `measureNav.js` and `loopSelection.js` (depends on T070)
-- [ ] T073 [US3] Add per-track volume, mute, and solo to `js/gpPlayer/trackMixer.js` and persist `trackVolumes` through `js/gpPlayer/playerState.js` (depends on T065)
-- [ ] T074 [US3] Trim `js/gpPlayer/settingsDrawer.js` and `js/gpPlayer/playerMenu.js` for controls that moved to the practice rail and the track tab strip, and add the help entry that opens `shortcutHelp.js` (depends on T066, T068, T072)
-- [ ] T075 [US3] Wire `js/gpPlayer/trackTabs.js`, `js/gpPlayer/practiceRail.js`, `js/gpPlayer/panelManager.js`, and `js/gpPlayer/shortcutHelp.js` into `mountGpPlayer` in `js/gpPlayerUI.js` (depends on T065, T066, T067, T068, T069)
-- [ ] T076 [US3] Register `js/gpPlayer/metronomePanel.js`, `js/gpPlayer/annotationsDrawer.js`, and `js/gpPlayer/exerciseImportPanel.js` with `js/gpPlayer/panelManager.js` (depends on T067)
-- [ ] T077 [US3] Add count-in count on screen and the loop rest countdown to `js/gpPlayer/metronomeState.js` (depends on T066)
-- [ ] T078 [US3] Add the `role="status"` bar announcement, text names on every control, keyboard-only transport, and the `prefers-reduced-motion` rule in `js/gpPlayerUI.js` per FR-066 to FR-069 (depends on T069, T068, T075)
-- [ ] T079 [P] [US3] Add 44 by 44 CSS pixel touch targets and portrait and landscape layouts for the transport dock, track tabs, and practice rail in `css/gpplayer.css` per FR-043 and FR-045 (depends on T069, T065)
+- [X] T065 [US3] Create `js/gpPlayer/trackTabs.js` with an always visible track strip that switches track in one action (depends on T064)
+- [X] T066 [US3] Create `js/gpPlayer/practiceRail.js` with main-screen speed, loop toggle, loop range display, clear loop, metronome toggle, and count-in toggle (depends on T064)
+- [X] T067 [US3] Create `js/gpPlayer/panelManager.js` with `open(id)` that closes other panels first and `close(id)` that detaches every listener and observer for that panel (depends on T064)
+- [X] T068 [US3] Create `js/gpPlayer/shortcutHelp.js` with the single shortcut table and the help panel content per FR-041 (depends on T064)
+- [X] T069 [US3] Rewrite `js/gpPlayer/transportDock.js` as a two-row dock that hosts the practice rail from `practiceRail.js` and keeps keyboard focus order (depends on T066)
+- [X] T070 [US3] Add loop drag on the bar strip in `js/gpPlayer/measureNav.js` and wire it through `js/gpPlayer/loopSelection.js` with no mode toggle (depends on T066)
+- [X] T071 [US3] Add long-press loop drag on the staff in `js/gpPlayer/parchmentView.js` per decision D17 (depends on T070)
+- [X] T072 [US3] Remove the `Loop Selection` mode toggle from `js/gpPlayer/settingsDrawer.js` and route loop drag only through `measureNav.js` and `loopSelection.js` (depends on T070)
+- [X] T073 [US3] Add per-track volume, mute, and solo to `js/gpPlayer/trackMixer.js` and persist `trackVolumes` through `js/gpPlayer/playerState.js` (depends on T065)
+- [X] T074 [US3] Trim `js/gpPlayer/settingsDrawer.js` and `js/gpPlayer/playerMenu.js` for controls that moved to the practice rail and the track tab strip, and add the help entry that opens `shortcutHelp.js` (depends on T066, T068, T072)
+- [X] T075 [US3] Wire `js/gpPlayer/trackTabs.js`, `js/gpPlayer/practiceRail.js`, `js/gpPlayer/panelManager.js`, and `js/gpPlayer/shortcutHelp.js` into `mountGpPlayer` in `js/gpPlayerUI.js` (depends on T065, T066, T067, T068, T069)
+- [X] T076 [US3] Register `js/gpPlayer/metronomePanel.js`, `js/gpPlayer/annotationsDrawer.js`, and `js/gpPlayer/exerciseImportPanel.js` with `js/gpPlayer/panelManager.js` (depends on T067)
+- [X] T077 [US3] Add count-in count on screen and the loop rest countdown to `js/gpPlayer/metronomeState.js` (depends on T066)
+- [X] T078 [US3] Add the `role="status"` bar announcement, text names on every control, keyboard-only transport, and the `prefers-reduced-motion` rule in `js/gpPlayerUI.js` per FR-066 to FR-069 (depends on T069, T068, T075)
+- [X] T079 [P] [US3] Add 44 by 44 CSS pixel touch targets and portrait and landscape layouts for the transport dock, track tabs, and practice rail in `css/gpplayer.css` per FR-043 and FR-045 (depends on T069, T065)
 
 **Checkpoint**: `node tests/gp-player/wiring.mjs` passes. Manual checks 1 to 9 in
 `quickstart.md` for User Story 3 pass. SC-005, SC-006, and SC-007 targets are reachable in
@@ -287,16 +287,16 @@ reachable.
 **Purpose**: Ship-readiness work that spans the stories.
 
 - [ ] T099 Delete `js/gpFollowView.js` after `tests/gp-player/smoke.mjs` moves off `buildFollowColumns`, and remove `js/gpFollowView.js` from `service-worker.js`
-- [ ] T100 Extend `tests/gp-player/loop-playback.mjs` to assert gapless loop scheduling across 20 passes through `js/gpMixPlayer.js`
-- [ ] T101 Extend `tests/gp-player/metronome.mjs` to assert on-screen count-in and loop rest countdown through `js/gpPlayer/metronomeState.js`
-- [ ] T102 Add exports for every new module to `js/gpPlayer/index.js`
-- [ ] T103 Run the neighbour suites: `node tests/exercises/run.mjs`, `node tests/workbooks/run.mjs`, `node tests/companions/run.mjs`, `node tests/track-to-sheet/run.mjs`, and `node tests/cloud/run.mjs`
-- [ ] T104 Run the CLI smoke command in `cli/bin/musi.js` with `reference --root C --type "Major (Ionian)"` and confirm the `Scale Reference` banner prints
+- [X] T100 Extend `tests/gp-player/loop-playback.mjs` to assert gapless loop scheduling across 20 passes through `js/gpMixPlayer.js`
+- [X] T101 Extend `tests/gp-player/metronome.mjs` to assert on-screen count-in and loop rest countdown through `js/gpPlayer/metronomeState.js`
+- [X] T102 Add exports for every new module to `js/gpPlayer/index.js`
+- [X] T103 Run the neighbour suites: `node tests/exercises/run.mjs`, `node tests/workbooks/run.mjs`, `node tests/companions/run.mjs`, `node tests/track-to-sheet/run.mjs`, and `node tests/cloud/run.mjs`
+- [X] T104 Run the CLI smoke command in `cli/bin/musi.js` with `reference --root C --type "Major (Ionian)"` and confirm the `Scale Reference` banner prints
 - [X] T105 Update `docs/gp-exercises-roadmap.md` to record the timeline layer, the layout layer, and the instrument voice layer
 - [ ] T106 Run the human reading test for SC-015 on the 10 fixed passages in `tests/gp-player/fixtures/passages/` and record the teacher pass count
 - [ ] T107 Run the human listening test for SC-016 on the same 10 passages in `tests/gp-player/fixtures/passages/` and record the listener pass count
 - [ ] T108 Run every step in `quickstart.md`: automated checks, browser harness, manual verification, accessibility checks, offline check, and mobile layout checks
-- [ ] T109 Bump `CACHE_VERSION` in `service-worker.js` to a new string after the final file list is stable
+- [X] T109 Bump `CACHE_VERSION` in `service-worker.js` to a new string after the final file list is stable
 
 **Checkpoint**: Every command in the Verification commands block passes. The full
 `quickstart.md` run passes. The feature is ready to push.

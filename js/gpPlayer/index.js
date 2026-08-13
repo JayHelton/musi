@@ -17,6 +17,10 @@ export { mountParchmentView } from './parchmentView.js';
 export { createLoopSelectionController } from './loopSelection.js';
 export { mountMeasureNav } from './measureNav.js';
 export { mountTransportDock } from './transportDock.js';
+export { mountPracticeRail } from './practiceRail.js';
+export { mountTrackTabs } from './trackTabs.js';
+export { createPanelManager } from './panelManager.js';
+export { mountShortcutHelp, GPP_SHORTCUTS } from './shortcutHelp.js';
 export { mountTrackMixer } from './trackMixer.js';
 export { mountSettingsDrawer } from './settingsDrawer.js';
 export { mountPlayerMenu } from './playerMenu.js';
@@ -44,6 +48,9 @@ export {
   createTempoRampController,
   clickLevelAt,
   clickPositionsInRange,
+  countInOverlayLabel,
+  loopRestOverlayLabel,
+  createCountInDisplay,
   deriveBeatsPerMeasure,
   normalizeMetronomeConfig,
   normalizeTempoRampConfig,

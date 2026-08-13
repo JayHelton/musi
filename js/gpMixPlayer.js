@@ -344,13 +344,13 @@ export function createGpMixPlayer(opts = {}) {
       state.nextIndex < events.length
       && wallSecFromEvent(events[state.nextIndex]) < fromSec - 0.0001
     ) state.nextIndex += 1;
-    const pos = state.timeline
-      ? state.timeline.positionAtSeconds(fromSec)
-      : { beatInScore: (fromSec / 60) * (state.baseBpm * state.rate) };
-    state.nextMetroBeat = snapMetroBeatToGrid(
-      pos.beatInScore,
-      state.metroConfig.subdiv,
-    );
+    // The metronome counts in play-order quarters, the same space that the
+    // timeline uses. Written-score beats do not work, because a repeat makes
+    // one written bar sound more than one time.
+    const metroBeat = state.timeline
+      ? state.timeline.quarterAtSeconds(fromSec)
+      : (fromSec / 60) * (state.baseBpm * state.rate);
+    state.nextMetroBeat = snapMetroBeatToGrid(metroBeat, state.metroConfig.subdiv);
   }
 
   function emitTick() {
@@ -466,15 +466,29 @@ export function createGpMixPlayer(opts = {}) {
     }
   }
 
+  /**
+   * Seconds for one metronome beat position.
+   *
+   * The click must follow the tempo map of the score. A score that shifts
+   * from 80 BPM to 90 BPM moves every later beat, and a scalar tempo puts the
+   * click in the wrong place from the first shift onward. The timeline holds
+   * the tempo segments, so the click reads its time from there.
+   */
+  function metroBeatSec(beat) {
+    if (state.timeline?.secondsAtQuarter) return state.timeline.secondsAtQuarter(beat);
+    return beat * (60 / (state.baseBpm * state.rate));
+  }
+
   function scheduleMetronome(horizon, now) {
     if (!state.metronomeEnabled || state.inLoopRest) return;
-    const bpm = state.baseBpm * state.rate;
-    const quarterSec = 60 / bpm;
     const loopStart = state.loop?.startSec ?? 0;
     const loopEnd = state.loop?.endSec ?? Infinity;
     const metro = state.metroConfig;
-    while (state.nextMetroBeat * quarterSec <= horizon + 1e-9) {
-      const beatSec = state.nextMetroBeat * quarterSec;
+    let guard = 0;
+    while (metroBeatSec(state.nextMetroBeat) <= horizon + 1e-9) {
+      guard += 1;
+      if (guard > 4096) break;
+      const beatSec = metroBeatSec(state.nextMetroBeat);
       if (beatSec >= loopStart - 1e-6 && beatSec < loopEnd - 1e-6) {
         const when = state.originAudioTime + (beatSec - state.originSongSec);
         if (when >= now - 0.02) {
@@ -715,7 +729,11 @@ export function createGpMixPlayer(opts = {}) {
     if (metronome?.enabled != null) state.metronomeEnabled = !!metronome.enabled;
     if (metronomeEnabled != null) state.metronomeEnabled = !!metronomeEnabled;
 
-    state.measureStarts = buildMeasureStarts(state.referenceModel);
+    // The click accent falls on the first beat of each sounding bar, so the
+    // bar starts must use play-order quarters, the same space as the clicks.
+    state.measureStarts = state.timeline?.barStartQuarters
+      ? state.timeline.barStartQuarters()
+      : buildMeasureStarts(state.referenceModel);
 
     let startBeat = 0;
     let endBeat = null;
@@ -1011,7 +1029,10 @@ export function createGpMixPlayer(opts = {}) {
   function setMetronomeConfig(config) {
     state.metroConfig = normalizeMetronomeConfig({ ...state.metroConfig, ...config });
     const pos = positionNow();
-    state.nextMetroBeat = snapMetroBeatToGrid(pos.beatInScore, state.metroConfig.subdiv);
+    state.nextMetroBeat = snapMetroBeatToGrid(
+      state.timeline ? pos.quarter : pos.beatInScore,
+      state.metroConfig.subdiv,
+    );
     if (!state.playing) emitTick();
   }
 

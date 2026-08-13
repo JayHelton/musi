@@ -53,6 +53,12 @@ function writeZoom(z) {
   } catch (e) { /* ignore */ }
 }
 
+function clampGain(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(0, Math.min(1, n));
+}
+
 /**
  * Apply an exercise-saved BPM only when it is a real positive finite value.
  * @returns {{ apply: false } | { apply: true, bpm: number, bpmUserOverride: boolean }}
@@ -101,6 +107,10 @@ export function createPlayerState(gpResult, options = {}) {
   const metroDefaults = savedMetro?.metro || defaultMetronomeConfig();
   const rampDefaults = savedMetro?.ramp || defaultTempoRampConfig();
 
+  const initVols = options.initialTrackVolumes;
+  const initGuitars = Array.isArray(initVols?.guitars) ? initVols.guitars : null;
+  const initDrums = Array.isArray(initVols?.drums) ? initVols.drums : null;
+
   const state = {
     gp: gpResult,
     trackIndex: hasFretted
@@ -113,6 +123,14 @@ export function createPlayerState(gpResult, options = {}) {
     navBar: null,
     enabledGuitars: gpResult.tracks.map(() => true),
     enabledDrums: (gpResult.drumTracks || []).map(() => true),
+    trackVolumes: {
+      guitars: initGuitars?.length === gpResult.tracks.length
+        ? initGuitars.map((v) => clampGain(v))
+        : gpResult.tracks.map(() => 1),
+      drums: initDrums?.length === (gpResult.drumTracks || []).length
+        ? initDrums.map((v) => clampGain(v))
+        : (gpResult.drumTracks || []).map(() => 1),
+    },
     solo: null,
     metronomeEnabled: !!metroDefaults.enabled,
     countInEnabled: !!metroDefaults.countInEnabled,
@@ -231,6 +249,17 @@ export function createPlayerState(gpResult, options = {}) {
     else state.enabledDrums[index] = !!on;
   }
 
+  function setTrackVolume(kind, index, gain) {
+    const arr = kind === 'guitar' ? state.trackVolumes.guitars : state.trackVolumes.drums;
+    if (index < 0 || index >= arr.length) return;
+    arr[index] = clampGain(gain);
+  }
+
+  function getTrackVolume(kind, index) {
+    const arr = kind === 'guitar' ? state.trackVolumes.guitars : state.trackVolumes.drums;
+    return arr[index] ?? 1;
+  }
+
   function playAll() {
     state.solo = null;
     state.enabledGuitars = state.enabledGuitars.map(() => true);
@@ -333,6 +362,10 @@ export function createPlayerState(gpResult, options = {}) {
   function toPersistable() {
     return {
       preferredTrackIndex: state.trackIndex,
+      trackVolumes: {
+        guitars: [...state.trackVolumes.guitars],
+        drums: [...state.trackVolumes.drums],
+      },
       loopEnabled: state.loopEnabled,
       measureStart: state.loopStart,
       measureEnd: state.loopEnd,
@@ -386,6 +419,10 @@ export function createPlayerState(gpResult, options = {}) {
     state.tuning = null;
     state.retuneMode = 'fingerings';
     state.solo = null;
+    state.trackVolumes = {
+      guitars: state.gp.tracks.map(() => 1),
+      drums: (state.gp.drumTracks || []).map(() => 1),
+    };
     state.trackIndex = hasFrettedNow ? 0 : -1;
     state.viewKind = hasFrettedNow ? 'guitar' : 'drum';
     state.viewIndex = 0;
@@ -447,6 +484,8 @@ export function createPlayerState(gpResult, options = {}) {
     leaveSolo,
     toggleSolo,
     setTrackEnabled,
+    setTrackVolume,
+    getTrackVolume,
     playAll,
     setViewTrack,
     applyTransforms,

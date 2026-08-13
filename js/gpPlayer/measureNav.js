@@ -4,9 +4,14 @@ import { el } from './dom.js';
 
 /**
  * @param {HTMLElement} host
- * @param {{ measureCount: number, markers?: (string|null)[], onSeek?: (index:number)=>void }} opts
+ * @param {{
+ *   measureCount: number,
+ *   markers?: (string|null)[],
+ *   onSeek?: (index:number)=>void,
+ *   onLoopRange?: (startIdx:number, endIdx:number)=>void,
+ * }} opts
  */
-export function mountMeasureNav(host, { measureCount = 0, markers = [], onSeek } = {}) {
+export function mountMeasureNav(host, { measureCount = 0, markers = [], onSeek, onLoopRange } = {}) {
   const noop = {
     update() {},
     setMeasureCount() {},
@@ -29,12 +34,77 @@ export function mountMeasureNav(host, { measureCount = 0, markers = [], onSeek }
   let prevLoopStart = 0;
   let prevLoopEnd = 0;
   let count = measureCount;
+  let loopDrag = null;
 
   function setLabel(current, total) {
     const t = total ?? count;
     const c = current == null ? '—' : current + 1;
     label.textContent = t ? `Measure ${c} of ${t}` : '';
   }
+
+  function indexFromBtn(btn) {
+    return Number(btn?.dataset?.index);
+  }
+
+  function paintDragRange(startIdx, endIdx) {
+    const lo = Math.max(0, Math.min(startIdx, endIdx));
+    const hi = Math.min(count - 1, Math.max(startIdx, endIdx));
+    for (let i = 0; i < barBtns.length; i++) {
+      barBtns[i].classList.toggle('in-loop-drag', i >= lo && i <= hi);
+    }
+  }
+
+  function clearDragRange() {
+    for (const btn of barBtns) btn.classList.remove('in-loop-drag');
+  }
+
+  function btnFromPoint(clientX, clientY) {
+    const elAt = document.elementFromPoint?.(clientX, clientY);
+    return elAt?.closest?.('.gpp-measure-nav-btn');
+  }
+
+  function onStripPointerDown(e) {
+    if (e.button !== 0) return;
+    const btn = e.target?.closest?.('.gpp-measure-nav-btn');
+    if (!btn) return;
+    loopDrag = {
+      anchor: indexFromBtn(btn),
+      pointerId: e.pointerId,
+      moved: false,
+    };
+    strip.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  }
+
+  function onStripPointerMove(e) {
+    if (!loopDrag || loopDrag.pointerId !== e.pointerId) return;
+    const btn = btnFromPoint(e.clientX, e.clientY);
+    if (!btn) return;
+    const idx = indexFromBtn(btn);
+    if (idx !== loopDrag.anchor) loopDrag.moved = true;
+    paintDragRange(loopDrag.anchor, idx);
+  }
+
+  function onStripPointerUp(e) {
+    if (!loopDrag || loopDrag.pointerId !== e.pointerId) return;
+    strip.releasePointerCapture?.(e.pointerId);
+    const btn = btnFromPoint(e.clientX, e.clientY);
+    const endIdx = btn ? indexFromBtn(btn) : loopDrag.anchor;
+    if (loopDrag.moved && typeof onLoopRange === 'function') {
+      const lo = Math.min(loopDrag.anchor, endIdx);
+      const hi = Math.max(loopDrag.anchor, endIdx);
+      onLoopRange(lo, hi);
+    } else if (!loopDrag.moved && typeof onSeek === 'function') {
+      onSeek(loopDrag.anchor);
+    }
+    clearDragRange();
+    loopDrag = null;
+  }
+
+  strip.addEventListener('pointerdown', onStripPointerDown);
+  strip.addEventListener('pointermove', onStripPointerMove);
+  strip.addEventListener('pointerup', onStripPointerUp);
+  strip.addEventListener('pointercancel', onStripPointerUp);
 
   function rebuild() {
     strip.innerHTML = '';
@@ -45,12 +115,10 @@ export function mountMeasureNav(host, { measureCount = 0, markers = [], onSeek }
         class: 'gpp-measure-nav-btn' + (marker ? ' has-marker' : ''),
         type: 'button',
         text: marker ? `${i + 1}\n${marker}` : String(i + 1),
-        title: marker ? `${marker} · click to jump` : `Bar ${i + 1} · click to jump`,
+        title: marker ? `${marker} · drag to loop` : `Bar ${i + 1} · drag to loop`,
+        'aria-label': marker ? `Bar ${i + 1}, ${marker}` : `Bar ${i + 1}`,
       });
       btn.dataset.index = String(i);
-      btn.addEventListener('click', () => {
-        if (typeof onSeek === 'function') onSeek(i);
-      });
       strip.appendChild(btn);
       barBtns.push(btn);
     }
@@ -106,6 +174,10 @@ export function mountMeasureNav(host, { measureCount = 0, markers = [], onSeek }
   }
 
   function destroy() {
+    strip.removeEventListener('pointerdown', onStripPointerDown);
+    strip.removeEventListener('pointermove', onStripPointerMove);
+    strip.removeEventListener('pointerup', onStripPointerUp);
+    strip.removeEventListener('pointercancel', onStripPointerUp);
     host.innerHTML = '';
     host.classList.remove('gpp-measure-nav');
     barBtns = [];

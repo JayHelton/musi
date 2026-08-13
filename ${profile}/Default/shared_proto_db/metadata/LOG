@@ -1,0 +1,2 @@
+2026/08/13-12:24:57.333 f118 Creating DB /workspace/${profile}/Default/shared_proto_db/metadata since it was missing.
+2026/08/13-12:24:57.343 f118 Reusing MANIFEST /workspace/${profile}/Default/shared_proto_db/metadata/MANIFEST-000001

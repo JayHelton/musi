@@ -7,7 +7,7 @@ import {
   drumTabLegendFor,
 } from '../drums/notation.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
-import { layoutScore } from './scoreLayout.js';
+import { layoutScore, LAYOUT_BASE_PX } from './scoreLayout.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
 const USER_SCROLL_COOLDOWN_MS = 2500;
@@ -323,12 +323,21 @@ export function mountParchmentView(host, {
     return `gpp-glyph gpp-glyph--${kind}${laneClass}`;
   }
 
-  function appendGlyph(parent, glyph, scaleUnit, evForDrum = null) {
+  /**
+   * Draw one glyph inside its lane element.
+   *
+   * The layout gives every glyph a y that counts from the top of the bar. The
+   * lane element already sits at the top of its own lane, so the glyph must
+   * drop the lane offset. Without that step each lane pushes its glyphs down
+   * by its own height, and the rhythm ticks land under the staff.
+   */
+  function appendGlyph(parent, glyph, scaleUnit, evForDrum = null, laneY = 0) {
+    const top = (glyph.y - laneY) * scaleUnit;
     if (glyph.kind === 'beam' && glyph.lane === 'notationStaff' && glyph.h <= 1) {
       const line = document.createElement('div');
       line.className = 'gpp-parch-notation-line';
       line.style.left = `${glyph.x * scaleUnit}px`;
-      line.style.top = `${glyph.y * scaleUnit}px`;
+      line.style.top = `${top}px`;
       line.style.width = `calc(100% - ${glyph.x * scaleUnit}px)`;
       parent.appendChild(line);
       return line;
@@ -339,7 +348,7 @@ export function mountParchmentView(host, {
       : (glyph.kind === 'drumHit' ? ' gpp-parch-drum-hit' : '');
     el.className = `${glyphClassName(glyph.kind, glyph.lane)}${legacy}`;
     el.style.left = `${glyph.x * scaleUnit}px`;
-    el.style.top = `${glyph.y * scaleUnit}px`;
+    el.style.top = `${top}px`;
     el.style.width = `${Math.max(1, glyph.w * scaleUnit)}px`;
     el.style.height = `${Math.max(1, glyph.h * scaleUnit)}px`;
     if (glyph.text) el.textContent = glyph.text;
@@ -413,7 +422,9 @@ export function mountParchmentView(host, {
       return b >= mStart - BEAT_EPS && b < mEnd - BEAT_EPS;
     });
 
+    const laneTops = new Map();
     for (const lane of barLayout.lanes) {
+      laneTops.set(lane.name, lane.y);
       const laneEl = document.createElement('div');
       laneEl.className = `gpp-parch-lane gpp-parch-lane-${lane.name}`;
       laneEl.dataset.lane = lane.name;
@@ -436,6 +447,8 @@ export function mountParchmentView(host, {
 
     for (const glyph of barLayout.glyphs) {
       if (glyph.kind === 'barNumber' || glyph.kind === 'marker') continue;
+      // The tuning already shows in the caption above the first system.
+      if (glyph.kind === 'tuning') continue;
       const laneRef = laneEls.get(glyph.lane);
       if (!laneRef) continue;
       const parent = (glyph.kind === 'fret' || glyph.kind === 'deadNote' || glyph.kind === 'drumHit')
@@ -444,7 +457,7 @@ export function mountParchmentView(host, {
       const evForDrum = glyph.kind === 'drumHit'
         ? eventsAtBar.find((ev) => Math.abs(Number(ev.start) - Number(glyph.beatStart)) < BEAT_EPS)
         : null;
-      appendGlyph(parent, glyph, unitPx, evForDrum);
+      appendGlyph(parent, glyph, unitPx, evForDrum, laneTops.get(glyph.lane) || 0);
     }
 
     wrap.appendChild(staff);
@@ -474,7 +487,7 @@ export function mountParchmentView(host, {
       wrap.addEventListener('pointerdown', onPointerDown);
     }
 
-    if (typeof onMeasureLongPress === 'function') {
+    if (typeof onSelectionChange === 'function') {
       wrap.addEventListener('pointerdown', onLongPressDown);
       wrap.addEventListener('pointerup', onLongPressUp);
       wrap.addEventListener('pointercancel', onLongPressUp);
@@ -506,20 +519,26 @@ export function mountParchmentView(host, {
     const hostW = host.clientWidth || 600;
     const scale = effectiveScale(hostW, currentZoom);
     sheet.style.setProperty('--gpp-scale', String(scale));
-    const layoutFontPx = Math.max(12, Math.round(12 * scale));
-    sheet.style.fontSize = `${layoutFontPx}px`;
+    const layoutFontPx = Math.max(12, Math.round(LAYOUT_BASE_PX * scale));
     sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * scale))}px`);
     sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * scale))}px`);
 
+    // The layout works in units. One unit becomes `scale` pixels on screen.
+    // Pass the width in units, so the layout can fill the row exactly, and
+    // draw the text at the same scale as the glyph boxes. When the two used
+    // different scales, the fret numbers grew past their boxes and ran into
+    // each other and into the rhythm ticks.
     scoreLayout = layoutScore(model, {
-      widthPx: hostW,
-      zoom: currentZoom,
+      widthPx: hostW / scale,
+      zoom: 1,
       showNotationStaff: showNotation,
       showRhythm,
       drumMode: isDrum,
-      minFretFontPx: 12,
+      minFretFontPx: LAYOUT_BASE_PX,
     });
-    unitPx = (scoreLayout.fontPx / 12) * scale;
+    unitPx = scale;
+    sheet.style.fontSize = `${Math.max(12, Math.round(scoreLayout.fontPx * scale))}px`;
+    void layoutFontPx;
 
     const captionText = tuningCaptionText();
     if (captionText) {
@@ -598,15 +617,18 @@ export function mountParchmentView(host, {
   }
 
   function onLongPressDown(e) {
-    if (e.button !== 0 || selectMode || noteMode || resizeDrag) return;
+    if (e.button !== 0 || selectMode || noteMode || resizeDrag || drag) return;
     if (e.target.closest('.gpp-parch-anno-callout')) return;
     clearLongPress();
     longPressTarget = e.currentTarget;
-    const mi = Number(longPressTarget.dataset.index);
+    const startEvent = e;
     longPressTimer = setTimeout(() => {
       longPressTimer = null;
       suppressClickUntil = Date.now() + 400;
-      if (typeof onMeasureLongPress === 'function') onMeasureLongPress(mi);
+      const beat = beatFromPointer(startEvent.clientX, startEvent.clientY);
+      if (beat == null) return;
+      drag = { anchorBeat: beat, pointerId: startEvent.pointerId, moved: false };
+      startEvent.currentTarget.setPointerCapture?.(startEvent.pointerId);
     }, LONG_PRESS_MS);
   }
 

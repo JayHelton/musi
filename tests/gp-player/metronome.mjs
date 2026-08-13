@@ -522,9 +522,9 @@ const simpleGuitarModel = {
   const host = document.createElement('div');
   const mount = mountGpPlayer(host, { gpResult: fakeGp, title: 'Metro wiring' });
   const metroBtn = [...host.querySelectorAll('button')].find(
-    (b) => b.getAttribute('aria-label') === 'Metronome click',
+    (b) => b.getAttribute('aria-label') === 'Metronome',
   );
-  assert.ok(metroBtn, 'transport metronome toggle exists');
+  assert.ok(metroBtn, 'practice rail metronome toggle exists');
   assert.equal(metroBtn.getAttribute('aria-pressed'), 'false');
   metroBtn.click();
   assert.equal(mount.getState().metronomeEnabled, true);
