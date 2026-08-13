@@ -1,2 +1,10 @@
 # Optional local cloud config (do not commit secrets)
 cloud-config.json
+
+# Generated GP player test fixtures (built by makeFixtures.mjs)
+tests/gp-player/fixtures/*.gp5
+tests/gp-player/fixtures/*.gp
+tests/gp-player/fixtures/*.gpx
+tests/gp-player/fixtures/*.gp3
+tests/gp-player/fixtures/*.gp4
+tests/gp-player/fixtures/*.bin
