@@ -1,10 +1,10 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination, requestMicStream, releaseMicStream } from './audio.js';
-import { parseNote } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext, TEMPO_MIN, TEMPO_MAX } from './musicalContext.js';
 import { createPitchTracker } from './pitch.js';
 import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.js';
-import { buildStages, chooseRootMidi, SCALE_PATTERNS } from './pitchExercises.js';
+import { scoreRunnerNote } from './pitchMetrics.js';
+import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
 import { stopTuner, tuner } from './vocalTrainer.js';
 import { pt, stopPitchTrainer } from './pitchTrainer.js';
 
@@ -78,8 +78,7 @@ const runner = {
   // Timeline / scoring state.
   startAudioTime: 0,
   secPerBeat: 0.5,
-  toleranceCents: 30,
-  hitThreshold: 0.5,
+  sequenceError: null,
   patternSeq: [],
   seqIdx: 0,
   nextBeat: LEAD_IN_BEATS,
@@ -94,7 +93,7 @@ const runner = {
   score: 0,
   combo: 0,
   bestCombo: 0,
-  hits: 0,
+  noteAccuracies: [],
   judged: 0,
 
   // Canvas metrics (CSS pixels).
@@ -175,23 +174,74 @@ function clampRange() {
 
 function buildPatternSeq() {
   const { root, scale } = getContext();
-  const stages = buildStages(scale, runner.pattern);
-  const stage = stages[0];
-  const parsed = parseNote(root);
-  const rootPc = parsed ? parsed.semi : 0;
-  const span = stage.offsets.reduce((m, o) => Math.max(m, o), 0);
   const { lo, hi } = clampRange();
-  const rootMidi = chooseRootMidi(rootPc, lo, hi, span);
-  runner.patternSeq = stage.offsets.map(off => rootMidi + off);
-  if (!runner.patternSeq.length) runner.patternSeq = [rootMidi];
+  const built = buildSequenceForTask({
+    task: 'pattern',
+    patternId: runner.pattern,
+    scaleName: scale,
+    rootName: root,
+    low: lo,
+    high: hi,
+  });
+  runner.sequenceError = built.ok ? null : built.error;
+  runner.patternSeq = built.ok ? built.midis : [];
 
-  // Lane bounds cover the whole melody plus a little padding so notes never sit
-  // flush against the top/bottom edge.
   let min = Infinity;
   let max = -Infinity;
   runner.patternSeq.forEach(m => { min = Math.min(min, m); max = Math.max(max, m); });
+  if (!Number.isFinite(min)) {
+    min = lo;
+    max = hi;
+  }
   runner.laneMin = min - 2;
   runner.laneMax = max + 2;
+  updateStartState();
+}
+
+function setStartDisabled(disabled, message) {
+  const btn = el('pr-toggle');
+  const status = el('pr-status');
+  if (btn) btn.disabled = !!disabled;
+  if (status && message) status.textContent = message;
+}
+
+function updateStartState() {
+  const err = runner.sequenceError;
+  if (err) {
+    setStartDisabled(true, err);
+  } else if (!runner.running) {
+    setStartDisabled(false, 'Mic off');
+  } else {
+    setStartDisabled(false);
+  }
+}
+
+function syncNoteAudioTimes() {
+  for (const note of runner.notes) {
+    note.startAudioTime = runner.startAudioTime + note.startBeat * runner.secPerBeat;
+    note.endAudioTime = note.startAudioTime + note.dur * runner.secPerBeat;
+  }
+}
+
+function getInputLatencySec() {
+  if (!runner.stream) return 0;
+  const tracks = runner.stream.getAudioTracks?.();
+  if (!tracks?.length) return 0;
+  const track = tracks[0];
+  const settings = track.getSettings?.() || {};
+  if (typeof settings.latency === 'number' && Number.isFinite(settings.latency)) {
+    return settings.latency;
+  }
+  const constraints = track.getConstraints?.() || {};
+  if (typeof constraints.latency === 'number' && Number.isFinite(constraints.latency)) {
+    return constraints.latency;
+  }
+  return 0;
+}
+
+function getAnalysisDelaySec() {
+  if (!runner.analyser) return 0;
+  return runner.analyser.fftSize / audioCtx.sampleRate / 2;
 }
 
 // Append notes until the timeline is populated a comfortable margin past the
@@ -201,16 +251,17 @@ function ensureNotes(playheadBeat) {
   const dur = Math.max(0.35, runner.noteBeats - NOTE_GAP_BEATS);
   while (runner.nextBeat < horizon) {
     const midi = runner.patternSeq[runner.seqIdx % runner.patternSeq.length];
+    const startAudioTime = runner.startAudioTime + runner.nextBeat * runner.secPerBeat;
     runner.notes.push({
       startBeat: runner.nextBeat,
       dur,
       midi,
-      samples: 0,
-      hitSamples: 0,
+      startAudioTime,
+      endAudioTime: startAudioTime + dur * runner.secPerBeat,
+      samples: [],
       judged: false,
       result: null,
-      // AudioContext time until which guide-tone bleed must not count as a hit.
-      // 0 means "no guide suppression" for this note.
+      noteAccuracy: 0,
       guideMuteUntil: 0,
       guideScheduled: false,
     });
@@ -223,19 +274,28 @@ function ensureNotes(playheadBeat) {
 
 function finalizeNote(note) {
   note.judged = true;
-  const frac = note.samples > 0 ? note.hitSamples / note.samples : 0;
   runner.judged += 1;
-  if (frac >= runner.hitThreshold) {
-    note.result = frac >= 0.85 ? 'perfect' : 'good';
+
+  const scored = scoreRunnerNote(
+    note.samples,
+    note.midi,
+    note.startAudioTime * 1000,
+    note.endAudioTime * 1000,
+  );
+  note.noteAccuracy = scored.noteAccuracy;
+  note.result = scored.result;
+  runner.noteAccuracies.push(scored.noteAccuracy);
+
+  if (scored.result === 'centered') {
     runner.combo += 1;
     runner.bestCombo = Math.max(runner.bestCombo, runner.combo);
-    runner.hits += 1;
-    // Score rewards accuracy and combo streaks.
-    const base = note.result === 'perfect' ? 100 : 60;
-    runner.score += base + Math.min(runner.combo, 20) * 5;
-    flashJudge(note.result === 'perfect' ? 'Perfect!' : 'Good', note.result);
+    runner.score += 100 + Math.min(runner.combo, 20) * 5;
+    flashJudge('Centered', 'centered');
+  } else if (scored.result === 'close') {
+    runner.combo = 0;
+    runner.score += 60;
+    flashJudge('Close', 'close');
   } else {
-    note.result = 'miss';
     runner.combo = 0;
     flashJudge('Miss', 'miss');
   }
@@ -245,11 +305,11 @@ function finalizeNote(note) {
 function flashJudge(text, cls) {
   const j = el('pr-judge');
   if (!j) return;
+  const cssCls = cls === 'centered' ? 'perfect' : cls === 'close' ? 'good' : 'miss';
   j.textContent = text;
-  j.className = 'pr-judge show ' + cls;
-  // Restart the CSS animation.
+  j.className = 'pr-judge show ' + cssCls;
   void j.offsetWidth;
-  j.className = 'pr-judge show ' + cls + ' anim';
+  j.className = 'pr-judge show ' + cssCls + ' anim';
 }
 
 function updateHud() {
@@ -258,14 +318,18 @@ function updateHud() {
   const accEl = el('pr-accuracy');
   if (scoreEl) scoreEl.textContent = String(runner.score);
   if (comboEl) comboEl.textContent = runner.combo > 0 ? `${runner.combo}\u00D7` : '0';
-  if (accEl) accEl.textContent = runner.judged ? Math.round((runner.hits / runner.judged) * 100) + '%' : '--';
+  if (accEl) {
+    accEl.textContent = runner.noteAccuracies.length
+      ? Math.round(runner.noteAccuracies.reduce((a, b) => a + b, 0) / runner.noteAccuracies.length) + '%'
+      : '--';
+  }
 }
 
 function resetScore() {
   runner.score = 0;
   runner.combo = 0;
   runner.bestCombo = 0;
-  runner.hits = 0;
+  runner.noteAccuracies = [];
   runner.judged = 0;
   updateHud();
 }
@@ -391,7 +455,7 @@ function draw(playheadBeat) {
     const barH = Math.max(10, lh * 0.72);
     let fill;
     if (note.judged) {
-      fill = note.result === 'miss' ? c.err : note.result === 'perfect' ? c.ok : c.warn;
+      fill = note.result === 'miss' ? c.err : note.result === 'centered' ? c.ok : c.warn;
     } else if (note.midi === activeMidi) {
       fill = c.accent;
     } else {
@@ -550,28 +614,49 @@ function step() {
 
   // Detect the current sung pitch.
   runner.analyser.getFloatTimeDomainData(runner.buf);
-  const { freq } = runner.tracker.process(runner.buf);
-  const hasPitch = freq > 0;
-  const midiFloat = hasPitch ? freqToMidiFloat(freq) : null;
+  const trackerOut = runner.tracker.process(runner.buf);
+  const {
+    voiced,
+    frequencyHz,
+    clarity,
+    rms,
+    freq,
+    displayFrequencyHz,
+  } = trackerOut;
+  const displayFreq = displayFrequencyHz > 0 ? displayFrequencyHz : freq;
+  const hasPitch = displayFreq > 0;
+  const midiFloat = hasPitch ? freqToMidiFloat(displayFreq) : null;
 
-  // Score any note currently crossing the hit line. Frames while a guide cue
-  // is still audible are ignored so the app's own speakers can't "hit" notes.
+  const correctedAudioTime = now - getAnalysisDelaySec() - getInputLatencySec();
+  const sampleTimestampMs = correctedAudioTime * 1000;
+
   const target = currentTargetMidi(playheadBeat);
   let inTune = false;
-  if (hasPitch && target != null) {
-    const cents = centsOffFromTarget(freq, target);
-    inTune = cents != null && Math.abs(cents) <= runner.toleranceCents;
+  if (voiced && frequencyHz > 0 && target != null) {
+    const cents = centsOffFromTarget(frequencyHz, target);
+    inTune = cents != null && Math.abs(cents) <= 20;
   }
+
   for (const note of runner.notes) {
     if (note.judged) continue;
     const end = note.startBeat + note.dur;
-    if (playheadBeat >= note.startBeat && playheadBeat < end) {
+    const inNoteWindow = correctedAudioTime >= note.startAudioTime
+      && correctedAudioTime < note.endAudioTime;
+    if (inNoteWindow) {
       const guideMute = note.guideMuteUntil > 0 && now < note.guideMuteUntil;
-      if (guideMute) continue;
-      note.samples += 1;
-      if (hasPitch) {
-        const cents = centsOffFromTarget(freq, note.midi);
-        if (cents != null && Math.abs(cents) <= runner.toleranceCents) note.hitSamples += 1;
+      if (!guideMute) {
+        const cents = voiced && frequencyHz > 0
+          ? centsOffFromTarget(frequencyHz, note.midi)
+          : null;
+        note.samples.push({
+          timestampMs: sampleTimestampMs,
+          audioTime: correctedAudioTime,
+          frequencyHz: voiced ? frequencyHz : -1,
+          centsFromTarget: cents,
+          clarity,
+          rms,
+          voiced: !!voiced,
+        });
       }
     } else if (playheadBeat >= end) {
       finalizeNote(note);
@@ -624,13 +709,14 @@ async function startRunner() {
   if (pt && pt.running) stopPitchTrainer();
 
   ensureAudio();
-  const diff = difficultyById(runner.difficulty);
-  runner.toleranceCents = diff.toleranceCents;
-  runner.hitThreshold = diff.hitThreshold;
   readColors();
   resizeCanvas();
   resetScore();
   resetTimeline();
+  if (runner.sequenceError) {
+    updateStartState();
+    return;
+  }
 
   try {
     try {
@@ -656,9 +742,9 @@ async function startRunner() {
     setOverlay('');
     const status = el('pr-status');
     if (status) status.textContent = 'Listening\u2026 sing the notes as they cross the line';
-    // Timeline clock starts now that the mic is live.
     runner.startAudioTime = audioCtx.currentTime + 0.15;
     runner.nextClickBeat = 0;
+    syncNoteAudioTimes();
     loop();
   } catch (e) {
     const status = el('pr-status');
@@ -680,10 +766,14 @@ function stopRunner() {
   setToggleLabel(false);
   const status = el('pr-status');
   if (status) {
+    const acc = runner.noteAccuracies.length
+      ? Math.round(runner.noteAccuracies.reduce((a, b) => a + b, 0) / runner.noteAccuracies.length)
+      : 0;
     status.textContent = runner.judged
-      ? `Stopped \u2014 best combo ${runner.bestCombo}\u00D7, ${runner.judged ? Math.round((runner.hits / runner.judged) * 100) : 0}% accuracy`
+      ? `Stopped \u2014 best combo ${runner.bestCombo}\u00D7, ${acc}% accuracy`
       : 'Mic off';
   }
+  updateStartState();
   setOverlay('Press start to play');
   drawIdle();
 }
@@ -706,13 +796,11 @@ function setOverlay(text) {
 
 function restartIfRunning() {
   if (runner.running) {
-    const diff = difficultyById(runner.difficulty);
-    runner.toleranceCents = diff.toleranceCents;
-    runner.hitThreshold = diff.hitThreshold;
     resetScore();
     resetTimeline();
     runner.startAudioTime = audioCtx.currentTime + 0.15;
     runner.nextClickBeat = 0;
+    syncNoteAudioTimes();
   } else {
     buildPatternSeq();
     if (runner.ctx2d) drawIdle();
@@ -755,7 +843,7 @@ function initPitchRunner() {
     DIFFICULTIES.forEach(d => {
       const opt = document.createElement('option');
       opt.value = d.id;
-      opt.textContent = `${d.label} \u00B7 \u00B1${d.toleranceCents}\u00A2`;
+      opt.textContent = d.label;
       diffSel.appendChild(opt);
     });
     diffSel.value = runner.difficulty;
@@ -876,6 +964,7 @@ function initPitchRunner() {
   buildPatternSeq();
   resizeCanvas();
   updateHud();
+  updateStartState();
   setOverlay('Press start to play');
 }
 

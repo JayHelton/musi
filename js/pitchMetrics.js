@@ -592,3 +592,92 @@ export function createScoringWindow(opts = {}) {
     get style() { return style; },
   };
 }
+
+const RUNNER_CENTER_CENTS = 10;
+const RUNNER_CLOSE_CENTER_CENTS = 20;
+const RUNNER_CENTER_MAE = 15;
+const RUNNER_CLOSE_MAE = 25;
+const RUNNER_IN_TUNE_BAND = 20;
+const RUNNER_ERROR_SCALE = 50;
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function runnerJudge(centerErrorCents, meanAbsoluteErrorCents) {
+  if (centerErrorCents == null || meanAbsoluteErrorCents == null) return 'miss';
+  if (Math.abs(centerErrorCents) <= RUNNER_CENTER_CENTS && meanAbsoluteErrorCents <= RUNNER_CENTER_MAE) {
+    return 'centered';
+  }
+  if (Math.abs(centerErrorCents) <= RUNNER_CLOSE_CENTER_CENTS && meanAbsoluteErrorCents <= RUNNER_CLOSE_MAE) {
+    return 'close';
+  }
+  return 'miss';
+}
+
+/**
+ * Score one Runner note from timestamped pitch samples.
+ * Returns center, MAE, coverages, noteAccuracy, and Centered/Close/Miss.
+ */
+export function scoreRunnerNote(samples, targetMidi, startMs = null, endMs = null) {
+  const segments = (startMs != null && endMs != null)
+    ? samples.filter(s => s.timestampMs >= startMs && s.timestampMs < endMs)
+    : [...samples];
+
+  if (!segments.length) {
+    return {
+      targetMidi,
+      centerErrorCents: null,
+      meanAbsoluteErrorCents: null,
+      inTuneCoverage: 0,
+      voicedCoverage: 0,
+      errorScore: 0,
+      noteAccuracy: 0,
+      result: 'miss',
+    };
+  }
+
+  const windowStart = startMs ?? segments[0].timestampMs;
+  const windowEnd = endMs ?? segments[segments.length - 1].timestampMs;
+  const windowDurationMs = Math.max(1, windowEnd - windowStart);
+
+  let voicedMs = 0;
+  const voicedPairs = [];
+  let inTuneWeight = 0;
+  let voicedWeight = 0;
+
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i];
+    const prevTs = i === 0 ? s.timestampMs : segments[i - 1].timestampMs;
+    const dt = clampDt(s.timestampMs - prevTs) || 16;
+
+    if (s.voiced && s.centsFromTarget != null) {
+      const w = sampleWeight(s, dt);
+      voicedMs += dt;
+      voicedPairs.push({ value: s.centsFromTarget, weight: w });
+      voicedWeight += w;
+      if (Math.abs(s.centsFromTarget) <= RUNNER_IN_TUNE_BAND) {
+        inTuneWeight += w;
+      }
+    }
+  }
+
+  const centerErrorCents = clarityWeightedMedian(voicedPairs);
+  const meanAbsoluteErrorCents = weightedMeanAbs(voicedPairs);
+  const voicedCoverage = voicedMs / windowDurationMs;
+  const inTuneCoverage = voicedWeight > 0 ? inTuneWeight / voicedWeight : 0;
+  const errorScore = clamp01(1 - (meanAbsoluteErrorCents ?? RUNNER_ERROR_SCALE) / RUNNER_ERROR_SCALE);
+  const noteAccuracy = 100 * errorScore * voicedCoverage;
+  const result = runnerJudge(centerErrorCents, meanAbsoluteErrorCents);
+
+  return {
+    targetMidi,
+    centerErrorCents,
+    meanAbsoluteErrorCents,
+    inTuneCoverage,
+    voicedCoverage,
+    errorScore,
+    noteAccuracy,
+    result,
+  };
+}

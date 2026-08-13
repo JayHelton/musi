@@ -6,11 +6,15 @@
 import { runDetectorTests } from './detector.mjs';
 import { runMetricsTests } from './metrics.mjs';
 import { runRangeTests } from './range.mjs';
+import { runRunnerTests } from './runner.mjs';
 import { runTaskTests } from './tasks.mjs';
+import { runProgressTests } from './progress.mjs';
 
 runMetricsTests();
 runDetectorTests();
 runRangeTests();
 runTaskTests();
+runRunnerTests();
+runProgressTests();
 
 console.log('pitch tests: ok');
