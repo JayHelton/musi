@@ -969,12 +969,37 @@
         <div class="field-label">Pitch trainer</div>
         <div class="pt-controls">
           <label class="pt-field">
-            <span>Challenge</span>
-            <select id="pt-difficulty"></select>
+            <span>Task</span>
+            <select id="pt-task"></select>
+          </label>
+          <label class="pt-field">
+            <span>Profile</span>
+            <select id="pt-profile"></select>
+          </label>
+          <label class="pt-field">
+            <span>Hold</span>
+            <select id="pt-hold"></select>
+          </label>
+          <label class="pt-field">
+            <span>Style</span>
+            <select id="pt-style"></select>
+          </label>
+          <label class="pt-field">
+            <span>Feedback</span>
+            <select id="pt-feedback"></select>
           </label>
           <label class="pt-field pt-pattern-field">
             <span>Pattern</span>
             <select id="pt-pattern"></select>
+          </label>
+          <p class="pt-melody-note" id="pt-melody-note" hidden>Melody lives in Runner.</p>
+          <label class="pt-field pt-interval-field" id="pt-interval-wrap" hidden>
+            <span>Interval</span>
+            <select id="pt-interval"></select>
+          </label>
+          <label class="pt-field pt-interval-field" id="pt-interval-dir-wrap" hidden>
+            <span>Direction</span>
+            <select id="pt-interval-dir"></select>
           </label>
           <label class="pt-field">
             <span>Vocal range</span>
@@ -997,21 +1022,25 @@
         </div>
         <div class="pt-stage" id="pt-stage">Press start to begin</div>
         <div class="pt-prompt" id="pt-prompt">--<span class="pt-prompt-sub">Sing &amp; hold the highlighted note</span></div>
-        <div class="pt-meter">
+        <div class="pt-meter" id="pt-meter">
           <div class="pt-meter-scale" id="pt-scale"></div>
           <div class="pt-meter-track" id="pt-track">
-            <div class="pt-zone" id="pt-zone"></div>
-            <div class="pt-tick" style="top:25%"></div>
-            <div class="pt-tick" style="top:75%"></div>
+            <div class="pt-zone-close"></div>
+            <div class="pt-zone-pass" id="pt-zone-pass"></div>
+            <div class="pt-zone-bullseye"></div>
             <div class="pt-target-line"></div>
+            <div class="pt-overflow" id="pt-overflow" aria-hidden="true"></div>
             <div class="pt-puck" id="pt-puck">--</div>
             <div class="pt-progress-ring" id="pt-progress"></div>
           </div>
         </div>
-        <div class="pt-readout">
+        <div class="pt-readout" id="pt-readout">
           <span class="pt-readout-note" id="pt-note">--</span>
           <span class="pt-readout-cents off" id="pt-cents">-- &cent;</span>
+          <span class="pt-readout-direction" id="pt-direction">—</span>
+          <span class="pt-readout-confidence" id="pt-confidence">No stable fundamental</span>
         </div>
+        <div class="pt-result" id="pt-result" hidden></div>
         <div class="tuner-tuning-row" style="margin-top:14px;margin-bottom:0">
           <button class="btn primary" id="pt-toggle" onclick="togglePitchTrainer()">Start training</button>
           <button class="btn" id="pt-skip" onclick="ptSkip()">Skip</button>
