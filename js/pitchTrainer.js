@@ -44,9 +44,8 @@ const RANGE_PRESETS = [
 ];
 
 const GUIDE_DRONE_LAYERS = [
-  { type: 'sine',     detune: 0,  level: 0.5 },
-  { type: 'triangle', detune: -5, level: 0.32 },
-  { type: 'sawtooth', detune: 7,  level: 0.18 },
+  { type: 'sine',     detune: 0, level: 0.5 },
+  { type: 'triangle', detune: 0, level: 0.32 },
 ];
 
 const pt = {
@@ -349,12 +348,19 @@ function renderMeter(res, info) {
 function loop() {
   if (!pt.running) return;
   pt.analyser.getFloatTimeDomainData(pt.buf);
-  const { info, freq } = pt.tracker.process(pt.buf);
+  const tracked = pt.tracker.process(pt.buf);
+  const { info, frequencyHz, voiced, clarity, rms } = tracked;
   const now = performance.now();
   // While the guide/reference tone is still sounding it bleeds into the mic, so
   // don't let those frames count toward the hold — only credit the singer.
   const scoring = now >= pt.guideEndsAt;
-  const res = pt.matcher.update(freq > 0 ? freq : -1, now, scoring);
+  const res = pt.matcher.update({
+    timestampMs: now,
+    frequencyHz: voiced ? frequencyHz : -1,
+    voiced: !!voiced,
+    clarity,
+    rms,
+  }, now, scoring);
 
   renderMeter(res, info);
   if (res.matched && !pt.advancing) onMatched();

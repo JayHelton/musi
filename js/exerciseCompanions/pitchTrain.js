@@ -147,9 +147,15 @@ export function mountPitchTrain(host, companion, options = {}) {
   function loop() {
     if (!running) return;
     analyser.getFloatTimeDomainData(buf);
-    const { freq } = tracker.process(buf);
+    const tracked = tracker.process(buf);
     const now = performance.now();
-    const res = matcher.update(freq > 0 ? freq : -1, now, true);
+    const res = matcher.update({
+      timestampMs: now,
+      frequencyHz: tracked.voiced ? tracked.frequencyHz : -1,
+      voiced: !!tracked.voiced,
+      clarity: tracked.clarity,
+      rms: tracked.rms,
+    }, now, true);
     renderMeter(res);
     if (res.matched && !advancing) onMatched();
     rafId = requestAnimationFrame(loop);

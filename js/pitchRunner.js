@@ -53,8 +53,8 @@ function visibleBeatsAhead() {
 }
 
 const GUIDE_LAYERS = [
-  { type: 'sine',     detune: 0,  level: 0.5 },
-  { type: 'triangle', detune: -4, level: 0.28 },
+  { type: 'sine',     detune: 0, level: 0.5 },
+  { type: 'triangle', detune: 0, level: 0.28 },
 ];
 
 const runner = {

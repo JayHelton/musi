@@ -195,10 +195,28 @@ export function createPitchTracker(opts = {}) {
       candidateCount = 0;
       if (silence >= releaseFrames) {
         reset();
-        return { freq: -1, clarity: res.clarity, info: null };
+        return {
+          freq: -1,
+          frequencyHz: -1,
+          displayFrequencyHz: -1,
+          voiced: false,
+          clarity: res.clarity,
+          rms: res.rms,
+          info: null,
+          noteInfo: null,
+        };
       }
-      // Briefly hold the last confident reading through a short dropout.
-      return { freq: lastInfo ? lastInfo.freq : -1, clarity: res.clarity, info: lastInfo };
+      const heldFreq = lastInfo ? lastInfo.freq : -1;
+      return {
+        freq: heldFreq,
+        frequencyHz: -1,
+        displayFrequencyHz: heldFreq,
+        voiced: false,
+        clarity: res.clarity,
+        rms: res.rms,
+        info: lastInfo,
+        noteInfo: lastInfo,
+      };
     }
 
     silence = 0;
@@ -237,7 +255,16 @@ export function createPitchTracker(opts = {}) {
     }
 
     lastInfo = infoForMidi(heldMidi, smooth);
-    return { freq: smooth, clarity: res.clarity, info: lastInfo };
+    return {
+      freq: smooth,
+      frequencyHz: smooth,
+      displayFrequencyHz: smooth,
+      voiced: true,
+      clarity: res.clarity,
+      rms: res.rms,
+      info: lastInfo,
+      noteInfo: lastInfo,
+    };
   }
 
   return { process, reset };
