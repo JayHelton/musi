@@ -46,6 +46,8 @@ const state = {
   loading: false,
 };
 
+let loadGeneration = 0;
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -162,6 +164,7 @@ function mountCurrent() {
       onOpenFile: () => {
         if (!state.loading) $('gpp-file')?.click();
       },
+      onCloseScore: unloadCurrentScore,
       scoreKey: resolveScoreKey({
         attachmentId: state.attachmentId,
         fileName: state.fileName,
@@ -192,23 +195,24 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
     setStatus('Choose a Guitar Pro .gp or .gp5 file.', 'error');
     return;
   }
+  const gen = ++loadGeneration;
   setLoading(true);
   setStatus(`Reading ${file.name}…`);
   destroyMount();
   try {
     let gp;
+    let bytes = null;
     if (isTab) {
       const raw = JSON.parse(await file.text());
       gp = gpResultFromTabModelJson(raw, {
         fallbackName: (file.name || 'Exercise').replace(/\.musi-tab\.json$/i, ''),
       });
-      state.bytes = null;
     } else {
       const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
+      bytes = new Uint8Array(buf);
       gp = await parseGuitarPro(bytes);
-      state.bytes = bytes;
     }
+    if (gen !== loadGeneration) return;
     if (!hasPlayableTracks(gp)) {
       setStageVisible(false);
       setStatus('No playable tracks found in that file.', 'error');
@@ -217,6 +221,7 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
     state.title = '';
     state.fileName = file.name;
     state.gp = gp;
+    state.bytes = bytes;
     state.exerciseId = exerciseId;
     state.attachmentId = attachmentId;
     mountCurrent();
@@ -228,11 +233,12 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
     if (drums) parts.push(`${drums} drum part${drums === 1 ? '' : 's'}`);
     setStatus(`Loaded ${file.name} · ${parts.join(' · ')} · ${Math.round(tempo)} BPM`);
   } catch (err) {
+    if (gen !== loadGeneration) return;
     destroyMount();
     setStageVisible(false);
     setStatus(err?.message || 'Could not read that file.', 'error');
   } finally {
-    setLoading(false);
+    if (gen === loadGeneration) setLoading(false);
   }
 }
 
@@ -675,6 +681,21 @@ function remountIfNeeded() {
   }
   if (state.mount) return;
   mountCurrent();
+}
+
+export function unloadCurrentScore() {
+  loadGeneration += 1;
+  setLoading(false);
+  destroyMount();
+  state.gp = null;
+  state.bytes = null;
+  state.title = '';
+  state.fileName = '';
+  state.exerciseId = null;
+  state.attachmentId = null;
+  setStageVisible(false);
+  renderLibrary();
+  setStatus('Score closed.');
 }
 
 export function initGpPlayer() {

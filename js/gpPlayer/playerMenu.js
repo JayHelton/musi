@@ -7,6 +7,7 @@ const GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 const ICONS = {
   open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
   notes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 6h10M8 12h10M8 18h6"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   split: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8.5L20 20"/><path d="M8.5 15.5L20 4"/></svg>',
   tracks: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h14"/></svg>',
@@ -39,6 +40,7 @@ export function mountPlayerMenu(host, {
   getViewMode = () => 'score',
   onViewModeChange = null,
   onOpenFile = null,
+  onCloseScore = null,
   onOpenNotes = null,
   onOpenSplit = null,
   onOpenTracks = null,
@@ -156,6 +158,17 @@ export function mountPlayerMenu(host, {
         onClick: () => {
           close();
           onOpenFile();
+        },
+      }));
+    }
+    if (typeof onCloseScore === 'function') {
+      actionsGroup.appendChild(makeMenuRow({
+        label: 'Close score',
+        ariaLabel: 'Close score',
+        icon: ICONS.close,
+        onClick: () => {
+          close();
+          onCloseScore();
         },
       }));
     }

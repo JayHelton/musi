@@ -89,6 +89,7 @@ export function mountGpPlayer(host, {
   exerciseScope = false,
   initialBpm = null,
   onOpenFile = null,
+  onCloseScore = null,
   initialTranspose = null,
   initialTuning = null,
   initialRetuneMode = null,
@@ -144,6 +145,16 @@ export function mountGpPlayer(host, {
   const scoreTrack = el('div', { class: 'gpp-score-track', text: '' });
   titles.append(scoreTitle, scoreTrack);
   scoreHeader.append(titles);
+  if (typeof onCloseScore === 'function') {
+    scoreHeader.append(el('button', {
+      class: 'btn sm gpp-close-score',
+      type: 'button',
+      text: 'Close score',
+      'aria-label': 'Close score',
+      title: 'Close score',
+      onClick: () => onCloseScore(),
+    }));
+  }
 
   const exerciseImportCapable = exerciseImport && typeof exerciseImport.importSegments === 'function';
 
@@ -1187,6 +1198,7 @@ export function mountGpPlayer(host, {
         closeOtherOverlays();
       },
       onOpenFile: typeof onOpenFile === 'function' ? () => onOpenFile() : null,
+      onCloseScore: typeof onCloseScore === 'function' ? () => onCloseScore() : null,
       onOpenNotes: () => {
         closeOtherOverlays('notes');
         annoDrawer?.toggle();
