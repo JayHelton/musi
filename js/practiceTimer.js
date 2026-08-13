@@ -151,7 +151,7 @@ function renderDisplay() {
 }
 
 function setStatus(text) {
-  const el = q('pt-status');
+  const el = q('pt-timer-status');
   if (el) el.textContent = text;
 }
 

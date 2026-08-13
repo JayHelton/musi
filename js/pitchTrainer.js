@@ -37,7 +37,8 @@ import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
 
 const WINDOW_CENTS = 50;
 const DISPLAY_SMOOTH_MS = 120;
-const ADVANCE_DELAY_MS = 800;
+const VOICED_HOLD_MS = 350;
+const READOUT_THROTTLE_MS = 66;
 
 const RANGE_MIN_MIDI = 36;
 const RANGE_MAX_MIDI = 84;
@@ -103,7 +104,7 @@ const pt = {
   holdMs: DEFAULT_HOLD_MS,
   task: 'center',
   style: 'straight',
-  feedbackMode: 'auto',
+  feedbackMode: 'live',
   feedbackEffective: 'live',
   intervalId: 'M2',
   intervalDirection: 'ascending',
@@ -120,7 +121,7 @@ const pt = {
   pool: [],
   noteIdx: 0,
   anchorMidi: null,
-  advancing: false,
+  awaitingRelease: false,
   completed: 0,
   sequenceError: null,
 
@@ -129,13 +130,19 @@ const pt = {
   attemptSnapshots: [],
 
   voices: [],
-  advanceTimer: null,
   replayActive: false,
   guideLockActive: false,
   guideEndsAt: 0,
   guideEndsAudioTime: 0,
   puckRatio: 0.5,
-  lastFrameMs: 0,
+  lastRenderMs: 0,
+  lastVoicedRenderMs: 0,
+  lastReadoutWriteMs: 0,
+  centsSmoothed: null,
+  dirState: 'Center',
+  puckHoldCls: 'idle',
+  puckHoldText: '--',
+  pendingRender: null,
   lastTargetMidi: null,
   failHandled: false,
 };
@@ -219,13 +226,6 @@ function resetNoteFeedback() {
 }
 
 // ---- Reference / guide tone -------------------------------------------------
-
-function clearAdvanceTimer() {
-  if (pt.advanceTimer) {
-    clearTimeout(pt.advanceTimer);
-    pt.advanceTimer = null;
-  }
-}
 
 function setReplayButtonActive(active) {
   pt.replayActive = active;
@@ -539,6 +539,7 @@ function setTarget() {
   const midi = currentTargetMidi();
   pt.attemptSnapshots = [];
   pt.failHandled = false;
+  pt.awaitingRelease = false;
   if (midi !== pt.lastTargetMidi) {
     const s = pt.noteStats[midi];
     if (!s || s.consecutivePasses < 2) resetNoteFeedback();
@@ -556,7 +557,6 @@ function setTarget() {
 }
 
 function advance() {
-  pt.advancing = false;
   if (pt.task === 'center' || pt.task === 'land' || pt.task === 'interval') {
     pickAdaptiveTarget();
     setTarget();
@@ -724,10 +724,9 @@ function showResultPanel(result) {
 }
 
 function onMatched() {
-  if (pt.advancing) return;
+  if (pt.awaitingRelease) return;
   const result = pt.matcher.finalize();
   if (!result) return;
-  pt.advancing = true;
   pt.completed += 1;
   const midi = currentTargetMidi();
   recordNoteResult(midi, result);
@@ -736,15 +735,17 @@ function onMatched() {
   applyFeedbackVisibility();
   showResultPanel(result);
 
-  const puck = el('pt-puck');
-  if (puck) { puck.classList.remove('off', 'close'); puck.classList.add('in'); }
+  if (pt.matcher) pt.matcher.reset();
+  pt.attemptSnapshots = [];
+  pt.failHandled = false;
+  pt.awaitingRelease = true;
 
-  clearAdvanceTimer();
-  pt.advanceTimer = setTimeout(() => { if (pt.running) advance(); }, ADVANCE_DELAY_MS);
+  const puck = el('pt-puck');
+  if (puck) { puck.classList.remove('off', 'close', 'idle'); puck.classList.add('in'); }
 }
 
 function onAttemptFailed() {
-  if (pt.failHandled || pt.advancing) return;
+  if (pt.failHandled) return;
   pt.failHandled = true;
   const result = pt.matcher.finalize();
   const midi = currentTargetMidi();
@@ -761,10 +762,22 @@ function onAttemptFailed() {
 
 // ---- Meter rendering --------------------------------------------------------
 
-function directionLabel(cents) {
-  if (cents == null) return '—';
-  if (Math.abs(cents) < 2) return 'Center';
-  return cents > 0 ? 'Sharp' : 'Flat';
+function directionLabelHysteresis(smoothedCents, prev) {
+  if (smoothedCents == null) return '—';
+  const abs = Math.abs(smoothedCents);
+  if (prev === 'Center' || prev === '—') {
+    if (abs > 8) return smoothedCents > 0 ? 'Sharp' : 'Flat';
+    return 'Center';
+  }
+  if (prev === 'Sharp') {
+    if (abs <= 5) return 'Center';
+    return 'Sharp';
+  }
+  if (prev === 'Flat') {
+    if (abs <= 5) return 'Center';
+    return 'Flat';
+  }
+  return 'Center';
 }
 
 function confidenceLabel(tracked, res) {
@@ -773,7 +786,7 @@ function confidenceLabel(tracked, res) {
   return 'Voiced';
 }
 
-function renderMeter(res, info, tracked) {
+function renderMeter(res, info, tracked, guideLockout, now) {
   const puck = el('pt-puck');
   const progress = el('pt-progress');
   const noteEl = el('pt-note');
@@ -785,45 +798,80 @@ function renderMeter(res, info, tracked) {
 
   const mode = effectiveFeedbackMode();
   const showLive = mode === 'live' || mode === 'reduced';
+  const ts = now ?? performance.now();
 
-  if (!res.active || res.freq <= 0 || res.centsOff == null) {
+  if (guideLockout) {
     if (showLive) puck.style.top = (pt.puckRatio * 100) + '%';
-    puck.className = 'pt-puck off';
-    puck.textContent = '--';
-    if (progress) progress.style.height = (res.progress * 100) + '%';
-    if (noteEl) noteEl.textContent = info && info.name ? info.name + info.oct : '--';
-    if (centsEl) { centsEl.textContent = '-- \u00A2'; centsEl.className = 'pt-readout-cents off'; }
-    if (dirEl) dirEl.textContent = '—';
-    if (confEl) confEl.textContent = confidenceLabel(tracked, res);
-    if (overflow) overflow.textContent = '';
+    puck.className = 'pt-puck holding ' + (pt.puckHoldCls || 'idle');
+    if (progress) progress.style.height = '0%';
+    if (confEl) confEl.textContent = 'Guide tone';
     return;
   }
 
-  const now = performance.now();
-  const dt = pt.lastFrameMs ? now - pt.lastFrameMs : 16;
+  const hasVoice = res.active && res.freq > 0 && res.centsOff != null;
+
+  if (!hasVoice) {
+    const sinceVoiced = ts - (pt.lastVoicedRenderMs || 0);
+    if (sinceVoiced < VOICED_HOLD_MS && pt.puckHoldCls) {
+      if (showLive) puck.style.top = (pt.puckRatio * 100) + '%';
+      puck.className = 'pt-puck holding ' + pt.puckHoldCls;
+      puck.textContent = pt.puckHoldText;
+      if (progress) progress.style.height = (res.progress * 100) + '%';
+      if (confEl) confEl.textContent = confidenceLabel(tracked, res);
+      if (overflow) overflow.textContent = '';
+      pt.lastRenderMs = ts;
+      return;
+    }
+    if (showLive) puck.style.top = (pt.puckRatio * 100) + '%';
+    puck.className = 'pt-puck idle';
+    puck.textContent = '--';
+    if (progress) progress.style.height = (res.progress * 100) + '%';
+    if (noteEl) noteEl.textContent = info && info.name ? info.name + info.oct : '--';
+    if (centsEl && mode !== 'result') {
+      centsEl.textContent = '-- \u00A2';
+      centsEl.className = 'pt-readout-cents idle';
+    }
+    if (dirEl && mode !== 'result') dirEl.textContent = '—';
+    if (confEl) confEl.textContent = confidenceLabel(tracked, res);
+    if (overflow) overflow.textContent = '';
+    pt.lastRenderMs = ts;
+    return;
+  }
+
+  const dt = pt.lastRenderMs ? ts - pt.lastRenderMs : 16;
   const alpha = 1 - Math.exp(-dt / DISPLAY_SMOOTH_MS);
   pt.puckRatio += (res.offsetRatio - pt.puckRatio) * alpha;
   if (showLive) puck.style.top = (pt.puckRatio * 100) + '%';
+
+  if (pt.centsSmoothed == null) pt.centsSmoothed = res.centsOff;
+  else pt.centsSmoothed += (res.centsOff - pt.centsSmoothed) * alpha;
 
   const absC = Math.abs(res.centsOff);
   const centerCents = pt.matcher?.profile?.centerCents ?? 10;
   const cls = res.within ? 'in' : absC <= centerCents * 2 ? 'close' : 'off';
   puck.className = 'pt-puck ' + cls;
   puck.textContent = info ? info.name : '\u266a';
+  pt.puckHoldCls = cls;
+  pt.puckHoldText = puck.textContent;
+  pt.lastVoicedRenderMs = ts;
 
   if (progress) progress.style.height = (res.progress * 100) + '%';
   if (noteEl) noteEl.textContent = info ? info.name + info.oct : '--';
 
-  if (centsEl && mode !== 'result') {
-    const sign = res.centsOff >= 0 ? '+' : '';
-    centsEl.textContent = `${sign}${Math.round(res.centsOff)} \u00A2`;
-    centsEl.className = 'pt-readout-cents ' + cls;
-    if (mode === 'reduced') centsEl.classList.add('dim');
-  }
-
-  if (dirEl && mode !== 'result') {
-    dirEl.textContent = directionLabel(res.centsOff);
-    dirEl.className = 'pt-readout-direction ' + cls;
+  const updateReadout = !pt.lastReadoutWriteMs || (ts - pt.lastReadoutWriteMs >= READOUT_THROTTLE_MS);
+  if (updateReadout) {
+    pt.lastReadoutWriteMs = ts;
+    pt.dirState = directionLabelHysteresis(pt.centsSmoothed, pt.dirState);
+    if (centsEl && mode !== 'result') {
+      const sign = pt.centsSmoothed >= 0 ? '+' : '';
+      centsEl.textContent = `${sign}${Math.round(pt.centsSmoothed)} \u00A2`;
+      centsEl.className = 'pt-readout-cents ' + cls;
+      if (mode === 'reduced') centsEl.classList.add('dim');
+    }
+    if (dirEl && mode !== 'result') {
+      dirEl.textContent = pt.dirState;
+      dirEl.className = 'pt-readout-direction ' + cls;
+    }
   }
 
   if (confEl) confEl.textContent = confidenceLabel(tracked, res);
@@ -837,6 +885,22 @@ function renderMeter(res, info, tracked) {
       overflow.classList.remove('active');
     }
   }
+  pt.lastRenderMs = ts;
+}
+
+function renderLoop(now) {
+  if (!pt.running) return;
+  pt.rafId = requestAnimationFrame(renderLoop);
+  if (pt.pendingRender) {
+    const { res, info, tracked, guideLockout } = pt.pendingRender;
+    renderMeter(res, info, tracked, guideLockout, now);
+  }
+}
+
+function startRenderLoop() {
+  if (pt.rafId) cancelAnimationFrame(pt.rafId);
+  pt.lastRenderMs = 0;
+  pt.rafId = requestAnimationFrame(renderLoop);
 }
 
 // ---- Mic capture ------------------------------------------------------------
@@ -848,20 +912,17 @@ function handlePitchFrame(frame) {
   const scoring = isScoringWindowClear(audioTime, pt.guideEndsAudioTime, pt.capture);
 
   if (!scoring) {
-    if (pt.matcher) pt.matcher.markGuideTone();
-    if (pt.capture) pt.capture.reset();
-    pt.guideLockActive = true;
-    const idleRes = {
-      active: true,
-      freq: -1,
-      centsOff: null,
-      within: false,
-      progress: 0,
-      voiced: false,
+    if (!pt.guideLockActive) {
+      if (pt.matcher) pt.matcher.markGuideTone();
+      if (pt.capture) pt.capture.reset();
+      pt.guideLockActive = true;
+    }
+    pt.pendingRender = {
+      res: { active: true, freq: -1, centsOff: null, within: false, progress: 0, voiced: false },
+      info: null,
+      tracked: { voiced: false, freq: -1 },
+      guideLockout: true,
     };
-    const idleTracked = { voiced: false, freq: -1 };
-    renderMeter(idleRes, null, idleTracked);
-    pt.lastFrameMs = performance.now();
     return;
   }
 
@@ -882,17 +943,23 @@ function handlePitchFrame(frame) {
     rms,
   }, timestampMs, true);
 
+  // One sustained note gives one result. A breath, or a move away from the
+  // center, arms the next attempt on the same note.
+  const leftCenter = res.centsOff != null && Math.abs(res.centsOff) > 20;
+  if (!voiced || leftCenter) {
+    pt.awaitingRelease = false;
+    pt.failHandled = false;
+  }
+
   if (res.centsOff != null) {
     pt.attemptSnapshots.push({ voiced: !!voiced, centsOff: res.centsOff, timestampMs });
   }
 
-  renderMeter(res, noteInfo, frame);
-  pt.lastFrameMs = performance.now();
+  pt.pendingRender = { res, info: noteInfo, tracked: frame, guideLockout: false };
 
-  if (res.matched && !pt.advancing) {
-    onMatched();
-  } else if (res.progress >= 1 && !res.matched && !pt.advancing && !pt.failHandled) {
-    onAttemptFailed();
+  if (!pt.awaitingRelease) {
+    if (res.matched) onMatched();
+    else if (res.progress >= 1 && !res.matched && !pt.failHandled) onAttemptFailed();
   }
 }
 
@@ -911,8 +978,13 @@ async function startPitchTrainer() {
   pt.guideEndsAt = 0;
   pt.guideEndsAudioTime = 0;
   pt.guideLockActive = false;
+  pt.awaitingRelease = false;
   pt.puckRatio = 0.5;
-  pt.lastFrameMs = 0;
+  pt.centsSmoothed = null;
+  pt.dirState = 'Center';
+  pt.lastVoicedRenderMs = 0;
+  pt.lastReadoutWriteMs = 0;
+  pt.pendingRender = null;
   buildSequence();
   if (pt.sequenceError) {
     updateStartState();
@@ -943,6 +1015,7 @@ async function startPitchTrainer() {
     });
 
     pt.running = true;
+    startRenderLoop();
     setToggleLabel(true);
     updateStartState();
     const status = el('pt-status');
@@ -965,11 +1038,11 @@ function stopPitchTrainer() {
     return;
   }
   pt.running = false;
-  pt.advancing = false;
   pt.guideEndsAt = 0;
   pt.guideEndsAudioTime = 0;
   pt.guideLockActive = false;
-  clearAdvanceTimer();
+  pt.awaitingRelease = false;
+  pt.pendingRender = null;
   if (pt.rafId) { cancelAnimationFrame(pt.rafId); pt.rafId = null; }
   if (pt.capture) { pt.capture.stop(); pt.capture = null; }
   if (pt.matcher) pt.matcher.reset();
@@ -982,7 +1055,7 @@ function stopPitchTrainer() {
   setToggleLabel(false);
   updateStartState();
   const puck = el('pt-puck');
-  if (puck) { puck.className = 'pt-puck off'; puck.style.top = '50%'; puck.textContent = '--'; }
+  if (puck) { puck.className = 'pt-puck idle'; puck.style.top = '50%'; puck.textContent = '--'; }
   const progress = el('pt-progress');
   if (progress) progress.style.height = '0%';
 }
@@ -996,16 +1069,17 @@ function togglePitchTrainer() {
   if (pt.running) stopPitchTrainer(); else startPitchTrainer();
 }
 
-function ptSkip() {
+function ptNext() {
   if (!pt.running) return;
-  clearAdvanceTimer();
   stopGuideTone();
-  pt.advancing = false;
+  pt.awaitingRelease = false;
   if (pt.matcher) pt.matcher.reset();
   pt.attemptSnapshots = [];
+  const resultEl = el('pt-result');
+  if (resultEl) resultEl.hidden = true;
   advance();
   const status = el('pt-status');
-  if (status) status.textContent = 'Skipped — next note';
+  if (status) status.textContent = 'Next note';
 }
 
 function ptReplay() {
@@ -1148,6 +1222,10 @@ function loadSettings() {
   pt.task = getSetting('pitchTrainer.task', pt.task, TASKS.map(t => t.id));
   pt.style = getSetting('pitchTrainer.style', pt.style, STYLE_OPTIONS.map(s => s.id));
   pt.feedbackMode = getSetting('pitchTrainer.feedbackMode', pt.feedbackMode, FEEDBACK_MODES.map(f => f.id));
+  if (pt.feedbackMode === 'auto') {
+    pt.feedbackMode = 'live';
+    saveSetting('pitchTrainer.feedbackMode', 'live');
+  }
   pt.pattern = getSetting('pitchTrainer.pattern', pt.pattern, SCALE_PATTERNS.map(p => p.id));
   pt.intervalId = getSetting('pitchTrainer.intervalId', pt.intervalId, INTERVAL_OPTIONS);
   pt.intervalDirection = getSetting('pitchTrainer.intervalDirection', pt.intervalDirection, ['ascending', 'descending']);
@@ -1360,7 +1438,7 @@ function initPitchTrainer() {
 }
 
 window.togglePitchTrainer = togglePitchTrainer;
-window.ptSkip = ptSkip;
+window.ptNext = ptNext;
 window.ptReplay = ptReplay;
 
 export { initPitchTrainer, stopPitchTrainer, pt };

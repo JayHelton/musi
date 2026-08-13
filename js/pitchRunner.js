@@ -70,6 +70,7 @@ const runner = {
   noiseFloor: null,
   trackSettings: null,
   lastPitchFrame: null,
+  guideLockActive: false,
   rafId: null,
 
   difficulty: 'medium',
@@ -604,18 +605,17 @@ function handleRunnerPitchFrame(frame) {
       break;
     }
   }
-  if (anyLockActive) {
+  if (anyLockActive && !runner.guideLockActive) {
     if (runner.capture) runner.capture.reset();
-    runner.lastPitchFrame = {
-      ...frame,
-      voiced: false,
-      frequencyHz: -1,
-      displayFrequencyHz: -1,
-    };
-    return;
+    runner.guideLockActive = true;
+  } else if (!anyLockActive && runner.guideLockActive) {
+    if (runner.capture) runner.capture.reset();
+    runner.guideLockActive = false;
   }
-  const activeMinRms = runner.noiseFloor ? runner.noiseFloor.ingest(frame.rms) : frame.rms;
-  if (runner.capture) runner.capture.setMinRms(activeMinRms);
+  if (!anyLockActive) {
+    const activeMinRms = runner.noiseFloor ? runner.noiseFloor.ingest(frame.rms) : frame.rms;
+    if (runner.capture) runner.capture.setMinRms(activeMinRms);
+  }
   runner.lastPitchFrame = frame;
 }
 
@@ -741,6 +741,7 @@ async function startRunner() {
     runner.noiseFloor = createAdaptiveNoiseFloor(0.003);
     runner.noiseFloor.startCollection();
     runner.lastPitchFrame = null;
+    runner.guideLockActive = false;
 
     runner.capture = await createPitchCapture({
       audioCtx,
@@ -778,6 +779,7 @@ function stopRunner() {
   if (runner.rafId) { cancelAnimationFrame(runner.rafId); runner.rafId = null; }
   if (runner.capture) { runner.capture.stop(); runner.capture = null; }
   runner.lastPitchFrame = null;
+  runner.guideLockActive = false;
   if (runner.noiseFloor) runner.noiseFloor = null;
   if (runner.stream) { releaseMicStream(runner.stream); runner.stream = null; }
   setToggleLabel(false);

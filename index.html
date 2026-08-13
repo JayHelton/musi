@@ -1024,7 +1024,7 @@
           <div class="pt-trends" id="pt-trends" hidden aria-live="polite"></div>
         </div>
         <div class="pt-stage" id="pt-stage">Press start to begin</div>
-        <div class="pt-prompt" id="pt-prompt">--<span class="pt-prompt-sub">Sing &amp; hold the highlighted note</span></div>
+        <div class="pt-prompt" id="pt-prompt">--<span class="pt-prompt-sub">Sing the center of the note</span></div>
         <div class="pt-meter" id="pt-meter">
           <div class="pt-meter-scale" id="pt-scale"></div>
           <div class="pt-meter-track" id="pt-track">
@@ -1046,7 +1046,7 @@
         <div class="pt-result" id="pt-result" hidden></div>
         <div class="tuner-tuning-row" style="margin-top:14px;margin-bottom:0">
           <button class="btn primary" id="pt-toggle" onclick="togglePitchTrainer()">Start training</button>
-          <button class="btn" id="pt-skip" onclick="ptSkip()">Skip</button>
+          <button class="btn" id="pt-next" onclick="ptNext()">Next note</button>
           <button class="btn" id="pt-replay" aria-pressed="false">Hold note</button>
         </div>
         <div class="pt-status" id="pt-status">Mic off</div>
@@ -1587,7 +1587,7 @@
       <div class="quiz-card pt-timer-card">
         <div class="pt-display" id="pt-display" aria-live="polite">15:00</div>
         <div class="pt-progress"><div class="pt-progress-fill" id="pt-progress-fill"></div></div>
-        <div class="pt-status" id="pt-status">Ready</div>
+        <div class="pt-status" id="pt-timer-status">Ready</div>
         <div class="pt-duration">
           <span class="pt-field-label">Duration (minutes)</span>
           <div class="pt-duration-row">
