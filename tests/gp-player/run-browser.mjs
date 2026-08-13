@@ -15,7 +15,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 /** Register harness pages here (file names under tests/gp-player/audio/). */
-const PAGES = [];
+const PAGES = [
+  'onset-timing.html',
+  'total-duration.html',
+  'loop-boundary.html',
+  'long-drift.html',
+];
 
 const PORT = Number(process.env.GP_PLAYER_PORT || process.env.PORT || 8080);
 const BASE = `http://localhost:${PORT}`;

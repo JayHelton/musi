@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>gp-player total duration</title></head>
+<body>
+<div id="out">running</div>
+<script type="module">
+import { writeln, printTable, reportResult, runMain } from './harness.js';
+import { buildPlayOrder } from '../../../js/tab/playOrder.js';
+import { buildTimeline } from '../../../js/tab/scoreTimeline.js';
+
+const PCT_THRESH = 1;
+
+function midiFreq(m) {
+  return 440 * Math.pow(2, (m - 69) / 12);
+}
+
+function scheduleTone(ctx, dest, midi, when, dur) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = midiFreq(midi);
+  const peak = 0.16;
+  const attack = 0.008;
+  const release = Math.min(0.08, dur * 0.35);
+  gain.gain.setValueAtTime(0.0001, when);
+  gain.gain.linearRampToValueAtTime(peak, when + attack);
+  gain.gain.setValueAtTime(peak * 0.7, Math.max(when + attack, when + dur - release));
+  gain.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  osc.connect(gain);
+  gain.connect(dest);
+  osc.start(when);
+  osc.stop(when + dur + 0.02);
+}
+
+function measureSoundEnd(channelData, sampleRate) {
+  const hop = Math.max(1, Math.floor(sampleRate * 0.005));
+  let floor = 0;
+  const floorN = Math.min(channelData.length, Math.floor(sampleRate * 0.05));
+  for (let i = 0; i < floorN; i++) floor += Math.abs(channelData[i]);
+  const thresh = Math.max((floor / floorN) * 4, 0.002);
+  let last = 0;
+  for (let i = channelData.length - hop; i >= 0; i -= hop) {
+    let e = 0;
+    for (let j = 0; j < hop && i + j < channelData.length; j++) e += Math.abs(channelData[i + j]);
+    e /= hop;
+    if (e > thresh) {
+      last = (i + hop) / sampleRate;
+      break;
+    }
+  }
+  return last;
+}
+
+/** Score with tempo change: 8 bars at 90 BPM, then 8 bars at 140 BPM. */
+function makeTempoChangeScore() {
+  const events = [];
+  const measures = [];
+  for (let bar = 0; bar < 16; bar += 1) {
+    const startBeat = bar * 4;
+    measures.push({
+      startBeat,
+      endBeat: startBeat + 4,
+      startSlot: startBeat,
+      endSlot: startBeat + 4,
+    });
+    events.push({
+      slot: startBeat,
+      start: startBeat,
+      duration: 4,
+      stringIndex: 0,
+      fret: 0,
+      midi: 60,
+      pc: 0,
+      techniques: [],
+      dead: false,
+    });
+  }
+  return {
+    tuning: 'Standard',
+    tempo: 90,
+    tempoMap: [{ barIndex: 8, beat: 0, bpm: 140, linear: false }],
+    strings: [{ openMidi: 40 }],
+    events,
+    measures,
+    totalBeats: 64,
+  };
+}
+
+function makeFakeAudio(scheduled) {
+  const gainParam = () => ({
+    value: 1,
+    setValueAtTime() {},
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+    cancelScheduledValues() {},
+  });
+  const stub = () => ({
+    connect() {},
+    disconnect() {},
+    gain: gainParam(),
+    frequency: gainParam(),
+    start() {},
+    stop() {},
+    threshold: gainParam(),
+    knee: gainParam(),
+    ratio: gainParam(),
+    attack: gainParam(),
+    release: gainParam(),
+    fftSize: 256,
+  });
+  const ctx = {
+    currentTime: 0,
+    state: 'running',
+    sampleRate: 48000,
+    destination: { connect() {}, disconnect() {} },
+    resume: async () => {},
+    createGain: () => ({ gain: gainParam(), connect() {}, disconnect() {} }),
+    createOscillator() {
+      const state = { freq: 440 };
+      let note = null;
+      return {
+        type: 'triangle',
+        frequency: {
+          get value() { return state.freq; },
+          set value(v) { state.freq = v; },
+        },
+        connect() {},
+        start(when) {
+          note = {
+            when,
+            midi: Math.round(69 + 12 * Math.log2(state.freq / 440)),
+            dur: 0.2,
+          };
+          scheduled.push(note);
+        },
+        stop(when) {
+          if (note) note.dur = Math.max(0.05, when - note.when - 0.02);
+        },
+      };
+    },
+    createDynamicsCompressor: () => stub(),
+    createAnalyser: () => stub(),
+    createBuffer: (ch, len, sr) => ({
+      getChannelData: () => new Float32Array(len),
+      sampleRate: sr,
+    }),
+    createBufferSource: () => ({
+      connect() {},
+      start() {},
+      stop() {},
+      buffer: null,
+      playbackRate: { value: 1 },
+    }),
+    createBiquadFilter: () => stub(),
+  };
+  return ctx;
+}
+
+async function capturePlayer(model, durationSec) {
+  const scheduled = [];
+  let fakeCtx = null;
+  const pending = [];
+  let nextId = 1;
+  const cleared = new Set();
+  const origST = window.setTimeout.bind(window);
+  const origCT = window.clearTimeout.bind(window);
+  const origRAF = window.requestAnimationFrame?.bind(window);
+  const origCAF = window.cancelAnimationFrame?.bind(window);
+  const origAC = window.AudioContext;
+  const origWAC = window.webkitAudioContext;
+  window.AudioContext = function AudioContext() {
+    if (!fakeCtx) fakeCtx = makeFakeAudio(scheduled);
+    return fakeCtx;
+  };
+  window.webkitAudioContext = window.AudioContext;
+  window.setTimeout = (fn, ms) => {
+    const id = nextId++;
+    pending.push({ id, at: fakeCtx.currentTime + ms / 1000, fn });
+    return id;
+  };
+  window.clearTimeout = (id) => cleared.add(id);
+  window.requestAnimationFrame = (fn) => origST(fn, 16);
+  window.cancelAnimationFrame = (id) => cleared.add(id);
+
+  const { createGpMixPlayer } = await import('../../../js/gpMixPlayer.js');
+  const player = createGpMixPlayer();
+  player.load({
+    guitarModels: [model],
+    drumModels: [],
+    bpm: model.tempo,
+    metronome: { enabled: false },
+  });
+  await player.play();
+
+  const step = 0.002;
+  let t = 0;
+  while (t < durationSec) {
+    t += step;
+    fakeCtx.currentTime = t;
+    const ready = [];
+    const still = [];
+    for (const p of pending) {
+      if (cleared.has(p.id)) continue;
+      if (p.at <= t) ready.push(p);
+      else still.push(p);
+    }
+    pending.length = 0;
+    pending.push(...still);
+    for (const p of ready) {
+      cleared.add(p.id);
+      p.fn();
+    }
+  }
+
+  player.destroy();
+  window.setTimeout = origST;
+  window.clearTimeout = origCT;
+  if (origRAF) window.requestAnimationFrame = origRAF;
+  if (origCAF) window.cancelAnimationFrame = origCAF;
+  window.AudioContext = origAC;
+  window.webkitAudioContext = origWAC;
+
+  const sampleRate = 48000;
+  const length = Math.ceil((durationSec + 0.5) * sampleRate);
+  const oac = new OfflineAudioContext({ numberOfChannels: 1, length, sampleRate });
+  for (const n of scheduled) scheduleTone(oac, oac.destination, n.midi, n.when, n.dur);
+  const buffer = await oac.startRendering();
+  return { buffer, sampleRate };
+}
+
+runMain(async () => {
+  const model = makeTempoChangeScore();
+  const timeline = buildTimeline({
+    playOrder: buildPlayOrder(model.measures),
+    tempoMap: model.tempoMap,
+    baseBpm: model.tempo,
+    rate: 1,
+    tracks: { guitarModels: [model], drumModels: [] },
+  });
+  const expectedSec = timeline.totalSec;
+
+  writeln('total-duration: playback time vs score');
+  writeln(`threshold: ${PCT_THRESH} %`);
+
+  const { buffer, sampleRate } = await capturePlayer(model, expectedSec + 0.5);
+  const measuredSec = measureSoundEnd(buffer.getChannelData(0), sampleRate);
+  const errPct = expectedSec > 0
+    ? ((measuredSec - expectedSec) / expectedSec) * 100
+    : 0;
+  const pass = Math.abs(errPct) <= PCT_THRESH;
+
+  printTable([
+    {
+      metric: 'expected_s',
+      value: expectedSec.toFixed(4),
+    },
+    {
+      metric: 'measured_s',
+      value: measuredSec.toFixed(4),
+    },
+    {
+      metric: 'err_pct',
+      value: errPct.toFixed(3),
+    },
+    {
+      metric: 'ok',
+      value: pass ? 'yes' : 'no',
+    },
+  ], [
+    { key: 'metric', label: 'metric' },
+    { key: 'value', label: 'value' },
+  ]);
+  reportResult(pass);
+});
+</script>
+</body>
+</html>

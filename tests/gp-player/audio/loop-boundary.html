@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>gp-player loop boundary</title></head>
+<body>
+<div id="out">running</div>
+<script type="module">
+import { writeln, printTable, reportResult, runMain } from './harness.js';
+import { buildPlayOrder } from '../../../js/tab/playOrder.js';
+import { buildTimeline } from '../../../js/tab/scoreTimeline.js';
+
+const GAP_THRESH_MS = 10;
+const LOOP_PASSES = 20;
+const BPM = 120;
+
+function midiFreq(m) {
+  return 440 * Math.pow(2, (m - 69) / 12);
+}
+
+function scheduleTone(ctx, dest, midi, when, dur) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = midiFreq(midi);
+  const peak = 0.16;
+  const attack = 0.008;
+  const release = Math.min(0.08, dur * 0.35);
+  gain.gain.setValueAtTime(0.0001, when);
+  gain.gain.linearRampToValueAtTime(peak, when + attack);
+  gain.gain.setValueAtTime(peak * 0.7, Math.max(when + attack, when + dur - release));
+  gain.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  osc.connect(gain);
+  gain.connect(dest);
+  osc.start(when);
+  osc.stop(when + dur + 0.02);
+}
+
+/**
+ * Find note onset from rendered audio near a hint time.
+ * Uses the derivative of a smoothed energy envelope to find a rising edge.
+ */
+function measureOnset(channelData, sampleRate, hintTime) {
+  const winBefore = 0.03;
+  const winAfter = 0.07;
+  const start = Math.max(0, Math.floor((hintTime - winBefore) * sampleRate));
+  const end = Math.min(channelData.length - 1, Math.floor((hintTime + winAfter) * sampleRate));
+  const hop = Math.max(1, Math.floor(sampleRate / 4000));
+  const bins = [];
+  for (let i = start; i < end; i += hop) {
+    let e = 0;
+    const lim = Math.min(hop, end - i);
+    for (let j = 0; j < lim; j += 1) e += channelData[i + j] ** 2;
+    bins.push({ t: i / sampleRate, e: e / lim });
+  }
+  if (bins.length < 3) return hintTime;
+  let maxDeriv = 0;
+  for (let k = 2; k < bins.length; k += 1) {
+    const deriv = bins[k].e - bins[k - 2].e;
+    if (deriv > maxDeriv) maxDeriv = deriv;
+  }
+  const peak = Math.max(...bins.map((b) => b.e), 1e-12);
+  if (maxDeriv < peak * 0.02) return hintTime;
+  const derivThresh = maxDeriv * 0.35;
+  for (let k = 2; k < bins.length; k += 1) {
+    const deriv = bins[k].e - bins[k - 2].e;
+    if (deriv >= derivThresh) return bins[k].t;
+  }
+  return hintTime;
+}
+
+function boundaryPair(schedSorted, boundaryAudio, margin) {
+  const spanning = schedSorted.filter(
+    (n) => n.when < boundaryAudio && n.when + n.dur >= boundaryAudio - 0.002,
+  );
+  const beforeOnly = schedSorted.filter(
+    (n) => n.when < boundaryAudio && n.when + n.dur < boundaryAudio - 0.002,
+  );
+  let prev = null;
+  if (spanning.length) {
+    prev = spanning.reduce((a, b) => (a.when > b.when ? a : b));
+  } else if (beforeOnly.length) {
+    prev = beforeOnly.reduce((a, b) => (a.when > b.when ? a : b));
+  }
+  const after = schedSorted.filter(
+    (n) => n.when >= boundaryAudio - 0.002 && n.when < boundaryAudio + margin,
+  );
+  if (!prev || !after.length) return null;
+  const next = after.reduce((a, b) => (a.when < b.when ? a : b));
+  return { prev, next };
+}
+
+function makeLoopScore() {
+  const events = [];
+  const measures = [];
+  for (let bar = 0; bar < 2; bar += 1) {
+    const startBeat = bar * 4;
+    measures.push({
+      startBeat,
+      endBeat: startBeat + 4,
+      startSlot: startBeat,
+      endSlot: startBeat + 4,
+    });
+    for (let beat = 0; beat < 4; beat += 1) {
+      events.push({
+        slot: startBeat + beat,
+        start: startBeat + beat,
+        duration: 1,
+        stringIndex: 0,
+        fret: beat,
+        midi: 60 + beat,
+        pc: 0,
+        techniques: [],
+        dead: false,
+      });
+    }
+  }
+  return {
+    tuning: 'Standard',
+    tempo: BPM,
+    strings: [{ openMidi: 40 }],
+    events,
+    measures,
+    totalBeats: 8,
+  };
+}
+
+function makeFakeAudio(scheduled) {
+  const gainParam = () => ({
+    value: 1,
+    setValueAtTime() {},
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+    cancelScheduledValues() {},
+  });
+  const stub = () => ({
+    connect() {},
+    disconnect() {},
+    gain: gainParam(),
+    frequency: gainParam(),
+    start() {},
+    stop() {},
+    threshold: gainParam(),
+    knee: gainParam(),
+    ratio: gainParam(),
+    attack: gainParam(),
+    release: gainParam(),
+    fftSize: 256,
+  });
+  const ctx = {
+    currentTime: 0,
+    state: 'running',
+    sampleRate: 48000,
+    destination: { connect() {}, disconnect() {} },
+    resume: async () => {},
+    createGain: () => ({ gain: gainParam(), connect() {}, disconnect() {} }),
+    createOscillator() {
+      const state = { freq: 440 };
+      let note = null;
+      return {
+        type: 'triangle',
+        frequency: {
+          get value() { return state.freq; },
+          set value(v) { state.freq = v; },
+        },
+        connect() {},
+        start(when) {
+          note = {
+            when,
+            midi: Math.round(69 + 12 * Math.log2(state.freq / 440)),
+            dur: 0.2,
+          };
+          scheduled.push(note);
+        },
+        stop(when) {
+          if (note) note.dur = Math.max(0.05, when - note.when - 0.02);
+        },
+      };
+    },
+    createDynamicsCompressor: () => stub(),
+    createAnalyser: () => stub(),
+    createBuffer: (ch, len, sr) => ({
+      getChannelData: () => new Float32Array(len),
+      sampleRate: sr,
+    }),
+    createBufferSource: () => ({
+      connect() {},
+      start() {},
+      stop() {},
+      buffer: null,
+      playbackRate: { value: 1 },
+    }),
+    createBiquadFilter: () => stub(),
+  };
+  return ctx;
+}
+
+async function simulatePlayerLoop(model, durationSec) {
+  const scheduled = [];
+  let playerError = null;
+  let fakeCtx = null;
+  const pending = [];
+  let nextId = 1;
+  const cleared = new Set();
+  const origST = window.setTimeout.bind(window);
+  const origCT = window.clearTimeout.bind(window);
+  const origRAF = window.requestAnimationFrame?.bind(window);
+  const origCAF = window.cancelAnimationFrame?.bind(window);
+  const origAC = window.AudioContext;
+  const origWAC = window.webkitAudioContext;
+  window.AudioContext = function AudioContext() {
+    if (!fakeCtx) fakeCtx = makeFakeAudio(scheduled);
+    return fakeCtx;
+  };
+  window.webkitAudioContext = window.AudioContext;
+  window.setTimeout = (fn, ms) => {
+    const id = nextId++;
+    const base = fakeCtx ? fakeCtx.currentTime : 0;
+    pending.push({ id, at: base + ms / 1000, fn });
+    return id;
+  };
+  window.clearTimeout = (id) => cleared.add(id);
+  window.requestAnimationFrame = (fn) => origST(fn, 16);
+  window.cancelAnimationFrame = (id) => cleared.add(id);
+
+  const { createGpMixPlayer } = await import('../../../js/gpMixPlayer.js');
+  const player = createGpMixPlayer();
+  player.load({
+    guitarModels: [model],
+    drumModels: [],
+    bpm: model.tempo,
+    metronome: { enabled: false },
+    loop: {
+      enabled: true,
+      startBarIndex: 0,
+      endBarIndex: 1,
+      restSec: 0,
+    },
+  });
+  await player.play();
+
+  const step = 0.002;
+  let t = 0;
+  while (t < durationSec && !playerError) {
+    t += step;
+    fakeCtx.currentTime = t;
+    const ready = [];
+    const still = [];
+    for (const p of pending) {
+      if (cleared.has(p.id)) continue;
+      if (p.at <= t) ready.push(p);
+      else still.push(p);
+    }
+    pending.length = 0;
+    pending.push(...still);
+    for (const p of ready) {
+      cleared.add(p.id);
+      try {
+        p.fn();
+      } catch (err) {
+        playerError = err;
+        break;
+      }
+    }
+  }
+
+  player.destroy();
+  window.setTimeout = origST;
+  window.clearTimeout = origCT;
+  if (origRAF) window.requestAnimationFrame = origRAF;
+  if (origCAF) window.cancelAnimationFrame = origCAF;
+  window.AudioContext = origAC;
+  window.webkitAudioContext = origWAC;
+  if (playerError) {
+    const err = new Error(playerError?.message || String(playerError));
+    err.scheduled = scheduled;
+    throw err;
+  }
+  return scheduled;
+}
+
+async function renderScheduled(scheduled, durationSec) {
+  const sampleRate = 48000;
+  const length = Math.ceil((durationSec + 0.5) * sampleRate);
+  const oac = new OfflineAudioContext({ numberOfChannels: 1, length, sampleRate });
+  for (const n of scheduled) scheduleTone(oac, oac.destination, n.midi, n.when, n.dur);
+  return { buffer: await oac.startRendering(), sampleRate };
+}
+
+runMain(async () => {
+  const model = makeLoopScore();
+  const timeline = buildTimeline({
+    playOrder: buildPlayOrder(model.measures),
+    tempoMap: [],
+    baseBpm: BPM,
+    rate: 1,
+    tracks: { guitarModels: [model], drumModels: [] },
+  });
+  const loop = timeline.loopWindow({ startBarIndex: 0, endBarIndex: 1 });
+  const loopLen = loop.endSec - loop.startSec;
+  const renderSec = loopLen * LOOP_PASSES;
+
+  writeln('loop-boundary: gap across loop passes');
+  writeln('onset method: derivative of smoothed energy envelope');
+  writeln(`threshold: ${GAP_THRESH_MS} ms`);
+  writeln(`passes: ${LOOP_PASSES}`);
+  writeln(`loop_len_s: ${loopLen.toFixed(4)}`);
+
+  const scheduled = await simulatePlayerLoop(model, renderSec);
+  writeln(`player scheduled notes: ${scheduled.length}`);
+
+  if (scheduled.length === 0) {
+    reportResult(false);
+    return;
+  }
+
+  const loopEventCount = timeline.events
+    .filter((e) => e.kind === 'guitar' && e.startSec >= loop.startSec && e.startSec < loop.endSec)
+    .length;
+
+  const schedSorted = [...scheduled].sort((a, b) => a.when - b.when);
+  const { buffer, sampleRate } = await renderScheduled(schedSorted, renderSec);
+  const channelData = buffer.getChannelData(0);
+  const margin = loopLen * 0.6;
+
+  const gaps = [];
+  let pass = true;
+  for (let p = 1; p < LOOP_PASSES; p += 1) {
+    const boundary = loop.endSec * p;
+    const pair = boundaryPair(schedSorted, boundary, margin);
+    if (!pair) {
+      pass = false;
+      gaps.push({
+        pass: String(p),
+        boundary: boundary.toFixed(4),
+        gapMs: 'n/a',
+        ok: 'no',
+      });
+      continue;
+    }
+    const prevOnset = measureOnset(channelData, sampleRate, pair.prev.when);
+    const nextOnset = measureOnset(channelData, sampleRate, pair.next.when);
+    const gapMs = Math.max(0, (nextOnset - (prevOnset + pair.prev.dur)) * 1000);
+    const ok = gapMs <= GAP_THRESH_MS;
+    if (!ok) pass = false;
+    gaps.push({
+      pass: String(p),
+      boundary: boundary.toFixed(4),
+      gapMs: gapMs.toFixed(2),
+      ok: ok ? 'yes' : 'no',
+    });
+  }
+
+  printTable(gaps, [
+    { key: 'pass', label: 'pass' },
+    { key: 'boundary', label: 'boundary_s' },
+    { key: 'gapMs', label: 'gap_ms' },
+    { key: 'ok', label: 'ok' },
+  ]);
+  reportResult(pass);
+});
+</script>
+</body>
+</html>

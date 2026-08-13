@@ -473,8 +473,21 @@ function makeTimeline({ passes, events, tempoSegments, totalSec, rate, warnings,
   return timeline;
 }
 
+const EMPTY_POSITION = Object.freeze({
+  sec: 0,
+  quarter: 0,
+  passIndex: 0,
+  barIndex: 0,
+  beatInBar: 0,
+  beatInScore: 0,
+  eventIndex: null,
+});
+
 function positionAtSecondsImpl(sec, rate, passes, measures, events, segments) {
-  const internalSec = (Number(sec) || 0) * rate;
+  if (passes.length === 0) return { ...EMPTY_POSITION, sec: Number(sec) || 0 };
+  // The engine can ask for a time just before the score start while it waits
+  // for the first scheduled note. Clamp so the lookup stays inside the score.
+  const internalSec = Math.max(0, (Number(sec) || 0) * rate);
   const quarter = secToQuarter(internalSec, segments);
   const pass = findPassAtQuarter(quarter, passes);
   const beatInBar = quarter - pass.startQuarter;
@@ -513,7 +526,7 @@ function findEventIndex(events, internalSec, pass) {
   if (events.length === 0) return null;
   let low = 0;
   let high = events.length - 1;
-  let first = events.length;
+  let first = -1;
   while (low <= high) {
     const mid = (low + high) >> 1;
     if (events[mid].startSec > internalSec) {

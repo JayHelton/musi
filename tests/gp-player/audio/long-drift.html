@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>gp-player long drift</title></head>
+<body>
+<div id="out">running</div>
+<script type="module">
+import { writeln, printTable, reportResult, runMain } from './harness.js';
+import { buildPlayOrder } from '../../../js/tab/playOrder.js';
+import { buildTimeline } from '../../../js/tab/scoreTimeline.js';
+
+const DRIFT_THRESH_MS = 200;
+const GAP_THRESH_MS = 100;
+const BPM = 120;
+const NUM_BARS = 32;
+
+function midiFreq(m) {
+  return 440 * Math.pow(2, (m - 69) / 12);
+}
+
+function scheduleTone(ctx, dest, midi, when, dur) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = midiFreq(midi);
+  const peak = 0.16;
+  const attack = 0.008;
+  const release = Math.min(0.08, dur * 0.35);
+  gain.gain.setValueAtTime(0.0001, when);
+  gain.gain.linearRampToValueAtTime(peak, when + attack);
+  gain.gain.setValueAtTime(peak * 0.7, Math.max(when + attack, when + dur - release));
+  gain.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  osc.connect(gain);
+  gain.connect(dest);
+  osc.start(when);
+  osc.stop(when + dur + 0.02);
+}
+
+/**
+ * Find note onset from rendered audio near a hint time.
+ * Uses the derivative of a smoothed energy envelope to find a rising edge.
+ */
+function measureOnset(channelData, sampleRate, hintTime) {
+  const winBefore = 0.03;
+  const winAfter = 0.07;
+  const start = Math.max(0, Math.floor((hintTime - winBefore) * sampleRate));
+  const end = Math.min(channelData.length - 1, Math.floor((hintTime + winAfter) * sampleRate));
+  const hop = Math.max(1, Math.floor(sampleRate / 4000));
+  const bins = [];
+  for (let i = start; i < end; i += hop) {
+    let e = 0;
+    const lim = Math.min(hop, end - i);
+    for (let j = 0; j < lim; j += 1) e += channelData[i + j] ** 2;
+    bins.push({ t: i / sampleRate, e: e / lim });
+  }
+  if (bins.length < 3) return hintTime;
+  let maxDeriv = 0;
+  for (let k = 2; k < bins.length; k += 1) {
+    const deriv = bins[k].e - bins[k - 2].e;
+    if (deriv > maxDeriv) maxDeriv = deriv;
+  }
+  const peak = Math.max(...bins.map((b) => b.e), 1e-12);
+  if (maxDeriv < peak * 0.02) return hintTime;
+  const derivThresh = maxDeriv * 0.35;
+  for (let k = 2; k < bins.length; k += 1) {
+    const deriv = bins[k].e - bins[k - 2].e;
+    if (deriv >= derivThresh) return bins[k].t;
+  }
+  return hintTime;
+}
+
+function deriveAnchor(schedSorted, timelineStartSec) {
+  if (!schedSorted.length) return 0;
+  return schedSorted[0].when - timelineStartSec;
+}
+
+function makeLongScore() {
+  const events = [];
+  const measures = [];
+  for (let bar = 0; bar < NUM_BARS; bar += 1) {
+    const startBeat = bar * 4;
+    measures.push({
+      startBeat,
+      endBeat: startBeat + 4,
+      startSlot: startBeat,
+      endSlot: startBeat + 4,
+    });
+    for (let beat = 0; beat < 4; beat += 1) {
+      events.push({
+        slot: startBeat + beat,
+        start: startBeat + beat,
+        duration: 1,
+        stringIndex: 0,
+        fret: beat,
+        midi: 60 + (beat % 4),
+        pc: 0,
+        techniques: [],
+        dead: false,
+      });
+    }
+  }
+  return {
+    tuning: 'Standard',
+    tempo: BPM,
+    strings: [{ openMidi: 40 }],
+    events,
+    measures,
+    totalBeats: NUM_BARS * 4,
+  };
+}
+
+function makeFakeAudio(scheduled) {
+  const gainParam = () => ({
+    value: 1,
+    setValueAtTime() {},
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+    cancelScheduledValues() {},
+  });
+  const stub = () => ({
+    connect() {},
+    disconnect() {},
+    gain: gainParam(),
+    frequency: gainParam(),
+    start() {},
+    stop() {},
+    threshold: gainParam(),
+    knee: gainParam(),
+    ratio: gainParam(),
+    attack: gainParam(),
+    release: gainParam(),
+    fftSize: 256,
+  });
+  const ctx = {
+    currentTime: 0,
+    state: 'running',
+    sampleRate: 48000,
+    destination: { connect() {}, disconnect() {} },
+    resume: async () => {},
+    createGain: () => ({ gain: gainParam(), connect() {}, disconnect() {} }),
+    createOscillator() {
+      const state = { freq: 440 };
+      let note = null;
+      return {
+        type: 'triangle',
+        frequency: {
+          get value() { return state.freq; },
+          set value(v) { state.freq = v; },
+        },
+        connect() {},
+        start(when) {
+          note = {
+            when,
+            midi: Math.round(69 + 12 * Math.log2(state.freq / 440)),
+            dur: 0.2,
+          };
+          scheduled.push(note);
+        },
+        stop(when) {
+          if (note) note.dur = Math.max(0.05, when - note.when - 0.02);
+        },
+      };
+    },
+    createDynamicsCompressor: () => stub(),
+    createAnalyser: () => stub(),
+    createBuffer: (ch, len, sr) => ({
+      getChannelData: () => new Float32Array(len),
+      sampleRate: sr,
+    }),
+    createBufferSource: () => ({
+      connect() {},
+      start() {},
+      stop() {},
+      buffer: null,
+      playbackRate: { value: 1 },
+    }),
+    createBiquadFilter: () => stub(),
+  };
+  return ctx;
+}
+
+async function capturePlayer(model, durationSec) {
+  const scheduled = [];
+  let fakeCtx = null;
+  const pending = [];
+  let nextId = 1;
+  const cleared = new Set();
+  const origST = window.setTimeout.bind(window);
+  const origCT = window.clearTimeout.bind(window);
+  const origRAF = window.requestAnimationFrame?.bind(window);
+  const origCAF = window.cancelAnimationFrame?.bind(window);
+  const origAC = window.AudioContext;
+  const origWAC = window.webkitAudioContext;
+  window.AudioContext = function AudioContext() {
+    if (!fakeCtx) fakeCtx = makeFakeAudio(scheduled);
+    return fakeCtx;
+  };
+  window.webkitAudioContext = window.AudioContext;
+  window.setTimeout = (fn, ms) => {
+    const id = nextId++;
+    const base = fakeCtx ? fakeCtx.currentTime : 0;
+    pending.push({ id, at: base + ms / 1000, fn });
+    return id;
+  };
+  window.clearTimeout = (id) => cleared.add(id);
+  window.requestAnimationFrame = (fn) => origST(fn, 16);
+  window.cancelAnimationFrame = (id) => cleared.add(id);
+
+  const { createGpMixPlayer } = await import('../../../js/gpMixPlayer.js');
+  const player = createGpMixPlayer();
+  player.load({
+    guitarModels: [model],
+    drumModels: [],
+    bpm: model.tempo,
+    metronome: { enabled: false },
+  });
+  await player.play();
+
+  const step = 0.002;
+  let t = 0;
+  while (t < durationSec) {
+    t += step;
+    fakeCtx.currentTime = t;
+    const ready = [];
+    const still = [];
+    for (const p of pending) {
+      if (cleared.has(p.id)) continue;
+      if (p.at <= t) ready.push(p);
+      else still.push(p);
+    }
+    pending.length = 0;
+    pending.push(...still);
+    for (const p of ready) {
+      cleared.add(p.id);
+      p.fn();
+    }
+  }
+
+  player.destroy();
+  window.setTimeout = origST;
+  window.clearTimeout = origCT;
+  if (origRAF) window.requestAnimationFrame = origRAF;
+  if (origCAF) window.cancelAnimationFrame = origCAF;
+  window.AudioContext = origAC;
+  window.webkitAudioContext = origWAC;
+
+  const sampleRate = 48000;
+  const length = Math.ceil((durationSec + 0.5) * sampleRate);
+  const oac = new OfflineAudioContext({ numberOfChannels: 1, length, sampleRate });
+  for (const n of scheduled) scheduleTone(oac, oac.destination, n.midi, n.when, n.dur);
+  const buffer = await oac.startRendering();
+  return { buffer, sampleRate, scheduled };
+}
+
+runMain(async () => {
+  const model = makeLongScore();
+  const timeline = buildTimeline({
+    playOrder: buildPlayOrder(model.measures),
+    tempoMap: [],
+    baseBpm: BPM,
+    rate: 1,
+    tracks: { guitarModels: [model], drumModels: [] },
+  });
+  const expected = timeline.events
+    .filter((e) => e.kind === 'guitar')
+    .map((e) => e.startSec);
+
+  writeln('long-drift: playhead drift over long render');
+  writeln('onset method: derivative of smoothed energy envelope');
+  writeln(`drift threshold: ${DRIFT_THRESH_MS} ms`);
+  writeln(`gap threshold: ${GAP_THRESH_MS} ms`);
+  writeln(`bars: ${NUM_BARS}`);
+  writeln(`notes: ${expected.length}`);
+
+  const { buffer, sampleRate, scheduled } = await capturePlayer(model, timeline.totalSec + 0.3);
+  const schedSorted = [...scheduled].sort((a, b) => a.when - b.when);
+  const rate = timeline.rate;
+  const anchor = deriveAnchor(schedSorted, expected[0] / rate);
+  writeln(`anchor_s: ${anchor.toFixed(4)}`);
+  const channelData = buffer.getChannelData(0);
+  const onsets = schedSorted.map((n) => measureOnset(channelData, sampleRate, n.when));
+  const scoreOnsets = onsets.map((t) => t - anchor);
+
+  const driftRows = [];
+  let maxDriftMs = 0;
+  let driftPass = true;
+  const n = Math.min(expected.length, scoreOnsets.length);
+  for (let i = 0; i < n; i += 1) {
+    const driftMs = (scoreOnsets[i] - expected[i] / rate) * 1000;
+    if (Math.abs(driftMs) > maxDriftMs) maxDriftMs = Math.abs(driftMs);
+    if (Math.abs(driftMs) > DRIFT_THRESH_MS) driftPass = false;
+    if (i % 16 === 0 || Math.abs(driftMs) > DRIFT_THRESH_MS) {
+      driftRows.push({
+        note: String(i + 1),
+        expected: (expected[i] / rate).toFixed(4),
+        measured: scoreOnsets[i].toFixed(4),
+        driftMs: driftMs.toFixed(1),
+        ok: Math.abs(driftMs) <= DRIFT_THRESH_MS ? 'yes' : 'no',
+      });
+    }
+  }
+  if (expected.length !== scoreOnsets.length) driftPass = false;
+
+  const gapRows = [];
+  let maxGapMs = 0;
+  let gapPass = true;
+  const beatSec = 60 / BPM;
+  for (let i = 1; i < scoreOnsets.length; i += 1) {
+    const gapMs = (scoreOnsets[i] - scoreOnsets[i - 1]) * 1000;
+    const expectedGapMs = beatSec * 1000;
+    const unplanned = Math.max(0, gapMs - expectedGapMs - 50);
+    if (unplanned > maxGapMs) maxGapMs = unplanned;
+    if (unplanned > GAP_THRESH_MS) {
+      gapPass = false;
+      gapRows.push({
+        afterNote: String(i),
+        gapMs: gapMs.toFixed(1),
+        unplannedMs: unplanned.toFixed(1),
+        ok: 'no',
+      });
+    }
+  }
+
+  writeln(`max drift ms: ${maxDriftMs.toFixed(1)}`);
+  writeln(`max unplanned gap ms: ${maxGapMs.toFixed(1)}`);
+  writeln('drift sample (every 16 notes and failures):');
+  printTable(driftRows, [
+    { key: 'note', label: 'note' },
+    { key: 'expected', label: 'expected_s' },
+    { key: 'measured', label: 'measured_s' },
+    { key: 'driftMs', label: 'drift_ms' },
+    { key: 'ok', label: 'ok' },
+  ]);
+  if (gapRows.length > 0) {
+    writeln('unplanned gaps:');
+    printTable(gapRows, [
+      { key: 'afterNote', label: 'after_note' },
+      { key: 'gapMs', label: 'gap_ms' },
+      { key: 'unplannedMs', label: 'unplanned_ms' },
+      { key: 'ok', label: 'ok' },
+    ]);
+  } else {
+    writeln('no unplanned gaps above threshold');
+  }
+
+  reportResult(driftPass && gapPass);
+});
+</script>
+</body>
+</html>

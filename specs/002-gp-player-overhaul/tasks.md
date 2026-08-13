@@ -131,17 +131,17 @@ time and bar order against the source score. Watch the playhead against the soun
 
 - [X] T035 [US1] Create `js/tab/playOrder.js` with `buildPlayOrder(measures, options)` returning `{ passes, barOrder, flattened, warnings }` per `contracts/score-timeline.md` (depends on T033)
 - [X] T036 [US1] Create `js/tab/scoreTimeline.js` with `buildTimeline`, `positionAtSeconds`, `secondsAtPosition`, `withRate`, and `loopWindow` per `contracts/score-timeline.md` (depends on T034, T035)
-- [ ] T037 [US1] Rewrite the scheduler in `js/gpMixPlayer.js` to walk the `Timeline` event list, keep the `createGpMixPlayer` factory name, and keep the current method names (depends on T036)
-- [ ] T038 [US1] Add `setRate`, `seekToBar`, `getPosition`, `destroy`, `onPositionFrame`, `onAudioBlocked`, `onLoopPass`, and `onEnded` to `js/gpMixPlayer.js` per `contracts/player-engine.md` (depends on T037)
-- [ ] T039 [US1] Make `setBpm` in `js/gpMixPlayer.js` wrap `setRate` and keep the old `load` parameter names as aliases for `timeline` and `tracks` (depends on T038)
-- [ ] T040 [US1] Implement gapless loop scheduling in `js/gpMixPlayer.js`: schedule across the boundary in the same lookahead window, replace the `clearVoices()` hard stop with an 8 millisecond fade per FR-013, and keep the loop rest countdown per FR-014 (depends on T037)
-- [ ] T041 [US1] Add the frame-driven playhead loop in `js/gpPlayerUI.js` that reads `audioCtx.currentTime` and maps it through `scoreTimeline.js` `positionAtSeconds` (depends on T036, T038)
-- [ ] T042 [US1] Re-anchor position on `visibilitychange` and on an `AudioContext` state change in `js/gpPlayerUI.js` (depends on T041)
-- [ ] T043 [P] [US1] Create `tests/gp-player/audio/onset-timing.html` to measure note onset times against the timeline with a 50 millisecond threshold (depends on T009, T036)
-- [ ] T044 [P] [US1] Create `tests/gp-player/audio/total-duration.html` to measure total playback time within 1 percent of the source score (depends on T009, T036)
-- [ ] T045 [P] [US1] Create `tests/gp-player/audio/loop-boundary.html` to measure loop pass gap across 20 passes with a 10 millisecond threshold (depends on T009, T040)
-- [ ] T046 [P] [US1] Create `tests/gp-player/audio/long-drift.html` to measure playhead drift over a long render with 200 millisecond drift and 100 millisecond gap limits (depends on T009, T041)
-- [ ] T047 [US1] Register `onset-timing.html`, `total-duration.html`, `loop-boundary.html`, and `long-drift.html` in `tests/gp-player/run-browser.mjs` (depends on T010, T043, T044, T045, T046)
+- [X] T037 [US1] Rewrite the scheduler in `js/gpMixPlayer.js` to walk the `Timeline` event list, keep the `createGpMixPlayer` factory name, and keep the current method names (depends on T036)
+- [X] T038 [US1] Add `setRate`, `seekToBar`, `getPosition`, `destroy`, `onPositionFrame`, `onAudioBlocked`, `onLoopPass`, and `onEnded` to `js/gpMixPlayer.js` per `contracts/player-engine.md` (depends on T037)
+- [X] T039 [US1] Make `setBpm` in `js/gpMixPlayer.js` wrap `setRate` and keep the old `load` parameter names as aliases for `timeline` and `tracks` (depends on T038)
+- [X] T040 [US1] Implement gapless loop scheduling in `js/gpMixPlayer.js`: schedule across the boundary in the same lookahead window, replace the `clearVoices()` hard stop with an 8 millisecond fade per FR-013, and keep the loop rest countdown per FR-014 (depends on T037)
+- [X] T041 [US1] Add the frame-driven playhead loop in `js/gpPlayerUI.js` that reads `audioCtx.currentTime` and maps it through `scoreTimeline.js` `positionAtSeconds` (depends on T036, T038)
+- [X] T042 [US1] Re-anchor position on `visibilitychange` and on an `AudioContext` state change in `js/gpPlayerUI.js` (depends on T041)
+- [X] T043 [P] [US1] Create `tests/gp-player/audio/onset-timing.html` to measure note onset times against the timeline with a 50 millisecond threshold (depends on T009, T036)
+- [X] T044 [P] [US1] Create `tests/gp-player/audio/total-duration.html` to measure total playback time within 1 percent of the source score (depends on T009, T036)
+- [X] T045 [P] [US1] Create `tests/gp-player/audio/loop-boundary.html` to measure loop pass gap across 20 passes with a 10 millisecond threshold (depends on T009, T040)
+- [X] T046 [P] [US1] Create `tests/gp-player/audio/long-drift.html` to measure playhead drift over a long render with 200 millisecond drift and 100 millisecond gap limits (depends on T009, T041)
+- [X] T047 [US1] Register `onset-timing.html`, `total-duration.html`, `loop-boundary.html`, and `long-drift.html` in `tests/gp-player/run-browser.mjs` (depends on T010, T043, T044, T045, T046)
 
 **Checkpoint**: `node tests/gp-player/play-order.mjs` and `node tests/gp-player/timeline.mjs`
 pass. The four US1 browser harness pages print `RESULT: PASS`. Manual checks 1 to 8 in

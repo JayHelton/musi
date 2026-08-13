@@ -3,6 +3,8 @@
 
 import { parseGuitarPro, isGuitarProName } from './tab/guitarPro.js';
 import { modelHasRhythm, quartersToSeconds } from './tab/tabModel.js';
+import { buildPlayOrder } from './tab/playOrder.js';
+import { buildTimeline } from './tab/scoreTimeline.js';
 import { createGpMixPlayer } from './gpMixPlayer.js';
 import { analyzeModel } from './tab/tabAnalyzer.js';
 import { renderAnalysisReport } from './tab/tabAnalysisView.js';
@@ -376,9 +378,167 @@ export function mountGpPlayer(host, {
   const PLAYBACK_END_EPSILON = 0.4;
   const USER_STOP_SUPPRESS_MS = 300;
 
+  let playbackTimeline = null;
+  let playheadFrameId = null;
+  let playheadAnchor = null;
+  let lastTickResting = false;
+  let playheadVisibilityHandler = null;
+  let playheadAudioStateHandler = null;
+
+  function buildPlaybackTimeline() {
+    const base = mixLoadBase();
+    const ref = base.referenceModel;
+    if (!ref?.measures?.length || !modelHasRhythm(ref)) {
+      playbackTimeline = null;
+      return;
+    }
+    const playOrder = buildPlayOrder(ref.measures);
+    const tempoMap = ref.tempoMap || [];
+    const tempo = Number(base.bpm) || Number(ref.tempo) || 120;
+    const timeline = buildTimeline({
+      playOrder,
+      tempoMap,
+      baseBpm: tempo,
+      rate: 1,
+      tracks: {
+        guitarModels: base.guitarModels.filter(Boolean),
+        drumModels: base.drumModels.filter(Boolean),
+      },
+    });
+    if (!timeline.events?.length && !(playOrder.passes || []).length) {
+      playbackTimeline = null;
+      return;
+    }
+    playbackTimeline = timeline;
+  }
+
+  function activePlaybackTimeline() {
+    if (!playbackTimeline) return null;
+    const rate = state.scoreBpm > 0 ? state.bpm / state.scoreBpm : 1;
+    return playbackTimeline.withRate(rate);
+  }
+
+  function syncPlayheadAnchorFromPlayer(currentSec) {
+    if (!player.playing || !audioCtx) return;
+    playheadAnchor = {
+      originSongSec: Number.isFinite(currentSec) ? currentSec : player.currentSec,
+      originAudioTime: audioCtx.currentTime,
+    };
+  }
+
+  function songSecFromAudioClock() {
+    if (!player.playing) return player.currentSec ?? 0;
+    if (!playheadAnchor || !audioCtx) return player.currentSec ?? 0;
+    return playheadAnchor.originSongSec
+      + (audioCtx.currentTime - playheadAnchor.originAudioTime);
+  }
+
+  function positionFromAudioClock() {
+    const timeline = activePlaybackTimeline();
+    if (!timeline) return null;
+    return timeline.positionAtSeconds(songSecFromAudioClock());
+  }
+
+  function syncPlayheadFrame(pos, { resting = lastTickResting } = {}) {
+    if (!isAlive() || !pos) return;
+    const secDisplay = quartersToSeconds(pos.beatInScore, state.bpm);
+    parchment?.update({
+      currentSec: secDisplay,
+      bpm: state.bpm,
+      playing: player.playing && !resting,
+      measureIndex: pos.barIndex,
+      selection: parchmentSelection(),
+      noteDraft: noteDraftSelection
+        ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }
+        : null,
+      loopSelectMode: state.loopSelectMode,
+      noteSelectMode: noteSelectActive,
+      zoom: state.parchmentZoom,
+      autoFollow: state.autoFollow,
+      annotations: scoreKey ? listAnnotations(scoreKey) : [],
+      highlightedAnnotationId: highlightedAnnoId,
+    });
+    measureNav?.update({
+      measureIndex: pos.barIndex,
+      navBar: state.navBar,
+      loopEnabled: state.loopEnabled,
+      loopStart: state.loopStart,
+      loopEnd: state.loopEnd,
+    });
+  }
+
+  function applyPlayheadFrame() {
+    const pos = positionFromAudioClock();
+    if (pos) syncPlayheadFrame(pos);
+  }
+
+  function reanchorPlayheadFromAudio() {
+    if (!isAlive() || !player.playing) return;
+    const sec = player.getPosition?.()?.sec ?? player.currentSec ?? 0;
+    syncPlayheadAnchorFromPlayer(sec);
+    applyPlayheadFrame();
+  }
+
+  function stopPlayheadFrameLoop() {
+    if (playheadFrameId != null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(playheadFrameId);
+      playheadFrameId = null;
+    }
+  }
+
+  function startPlayheadFrameLoop() {
+    if (!activePlaybackTimeline() || playheadFrameId != null) return;
+    if (typeof requestAnimationFrame !== 'function') return;
+    syncPlayheadAnchorFromPlayer(player.currentSec);
+    const tick = () => {
+      if (!isAlive() || !player.playing) {
+        playheadFrameId = null;
+        return;
+      }
+      applyPlayheadFrame();
+      playheadFrameId = requestAnimationFrame(tick);
+    };
+    playheadFrameId = requestAnimationFrame(tick);
+  }
+
+  function bindPlayheadClockListeners() {
+    if (typeof document !== 'undefined' && !playheadVisibilityHandler) {
+      playheadVisibilityHandler = () => {
+        if (!isAlive() || !player.playing) return;
+        if (document.visibilityState === 'visible') reanchorPlayheadFromAudio();
+      };
+      document.addEventListener('visibilitychange', playheadVisibilityHandler);
+    }
+    if (audioCtx && typeof audioCtx.addEventListener === 'function' && !playheadAudioStateHandler) {
+      playheadAudioStateHandler = () => {
+        if (!isAlive() || !player.playing) return;
+        if (audioCtx.state === 'running') reanchorPlayheadFromAudio();
+      };
+      audioCtx.addEventListener('statechange', playheadAudioStateHandler);
+    }
+  }
+
+  function unbindPlayheadClockListeners() {
+    if (playheadVisibilityHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', playheadVisibilityHandler);
+      playheadVisibilityHandler = null;
+    }
+    if (playheadAudioStateHandler && audioCtx && typeof audioCtx.removeEventListener === 'function') {
+      audioCtx.removeEventListener('statechange', playheadAudioStateHandler);
+      playheadAudioStateHandler = null;
+    }
+  }
+
   const player = createGpMixPlayer({
     onTick: (info) => {
       if (!isAlive()) return;
+      lastTickResting = !!info.resting;
+      if (info.playing && activePlaybackTimeline()) {
+        syncPlayheadAnchorFromPlayer(info.currentSec);
+        if (!playheadFrameId) startPlayheadFrameLoop();
+      } else if (!info.playing) {
+        stopPlayheadFrameLoop();
+      }
       tempoRamp.onPlaybackTick({
         playing: info.playing,
         resting: info.resting,
@@ -441,6 +601,7 @@ export function mountGpPlayer(host, {
     const beat = (at / 60) * state.bpm;
     player.load(loadOpts);
     applyLoopToPlayer();
+    buildPlaybackTimeline();
     const newSec = quartersToSeconds(beat, state.bpm);
     if (was) player.play({ fromSec: newSec });
     // A fresh mount has no position to keep, and seeking to zero would override
@@ -712,6 +873,7 @@ export function mountGpPlayer(host, {
       }
       player.load(loadOpts);
       applyLoopToPlayer();
+      buildPlaybackTimeline();
     });
     refreshScoreSurface();
     const measures = state.viewModel?.measures || [];
@@ -1092,6 +1254,7 @@ export function mountGpPlayer(host, {
     const beats = beatsFromMeasureRange(measures, navIdx, navIdx);
     const startSec = quartersToSeconds(beats.startBeat, state.bpm);
     ensureAudio();
+    bindPlayheadClockListeners();
     syncMetroToPlayer();
     player.play({ fromSec: startSec });
   }
@@ -1145,12 +1308,14 @@ export function mountGpPlayer(host, {
       lastUserStopAt = Date.now();
       clearCountIn();
       tempoRamp.pauseSession();
+      stopPlayheadFrameLoop();
       player.pause();
       transport?.sync();
       return;
     }
     if (player.paused) {
       ensureAudio();
+      bindPlayheadClockListeners();
       tempoRamp.resumeSession();
       player.play();
       transport?.sync();
@@ -1158,6 +1323,7 @@ export function mountGpPlayer(host, {
     }
     if (state.metro.countInEnabled) {
       ensureAudio();
+      bindPlayheadClockListeners();
       runCountIn(() => {
         if (!isAlive()) return;
         beginPlaybackSession();
@@ -1166,6 +1332,7 @@ export function mountGpPlayer(host, {
       return;
     }
     ensureAudio();
+    bindPlayheadClockListeners();
     beginPlaybackSession();
     startPlayFromNav();
   }
@@ -1174,6 +1341,7 @@ export function mountGpPlayer(host, {
     if (!isAlive()) return;
     lastUserStopAt = Date.now();
     clearCountIn();
+    stopPlayheadFrameLoop();
     resetRampAfterStop();
     const measures = state.viewModel?.measures || [];
     const navIdx = navMeasureIndex();
@@ -1291,6 +1459,10 @@ export function mountGpPlayer(host, {
     destroy() {
       if (!alive) return;
       alive = false;
+      stopPlayheadFrameLoop();
+      unbindPlayheadClockListeners();
+      playheadAnchor = null;
+      playbackTimeline = null;
       if (autoPlayTimer != null) {
         clearTimeout(autoPlayTimer);
         autoPlayTimer = null;
