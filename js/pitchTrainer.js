@@ -478,7 +478,7 @@ function updatePrompt() {
         sub = 'Land on this note';
       } else {
         const pos = pt.sequence.length > 1 ? `${pt.noteIdx + 1} of ${pt.sequence.length}` : '';
-        sub = `Sing &amp; hold this note${pos ? ` · ${pos}` : ''}`;
+        sub = `Sing the center of this note${pos ? ` · ${pos}` : ''}`;
       }
     }
     promptEl.innerHTML = `${heading}<span class="pt-prompt-sub">${sub}</span>`;
@@ -652,10 +652,10 @@ function renderTrendsPanel() {
 
 function formatCenterLine(cents) {
   if (cents == null || !Number.isFinite(cents)) return `Center: ${NO_STABLE_FUNDAMENTAL}`;
-  const dir = cents > 0 ? 'sharp' : cents < 0 ? 'flat' : 'centered';
-  const abs = Math.round(Math.abs(cents));
-  if (dir === 'centered') return 'Center: centered';
-  return `Center: ${abs}\u00A2 ${dir}`;
+  // Round first. A value such as 0.4 must not read as "0¢ sharp".
+  const rounded = Math.round(cents);
+  if (rounded === 0) return 'Center: on target';
+  return `Center: ${Math.abs(rounded)}\u00A2 ${rounded > 0 ? 'sharp' : 'flat'}`;
 }
 
 function analyzeLandEntry(snapshots) {

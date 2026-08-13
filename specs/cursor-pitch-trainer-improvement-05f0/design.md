@@ -227,9 +227,22 @@ Correction text:
 
 Do not use only `Nice!` or `Miss`.
 
-Feedback modes: Live, Reduced, Result only. Use Live on the first attempt.
-Reduce after a successful attempt. Use Result only after two consecutive
-successful attempts. The user can lock one mode.
+Feedback modes: the Trainer starts in Live mode. The meter and the cent readout
+stay visible in Live mode. The user can choose Reduced, Result only, or Auto.
+Auto is not the default. Auto still moves to Result only after successful
+attempts for users who select it.
+
+The Trainer never advances by itself. The singer presses `Next note` to move
+on. The Pitch Runner keeps automatic progression because it is a scrolling
+game.
+
+#### Display stability
+
+The meter renders on `requestAnimationFrame`, not on every audio frame. The puck
+holds its last position for 350 ms through a short unvoiced dropout. Silence
+shows a neutral puck colour. The cent readout and direction word use a smoothed
+value. During guide-tone lockout the display holds its last state and the
+confidence text reads `Guide tone`.
 
 ### Pitch Runner (`js/pitchRunner.js`)
 

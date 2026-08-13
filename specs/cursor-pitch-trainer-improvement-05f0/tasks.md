@@ -3,7 +3,7 @@ feature: cursor-pitch-trainer-improvement-05f0
 status: planned
 created: 2026-08-13
 chunk_size: medium
-total_tasks: 29
+total_tasks: 30
 estimated_lines: 1680
 ---
 
@@ -338,6 +338,21 @@ Stage 2 until this checkpoint is green.
   pass.
 - **Evidence:** `node tests/pitch/run.mjs` exit code 0.
 
+#### Task 30: Manual note progression and steady meter
+- **Estimate:** ~150 lines
+- **Files:** `js/pitchTrainer.js`, `js/pitchRunner.js`, `js/practiceTimer.js`,
+  `index.html`, `css/trainers.css`
+- **Description:** Remove auto advance from the Trainer. The singer presses
+  `Next note` to move on. Default feedback mode is Live. Migrate stored `auto`
+  to `live`. Render the meter on `requestAnimationFrame`. Hold the puck for 350
+  ms through short dropouts. Use edge-triggered capture reset during guide
+  lockout. Fix duplicate `pt-status` id with `pt-timer-status`.
+- **Depends on:** Task 29
+- **Acceptance:** The Trainer never advances by itself. The Runner still
+  advances by itself. The meter does not blank on a short dropout.
+- **Evidence:** `node tests/pitch/run.mjs` exit code 0, plus a browser check
+  with a fake microphone tone.
+
 ## Notes
 
 - Do not replace the MPM detector without test evidence from Task 23.
@@ -380,5 +395,6 @@ Stage 2 until this checkpoint is green.
 - [x] Task 27: Service worker, cache, and manual checklist
 - [x] Task 28: Full runner and CLI smoke
 - [x] Task 29: Guide lockout window-start
+- [x] Task 30: Manual note progression and steady meter
 
 Manual device checks in `manual-checklist.md` are **not complete**. All items stay unchecked until a real device test runs.
