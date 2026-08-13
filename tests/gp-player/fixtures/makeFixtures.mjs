@@ -699,18 +699,19 @@ function writeAllFixtures() {
     }],
   }, join(OUT_DIR, 'repeat-8bar.gp5'));
 
-  // Feature: repeat with two alternate endings.
+  // Feature: repeat with two alternate endings. Guitar Pro puts the repeat
+  // close mark on the last bar of the first ending, so bar 3 carries both the
+  // ending 1 mark and the close mark. Bar 4 carries the ending 2 mark.
   writeGp5({
     measureHeaders: [
       { timeSig: [4, 4], repeatOpen: true },
       ...Array.from({ length: 2 }, () => ({ timeSig: [4, 4] })),
-      { timeSig: [4, 4], repeatClose: 2 },
-      { timeSig: [4, 4], alternateEndings: 1 },
+      { timeSig: [4, 4], alternateEndings: 1, repeatClose: 2 },
       { timeSig: [4, 4], alternateEndings: 2 },
     ],
     tracks: [{
       name: 'Guitar',
-      measures: Array.from({ length: 6 }, () => ({
+      measures: Array.from({ length: 5 }, () => ({
         voices: [[quarterBeat(6, 0), quarterBeat(6, 2), quarterBeat(6, 3), quarterBeat(6, 5)], []],
       })),
     }],
@@ -742,20 +743,25 @@ function writeAllFixtures() {
     tracks: [{
       name: 'Guitar',
       measures: [
+        // Bar 1 holds 4 quarters: a half note, an eighth triplet group, and a
+        // quarter note that ties over the bar line.
         {
           voices: [[
             { duration: -1, notes: [{ string: 6, fret: 0 }] },
-            { duration: 0, notes: [{ string: 6, fret: 0, tie: true }] },
-            { duration: 0, dotted: true, notes: [{ string: 5, fret: 0 }] },
             { duration: 1, tuplet: 3, notes: [{ string: 4, fret: 0 }] },
+            { duration: 1, tuplet: 3, notes: [{ string: 4, fret: 2 }] },
+            { duration: 1, tuplet: 3, notes: [{ string: 4, fret: 3 }] },
+            { duration: 0, notes: [{ string: 6, fret: 3 }] },
           ], []],
         },
+        // Bar 2 holds 4 quarters: the tied tail, a dotted quarter, a quarter
+        // rest, and an eighth rest.
         {
           voices: [[
+            { duration: 0, notes: [{ string: 6, fret: 3, tie: true }] },
+            { duration: 0, dotted: true, notes: [{ string: 5, fret: 0 }] },
             restBeat(0),
-            restBeat(0),
-            restBeat(0),
-            restBeat(0),
+            restBeat(1),
           ], []],
         },
       ],
@@ -945,12 +951,11 @@ function writeAllFixtures() {
   writeGpZip(tempoGpif, join(OUT_DIR, 'tempo-change.gp'));
 
   const repeatEndingsGpif = buildSimpleGpif({
-    barCount: 6,
+    barCount: 5,
     masterBarExtras: (b) => {
       if (b === 0) return '<Repeat start="true"/>';
-      if (b === 3) return '<Repeat count="2"/>';
-      if (b === 4) return '<AlternateEndings>1</AlternateEndings>';
-      if (b === 5) return '<AlternateEndings>2</AlternateEndings>';
+      if (b === 3) return '<Repeat count="2"/><AlternateEndings>1</AlternateEndings>';
+      if (b === 4) return '<AlternateEndings>2</AlternateEndings>';
       return '';
     },
   });

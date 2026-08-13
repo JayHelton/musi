@@ -124,13 +124,13 @@ time and bar order against the source score. Watch the playhead against the soun
 
 ### Tests for User Story 1
 
-- [ ] T033 [US1] Create `tests/gp-player/play-order.mjs` with repeat expansion, alternate ending selection, nested-repeat flatten with a warning per FR-003, and a `maxPasses` guard per `contracts/score-timeline.md`
-- [ ] T034 [US1] Create `tests/gp-player/timeline.mjs` with tempo segments, total duration within 1 percent, tie merge, grace note placement, rest advance, and all-voice scheduling per `contracts/score-timeline.md`
+- [X] T033 [US1] Create `tests/gp-player/play-order.mjs` with repeat expansion, alternate ending selection, nested-repeat flatten with a warning per FR-003, and a `maxPasses` guard per `contracts/score-timeline.md`
+- [X] T034 [US1] Create `tests/gp-player/timeline.mjs` with tempo segments, total duration within 1 percent, tie merge, grace note placement, rest advance, and all-voice scheduling per `contracts/score-timeline.md`
 
 ### Implementation for User Story 1
 
-- [ ] T035 [US1] Create `js/tab/playOrder.js` with `buildPlayOrder(measures, options)` returning `{ passes, barOrder, flattened, warnings }` per `contracts/score-timeline.md` (depends on T033)
-- [ ] T036 [US1] Create `js/tab/scoreTimeline.js` with `buildTimeline`, `positionAtSeconds`, `secondsAtPosition`, `withRate`, and `loopWindow` per `contracts/score-timeline.md` (depends on T034, T035)
+- [X] T035 [US1] Create `js/tab/playOrder.js` with `buildPlayOrder(measures, options)` returning `{ passes, barOrder, flattened, warnings }` per `contracts/score-timeline.md` (depends on T033)
+- [X] T036 [US1] Create `js/tab/scoreTimeline.js` with `buildTimeline`, `positionAtSeconds`, `secondsAtPosition`, `withRate`, and `loopWindow` per `contracts/score-timeline.md` (depends on T034, T035)
 - [ ] T037 [US1] Rewrite the scheduler in `js/gpMixPlayer.js` to walk the `Timeline` event list, keep the `createGpMixPlayer` factory name, and keep the current method names (depends on T036)
 - [ ] T038 [US1] Add `setRate`, `seekToBar`, `getPosition`, `destroy`, `onPositionFrame`, `onAudioBlocked`, `onLoopPass`, and `onEnded` to `js/gpMixPlayer.js` per `contracts/player-engine.md` (depends on T037)
 - [ ] T039 [US1] Make `setBpm` in `js/gpMixPlayer.js` wrap `setRate` and keep the old `load` parameter names as aliases for `timeline` and `tracks` (depends on T038)

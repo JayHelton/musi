@@ -87,11 +87,14 @@ function assertTempoMap(model, label, expected) {
   );
 }
 
+// Guitar Pro puts the repeat close mark on the last bar of the first ending.
+// Bar 3 therefore holds both the ending 1 mark and the close mark.
 function assertRepeatMarks(model, label) {
+  assert.equal(model.measures.length, 5, `${label}: measure count`);
   assert.equal(model.measures[0].repeat.open, true, `${label}: repeat open bar 0`);
   assert.equal(model.measures[3].repeat.closeCount, 2, `${label}: repeat close count bar 3`);
-  assert.deepEqual(model.measures[4].repeat.endings, [1], `${label}: ending 1 bar 4`);
-  assert.deepEqual(model.measures[5].repeat.endings, [2], `${label}: ending 2 bar 5`);
+  assert.deepEqual(model.measures[3].repeat.endings, [1], `${label}: ending 1 bar 3`);
+  assert.deepEqual(model.measures[4].repeat.endings, [2], `${label}: ending 2 bar 4`);
 }
 
 function assertTiesAndRests(model, label) {
