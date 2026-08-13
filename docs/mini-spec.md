@@ -85,16 +85,29 @@ the Git branch. A typical layout:
 
 ```text
 specs/
-└── feature-tempo-trainer/
+└── 20260813-105220-tempo-trainer-drum-machine/
     ├── design.md
     └── tasks.md
 ```
 
 The `/minispec.design` command creates the directory and writes `design.md`.
 It takes the folder name from the current branch and replaces `/` with `-`.
-The script `.minispec/scripts/bash/create-new-feature.sh` creates numbered
-folders such as `001-feature-name`.
+
+The script `.minispec/scripts/bash/create-new-feature.sh` builds the folder
+name from a timestamp prefix and a short name. The prefix format is
+`YYYYMMDD-HHMMSS`. The script creates a Git branch with the same name. It
+copies `.minispec/templates/design-template.md` to `design.md`. It accepts
+`--short-name <name>` to set the short part of the name. It sets the
+`MINISPEC_FEATURE` environment variable for the session.
+
 Later commands add and update `tasks.md` in the same folder.
+
+### Feature branch names
+
+The script creates its own branch name. A team or a harness with a branch
+naming policy cannot use that name. In that case, create the feature folder by
+hand under `specs/`, or set `MINISPEC_FEATURE` to the folder name before you
+run the commands.
 
 ### Shared `specs/` directory
 
@@ -112,6 +125,26 @@ the `MINISPEC_FEATURE` environment variable when you set it.
 
 MiniSpec refuses to run on `main`, `master`, `develop`, and `production`. You
 must work on a feature branch for MiniSpec commands and scripts.
+
+## Helper scripts
+
+Bash helpers live under `.minispec/scripts/bash/`:
+
+- `common.sh` — shared path helpers
+- `check-prerequisites.sh` — checks the design and tasks files; supports
+  `--json`, `--paths-only`, `--require-design`, and `--require-tasks`
+- `create-new-feature.sh` — creates the branch, the folder, and `design.md`
+- `setup-plan.sh` — creates the feature folder and copies the tasks template
+  to `tasks.md`
+- `update-agent-context.sh` — writes the agent context file
+
+The script `.minispec/scripts/bash/update-agent-context.sh` needs the
+`cursor-agent` argument in this repo. With that argument it writes
+`.cursor/rules/minispec-rules.mdc` only. With no argument it updates every
+agent context file that exists, and that list includes the repo file
+`AGENTS.md`. Always run
+`bash .minispec/scripts/bash/update-agent-context.sh cursor-agent` so the
+script leaves `AGENTS.md` alone.
 
 ## Knowledge base
 
