@@ -1,12 +1,17 @@
-import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination, requestMicStream, releaseMicStream } from './audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext, TEMPO_MIN, TEMPO_MAX } from './musicalContext.js';
-import { createPitchTracker } from './pitch.js';
+import { createAdaptiveNoiseFloor } from './pitch.js';
+import { createPitchCapture } from './pitchCapture.js';
+import {
+  openPitchMic,
+  registerPitchMicStop,
+  stopOtherPitchMicTools,
+  releaseMicStream,
+} from './pitchMic.js';
 import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.js';
 import { scoreRunnerNote } from './pitchMetrics.js';
 import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
-import { stopTuner, tuner } from './vocalTrainer.js';
-import { pt, stopPitchTrainer } from './pitchTrainer.js';
 
 // "Pitch runner" — a Guitar-Hero / Yousician-style scrolling pitch game that
 // lives in the Pitch section. Note bars stream in from the right in strict 4/4
@@ -61,10 +66,10 @@ const runner = {
   running: false,
   initialized: false,
   stream: null,
-  source: null,
-  analyser: null,
-  buf: null,
-  tracker: null,
+  capture: null,
+  noiseFloor: null,
+  trackSettings: null,
+  lastPitchFrame: null,
   rafId: null,
 
   difficulty: 'medium',
@@ -240,8 +245,8 @@ function getInputLatencySec() {
 }
 
 function getAnalysisDelaySec() {
-  if (!runner.analyser) return 0;
-  return runner.analyser.fftSize / audioCtx.sampleRate / 2;
+  if (runner.capture) return runner.capture.windowSize / audioCtx.sampleRate / 2;
+  return 4096 / audioCtx.sampleRate / 2;
 }
 
 // Append notes until the timeline is populated a comfortable margin past the
@@ -589,6 +594,13 @@ function scheduleAudio(playheadBeat) {
   }
 }
 
+function handleRunnerPitchFrame(frame) {
+  if (!runner.running) return;
+  const activeMinRms = runner.noiseFloor ? runner.noiseFloor.ingest(frame.rms) : frame.rms;
+  if (runner.capture) runner.capture.setMinRms(activeMinRms);
+  runner.lastPitchFrame = frame;
+}
+
 function loop() {
   if (!runner.running) return;
   try {
@@ -603,7 +615,7 @@ function loop() {
 
 function step() {
   // The AudioContext can be auto-suspended (tab backgrounded, OS audio focus
-  // changes); keep it alive so the timeline clock and mic analyser keep running.
+  // changes); keep it alive so the timeline clock and mic capture keep running.
   if (audioCtx.state === 'suspended') audioCtx.resume();
 
   const now = audioCtx.currentTime;
@@ -612,23 +624,19 @@ function step() {
   ensureNotes(playheadBeat);
   scheduleAudio(playheadBeat);
 
-  // Detect the current sung pitch.
-  runner.analyser.getFloatTimeDomainData(runner.buf);
-  const trackerOut = runner.tracker.process(runner.buf);
-  const {
-    voiced,
-    frequencyHz,
-    clarity,
-    rms,
-    freq,
-    displayFrequencyHz,
-  } = trackerOut;
-  const displayFreq = displayFrequencyHz > 0 ? displayFrequencyHz : freq;
+  const frame = runner.lastPitchFrame;
+  const voiced = frame?.voiced ?? false;
+  const frequencyHz = frame?.frequencyHz ?? -1;
+  const clarity = frame?.clarity ?? 0;
+  const rms = frame?.rms ?? 0;
+  const displayFreq = frame?.displayFrequencyHz > 0 ? frame.displayFrequencyHz : frequencyHz;
   const hasPitch = displayFreq > 0;
   const midiFloat = hasPitch ? freqToMidiFloat(displayFreq) : null;
 
-  const correctedAudioTime = now - getAnalysisDelaySec() - getInputLatencySec();
-  const sampleTimestampMs = correctedAudioTime * 1000;
+  const correctedAudioTime = frame?.audioTime != null
+    ? frame.audioTime - getInputLatencySec()
+    : now - getAnalysisDelaySec() - getInputLatencySec();
+  const sampleTimestampMs = frame?.timestampMs ?? correctedAudioTime * 1000;
 
   const target = currentTargetMidi(playheadBeat);
   let inTune = false;
@@ -675,22 +683,6 @@ function step() {
 
 // ---- Lifecycle --------------------------------------------------------------
 
-// Mic constraints tuned for singing into a laptop/phone mic. Auto-gain helps
-// quiet voices clear the RMS gate; noise suppression is left off so sustained
-// vowels aren't chewed up. Echo cancellation stays off because the melody guide
-// is the same pitch the singer should hold — AEC can cancel the voice along
-// with the speakers. Guide-tone scoring is suppressed in software instead.
-function buildConstraints() {
-  const supported = (navigator.mediaDevices.getSupportedConstraints &&
-    navigator.mediaDevices.getSupportedConstraints()) || {};
-  const audio = {};
-  if (supported.echoCancellation) audio.echoCancellation = false;
-  if (supported.noiseSuppression) audio.noiseSuppression = false;
-  if (supported.autoGainControl) audio.autoGainControl = true;
-  if (supported.channelCount) audio.channelCount = 1;
-  return Object.keys(audio).length ? { audio } : { audio: true };
-}
-
 function resetTimeline() {
   runner.secPerBeat = 60 / getContext().tempo;
   runner.startAudioTime = audioCtx.currentTime + 0.15;
@@ -704,9 +696,7 @@ function resetTimeline() {
 }
 
 async function startRunner() {
-  // Only one mic-driven tool in the Pitch section runs at a time.
-  if (tuner && tuner.running) stopTuner();
-  if (pt && pt.running) stopPitchTrainer();
+  stopOtherPitchMicTools('runner');
 
   ensureAudio();
   readColors();
@@ -718,24 +708,30 @@ async function startRunner() {
     return;
   }
 
+  const mic = await openPitchMic();
+  if (!mic.ok) {
+    const status = el('pr-status');
+    if (status) status.textContent = 'Mic access denied or unavailable';
+    setOverlay('Mic unavailable');
+    updateStartState();
+    return;
+  }
+
   try {
-    try {
-      runner.stream = await requestMicStream(buildConstraints());
-    } catch (constraintErr) {
-      runner.stream = await requestMicStream({ audio: true });
-    }
-    runner.source = audioCtx.createMediaStreamSource(runner.stream);
-    runner.analyser = audioCtx.createAnalyser();
-    runner.analyser.fftSize = 4096;
-    runner.analyser.smoothingTimeConstant = 0;
-    runner.buf = new Float32Array(runner.analyser.fftSize);
-    runner.tracker = createPitchTracker({
-      sampleRate: audioCtx.sampleRate,
-      maxFreq: 1400,
-      minRms: 0.003,
+    runner.stream = mic.stream;
+    runner.trackSettings = mic.settings;
+    runner.noiseFloor = createAdaptiveNoiseFloor(0.003);
+    runner.noiseFloor.startCollection();
+    runner.lastPitchFrame = null;
+
+    runner.capture = await createPitchCapture({
+      audioCtx,
+      stream: runner.stream,
+      minRms: runner.noiseFloor.getMinRms(),
       minClarity: 0.45,
+      maxFreq: 1400,
+      onFrame: handleRunnerPitchFrame,
     });
-    runner.source.connect(runner.analyser);
 
     runner.running = true;
     setToggleLabel(true);
@@ -747,9 +743,11 @@ async function startRunner() {
     syncNoteAudioTimes();
     loop();
   } catch (e) {
+    stopRunner();
     const status = el('pr-status');
     if (status) status.textContent = 'Mic access denied or unavailable';
     setOverlay('Mic unavailable');
+    updateStartState();
   }
 }
 
@@ -760,8 +758,9 @@ function stopRunner() {
   }
   runner.running = false;
   if (runner.rafId) { cancelAnimationFrame(runner.rafId); runner.rafId = null; }
-  if (runner.tracker) runner.tracker.reset();
-  if (runner.source) { try { runner.source.disconnect(); } catch (e) { /* noop */ } runner.source = null; }
+  if (runner.capture) { runner.capture.stop(); runner.capture = null; }
+  runner.lastPitchFrame = null;
+  if (runner.noiseFloor) runner.noiseFloor = null;
   if (runner.stream) { releaseMicStream(runner.stream); runner.stream = null; }
   setToggleLabel(false);
   const status = el('pr-status');
@@ -966,6 +965,7 @@ function initPitchRunner() {
   updateHud();
   updateStartState();
   setOverlay('Press start to play');
+  registerPitchMicStop('runner', stopRunner);
 }
 
 function matchPreset() {

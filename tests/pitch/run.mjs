@@ -9,6 +9,7 @@ import { runRangeTests } from './range.mjs';
 import { runRunnerTests } from './runner.mjs';
 import { runTaskTests } from './tasks.mjs';
 import { runProgressTests } from './progress.mjs';
+import { runMicTests } from './mic.mjs';
 
 runMetricsTests();
 runDetectorTests();
@@ -16,5 +17,6 @@ runRangeTests();
 runTaskTests();
 runRunnerTests();
 runProgressTests();
+await runMicTests();
 
 console.log('pitch tests: ok');

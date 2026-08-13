@@ -95,6 +95,38 @@ export function isCaptureActive() {
   return activeCaptureCount > 0;
 }
 
+export function getActiveCaptureCount() {
+  return activeCaptureCount;
+}
+
+export function rawMonoAudioConstraints() {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getSupportedConstraints) {
+    return { audio: true };
+  }
+  const supported = navigator.mediaDevices.getSupportedConstraints();
+  const audio = {};
+  if (supported.echoCancellation) audio.echoCancellation = false;
+  if (supported.noiseSuppression) audio.noiseSuppression = false;
+  if (supported.autoGainControl) audio.autoGainControl = false;
+  if (supported.channelCount) audio.channelCount = 1;
+  return Object.keys(audio).length ? { audio } : { audio: true };
+}
+
+export async function requestMicStreamRaw() {
+  try {
+    return await requestMicStream(rawMonoAudioConstraints());
+  } catch (e) {
+    return requestMicStream({ audio: true });
+  }
+}
+
+export function inspectTrackSettings(stream) {
+  const tracks = stream?.getAudioTracks?.();
+  if (!tracks?.length) return {};
+  const settings = tracks[0].getSettings?.();
+  return settings && typeof settings === 'object' ? { ...settings } : {};
+}
+
 function beginMicAudioSession() {
   const session = getAudioSession();
   if (!session) return;

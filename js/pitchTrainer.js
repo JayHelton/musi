@@ -1,8 +1,15 @@
-import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination, requestMicStream, releaseMicStream } from './audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { parseNote } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext } from './musicalContext.js';
-import { createPitchTracker } from './pitch.js';
+import { createAdaptiveNoiseFloor } from './pitch.js';
+import { createPitchCapture } from './pitchCapture.js';
+import {
+  openPitchMic,
+  registerPitchMicStop,
+  stopOtherPitchMicTools,
+  releaseMicStream,
+} from './pitchMic.js';
 import { createPitchMatcher, midiToLabel } from './pitchMatch.js';
 import {
   buildStages,
@@ -19,8 +26,6 @@ import {
   correctionText,
   NO_STABLE_FUNDAMENTAL,
 } from './pitchMetrics.js';
-import { stopTuner, tuner } from './vocalTrainer.js';
-import { runner, stopPitchRunner } from './pitchRunner.js';
 import {
   recordAttempt,
   loadAttempts,
@@ -87,11 +92,10 @@ const pt = {
   running: false,
   initialized: false,
   stream: null,
-  source: null,
-  analyser: null,
-  buf: null,
+  capture: null,
+  noiseFloor: null,
+  trackSettings: null,
   rafId: null,
-  tracker: null,
   matcher: null,
 
   profile: DEFAULT_PROFILE_ID,
@@ -127,6 +131,7 @@ const pt = {
   advanceTimer: null,
   replayActive: false,
   guideEndsAt: 0,
+  guideEndsAudioTime: 0,
   puckRatio: 0.5,
   lastFrameMs: 0,
   lastTargetMidi: null,
@@ -302,6 +307,7 @@ function playTone(midi, duration = 0.7) {
   const release = duration * 0.35;
   const muteMs = (sustain + release) * 1000 + 280;
   pt.guideEndsAt = performance.now() + muteMs;
+  if (audioCtx) pt.guideEndsAudioTime = audioCtx.currentTime + muteMs / 1000;
   voice.releaseTimer = setTimeout(() => releaseVoice(voice, release), sustain * 1000);
 }
 
@@ -313,6 +319,7 @@ function ptStartReplay() {
   if (pt.matcher) pt.matcher.markGuideTone();
   startGuideTone(midi);
   pt.guideEndsAt = Infinity;
+  pt.guideEndsAudioTime = Infinity;
   setReplayButtonActive(true);
 }
 
@@ -320,6 +327,7 @@ function ptStopReplay() {
   if (!pt.replayActive) return;
   stopGuideTone(0.14);
   pt.guideEndsAt = performance.now() + 350;
+  if (audioCtx) pt.guideEndsAudioTime = audioCtx.currentTime + 0.35;
 }
 
 function guideMidi() {
@@ -523,6 +531,7 @@ function setTarget() {
     pt.lastTargetMidi = midi;
   }
   if (pt.matcher) pt.matcher.setTarget(midi);
+  if (pt.noiseFloor) pt.noiseFloor.startCollection();
   updatePrompt();
   const resultEl = el('pt-result');
   if (resultEl) resultEl.hidden = true;
@@ -816,53 +825,39 @@ function renderMeter(res, info, tracked) {
   }
 }
 
-// ---- Mic loop ---------------------------------------------------------------
+// ---- Mic capture ------------------------------------------------------------
 
-function loop() {
+function handlePitchFrame(frame) {
   if (!pt.running) return;
-  const now = performance.now();
-  pt.analyser.getFloatTimeDomainData(pt.buf);
-  const tracked = pt.tracker.process(pt.buf);
-  const { info, frequencyHz, voiced, clarity, rms } = tracked;
-  const scoring = now >= pt.guideEndsAt;
+  const activeMinRms = pt.noiseFloor ? pt.noiseFloor.ingest(frame.rms) : frame.rms;
+  if (pt.capture) pt.capture.setMinRms(activeMinRms);
+
+  const { frequencyHz, voiced, clarity, rms, noteInfo, timestampMs, audioTime } = frame;
+  const scoring = audioTime >= pt.guideEndsAudioTime;
   const res = pt.matcher.update({
-    timestampMs: now,
+    timestampMs,
     frequencyHz: voiced ? frequencyHz : -1,
     voiced: !!voiced,
     clarity,
     rms,
-  }, now, scoring);
+  }, timestampMs, scoring);
 
   if (scoring && res.centsOff != null) {
-    pt.attemptSnapshots.push({ voiced: !!voiced, centsOff: res.centsOff, timestampMs: now });
+    pt.attemptSnapshots.push({ voiced: !!voiced, centsOff: res.centsOff, timestampMs });
   }
 
-  renderMeter(res, info, tracked);
+  renderMeter(res, noteInfo, frame);
+  pt.lastFrameMs = performance.now();
 
-  if (res.matched && !pt.advancing) {
+  if (scoring && res.matched && !pt.advancing) {
     onMatched();
   } else if (scoring && res.progress >= 1 && !res.matched && !pt.advancing && !pt.failHandled) {
     onAttemptFailed();
   }
-
-  pt.lastFrameMs = now;
-  pt.rafId = requestAnimationFrame(loop);
-}
-
-function buildConstraints() {
-  const supported = (navigator.mediaDevices.getSupportedConstraints &&
-    navigator.mediaDevices.getSupportedConstraints()) || {};
-  const audio = {};
-  if (supported.echoCancellation) audio.echoCancellation = false;
-  if (supported.noiseSuppression) audio.noiseSuppression = false;
-  if (supported.autoGainControl) audio.autoGainControl = true;
-  if (supported.channelCount) audio.channelCount = 1;
-  return Object.keys(audio).length ? { audio } : { audio: true };
 }
 
 async function startPitchTrainer() {
-  if (tuner && tuner.running) stopTuner();
-  if (runner && runner.running) stopPitchRunner();
+  stopOtherPitchMicTools('trainer');
 
   if (pt.sequenceError) {
     updateStartState();
@@ -874,6 +869,7 @@ async function startPitchTrainer() {
   pt.stageIdx = 0;
   pt.completed = 0;
   pt.guideEndsAt = 0;
+  pt.guideEndsAudioTime = 0;
   pt.puckRatio = 0.5;
   pt.lastFrameMs = 0;
   buildSequence();
@@ -882,24 +878,28 @@ async function startPitchTrainer() {
     return;
   }
 
+  const mic = await openPitchMic();
+  if (!mic.ok) {
+    const status = el('pt-status');
+    if (status) status.textContent = 'Mic access denied or unavailable';
+    updateStartState();
+    return;
+  }
+
   try {
-    try {
-      pt.stream = await requestMicStream(buildConstraints());
-    } catch (constraintErr) {
-      pt.stream = await requestMicStream({ audio: true });
-    }
-    pt.source = audioCtx.createMediaStreamSource(pt.stream);
-    pt.analyser = audioCtx.createAnalyser();
-    pt.analyser.fftSize = 4096;
-    pt.analyser.smoothingTimeConstant = 0;
-    pt.buf = new Float32Array(pt.analyser.fftSize);
-    pt.tracker = createPitchTracker({
-      sampleRate: audioCtx.sampleRate,
-      maxFreq: 1400,
-      minRms: 0.003,
+    pt.stream = mic.stream;
+    pt.trackSettings = mic.settings;
+    pt.noiseFloor = createAdaptiveNoiseFloor(0.003);
+    pt.noiseFloor.startCollection();
+
+    pt.capture = await createPitchCapture({
+      audioCtx,
+      stream: pt.stream,
+      minRms: pt.noiseFloor.getMinRms(),
       minClarity: 0.45,
+      maxFreq: 1400,
+      onFrame: handlePitchFrame,
     });
-    pt.source.connect(pt.analyser);
 
     pt.running = true;
     setToggleLabel(true);
@@ -907,10 +907,13 @@ async function startPitchTrainer() {
     const status = el('pt-status');
     if (status) status.textContent = 'Listening… sing the highlighted note';
     setTarget();
-    loop();
   } catch (e) {
+    if (pt.capture) { pt.capture.stop(); pt.capture = null; }
+    if (pt.stream) { /* stream released in stop */ }
+    stopPitchTrainer();
     const status = el('pt-status');
     if (status) status.textContent = 'Mic access denied or unavailable';
+    updateStartState();
   }
 }
 
@@ -925,10 +928,13 @@ function stopPitchTrainer() {
   pt.guideEndsAt = 0;
   clearAdvanceTimer();
   if (pt.rafId) { cancelAnimationFrame(pt.rafId); pt.rafId = null; }
-  if (pt.tracker) pt.tracker.reset();
+  if (pt.capture) { pt.capture.stop(); pt.capture = null; }
   if (pt.matcher) pt.matcher.reset();
-  if (pt.source) { try { pt.source.disconnect(); } catch (e) {} pt.source = null; }
-  if (pt.stream) { releaseMicStream(pt.stream); pt.stream = null; }
+  if (pt.noiseFloor) pt.noiseFloor = null;
+  if (pt.stream) {
+    releaseMicStream(pt.stream);
+    pt.stream = null;
+  }
   stopGuideTone();
   setToggleLabel(false);
   updateStartState();
@@ -1307,6 +1313,7 @@ function initPitchTrainer() {
   rebuildPreviewStage();
   applyFeedbackVisibility();
   renderTrendsPanel();
+  registerPitchMicStop('trainer', stopPitchTrainer);
 }
 
 window.togglePitchTrainer = togglePitchTrainer;

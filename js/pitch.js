@@ -146,28 +146,16 @@ function infoForMidi(midi, freq) {
   return { midi, name, oct, cents, freq };
 }
 
-// Build a stateful tracker that turns the per-frame `detectPitch` output into a
-// stable note reading. It:
-//   - requires a minimum clarity/RMS before accepting a frame (noise gate),
-//   - median-filters recent frequencies to kill octave jumps and jitter,
-//   - holds the displayed note via cents hysteresis so small wavers near a
-//     semitone boundary don't cause the note to flip back and forth,
-//   - tolerates brief dropouts before declaring silence.
-export function createPitchTracker(opts = {}) {
-  const sampleRate = opts.sampleRate || 48000;
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+// Median smoothing and note hysteresis without running MPM. Used by the main
+// thread when pitch detection runs in a Worker.
+export function createPitchSmoother(opts = {}) {
   const medianSize = opts.medianSize ?? 5;
-  const minClarity = opts.minClarity ?? 0.6;
-  const minRms = opts.minRms ?? 0.012;
-  const minFreq = opts.minFreq ?? 55;
-  const maxFreq = opts.maxFreq ?? 2000;
-  // Cents past a held note's boundary required before switching notes. A note
-  // boundary sits 50 cents from the centre, so a value of 18 means the pitch
-  // must travel 68 cents toward a neighbour before the note changes, creating a
-  // ~36 cent dead zone that absorbs vibrato and small drift.
   const hysteresisCents = opts.hysteresisCents ?? 18;
-  // Frames a new candidate note must persist before the held note switches.
   const switchFrames = opts.switchFrames ?? 2;
-  // Consecutive gated/silent frames tolerated before reporting "no pitch".
   const releaseFrames = opts.releaseFrames ?? 5;
 
   let freqs = [];
@@ -186,41 +174,55 @@ export function createPitchTracker(opts = {}) {
     lastInfo = null;
   }
 
-  function process(buf) {
-    const res = detectPitch(buf, sampleRate, { minClarity, minRms, minFreq, maxFreq });
+  function voicedResult(smooth, clarity, rms) {
+    lastInfo = infoForMidi(heldMidi, smooth);
+    return {
+      freq: smooth,
+      frequencyHz: smooth,
+      displayFrequencyHz: smooth,
+      voiced: true,
+      clarity,
+      rms,
+      info: lastInfo,
+      noteInfo: lastInfo,
+    };
+  }
 
-    if (res.freq <= 0) {
-      silence++;
-      candidateMidi = null;
-      candidateCount = 0;
-      if (silence >= releaseFrames) {
-        reset();
-        return {
-          freq: -1,
-          frequencyHz: -1,
-          displayFrequencyHz: -1,
-          voiced: false,
-          clarity: res.clarity,
-          rms: res.rms,
-          info: null,
-          noteInfo: null,
-        };
-      }
-      const heldFreq = lastInfo ? lastInfo.freq : -1;
+  function unvoicedResult(clarity, rms) {
+    silence++;
+    candidateMidi = null;
+    candidateCount = 0;
+    if (silence >= releaseFrames) {
+      reset();
       return {
-        freq: heldFreq,
+        freq: -1,
         frequencyHz: -1,
-        displayFrequencyHz: heldFreq,
+        displayFrequencyHz: -1,
         voiced: false,
-        clarity: res.clarity,
-        rms: res.rms,
-        info: lastInfo,
-        noteInfo: lastInfo,
+        clarity,
+        rms,
+        info: null,
+        noteInfo: null,
       };
     }
+    const heldFreq = lastInfo ? lastInfo.freq : -1;
+    return {
+      freq: heldFreq,
+      frequencyHz: -1,
+      displayFrequencyHz: heldFreq,
+      voiced: false,
+      clarity,
+      rms,
+      info: lastInfo,
+      noteInfo: lastInfo,
+    };
+  }
+
+  function acceptFrequency(freq, clarity, rms) {
+    if (freq <= 0) return unvoicedResult(clarity, rms);
 
     silence = 0;
-    freqs.push(res.freq);
+    freqs.push(freq);
     if (freqs.length > medianSize) freqs.shift();
     const smooth = median(freqs);
 
@@ -231,8 +233,6 @@ export function createPitchTracker(opts = {}) {
       if (Math.abs(drift) > 50 + hysteresisCents) {
         const target = Math.round(freqToMidiFloat(smooth));
         if (target !== heldMidi) {
-          // Require the new note to persist a couple of frames so a single
-          // glitchy frame can't yank the reading to a neighbour.
           if (candidateMidi === target) {
             candidateCount++;
           } else {
@@ -254,18 +254,87 @@ export function createPitchTracker(opts = {}) {
       }
     }
 
-    lastInfo = infoForMidi(heldMidi, smooth);
-    return {
-      freq: smooth,
-      frequencyHz: smooth,
-      displayFrequencyHz: smooth,
-      voiced: true,
-      clarity: res.clarity,
-      rms: res.rms,
-      info: lastInfo,
-      noteInfo: lastInfo,
-    };
+    return voicedResult(smooth, clarity, rms);
   }
 
-  return { process, reset };
+  function ingest({ freq, clarity, rms }) {
+    return acceptFrequency(freq, clarity, rms);
+  }
+
+  return { ingest, reset };
+}
+
+// Measure ambient RMS for ~300 ms, then raise the active gate above that floor.
+export function createAdaptiveNoiseFloor(baseMinRms = 0.003) {
+  const COLLECT_MS = 300;
+  let collecting = false;
+  let collectStartMs = 0;
+  let rmsSamples = [];
+  let activeMinRms = baseMinRms;
+
+  function startCollection() {
+    collecting = true;
+    collectStartMs = typeof performance !== 'undefined' ? performance.now() : 0;
+    rmsSamples = [];
+  }
+
+  function finishIfReady() {
+    if (!collecting) return;
+    const now = typeof performance !== 'undefined' ? performance.now() : collectStartMs + COLLECT_MS;
+    if (now - collectStartMs < COLLECT_MS) return;
+    const floor = rmsSamples.length ? median(rmsSamples) : 0;
+    activeMinRms = clamp(Math.max(baseMinRms, floor * 2.5), 0.002, 0.04);
+    collecting = false;
+  }
+
+  function ingest(rms) {
+    if (collecting && typeof rms === 'number' && Number.isFinite(rms)) {
+      rmsSamples.push(rms);
+      finishIfReady();
+    }
+    return activeMinRms;
+  }
+
+  function getMinRms() {
+    finishIfReady();
+    return activeMinRms;
+  }
+
+  function setBaseMinRms(next) {
+    activeMinRms = next;
+  }
+
+  return { startCollection, ingest, getMinRms, setBaseMinRms };
+}
+
+// Build a stateful tracker that turns the per-frame `detectPitch` output into a
+// stable note reading. It:
+//   - requires a minimum clarity/RMS before accepting a frame (noise gate),
+//   - median-filters recent frequencies to kill octave jumps and jitter,
+//   - holds the displayed note via cents hysteresis so small wavers near a
+//     semitone boundary don't cause the note to flip back and forth,
+//   - tolerates brief dropouts before declaring silence.
+export function createPitchTracker(opts = {}) {
+  const sampleRate = opts.sampleRate || 48000;
+  const minClarity = opts.minClarity ?? 0.6;
+  let minRms = opts.minRms ?? 0.012;
+  const minFreq = opts.minFreq ?? 55;
+  const maxFreq = opts.maxFreq ?? 2000;
+
+  const smoother = createPitchSmoother(opts);
+
+  function reset() {
+    smoother.reset();
+  }
+
+  function setMinRms(next) {
+    minRms = next;
+  }
+
+  function process(buf) {
+    const res = detectPitch(buf, sampleRate, { minClarity, minRms, minFreq, maxFreq });
+    return smoother.ingest(res);
+  }
+
+  return { process, reset, setMinRms };
 }
