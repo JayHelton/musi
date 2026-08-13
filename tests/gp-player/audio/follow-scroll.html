@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player follow scroll</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    #host { width: 420px; height: 420px; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Measure how far the score viewport lags behind the active bar during playback.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+
+    // The player turns auto-follow off when the browser asks for less motion.
+    // The measurement needs auto-follow on, so report no such request.
+    function forceFullMotion() {
+      const realMatchMedia = window.matchMedia.bind(window);
+      window.matchMedia = (query) => {
+        const mql = realMatchMedia(query);
+        if (query === '(prefers-reduced-motion: reduce)') {
+          return {
+            matches: false,
+            media: mql.media,
+            onchange: mql.onchange,
+            addEventListener: (...args) => mql.addEventListener(...args),
+            removeEventListener: (...args) => mql.removeEventListener(...args),
+            dispatchEvent: (...args) => mql.dispatchEvent(...args),
+            addListener: mql.addListener?.bind(mql),
+            removeListener: mql.removeListener?.bind(mql),
+          };
+        }
+        return mql;
+      };
+    }
+
+    const BARS = 48;
+    const PLAY_SEC = 12;
+    const PIN_PAD_PX = 16;
+    const AUTO_FOLLOW_KEY = 'musi.gpAutoFollow';
+    const MAX_LONGEST_LAG_MS = 400;
+    const MAX_WORST_LAG_ROWS = 1.5;
+    const MIN_BARS_PLAYED = 4;
+
+    function makeGpResult(barCount) {
+      const strings = [
+        { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+        { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+        { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+        { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+        { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+        { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+      ];
+      const events = [];
+      const measures = [];
+      for (let bar = 0; bar < barCount; bar += 1) {
+        measures.push({
+          startSlot: bar * 4,
+          endSlot: bar * 4 + 4,
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          timeSig: [4, 4],
+        });
+        for (let beat = 0; beat < 4; beat += 1) {
+          events.push({
+            slot: bar * 4 + beat,
+            stringIndex: 5,
+            fret: beat,
+            midi: 40 + beat,
+            pc: (40 + beat) % 12,
+            dead: false,
+            start: bar * 4 + beat,
+            duration: 1,
+            techniques: [],
+          });
+        }
+      }
+      return {
+        tempo: 120,
+        tracks: [{
+          index: 0,
+          name: 'Guitar',
+          tuning: 'Standard',
+          noteCount: events.length,
+          model: {
+            tuning: 'Standard',
+            strings,
+            events,
+            measures,
+            slots: barCount * 4,
+            tempo: 120,
+            totalBeats: barCount * 4,
+            techniqueCounts: {},
+            warnings: [],
+          },
+        }],
+        drumTracks: [],
+      };
+    }
+
+    function sampleFrame(samples) {
+      const activeBar = document.querySelector('.gpp-parch-measure.is-active');
+      if (!activeBar) return;
+      const row = activeBar.closest('.gpp-parch-system');
+      if (!row) return;
+      const viewport = document.querySelector('.gpp-parch-viewport');
+      if (!viewport) return;
+      const rowRect = row.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
+      const offset = rowRect.top - viewportRect.top - PIN_PAD_PX;
+      samples.push({
+        time: performance.now(),
+        offset,
+        barIndex: activeBar.dataset.index,
+      });
+    }
+
+    function longestLagMs(samples, halfRowPx) {
+      let longest = 0;
+      let runStart = null;
+      for (const s of samples) {
+        if (Math.abs(s.offset) > halfRowPx) {
+          if (runStart === null) runStart = s.time;
+        } else if (runStart !== null) {
+          longest = Math.max(longest, s.time - runStart);
+          runStart = null;
+        }
+      }
+      if (runStart !== null && samples.length) {
+        longest = Math.max(longest, samples[samples.length - 1].time - runStart);
+      }
+      return longest;
+    }
+
+    runMain(async () => {
+      forceFullMotion();
+      localStorage.setItem(AUTO_FOLLOW_KEY, 'true');
+      writeln(`auto-follow localStorage key: ${AUTO_FOLLOW_KEY}`);
+
+      const { mountGpPlayer } = await import('/js/gpPlayerUI.js');
+      const host = document.getElementById('host');
+      const mount = mountGpPlayer(host, {
+        gpResult: makeGpResult(BARS),
+        title: 'Follow scroll measurement',
+      });
+
+      const { ensureAudio } = await import('/js/audio.js');
+      ensureAudio();
+      const audio = await import('/js/audio.js');
+      if (audio.audioCtx?.state === 'suspended') await audio.audioCtx.resume();
+
+      const realSetTimeout = window.setTimeout.bind(window);
+      await new Promise((r) => realSetTimeout(r, 600));
+
+      const samples = [];
+      let rafId = 0;
+      const tick = () => {
+        sampleFrame(samples);
+        rafId = requestAnimationFrame(tick);
+      };
+      rafId = requestAnimationFrame(tick);
+
+      await mount.player.play({ fromSec: 0 });
+      await new Promise((r) => realSetTimeout(r, PLAY_SEC * 1000));
+      cancelAnimationFrame(rafId);
+      mount.player.pause();
+
+      const systemEl = document.querySelector('.gpp-parch-system');
+      const rowHeightPx = systemEl ? systemEl.getBoundingClientRect().height : 0;
+      const worstOffsetPx = samples.length
+        ? Math.max(...samples.map((s) => Math.abs(s.offset)))
+        : 0;
+      const worstLagRows = rowHeightPx > 0 ? worstOffsetPx / rowHeightPx : 0;
+      const halfRowPx = rowHeightPx / 2;
+      const longestLag = longestLagMs(samples, halfRowPx);
+      const barIndexes = new Set(samples.map((s) => s.barIndex).filter((v) => v != null));
+      const barsPlayed = barIndexes.size;
+
+      writeln('follow-scroll: active row pin lag during playback');
+      writeln(`bars: ${BARS}  play seconds: ${PLAY_SEC}  pin pad px: ${PIN_PAD_PX}`);
+      writeln(`longest lag limit: ${MAX_LONGEST_LAG_MS} ms`);
+      writeln(`worst lag limit: ${MAX_WORST_LAG_ROWS} rows   bars played limit: ${MIN_BARS_PLAYED}`);
+      printTable(
+        [
+          { metric: 'row height px', value: rowHeightPx.toFixed(1), ok: '' },
+          { metric: 'worst offset px', value: worstOffsetPx.toFixed(1), ok: '' },
+          {
+            metric: 'worst lag in rows',
+            value: worstLagRows.toFixed(2),
+            ok: worstLagRows <= MAX_WORST_LAG_ROWS ? 'yes' : 'no',
+          },
+          {
+            metric: 'longest lag ms',
+            value: longestLag.toFixed(1),
+            ok: longestLag <= MAX_LONGEST_LAG_MS ? 'yes' : 'no',
+          },
+          {
+            metric: 'bars played',
+            value: String(barsPlayed),
+            ok: barsPlayed >= MIN_BARS_PLAYED ? 'yes' : 'no',
+          },
+          { metric: 'samples', value: String(samples.length), ok: '' },
+        ],
+        [{ key: 'metric' }, { key: 'value' }, { key: 'ok' }],
+      );
+
+      mount.destroy();
+
+      const pass = longestLag <= MAX_LONGEST_LAG_MS
+        && worstLagRows <= MAX_WORST_LAG_ROWS
+        && barsPlayed >= MIN_BARS_PLAYED;
+      reportResult(pass);
+    });
+  </script>
+</body>
+</html>

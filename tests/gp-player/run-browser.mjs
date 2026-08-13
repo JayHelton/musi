@@ -1,7 +1,8 @@
 /**
  * Drives gp-player audio harness pages in headless Chrome over CDP.
  *
- * Usage: node tests/gp-player/run-browser.mjs
+ * Usage: node tests/gp-player/run-browser.mjs [page ...]
+ * Example: node tests/gp-player/run-browser.mjs follow-scroll.html
  * Requires a static server on the base URL (default http://localhost:8080)
  * and google-chrome on PATH.
  *
@@ -25,14 +26,18 @@ const PAGES = [
   'instrument-spectral.html',
   'realtime-dropouts.html',
   'realtime-ui-jank.html',
+  'follow-scroll.html',
 ];
+
+const argvPages = process.argv.slice(2);
+const pagesToRun = argvPages.length > 0 ? argvPages : PAGES;
 
 const PORT = Number(process.env.GP_PLAYER_PORT || process.env.PORT || 8080);
 const BASE = `http://localhost:${PORT}`;
 const CDP_PORT = 9334;
 const TIMEOUT_MS = 60000;
 
-if (PAGES.length === 0) {
+if (pagesToRun.length === 0) {
   console.log('gp-player browser: no pages registered');
   process.exit(0);
 }
@@ -135,7 +140,7 @@ let failures = 0;
 try {
   const ws = await connect(await endpoint());
   const send = makeRpc(ws);
-  for (const page of PAGES) {
+  for (const page of pagesToRun) {
     process.stdout.write(`\n=== ${page} ===\n`);
     const { text, elapsed } = await runPage(send, page);
     process.stdout.write(text.trim() + '\n');
