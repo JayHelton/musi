@@ -266,6 +266,61 @@ Per `AGENTS.md`, verify in the browser:
 3. **Phase 2** — practice player (core “on demand” experience).
 4. **Phase 3** — polish + Tab Analyzer → Exercises save.
 
+## Update: the Guitar Pro Player Overhaul
+
+The feature in `specs/002-gp-player-overhaul/` adds three layers under the
+player. Read that directory for the full specification, the plan, and the
+contracts. This section records what changed for a reader of this roadmap.
+
+### The timeline layer
+
+The parse layer used to drop the tempo automations, the repeat marks, the
+alternate endings, the second voice, the ties, the grace notes, the note
+dynamics, and the bend points. It now keeps all of that data on the shared
+`TabModel`. Two new pure modules sit between the parsed score and the audio:
+
+- `js/tab/playOrder.js` expands the repeat marks into an ordered bar pass
+  list. A close count of 2 plays the section two times. An alternate ending
+  sounds on the pass that its number names. A nested repeat flattens to one
+  pass and adds a warning.
+- `js/tab/scoreTimeline.js` builds the tempo segments over that pass list and
+  converts a musical position to seconds and back. It returns the sounding
+  event list for the scheduler.
+
+`js/gpMixPlayer.js` schedules from that event list, and the playhead reads the
+same timeline on every animation frame. One source of truth removes the wrong
+bar order, the wrong tempo, and the drifting playhead at the same time.
+
+### The layout layer
+
+`js/gpPlayer/scoreLayout.js` is a pure pass that turns one written bar into
+positioned glyph boxes. It covers the rhythm marks, the rests, the time
+signatures, the repeat marks, the volta brackets, and the technique glyphs.
+`js/gpPlayer/parchmentView.js` draws that data as DOM text plus one inline
+`<svg>` for each bar, which holds the curved marks. The layout pass is pure,
+so a Node test counts the drawn techniques with no browser.
+
+### The instrument voice layer
+
+`js/gpPlayer/instrumentVoices.js` builds one Web Audio voice for each
+instrument family. The player ships no sample set and downloads no sample set.
+The note dynamics set the peak gain and the filter cutoff. A bend, a slide,
+and a vibrato drive pitch automation. A palm mute and a dead note shorten the
+decay.
+
+### Verification
+
+The repository still has no test framework, but this feature adds plain Node
+runners and browser harness pages:
+
+- `node tests/gp-player/run.mjs` runs every Node suite in that folder.
+- `node tests/gp-player/run-browser.mjs` drives the pages under
+  `tests/gp-player/audio/` in headless Chrome. Those pages measure the note
+  onset error, the total duration, the loop boundary gap, the playhead drift,
+  the score view render cost, and the output peak level.
+- `node tests/gp-player/fixtures/makeFixtures.mjs` writes every byte fixture.
+  The repository stores no large binary file.
+
 ## Relationship to Tab Analyzer roadmap
 
 - Does **not** replace Tab Analyzer; it productizes GP as an **exercise format**.

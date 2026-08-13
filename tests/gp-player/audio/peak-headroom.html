@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>gp-player peak headroom</title></head>
+<body>
+<div id="out">running</div>
+<script type="module">
+import { writeln, printTable, reportResult, runMain } from './harness.js';
+import { createVoiceFactory } from '../../../js/gpPlayer/instrumentVoices.js';
+
+const PEAK_LIMIT = 0.999;
+const CHORD_MIDIS = [40, 43, 47, 50, 54, 57];
+const NOTE_DUR = 0.35;
+const RENDER_SEC = 0.6;
+const SAMPLE_RATE = 48000;
+
+function measurePeak(channelData) {
+  let peak = 0;
+  for (let i = 0; i < channelData.length; i += 1) {
+    const v = Math.abs(channelData[i]);
+    if (v > peak) peak = v;
+  }
+  return peak;
+}
+
+runMain(async () => {
+  writeln('peak-headroom: dense six-note chord');
+  writeln(`peak limit: ${PEAK_LIMIT}`);
+  writeln(`notes: ${CHORD_MIDIS.join(', ')}`);
+
+  const length = Math.ceil(RENDER_SEC * SAMPLE_RATE);
+  const ctx = new OfflineAudioContext({ numberOfChannels: 1, length, sampleRate: SAMPLE_RATE });
+  const factory = createVoiceFactory(ctx);
+  const bus = ctx.createGain();
+  bus.gain.value = 1;
+  bus.connect(ctx.destination);
+
+  const when = 0.05;
+  for (const midi of CHORD_MIDIS) {
+    factory.playNote({
+      family: 'cleanGuitar',
+      midi,
+      when,
+      durSec: NOTE_DUR,
+      velocity: 0.95,
+      techniques: [],
+      bend: null,
+      slideKind: null,
+      destination: bus,
+    });
+  }
+
+  const buffer = await ctx.startRendering();
+  const peak = measurePeak(buffer.getChannelData(0));
+  const peakDb = 20 * Math.log10(Math.max(peak, 1e-8));
+
+  const pass = peak < PEAK_LIMIT;
+  printTable([{
+    metric: 'peak_linear',
+    value: peak.toFixed(4),
+    limit: `< ${PEAK_LIMIT}`,
+    ok: pass ? 'yes' : 'no',
+  }, {
+    metric: 'peak_dbfs',
+    value: peakDb.toFixed(2),
+    limit: '< 0',
+    ok: peakDb < 0 ? 'yes' : 'no',
+  }], [
+    { key: 'metric', label: 'metric' },
+    { key: 'value', label: 'value' },
+    { key: 'limit', label: 'limit' },
+    { key: 'ok', label: 'ok' },
+  ]);
+
+  writeln(`peak_linear: ${peak.toFixed(6)}`);
+  writeln(`peak_dbfs: ${peakDb.toFixed(3)}`);
+  reportResult(pass);
+});
+</script>
+</body>
+</html>

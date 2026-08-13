@@ -4,9 +4,9 @@
 
 import {
   mountGpPlayer,
-  parseGuitarPro,
   isGuitarProName,
 } from './gpPlayerUI.js';
+import { parseGuitarProWithProgress } from './tab/gpParseClient.js';
 import {
   saveFile,
   getFileBlob,
@@ -44,6 +44,7 @@ const state = {
   exerciseId: null,
   attachmentId: null,
   loading: false,
+  parseAbort: null,
 };
 
 let loadGeneration = 0;
@@ -77,6 +78,44 @@ function setStatus(msg, kind = '') {
   box.hidden = !msg;
 }
 
+function setReadProgress(ratio) {
+  const root = $('gpp-read-progress');
+  const bar = $('gpp-read-progress-bar');
+  const label = $('gpp-read-progress-label');
+  if (!root || !bar || !label) return;
+  if (ratio == null || !Number.isFinite(ratio)) {
+    root.hidden = true;
+    root.setAttribute('aria-valuenow', '0');
+    bar.style.width = '0%';
+    return;
+  }
+  const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  root.hidden = false;
+  root.setAttribute('aria-valuenow', String(pct));
+  bar.style.width = `${pct}%`;
+  label.textContent = pct >= 100 ? 'Finishing…' : `Reading file… ${pct}%`;
+}
+
+function formatLoadError(err) {
+  const msg = err?.message || '';
+  if (!msg) {
+    return 'Could not read that file. Choose another .gp or .gp5 file and try again.';
+  }
+  if (msg.includes('Guitar Pro 6 (.gpx)') || msg.includes('older binary Guitar Pro')) {
+    return msg;
+  }
+  if (msg.includes('Unrecognized file')) {
+    return `${msg} Export the score from Guitar Pro as .gp or .gp5 and try again.`;
+  }
+  if (msg.includes('no fretted') || msg.includes('no playable')) {
+    return `${msg} Open the score in Guitar Pro and export a part with guitar, bass, or drums.`;
+  }
+  if (msg.includes('unexpected end of file') || msg.includes('no score.gpif')) {
+    return `${msg} The file may be corrupt. Re-export it from Guitar Pro and try again.`;
+  }
+  return `${msg} Choose another .gp or .gp5 file and try again.`;
+}
+
 function setStageVisible(visible) {
   const stage = $('gpp-stage');
   const drop = $('gpp-drop');
@@ -94,6 +133,10 @@ function setLoading(loading) {
 }
 
 function destroyMount() {
+  if (state.parseAbort) {
+    try { state.parseAbort.abort(); } catch (e) { /* ignore */ }
+    state.parseAbort = null;
+  }
   if (state.mount) {
     try { state.mount.destroy(); } catch (e) { /* ignore */ }
     state.mount = null;
@@ -192,13 +235,16 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
   if (!file || state.loading) return;
   const isTab = isTabModelItem({ fileName: file.name, type: file.type });
   if (!isTab && !isGuitarProName(file.name)) {
-    setStatus('Choose a Guitar Pro .gp or .gp5 file.', 'error');
+    setStatus('Choose a Guitar Pro .gp or .gp5 file. Export older scores from Guitar Pro first.', 'error');
     return;
   }
   const gen = ++loadGeneration;
   setLoading(true);
   setStatus(`Reading ${file.name}…`);
+  setReadProgress(0);
   destroyMount();
+  const parseAbort = new AbortController();
+  state.parseAbort = parseAbort;
   try {
     let gp;
     let bytes = null;
@@ -210,12 +256,24 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
     } else {
       const buf = await file.arrayBuffer();
       bytes = new Uint8Array(buf);
-      gp = await parseGuitarPro(bytes);
+      gp = await parseGuitarProWithProgress(bytes, {
+        signal: parseAbort.signal,
+        onProgress: (ratio) => {
+          if (!state.loading) return;
+          setReadProgress(ratio);
+        },
+      });
     }
+    // A newer load wins, and a cancelled read stops here.
     if (gen !== loadGeneration) return;
+    if (parseAbort.signal.aborted) return;
     if (!hasPlayableTracks(gp)) {
       setStageVisible(false);
-      setStatus('No playable tracks found in that file.', 'error');
+      setReadProgress(null);
+      setStatus(
+        'No playable tracks found in that file. Open it in Guitar Pro and export a part with guitar, bass, or drums.',
+        'error',
+      );
       return;
     }
     state.title = '';
@@ -234,11 +292,16 @@ async function loadFile(file, { exerciseId = null, attachmentId = null } = {}) {
     setStatus(`Loaded ${file.name} · ${parts.join(' · ')} · ${Math.round(tempo)} BPM`);
   } catch (err) {
     if (gen !== loadGeneration) return;
+    if (err?.name === 'AbortError') return;
     destroyMount();
     setStageVisible(false);
-    setStatus(err?.message || 'Could not read that file.', 'error');
+    setStatus(formatLoadError(err), 'error');
   } finally {
-    if (gen === loadGeneration) setLoading(false);
+    if (state.parseAbort === parseAbort) state.parseAbort = null;
+    if (gen === loadGeneration) {
+      setReadProgress(null);
+      setLoading(false);
+    }
   }
 }
 
@@ -709,6 +772,8 @@ export function initGpPlayer() {
 
 export function stopGpPlayer() {
   destroyMount();
+  setReadProgress(null);
+  setLoading(false);
 }
 
 /** Load a GP file programmatically (e.g. from Exercises deep-link). */

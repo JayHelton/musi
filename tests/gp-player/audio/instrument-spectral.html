@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>gp-player instrument spectral</title></head>
+<body>
+<div id="out">running</div>
+<script type="module">
+import { writeln, printTable, reportResult, runMain } from './harness.js';
+import { createVoiceFactory } from '../../../js/gpPlayer/instrumentVoices.js';
+
+const MIN_CENTROID_GAP_HZ = 350;
+const MIN_RATIO = 1.35;
+const SAMPLE_RATE = 48000;
+const NOTE_DUR = 0.45;
+const RENDER_SEC = 0.55;
+
+function spectralCentroid(channelData, sampleRate) {
+  const fftSize = 4096;
+  const start = Math.floor(channelData.length * 0.35);
+  const end = Math.min(channelData.length, start + fftSize);
+  let energy = 0;
+  let weighted = 0;
+  for (let k = 1; k < fftSize / 2; k += 1) {
+    let re = 0;
+    let im = 0;
+    for (let n = start; n < end; n += 1) {
+      const phi = (2 * Math.PI * k * (n - start)) / fftSize;
+      re += channelData[n] * Math.cos(phi);
+      im -= channelData[n] * Math.sin(phi);
+    }
+    const mag = re * re + im * im;
+    const freq = (k * sampleRate) / fftSize;
+    energy += mag;
+    weighted += mag * freq;
+  }
+  if (energy <= 1e-12) return 0;
+  return weighted / energy;
+}
+
+async function renderFamily(family, midi) {
+  const length = Math.ceil(RENDER_SEC * SAMPLE_RATE);
+  const ctx = new OfflineAudioContext({ numberOfChannels: 1, length, sampleRate: SAMPLE_RATE });
+  const factory = createVoiceFactory(ctx);
+  const bus = ctx.createGain();
+  bus.gain.value = 1;
+  bus.connect(ctx.destination);
+  factory.playNote({
+    family,
+    midi,
+    when: 0.05,
+    durSec: NOTE_DUR,
+    velocity: 0.85,
+    techniques: [],
+    bend: null,
+    slideKind: null,
+    destination: bus,
+  });
+  return ctx.startRendering();
+}
+
+runMain(async () => {
+  writeln('instrument-spectral: bass vs guitar centroid gap');
+  writeln(`min gap: ${MIN_CENTROID_GAP_HZ} Hz`);
+  writeln(`min ratio: ${MIN_RATIO}`);
+
+  const bassBuf = await renderFamily('bass', 28);
+  const guitarBuf = await renderFamily('cleanGuitar', 64);
+
+  const bassCentroid = spectralCentroid(bassBuf.getChannelData(0), SAMPLE_RATE);
+  const guitarCentroid = spectralCentroid(guitarBuf.getChannelData(0), SAMPLE_RATE);
+  const gap = Math.abs(guitarCentroid - bassCentroid);
+  const ratio = bassCentroid > 1 ? guitarCentroid / bassCentroid : 0;
+
+  const pass = gap >= MIN_CENTROID_GAP_HZ && ratio >= MIN_RATIO;
+  printTable([{
+    voice: 'bass',
+    midi: '28',
+    centroid_hz: bassCentroid.toFixed(1),
+  }, {
+    voice: 'guitar',
+    midi: '64',
+    centroid_hz: guitarCentroid.toFixed(1),
+  }, {
+    voice: 'gap',
+    midi: '-',
+    centroid_hz: gap.toFixed(1),
+  }, {
+    voice: 'ratio',
+    midi: '-',
+    centroid_hz: ratio.toFixed(2),
+  }], [
+    { key: 'voice', label: 'voice' },
+    { key: 'midi', label: 'midi' },
+    { key: 'centroid_hz', label: 'centroid_hz' },
+  ]);
+
+  writeln(`bass_centroid_hz: ${bassCentroid.toFixed(2)}`);
+  writeln(`guitar_centroid_hz: ${guitarCentroid.toFixed(2)}`);
+  writeln(`centroid_gap_hz: ${gap.toFixed(2)}`);
+  writeln(`centroid_ratio: ${ratio.toFixed(3)}`);
+  reportResult(pass);
+});
+</script>
+</body>
+</html>

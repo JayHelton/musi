@@ -666,6 +666,109 @@
   position: relative;
 }
 
+/* Score layout lanes (scoreLayout.js + parchmentView.js) */
+.gpp-parch-lane {
+  position: relative;
+  width: 100%;
+}
+.gpp-parch-lane-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.gpp-parch-lane-notationStaff {
+  border-bottom: 1px solid rgba(26, 20, 32, 0.2);
+  background: rgba(255, 252, 244, 0.45);
+}
+.gpp-parch-lane-techniqueAbove,
+.gpp-parch-lane-techniqueBelow {
+  background: rgba(255, 252, 244, 0.25);
+}
+.gpp-parch-lane-rhythm {
+  border-top: 1px solid rgba(26, 20, 32, 0.18);
+  background: rgba(255, 252, 244, 0.35);
+}
+.gpp-parch-lane-tabStaff .gpp-parch-lane-notes {
+  position: absolute;
+  inset: 0;
+}
+.gpp-parch-notation-line {
+  position: absolute;
+  right: 0;
+  height: 1px;
+  background: rgba(26, 20, 32, 0.35);
+  pointer-events: none;
+}
+.gpp-parch-overlays {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.gpp-parch-overlay {
+  fill: none;
+  stroke: #2a1808;
+  stroke-width: 1.2;
+}
+.gpp-parch-overlay--bend { stroke: #5c2d8a; }
+.gpp-parch-overlay--slide { stroke: #2a1808; }
+.gpp-parch-overlay--slur,
+.gpp-parch-overlay--tie { stroke: #2a1808; }
+
+.gpp-glyph {
+  position: absolute;
+  pointer-events: none;
+  line-height: 1;
+  color: #1a1006;
+}
+.gpp-glyph-lane--notationStaff { color: #1a1006; }
+.gpp-glyph-lane--techniqueAbove,
+.gpp-glyph-lane--techniqueBelow {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: calc(10px * var(--gpp-scale, 1));
+  font-weight: 700;
+  color: #2a1808;
+}
+.gpp-glyph-lane--rhythm {
+  color: #1a1006;
+}
+.gpp-glyph--stem,
+.gpp-glyph--flag,
+.gpp-glyph--beam {
+  background: #1a1006;
+  border-radius: 1px;
+}
+.gpp-glyph--dot,
+.gpp-glyph--tupletBracket {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: calc(9px * var(--gpp-scale, 1));
+  color: #1a1006;
+}
+.gpp-glyph--timeSig {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-weight: 700;
+  color: #1a1006;
+}
+.gpp-glyph--repeatOpen,
+.gpp-glyph--repeatClose,
+.gpp-glyph--volta {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-weight: 700;
+  color: #2a1808;
+}
+.gpp-glyph--bendValue {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-weight: 700;
+  color: #4a2870;
+}
+.gpp-glyph.is-sounding,
+.gpp-parch-note.is-sounding {
+  color: #4a2870;
+  outline: 1px solid rgba(107, 76, 154, 0.55);
+  border-radius: 2px;
+}
+
 .gpp-parch-string {
   position: relative;
   height: calc(14px * var(--gpp-scale, 1));
@@ -691,7 +794,7 @@
   font-size: calc(11px * var(--gpp-scale, 1));
   font-weight: 600;
   line-height: 1;
-  color: #1e1408;
+  color: #1a1006;
   pointer-events: none;
 }
 .gpp-parch-note.dead {
@@ -709,7 +812,7 @@
   transform: translate(-50%, -50%);
   font-family: var(--font-ui, "VT323", monospace);
   font-size: calc(10px * var(--gpp-scale, 1));
-  color: #1e1408;
+  color: #1a1006;
   z-index: 1;
 }
 .gpp-parch-drum-hit[data-glyph="X"],
@@ -723,7 +826,7 @@
 .gpp-parch-drum-hit[data-glyph="+"],
 .gpp-parch-drum-hit[data-glyph="b"],
 .gpp-parch-drum-hit[data-glyph="@"] {
-  color: #6b4c9a;
+  color: #3d2060;
 }
 
 .gpp-parch-drum-legend {

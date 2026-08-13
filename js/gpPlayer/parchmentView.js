@@ -7,6 +7,7 @@ import {
   drumTabLegendFor,
 } from '../drums/notation.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
+import { layoutScore } from './scoreLayout.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
 const USER_SCROLL_COOLDOWN_MS = 2500;
@@ -151,6 +152,9 @@ export function mountParchmentView(host, {
     setLoopSelectMode() {},
     setNoteSelectMode() {},
     scrollToMeasure() {},
+    setShowStandardNotation() {},
+    setActivePosition() {},
+    resumeAutoFollow() {},
     destroy() {},
   };
   if (!host) return noop;
@@ -168,6 +172,12 @@ export function mountParchmentView(host, {
   let selectMode = !!loopSelectMode;
   let noteMode = !!noteSelectMode;
   let follow = !!autoFollow;
+  let showNotation = false;
+  let showRhythm = true;
+  let activePosition = null;
+  let lastActiveBeatKey = '';
+  let scoreLayout = null;
+  let unitPx = 1;
   let userScrollUntil = 0;
   let destroyed = false;
 
@@ -302,98 +312,155 @@ export function mountParchmentView(host, {
   }
 
   function measureNotesRect(measureEl) {
-    const notesBox = measureEl?.querySelector('.gpp-parch-lane-notes');
+    const notesBox = measureEl?.querySelector('.gpp-parch-lane-tabStaff .gpp-parch-lane-notes')
+      || measureEl?.querySelector('.gpp-parch-lane-notes');
     if (notesBox) return notesBox.getBoundingClientRect();
     return measureEl?.getBoundingClientRect() ?? null;
   }
 
-  function renderMeasure(mi, m, widthSpec) {
+  function glyphClassName(kind, lane) {
+    const laneClass = lane ? ` gpp-glyph-lane--${lane}` : '';
+    return `gpp-glyph gpp-glyph--${kind}${laneClass}`;
+  }
+
+  function appendGlyph(parent, glyph, scaleUnit, evForDrum = null) {
+    if (glyph.kind === 'beam' && glyph.lane === 'notationStaff' && glyph.h <= 1) {
+      const line = document.createElement('div');
+      line.className = 'gpp-parch-notation-line';
+      line.style.left = `${glyph.x * scaleUnit}px`;
+      line.style.top = `${glyph.y * scaleUnit}px`;
+      line.style.width = `calc(100% - ${glyph.x * scaleUnit}px)`;
+      parent.appendChild(line);
+      return line;
+    }
+    const el = document.createElement('span');
+    const legacy = glyph.kind === 'fret' || glyph.kind === 'deadNote'
+      ? ` gpp-parch-note${glyph.kind === 'deadNote' ? ' dead' : ''}`
+      : (glyph.kind === 'drumHit' ? ' gpp-parch-drum-hit' : '');
+    el.className = `${glyphClassName(glyph.kind, glyph.lane)}${legacy}`;
+    el.style.left = `${glyph.x * scaleUnit}px`;
+    el.style.top = `${glyph.y * scaleUnit}px`;
+    el.style.width = `${Math.max(1, glyph.w * scaleUnit)}px`;
+    el.style.height = `${Math.max(1, glyph.h * scaleUnit)}px`;
+    if (glyph.text) el.textContent = glyph.text;
+    if (glyph.aria) el.setAttribute('aria-label', glyph.aria);
+    if (glyph.beatStart != null) el.dataset.beatStart = String(glyph.beatStart);
+    if (glyph.kind === 'fret' || glyph.kind === 'deadNote' || glyph.kind === 'drumHit') {
+      el.dataset.note = '1';
+    }
+    if (glyph.kind === 'drumHit' && evForDrum) {
+      el.dataset.glyph = glyph.text || drumTabGlyph(evForDrum);
+      el.title = drumHitLabel(evForDrum);
+    }
+    parent.appendChild(el);
+    return el;
+  }
+
+  function renderStringRows(staffEl, stringCount, laneH) {
+    for (let si = stringCount - 1; si >= 0; si -= 1) {
+      const row = document.createElement('div');
+      row.className = isDrum ? 'gpp-parch-drum-lane' : 'gpp-parch-string';
+      row.style.height = `${laneH / stringCount}px`;
+      row.dataset.string = String(si);
+      staffEl.appendChild(row);
+    }
+  }
+
+  function createSvgElement(tag) {
+    if (typeof document.createElementNS === 'function') {
+      return document.createElementNS('http://www.w3.org/2000/svg', tag);
+    }
+    const el = document.createElement(tag);
+    el.setAttribute('data-svg', tag);
+    return el;
+  }
+
+  function renderMeasure(mi, barLayout, widthSpec) {
     const wrap = document.createElement('div');
     wrap.className = 'gpp-parch-measure';
     wrap.dataset.index = String(mi);
-    if (widthSpec) {
-      wrap.style.flexGrow = String(widthSpec.flexGrow);
-      wrap.style.minWidth = `${widthSpec.minWidth}px`;
-    }
+    const barW = barLayout.widthUnits * unitPx;
+    wrap.style.minWidth = `${barW}px`;
+    if (widthSpec?.flexGrow) wrap.style.flexGrow = String(widthSpec.flexGrow);
 
     const notesRail = document.createElement('div');
     notesRail.className = 'gpp-parch-notes-rail';
     wrap.appendChild(notesRail);
 
+    const barNumGlyph = barLayout.glyphs.find((g) => g.kind === 'barNumber');
     const barNum = document.createElement('div');
     barNum.className = 'gpp-parch-bar-num';
-    barNum.textContent = String(mi + 1);
+    barNum.textContent = barNumGlyph?.text || String(mi + 1);
     wrap.appendChild(barNum);
 
-    if (m.marker) {
+    const markerGlyph = barLayout.glyphs.find((g) => g.kind === 'marker');
+    if (markerGlyph?.text) {
       const mk = document.createElement('div');
       mk.className = 'gpp-parch-marker';
-      mk.textContent = m.marker;
+      mk.textContent = markerGlyph.text;
       wrap.appendChild(mk);
     }
 
     const staff = document.createElement('div');
     staff.className = 'gpp-parch-staff';
-    const { start: mStart, end: mEnd } = measureSpan(m);
+    staff.style.minHeight = `${barLayout.lanes.reduce((h, l) => h + l.h, 0) * unitPx}px`;
 
-    if (!isDrum && model?.strings?.length) {
-      const strings = model.strings;
-      for (let si = strings.length - 1; si >= 0; si--) {
-        const row = document.createElement('div');
-        row.className = 'gpp-parch-string';
-        row.dataset.string = String(si);
+    const laneEls = new Map();
+    const m = measures()[mi];
+    const { start: mStart, end: mEnd } = measureSpan(m);
+    const eventsAtBar = (model?.events || []).filter((ev) => {
+      const b = Number(ev.start);
+      return b >= mStart - BEAT_EPS && b < mEnd - BEAT_EPS;
+    });
+
+    for (const lane of barLayout.lanes) {
+      const laneEl = document.createElement('div');
+      laneEl.className = `gpp-parch-lane gpp-parch-lane-${lane.name}`;
+      laneEl.dataset.lane = lane.name;
+      laneEl.style.height = `${lane.h * unitPx}px`;
+      const content = document.createElement('div');
+      content.className = 'gpp-parch-lane-content';
+      if (lane.name === 'tabStaff') {
         const laneNotes = document.createElement('div');
         laneNotes.className = 'gpp-parch-lane-notes';
-        const notes = (model.events || []).filter((ev) => {
-          const b = Number(ev.start);
-          return ev.stringIndex === si && b >= mStart - 1e-6 && b < mEnd - 1e-6;
-        });
-        for (const ev of notes) {
-          const note = document.createElement('span');
-          note.className = 'gpp-parch-note' + (ev.dead ? ' dead' : '');
-          note.style.left = `${beatPctInMeasure(ev.start, m)}%`;
-          note.textContent = ev.dead ? 'x' : (ev.fret != null ? String(ev.fret) : '');
-          laneNotes.appendChild(note);
-        }
-        row.appendChild(laneNotes);
-        staff.appendChild(row);
+        content.appendChild(laneNotes);
+        const stringCount = Math.max(1, isDrum ? activeDrumLanes().length : (model?.strings?.length || 1));
+        renderStringRows(laneNotes, stringCount, lane.h * unitPx);
+        laneEls.set(lane.name, { content: laneNotes, laneNotes });
+      } else {
+        laneEls.set(lane.name, { content, laneNotes: content });
       }
-    } else {
-      const lanes = activeDrumLanes();
-      const evts = (model?.events || []).filter((ev) => {
-        const b = Number(ev.start);
-        return b >= mStart - 1e-6 && b < mEnd - 1e-6;
-      });
-      for (const lane of lanes) {
-        const row = document.createElement('div');
-        row.className = 'gpp-parch-drum-lane';
-        const laneNotes = document.createElement('div');
-        laneNotes.className = 'gpp-parch-lane-notes';
-        for (const ev of evts) {
-          if (!lane.instruments.includes(ev.instrument)) continue;
-          const glyph = drumTabGlyph(ev);
-          const hit = document.createElement('span');
-          hit.className = 'gpp-parch-drum-hit';
-          hit.style.left = `${beatPctInMeasure(ev.start, m)}%`;
-          hit.textContent = glyph;
-          hit.dataset.glyph = glyph;
-          hit.title = drumHitLabel(ev);
-          laneNotes.appendChild(hit);
-        }
-        row.appendChild(laneNotes);
-        staff.appendChild(row);
-      }
-      if (!lanes.length) {
-        const row = document.createElement('div');
-        row.className = 'gpp-parch-string';
-        const laneNotes = document.createElement('div');
-        laneNotes.className = 'gpp-parch-lane-notes';
-        row.appendChild(laneNotes);
-        staff.appendChild(row);
-      }
+      laneEl.appendChild(content);
+      staff.appendChild(laneEl);
+    }
+
+    for (const glyph of barLayout.glyphs) {
+      if (glyph.kind === 'barNumber' || glyph.kind === 'marker') continue;
+      const laneRef = laneEls.get(glyph.lane);
+      if (!laneRef) continue;
+      const parent = (glyph.kind === 'fret' || glyph.kind === 'deadNote' || glyph.kind === 'drumHit')
+        ? laneRef.laneNotes
+        : laneRef.content;
+      const evForDrum = glyph.kind === 'drumHit'
+        ? eventsAtBar.find((ev) => Math.abs(Number(ev.start) - Number(glyph.beatStart)) < BEAT_EPS)
+        : null;
+      appendGlyph(parent, glyph, unitPx, evForDrum);
     }
 
     wrap.appendChild(staff);
+
+    const svg = createSvgElement('svg');
+    svg.classList.add('gpp-parch-overlays');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.width = `${barW}px`;
+    svg.style.height = staff.style.minHeight;
+    for (const overlay of barLayout.overlays) {
+      const path = createSvgElement('path');
+      path.setAttribute('d', overlay.path || '');
+      path.classList.add('gpp-parch-overlay', `gpp-parch-overlay--${overlay.kind}`);
+      svg.appendChild(path);
+    }
+    wrap.appendChild(svg);
 
     wrap.addEventListener('click', (e) => {
       if (Date.now() < suppressClickUntil) return;
@@ -426,10 +493,12 @@ export function mountParchmentView(host, {
     }
     measureEls = [];
     systemEls = [];
+    measureSystemIndex = [];
     playheadEl = null;
     selOverlayEl = null;
     handleStart = null;
     handleEnd = null;
+    lastActiveBeatKey = '';
 
     const ms = measures();
     if (!ms.length) return;
@@ -437,25 +506,20 @@ export function mountParchmentView(host, {
     const hostW = host.clientWidth || 600;
     const scale = effectiveScale(hostW, currentZoom);
     sheet.style.setProperty('--gpp-scale', String(scale));
-    sheet.style.fontSize = `${Math.round(12 * scale)}px`;
+    const layoutFontPx = Math.max(12, Math.round(12 * scale));
+    sheet.style.fontSize = `${layoutFontPx}px`;
     sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * scale))}px`);
     sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * scale))}px`);
 
-    const gutterWidth = GUTTER_BASIS * scale;
-    const vpW = viewport.clientWidth || hostW;
-    const availableWidth = Math.max(0, vpW - VIEWPORT_PAD_H - gutterWidth);
-
-    const widthSpecs = ms.map((m, mi) => {
-      const info = measureRhythmicInfo(m, model, isDrum);
-      const { baseMin, baseNominal } = measureWidthRequirements(info);
-      return {
-        mi,
-        minWidth: baseMin * scale,
-        nominalWidth: baseNominal * scale,
-      };
+    scoreLayout = layoutScore(model, {
+      widthPx: hostW,
+      zoom: currentZoom,
+      showNotationStaff: showNotation,
+      showRhythm,
+      drumMode: isDrum,
+      minFretFontPx: 12,
     });
-    const packed = packMeasuresIntoSystems(widthSpecs, availableWidth, scale);
-    measureSystemIndex = new Array(ms.length);
+    unitPx = (scoreLayout.fontPx / 12) * scale;
 
     const captionText = tuningCaptionText();
     if (captionText) {
@@ -465,22 +529,22 @@ export function mountParchmentView(host, {
       sheet.appendChild(caption);
     }
 
-    packed.forEach((row, si) => {
-      const sys = document.createElement('div');
-      sys.className = 'gpp-parch-system';
-      sys.appendChild(renderGutter());
-      const nominalSum = row.reduce((s, spec) => s + spec.nominalWidth, 0) || 1;
-      row.forEach((spec) => {
-        const el = renderMeasure(spec.mi, ms[spec.mi], {
-          flexGrow: spec.nominalWidth / nominalSum,
-          minWidth: spec.minWidth,
+    scoreLayout.systems.forEach((sys) => {
+      const system = document.createElement('div');
+      system.className = 'gpp-parch-system';
+      system.appendChild(renderGutter());
+      const rowWidths = sys.barIndices.map((bi) => scoreLayout.bars[bi].widthUnits * unitPx);
+      const nominalSum = rowWidths.reduce((s, w) => s + w, 0) || 1;
+      sys.barIndices.forEach((bi, idx) => {
+        const el = renderMeasure(bi, scoreLayout.bars[bi], {
+          flexGrow: rowWidths[idx] / nominalSum,
         });
-        sys.appendChild(el);
-        measureEls[spec.mi] = el;
-        measureSystemIndex[spec.mi] = si;
+        system.appendChild(el);
+        measureEls[bi] = el;
+        measureSystemIndex[bi] = systemEls.length;
       });
-      sheet.appendChild(sys);
-      systemEls.push(sys);
+      sheet.appendChild(system);
+      systemEls.push(system);
     });
 
     playheadEl = document.createElement('div');
@@ -512,7 +576,8 @@ export function mountParchmentView(host, {
     paintSelection(sel);
     paintNoteDraft(noteSel);
     paintAnnotations(annotations, highlightedAnnoId);
-    paintActive(lastActive, false);
+    paintActive(lastActive);
+    paintActiveBeat(activePosition);
   }
 
   function measureIndexAtBeatLocal(beat) {
@@ -899,6 +964,30 @@ export function mountParchmentView(host, {
     });
   }
 
+  function paintActiveBeat(pos) {
+    const key = pos
+      ? `${pos.barIndex}:${pos.beatInBar ?? 0}:${pos.passIndex ?? 0}`
+      : '';
+    if (key === lastActiveBeatKey) return;
+    lastActiveBeatKey = key;
+    measureEls.forEach((el) => {
+      el?.querySelectorAll('.gpp-glyph.is-sounding').forEach((n) => n.classList.remove('is-sounding'));
+    });
+    if (!pos || pos.barIndex == null) return;
+    const el = measureEls[pos.barIndex];
+    if (!el) return;
+    const m = measures()[pos.barIndex];
+    if (!m) return;
+    const { start } = measureSpan(m);
+    const beatStart = start + (Number(pos.beatInBar) || 0);
+    const hits = el.querySelectorAll(`[data-beat-start="${beatStart}"]`);
+    hits.forEach((n) => n.classList.add('is-sounding'));
+    if (!hits.length) {
+      const notes = el.querySelectorAll('[data-note="1"]');
+      if (notes.length) notes[0].classList.add('is-sounding');
+    }
+  }
+
   function positionPlayhead(beat, mi) {
     if (!playheadEl) return;
     const el = measureEls[mi];
@@ -1057,6 +1146,27 @@ export function mountParchmentView(host, {
     rebuild();
   }
 
+  function setShowStandardNotation(on) {
+    const next = !!on;
+    if (next === showNotation) return;
+    showNotation = next;
+    rebuild();
+  }
+
+  function setActivePosition(pos) {
+    activePosition = pos ? { ...pos } : null;
+    paintActiveBeat(activePosition);
+    if (activePosition?.barIndex != null && activePosition.barIndex !== lastActive) {
+      paintActive(activePosition.barIndex);
+      lastActive = activePosition.barIndex;
+    }
+  }
+
+  function resumeAutoFollow() {
+    userScrollUntil = 0;
+    follow = true;
+  }
+
   function destroy() {
     destroyed = true;
     clearLongPress();
@@ -1079,6 +1189,9 @@ export function mountParchmentView(host, {
     setLoopSelectMode,
     setNoteSelectMode,
     scrollToMeasure,
+    setShowStandardNotation,
+    setActivePosition,
+    resumeAutoFollow,
     destroy,
   };
 }

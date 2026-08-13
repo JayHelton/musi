@@ -21,6 +21,10 @@ const PAGES = [
   'loop-boundary.html',
   'long-drift.html',
   'render-cost.html',
+  'peak-headroom.html',
+  'instrument-spectral.html',
+  'realtime-dropouts.html',
+  'realtime-ui-jank.html',
 ];
 
 const PORT = Number(process.env.GP_PLAYER_PORT || process.env.PORT || 8080);
@@ -52,6 +56,9 @@ if (!(await checkServer())) {
 const profile = mkdtempSync(join(tmpdir(), 'musi-gp-cdp-'));
 const chrome = spawn('google-chrome', [
   '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+  // A page that plays in real time needs an audio context that starts with
+  // no tap. Without this flag the context stays suspended and the page waits.
+  '--autoplay-policy=no-user-gesture-required',
   `--user-data-dir=${profile}`, `--remote-debugging-port=${CDP_PORT}`, 'about:blank',
 ], { stdio: 'ignore' });
 

@@ -8,3 +8,5 @@ tests/gp-player/fixtures/*.gpx
 tests/gp-player/fixtures/*.gp3
 tests/gp-player/fixtures/*.gp4
 tests/gp-player/fixtures/*.bin
+tests/gp-player/fixtures/passages/*.gp
+tests/gp-player/fixtures/passages/*.gp5

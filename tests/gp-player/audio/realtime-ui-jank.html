@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player realtime UI jank</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    #host { width: 1000px; height: 560px; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Play a real score through the real player and measure main thread load.
+    //
+    // The audio scheduler runs on a timer on the main thread. When the score
+    // view uses too much of that thread, the timer runs late and the sound
+    // breaks up. This page counts the score view updates, the long tasks, and
+    // the late scheduler ticks during real playback.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+
+    const BARS = 120;
+    const PLAY_SEC = 8;
+    // Each layout read after a DOM write forces a new layout pass.
+    const MAX_RECT_READS_PER_SEC = 400;
+    // The scheduler timer must stay inside its lookahead window.
+    const MAX_LATE_TICKS = 2;
+    // A long task blocks the audio scheduler.
+    const MAX_LONG_TASK_MS = 120;
+
+    function makeGpResult(barCount) {
+      const strings = [
+        { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+        { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+        { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+        { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+        { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+        { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+      ];
+      const events = [];
+      const measures = [];
+      for (let bar = 0; bar < barCount; bar += 1) {
+        measures.push({
+          startSlot: bar * 4,
+          endSlot: bar * 4 + 4,
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          timeSig: [4, 4],
+        });
+        for (let beat = 0; beat < 4; beat += 1) {
+          events.push({
+            slot: bar * 4 + beat,
+            stringIndex: 5,
+            fret: beat,
+            midi: 40 + beat,
+            pc: (40 + beat) % 12,
+            dead: false,
+            start: bar * 4 + beat,
+            duration: 1,
+            techniques: [],
+          });
+        }
+      }
+      return {
+        tempo: 120,
+        tracks: [{
+          index: 0,
+          name: 'Guitar',
+          tuning: 'Standard',
+          noteCount: events.length,
+          model: {
+            tuning: 'Standard',
+            strings,
+            events,
+            measures,
+            slots: barCount * 4,
+            tempo: 120,
+            totalBeats: barCount * 4,
+            techniqueCounts: {},
+            warnings: [],
+          },
+        }],
+        drumTracks: [],
+      };
+    }
+
+    runMain(async () => {
+      // Count the scheduler timer ticks and how late each one runs.
+      const timerGaps = [];
+      let lastTimerAt = performance.now();
+      const realSetTimeout = window.setTimeout.bind(window);
+      window.setTimeout = (fn, ms, ...rest) => realSetTimeout(() => {
+        if (ms === 25) {
+          const now = performance.now();
+          timerGaps.push(now - lastTimerAt);
+          lastTimerAt = now;
+        }
+        fn();
+      }, ms, ...rest);
+
+      // Count long tasks that block the audio scheduler.
+      const longTasks = [];
+      let observer = null;
+      try {
+        observer = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) longTasks.push(entry.duration);
+        });
+        observer.observe({ entryTypes: ['longtask'] });
+      } catch (e) { /* the browser may not report long tasks */ }
+
+      // Count the layout reads. Each read that follows a DOM write forces the
+      // browser to lay the page out again. That work blocks the scheduler.
+      let rectReads = 0;
+      const realRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function counted() {
+        rectReads += 1;
+        return realRect.call(this);
+      };
+
+      const { mountGpPlayer } = await import('/js/gpPlayerUI.js');
+      const host = document.getElementById('host');
+      const mount = mountGpPlayer(host, {
+        gpResult: makeGpResult(BARS),
+        title: 'Jank measurement',
+      });
+
+      const { ensureAudio } = await import('/js/audio.js');
+      ensureAudio();
+      const audio = await import('/js/audio.js');
+      if (audio.audioCtx?.state === 'suspended') await audio.audioCtx.resume();
+
+      // Let the first layout settle, then start the measurement window.
+      await new Promise((r) => realSetTimeout(r, 600));
+      rectReads = 0;
+      longTasks.length = 0;
+      timerGaps.length = 0;
+      lastTimerAt = performance.now();
+
+      const t0 = performance.now();
+      await mount.player.play({ fromSec: 0 });
+      await new Promise((r) => realSetTimeout(r, PLAY_SEC * 1000));
+      const elapsedSec = (performance.now() - t0) / 1000;
+      mount.player.pause();
+
+      window.setTimeout = realSetTimeout;
+      observer?.disconnect();
+
+      const rectReadsPerSec = rectReads / elapsedSec;
+      Element.prototype.getBoundingClientRect = realRect;
+      const lateTicks = timerGaps.filter((g) => g > 140).length;
+      const worstGap = timerGaps.length ? Math.max(...timerGaps) : 0;
+      const worstLongTask = longTasks.length ? Math.max(...longTasks) : 0;
+
+      writeln('realtime-ui-jank: main thread load during playback');
+      writeln(`bars: ${BARS}  play seconds: ${PLAY_SEC}`);
+      writeln(`layout read limit: ${MAX_RECT_READS_PER_SEC} per second`);
+      writeln(`late tick limit: ${MAX_LATE_TICKS}   long task limit: ${MAX_LONG_TASK_MS} ms`);
+      printTable(
+        [
+          {
+            metric: 'layout reads per second',
+            value: rectReadsPerSec.toFixed(1),
+            ok: rectReadsPerSec <= MAX_RECT_READS_PER_SEC ? 'yes' : 'no',
+          },
+          { metric: 'scheduler ticks', value: String(timerGaps.length), ok: '' },
+          {
+            metric: 'ticks later than 140 ms',
+            value: String(lateTicks),
+            ok: lateTicks <= MAX_LATE_TICKS ? 'yes' : 'no',
+          },
+          { metric: 'worst tick gap ms', value: worstGap.toFixed(1), ok: '' },
+          {
+            metric: 'worst long task ms',
+            value: worstLongTask.toFixed(1),
+            ok: worstLongTask <= MAX_LONG_TASK_MS ? 'yes' : 'no',
+          },
+          { metric: 'long task count', value: String(longTasks.length), ok: '' },
+        ],
+        [{ key: 'metric' }, { key: 'value' }, { key: 'ok' }],
+      );
+
+      mount.destroy();
+
+      const pass = rectReadsPerSec <= MAX_RECT_READS_PER_SEC
+        && lateTicks <= MAX_LATE_TICKS
+        && worstLongTask <= MAX_LONG_TASK_MS;
+      reportResult(pass);
+    });
+  </script>
+</body>
+</html>

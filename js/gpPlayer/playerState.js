@@ -367,6 +367,77 @@ export function createPlayerState(gpResult, options = {}) {
     writeZoom(v);
   }
 
+  function resetForNewScore(options = {}) {
+    const measures = state.gp.tracks[0]?.model?.measures
+      || state.gp.drumTracks?.[0]?.model?.measures
+      || [];
+    const mc = measures.length || measureCount;
+    const hasFrettedNow = state.gp?.tracks?.length > 0;
+
+    state.loopEnabled = false;
+    state.loopStartBeat = null;
+    state.loopEndBeat = null;
+    state.loopStart = 0;
+    state.loopEnd = Math.max(0, mc - 1);
+    state.loopSelectMode = false;
+    state.loopRestSec = Math.max(0, Number(options.loopRestSec) || 0);
+    state.bpmUserOverride = false;
+    state.transpose = 0;
+    state.tuning = null;
+    state.retuneMode = 'fingerings';
+    state.solo = null;
+    state.trackIndex = hasFrettedNow ? 0 : -1;
+    state.viewKind = hasFrettedNow ? 'guitar' : 'drum';
+    state.viewIndex = 0;
+    state.navBar = null;
+
+    if (Number.isFinite(Number(options.preferredTrackIndex)) && hasFrettedNow) {
+      state.trackIndex = Math.max(
+        0,
+        Math.min(state.gp.tracks.length - 1, Number(options.preferredTrackIndex)),
+      );
+      state.viewIndex = state.trackIndex;
+    }
+    if (Number.isFinite(Number(options.initialTranspose))) {
+      state.transpose = Math.round(Number(options.initialTranspose));
+    }
+    if (options.initialTuning != null && options.initialTuning !== '') {
+      state.tuning = options.initialTuning;
+    }
+    if (options.initialRetuneMode === 'pitches' || options.initialRetuneMode === 'fingerings') {
+      state.retuneMode = options.initialRetuneMode;
+    }
+    if (options.initialLoopEnabled) {
+      state.loopEnabled = true;
+      state.loopStart = clampBar(options.initialLoopStart, 0);
+      state.loopEnd = clampBar(options.initialLoopEnd, Math.max(0, mc - 1));
+      const beatFallback = beatsFromMeasureRange(measures, state.loopStart, state.loopEnd);
+      const startBeat = isSetNumber(options.initialLoopStartBeat)
+        ? Number(options.initialLoopStartBeat)
+        : beatFallback.startBeat;
+      const endBeat = isSetNumber(options.initialLoopEndBeat)
+        ? Number(options.initialLoopEndBeat)
+        : beatFallback.endBeat;
+      if (endBeat > startBeat) {
+        state.loopStartBeat = startBeat;
+        state.loopEndBeat = endBeat;
+      } else {
+        state.loopStartBeat = null;
+        state.loopEndBeat = null;
+      }
+    }
+
+    applyTransforms();
+    const resolved = resolveInitialBpm(options.initialBpm, state.scoreBpm);
+    if (resolved.apply) {
+      state.bpm = resolved.bpm;
+      state.bpmUserOverride = resolved.bpmUserOverride;
+    } else {
+      state.bpm = state.scoreBpm;
+      state.bpmUserOverride = false;
+    }
+  }
+
   applyTransforms();
 
   return {
@@ -390,5 +461,6 @@ export function createPlayerState(gpResult, options = {}) {
     destroy,
     setAutoFollow,
     setParchmentZoom,
+    resetForNewScore,
   };
 }

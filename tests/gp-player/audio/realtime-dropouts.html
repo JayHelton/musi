@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player realtime dropouts</title>
+  <style>#out { white-space: pre; font-family: monospace; font-size: 12px; }</style>
+</head>
+<body>
+  <pre id="out"></pre>
+  <script type="module">
+    // Play a score in real time and count the notes that never sound.
+    //
+    // The scheduler runs on a timer and looks a short time ahead. When the
+    // main thread stalls for longer than that window, a note time passes
+    // before the scheduler wakes. The engine must still sound that note. A
+    // dropped note is silence where the score has sound, and a learner hears
+    // that as a skip.
+    //
+    // This page plays a steady stream of notes, counts the oscillators that
+    // actually start, and compares the count against the score.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+
+    const NOTES_PER_SEC = 8;
+    const PLAY_SEC = 12;
+    const EXPECTED = NOTES_PER_SEC * PLAY_SEC;
+    // Every note of the score must sound. Allow a small edge tolerance for
+    // the notes near the end of the run.
+    const MIN_RATIO = 0.98;
+    // Block the main thread on purpose, the way a heavy repaint does.
+    const STALL_MS = 260;
+    const STALL_COUNT = 8;
+
+    function makeModel(noteCount) {
+      const strings = [
+        { label: 'E', note: 'E', oct: 4, openMidi: 64 },
+        { label: 'B', note: 'B', oct: 3, openMidi: 59 },
+        { label: 'G', note: 'G', oct: 3, openMidi: 55 },
+        { label: 'D', note: 'D', oct: 3, openMidi: 50 },
+        { label: 'A', note: 'A', oct: 2, openMidi: 45 },
+        { label: 'E', note: 'E', oct: 2, openMidi: 40 },
+      ];
+      const events = [];
+      const measures = [];
+      // 240 BPM with eighth notes gives 8 notes each second.
+      for (let i = 0; i < noteCount; i += 1) {
+        events.push({
+          slot: i,
+          stringIndex: 5,
+          fret: i % 5,
+          midi: 40 + (i % 5),
+          pc: (40 + (i % 5)) % 12,
+          dead: false,
+          start: i * 0.5,
+          duration: 0.5,
+          techniques: [],
+        });
+      }
+      const barCount = Math.ceil((noteCount * 0.5) / 4);
+      for (let bar = 0; bar < barCount; bar += 1) {
+        measures.push({
+          startSlot: bar * 8,
+          endSlot: bar * 8 + 8,
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          timeSig: [4, 4],
+        });
+      }
+      return {
+        tuning: 'Standard',
+        strings,
+        events,
+        measures,
+        slots: noteCount,
+        tempo: 240,
+        totalBeats: barCount * 4,
+        techniqueCounts: {},
+        warnings: [],
+      };
+    }
+
+    runMain(async () => {
+      const { ensureAudio, audioCtx: _ignored } = await import('/js/audio.js');
+      ensureAudio();
+      const audio = await import('/js/audio.js');
+      const ctx = audio.audioCtx;
+      if (!ctx) throw new Error('no audio context');
+      if (ctx.state === 'suspended') await ctx.resume();
+
+      // Count every oscillator the engine starts.
+      let startedCount = 0;
+      const realCreateOscillator = ctx.createOscillator.bind(ctx);
+      ctx.createOscillator = () => {
+        const osc = realCreateOscillator();
+        const realStart = osc.start.bind(osc);
+        osc.start = (when) => { startedCount += 1; return realStart(when); };
+        return osc;
+      };
+
+      // Record how late the scheduler timer runs.
+      const timerGaps = [];
+      let lastTimerAt = performance.now();
+      const realSetTimeout = window.setTimeout.bind(window);
+      window.setTimeout = (fn, ms, ...rest) => realSetTimeout(() => {
+        const now = performance.now();
+        if (ms === 25) {
+          timerGaps.push(now - lastTimerAt);
+          lastTimerAt = now;
+        }
+        fn();
+      }, ms, ...rest);
+
+      const { createGpMixPlayer } = await import('/js/gpMixPlayer.js');
+      const model = makeModel(EXPECTED + NOTES_PER_SEC);
+      const player = createGpMixPlayer({});
+      player.load({ guitarModels: [model], drumModels: [], bpm: 240 });
+      await player.play({ fromSec: 0 });
+
+      // Stall the main thread at intervals, the way a heavy repaint does.
+      const stallEvery = (PLAY_SEC * 1000) / (STALL_COUNT + 1);
+      for (let i = 0; i < STALL_COUNT; i += 1) {
+        await new Promise((r) => realSetTimeout(r, stallEvery));
+        const until = performance.now() + STALL_MS;
+        while (performance.now() < until) { /* hold the thread */ }
+      }
+      await new Promise((r) => realSetTimeout(r, stallEvery));
+
+      player.pause();
+      window.setTimeout = realSetTimeout;
+
+      const worstGap = timerGaps.length ? Math.max(...timerGaps) : 0;
+      const lateTicks = timerGaps.filter((g) => g > 140).length;
+      const ratio = startedCount / EXPECTED;
+
+      writeln('realtime-dropouts: notes that never sound');
+      writeln(`notes per second: ${NOTES_PER_SEC}  play seconds: ${PLAY_SEC}`);
+      writeln(`main thread stalls: ${STALL_COUNT} x ${STALL_MS} ms`);
+      writeln(`minimum ratio: ${MIN_RATIO}`);
+      printTable(
+        [
+          { metric: 'expected notes', value: String(EXPECTED), ok: '' },
+          { metric: 'started notes', value: String(startedCount), ok: '' },
+          { metric: 'ratio', value: ratio.toFixed(3), ok: ratio >= MIN_RATIO ? 'yes' : 'no' },
+          { metric: 'worst timer gap ms', value: worstGap.toFixed(1), ok: '' },
+          { metric: 'timer ticks over 140 ms', value: String(lateTicks), ok: '' },
+        ],
+        [{ key: 'metric' }, { key: 'value' }, { key: 'ok' }],
+      );
+
+      player.destroy();
+      reportResult(ratio >= MIN_RATIO);
+    });
+  </script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 // Mounted inside the standalone GP Player screen and the Exercises viewer.
 
 import { parseGuitarPro, isGuitarProName } from './tab/guitarPro.js';
+import { parseGuitarProWithProgress } from './tab/gpParseClient.js';
 import { modelHasRhythm, quartersToSeconds } from './tab/tabModel.js';
 import { buildPlayOrder } from './tab/playOrder.js';
 import { buildTimeline } from './tab/scoreTimeline.js';
@@ -97,6 +98,7 @@ export function mountGpPlayer(host, {
   scoreKey = '',
   exerciseImport = null,
   enableHostKeyboard = true,
+  onReadProgress = null,
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
 
@@ -496,6 +498,21 @@ export function mountGpPlayer(host, {
     return timeline.positionAtSeconds(songSecFromAudioClock());
   }
 
+  // listAnnotations() copies and sorts the list on each call. The playhead
+  // asks for it on every frame, so cache the result and clear the cache when
+  // the annotation set changes.
+  let annotationCache = null;
+
+  function currentAnnotations() {
+    if (!scoreKey) return [];
+    if (!annotationCache) annotationCache = listAnnotations(scoreKey);
+    return annotationCache;
+  }
+
+  function invalidateAnnotationCache() {
+    annotationCache = null;
+  }
+
   function syncPlayheadFrame(pos, { resting = lastTickResting } = {}) {
     if (!isAlive() || !pos) return;
     const secDisplay = quartersToSeconds(pos.beatInScore, state.bpm);
@@ -512,7 +529,7 @@ export function mountGpPlayer(host, {
       noteSelectMode: noteSelectActive,
       zoom: state.parchmentZoom,
       autoFollow: state.autoFollow,
-      annotations: scoreKey ? listAnnotations(scoreKey) : [],
+      annotations: currentAnnotations(),
       highlightedAnnotationId: highlightedAnnoId,
     });
     measureNav?.update({
@@ -688,6 +705,7 @@ export function mountGpPlayer(host, {
   }
 
   function refreshAnnotations() {
+    invalidateAnnotationCache();
     annoDrawer?.sync();
     syncPlaybackUi({
       playing: player.playing,
@@ -792,29 +810,34 @@ export function mountGpPlayer(host, {
   } = {}) {
     scoreTrack.textContent = currentTrackLabel();
     syncHeaderVisibility();
-    parchment?.update({
-      currentSec,
-      bpm: state.bpm,
-      playing: playing && !resting,
-      measureIndex,
-      selection: parchmentSelection(),
-      noteDraft: noteDraftSelection
-        ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }
-        : null,
-      loopSelectMode: state.loopSelectMode,
-      noteSelectMode: noteSelectActive,
-      zoom: state.parchmentZoom,
-      autoFollow: state.autoFollow,
-      annotations: scoreKey ? listAnnotations(scoreKey) : [],
-      highlightedAnnotationId: highlightedAnnoId,
-    });
-    measureNav?.update({
-      measureIndex,
-      navBar: state.navBar,
-      loopEnabled: state.loopEnabled,
-      loopStart: state.loopStart,
-      loopEnd: state.loopEnd,
-    });
+    // The frame loop owns the score view while playback runs. Without this
+    // guard the view repaints on the audio tick and on the animation frame,
+    // about 100 times each second, and that work delays the audio scheduler.
+    if (playheadFrameId == null) {
+      parchment?.update({
+        currentSec,
+        bpm: state.bpm,
+        playing: playing && !resting,
+        measureIndex,
+        selection: parchmentSelection(),
+        noteDraft: noteDraftSelection
+          ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }
+          : null,
+        loopSelectMode: state.loopSelectMode,
+        noteSelectMode: noteSelectActive,
+        zoom: state.parchmentZoom,
+        autoFollow: state.autoFollow,
+        annotations: currentAnnotations(),
+        highlightedAnnotationId: highlightedAnnoId,
+      });
+      measureNav?.update({
+        measureIndex,
+        navBar: state.navBar,
+        loopEnabled: state.loopEnabled,
+        loopStart: state.loopStart,
+        loopEnd: state.loopEnd,
+      });
+    }
     transport?.sync();
     // Per-tick playback UI must not rebuild the metronome panel — use syncStatus only.
     metronomePanel?.syncStatus?.();
@@ -1536,7 +1559,7 @@ export function mountGpPlayer(host, {
       }
       clearCountIn();
       stateController.destroy();
-      player.stop();
+      player.destroy();
       parchment?.destroy();
       measureNav?.destroy();
       transport?.destroy();
@@ -1639,6 +1662,10 @@ export { isGuitarProName, parseGuitarPro };
 
 /** Parse bytes and mount player — convenience for callers. */
 export async function openGpPlayerFromBytes(host, bytes, options = {}) {
-  const gp = await parseGuitarPro(bytes);
-  return mountGpPlayer(host, { ...options, gpResult: gp });
+  const { onReadProgress, signal, ...mountOptions } = options;
+  const gp = await parseGuitarProWithProgress(bytes, {
+    onProgress: onReadProgress,
+    signal,
+  });
+  return mountGpPlayer(host, { ...mountOptions, gpResult: gp });
 }

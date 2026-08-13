@@ -151,4 +151,15 @@ export function getAnalyserDestination() {
   return analyserNode;
 }
 
+/** Mix bus input before the shared dynamics compressor. */
+export function getMixDestination() {
+  ensureAudio();
+  return analyserNode;
+}
+
+export function getCompressorNode() {
+  ensureAudio();
+  return compressorNode;
+}
+
 export function midiFreq(m) { return 440 * Math.pow(2, (m-69)/12); }

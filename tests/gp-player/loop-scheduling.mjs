@@ -169,13 +169,20 @@ let pendingTimer = null;
 globalThis.setTimeout = (fn) => { pendingTimer = fn; return 1; };
 globalThis.clearTimeout = () => { pendingTimer = null; };
 
-const player = createGpMixPlayer({});
+// The score view repaints inside onTick. That work must not delay the next
+// audio tick, so the next tick must already be armed when onTick runs.
+const tickArmed = [];
+let watchTicks = false;
+const player = createGpMixPlayer({
+  onTick: () => { if (watchTicks) tickArmed.push(pendingTimer != null); },
+});
 player.load({ guitarModels: [model], drumModels: [], bpm: 120 });
 
 // Loop bar 1. Four quarter notes at 120 BPM run for 2 seconds.
 const LOOP_SEC = 2;
 const PASSES = 20;
 player.setLoop({ startSec: 0, endSec: LOOP_SEC, restSec: 0 });
+watchTicks = true;
 player.play({ fromSec: 0 });
 
 const ctx = DrivenAudioContext.last;
@@ -183,8 +190,14 @@ assert.ok(ctx, 'the engine must build the driven audio context');
 
 const STEP = 0.02;
 const steps = Math.round((LOOP_SEC * PASSES) / STEP);
+// Jump the clock at these steps, the way a long main thread stall does. The
+// notes of the jump are then already in the past. The engine must still sound
+// them. The old engine dropped every note whose time had passed, and a
+// learner heard that as a skip.
+const STALL_AT = new Set([120, 340, 560, 780]);
+const STALL_SEC = 0.45;
 for (let i = 0; i < steps; i += 1) {
-  ctx._time += STEP;
+  ctx._time += STALL_AT.has(i) ? STALL_SEC : STEP;
   for (const osc of oscillators) {
     if (!osc.ended && osc.stopAt <= ctx._time) osc.fireEnded();
   }
@@ -214,15 +227,24 @@ assert.equal(
   `each note must start one time only; ${startMs.length - uniqueStarts.size} duplicate starts`,
 );
 
-// The pass boundary must leave no hole. Notes fall every 0.5 s, so no gap
-// between two starts may reach a full pass length.
+// No note may go missing. The run covers this much song time, and the score
+// holds two notes each second at 120 BPM. A stall must not delete a note.
+const songSec = (steps - STALL_AT.size) * STEP + STALL_AT.size * STALL_SEC;
+const expectedNotes = songSec * 2;
+assert.ok(
+  started.length >= expectedNotes * 0.95,
+  `no note may go missing; the engine started ${started.length} of about ${Math.round(expectedNotes)} notes`,
+);
+
+// The pass boundary must leave no hole. Notes fall every 0.5 s. A gap may
+// reach one note spacing plus one injected stall, and no more.
 const ordered = startMs.slice().sort((a, b) => a - b);
 let worstGapMs = 0;
 for (let i = 1; i < ordered.length; i += 1) {
   worstGapMs = Math.max(worstGapMs, ordered[i] - ordered[i - 1]);
 }
 assert.ok(
-  worstGapMs <= 520,
+  worstGapMs <= 520 + STALL_SEC * 1000,
   `loop scheduling must stay gapless; worst gap ${worstGapMs} ms`,
 );
 
@@ -237,6 +259,17 @@ assert.ok(
   `the engine must disconnect a finished voice; ${stillConnected} of ${gainNodes.length} gain nodes are still connected`,
 );
 
+// The next audio tick must already be armed when onTick runs. Otherwise a
+// slow repaint inside onTick pushes the audio out by that same time.
+assert.ok(tickArmed.length > 5, 'the engine must report ticks during playback');
+assert.ok(
+  tickArmed.every(Boolean),
+  `the next audio tick must be armed before onTick runs; ${tickArmed.filter((v) => !v).length} of ${tickArmed.length} ticks were not`,
+);
+
 player.destroy();
+
+globalThis.setTimeout = realSetTimeout;
+globalThis.clearTimeout = realClearTimeout;
 
 console.log('gp-player loop scheduling: ok');

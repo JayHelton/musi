@@ -160,25 +160,25 @@ width to 360 CSS pixels and confirm legibility.
 
 ### Tests for User Story 2
 
-- [ ] T048 [US2] Create `tests/gp-player/score-layout.mjs` with glyph counts for rhythm marks, rests, time signatures, repeat marks, volta brackets, the 13 techniques, bend amounts, and the 12 CSS pixel fret font floor at 360 CSS pixels wide
+- [X] T048 [US2] Create `tests/gp-player/score-layout.mjs` with glyph counts for rhythm marks, rests, time signatures, repeat marks, volta brackets, the 13 techniques, bend amounts, and the 12 CSS pixel fret font floor at 360 CSS pixels wide
 
 ### Implementation for User Story 2
 
-- [ ] T049 [US2] Create `js/gpPlayer/scoreLayout.js` with `layoutBar`, `layoutScore`, the lane set, and the glyph and overlay kinds from `contracts/score-view.md` (depends on T048)
-- [ ] T050 [US2] Add rhythm mark layout to `js/gpPlayer/scoreLayout.js`: stems, flags, beams, dots, and tuplet brackets (depends on T049)
-- [ ] T051 [US2] Add rest glyph layout to `js/gpPlayer/scoreLayout.js` from `model.rests` and rest beats in `model.beats` (depends on T049)
-- [ ] T052 [US2] Add time signature layout to `js/gpPlayer/scoreLayout.js` at the first bar and at every change (depends on T049)
-- [ ] T053 [US2] Add repeat mark and volta bracket layout to `js/gpPlayer/scoreLayout.js` from `measures[].repeat` (depends on T049)
-- [ ] T054 [US2] Add the 13 technique glyph kinds to `js/gpPlayer/scoreLayout.js`: bend, slide, hammer-on, pull-off, vibrato, palm mute, harmonic, tap, slap, pop, trill, tremolo, and dead note (depends on T049)
-- [ ] T055 [US2] Add bend amount glyphs to `js/gpPlayer/scoreLayout.js` with `bendValue` labels per FR-022 (depends on T054)
-- [ ] T056 [US2] Rewrite the render body of `js/gpPlayer/parchmentView.js` to draw glyph boxes from `scoreLayout.js` and to write one inline `<svg>` per bar for curved overlays (depends on T050, T051, T052, T053, T054, T055)
-- [ ] T057 [US2] Add `setShowStandardNotation`, `setActivePosition`, and `resumeAutoFollow` to the `mountParchmentView` handle in `js/gpPlayer/parchmentView.js` per `contracts/score-view.md` (depends on T056)
-- [ ] T058 [US2] Add the optional standard notation staff lane to `js/gpPlayer/scoreLayout.js` and `js/gpPlayer/parchmentView.js` with an octave-down marker for guitar per FR-026 and decision D22 (depends on T049, T056)
-- [ ] T059 [US2] Remove the `state.gp.drumTracks?.[0]?.model` fallback in `parchmentModels()` in `js/gpPlayerUI.js` so the view shows the selected track only per FR-031 (depends on T056)
-- [ ] T060 [US2] Confirm that the `referenceModel` fallback in `mixLoadBase()` in `js/gpPlayerUI.js` never overrides a selected track. Keep it only as a null guard for a score with drum tracks only (depends on T059)
-- [ ] T061 [P] [US2] Add glyph lane styles to `css/gpplayer.css` for `notationStaff`, `techniqueAbove`, `rhythm`, and `techniqueBelow` (depends on T056)
-- [ ] T062 [US2] Measure the contrast ratio of every new glyph colour against the parchment background in `css/gpplayer.css`. Raise any colour that falls below 7 to 1 per FR-032 (depends on T061)
-- [ ] T063 [US2] Enforce the 12 CSS pixel fret font floor at 360 CSS pixels wide in `js/gpPlayer/scoreLayout.js` and expose `fontPx` for the layout test (depends on T049)
+- [X] T049 [US2] Create `js/gpPlayer/scoreLayout.js` with `layoutBar`, `layoutScore`, the lane set, and the glyph and overlay kinds from `contracts/score-view.md` (depends on T048)
+- [X] T050 [US2] Add rhythm mark layout to `js/gpPlayer/scoreLayout.js`: stems, flags, beams, dots, and tuplet brackets (depends on T049)
+- [X] T051 [US2] Add rest glyph layout to `js/gpPlayer/scoreLayout.js` from `model.rests` and rest beats in `model.beats` (depends on T049)
+- [X] T052 [US2] Add time signature layout to `js/gpPlayer/scoreLayout.js` at the first bar and at every change (depends on T049)
+- [X] T053 [US2] Add repeat mark and volta bracket layout to `js/gpPlayer/scoreLayout.js` from `measures[].repeat` (depends on T049)
+- [X] T054 [US2] Add the 13 technique glyph kinds to `js/gpPlayer/scoreLayout.js`: bend, slide, hammer-on, pull-off, vibrato, palm mute, harmonic, tap, slap, pop, trill, tremolo, and dead note (depends on T049)
+- [X] T055 [US2] Add bend amount glyphs to `js/gpPlayer/scoreLayout.js` with `bendValue` labels per FR-022 (depends on T054)
+- [X] T056 [US2] Rewrite the render body of `js/gpPlayer/parchmentView.js` to draw glyph boxes from `scoreLayout.js` and to write one inline `<svg>` per bar for curved overlays (depends on T050, T051, T052, T053, T054, T055)
+- [X] T057 [US2] Add `setShowStandardNotation`, `setActivePosition`, and `resumeAutoFollow` to the `mountParchmentView` handle in `js/gpPlayer/parchmentView.js` per `contracts/score-view.md` (depends on T056)
+- [X] T058 [US2] Add the optional standard notation staff lane to `js/gpPlayer/scoreLayout.js` and `js/gpPlayer/parchmentView.js` with an octave-down marker for guitar per FR-026 and decision D22 (depends on T049, T056)
+- [X] T059 [US2] Remove the `state.gp.drumTracks?.[0]?.model` fallback in `parchmentModels()` in `js/gpPlayerUI.js` so the view shows the selected track only per FR-031 (depends on T056)
+- [X] T060 [US2] Confirm that the `referenceModel` fallback in `mixLoadBase()` in `js/gpPlayerUI.js` never overrides a selected track. Keep it only as a null guard for a score with drum tracks only (depends on T059)
+- [X] T061 [P] [US2] Add glyph lane styles to `css/gpplayer.css` for `notationStaff`, `techniqueAbove`, `rhythm`, and `techniqueBelow` (depends on T056)
+- [X] T062 [US2] Measure the contrast ratio of every new glyph colour against the parchment background in `css/gpplayer.css`. Raise any colour that falls below 7 to 1 per FR-032 (depends on T061)
+- [X] T063 [US2] Enforce the 12 CSS pixel fret font floor at 360 CSS pixels wide in `js/gpPlayer/scoreLayout.js` and expose `fontPx` for the layout test (depends on T049)
 
 **Checkpoint**: `node tests/gp-player/score-layout.mjs` passes. Manual checks 1 to 8 in
 `quickstart.md` for User Story 2 pass. SC-004 technique coverage reaches at least 95
@@ -233,19 +233,19 @@ mutes shape the tone. Dense chords stay below full scale.
 
 ### Tests for User Story 4
 
-- [ ] T080 [US4] Extend `tests/gp-player/smoke.mjs` to assert that `createGpMixPlayer` schedules through `instrumentVoices.js` when `trackInfo.program` is present on a model
+- [X] T080 [US4] Extend `tests/gp-player/smoke.mjs` to assert that `createGpMixPlayer` schedules through `instrumentVoices.js` when `trackInfo.program` is present on a model
 
 ### Implementation for User Story 4
 
-- [ ] T081 [US4] Create `js/gpPlayer/instrumentVoices.js` with `createVoiceFactory`, `familyForProgram`, `playNote`, and the five families `cleanGuitar`, `distortedGuitar`, `acousticGuitar`, `bass`, and `keys`. Drum hits keep `js/drums/drumEngine.js` (depends on T080)
-- [ ] T082 [US4] Wire `instrumentVoices.js` into `js/gpMixPlayer.js` with a `GainNode` for each track and replace `scheduleGuitarTone` (depends on T081, T037)
-- [ ] T083 [US4] Apply dynamics from `velocity`, bend and slide and vibrato pitch automation, and palm mute and dead note damping in `js/gpPlayer/instrumentVoices.js` per FR-048 to FR-050 (depends on T081)
-- [ ] T084 [US4] Add the headroom budget and the voice count limit in `js/gpPlayer/instrumentVoices.js` and route each track through the shared `DynamicsCompressorNode` in `js/audio.js` per FR-051 (depends on T082)
-- [ ] T085 [US4] Wire the blocked audio message path through `onAudioBlocked` in `js/gpMixPlayer.js` and `js/gpPlayerUI.js` per FR-052 (depends on T038, T078)
-- [ ] T086 [P] [US4] Create `tests/gp-player/audio/peak-headroom.html` to measure peak output below full scale on a dense chord passage (depends on T009, T084)
-- [ ] T087 [P] [US4] Create `tests/gp-player/audio/instrument-spectral.html` to measure spectral distance between bass and guitar voices for SC-016 (depends on T009, T081)
-- [ ] T088 [US4] Register `peak-headroom.html` and `instrument-spectral.html` in `tests/gp-player/run-browser.mjs` (depends on T047, T086, T087)
-- [ ] T089 [US4] Add the 10 fixed passages under `tests/gp-player/fixtures/passages/` for SC-015 and SC-016 per `quickstart.md` (depends on T003)
+- [X] T081 [US4] Create `js/gpPlayer/instrumentVoices.js` with `createVoiceFactory`, `familyForProgram`, `playNote`, and the five families `cleanGuitar`, `distortedGuitar`, `acousticGuitar`, `bass`, and `keys`. Drum hits keep `js/drums/drumEngine.js` (depends on T080)
+- [X] T082 [US4] Wire `instrumentVoices.js` into `js/gpMixPlayer.js` with a `GainNode` for each track and replace `scheduleGuitarTone` (depends on T081, T037)
+- [X] T083 [US4] Apply dynamics from `velocity`, bend and slide and vibrato pitch automation, and palm mute and dead note damping in `js/gpPlayer/instrumentVoices.js` per FR-048 to FR-050 (depends on T081)
+- [X] T084 [US4] Add the headroom budget and the voice count limit in `js/gpPlayer/instrumentVoices.js` and route each track through the shared `DynamicsCompressorNode` in `js/audio.js` per FR-051 (depends on T082)
+- [X] T085 [US4] Wire the blocked audio message path through `onAudioBlocked` in `js/gpMixPlayer.js` and `js/gpPlayerUI.js` per FR-052 (depends on T038, T078)
+- [X] T086 [P] [US4] Create `tests/gp-player/audio/peak-headroom.html` to measure peak output below full scale on a dense chord passage (depends on T009, T084)
+- [X] T087 [P] [US4] Create `tests/gp-player/audio/instrument-spectral.html` to measure spectral distance between bass and guitar voices for SC-016 (depends on T009, T081)
+- [X] T088 [US4] Register `peak-headroom.html` and `instrument-spectral.html` in `tests/gp-player/run-browser.mjs` (depends on T047, T086, T087)
+- [X] T089 [US4] Add the 10 fixed passages under `tests/gp-player/fixtures/passages/` for SC-015 and SC-016 per `quickstart.md` (depends on T003)
 
 **Checkpoint**: The two US4 browser harness pages print `RESULT: PASS`. Manual checks 1 to 6
 in `quickstart.md` for User Story 4 pass. `node tests/gp-player/smoke.mjs` stays green.
@@ -263,18 +263,18 @@ confirm reset. Leave the player and listen for audio. Turn off the network and r
 
 ### Tests for User Story 5
 
-- [ ] T090 [US5] Create `tests/gp-player/offline-manifest.mjs` to assert that `service-worker.js` `PRECACHE_URLS` lists every file under `js/gpPlayer/`, GP modules in `js/`, GP modules in `js/tab/`, `css/gpplayer.css`, and the three files that the inventory misses today: `js/gpPlayer/layoutMetrics.js`, `js/gpPlayer/viewModes.js`, and `js/gpExerciseScore.js`
+- [X] T090 [US5] Create `tests/gp-player/offline-manifest.mjs` to assert that `service-worker.js` `PRECACHE_URLS` lists every file under `js/gpPlayer/`, GP modules in `js/`, GP modules in `js/tab/`, `css/gpplayer.css`, and the three files that the inventory misses today: `js/gpPlayer/layoutMetrics.js`, `js/gpPlayer/viewModes.js`, and `js/gpExerciseScore.js`
 
 ### Implementation for User Story 5
 
-- [ ] T091 [US5] Create `js/tab/gpParseWorker.js` as the module worker entry that receives bytes, calls `parseGuitarPro`, and posts `{ type: 'progress', ratio }` then `{ type: 'result', gp }` (depends on T090)
-- [ ] T092 [US5] Create `js/tab/gpParseClient.js` with worker start, progress callbacks, and a chunked main-thread fallback that yields between tracks when `Worker` is missing (depends on T091)
-- [ ] T093 [US5] Wire read progress and error messages in `js/gpPlayer.js` through `gpParseClient.js`, and add the read progress region to `index.html` per FR-054 and FR-056 (depends on T092)
-- [ ] T094 [US5] Wire `js/tab/gpParseClient.js` into `mountGpPlayer` in `js/gpPlayerUI.js` for embedder byte loads with progress callbacks (depends on T092)
-- [ ] T095 [US5] Add `resetForNewScore()` to `js/gpPlayer/playerState.js` to clear loop, speed, transpose, tuning, and selected track on a new load per FR-059. Keep the per-score records that FR-064 protects: section notes, the automatic scroll setting, the zoom setting, and the metronome settings (depends on T093)
-- [ ] T096 [US5] Add full teardown in `js/gpPlayer.js` and `js/gpPlayerUI.js` so the player stops audio, cancels the frame loop, disconnects nodes, and uses no processor time after the learner leaves per FR-060 (depends on T038, T041, T095)
-- [ ] T097 [US5] Add the precache entries for every new module and bump `CACHE_VERSION` in `service-worker.js` so `tests/gp-player/offline-manifest.mjs` passes (depends on T090)
-- [ ] T098 [US5] Keep the audio transcription path working in `js/gpPlayer.js`: open a score with no source bytes, hide source file actions, and leave the score playable per FR-065 (depends on T093)
+- [X] T091 [US5] Create `js/tab/gpParseWorker.js` as the module worker entry that receives bytes, calls `parseGuitarPro`, and posts `{ type: 'progress', ratio }` then `{ type: 'result', gp }` (depends on T090)
+- [X] T092 [US5] Create `js/tab/gpParseClient.js` with worker start, progress callbacks, and a chunked main-thread fallback that yields between tracks when `Worker` is missing (depends on T091)
+- [X] T093 [US5] Wire read progress and error messages in `js/gpPlayer.js` through `gpParseClient.js`, and add the read progress region to `index.html` per FR-054 and FR-056 (depends on T092)
+- [X] T094 [US5] Wire `js/tab/gpParseClient.js` into `mountGpPlayer` in `js/gpPlayerUI.js` for embedder byte loads with progress callbacks (depends on T092)
+- [X] T095 [US5] Add `resetForNewScore()` to `js/gpPlayer/playerState.js` to clear loop, speed, transpose, tuning, and selected track on a new load per FR-059. Keep the per-score records that FR-064 protects: section notes, the automatic scroll setting, the zoom setting, and the metronome settings (depends on T093)
+- [X] T096 [US5] Add full teardown in `js/gpPlayer.js` and `js/gpPlayerUI.js` so the player stops audio, cancels the frame loop, disconnects nodes, and uses no processor time after the learner leaves per FR-060 (depends on T038, T041, T095)
+- [X] T097 [US5] Add the precache entries for every new module and bump `CACHE_VERSION` in `service-worker.js` so `tests/gp-player/offline-manifest.mjs` passes (depends on T090)
+- [X] T098 [US5] Keep the audio transcription path working in `js/gpPlayer.js`: open a score with no source bytes, hide source file actions, and leave the score playable per FR-065 (depends on T093)
 
 **Checkpoint**: `node tests/gp-player/offline-manifest.mjs` passes. Manual checks 1 to 10 in
 `quickstart.md` for User Story 5 pass. SC-008, SC-009, SC-013, SC-014, and SC-017 are
@@ -292,7 +292,7 @@ reachable.
 - [ ] T102 Add exports for every new module to `js/gpPlayer/index.js`
 - [ ] T103 Run the neighbour suites: `node tests/exercises/run.mjs`, `node tests/workbooks/run.mjs`, `node tests/companions/run.mjs`, `node tests/track-to-sheet/run.mjs`, and `node tests/cloud/run.mjs`
 - [ ] T104 Run the CLI smoke command in `cli/bin/musi.js` with `reference --root C --type "Major (Ionian)"` and confirm the `Scale Reference` banner prints
-- [ ] T105 Update `docs/gp-exercises-roadmap.md` to record the timeline layer, the layout layer, and the instrument voice layer
+- [X] T105 Update `docs/gp-exercises-roadmap.md` to record the timeline layer, the layout layer, and the instrument voice layer
 - [ ] T106 Run the human reading test for SC-015 on the 10 fixed passages in `tests/gp-player/fixtures/passages/` and record the teacher pass count
 - [ ] T107 Run the human listening test for SC-016 on the same 10 passages in `tests/gp-player/fixtures/passages/` and record the listener pass count
 - [ ] T108 Run every step in `quickstart.md`: automated checks, browser harness, manual verification, accessibility checks, offline check, and mobile layout checks

@@ -1179,4 +1179,170 @@ assert.equal(exEditorMeta?.textContent, 'Bar 2', 'exercise scope bar 2 should se
 assert.ok(exHost.querySelector('.gpp-anno-editor')?.hidden === false, 'editor should open with exercise scope selection');
 exPlayer.destroy();
 
+// ---- instrument voices: trackInfo.program routes through instrumentVoices ----
+await (async () => {
+  let periodicWaveUsed = false;
+  let biquadUsed = false;
+  let voiceNotes = 0;
+
+  function makeParam(value = 0) {
+    return {
+      value,
+      setValueAtTime() {},
+      linearRampToValueAtTime() {},
+      exponentialRampToValueAtTime() {},
+      cancelScheduledValues() {},
+    };
+  }
+
+  function makeNode() {
+    return {
+      connect() {},
+      disconnect() {},
+      gain: makeParam(1),
+      frequency: makeParam(440),
+      Q: makeParam(1),
+      threshold: makeParam(-24),
+      knee: makeParam(30),
+      ratio: makeParam(12),
+      attack: makeParam(0.003),
+      release: makeParam(0.25),
+      type: 'lowpass',
+      fftSize: 2048,
+    };
+  }
+
+  class VoiceStubCtx {
+    constructor() {
+      VoiceStubCtx.last = this;
+      this.currentTime = 0;
+      this.state = 'running';
+      this.sampleRate = 48000;
+      this.destination = makeNode();
+    }
+    resume() { return Promise.resolve(); }
+    createGain() { return makeNode(); }
+    createOscillator() {
+      const osc = makeNode();
+      osc.type = 'sawtooth';
+      osc.start = () => { voiceNotes += 1; };
+      osc.stop = () => {};
+      osc.setPeriodicWave = () => { periodicWaveUsed = true; };
+      osc.addEventListener = (type, fn) => {
+        if (type === 'ended') osc._onEnded = fn;
+      };
+      return osc;
+    }
+    createBiquadFilter() {
+      biquadUsed = true;
+      return makeNode();
+    }
+    createWaveShaper() { return makeNode(); }
+    createDynamicsCompressor() { return makeNode(); }
+    createAnalyser() { return makeNode(); }
+    createPeriodicWave() {
+      periodicWaveUsed = true;
+      return {};
+    }
+  }
+
+  const savedAC = globalThis.AudioContext;
+  const savedWAC = globalThis.webkitAudioContext;
+  globalThis.AudioContext = VoiceStubCtx;
+  globalThis.webkitAudioContext = VoiceStubCtx;
+
+  const { createVoiceFactory, familyForProgram } = await import('../../js/gpPlayer/instrumentVoices.js');
+  assert.equal(familyForProgram(27), 'cleanGuitar');
+  assert.equal(familyForProgram(33), 'bass');
+  assert.equal(familyForProgram(30), 'distortedGuitar');
+  assert.equal(familyForProgram(25), 'acousticGuitar');
+  assert.equal(familyForProgram(0), 'keys');
+
+  const stubCtx = new VoiceStubCtx();
+  const factory = createVoiceFactory(stubCtx);
+  const dest = stubCtx.createGain();
+  factory.playNote({
+    family: 'bass',
+    midi: 36,
+    when: 0,
+    durSec: 0.5,
+    velocity: 0.8,
+    techniques: [],
+    bend: null,
+    slideKind: null,
+    destination: dest,
+  });
+  assert.ok(voiceNotes >= 1, 'instrumentVoices.playNote must start an oscillator');
+  assert.ok(periodicWaveUsed || biquadUsed, 'instrumentVoices must use wavetable or filter nodes');
+
+  const voicePlayer = createGpMixPlayer();
+  const modelWithProgram = {
+    tuning: 'Standard',
+    strings: fakeGp.tracks[0].model.strings,
+    trackInfo: { program: 27, volume: 1, pan: 0 },
+    events: [{
+      slot: 0,
+      start: 0,
+      duration: 1,
+      stringIndex: 0,
+      fret: 0,
+      midi: 40,
+      pc: 4,
+      techniques: [],
+      dead: false,
+      velocity: 0.8,
+    }],
+    measures: [{ startSlot: 0, endSlot: 1, startBeat: 0, endBeat: 1 }],
+    tempo: 120,
+    totalBeats: 1,
+  };
+  voicePlayer.load({ guitarModels: [modelWithProgram], drumModels: [], bpm: 120 });
+
+  const notesBefore = voiceNotes;
+  periodicWaveUsed = false;
+  biquadUsed = false;
+  await voicePlayer.play({ fromSec: 0 });
+
+  const pending = [];
+  let timerId = 1;
+  const cleared = new Set();
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  globalThis.setTimeout = (fn) => {
+    const id = timerId++;
+    pending.push({ id, fn });
+    return id;
+  };
+  globalThis.clearTimeout = (id) => cleared.add(id);
+
+  const ctx = VoiceStubCtx.last;
+  for (let step = 0; step < 30; step += 1) {
+    ctx.currentTime += 0.02;
+    const ready = [];
+    const still = [];
+    for (const item of pending) {
+      if (cleared.has(item.id)) continue;
+      ready.push(item);
+    }
+    pending.length = 0;
+    for (const item of ready) item.fn();
+  }
+
+  globalThis.setTimeout = realSetTimeout;
+  globalThis.clearTimeout = realClearTimeout;
+  voicePlayer.destroy();
+
+  assert.ok(
+    voiceNotes > notesBefore,
+    'createGpMixPlayer must schedule guitar notes through instrumentVoices when trackInfo.program is set',
+  );
+  assert.ok(
+    periodicWaveUsed || biquadUsed,
+    'scheduled notes must use the instrument voice layer, not the legacy triangle tone',
+  );
+
+  globalThis.AudioContext = savedAC;
+  globalThis.webkitAudioContext = savedWAC;
+})();
+
 console.log('gp-player smoke: ok');

@@ -1,7 +1,8 @@
 // Multi-track Guitar Pro mix player: timeline scheduler, per-track gain,
 // loop/rest, and optional score metronome on one clock.
 
-import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
+import { audioCtx, ensureAudio, getMixDestination } from './audio.js';
+import { createVoiceFactory } from './gpPlayer/instrumentVoices.js';
 import { quartersToSeconds, modelHasRhythm } from './tab/tabModel.js';
 import { buildPlayOrder } from './tab/playOrder.js';
 import { buildTimeline } from './tab/scoreTimeline.js';
@@ -17,7 +18,13 @@ import {
 } from './gpPlayer/metronomeState.js';
 
 const LOOKAHEAD_MS = 25;
-const SCHEDULE_AHEAD = 0.14;
+// How far ahead the scheduler places notes. The scheduler shares the main
+// thread with the score view, so the timer can run late under load. A wide
+// window lets the audio ride through that delay without a hole.
+const SCHEDULE_AHEAD = 0.3;
+// A note that is late by less than this still sounds, a little late. Only a
+// seek or a stop makes a note later than this, and then the engine drops it.
+const MAX_LATE_SEC = 1;
 const VOICE_FADE_SEC = 0.008;
 const MIN_RATE = 0.25;
 const MAX_RATE = 3;
@@ -32,26 +39,6 @@ function clampGain(g) {
   const n = Number(g);
   if (!Number.isFinite(n)) return 1;
   return Math.max(0, Math.min(1, n));
-}
-
-function scheduleGuitarTone(midi, when, dur, techniques = [], destination) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  const muted = techniques.includes('palmMute') || techniques.includes('dead');
-  osc.type = muted ? 'square' : 'triangle';
-  osc.frequency.value = midiFreq(midi);
-  const peak = muted ? 0.07 : 0.16;
-  const attack = 0.008;
-  const release = Math.min(0.08, dur * 0.35);
-  gain.gain.setValueAtTime(0.0001, when);
-  gain.gain.linearRampToValueAtTime(peak, when + attack);
-  gain.gain.setValueAtTime(peak * 0.7, Math.max(when + attack, when + dur - release));
-  gain.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-  osc.connect(gain);
-  gain.connect(destination || getAnalyserDestination());
-  osc.start(when);
-  osc.stop(when + dur + 0.02);
-  return { osc, gain };
 }
 
 function buildTimedDrums(percModel, bpm, trackIndex) {
@@ -204,6 +191,7 @@ export function createGpMixPlayer(opts = {}) {
     lastLoopRestSec: 0,
     destroyed: false,
     endedFired: false,
+    voiceFactory: null,
   };
 
   function wallSecFromEvent(ev) {
@@ -221,17 +209,42 @@ export function createGpMixPlayer(opts = {}) {
    * note, the audio thread walks more nodes on each render block, and the
    * sound starts to break up during a long session.
    */
+  function scheduleGuitarVoice(factory, ev, when, dur, destination) {
+    const model = state.guitarModels[ev.trackIndex];
+    const program = model?.trackInfo?.program;
+    const family = factory.familyForProgram(program != null ? program : 27);
+    return factory.playNote({
+      family,
+      midi: ev.midi,
+      when,
+      durSec: dur || 0.2,
+      velocity: ev.velocity,
+      techniques: ev.techniques || [],
+      bend: ev.bend ?? null,
+      slideKind: ev.slideKind ?? null,
+      destination: destination || getMixDestination(),
+    });
+  }
+
   function registerVoice(voice) {
     state.voices.push(voice);
-    const release = () => {
+    const cleanup = () => {
       const at = state.voices.indexOf(voice);
       if (at >= 0) state.voices.splice(at, 1);
-      try { voice.gain.disconnect(); } catch (e) { /* ignore */ }
+      try { voice.gain?.disconnect(); } catch (e) { /* ignore */ }
     };
-    if (typeof voice.osc.addEventListener === 'function') {
-      voice.osc.addEventListener('ended', release, { once: true });
-    } else {
-      voice.osc.onended = release;
+    if (typeof voice.release === 'function') {
+      if (typeof voice.osc?.addEventListener === 'function') {
+        voice.osc.addEventListener('ended', cleanup, { once: true });
+      } else if (voice.osc) {
+        voice.osc.onended = cleanup;
+      }
+      return;
+    }
+    if (typeof voice.osc?.addEventListener === 'function') {
+      voice.osc.addEventListener('ended', cleanup, { once: true });
+    } else if (voice.osc) {
+      voice.osc.onended = cleanup;
     }
   }
 
@@ -242,6 +255,10 @@ export function createGpMixPlayer(opts = {}) {
     const now = audioCtx.currentTime;
     voices.forEach((v) => {
       try {
+        if (typeof v.release === 'function') {
+          v.release(now);
+          return;
+        }
         v.gain.gain.cancelScheduledValues(now);
         v.gain.gain.setValueAtTime(v.gain.gain.value, now);
         v.gain.gain.linearRampToValueAtTime(0.0001, now + VOICE_FADE_SEC);
@@ -371,18 +388,19 @@ export function createGpMixPlayer(opts = {}) {
 
   function ensureTrackGains() {
     ensureAudio();
+    if (!state.voiceFactory) state.voiceFactory = createVoiceFactory(audioCtx);
     while (state.trackGains.guitar.length < state.guitarModels.length) {
       const i = state.trackGains.guitar.length;
       const g = audioCtx.createGain();
       g.gain.value = state.trackVolumes.guitar[i] ?? 1;
-      g.connect(getAnalyserDestination());
+      g.connect(getMixDestination());
       state.trackGains.guitar.push(g);
     }
     while (state.trackGains.drum.length < state.drumModels.length) {
       const i = state.trackGains.drum.length;
       const g = audioCtx.createGain();
       g.gain.value = state.trackVolumes.drum[i] ?? 1;
-      g.connect(getAnalyserDestination());
+      g.connect(getMixDestination());
       state.trackGains.drum.push(g);
     }
   }
@@ -426,16 +444,21 @@ export function createGpMixPlayer(opts = {}) {
   }
 
   function scheduleEvent(ev, when, now) {
-    if (when < now - 0.02) return;
+    // A late note must still sound. The engine used to drop any note whose
+    // time had passed, so one slow frame deleted notes from the score and the
+    // learner heard a skip. Play a late note now instead. Only a note that is
+    // very late belongs to a position the learner already left.
+    if (when < now - MAX_LATE_SEC) return;
     const at = Math.max(now + 0.004, when);
     const dur = eventDurWall(ev);
     if (ev.kind === 'guitar') {
-      const dest = state.trackGains.guitar[ev.trackIndex] || getAnalyserDestination();
-      registerVoice(scheduleGuitarTone(
-        ev.midi,
+      ensureTrackGains();
+      const dest = state.trackGains.guitar[ev.trackIndex] || getMixDestination();
+      registerVoice(scheduleGuitarVoice(
+        state.voiceFactory,
+        ev,
         at,
         dur || 0.2,
-        ev.techniques,
         dest,
       ));
     } else if (ev.kind === 'drum') {
@@ -513,14 +536,29 @@ export function createGpMixPlayer(opts = {}) {
     }
   }
 
+  /**
+   * Arm the next scheduler tick.
+   *
+   * The tick must be armed before any user interface work runs. The onTick
+   * callback repaints the score view, and that work used to run first, so a
+   * slow repaint pushed the next audio tick out by the same amount. The audio
+   * then fell behind its window and the sound broke up.
+   */
+  function armNextTick() {
+    if (!state.playing || state.destroyed) return;
+    state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
+  }
+
   function scheduler() {
     if (!state.playing || !audioCtx || state.destroyed) return;
     const now = audioCtx.currentTime;
+    // Arm the next tick first. Every path below may repaint the score view
+    // through onTick, and that work must not delay the audio.
+    armNextTick();
 
     if (state.loop && state.inLoopRest) {
       if (now < state.loopRestUntil - 0.001) {
         emitTick();
-        state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
         return;
       }
       state.inLoopRest = false;
@@ -541,7 +579,6 @@ export function createGpMixPlayer(opts = {}) {
         state.originSongSec = state.loop.endSec;
         state.originAudioTime = now;
         emitTick();
-        state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
         return;
       }
       state.loopPassCount += 1;
@@ -588,7 +625,6 @@ export function createGpMixPlayer(opts = {}) {
     }
 
     emitTick();
-    state.timer = setTimeout(scheduler, LOOKAHEAD_MS);
   }
 
   function applyRateTimeline() {
@@ -1039,6 +1075,8 @@ export function createGpMixPlayer(opts = {}) {
     }
     state.trackGains.guitar = [];
     state.trackGains.drum = [];
+    if (state.voiceFactory?.stopAll) state.voiceFactory.stopAll();
+    state.voiceFactory = null;
     if (wasPlaying) state.playing = false;
   }
 
