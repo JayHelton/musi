@@ -46,6 +46,7 @@ This repo was initialized with release template v0.0.11 for `cursor-agent`.
 | `.minispec/templates/` | Design, tasks, checklist, agent-file, and knowledge templates |
 | `.minispec/hooks/` | Claude Code hook adapters (no effect in Cursor) |
 | `.cursor/commands/minispec.*` | Eleven slash commands for the MiniSpec workflow |
+| `.cursor/skills/minispec-*` | Eleven generated Cursor skills for the MiniSpec workflow |
 | `specs/` | Feature design and tasks (created per feature) |
 
 The Spec Kit paths (`.specify/`, `.cursor/skills/speckit-*`) also remain in
@@ -77,6 +78,24 @@ Optional commands:
 
 Command files live under `.cursor/commands/`. Each file has full instructions
 for the agent.
+
+## Cursor skills
+
+MiniSpec ships slash commands only. The script `scripts/minispec-skills.mjs`
+generates one Cursor skill for each command under `.cursor/skills/minispec-*`.
+You can run a MiniSpec step as a slash command or as a skill.
+
+Regenerate the skills after you change command files:
+
+```bash
+node scripts/minispec-skills.mjs
+```
+
+Check that skills match command files without writing files:
+
+```bash
+node scripts/minispec-skills.mjs --check
+```
 
 ## Feature artifacts
 
@@ -163,7 +182,7 @@ you need to add or change principles.
 
 ## Upgrade MiniSpec
 
-Upgrade the CLI and project scaffolding in two steps.
+Upgrade the CLI, the project scaffolding, and the skills in three steps.
 
 Step 1 upgrades the CLI in your environment:
 
@@ -182,6 +201,14 @@ minispec upgrade
 `minispec upgrade` overwrites scripts and hooks under `.minispec/`. It shows a
 diff for command files and templates. It never changes `specs/**`,
 `.minispec/memory/**`, or `.minispec/knowledge/**`.
+
+Step 3 regenerates Cursor skills from the updated command files:
+
+```bash
+node scripts/minispec-skills.mjs
+```
+
+`minispec upgrade` updates command files but does not update skills.
 
 Review changes with `git diff` before you commit.
 Keep tooling upgrades separate from feature work.
