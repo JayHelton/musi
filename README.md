@@ -256,3 +256,7 @@ development. Specs, plans, and tasks live under `specs/`. Cursor skills in
 
 See [docs/spec-kit.md](docs/spec-kit.md) for prerequisites, install steps, and
 the full skill list.
+
+Musi also has [MiniSpec](https://github.com/ivo-toby/mini-spec) for
+pair-programming spec work beside Spec Kit. See [docs/mini-spec.md](docs/mini-spec.md)
+for MiniSpec install, skills, and workflow.
