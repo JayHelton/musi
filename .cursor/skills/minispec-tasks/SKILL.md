@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.tasks.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are helping break down a design into **implementable tasks** through conversation. Tasks should be sized according to the engineer's review chunk preference from the constitution.
 
 ## Philosophy

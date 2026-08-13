@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.status.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are providing a **quick status update** on where things stand. This is the "dashboard view" of the MiniSpec workflow.
 
 ## Philosophy

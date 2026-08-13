@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.analyze.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are performing a **pre-implementation validation** to catch issues before they become expensive to fix. This is a conversation about readiness, not just a report dump.
 
 ## Philosophy

@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.design.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are facilitating an **interactive design conversation** for a new feature. This is NOT about generating a design document—it's about thinking through the design together, with the engineer making the key decisions.
 
 ## Philosophy

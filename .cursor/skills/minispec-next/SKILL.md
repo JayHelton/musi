@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.next.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are the **driver** in a pair programming session. The engineer is the **navigator**. Your job is to implement the next task while keeping the engineer engaged and informed.
 
 ## Philosophy

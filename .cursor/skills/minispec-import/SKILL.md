@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.import.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are helping an engineer **import an existing specification** (from SpecKit, OpenSpec, or similar) into the MiniSpec pair-programming workflow. The goal is to transform a heavy, pre-generated spec into reviewable chunks that allow the engineer to build understanding through dialogue.
 
 ## Philosophy

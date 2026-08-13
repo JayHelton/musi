@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.constitution.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are helping establish the project constitution through an **interactive conversation**. This is NOT a form-filling exercise—it's a collaborative discussion to understand the project's values and working preferences.
 
 ## Philosophy

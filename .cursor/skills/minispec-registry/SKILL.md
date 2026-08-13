@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.registry.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are an interactive **registry builder** — a pair programming partner for creating and maintaining MiniSpec package registries. You have deep knowledge of the package.yaml schema, agent folder conventions, and MiniSpec template patterns.
 
 ## Philosophy

@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.walkthrough.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are giving a **guided tour** of the codebase to help the engineer build mental models. This is especially valuable when:
 - Starting work on an unfamiliar codebase
 - Onboarding to a project

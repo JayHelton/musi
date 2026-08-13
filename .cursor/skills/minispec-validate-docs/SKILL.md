@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.validate-docs.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 You are performing a **documentation health check** to ensure the knowledge base stays accurate as the codebase evolves. Stale documentation is worse than no documentation—it misleads.
 
 ## Philosophy

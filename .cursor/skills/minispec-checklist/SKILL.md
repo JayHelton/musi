@@ -17,12 +17,6 @@ Command file: `.cursor/commands/minispec.checklist.md`
 $ARGUMENTS
 ```
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
 ## Checklist Purpose: "Unit Tests for Requirements"
 
 **CRITICAL CONCEPT**: Checklists are **UNIT TESTS FOR REQUIREMENTS WRITING** - they validate the quality, clarity, and completeness of requirements in a given domain.
