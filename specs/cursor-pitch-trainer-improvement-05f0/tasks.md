@@ -337,15 +337,15 @@ Stage 2 until this checkpoint is green.
 
 ## Progress
 
-- [ ] Task 1: Pitch sample and metric helpers
-- [ ] Task 2: Rolling scoring window
-- [ ] Task 3: Accuracy profiles and hold duration
-- [ ] Task 4: Vibrato center line and unpitched copy
-- [ ] Task 5: Stage 1 matcher tests
-- [ ] Task 6: Voiced versus display tracker
-- [ ] Task 7: Matcher wrap and guide-tone lockout
-- [ ] Task 8: Exact-frequency guide tone
-- [ ] Task 9: Stage 1 detector tests
+- [x] Task 1: Pitch sample and metric helpers
+- [x] Task 2: Rolling scoring window
+- [x] Task 3: Accuracy profiles and hold duration
+- [x] Task 4: Vibrato center line and unpitched copy
+- [x] Task 5: Stage 1 matcher tests
+- [x] Task 6: Voiced versus display tracker
+- [x] Task 7: Matcher wrap and guide-tone lockout
+- [x] Task 8: Exact-frequency guide tone
+- [x] Task 9: Stage 1 detector tests
 - [ ] Task 10: Range validation
 - [ ] Task 11: Custom range presets
 - [ ] Task 12: Center and Land tasks

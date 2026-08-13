@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v192-gp-player-overhaul";
+const CACHE_VERSION = "v193-pitch-metrics-scoring";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -131,6 +131,7 @@ const PRECACHE_URLS = [
   "js/persistence.js",
   "js/practiceTimer.js",
   "js/pitch.js",
+  "js/pitchMetrics.js",
   "js/pitchMatch.js",
   "js/pitchExercises.js",
   "js/pitchTrainer.js",

@@ -70,10 +70,11 @@ export function createStudyLabMic({
   function tick() {
     if (!state.running) return;
     state.analyser.getFloatTimeDomainData(state.buf);
-    const { freq, info } = state.tracker.process(state.buf);
+    const tracked = state.tracker.process(state.buf);
+    const { info, voiced, frequencyHz } = tracked;
     const now = performance.now();
     const count = !state.droneMutedForScore;
-    const match = state.matcher.update(freq, now, count);
+    const match = state.matcher.update(voiced ? frequencyHz : -1, now, count);
     const gate = state.gate.update(
       info?.midi ?? null,
       info?.cents ?? 0,
@@ -82,7 +83,7 @@ export function createStudyLabMic({
     );
     if (typeof onFrame === 'function') {
       onFrame({
-        freq,
+        freq: tracked.freq,
         info,
         match,
         gate,
