@@ -6,18 +6,54 @@
 //     strings: [{ label, note, oct, openMidi }],  // low -> high index
 //     events: [TabEvent],             // ordered by slot then string
 //     slots: number,                  // total time slots (weak timing proxy)
-//     measures: [{ startSlot, endSlot, startBeat, endBeat, marker, timeSig }],
+//     measures: [Measure],            // written bar list
 //     tempo: number,                  // BPM (quarter-note), when known from GP
 //     totalBeats: number,             // length in quarter-note units
 //     techniqueCounts: { [tech]: number },
 //     warnings: string[],
+//     tempoMap?: [{ barIndex, beat, bpm, linear }],  // tempo automations
+//     beats?: [Beat],                 // rhythmic layer per voice
+//     rests?: [Rest],                 // explicit rest list for the view
+//     trackInfo?: TrackInfo,          // mixer and instrument data
+//     voiceCount?: number,            // voice count the track uses (1–4)
 //   }
+//
+// A `Measure` entry:
+//   {
+//     startSlot, endSlot, startBeat?, endBeat?, marker?, timeSig?,
+//     repeat?: { open, closeCount, endings } | null,
+//   }
+//
+// A `Beat` entry (`model.beats[]`):
+//   {
+//     measureIndex, voiceIndex, start, duration, noteValue, dots,
+//     tuplet?: { num, den } | null, rest, techniques?: string[],
+//     noteIndices?: number[],         // indexes into model.events
+//   }
+//
+// A `Rest` entry (`model.rests[]`):
+//   {
+//     measureIndex, voiceIndex, start, duration, noteValue, dots,
+//     tuplet?: { num, den } | null,
+//   }
+//
+// `TrackInfo` (`model.trackInfo`):
+//   { program?, midiChannel?, isPercussion?, volume?, pan?, capo? }
 //
 // A `TabEvent` is one played note:
 //   {
 //     slot, stringIndex, fret, midi, pc, techniques: string[], dead: bool,
 //     start?: number,      // absolute position in quarter-note units
 //     duration?: number,   // length in quarter-note units
+//     voiceIndex?: number,
+//     beatIndex?: number,  // index into model.beats
+//     velocity?: number,   // dynamic level 0 to 1
+//     tie?: boolean,
+//     grace?: boolean,
+//     graceTransition?: string | null,
+//     bend?: { points: [{ offset, cents }] } | null,
+//     slideKind?: 'shift' | 'legato' | 'intoFromBelow' | 'intoFromAbove'
+//               | 'outDown' | 'outUp' | null,
 //   }
 
 import { parseNote, TUNINGS, NOTE_NAMES_SHARP } from '../theory.js';
@@ -131,24 +167,115 @@ export function midiToNoteOct(midi) {
   return { note: NOTE_NAMES_SHARP[pc], oct: Math.floor(midi / 12) - 1, openMidi: midi };
 }
 
+function clampInt(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function clampFloat(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+/** Clamp a TabEvent velocity to 0–1; invalid input falls back to 0.78. */
+export function clampVelocity(value) {
+  return clampFloat(value, 0.78, 0, 1);
+}
+
+/** Normalize trackInfo with defaults from the data model. */
+export function normalizeTrackInfo(info) {
+  const src = info || {};
+  return {
+    program: clampInt(src.program, 0, 0, 127),
+    midiChannel: clampInt(src.midiChannel, 0, 0, 15),
+    isPercussion: Boolean(src.isPercussion),
+    volume: clampFloat(src.volume, 1, 0, 1),
+    pan: clampFloat(src.pan, 0, -1, 1),
+    capo: clampInt(src.capo, 0, 0, 12),
+  };
+}
+
+function cloneTuplet(tuplet) {
+  if (!tuplet) return tuplet;
+  return { ...tuplet };
+}
+
+function cloneRepeat(repeat) {
+  if (!repeat) return repeat;
+  const out = { ...repeat };
+  if (repeat.endings != null) out.endings = repeat.endings.slice();
+  return out;
+}
+
+function cloneBend(bend) {
+  if (!bend) return bend;
+  return {
+    ...bend,
+    points: (bend.points || []).map((p) => ({ ...p })),
+  };
+}
+
+function cloneEvent(e) {
+  const out = {
+    ...e,
+    techniques: Array.isArray(e.techniques) ? e.techniques.slice() : [],
+  };
+  if (e.bend != null) out.bend = cloneBend(e.bend);
+  return out;
+}
+
+function cloneBeat(b) {
+  const out = { ...b };
+  if (b.tuplet != null) out.tuplet = cloneTuplet(b.tuplet);
+  if (b.noteIndices != null) out.noteIndices = b.noteIndices.slice();
+  if (b.techniques != null) out.techniques = b.techniques.slice();
+  return out;
+}
+
+function cloneRest(r) {
+  const out = { ...r };
+  if (r.tuplet != null) out.tuplet = cloneTuplet(r.tuplet);
+  return out;
+}
+
+function cloneMeasure(m) {
+  const out = {
+    ...m,
+    timeSig: m.timeSig ? m.timeSig.slice() : undefined,
+  };
+  if (m.repeat != null) out.repeat = cloneRepeat(m.repeat);
+  return out;
+}
+
 /** Deep-ish clone of a TabModel (events/measures/strings copied). */
 export function cloneModel(model) {
   if (!model) return null;
-  return {
+  const out = {
     ...model,
     strings: (model.strings || []).map((s) => ({ ...s })),
-    events: (model.events || []).map((e) => ({
-      ...e,
-      techniques: Array.isArray(e.techniques) ? e.techniques.slice() : [],
-    })),
-    measures: (model.measures || []).map((m) => ({
-      ...m,
-      timeSig: m.timeSig ? m.timeSig.slice() : undefined,
-    })),
+    events: (model.events || []).map(cloneEvent),
+    measures: (model.measures || []).map(cloneMeasure),
     techniqueCounts: { ...(model.techniqueCounts || {}) },
     warnings: (model.warnings || []).slice(),
-    tempoMap: (model.tempoMap || []).map((t) => ({ ...t })),
   };
+  if (model.tempoMap != null) {
+    out.tempoMap = model.tempoMap.map((t) => ({ ...t }));
+  }
+  if (model.beats != null) {
+    out.beats = model.beats.map(cloneBeat);
+  }
+  if (model.rests != null) {
+    out.rests = model.rests.map(cloneRest);
+  }
+  if (model.trackInfo != null) {
+    out.trackInfo = { ...model.trackInfo };
+  }
+  if (model.voiceCount != null) {
+    out.voiceCount = model.voiceCount;
+  }
+  return out;
 }
 
 /**
@@ -269,44 +396,120 @@ export function modelHasRhythm(model) {
  */
 export function sliceModelByBeats(model, { startBeat = 0, endBeat = null, label = '' } = {}) {
   if (!model) return null;
+  const windowStart = startBeat;
   const end = endBeat == null ? (model.totalBeats || Infinity) : endBeat;
-  const events = (model.events || [])
-    .filter((e) => {
-      const s = Number.isFinite(e.start) ? e.start : 0;
-      return s >= startBeat - 1e-6 && s < end - 1e-6;
-    })
-    .map((e) => ({
-      ...e,
-      techniques: Array.isArray(e.techniques) ? e.techniques.slice() : [],
-      start: (Number.isFinite(e.start) ? e.start : 0) - startBeat,
-      slot: e.slot,
-    }));
-  const measures = (model.measures || [])
-    .filter((m) => {
-      const ms = Number.isFinite(m.startBeat) ? m.startBeat : 0;
-      const me = Number.isFinite(m.endBeat) ? m.endBeat : ms;
-      return me > startBeat + 1e-6 && ms < end - 1e-6;
-    })
-    .map((m, i) => ({
-      ...m,
-      startBeat: Math.max(0, (m.startBeat || 0) - startBeat),
-      endBeat: Math.max(0, (m.endBeat || 0) - startBeat),
-      startSlot: i,
-      endSlot: i + 1,
-      timeSig: m.timeSig ? m.timeSig.slice() : undefined,
-    }));
-  return {
+  const eps = 1e-6;
+
+  const measureIndexMap = new Map();
+  const measures = [];
+  for (let i = 0; i < (model.measures || []).length; i++) {
+    const m = model.measures[i];
+    const ms = Number.isFinite(m.startBeat) ? m.startBeat : 0;
+    const me = Number.isFinite(m.endBeat) ? m.endBeat : ms;
+    if (me > windowStart + eps && ms < end - eps) {
+      measureIndexMap.set(i, measures.length);
+      const out = {
+        ...m,
+        startBeat: Math.max(0, (m.startBeat || 0) - windowStart),
+        endBeat: Math.max(0, (m.endBeat || 0) - windowStart),
+        startSlot: measures.length,
+        endSlot: measures.length + 1,
+      };
+      if (m.timeSig) out.timeSig = m.timeSig.slice();
+      if (m.repeat != null) out.repeat = cloneRepeat(m.repeat);
+      measures.push(out);
+    }
+  }
+
+  const eventIndexMap = new Map();
+  const events = [];
+  for (let i = 0; i < (model.events || []).length; i++) {
+    const e = model.events[i];
+    const s = Number.isFinite(e.start) ? e.start : 0;
+    if (s >= windowStart - eps && s < end - eps) {
+      eventIndexMap.set(i, events.length);
+      const out = cloneEvent(e);
+      out.start = s - windowStart;
+      out.slot = e.slot;
+      events.push(out);
+    }
+  }
+
+  const beatIndexMap = new Map();
+  let beats = null;
+  if (model.beats != null) {
+    beats = [];
+    for (let i = 0; i < model.beats.length; i++) {
+      const b = model.beats[i];
+      const s = Number.isFinite(b.start) ? b.start : 0;
+      if (s < windowStart - eps || s >= end - eps) continue;
+      const newMi = measureIndexMap.get(b.measureIndex);
+      if (newMi == null) continue;
+      beatIndexMap.set(i, beats.length);
+      const out = cloneBeat(b);
+      out.start = s - windowStart;
+      out.measureIndex = newMi;
+      if (b.noteIndices != null) {
+        out.noteIndices = b.noteIndices
+          .map((ni) => eventIndexMap.get(ni))
+          .filter((ni) => ni != null);
+      }
+      beats.push(out);
+    }
+  }
+
+  let rests = null;
+  if (model.rests != null) {
+    rests = [];
+    for (const r of model.rests) {
+      const s = Number.isFinite(r.start) ? r.start : 0;
+      if (s < windowStart - eps || s >= end - eps) continue;
+      const newMi = measureIndexMap.get(r.measureIndex);
+      if (newMi == null) continue;
+      const out = cloneRest(r);
+      out.start = s - windowStart;
+      out.measureIndex = newMi;
+      rests.push(out);
+    }
+  }
+
+  for (const ev of events) {
+    if (ev.beatIndex == null) continue;
+    const newBi = beatIndexMap.get(ev.beatIndex);
+    if (newBi != null) {
+      ev.beatIndex = newBi;
+    } else {
+      delete ev.beatIndex;
+    }
+  }
+
+  let tempoMap = null;
+  if (model.tempoMap != null) {
+    tempoMap = [];
+    for (const t of model.tempoMap) {
+      const newBar = measureIndexMap.get(t.barIndex);
+      if (newBar != null) tempoMap.push({ ...t, barIndex: newBar });
+    }
+  }
+
+  const out = {
     tuning: model.tuning,
     strings: (model.strings || []).map((s) => ({ ...s })),
     events,
     measures,
     tempo: model.tempo,
-    totalBeats: Math.max(0, end - startBeat),
+    totalBeats: Math.max(0, end - windowStart),
     slots: events.length ? Math.max(...events.map((e) => e.slot)) + 1 : measures.length,
     techniqueCounts: { ...(model.techniqueCounts || {}) },
     warnings: [],
     label,
   };
+  if (beats != null) out.beats = beats;
+  if (rests != null) out.rests = rests;
+  if (tempoMap != null) out.tempoMap = tempoMap;
+  if (model.trackInfo != null) out.trackInfo = { ...model.trackInfo };
+  if (model.voiceCount != null) out.voiceCount = model.voiceCount;
+  return out;
 }
 
 /** Alias kept for drum-import callers. */

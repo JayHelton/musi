@@ -257,7 +257,7 @@ const serialized = serializeExerciseScore(multiGp, {
 });
 const parsed = JSON.parse(serialized);
 assert.equal(parsed.format, 'musi-tab-model');
-assert.equal(parsed.version, 2);
+assert.equal(parsed.version, 3);
 assert.equal(parsed.tempo, 120);
 assert.equal(parsed.tracks.length, 2);
 assert.equal(parsed.drumTracks.length, 1);
@@ -343,5 +343,156 @@ const fnB = segmentExerciseFileName('score', 'Bars 5-8');
 assert.notEqual(fnA, fnB);
 assert.ok(fnA.endsWith('.musi-tab.json'));
 assert.ok(fnB.endsWith('.musi-tab.json'));
+
+// ---- version 3 model fields through sliceModelByBeats ----
+function makeExtendedModel() {
+  const base = make16BarModel();
+  base.tempoMap = [
+    { barIndex: 0, beat: 0, bpm: 120, linear: false },
+    { barIndex: 4, beat: 0, bpm: 100, linear: true },
+  ];
+  base.beats = [
+    {
+      measureIndex: 0,
+      voiceIndex: 0,
+      start: 0,
+      duration: 1,
+      noteValue: 4,
+      dots: 0,
+      tuplet: null,
+      rest: false,
+      noteIndices: [0],
+    },
+    {
+      measureIndex: 4,
+      voiceIndex: 1,
+      start: 8,
+      duration: 1,
+      noteValue: 4,
+      dots: 0,
+      tuplet: null,
+      rest: false,
+      noteIndices: [8],
+    },
+  ];
+  base.rests = [
+    {
+      measureIndex: 1,
+      voiceIndex: 0,
+      start: 2,
+      duration: 1,
+      noteValue: 4,
+      dots: 0,
+      tuplet: null,
+    },
+  ];
+  base.trackInfo = {
+    program: 27,
+    midiChannel: 0,
+    isPercussion: false,
+    volume: 0.85,
+    pan: -0.2,
+    capo: 2,
+  };
+  base.voiceCount = 2;
+  base.measures[0].repeat = { open: true, closeCount: null, endings: null };
+  base.measures[3].repeat = { open: false, closeCount: 2, endings: null };
+  base.measures[4].repeat = { open: false, closeCount: null, endings: [1] };
+  base.events[0] = {
+    ...base.events[0],
+    voiceIndex: 0,
+    beatIndex: 0,
+    velocity: 0.65,
+    tie: false,
+    grace: true,
+    graceTransition: 'slide',
+    bend: { points: [{ offset: 0, cents: 100 }] },
+    slideKind: 'shift',
+  };
+  base.events[8] = {
+    ...base.events[8],
+    voiceIndex: 1,
+    beatIndex: 1,
+    velocity: 0.9,
+    tie: true,
+    grace: false,
+    graceTransition: null,
+    bend: null,
+    slideKind: 'legato',
+  };
+  return base;
+}
+
+const extended = makeExtendedModel();
+const extendedSlice = sliceModelByBeats(extended, { startBeat: 8, endBeat: 16 });
+assert.equal(extendedSlice.tempoMap.length, 1);
+assert.equal(extendedSlice.tempoMap[0].barIndex, 0);
+assert.equal(extendedSlice.tempoMap[0].bpm, 100);
+assert.equal(extendedSlice.beats.length, 1);
+assert.equal(extendedSlice.beats[0].voiceIndex, 1);
+assert.equal(extendedSlice.beats[0].measureIndex, 0);
+assert.equal(extendedSlice.rests.length, 0);
+assert.deepEqual(extendedSlice.trackInfo, extended.trackInfo);
+assert.equal(extendedSlice.voiceCount, 2);
+assert.equal(extendedSlice.measures[0].repeat.endings[0], 1);
+const slicedEvent = extendedSlice.events.find((e) => e.tie);
+assert.ok(slicedEvent);
+assert.equal(slicedEvent.voiceIndex, 1);
+assert.equal(slicedEvent.beatIndex, 0);
+assert.equal(slicedEvent.velocity, 0.9);
+assert.equal(slicedEvent.tie, true);
+assert.equal(slicedEvent.grace, false);
+assert.equal(slicedEvent.graceTransition, null);
+assert.equal(slicedEvent.slideKind, 'legato');
+assert.equal(slicedEvent.bend, null);
+
+// version 2 record loads without new fields (legacy behaviour)
+const v2Payload = {
+  format: 'musi-tab-model',
+  version: 2,
+  tempo: 120,
+  tracks: [{
+    index: 0,
+    name: 'Guitar',
+    tuning: 'Standard',
+    model: make16BarModel(),
+  }],
+  drumTracks: [],
+  warnings: ['legacy-warn'],
+};
+const v2Gp = gpResultFromTabModelJson(v2Payload);
+assert.equal(v2Gp.tempo, 120);
+assert.deepEqual(v2Gp.warnings, ['legacy-warn']);
+assert.equal(v2Gp.tracks[0].model.measures.length, 16);
+assert.equal(v2Gp.tracks[0].model.tempoMap, undefined);
+assert.equal(v2Gp.tracks[0].model.beats, undefined);
+assert.equal(v2Gp.tracks[0].model.voiceCount, undefined);
+
+// version 3 round-trip keeps extended fields
+const extendedGp = {
+  tempo: 120,
+  warnings: ['ext-warn'],
+  tracks: [{
+    index: 0,
+    name: 'Guitar',
+    tuning: 'Standard',
+    noteCount: extended.events.length,
+    model: extended,
+  }],
+  drumTracks: [],
+};
+const v3Json = serializeExerciseScore(extendedGp);
+const v3Payload = JSON.parse(v3Json);
+assert.equal(v3Payload.version, 3);
+assert.ok(v3Payload.tracks[0].model.tempoMap);
+assert.ok(v3Payload.tracks[0].model.beats);
+assert.ok(v3Payload.tracks[0].model.rests);
+assert.ok(v3Payload.tracks[0].model.trackInfo);
+assert.equal(v3Payload.tracks[0].model.voiceCount, 2);
+assert.equal(v3Payload.tracks[0].model.events[0].grace, true);
+const v3Gp = gpResultFromTabModelJson(v3Payload);
+assert.deepEqual(v3Gp.warnings, ['ext-warn']);
+assert.equal(v3Gp.tracks[0].model.events[0].bend.points[0].cents, 100);
+assert.equal(v3Gp.tracks[0].model.events[0].slideKind, 'shift');
 
 console.log('gp exercise slice: ok');

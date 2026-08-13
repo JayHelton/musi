@@ -166,10 +166,16 @@ function writeMarker(w, text) {
   writeColor(w);
 }
 
-function writeMidiChannels(w) {
+// Write the 64 GP5 MIDI channel slots. A real file sets a program, a full
+// volume of 127, and a centre balance of 64. The parse layer maps those raw
+// values onto trackInfo.volume 0 to 1 and trackInfo.pan -1 to 1.
+function writeMidiChannels(w, programs = {}) {
   for (let i = 0; i < 64; i += 1) {
-    w.i32(i === 9 ? 0 : 0);
-    w.skip(8);
+    w.i32(i === 9 ? 0 : (programs[i] != null ? programs[i] : 27));
+    w.u8(127);
+    w.u8(64);
+    w.skip(4);
+    w.skip(2);
   }
 }
 
@@ -324,15 +330,12 @@ function writeMixTableChange(w, { tempo } = {}) {
 
 function writeNote(w, track, note) {
   let flags = 0x20;
-  if (note.tie) {
+  // Flag 0x20 tells the reader that a note type byte and a fret byte follow.
+  // A tie note and a dead note keep both bytes, then the trailing flags byte.
+  if (note.tie || note.dead) {
     w.u8(flags);
-    w.u8(2);
-    w.u8(0);
-    return;
-  }
-  if (note.dead) {
-    w.u8(flags);
-    w.u8(3);
+    w.u8(note.tie ? 2 : 3);
+    w.i8(note.fret != null ? note.fret : 0);
     w.u8(0);
     return;
   }
@@ -418,16 +421,35 @@ function buildGp5Bytes(score) {
   w.i8(0);
   w.i32(0);
 
-  writeMidiChannels(w);
+  const measureHeaders = score.measureHeaders || [{ timeSig: [4, 4] }];
+  let nextChannel = 1;
+  const tracks = score.tracks.map((t) => {
+    let channel = t.channel;
+    if (channel == null) {
+      if (t.isPercussion) {
+        channel = 10;
+      } else {
+        if (nextChannel === 10) nextChannel = 11;
+        channel = nextChannel;
+        nextChannel += 1;
+      }
+    }
+    return {
+      ...t,
+      channel,
+      stringCount: (t.tuning || STD_TUNING_6).length,
+      tuning: t.tuning || STD_TUNING_6,
+    };
+  });
+  const programs = {};
+  for (const t of tracks) {
+    if (t.isPercussion) continue;
+    programs[t.channel - 1] = t.program != null ? t.program : 27;
+  }
+
+  writeMidiChannels(w, programs);
   writeDirections(w);
   w.i32(0);
-
-  const measureHeaders = score.measureHeaders || [{ timeSig: [4, 4] }];
-  const tracks = score.tracks.map((t) => ({
-    ...t,
-    stringCount: (t.tuning || STD_TUNING_6).length,
-    tuning: t.tuning || STD_TUNING_6,
-  }));
 
   w.i32(measureHeaders.length);
   w.i32(tracks.length);
@@ -774,6 +796,8 @@ function writeAllFixtures() {
           { duration: 0, notes: [{ string: 3, fret: 0, effects: { trill: true } }] },
           { duration: 0, notes: [{ string: 3, fret: 2, effects: { tremolo: true } }] },
           { duration: 0, notes: [{ string: 3, fret: 3, dead: true }] },
+          // A grace note before the main note. FR-007 needs this content.
+          { duration: 0, notes: [{ string: 3, fret: 5, effects: { grace: true, graceFret: 4 } }] },
         ], []],
       }],
     }],
@@ -799,12 +823,14 @@ function writeAllFixtures() {
     tracks: [
       {
         name: 'Guitar',
+        program: 27,
         measures: Array.from({ length: 200 }, () => ({
           voices: [[quarterBeat(6, 0)], []],
         })),
       },
       {
         name: 'Bass',
+        program: 33,
         tuning: STD_TUNING_4,
         measures: Array.from({ length: 200 }, () => ({
           voices: [[quarterBeat(4, 0)], []],

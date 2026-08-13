@@ -108,7 +108,7 @@ export function segmentExerciseFileName(sourceBaseName, segmentName) {
 }
 
 /**
- * Serialize a gpResult (typically already sliced) to the v2 musi-tab-model JSON
+ * Serialize a gpResult (typically already sliced) to the v3 musi-tab-model JSON
  * format. `source` is provenance only — loaders must not re-slice from it.
  */
 export function serializeExerciseScore(gpResult, {
@@ -122,7 +122,7 @@ export function serializeExerciseScore(gpResult, {
     || 120;
   const payload = {
     format: 'musi-tab-model',
-    version: 2,
+    version: 3,
     tempo,
     tracks: (gpResult.tracks || []).map((t, i) => ({
       index: Number.isFinite(t.index) ? t.index : i,
@@ -144,13 +144,17 @@ export function serializeExerciseScore(gpResult, {
 }
 
 /**
- * Build a gpResult from a musi-tab-model JSON payload (v2 multi-track, legacy
- * single-track, or bare model). Throws MISSING_TAB when unusable.
+ * Build a gpResult from a musi-tab-model JSON payload (v3 or v2 multi-track,
+ * legacy single-track, or bare model). Throws MISSING_TAB when unusable.
  */
 export function gpResultFromTabModelJson(raw, { fallbackName = 'Exercise' } = {}) {
   if (!raw || typeof raw !== 'object') throw new Error(MISSING_TAB);
 
   if (raw.format === 'musi-tab-model' && Array.isArray(raw.tracks)) {
+    const version = Number(raw.version);
+    if (Number.isFinite(version) && version !== 2 && version !== 3) {
+      throw new Error(MISSING_TAB);
+    }
     const tracks = raw.tracks.map((t, i) => {
       const model = t.model;
       if (!model?.events) throw new Error(MISSING_TAB);

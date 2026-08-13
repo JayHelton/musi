@@ -22,7 +22,12 @@
 
 import { NOTE_NAMES_SHARP, TUNINGS } from '../theory.js';
 import { parseGp5Tracks } from './gp5.js';
-import { GPIF_NOTE_VALUES, noteValueToQuarters } from './tabModel.js';
+import {
+  GPIF_NOTE_VALUES,
+  noteValueToQuarters,
+  normalizeTrackInfo,
+  clampVelocity,
+} from './tabModel.js';
 import {
   midiToDrumInstrument,
   dynamicsToVelocity,
@@ -360,11 +365,12 @@ function resolveGpifPercussionNote(noteNode, articulations) {
  * @param {string} xml
  * @returns {{ tracks: Array<{index:number, name:string, fretted:boolean, isPercussion:boolean, model:object|null, tuningPitches:number[]}> }}
  */
-/** Read score BPM from MasterTrack automations (Value "120 2" → quarter BPM). */
+/** Read score BPM and tempo automations from MasterTrack. */
 function readGpifTempo(gpif) {
   const masterTrack = firstChild(gpif, 'MasterTrack');
   const automations = firstChild(masterTrack, 'Automations');
-  if (!automations) return 120;
+  const tempoMap = [];
+  if (!automations) return { tempo: 120, tempoMap };
   // Prefer the earliest Tempo automation; fall back to any Value "bpm unit" pair.
   let bestTempo = null;
   let bestAny = null;
@@ -373,27 +379,34 @@ function readGpifTempo(gpif) {
     const valueTxt = childText(auto, 'Value');
     if (!valueTxt) continue;
     const parts = valueTxt.trim().split(/\s+/);
-    const bpm = Number(parts[0]);
-    if (!Number.isFinite(bpm) || bpm <= 0) continue;
+    const bpmRaw = Number(parts[0]);
+    if (!Number.isFinite(bpmRaw) || bpmRaw <= 0) continue;
     let unit = 2; // single value or unit 0 → quarter-note BPM
     if (parts.length >= 2) {
       unit = Number(parts[1]);
       if (!Number.isFinite(unit) || unit === 0) unit = 2;
       else if (!(unit in unitToQuarter)) unit = 2;
     }
-    const qBpm = bpm * unitToQuarter[unit];
+    const qBpm = bpmRaw * unitToQuarter[unit];
     const bar = Number(childText(auto, 'Bar'));
     const pos = Number(childText(auto, 'Position')) || 0;
     const rank = (Number.isFinite(bar) ? bar : 999) * 10 + pos;
-    const entry = { bpm: qBpm, rank };
     const type = childText(auto, 'Type') || '';
+    const linearTxt = childText(auto, 'Linear');
+    const linear = /true/i.test(linearTxt);
     if (/tempo/i.test(type)) {
-      if (!bestTempo || rank < bestTempo.rank) bestTempo = entry;
+      const barIndex = Number.isFinite(bar) && bar >= 0 ? bar : 0;
+      const beat = Number.isFinite(pos) && pos >= 0 ? pos : 0;
+      const bpm = Math.max(40, Math.min(320, Math.round(qBpm)));
+      tempoMap.push({ barIndex, beat, bpm, linear });
+      if (!bestTempo || rank < bestTempo.rank) bestTempo = { bpm, rank };
     } else if (!bestAny || rank < bestAny.rank) {
-      bestAny = entry;
+      bestAny = { bpm: qBpm, rank };
     }
   }
-  return (bestTempo || bestAny)?.bpm || 120;
+  tempoMap.sort((a, b) => a.barIndex - b.barIndex || a.beat - b.beat);
+  const tempo = (bestTempo || bestAny)?.bpm || 120;
+  return { tempo, tempoMap };
 }
 
 function readGpifAnacrusis(gpif) {
@@ -420,7 +433,7 @@ function padMeasureToTimeSig({
   return cursor;
 }
 
-/** Build Rhythm id → duration-in-quarters map from <Rhythms>. */
+/** Build Rhythm id → duration and written-value map from <Rhythms>. */
 function readGpifRhythms(gpif) {
   const map = new Map();
   const rhythmsNode = firstChild(gpif, 'Rhythms');
@@ -429,23 +442,207 @@ function readGpifRhythms(gpif) {
     const noteName = childText(node, 'NoteValue') || 'Quarter';
     const denom = GPIF_NOTE_VALUES[noteName] || 4;
     const dotNode = firstChild(node, 'AugmentationDot');
-    const dots = dotNode ? (Number(dotNode.attrs.count) || 1) : 0;
-    const tuplet = firstChild(node, 'PrimaryTuplet');
-    const tupletNum = tuplet ? (Number(tuplet.attrs.num) || 0) : 0;
-    const tupletDen = tuplet ? (Number(tuplet.attrs.den) || 0) : 0;
-    map.set(id, noteValueToQuarters(denom, dots, tupletNum, tupletDen));
+    const dots = dotNode ? Math.max(0, Math.min(2, Number(dotNode.attrs.count) || 1)) : 0;
+    const tupletNode = firstChild(node, 'PrimaryTuplet');
+    const tupletNum = tupletNode ? (Number(tupletNode.attrs.num) || 0) : 0;
+    const tupletDen = tupletNode ? (Number(tupletNode.attrs.den) || 0) : 0;
+    let tuplet = null;
+    if (tupletNum > 0 && tupletDen > 0) tuplet = { num: tupletNum, den: tupletDen };
+    map.set(id, {
+      noteValue: denom,
+      dots,
+      tuplet,
+      duration: noteValueToQuarters(denom, dots, tupletNum, tupletDen),
+    });
   }
   return map;
 }
 
 function beatDurationQuarters(beat, rhythms) {
+  const meta = readBeatRhythmMeta(beat, rhythms);
+  return meta.duration;
+}
+
+function readBeatRhythmMeta(beat, rhythms) {
   const rhythmNode = firstChild(beat, 'Rhythm');
   const ref = rhythmNode ? (rhythmNode.attrs.ref ?? rhythmNode.attrs.id) : null;
   if (ref != null && rhythms.has(ref)) return rhythms.get(ref);
-  // Some GPIF variants put NoteValue directly on the beat.
   const direct = childText(beat, 'NoteValue');
-  if (direct && GPIF_NOTE_VALUES[direct]) return noteValueToQuarters(GPIF_NOTE_VALUES[direct]);
-  return 1; // default to a quarter
+  if (direct && GPIF_NOTE_VALUES[direct]) {
+    const noteValue = GPIF_NOTE_VALUES[direct];
+    return { noteValue, dots: 0, tuplet: null, duration: noteValueToQuarters(noteValue) };
+  }
+  return { noteValue: 4, dots: 0, tuplet: null, duration: 1 };
+}
+
+/** Read repeat and alternate-ending marks from a MasterBar. */
+function readGpifRepeat(mb) {
+  const repeatNode = firstChild(mb, 'Repeat');
+  const altTxt = childText(mb, 'AlternateEndings');
+  let open = false;
+  let closeCount = null;
+  if (repeatNode) {
+    if (repeatNode.attrs.start === 'true' || repeatNode.attrs.start === 'True') open = true;
+    const countAttr = repeatNode.attrs.count;
+    if (countAttr != null && countAttr !== '') {
+      const c = parseInt(countAttr, 10);
+      if (Number.isFinite(c)) closeCount = c;
+    }
+  }
+  let endings = null;
+  if (altTxt) {
+    endings = altTxt.trim().split(/\s+/).map((n) => parseInt(n, 10)).filter((n) => Number.isFinite(n));
+    if (!endings.length) endings = null;
+  }
+  if (!open && closeCount == null && endings == null) return null;
+  return { open, closeCount, endings };
+}
+
+function readPropertyFloat(props, name) {
+  const p = property(props, name);
+  if (!p) return null;
+  const f = firstChild(p, 'Float');
+  if (f && f.text.trim() !== '') return Number(f.text);
+  const n = firstChild(p, 'Number');
+  if (n && n.text.trim() !== '') return Number(n.text);
+  const t = p.text.trim();
+  if (t !== '') return Number(t);
+  return null;
+}
+
+/** Map GPIF bend properties to TabEvent.bend points. */
+function readNoteBend(props) {
+  if (!hasEnabledProperty(props, 'Bended') && readPropertyFloat(props, 'BendOriginValue') == null) return null;
+  const gpToCents = (v) => (Number.isFinite(v) ? v * 2 : 0);
+  const gpToOffset = (v) => Math.max(0, Math.min(1, (Number.isFinite(v) ? v : 0) / 100));
+  const origOff = readPropertyFloat(props, 'BendOriginOffset') ?? 0;
+  const origVal = readPropertyFloat(props, 'BendOriginValue') ?? 0;
+  const midOff1 = readPropertyFloat(props, 'BendMiddleOffset1');
+  const midOff2 = readPropertyFloat(props, 'BendMiddleOffset2');
+  const midVal = readPropertyFloat(props, 'BendMiddleValue');
+  const destOff = readPropertyFloat(props, 'BendDestinationOffset') ?? 100;
+  const destVal = readPropertyFloat(props, 'BendDestinationValue') ?? 0;
+  const points = [];
+  const add = (off, val) => {
+    if (!Number.isFinite(off) || !Number.isFinite(val)) return;
+    points.push({ offset: gpToOffset(off), cents: gpToCents(val) });
+  };
+  add(0, origVal);
+  if (origOff > 0) add(origOff, origVal);
+  if (midOff1 != null && midVal != null) {
+    add(midOff1, midVal);
+    if (midOff2 != null) add(midOff2, midVal);
+  }
+  add(destOff, destVal);
+  add(100, destVal);
+  const uniq = [];
+  for (const p of points) {
+    const last = uniq[uniq.length - 1];
+    if (!last || last.offset !== p.offset || last.cents !== p.cents) uniq.push(p);
+  }
+  if (!uniq.length) return null;
+  return { points: uniq.slice(0, 16) };
+}
+
+/** Map GPIF slide flag bits to slideKind. */
+function readNoteSlideKind(props) {
+  const slideProp = property(props, 'Slide');
+  if (!slideProp) return null;
+  const numTxt = childText(slideProp, 'Number');
+  if (numTxt !== '') {
+    const flags = parseInt(numTxt, 10);
+    if (!Number.isFinite(flags)) return null;
+    if (flags & 1) return 'shift';
+    if (flags & 2) return 'legato';
+    if (flags & 4) return 'outDown';
+    if (flags & 8) return 'outUp';
+    if (flags & 16) return 'intoFromBelow';
+    if (flags & 32) return 'intoFromAbove';
+    return null;
+  }
+  if (hasEnabledProperty(slideProp, 'Enable') || hasEnabledProperty(props, 'Slide')) return 'shift';
+  return null;
+}
+
+function readNoteTie(noteNode, props) {
+  if (hasEnabledProperty(props, 'Tie')) return true;
+  const tieNode = firstChild(noteNode, 'Tie');
+  if (tieNode) {
+    if (tieNode.attrs.destination === 'true' || hasEnabledProperty(tieNode, 'Enable')) return true;
+  }
+  return false;
+}
+
+function readNoteGrace(noteNode) {
+  const grace = firstChild(noteNode, 'Grace');
+  if (!grace) return null;
+  const transition = childText(grace, 'Transition') || null;
+  return { grace: true, graceTransition: transition };
+}
+
+function beatTechniquesFromNode(beat) {
+  const beatTechniques = [];
+  if (firstChild(beat, 'Tremolo')) beatTechniques.push('tremolo');
+  if (firstChild(beat, 'DeadSlapped')) beatTechniques.push('slap');
+  const beatProps = firstChild(beat, 'Properties');
+  if (hasEnabledProperty(beatProps, 'Slapped')) beatTechniques.push('slap');
+  if (hasEnabledProperty(beatProps, 'Popped')) beatTechniques.push('pop');
+  return beatTechniques;
+}
+
+/** Read mixer and instrument data from a GPIF track node. */
+function readGpifTrackInfo(trackNode, isPercussion) {
+  const info = { isPercussion };
+  const midiConn = firstChild(trackNode, 'MidiConnection');
+  if (midiConn) {
+    const ch = childText(midiConn, 'PrimaryChannel');
+    if (ch !== '') info.midiChannel = parseInt(ch, 10);
+  }
+  const generalMidi = firstChild(trackNode, 'GeneralMidi');
+  if (generalMidi) {
+    const prog = childText(generalMidi, 'Program');
+    if (prog !== '') info.program = parseInt(prog, 10);
+    const ch = childText(generalMidi, 'PrimaryChannel');
+    if (ch !== '' && info.midiChannel == null) info.midiChannel = parseInt(ch, 10);
+  }
+  const sounds = firstChild(trackNode, 'Sounds');
+  const soundList = sounds ? childrenNamed(sounds, 'Sound') : [];
+  if (soundList.length) {
+    const midi = firstChild(soundList[0], 'MIDI');
+    const prog = childText(midi, 'Program');
+    if (prog !== '' && info.program == null) info.program = parseInt(prog, 10);
+  }
+  const rse = firstChild(trackNode, 'RSE');
+  const channelStrip = rse ? firstChild(rse, 'ChannelStrip') : null;
+  const paramsNode = channelStrip ? firstChild(channelStrip, 'Parameters') : null;
+  if (paramsNode && paramsNode.text.trim()) {
+    const param = paramsNode.text.trim().split(/\s+/);
+    if (param.length > 11) {
+      const bal = Number(param[11]);
+      if (Number.isFinite(bal)) info.pan = Math.max(-1, Math.min(1, (bal - 0.5) * 2));
+    }
+    if (param.length > 12) {
+      const vol = Number(param[12]);
+      if (Number.isFinite(vol)) info.volume = Math.max(0, Math.min(1, vol));
+    }
+  }
+  const staves = firstChild(trackNode, 'Staves');
+  const staffList = staves ? childrenNamed(staves, 'Staff') : [];
+  for (const staff of staffList.length ? staffList : [trackNode]) {
+    const props = firstChild(staff, 'Properties');
+    const capoProp = property(props, 'CapoFret');
+    if (capoProp) {
+      const capoTxt = childText(capoProp, 'Fret') || capoProp.text.trim();
+      if (capoTxt !== '') info.capo = parseInt(capoTxt, 10);
+    }
+  }
+  const trackProps = firstChild(trackNode, 'Properties');
+  const capoTop = property(trackProps, 'CapoFret');
+  if (capoTop && info.capo == null) {
+    const capoTxt = childText(capoTop, 'Fret') || capoTop.text.trim();
+    if (capoTxt !== '') info.capo = parseInt(capoTxt, 10);
+  }
+  return normalizeTrackInfo(info);
 }
 
 export function gpifToTracks(xml) {
@@ -456,6 +653,7 @@ export function gpifToTracks(xml) {
   const trackNodes = childrenNamed(tracksNode, 'Track');
   if (!trackNodes.length) throw new Error('guitarPro: no tracks found in the score');
 
+  const { tempo, tempoMap } = readGpifTempo(gpif);
   const shared = {
     bars: indexById(firstChild(gpif, 'Bars'), 'Bar'),
     voices: indexById(firstChild(gpif, 'Voices'), 'Voice'),
@@ -463,7 +661,8 @@ export function gpifToTracks(xml) {
     notes: indexById(firstChild(gpif, 'Notes'), 'Note'),
     masterBars: childrenNamed(firstChild(gpif, 'MasterBars'), 'MasterBar'),
     rhythms: readGpifRhythms(gpif),
-    tempo: readGpifTempo(gpif),
+    tempo,
+    tempoMap,
     anacrusis: readGpifAnacrusis(gpif),
   };
 
@@ -486,12 +685,17 @@ export function gpifToTracks(xml) {
 
 /** Build a PercussionModel for a GPIF drum track (no string tuning). */
 function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
-  const { bars, voices, beats, notes, masterBars, rhythms, tempo, anacrusis } = shared;
+  const { bars, voices, beats, notes, masterBars, rhythms, tempo, tempoMap, anacrusis } = shared;
   const articulations = readPercussionArticulations(trackNode);
+  const trackInfo = readGpifTrackInfo(trackNode, true);
   const rawEvents = [];
   const measureBeats = [];
+  const modelBeats = [];
+  const modelRests = [];
   const warnings = [];
   let cursor = 0;
+  let measureIndex = 0;
+  let maxVoiceCount = 0;
 
   for (const mb of masterBars) {
     const barRefs = childText(mb, 'Bars').split(/\s+/).filter(Boolean);
@@ -510,10 +714,13 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
       if (parts.length === 2 && parts.every((n) => Number.isFinite(n))) timeSig = parts;
     }
 
+    const repeat = readGpifRepeat(mb);
     const voiceRefs = childText(bar, 'Voices').split(/\s+/).filter((v) => v && v !== '-1');
+    maxVoiceCount = Math.max(maxVoiceCount, voiceRefs.length);
     let measureCursor = measureStartBeat;
     let advanced = false;
-    for (const voiceRef of voiceRefs) {
+    for (let vi = 0; vi < voiceRefs.length; vi += 1) {
+      const voiceRef = voiceRefs[vi];
       const voice = voices.get(voiceRef);
       if (!voice) continue;
       let voiceCursor = measureStartBeat;
@@ -521,30 +728,67 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
       for (const beatId of beatRefs) {
         const beat = beats.get(beatId);
         if (!beat) continue;
-        const duration = beatDurationQuarters(beat, rhythms);
+        const rhythmMeta = readBeatRhythmMeta(beat, rhythms);
+        const duration = rhythmMeta.duration;
+        const beatStart = voiceCursor;
         const beatDyn = childText(beat, 'Dynamic');
+        const beatTechniques = beatTechniquesFromNode(beat);
         const noteRefs = childText(beat, 'Notes').split(/\s+/).filter(Boolean);
-        for (const noteId of noteRefs) {
-          const note = notes.get(noteId);
-          if (!note) continue;
-          const resolved = resolveGpifPercussionNote(note, articulations);
-          if (!resolved) continue;
-          const dynTxt = beatDyn
-            || childText(note, 'Dynamic')
-            || childText(firstChild(note, 'Dynamic'), 'Value');
-          const velocity = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
-          const instrument = midiToDrumInstrument(resolved.midi, {
-            velocity,
-            ghost: resolved.ghost,
-          });
-          if (!instrument) continue;
-          rawEvents.push({
-            start: voiceCursor,
+        const isRest = noteRefs.length === 0;
+        if (isRest) {
+          const restEntry = {
+            measureIndex,
+            voiceIndex: vi,
+            start: beatStart,
             duration,
-            instrument,
-            velocity,
-            midi: resolved.midi,
-            accent: resolved.accent,
+            noteValue: rhythmMeta.noteValue,
+            dots: rhythmMeta.dots,
+            tuplet: rhythmMeta.tuplet,
+          };
+          modelRests.push(restEntry);
+          modelBeats.push({
+            ...restEntry,
+            rest: true,
+            techniques: beatTechniques,
+            noteIndices: [],
+          });
+        } else {
+          const noteIndices = [];
+          for (const noteId of noteRefs) {
+            const note = notes.get(noteId);
+            if (!note) continue;
+            const resolved = resolveGpifPercussionNote(note, articulations);
+            if (!resolved) continue;
+            const dynTxt = beatDyn
+              || childText(note, 'Dynamic')
+              || childText(firstChild(note, 'Dynamic'), 'Value');
+            const velocity = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
+            const instrument = midiToDrumInstrument(resolved.midi, {
+              velocity,
+              ghost: resolved.ghost,
+            });
+            if (!instrument) continue;
+            noteIndices.push(rawEvents.length);
+            rawEvents.push({
+              start: beatStart,
+              duration,
+              instrument,
+              velocity,
+              midi: resolved.midi,
+              accent: resolved.accent,
+            });
+          }
+          modelBeats.push({
+            measureIndex,
+            voiceIndex: vi,
+            start: beatStart,
+            duration,
+            noteValue: rhythmMeta.noteValue,
+            dots: rhythmMeta.dots,
+            tuplet: rhythmMeta.tuplet,
+            rest: false,
+            techniques: beatTechniques,
+            noteIndices,
           });
         }
         voiceCursor += duration;
@@ -569,31 +813,48 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
       endBeat: measureCursor,
       marker,
       timeSig: timeSig || undefined,
+      repeat: repeat || undefined,
     });
     cursor = measureCursor;
+    measureIndex += 1;
   }
 
   const events = assignPercussionSlots(rawEvents);
   const measures = deriveMeasureSlotSpans(measureBeats, events);
 
   if (!events.length) warnings.push('The percussion track had no mappable drum hits.');
-  return makePercussionModel({ name, tempo, events, measures, warnings });
+  const voiceCount = Math.max(1, Math.min(4, maxVoiceCount || 1));
+  const out = makePercussionModel({ name, tempo, events, measures, warnings });
+  out.trackInfo = trackInfo;
+  out.voiceCount = voiceCount;
+  if (modelBeats.length) out.beats = modelBeats;
+  if (modelRests.length) out.rests = modelRests;
+  if (tempoMap.length) out.tempoMap = tempoMap;
+  return out;
 }
 
 // Build one track's TabModel from the shared GPIF collections.
 function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
-  const { bars, voices, beats, notes, masterBars, rhythms, tempo, anacrusis } = shared;
-  const strings = openMidis.map((m) => { const s = midiToNoteOct(m); return { note: s.note, oct: s.oct, label: s.note, openMidi: m }; });
+  const { bars, voices, beats, notes, masterBars, rhythms, tempo, tempoMap, anacrusis } = shared;
+  const strings = openMidis.map((m) => {
+    const s = midiToNoteOct(m);
+    return { note: s.note, oct: s.oct, label: s.note, openMidi: m };
+  });
   const tuningName = matchTuningName(openMidis) || 'Custom';
+  const trackInfo = readGpifTrackInfo(trackNode, false);
 
   const events = [];
+  const modelBeats = [];
+  const modelRests = [];
   const measures = [];
   const techniqueCounts = {};
   const warnings = [];
-  const lastFretByString = new Map(); // for hammer/pull direction
+  const lastFretByString = new Map();
 
   let slot = 0;
-  let cursor = 0; // absolute position in quarter-note units
+  let cursor = 0;
+  let measureIndex = 0;
+  let maxVoiceCount = 0;
   for (const mb of masterBars) {
     const barRefs = childText(mb, 'Bars').split(/\s+/).filter(Boolean);
     const barId = barRefs[trackIndex] != null ? barRefs[trackIndex] : barRefs[0];
@@ -613,67 +874,155 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
       if (parts.length === 2 && parts.every((n) => Number.isFinite(n))) timeSig = parts;
     }
 
-    // First playable voice (GP marks empty voices as -1).
+    const repeat = readGpifRepeat(mb);
     const voiceRefs = childText(bar, 'Voices').split(/\s+/).filter((v) => v && v !== '-1');
-    const voice = voiceRefs.map((v) => voices.get(v)).find(Boolean);
+    maxVoiceCount = Math.max(maxVoiceCount, voiceRefs.length);
+    const beatStartToSlot = new Map();
     let advanced = false;
-    if (voice) {
+
+    for (let vi = 0; vi < voiceRefs.length; vi += 1) {
+      const voiceRef = voiceRefs[vi];
+      const voice = voices.get(voiceRef);
+      if (!voice) continue;
+      let voiceCursor = measureStartBeat;
       const beatRefs = childText(voice, 'Beats').split(/\s+/).filter(Boolean);
+
       for (const beatId of beatRefs) {
         const beat = beats.get(beatId);
         if (!beat) continue;
-        const duration = beatDurationQuarters(beat, rhythms);
-        const beatTechniques = [];
-        if (firstChild(beat, 'Tremolo')) beatTechniques.push('tremolo');
-        if (firstChild(beat, 'DeadSlapped')) beatTechniques.push('slap');
-        const beatProps = firstChild(beat, 'Properties');
-        if (hasEnabledProperty(beatProps, 'Slapped')) beatTechniques.push('slap');
-        if (hasEnabledProperty(beatProps, 'Popped')) beatTechniques.push('pop');
-
+        const rhythmMeta = readBeatRhythmMeta(beat, rhythms);
+        const duration = rhythmMeta.duration;
+        const beatStart = voiceCursor;
+        const beatTechniques = beatTechniquesFromNode(beat);
+        const beatDyn = childText(beat, 'Dynamic');
         const noteRefs = childText(beat, 'Notes').split(/\s+/).filter(Boolean);
-        let placedInSlot = false;
-        for (const noteId of noteRefs) {
-          const note = notes.get(noteId);
-          if (!note) continue;
-          const props = firstChild(note, 'Properties');
-          const fretTxt = childText(property(props, 'Fret'), 'Fret');
-          const strTxt = childText(property(props, 'String'), 'String');
-          const midiTxt = childText(property(props, 'Midi'), 'Number');
-          const fret = fretTxt === '' ? null : parseInt(fretTxt, 10);
-          const stringIndex = strTxt === '' ? 0 : parseInt(strTxt, 10);
-          const { techniques, dead, hopoOrigin } = techniquesForNote(note, beatTechniques);
+        const isRest = noteRefs.length === 0;
+        const beatIndex = modelBeats.length;
 
-          let midi = midiTxt === '' ? null : parseInt(midiTxt, 10);
-          if (midi == null && fret != null && strings[stringIndex]) midi = strings[stringIndex].openMidi + fret;
-
-          // A note flagged as a HOPO origin connects to the next note on the
-          // same string; classify the link as hammer-on (up) or pull-off (down).
-          const prev = lastFretByString.get(stringIndex);
-          if (prev && prev.hopo && midi != null && prev.midi != null) {
-            const t = midi >= prev.midi ? 'hammer' : 'pull';
-            if (!techniques.includes(t)) techniques.push(t);
-          }
-          if (midi != null) lastFretByString.set(stringIndex, { midi, hopo: hopoOrigin });
-
-          for (const t of techniques) techniqueCounts[t] = (techniqueCounts[t] || 0) + 1;
-
-          const base = {
-            slot, stringIndex, start: cursor, duration,
-            techniques, dead: !!(dead || midi == null),
-          };
-          if (dead || midi == null) {
-            events.push({ ...base, fret: dead ? null : fret, midi: null, pc: null, dead: true });
-          } else {
-            events.push({ ...base, fret, midi, pc: ((midi % 12) + 12) % 12, dead: false });
-          }
-          placedInSlot = true;
+        let eventSlot;
+        if (vi === 0) {
+          eventSlot = slot;
+          beatStartToSlot.set(beatStart, eventSlot);
+        } else {
+          eventSlot = beatStartToSlot.get(beatStart);
+          if (eventSlot == null) eventSlot = slot;
         }
-        // Rests and empty beats still advance musical time.
-        if (placedInSlot || noteRefs.length === 0) {
+
+        if (isRest) {
+          const restEntry = {
+            measureIndex,
+            voiceIndex: vi,
+            start: beatStart,
+            duration,
+            noteValue: rhythmMeta.noteValue,
+            dots: rhythmMeta.dots,
+            tuplet: rhythmMeta.tuplet,
+          };
+          modelRests.push(restEntry);
+          modelBeats.push({
+            ...restEntry,
+            rest: true,
+            techniques: beatTechniques,
+            noteIndices: [],
+          });
+        } else {
+          const noteIndices = [];
+          for (const noteId of noteRefs) {
+            const note = notes.get(noteId);
+            if (!note) continue;
+            const props = firstChild(note, 'Properties');
+            const fretTxt = childText(property(props, 'Fret'), 'Fret');
+            const strTxt = childText(property(props, 'String'), 'String');
+            const midiTxt = childText(property(props, 'Midi'), 'Number');
+            let fret = fretTxt === '' ? null : parseInt(fretTxt, 10);
+            const stringIndex = strTxt === '' ? 0 : parseInt(strTxt, 10);
+            const { techniques, dead, hopoOrigin } = techniquesForNote(note, beatTechniques);
+            const isTie = readNoteTie(note, props);
+            const graceInfo = readNoteGrace(note);
+            const bend = readNoteBend(props);
+            const slideKind = readNoteSlideKind(props);
+
+            let midi = midiTxt === '' ? null : parseInt(midiTxt, 10);
+            const prev = lastFretByString.get(stringIndex);
+            if (isTie && prev) {
+              if (fret == null) fret = prev.fret;
+              if (midi == null) midi = prev.midi;
+            }
+            if (midi == null && fret != null && strings[stringIndex]) {
+              midi = strings[stringIndex].openMidi + fret;
+            }
+
+            if (prev && prev.hopo && midi != null && prev.midi != null) {
+              const t = midi >= prev.midi ? 'hammer' : 'pull';
+              if (!techniques.includes(t)) techniques.push(t);
+            }
+            if (midi != null) lastFretByString.set(stringIndex, { midi, hopo: hopoOrigin, fret });
+
+            const dynTxt = beatDyn
+              || childText(note, 'Dynamic')
+              || childText(firstChild(note, 'Dynamic'), 'Value');
+            const velocity = clampVelocity(dynamicsToVelocity(dynTxt === '' ? null : dynTxt));
+
+            for (const t of techniques) techniqueCounts[t] = (techniqueCounts[t] || 0) + 1;
+
+            const base = {
+              slot: eventSlot,
+              stringIndex,
+              start: beatStart,
+              duration,
+              techniques,
+              dead: !!(dead || midi == null),
+              voiceIndex: vi,
+              beatIndex,
+              velocity,
+            };
+            if (isTie) base.tie = true;
+            if (graceInfo) {
+              base.grace = graceInfo.grace;
+              if (graceInfo.graceTransition) base.graceTransition = graceInfo.graceTransition;
+            }
+            if (bend) base.bend = bend;
+            if (slideKind) base.slideKind = slideKind;
+
+            if (dead || midi == null) {
+              events.push({
+                ...base,
+                fret: dead ? null : fret,
+                midi: null,
+                pc: null,
+                dead: true,
+              });
+            } else {
+              events.push({
+                ...base,
+                fret,
+                midi,
+                pc: ((midi % 12) + 12) % 12,
+                dead: false,
+              });
+            }
+            noteIndices.push(events.length - 1);
+          }
+          modelBeats.push({
+            measureIndex,
+            voiceIndex: vi,
+            start: beatStart,
+            duration,
+            noteValue: rhythmMeta.noteValue,
+            dots: rhythmMeta.dots,
+            tuplet: rhythmMeta.tuplet,
+            rest: false,
+            techniques: beatTechniques,
+            noteIndices,
+          });
+        }
+
+        if (vi === 0 && (isRest || noteRefs.length > 0)) {
           slot += 1;
           cursor += duration;
           advanced = true;
         }
+        voiceCursor += duration;
       }
     }
     if (!advanced) {
@@ -697,7 +1046,9 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
       endBeat: cursor,
       marker,
       timeSig: timeSig || undefined,
+      repeat: repeat || undefined,
     });
+    measureIndex += 1;
   }
 
   events.sort((a, b) => (a.slot - b.slot) || (a.stringIndex - b.stringIndex));
@@ -705,7 +1056,8 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
     warnings.push('The Guitar Pro track had no playable notes on the analyzed staff.');
   }
 
-  return {
+  const voiceCount = Math.max(1, Math.min(4, maxVoiceCount || 1));
+  const out = {
     tuning: tuningName,
     strings,
     events,
@@ -715,7 +1067,13 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
     totalBeats: cursor,
     techniqueCounts,
     warnings,
+    trackInfo,
+    voiceCount,
   };
+  if (tempoMap.length) out.tempoMap = tempoMap;
+  if (modelBeats.length) out.beats = modelBeats;
+  if (modelRests.length) out.rests = modelRests;
+  return out;
 }
 
 // ---- ASCII rendering (for the editable textarea / previews) ----------------
@@ -804,24 +1162,38 @@ function assembleResult(format, rawTracks, totalTracks) {
   if (!fretted.length && !drumRaw.length) {
     throw new Error('This Guitar Pro file has no fretted (tab) or drum part to import.');
   }
-  const tracks = fretted.map((t, i) => ({
-    index: i,
-    sourceIndex: t.index,
-    name: t.name,
-    tuning: t.model.tuning,
-    tuningPitches: t.tuningPitches,
-    model: t.model,
-    ascii: modelToAsciiTab(t.model),
-    noteCount: t.model.events.filter((e) => e.fret != null || e.dead).length,
-  }));
-  const drumTracks = drumRaw.map((t, i) => ({
-    index: i,
-    sourceIndex: t.index,
-    name: t.name,
-    model: t.model,
-    hitCount: (t.model.events || []).length,
-    tempo: t.model.tempo,
-  }));
+  const warnings = [];
+  const mergeModelWarnings = (name, model) => {
+    for (const w of (model?.warnings || [])) warnings.push(`${name}: ${w}`);
+  };
+  const tracks = fretted.map((t, i) => {
+    mergeModelWarnings(t.name, t.model);
+    const ti = normalizeTrackInfo(t.model?.trackInfo);
+    return {
+      index: i,
+      sourceIndex: t.index,
+      name: t.name,
+      tuning: t.model.tuning,
+      tuningPitches: t.tuningPitches,
+      model: t.model,
+      ascii: modelToAsciiTab(t.model),
+      noteCount: t.model.events.filter((e) => e.fret != null || e.dead).length,
+      program: ti.program,
+      volume: ti.volume,
+      pan: ti.pan,
+    };
+  });
+  const drumTracks = drumRaw.map((t, i) => {
+    mergeModelWarnings(t.name, t.model);
+    return {
+      index: i,
+      sourceIndex: t.index,
+      name: t.name,
+      model: t.model,
+      hitCount: (t.model.events || []).length,
+      tempo: t.model.tempo,
+    };
+  });
   // Index analyzable fretted tracks by their source position for the parts list.
   const analyzableBySource = new Map(tracks.map((t) => [t.sourceIndex, t.index]));
   const drumBySource = new Map(drumTracks.map((t) => [t.sourceIndex, t.index]));
@@ -862,6 +1234,7 @@ function assembleResult(format, rawTracks, totalTracks) {
     model: def ? def.model : null,
     ascii: def ? def.ascii : '',
     meta,
+    warnings,
   };
 }
 

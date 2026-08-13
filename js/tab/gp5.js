@@ -14,7 +14,7 @@
 // desynchronize everything after it.
 
 import { NOTE_NAMES_SHARP, TUNINGS } from '../theory.js';
-import { gp5DurationToQuarters } from './tabModel.js';
+import { gp5DurationToQuarters, clampVelocity, normalizeTrackInfo } from './tabModel.js';
 import {
   midiToDrumInstrument,
   normalizeGp5PercussionMidi,
@@ -80,11 +80,16 @@ function readColor(r) { r.skip(4); }                       // r,g,b,blank
 function readMarker(r) { const name = r.intByteSizeString(); readColor(r); return name; }
 
 function readMidiChannels(r) {
+  const channels = [];
   for (let i = 0; i < 64; i++) {
-    r.i32();                       // instrument
-    r.skip(6);                     // volume,balance,chorus,reverb,phaser,tremolo
+    const instrument = r.i32();
+    const volume = r.u8();
+    const balance = r.u8();
+    r.skip(4);                     // chorus,reverb,phaser,tremolo
     r.skip(2);                     // 3.0 backward-compat blanks
+    channels.push({ instrument, volume, balance });
   }
+  return channels;
 }
 
 function readDirections(r) { for (let i = 0; i < 19; i++) r.i16(); }
@@ -100,25 +105,43 @@ function readRSEInstrumentEffect(r, ctx) {
 
 // Returns { marker, timeSig } where marker is the section label starting at
 // this measure (or null). The label is what Guitar Pro shows above the staff.
+function decodeEndingsMask(mask) {
+  const out = [];
+  for (let i = 0; i < 8; i++) {
+    if (mask & (1 << i)) out.push(i + 1);
+  }
+  return out.length ? out : null;
+}
+
 function readMeasureHeader(r, ctx, isFirst) {
   if (!isFirst) r.skip(1);
   const flags = r.u8();
   let marker = null;
   let numerator = null;
   let denominator = null;
+  const open = !!(flags & 0x04);
   if (flags & 0x01) numerator = r.i8();
   if (flags & 0x02) denominator = r.i8();
-  if (flags & 0x08) r.i8();        // repeat close count
+  let closeCount = null;
+  if (flags & 0x08) {
+    const raw = r.i8();
+    if (raw > 0) closeCount = raw;
+  }
   if (flags & 0x20) marker = readMarker(r) || null;
   if (flags & 0x40) { r.i8(); r.i8(); } // key signature
-  if (flags & 0x10) r.u8();        // repeat alternative
+  let endings = null;
+  if (flags & 0x10) endings = decodeEndingsMask(r.u8());
   if (flags & 0x03) r.skip(4);     // time-signature beams
   if ((flags & 0x10) === 0) r.skip(1);
   r.u8();                          // triplet feel
   const timeSig = (numerator != null && denominator != null)
     ? [numerator, denominator]
     : null;
-  return { marker, timeSig };
+  let repeat = null;
+  if (open || closeCount != null || endings != null) {
+    repeat = { open, closeCount, endings };
+  }
+  return { marker, timeSig, repeat };
 }
 
 // Read one track's header, returning its tuning (MIDI open pitches, high->low)
@@ -134,11 +157,11 @@ function readTrack(r, ctx, trackNumber) {
     const t = r.i32();
     if (i < stringCount) tuning.push(t);
   }
-  r.i32();                         // port
+  const port = r.i32();
   const channel = r.i32() - 1;     // channel index
   r.i32();                         // effect channel
   r.i32();                         // fret count
-  r.i32();                         // capo
+  const capo = r.i32();
   readColor(r);
   r.i16();                         // flags2 (display settings)
   r.u8();                          // auto accentuation
@@ -153,7 +176,71 @@ function readTrack(r, ctx, trackNumber) {
     r.skip(4);                     // 3-band equalizer (4 signed bytes)
     readRSEInstrumentEffect(r, ctx);
   }
-  return { number: trackNumber, name, tuning, stringCount, isPercussion: isPercussion || channel === 9 };
+  return {
+    number: trackNumber,
+    name,
+    tuning,
+    stringCount,
+    isPercussion: isPercussion || channel === 9,
+    channel,
+    port,
+    capo,
+  };
+}
+
+// ---- rhythm helpers --------------------------------------------------------
+
+function gp5DurationToNoteValue(durationByte) {
+  const d = Number(durationByte);
+  if (!Number.isFinite(d)) return 4;
+  return Math.pow(2, d + 2);
+}
+
+function gp5TupletToRatio(tuplet) {
+  const t = Number(tuplet) || 0;
+  if (t <= 0) return null;
+  if (t === 3) return { num: 3, den: 2 };
+  const den = t === 6 ? 4 : Math.pow(2, Math.floor(Math.log2(t)));
+  return { num: t, den };
+}
+
+/** GP5 dynamics byte 1 = ppp through 9 = fff; default 6 = f. */
+const GP5_DYNAMICS_VELOCITY = [0.30, 0.40, 0.50, 0.62, 0.74, 0.78, 0.86, 0.94, 1.0];
+
+function gp5DynamicsToVelocity(dynamics) {
+  if (dynamics == null) return clampVelocity(undefined);
+  const d = Number(dynamics);
+  if (!Number.isFinite(d)) return clampVelocity(undefined);
+  if (d >= 1 && d <= 9) return clampVelocity(GP5_DYNAMICS_VELOCITY[d - 1]);
+  return clampVelocity(d);
+}
+
+function mapSlideKind(slideByte) {
+  const b = Number(slideByte) || 0;
+  if (!b) return null;
+  if (b & 0x01) return 'shift';
+  if (b & 0x02) return 'legato';
+  if (b & 0x10) return 'intoFromBelow';
+  if (b & 0x20) return 'intoFromAbove';
+  if (b & 0x04) return 'outDown';
+  if (b & 0x08) return 'outUp';
+  return null;
+}
+
+function buildTrackInfo(track, ctx) {
+  const ch = (ctx.midiChannels && track.channel != null)
+    ? ctx.midiChannels[track.channel]
+    : null;
+  const volumeRaw = ch?.volume;
+  const balanceRaw = ch?.balance;
+  return normalizeTrackInfo({
+    program: ch?.instrument ?? 0,
+    midiChannel: track.channel ?? 0,
+    isPercussion: track.isPercussion,
+    volume: Number.isFinite(volumeRaw) ? volumeRaw / 127 : undefined,
+    pan: Number.isFinite(balanceRaw) ? (balanceRaw - 64) / 64 : undefined,
+    capo: track.capo ?? 0,
+  });
 }
 
 // ---- note / beat effect readers --------------------------------------------
@@ -161,11 +248,32 @@ function readTrack(r, ctx, trackNumber) {
 function readBend(r) {
   r.i8();                          // type
   r.i32();                         // value
-  const points = r.i32();
-  for (let i = 0; i < points; i++) { r.i32(); r.i32(); r.bool(); }
+  const pointCount = r.i32();
+  const points = [];
+  for (let i = 0; i < pointCount; i++) {
+    const position = r.i32();
+    const value = r.i32();
+    r.bool();
+    if (position >= 0 && position <= 60 && Number.isFinite(value)) {
+      points.push({ offset: position / 60, cents: value });
+    }
+  }
+  if (!points.length) return null;
+  return { points };
 }
 
-function readGrace(r) { r.skip(5); } // fret, velocity, transition, duration, flags
+function readGrace(r) {
+  const fret = r.i8();
+  r.i8();                          // velocity
+  const transition = r.i8();
+  r.i8();                          // duration
+  r.u8();                          // flags
+  const transitions = { 0: null, 1: 'slide', 2: 'bend', 3: 'hammer' };
+  return {
+    fret,
+    graceTransition: transitions[transition] || null,
+  };
+}
 
 function readTremoloPicking(r) { r.i8(); }
 
@@ -186,15 +294,24 @@ function readNoteEffects(r) {
   const flags1 = r.i8();
   const flags2 = r.i8();
   const hopo = !!(flags1 & 0x02);
+  let bend = null;
+  let slideKind = null;
+  let graceInfo = null;
   if (flags2 & 0x02) techniques.add('palmMute');
   if (flags2 & 0x40) techniques.add('vibrato');
-  if (flags1 & 0x01) { readBend(r); techniques.add('bend'); }
-  if (flags1 & 0x10) readGrace(r);
+  if (flags1 & 0x01) {
+    bend = readBend(r);
+    techniques.add('bend');
+  }
+  if (flags1 & 0x10) graceInfo = readGrace(r);
   if (flags2 & 0x04) { readTremoloPicking(r); techniques.add('tremolo'); }
-  if (flags2 & 0x08) { readSlides(r); techniques.add('slide'); }
+  if (flags2 & 0x08) {
+    slideKind = mapSlideKind(readSlides(r));
+    techniques.add('slide');
+  }
   if (flags2 & 0x10) { readHarmonic(r); techniques.add('harmonic'); }
   if (flags2 & 0x20) { readTrill(r); techniques.add('trill'); }
-  return { techniques, hopo };
+  return { techniques, hopo, bend, slideKind, graceInfo };
 }
 
 // Beat effects precede the notes; returns techniques that apply to every note
@@ -260,10 +377,16 @@ function readMixTableChange(r, ctx) {
   if (reverb >= 0) r.i8();
   if (phaser >= 0) r.i8();
   if (tremolo >= 0) r.i8();
-  if (tempo >= 0) { r.i8(); if (!ctx.v500) r.bool(); }
+  let tempoChange = null;
+  if (tempo >= 0) {
+    r.i8();                         // duration byte
+    const linear = !ctx.v500 ? r.bool() : false;
+    tempoChange = { bpm: tempo, linear };
+  }
   r.i8();                           // flags (all-tracks / RSE / wah)
   r.i8();                           // wah value
   readRSEInstrumentEffect(r, ctx);
+  return tempoChange;
 }
 
 // ---- note & beat --------------------------------------------------------
@@ -295,14 +418,32 @@ function readNote(r, ctx, track, number, beatTechniques) {
   if (flags & 0x80) { r.i8(); r.i8(); } // fingering
   if (flags & 0x01) r.f64();        // duration percent
   r.u8();                           // flags2 (swap accidentals)
-  let effects = { techniques: new Set(beatTechniques), hopo: false };
+  let effects = {
+    techniques: new Set(beatTechniques),
+    hopo: false,
+    bend: null,
+    slideKind: null,
+    graceInfo: null,
+  };
   if (flags & 0x08) {
     const e = readNoteEffects(r);
     e.techniques.forEach((t) => effects.techniques.add(t));
     effects.hopo = e.hopo;
+    effects.bend = e.bend;
+    effects.slideKind = e.slideKind;
+    effects.graceInfo = e.graceInfo;
   }
   const techniques = [...effects.techniques];
-  const noteFields = { accent, ghost, techniques, hopo: effects.hopo, dynamics };
+  const noteFields = {
+    accent,
+    ghost,
+    techniques,
+    hopo: effects.hopo,
+    dynamics,
+    bend: effects.bend,
+    slideKind: effects.slideKind,
+    graceInfo: effects.graceInfo,
+  };
   if (type === 2) return { number, tie: true, fret: null, midi: null, dead: false, ...noteFields };
   const dead = type === 3;
   if (dead) return { number, fret: null, midi: null, dead: true, ...noteFields };
@@ -321,7 +462,10 @@ function readNote(r, ctx, track, number, beatTechniques) {
 function readBeat(r, ctx, track) {
   const flags = r.u8();
   let empty = false;
-  if (flags & 0x40) { const status = r.u8(); empty = status === 0; } // 0 empty, 2 rest
+  if (flags & 0x40) {
+    const status = r.u8();
+    empty = status === 0 || status === 2; // 0 empty, 2 rest
+  }
   const durationByte = r.i8();
   let tuplet = 0;
   if (flags & 0x20) tuplet = r.i32();
@@ -331,12 +475,22 @@ function readBeat(r, ctx, track) {
   if (flags & 0x04) r.intByteSizeString(); // text
   let beatTechniques = [];
   if (flags & 0x08) beatTechniques = readBeatEffects(r);
-  if (flags & 0x10) readMixTableChange(r, ctx);
+  let mixTempo = null;
+  if (flags & 0x10) mixTempo = readMixTableChange(r, ctx);
   const notes = readNotes(r, ctx, track, beatTechniques);
   // gp5 trailing beat display flags
   const flags2 = r.i16();
   if (flags2 & 0x0800) r.u8();      // break secondary beams count
-  return { notes, empty, duration, dotted };
+  return {
+    notes,
+    empty,
+    duration,
+    dotted,
+    durationByte,
+    tuplet,
+    beatTechniques,
+    mixTempo,
+  };
 }
 
 // Read one measure (2 voices). Returns array of voices, each an array of beats.
@@ -391,7 +545,7 @@ export function parseGp5Tracks(input) {
   const version = r.version();
   const vt = parseVersionTuple(version);
   if (!vt || vt.major !== 5) throw new Error('gp5: not a Guitar Pro 5 file');
-  const ctx = { v500: vt.minor === 0 };
+  const ctx = { v500: vt.minor === 0, midiChannels: null };
 
   try {
     readInfo(r);
@@ -403,7 +557,7 @@ export function parseGp5Tracks(input) {
     if (!ctx.v500) r.bool();        // hide tempo
     r.i8();                         // key
     r.i32();                        // octave
-    readMidiChannels(r);
+    ctx.midiChannels = readMidiChannels(r);
     readDirections(r);
     r.i32();                        // master reverb
     const measureCount = r.i32();
@@ -428,7 +582,7 @@ export function parseGp5Tracks(input) {
     const scoreTempo = Number.isFinite(tempo) && tempo > 0 ? tempo : 120;
     const built = tracks.map((track, i) => {
       if (track.isPercussion) {
-        const model = buildPercussionModel(track, measuresByTrack[i], measureHeaders, scoreTempo);
+        const model = buildPercussionModel(track, measuresByTrack[i], measureHeaders, scoreTempo, ctx);
         return {
           index: i,
           name: track.name || `Track ${i + 1}`,
@@ -448,7 +602,7 @@ export function parseGp5Tracks(input) {
           tuningPitches: [],
         };
       }
-      const model = buildModel(track, measuresByTrack[i], measureHeaders, scoreTempo);
+      const model = buildModel(track, measuresByTrack[i], measureHeaders, scoreTempo, ctx);
       return { index: i, name: track.name || `Track ${i + 1}`, fretted: true, isPercussion: false, model, tuningPitches: track.tuning.slice().reverse() };
     });
     return { tracks: built, version, tempo: scoreTempo };
@@ -471,46 +625,200 @@ export function parseGp5(input) {
   return { model: def.model, meta: { trackName: def.name, tracks: tracks.length, tuningPitches: def.tuningPitches, version } };
 }
 
-function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120) {
+function emitGuitarNoteEvent({
+  n, stringCount, track, voiceCursor, currentSlot, duration,
+  voiceIndex, beatIndex, lastByString, techniqueCounts, events,
+}) {
+  const lowIndex = stringCount - n.number;
+  const techniques = n.techniques.slice();
+  const prev = lastByString.get(lowIndex);
+  let { fret, midi } = n;
+  if (n.tie && prev) { fret = prev.fret; midi = prev.midi; }
+  if (prev && prev.hopo && midi != null && prev.midi != null) {
+    const t = midi >= prev.midi ? 'hammer' : 'pull';
+    if (!techniques.includes(t)) techniques.push(t);
+  }
+  if (midi != null || n.dead) lastByString.set(lowIndex, { midi, fret, hopo: n.hopo });
+  if (n.dead) techniques.push('dead');
+  for (const t of techniques) techniqueCounts[t] = (techniqueCounts[t] || 0) + 1;
+
+  const base = {
+    slot: currentSlot,
+    stringIndex: lowIndex,
+    start: voiceCursor,
+    duration,
+    voiceIndex,
+    beatIndex,
+    velocity: gp5DynamicsToVelocity(n.dynamics),
+    techniques,
+  };
+  if (n.tie) base.tie = true;
+  if (n.bend) base.bend = n.bend;
+  if (n.slideKind) base.slideKind = n.slideKind;
+
+  if (n.dead || midi == null) {
+    events.push({ ...base, fret: n.dead ? null : fret, midi: null, pc: null, dead: true });
+    return events.length - 1;
+  }
+  events.push({
+    ...base,
+    fret,
+    midi,
+    pc: ((midi % 12) + 12) % 12,
+    dead: false,
+  });
+  return events.length - 1;
+}
+
+function emitGraceGuitarEvent({
+  n, number, stringCount, track, voiceCursor, currentSlot,
+  voiceIndex, beatIndex, events, warnings,
+}) {
+  if (!n.graceInfo) return;
+  const open = track.tuning[number - 1];
+  if (open == null) {
+    warnings.push('A grace note had no open string pitch for string ' + number + '.');
+    return;
+  }
+  const gFret = n.graceInfo.fret;
+  const midi = open + gFret;
+  const lowIndex = stringCount - number;
+  events.push({
+    slot: currentSlot,
+    stringIndex: lowIndex,
+    fret: gFret,
+    midi,
+    pc: ((midi % 12) + 12) % 12,
+    dead: false,
+    start: voiceCursor,
+    duration: 0,
+    voiceIndex,
+    beatIndex,
+    grace: true,
+    graceTransition: n.graceInfo.graceTransition,
+    velocity: gp5DynamicsToVelocity(n.dynamics),
+    techniques: [],
+  });
+}
+
+function pushGp5BeatRhythm({
+  beat, measureIndex, voiceIndex, voiceCursor, measureStartBeat,
+  beats, rests, tempoMap, beatTechniques,
+}) {
+  const duration = Number.isFinite(beat.duration) && beat.duration > 0 ? beat.duration : 1;
+  const noteValue = gp5DurationToNoteValue(beat.durationByte);
+  const dots = beat.dotted ? 1 : 0;
+  const tuplet = gp5TupletToRatio(beat.tuplet);
+  const rhythm = { duration, noteValue, dots, tuplet };
+
+  if (beat.mixTempo) {
+    const bpm = Number(beat.mixTempo.bpm);
+    if (Number.isFinite(bpm) && bpm >= 40 && bpm <= 320) {
+      tempoMap.push({
+        barIndex: measureIndex,
+        beat: voiceCursor - measureStartBeat,
+        bpm,
+        linear: !!beat.mixTempo.linear,
+      });
+    }
+  }
+
+  const techs = beatTechniques.length ? beatTechniques.slice() : undefined;
+  const beatEntry = {
+    measureIndex,
+    voiceIndex,
+    start: voiceCursor,
+    ...rhythm,
+    rest: !!beat.empty,
+    noteIndices: [],
+    techniques: techs,
+  };
+
+  if (beat.empty) {
+    rests.push({
+      measureIndex,
+      voiceIndex,
+      start: voiceCursor,
+      ...rhythm,
+    });
+  }
+
+  beats.push(beatEntry);
+  return { ...rhythm, beatIndex: beats.length - 1 };
+}
+
+function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120, ctx = {}) {
   const events = [];
   const measureSpans = [];
+  const beats = [];
+  const rests = [];
+  const tempoMap = [];
   const warnings = [];
   let cursor = 0;
   let measureIndex = 0;
   let currentTimeSig = [4, 4];
+  let maxVoiceUsed = -1;
+
+  if (Number.isFinite(tempo) && tempo >= 40 && tempo <= 320) {
+    tempoMap.push({ barIndex: 0, beat: 0, bpm: tempo, linear: false });
+  }
 
   for (const voices of measures) {
     const measureStartBeat = cursor;
     const header = measureHeaders[measureIndex] || {};
     const marker = header.marker || null;
+    const repeat = header.repeat || null;
     if (header.timeSig) currentTimeSig = header.timeSig;
-    measureIndex += 1;
 
     let measureEndBeat = measureStartBeat;
     let anyVoiceAdvanced = false;
 
-    for (const voice of voices) {
+    for (let voiceIndex = 0; voiceIndex < voices.length; voiceIndex += 1) {
+      const voice = voices[voiceIndex];
       if (!voice?.length) continue;
       let voiceCursor = measureStartBeat;
+      let voiceUsed = false;
+
       for (const beat of voice) {
-        const duration = Number.isFinite(beat.duration) && beat.duration > 0 ? beat.duration : 1;
-        for (const n of beat.notes) {
-          if (n.dead || n.tie || n.midi == null) continue;
-          const velocity = dynamicsToVelocity(n.dynamics);
-          const instrument = midiToDrumInstrument(n.midi, { velocity, ghost: n.ghost });
-          if (!instrument) continue;
-          events.push({
-            start: voiceCursor,
-            duration,
-            instrument,
-            velocity,
-            midi: n.midi,
-            accent: n.accent,
-          });
+        const beatTechniques = beat.beatTechniques || [];
+        const rhythm = pushGp5BeatRhythm({
+          beat,
+          measureIndex,
+          voiceIndex,
+          voiceCursor,
+          measureStartBeat,
+          beats,
+          rests,
+          tempoMap,
+          beatTechniques,
+        });
+        const duration = rhythm.duration;
+        const beatIndex = rhythm.beatIndex;
+
+        if (!beat.empty) {
+          for (const n of beat.notes) {
+            if (n.dead || n.tie || n.midi == null) continue;
+            const velocity = dynamicsToVelocity(n.dynamics);
+            const instrument = midiToDrumInstrument(n.midi, { velocity, ghost: n.ghost });
+            if (!instrument) continue;
+            events.push({
+              start: voiceCursor,
+              duration,
+              instrument,
+              velocity,
+              midi: n.midi,
+              accent: n.accent,
+              voiceIndex,
+              beatIndex,
+            });
+          }
         }
+
         voiceCursor += duration;
+        voiceUsed = true;
         anyVoiceAdvanced = true;
       }
+      if (voiceUsed) maxVoiceUsed = Math.max(maxVoiceUsed, voiceIndex);
       measureEndBeat = Math.max(measureEndBeat, voiceCursor);
     }
 
@@ -520,12 +828,15 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120)
     }
 
     cursor = measureEndBeat;
-    measureSpans.push({
+    const span = {
       startBeat: measureStartBeat,
       endBeat: measureEndBeat,
       marker,
       timeSig: currentTimeSig.slice(),
-    });
+    };
+    if (repeat) span.repeat = repeat;
+    measureSpans.push(span);
+    measureIndex += 1;
   }
 
   if (!events.length) {
@@ -534,25 +845,40 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120)
 
   const slottedEvents = assignPercussionSlots(events);
   const measuresWithSlots = deriveMeasureSlotSpans(measureSpans, slottedEvents);
+  const voiceCount = Math.max(1, maxVoiceUsed + 1);
 
-  return makePercussionModel({
+  const model = makePercussionModel({
     name: track.name || 'Drums',
     tempo,
     events: slottedEvents,
     measures: measuresWithSlots,
     warnings,
   });
+  return {
+    ...model,
+    beats,
+    rests,
+    voiceCount,
+    trackInfo: buildTrackInfo(track, ctx),
+    tempoMap,
+  };
 }
 
-function buildModel(track, measures, measureHeaders = [], tempo = 120) {
+function buildModel(track, measures, measureHeaders = [], tempo = 120, ctx = {}) {
   if (!track || !track.tuning.length) throw new Error('gp5: no fretted track to analyze');
   const openMidis = track.tuning.slice().reverse(); // low -> high
-  const strings = openMidis.map((m) => { const s = midiToNoteOct(m); return { note: s.note, oct: s.oct, label: s.note, openMidi: m }; });
+  const strings = openMidis.map((m) => {
+    const s = midiToNoteOct(m);
+    return { note: s.note, oct: s.oct, label: s.note, openMidi: m };
+  });
   const tuningName = matchTuningName(openMidis) || 'Custom';
   const stringCount = track.stringCount;
 
   const events = [];
   const measureSpans = [];
+  const beats = [];
+  const rests = [];
+  const tempoMap = [];
   const techniqueCounts = {};
   const warnings = [];
   const lastByString = new Map();
@@ -561,68 +887,135 @@ function buildModel(track, measures, measureHeaders = [], tempo = 120) {
   let cursor = 0;
   let measureIndex = 0;
   let currentTimeSig = [4, 4];
+  let maxVoiceUsed = -1;
+
+  if (Number.isFinite(tempo) && tempo >= 40 && tempo <= 320) {
+    tempoMap.push({ barIndex: 0, beat: 0, bpm: tempo, linear: false });
+  }
+
   for (const voices of measures) {
     const measureStart = slot;
     const measureStartBeat = cursor;
     const header = measureHeaders[measureIndex] || {};
     const marker = header.marker || null;
+    const repeat = header.repeat || null;
     if (header.timeSig) currentTimeSig = header.timeSig;
-    measureIndex += 1;
-    // Prefer the first voice that actually plays notes.
-    const voice = voices.find((bts) => bts.some((b) => b.notes && b.notes.length)) || voices[0] || [];
+
+    const startToSlot = new Map();
     let advanced = false;
-    for (const beat of voice) {
-      const duration = Number.isFinite(beat.duration) && beat.duration > 0 ? beat.duration : 1;
-      for (const n of beat.notes) {
-        const lowIndex = stringCount - n.number; // 0 = lowest string
-        const techniques = n.techniques.slice();
 
-        const prev = lastByString.get(lowIndex);
-        // A tie inherits the sounding pitch of the previous note on the string.
-        let { fret, midi } = n;
-        if (n.tie && prev) { fret = prev.fret; midi = prev.midi; }
+    for (let voiceIndex = 0; voiceIndex < voices.length; voiceIndex += 1) {
+      const voice = voices[voiceIndex] || [];
+      if (!voice.length) continue;
+      let voiceCursor = measureStartBeat;
+      let voiceUsed = false;
 
-        if (prev && prev.hopo && midi != null && prev.midi != null) {
-          const t = midi >= prev.midi ? 'hammer' : 'pull';
-          if (!techniques.includes(t)) techniques.push(t);
-        }
-        if (midi != null || n.dead) lastByString.set(lowIndex, { midi, fret, hopo: n.hopo });
+      for (const beat of voice) {
+        const beatTechniques = beat.beatTechniques || [];
+        const rhythm = pushGp5BeatRhythm({
+          beat,
+          measureIndex,
+          voiceIndex,
+          voiceCursor,
+          measureStartBeat,
+          beats,
+          rests,
+          tempoMap,
+          beatTechniques,
+        });
+        const duration = rhythm.duration;
+        const beatIndex = rhythm.beatIndex;
 
-        if (n.dead) techniques.push('dead');
-        for (const t of techniques) techniqueCounts[t] = (techniqueCounts[t] || 0) + 1;
-
-        const base = {
-          slot, stringIndex: lowIndex, start: cursor, duration, techniques,
-        };
-        if (n.dead || midi == null) {
-          events.push({ ...base, fret: n.dead ? null : fret, midi: null, pc: null, dead: true });
+        let currentSlot;
+        if (voiceIndex === 0) {
+          currentSlot = slot;
+          startToSlot.set(voiceCursor, currentSlot);
         } else {
-          events.push({ ...base, fret, midi, pc: ((midi % 12) + 12) % 12, dead: false });
+          currentSlot = startToSlot.has(voiceCursor)
+            ? startToSlot.get(voiceCursor)
+            : slot;
         }
+
+        const noteIndices = [];
+
+        if (!beat.empty) {
+          for (const n of beat.notes) {
+            emitGraceGuitarEvent({
+              n,
+              number: n.number,
+              stringCount,
+              track,
+              voiceCursor,
+              currentSlot,
+              voiceIndex,
+              beatIndex,
+              events,
+              warnings,
+            });
+            const idx = emitGuitarNoteEvent({
+              n,
+              stringCount,
+              track,
+              voiceCursor,
+              currentSlot,
+              duration,
+              voiceIndex,
+              beatIndex,
+              lastByString,
+              techniqueCounts,
+              events,
+            });
+            if (idx != null) noteIndices.push(idx);
+          }
+          if (beats[beatIndex] && !beats[beatIndex].rest) {
+            beats[beatIndex].noteIndices = noteIndices;
+          }
+        }
+
+        if (voiceIndex === 0) slot += 1;
+        voiceCursor += duration;
+        voiceUsed = true;
+        advanced = true;
       }
-      slot += 1;
-      cursor += duration;
-      advanced = true;
+      if (voiceUsed) maxVoiceUsed = Math.max(maxVoiceUsed, voiceIndex);
     }
+
     if (!advanced) {
       const beatsInBar = currentTimeSig[0] * (4 / (currentTimeSig[1] || 4));
       slot += 1;
       cursor += beatsInBar;
+    } else {
+      cursor = Math.max(cursor, measureStartBeat);
+      for (let vi = 0; vi < voices.length; vi += 1) {
+        const voice = voices[vi] || [];
+        let vc = measureStartBeat;
+        for (const beat of voice) {
+          const d = Number.isFinite(beat.duration) && beat.duration > 0 ? beat.duration : 1;
+          vc += d;
+        }
+        cursor = Math.max(cursor, vc);
+      }
     }
-    measureSpans.push({
+
+    const span = {
       startSlot: measureStart,
       endSlot: slot,
       startBeat: measureStartBeat,
       endBeat: cursor,
       marker,
       timeSig: currentTimeSig.slice(),
-    });
+    };
+    if (repeat) span.repeat = repeat;
+    measureSpans.push(span);
+    measureIndex += 1;
   }
 
   events.sort((a, b) => (a.slot - b.slot) || (a.stringIndex - b.stringIndex));
   if (!events.some((e) => e.fret != null || e.dead)) {
     warnings.push('The Guitar Pro 5 track had no playable notes on the analyzed staff.');
   }
+
+  const voiceCount = Math.max(1, maxVoiceUsed + 1);
 
   return {
     tuning: tuningName,
@@ -634,5 +1027,10 @@ function buildModel(track, measures, measureHeaders = [], tempo = 120) {
     totalBeats: cursor,
     techniqueCounts,
     warnings,
+    beats,
+    rests,
+    voiceCount,
+    trackInfo: buildTrackInfo(track, ctx),
+    tempoMap,
   };
 }
