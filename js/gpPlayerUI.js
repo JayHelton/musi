@@ -144,7 +144,16 @@ export function mountGpPlayer(host, {
   const scoreTitle = el('div', { class: 'gpp-score-title', text: hideTitle ? '' : title, title: fileName || title });
   const scoreTrack = el('div', { class: 'gpp-score-track', text: '' });
   titles.append(scoreTitle, scoreTrack);
-  scoreHeader.append(titles);
+  // A screen reader reads this region when the text changes. FR-066 needs it
+  // for the bar announcement, and FR-052 needs it for a blocked audio message.
+  const liveRegion = el('div', {
+    class: 'gpp-live-region',
+    role: 'status',
+    'aria-live': 'polite',
+  });
+  // A visible message for a problem that stops playback.
+  const alertBar = el('div', { class: 'gpp-alert-bar', role: 'alert', hidden: true });
+  scoreHeader.append(titles, liveRegion, alertBar);
   if (typeof onCloseScore === 'function') {
     scoreHeader.append(el('button', {
       class: 'btn sm gpp-close-score',
@@ -154,6 +163,28 @@ export function mountGpPlayer(host, {
       title: 'Close score',
       onClick: () => onCloseScore(),
     }));
+  }
+
+  let lastAnnouncedText = '';
+
+  /** Put one short sentence into the live region for a screen reader. */
+  function announce(text) {
+    const next = String(text || '');
+    if (!next || next === lastAnnouncedText) return;
+    lastAnnouncedText = next;
+    liveRegion.textContent = next;
+  }
+
+  /** Show or clear the visible alert bar. */
+  function showAlert(text) {
+    if (!text) {
+      alertBar.hidden = true;
+      alertBar.textContent = '';
+      return;
+    }
+    alertBar.textContent = text;
+    alertBar.hidden = false;
+    announce(text);
   }
 
   const exerciseImportCapable = exerciseImport && typeof exerciseImport.importSegments === 'function';
@@ -305,11 +336,12 @@ export function mountGpPlayer(host, {
     });
   }
 
+  // The score shows the selected track only. An earlier version fell back to
+  // the first drum track while the learner had a guitar track selected, so a
+  // score with two drum tracks always drew drum track 1. FR-031 forbids that.
   function parchmentModels() {
     const guitar = state.viewKind === 'guitar' ? state.viewModel : null;
-    const perc = state.viewKind === 'drum'
-      ? state.viewModel
-      : (state.gp.drumTracks?.[0]?.model || null);
+    const perc = state.viewKind === 'drum' ? state.viewModel : null;
     return { guitar, perc };
   }
 
@@ -323,6 +355,8 @@ export function mountGpPlayer(host, {
       enabledGuitars,
       enabledDrums,
       metronomeEnabled: !!state.metro.enabled,
+      // The selected track always wins. The drum fallback is only a null
+      // guard for a score that holds drum tracks and no fretted track.
       referenceModel: state.viewModel || state.gp.drumTracks?.[0]?.model || null,
     };
   }
@@ -553,8 +587,17 @@ export function mountGpPlayer(host, {
   }
 
   const player = createGpMixPlayer({
+    // The browser can refuse to start audio. Name the cause and one next step.
+    onAudioBlocked: ({ cause, nextStep } = {}) => {
+      if (!isAlive()) return;
+      const parts = [cause, nextStep].filter(Boolean);
+      showAlert(parts.length
+        ? parts.join(' ')
+        : 'The browser blocked the sound. Tap the play button again to start it.');
+    },
     onTick: (info) => {
       if (!isAlive()) return;
+      if (info.playing) showAlert('');
       lastTickResting = !!info.resting;
       if (info.playing && activePlaybackTimeline()) {
         syncPlayheadAnchorFromPlayer(info.currentSec);
