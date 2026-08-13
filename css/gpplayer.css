@@ -2779,6 +2779,50 @@ html.gpp-player-locked body {
   .gpp-track-tabs-strip {
     -webkit-overflow-scrolling: touch;
   }
+
+  /* The dock must fit the screen. Row one held nine controls at a fixed
+     44 CSS pixel size, which needed more width than a phone has, so the row
+     ran off both edges. The row now scrolls sideways instead. */
+  .gpp-transport-dock {
+    width: calc(100% - 8px);
+    align-items: stretch;
+  }
+  .gpp-transport-row-primary,
+  .gpp-transport-dock.has-extra .gpp-transport-row-primary {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .gpp-transport-row-primary::-webkit-scrollbar {
+    display: none;
+  }
+  .gpp-transport-row-primary > * {
+    flex: 0 0 auto;
+  }
+  /* Row two keeps the practice controls on one line that scrolls, so the
+     dock cannot grow tall enough to cover the score. */
+  .gpp-transport-row-practice {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .gpp-transport-row-practice::-webkit-scrollbar {
+    display: none;
+  }
+  .gpp-practice-rail {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+  }
+  .gpp-practice-speed {
+    flex-wrap: nowrap;
+  }
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
