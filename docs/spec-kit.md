@@ -139,8 +139,18 @@ If you set up a personal dashboard environment separately, you must click
 Save when the agent proposes changes. The repo file overrides the dashboard
 when agents start from a revision that contains `.cursor/environment.json`.
 
+## MiniSpec in this repo
+
+This repo also has [MiniSpec](https://github.com/ivo-toby/mini-spec) for
+pair-programming spec work. MiniSpec sits beside Spec Kit. Do not remove
+`.specify/` or speckit skills.
+
+See [docs/mini-spec.md](mini-spec.md) for MiniSpec install, skills, and upgrade
+notes. Do not mix Spec Kit and MiniSpec artifacts in one feature directory.
+
 ## More help
 
 - Upstream repo: [github/spec-kit](https://github.com/github/spec-kit)
 - Quickstart: [github.github.io/spec-kit/quickstart.html](https://github.github.io/spec-kit/quickstart.html)
+- MiniSpec in Musi: [docs/mini-spec.md](mini-spec.md)
 - Agent rules for Musi: `AGENTS.md` (Spec Kit section)

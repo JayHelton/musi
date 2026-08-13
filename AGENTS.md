@@ -142,3 +142,18 @@ Use Spec Kit skills for non-trivial features when they are present in this repo.
 - **Details:** read `docs/spec-kit.md` for install, skills, and upgrade notes.
 - **Do not** remove or bypass `.specify/` or `.cursor/skills/speckit-*` scaffolding unless
   the user explicitly asks for that.
+- **Default:** Spec Kit remains the default for non-trivial features unless the user asks
+  for MiniSpec.
+
+### MiniSpec (pair-programming spec work)
+
+MiniSpec is also present in this repo for pair-style spec work.
+
+- **Constitution:** `.minispec/memory/constitution.md` — designs and tasks must align with it.
+- **Workflow:** run Cursor skills such as `/minispec-design`, `/minispec-tasks`,
+  `/minispec-next`, and `/minispec-status` (see `docs/mini-spec.md`).
+- **Details:** read `docs/mini-spec.md` for install, skills, and upgrade notes.
+- **Do not** remove or bypass `.minispec/` or `.cursor/skills/minispec-*` scaffolding unless
+  the user explicitly asks for that.
+- **Feature dirs:** MiniSpec writes `design.md` and `tasks.md` under `specs/<feature>/`. Do not
+  mix a MiniSpec `design.md` with a Spec Kit `spec.md` in the same folder.
