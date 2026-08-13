@@ -272,6 +272,36 @@ let techniqueReport = null;
   }
 }
 
+// A lane must hold its own glyphs, and two lanes must never overlap. When a
+// glyph reaches past its lane, the rhythm ticks land on the fret numbers.
+{
+  const fixtures = ['techniques.gp5', 'ties-rhythm.gp5', 'meter-change.gp5', 'two-voices.gp5'];
+  for (const name of fixtures) {
+    for (const widthPx of [360, 900]) {
+      const { layout } = await layoutForFixture(name, { widthPx });
+      for (const bar of layout.bars) {
+        for (let i = 1; i < bar.lanes.length; i += 1) {
+          const prev = bar.lanes[i - 1];
+          const lane = bar.lanes[i];
+          assert.ok(
+            lane.y >= prev.y + prev.h - 0.01,
+            `${name} at ${widthPx} px: lane ${lane.name} starts inside lane ${prev.name}`,
+          );
+        }
+        const laneByName = new Map(bar.lanes.map((l) => [l.name, l]));
+        for (const glyph of bar.glyphs) {
+          const lane = laneByName.get(glyph.lane);
+          if (!lane) continue;
+          assert.ok(
+            glyph.y >= lane.y - 0.01 && glyph.y + glyph.h <= lane.y + lane.h + 0.01,
+            `${name} at ${widthPx} px: a ${glyph.kind} glyph reaches past lane ${glyph.lane}`,
+          );
+        }
+      }
+    }
+  }
+}
+
 console.log('gp-player score-layout: ok');
 if (techniqueReport) {
   console.log(`technique coverage: ${techniqueReport.drawnTotal}/${techniqueReport.fileTotal} (${(techniqueReport.ratio * 100).toFixed(1)}%)`);

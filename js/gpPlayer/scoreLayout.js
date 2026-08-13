@@ -163,6 +163,35 @@ function laneLayout(fontPx, stringCount, showNotationStaff, showRhythm) {
   return { lanes, totalH: y, stringH, tabH };
 }
 
+/**
+ * Grow each lane so its glyphs fit, then re-stack the lanes and move the
+ * glyphs of every lane that shifted.
+ */
+function fitLanesToGlyphs(lanes, glyphs) {
+  const byLane = new Map();
+  for (const g of glyphs) {
+    const list = byLane.get(g.lane);
+    if (list) list.push(g);
+    else byLane.set(g.lane, [g]);
+  }
+
+  let y = 0;
+  for (const lane of lanes) {
+    const own = byLane.get(lane.name) || [];
+    let needed = lane.h;
+    for (const g of own) {
+      needed = Math.max(needed, (g.y - lane.y) + g.h);
+    }
+    const shift = y - lane.y;
+    if (shift !== 0) {
+      for (const g of own) g.y += shift;
+      lane.y = y;
+    }
+    lane.h = needed;
+    y += lane.h;
+  }
+}
+
 function laneByName(lanes, name) {
   return lanes.find((l) => l.name === name) || lanes[0];
 }
@@ -766,7 +795,9 @@ function addMeasureChrome(glyphs, lanes, bar, options, contentW, fontPx) {
       kind: 'tuning',
       lane: 'techniqueBelow',
       x: 2,
-      y: 0,
+      // The glyph y counts from the top of the bar, so it must start at the
+      // top of its own lane. A y of 0 put this label over the staff.
+      y: laneByName(lanes, 'techniqueBelow').y,
       w: Math.max(40, options.tuningLabel.length * fontPx * 0.3),
       h: Math.max(8, fontPx * 0.65),
       text: options.tuningLabel,
@@ -854,6 +885,11 @@ export function layoutBar(bar, options = {}) {
   if (opts.showNotationStaff) {
     addNotationGlyphs(glyphs, lanes, cols, contentW, geoPx, bar, bar.strings || []);
   }
+
+  // Grow a lane that its own glyphs outgrow, then push the later lanes down.
+  // Without this step a tall glyph reaches past its lane, and the rhythm
+  // ticks then sit on top of the fret numbers above them.
+  fitLanesToGlyphs(lanes, glyphs);
 
   // Strip internal refs before return.
   for (const g of glyphs) {

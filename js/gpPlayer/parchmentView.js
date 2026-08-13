@@ -7,7 +7,7 @@ import {
   drumTabLegendFor,
 } from '../drums/notation.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
-import { layoutScore, LAYOUT_BASE_PX } from './scoreLayout.js';
+import { layoutScore, LAYOUT_BASE_PX, ONE_BAR_MAX_WIDTH_PX } from './scoreLayout.js';
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
 const USER_SCROLL_COOLDOWN_MS = 2500;
@@ -528,6 +528,13 @@ export function mountParchmentView(host, {
     // draw the text at the same scale as the glyph boxes. When the two used
     // different scales, the fret numbers grew past their boxes and ran into
     // each other and into the rhythm ticks.
+    // The one measure per row rule follows the real screen, not the measured
+    // host and not the zoom. A container can report a width that does not
+    // match the device, and the learner still holds a phone.
+    const viewportW = (typeof window !== 'undefined' && window.innerWidth)
+      ? window.innerWidth
+      : hostW;
+    const onePerRow = Math.min(viewportW, hostW) <= ONE_BAR_MAX_WIDTH_PX;
     scoreLayout = layoutScore(model, {
       widthPx: hostW / scale,
       zoom: 1,
@@ -535,6 +542,7 @@ export function mountParchmentView(host, {
       showRhythm,
       drumMode: isDrum,
       minFretFontPx: LAYOUT_BASE_PX,
+      maxMeasuresPerSystem: onePerRow ? 1 : undefined,
     });
     unitPx = scale;
     sheet.style.fontSize = `${Math.max(12, Math.round(scoreLayout.fontPx * scale))}px`;
