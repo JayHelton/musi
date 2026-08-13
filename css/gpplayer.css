@@ -880,6 +880,9 @@
 .gpp-parch-playhead {
   position: absolute;
   top: 0;
+  /* The view sets `left` to the position of the note. The line must straddle
+     that position, or it stands half its own width to the right of it. */
+  transform: translateX(-50%);
   width: 2px;
   background: #6b4c9a;
   box-shadow: 0 0 8px rgba(107, 76, 154, 0.45);

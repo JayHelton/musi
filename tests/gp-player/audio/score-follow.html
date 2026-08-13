@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player score follow</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    #host { width: 1000px; height: 620px; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Measure the playhead against the audio clock during real playback.
+    //
+    // The score view must draw the line where it drew the note that sounds.
+    // The page starts the real player and samples the line with the audio
+    // clock. For a note at beat b the sound starts b * 60 / bpm seconds after
+    // the first note. The page finds the sample closest to that moment, on the
+    // same system row, and reports the gap in pixels.
+    //
+    // The sampler runs in a timer task, not in an animation frame callback. An
+    // animation frame callback can run before the callback that moves the
+    // line, and the reader would then measure the frame before. A timer task
+    // runs after the frame, so it always reads the position the user sees.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+    import { guitarFixture } from './scoreFixtures.js';
+
+    const BPM = 120;
+    const PLAY_SECONDS = 9;
+    const MOUNT_WAIT_MS = 700;
+    const SAMPLE_GAP_MS = 4;
+    // Two delays are normal and neither one is a fault. The browser paints the
+    // position that the frame callback computed, so the reader sees a value up
+    // to one frame old. The sampler also runs on a timer, so it can miss a
+    // step by one sample gap. The typical limit holds both.
+    //
+    // A headless browser drops a frame from time to time, and one dropped
+    // frame doubles the delay for one note. The page therefore reads the
+    // middle of the errors, and it allows a small number of outliers under a
+    // wider limit.
+    const SYNC_TOLERANCE_MS = 25;
+    const SYNC_OUTLIER_MS = 45;
+    const MAX_OUTLIERS = 2;
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function gpResultFrom(model) {
+      return {
+        tempo: model.tempo,
+        tracks: [{
+          index: 0,
+          name: 'Guitar',
+          tuning: 'Standard',
+          noteCount: model.events.length,
+          model,
+        }],
+        drumTracks: [],
+      };
+    }
+
+    function centreOf(el) {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height };
+    }
+
+    function noteTargets() {
+      const out = [];
+      for (const measure of document.querySelectorAll('.gpp-parch-measure')) {
+        for (const glyph of measure.querySelectorAll('.gpp-parch-lane-tabStaff [data-note="1"]')) {
+          const beat = Number(glyph.dataset.beatStart);
+          if (!Number.isFinite(beat)) continue;
+          const c = centreOf(glyph);
+          out.push({ beat, x: c.x, y: c.y, label: glyph.textContent });
+        }
+      }
+      out.sort((a, b) => a.beat - b.beat);
+      return out;
+    }
+
+    function findPlayButton() {
+      const btn = [...document.querySelectorAll('button')]
+        .find((b) => (b.getAttribute('aria-label') || '') === 'Play');
+      if (!btn) throw new Error('no play button in the transport');
+      return btn;
+    }
+
+    runMain(async () => {
+      // A scroll would move every note under the reader, so hold the view
+      // still and show every row at once. An earlier page in the same browser
+      // profile can leave a zoom behind, so set the zoom back to one.
+      localStorage.setItem('musi.gpAutoFollow', 'false');
+      localStorage.setItem('musi.gpParchmentZoom', '1');
+
+      const { mountGpPlayer } = await import('/js/gpPlayerUI.js');
+      const audio = await import('/js/audio.js');
+
+      const model = guitarFixture();
+      const host = document.getElementById('host');
+      const mount = mountGpPlayer(host, {
+        gpResult: gpResultFrom(model),
+        title: 'Score follow measurement',
+      });
+      await sleep(MOUNT_WAIT_MS);
+
+      const targets = noteTargets();
+      if (!targets.length) throw new Error('the score drew no notes');
+
+      audio.ensureAudio();
+      const ctx = audio.audioCtx;
+      if (!ctx) throw new Error('no shared audio context');
+
+      const playhead = document.querySelector('.gpp-parch-playhead');
+      if (!playhead) throw new Error('no playhead element');
+
+      const viewport = document.querySelector('.gpp-parch-viewport');
+      const scrollBefore = viewport.scrollTop;
+
+      findPlayButton().click();
+      // Read the clock that the scheduler uses. The player starts the sound a
+      // short time after the tap, so only this anchor names the moment a note
+      // sounds. A guess from the drawn line would carry its own error.
+      await sleep(120);
+      const clock = mount.player.getClockAnchor?.();
+      const soundStart = clock && Number.isFinite(clock.originAudioTime)
+        ? clock.originAudioTime - clock.originSongSec
+        : null;
+      const anchorSource = soundStart != null ? 'the player clock' : 'the drawn line';
+
+      const samples = [];
+      let running = true;
+      const sampler = setInterval(() => {
+        if (!running) return;
+        if (playhead.hidden) return;
+        const c = centreOf(playhead);
+        samples.push({ sec: ctx.currentTime, x: c.x, y: c.y, h: c.h });
+      }, SAMPLE_GAP_MS);
+
+      await sleep(PLAY_SECONDS * 1000);
+      running = false;
+      clearInterval(sampler);
+      findPlayButton().click();
+      await sleep(200);
+
+      writeln('score-follow: the playhead against the audio clock');
+      writeln(`tempo: ${BPM} bpm  play seconds: ${PLAY_SECONDS}  samples: ${samples.length}`);
+      writeln(`notes drawn: ${targets.length}  limit: ${SYNC_TOLERANCE_MS} ms of travel`);
+      writeln(`sample gap: ${SAMPLE_GAP_MS} ms`);
+      if (samples.length < 200) throw new Error(`too few samples: ${samples.length}`);
+
+      // A build without getClockAnchor cannot name the moment the sound starts.
+      // Fall back to the line itself: the player holds the line on the first
+      // note until the sound starts, so the last sample that still stands on
+      // the first note marks that moment.
+      let anchor = soundStart;
+      if (anchor == null) {
+        const first = targets[0];
+        const onFirst = (s) => Math.abs(s.y - first.y) <= s.h / 2
+          && Math.abs(s.x - first.x) <= 1.5;
+        for (let i = 0; i < samples.length; i += 1) {
+          if (!onFirst(samples[i])) continue;
+          let j = i;
+          while (j + 1 < samples.length && onFirst(samples[j + 1])) j += 1;
+          anchor = samples[j].sec;
+          break;
+        }
+      }
+      if (anchor == null) throw new Error('the page found no audio clock anchor');
+      writeln(`the first note sounds at audio time ${anchor.toFixed(3)} s, from ${anchorSource}`);
+
+      // The moment the line crosses one note, found between two samples.
+      //
+      // A gap in pixels means nothing on its own, because a dense bar draws a
+      // beat over a few pixels and a sparse bar draws it over many. The page
+      // therefore measures WHEN the line reaches the note, and compares that
+      // moment with the moment the note sounds.
+      function crossingSec(target) {
+        let prev = null;
+        let seen = 0;
+        for (const s of samples) {
+          if (Math.abs(s.y - target.y) > s.h / 2) { prev = null; continue; }
+          seen += 1;
+          // The line already rests on the first note of the score, so it never
+          // crosses it and this page cannot time it.
+          if (seen === 1 && s.x >= target.x - 0.6) return null;
+          if (prev && prev.x < target.x && s.x >= target.x) {
+            const span = s.x - prev.x;
+            const t = span > 0 ? (target.x - prev.x) / span : 0;
+            return { sec: prev.sec + (s.sec - prev.sec) * t, stepPx: span };
+          }
+          if (Math.abs(s.x - target.x) < 0.6) return { sec: s.sec, stepPx: 0 };
+          prev = s;
+        }
+        return null;
+      }
+
+      const rows = [];
+      const errors = [];
+      let worstMs = 0;
+      let checked = 0;
+      let failures = 0;
+      for (const target of targets) {
+        const wantSec = anchor + (target.beat * 60) / BPM;
+        const cross = crossingSec(target);
+        if (!cross) continue;
+        const errMs = (cross.sec - wantSec) * 1000;
+        const absMs = Math.abs(errMs);
+        if (absMs > worstMs) worstMs = absMs;
+        checked += 1;
+        const ok = absMs <= SYNC_TOLERANCE_MS;
+        if (!ok) failures += 1;
+        errors.push(absMs);
+        rows.push({
+          beat: target.beat.toFixed(2),
+          fret: target.label,
+          noteX: target.x.toFixed(1),
+          soundsAt: (wantSec - anchor).toFixed(3),
+          crossesAt: (cross.sec - anchor).toFixed(3),
+          stepPx: cross.stepPx.toFixed(1),
+          errMs: errMs.toFixed(1),
+          ok: ok ? 'yes' : 'no',
+        });
+      }
+
+      printTable(rows, [
+        { key: 'beat', label: 'beat' },
+        { key: 'fret', label: 'fret' },
+        { key: 'noteX', label: 'note x' },
+        { key: 'soundsAt', label: 'sounds at s' },
+        { key: 'crossesAt', label: 'line crosses at s' },
+        { key: 'stepPx', label: 'frame step px' },
+        { key: 'errMs', label: 'error ms' },
+        { key: 'ok', label: 'ok' },
+      ]);
+
+      // The line must never cover more than one staff row.
+      let tallest = 0;
+      for (const s of samples) tallest = Math.max(tallest, s.h);
+      const sheetH = document.querySelector('.gpp-parch-sheet').getBoundingClientRect().height;
+
+      const sorted = errors.slice().sort((a, b) => a - b);
+      const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : Infinity;
+      const outliers = errors.filter((e) => e > SYNC_OUTLIER_MS).length;
+
+      writeln(`notes checked: ${checked} of ${targets.length}`);
+      writeln(`middle error: ${median.toFixed(1)} ms  limit: ${SYNC_TOLERANCE_MS} ms`);
+      writeln(`worst error: ${worstMs.toFixed(1)} ms`);
+      writeln(`notes over ${SYNC_TOLERANCE_MS} ms: ${failures}  notes over ${SYNC_OUTLIER_MS} ms: ${outliers}  limit: ${MAX_OUTLIERS}`);
+      writeln(`tallest playhead: ${tallest.toFixed(1)} px  sheet height: ${sheetH.toFixed(1)} px`);
+      writeln(`viewport scroll change: ${(viewport.scrollTop - scrollBefore).toFixed(1)} px`);
+
+      mount.destroy();
+      reportResult(
+        checked >= 24
+        && median <= SYNC_TOLERANCE_MS
+        && outliers <= MAX_OUTLIERS
+        && tallest < sheetH - 1,
+      );
+    });
+  </script>
+</body>
+</html>

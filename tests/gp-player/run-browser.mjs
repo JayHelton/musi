@@ -28,6 +28,8 @@ const PAGES = [
   'realtime-ui-jank.html',
   'follow-scroll.html',
   'zoom-overflow.html',
+  'score-alignment.html',
+  'score-follow.html',
 ];
 
 const argvPages = process.argv.slice(2);

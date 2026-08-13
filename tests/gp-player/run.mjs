@@ -23,7 +23,7 @@ const BASELINE = [
   'drum-notation.mjs',
 ];
 
-const SKIP = new Set(['domShim.mjs', 'run.mjs', 'run-browser.mjs']);
+const SKIP = new Set(['domShim.mjs', 'run.mjs', 'run-browser.mjs', 'shot.mjs']);
 
 function collectTests() {
   const topLevel = readdirSync(__dirname).filter((name) => name.endsWith('.mjs'));

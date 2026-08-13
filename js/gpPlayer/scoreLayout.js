@@ -1141,6 +1141,13 @@ export function layoutBar(bar, options = {}) {
     noteOriginUnits,
     contentWidthUnits: contentW,
     totalHeightUnits: totalHeightFromLanes(lanes),
+    // The first and the last beat column of the bar. A caller that moves a
+    // cursor needs these, because the bar holds padding at each end that no
+    // column stands in.
+    firstColumnBeat: cols.length ? barStart + cols[0].relStart * measureLen : barStart,
+    lastColumnBeat: cols.length
+      ? barStart + cols[cols.length - 1].relStart * measureLen
+      : barStart,
   };
   if (opts.retainOverlayRecords) {
     result._overlayRecords = overlayRecords;

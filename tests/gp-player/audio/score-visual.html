@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player score visual</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    body { margin: 0; padding: 12px; }
+    .panel { margin-bottom: 14px; }
+    .panel h2 {
+      font-family: var(--font-ui, "VT323", monospace);
+      font-size: 15px;
+      margin: 0 0 4px;
+      color: var(--accent, #ffd83d);
+    }
+    .host { width: 940px; height: 430px; }
+    #drumHost { height: 210px; }
+    #out { display: none; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h2>Guitar score — the playhead stands on beat 2 of bar 1</h2>
+    <div class="host" id="guitarHost"></div>
+  </div>
+  <div class="panel">
+    <h2>Drum score — sixteenth hi-hats with a full kit</h2>
+    <div class="host" id="drumHost"></div>
+  </div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Park the playhead on a note and hold the view still, so a screenshot
+    // shows the score geometry.
+    import { drumFixture, guitarFixture } from './scoreFixtures.js';
+
+    const PARK_BEAT = 1.5;
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    async function main() {
+      const { mountParchmentView } = await import('/js/gpPlayer/parchmentView.js');
+
+      const gModel = guitarFixture();
+      const gParch = mountParchmentView(document.getElementById('guitarHost'), {
+        guitarModel: gModel,
+        autoFollow: false,
+      });
+
+      const dModel = drumFixture();
+      const dParch = mountParchmentView(document.getElementById('drumHost'), {
+        percModel: dModel,
+        autoFollow: false,
+      });
+
+      await sleep(500);
+
+      // Send both forms, so this page can also draw a build that does not
+      // read beatInScore yet.
+      const parkSec = (PARK_BEAT * 60) / 120;
+      gParch.update({
+        beatInScore: PARK_BEAT, currentSec: parkSec, bpm: 120, playing: false, measureIndex: 0, autoFollow: false,
+      });
+      dParch.update({
+        beatInScore: PARK_BEAT, currentSec: parkSec, bpm: 120, playing: false, measureIndex: 0, autoFollow: false,
+      });
+
+      await sleep(200);
+      document.getElementById('out').textContent = 'RESULT: PASS';
+      window.__harnessResult = 'PASS';
+    }
+
+    main();
+  </script>
+</body>
+</html>

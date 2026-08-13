@@ -336,6 +336,31 @@ export function createGpMixPlayer(opts = {}) {
     return positionNow();
   }
 
+  /**
+   * The audio clock origin that the scheduler uses.
+   *
+   * A caller that draws on every animation frame must read the same clock as
+   * the scheduler. play() starts the sound a short time after the tap, so a
+   * second clock that starts at the tap runs ahead of the sound.
+   * `holdSec` names a song time to hold, for a loop rest or a pause.
+   *
+   * @returns {{ originSongSec: number, originAudioTime: number, holdSec: number|null }}
+   */
+  function getClockAnchor() {
+    if (!state.playing || !audioCtx) {
+      return { originSongSec: state.pauseAtSec, originAudioTime: 0, holdSec: state.pauseAtSec };
+    }
+    if (state.inLoopRest) {
+      const hold = state.loop?.startSec ?? state.pauseAtSec;
+      return { originSongSec: hold, originAudioTime: state.originAudioTime, holdSec: hold };
+    }
+    return {
+      originSongSec: state.originSongSec,
+      originAudioTime: state.originAudioTime,
+      holdSec: null,
+    };
+  }
+
   function resyncCursor(fromSec) {
     state.nextIndex = 0;
     state.wrapPos = 0;
@@ -1132,6 +1157,7 @@ export function createGpMixPlayer(opts = {}) {
     setLoopRestSec,
     setOnTick,
     getPosition,
+    getClockAnchor,
     destroy,
     get playing() { return state.playing; },
     get paused() { return state.paused; },

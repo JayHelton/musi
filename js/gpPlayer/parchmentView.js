@@ -1227,6 +1227,34 @@ export function mountParchmentView(host, {
     return geom;
   }
 
+  /**
+   * The sheet x of the playhead for one beat inside one measure.
+   *
+   * A bar holds padding at its left end for the time signature and the repeat
+   * marks, and no beat column stands in it. A plain map from beat to x would
+   * therefore jump across that padding at every bar line. The line instead
+   * runs from the last column of this bar to the first column of the next bar,
+   * across the bar line. The line still stands on every column at the exact
+   * beat of that column.
+   */
+  function playheadSheetX(bar, geom, beat, mi) {
+    const xAt = (b) => geom.notesLeft + beatXUnits(bar, b) * unitPx;
+    const tailStart = Number.isFinite(bar.lastColumnBeat) ? bar.lastColumnBeat : null;
+    const barEnd = bar.beatStart + bar.beatSpan;
+    if (tailStart == null || beat <= tailStart || barEnd <= tailStart) return xAt(beat);
+
+    const next = scoreLayout?.bars?.[mi + 1];
+    const sameRow = measureSystemIndex[mi + 1] != null
+      && measureSystemIndex[mi + 1] === measureSystemIndex[mi];
+    const nextGeom = next && sameRow ? measureGeomFor(mi + 1) : null;
+    const from = xAt(tailStart);
+    const to = nextGeom
+      ? nextGeom.notesLeft + next.noteOriginUnits * unitPx
+      : geom.notesLeft + (bar.noteOriginUnits + bar.contentWidthUnits) * unitPx;
+    const t = Math.max(0, Math.min(1, (beat - tailStart) / (barEnd - tailStart)));
+    return from + (to - from) * t;
+  }
+
   function positionPlayhead(beat, mi) {
     if (!playheadEl) return;
     const geom = measureGeomFor(mi);
@@ -1237,7 +1265,7 @@ export function mountParchmentView(host, {
     const bar = scoreLayout?.bars?.[mi];
     let x;
     if (bar && unitPx > 0) {
-      x = geom.notesLeft + beatXUnits(bar, beat) * unitPx;
+      x = playheadSheetX(bar, geom, beat, mi);
     } else if (geom.notesWidth) {
       const pct = beatPctInMeasure(beat, measures()[mi]) / 100;
       x = geom.notesLeft + geom.notesWidth * pct;

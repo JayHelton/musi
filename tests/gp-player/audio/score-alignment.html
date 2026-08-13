@@ -25,6 +25,7 @@
     //   5. A legato arc joins the correct pair of notes and does not overlap
     //      another arc.
     import { writeln, printTable, runMain, reportResult } from './harness.js';
+    import { drumFixture, guitarFixture } from './scoreFixtures.js';
 
     const PLAYHEAD_TOLERANCE_PX = 1.5;
     const GUTTER_TOLERANCE_PX = 1;
@@ -32,165 +33,8 @@
     const MIN_DRUM_ROW_PX = 12;
     const LAYOUT_WAIT_MS = 400;
 
-    const STRINGS = [
-      { note: 'E', oct: 4, label: 'e', openMidi: 64 },
-      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
-      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
-      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
-      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
-      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
-    ];
-
     function sleep(ms) {
       return new Promise((r) => setTimeout(r, ms));
-    }
-
-    function beat(measureIndex, start, duration, noteValue, noteIndices) {
-      return {
-        measureIndex,
-        voiceIndex: 0,
-        start,
-        duration,
-        noteValue,
-        dots: 0,
-        tuplet: null,
-        rest: false,
-        noteIndices,
-      };
-    }
-
-    /**
-     * A guitar score with four bars.
-     * Bar 0 holds four hammer-ons on one string, which is the case that used
-     * to draw every arc from the first note of the bar.
-     * Bar 1 holds sixteenth notes across the strings.
-     * Bar 2 holds bends. Bar 3 holds ties.
-     */
-    function guitarModel() {
-      const events = [];
-      const beats = [];
-
-      for (let i = 0; i < 5; i += 1) {
-        events.push({
-          start: i * 0.5,
-          duration: 0.5,
-          stringIndex: 2,
-          fret: 5 + i,
-          midi: 55 + 5 + i,
-          dead: false,
-          techniques: i === 0 ? [] : ['hammer'],
-        });
-        beats.push(beat(0, i * 0.5, 0.5, 8, [events.length - 1]));
-      }
-
-      for (let i = 0; i < 16; i += 1) {
-        events.push({
-          start: 4 + i * 0.25,
-          duration: 0.25,
-          stringIndex: i % 6,
-          fret: 10 + (i % 3),
-          midi: 40 + 10 + (i % 3),
-          dead: false,
-          techniques: [],
-        });
-        beats.push(beat(1, 4 + i * 0.25, 0.25, 16, [events.length - 1]));
-      }
-
-      for (let i = 0; i < 4; i += 1) {
-        events.push({
-          start: 8 + i,
-          duration: 1,
-          stringIndex: 1,
-          fret: 7,
-          midi: 59 + 7,
-          dead: false,
-          techniques: ['bend'],
-          bend: { points: [{ position: 0, cents: 0 }, { position: 60, cents: 100 }] },
-        });
-        beats.push(beat(2, 8 + i, 1, 4, [events.length - 1]));
-      }
-
-      for (let i = 0; i < 4; i += 1) {
-        events.push({
-          start: 12 + i,
-          duration: 1,
-          stringIndex: 4,
-          fret: 3,
-          midi: 45 + 3,
-          dead: false,
-          techniques: [],
-          tie: i > 0,
-        });
-        beats.push(beat(3, 12 + i, 1, 4, [events.length - 1]));
-      }
-
-      return {
-        tuning: 'Standard',
-        strings: STRINGS,
-        events,
-        beats,
-        rests: [],
-        measures: [0, 1, 2, 3].map((bar) => ({
-          startBeat: bar * 4,
-          endBeat: bar * 4 + 4,
-          startSlot: bar * 4,
-          endSlot: bar * 4 + 4,
-          timeSig: [4, 4],
-        })),
-        tempo: 120,
-        totalBeats: 16,
-        techniqueCounts: {},
-        warnings: [],
-      };
-    }
-
-    /** A drum score with five kit lanes and sixteenth hi-hats. */
-    function drumModel() {
-      const events = [];
-      for (let bar = 0; bar < 2; bar += 1) {
-        for (let i = 0; i < 16; i += 1) {
-          const start = bar * 4 + i * 0.25;
-          events.push({
-            start, duration: 0.25, instrument: 'hihatClosed', midi: 42, velocity: 0.7,
-          });
-          if (i % 8 === 0) {
-            events.push({
-              start, duration: 0.25, instrument: 'kick', midi: 36, velocity: 0.9,
-            });
-          }
-          if (i % 8 === 4) {
-            events.push({
-              start, duration: 0.25, instrument: 'snare', midi: 38, velocity: 0.9,
-            });
-          }
-          if (i === 0) {
-            events.push({
-              start, duration: 0.25, instrument: 'crash', midi: 49, velocity: 1,
-            });
-          }
-          if (i === 12) {
-            events.push({
-              start, duration: 0.25, instrument: 'tomFloor', midi: 41, velocity: 0.8,
-            });
-          }
-        }
-      }
-      return {
-        percussion: true,
-        name: 'Drums',
-        tempo: 120,
-        events,
-        measures: [0, 1].map((bar) => ({
-          startBeat: bar * 4,
-          endBeat: bar * 4 + 4,
-          startSlot: bar * 4,
-          endSlot: bar * 4 + 4,
-          timeSig: [4, 4],
-        })),
-        slots: 8,
-        totalBeats: 8,
-        warnings: [],
-      };
     }
 
     function centreX(el) {
@@ -227,7 +71,10 @@
           const beatStart = Number(glyph.dataset.beatStart);
           if (!Number.isFinite(beatStart)) continue;
           parch.update({
+            // Send both forms, so this page can also measure a build that
+            // does not read beatInScore yet.
             beatInScore: beatStart,
+            currentSec: (beatStart * 60) / 120,
             bpm: 120,
             playing: false,
             measureIndex: mi,
@@ -253,7 +100,9 @@
     function checkPlayheadHeight(parch) {
       const playhead = document.querySelector('.gpp-parch-playhead');
       const sheet = document.querySelector('.gpp-parch-sheet');
-      parch.update({ beatInScore: 1, bpm: 120, playing: false, measureIndex: 0, autoFollow: false });
+      parch.update({
+      beatInScore: 1, currentSec: 0.5, bpm: 120, playing: false, measureIndex: 0, autoFollow: false,
+    });
       const staff = measureEl(0)?.querySelector('.gpp-parch-staff');
       if (!playhead || !sheet || !staff) return { pass: false };
       const p = playhead.getBoundingClientRect();
@@ -430,7 +279,7 @@
       let pass = true;
 
       // --- Guitar score ---
-      const gModel = guitarModel();
+      const gModel = guitarFixture();
       const gParch = mountParchmentView(host, { guitarModel: gModel, autoFollow: false });
       await sleep(LAYOUT_WAIT_MS);
 
@@ -500,7 +349,7 @@
       gParch.destroy();
 
       // --- Drum score ---
-      const dModel = drumModel();
+      const dModel = drumFixture();
       const dParch = mountParchmentView(host, { percModel: dModel, autoFollow: false });
       await sleep(LAYOUT_WAIT_MS);
 

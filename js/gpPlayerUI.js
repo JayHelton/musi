@@ -481,7 +481,6 @@ export function mountGpPlayer(host, {
 
   let playbackTimeline = null;
   let playheadFrameId = null;
-  let playheadAnchor = null;
   let lastTickResting = false;
   let lastRestRemaining = 0;
   let playheadVisibilityHandler = null;
@@ -532,19 +531,18 @@ export function mountGpPlayer(host, {
     return ratedTimeline;
   }
 
-  function syncPlayheadAnchorFromPlayer(currentSec) {
-    if (!player.playing || !audioCtx) return;
-    playheadAnchor = {
-      originSongSec: Number.isFinite(currentSec) ? currentSec : player.currentSec,
-      originAudioTime: audioCtx.currentTime,
-    };
-  }
-
+  // The score view draws on every animation frame, and the audio tick only
+  // arrives about every 25 ms. The view therefore reads the audio clock
+  // itself. It must read the clock that the scheduler uses, or the line moves
+  // ahead of the sound: the player starts the sound a short time after the
+  // tap, so a clock that starts at the tap leads the sound by that time.
   function songSecFromAudioClock() {
     if (!player.playing) return player.currentSec ?? 0;
-    if (!playheadAnchor || !audioCtx) return player.currentSec ?? 0;
-    return playheadAnchor.originSongSec
-      + (audioCtx.currentTime - playheadAnchor.originAudioTime);
+    const anchor = player.getClockAnchor?.();
+    if (!anchor || !audioCtx) return player.currentSec ?? 0;
+    if (anchor.holdSec != null) return anchor.holdSec;
+    const raw = anchor.originSongSec + (audioCtx.currentTime - anchor.originAudioTime);
+    return Math.max(anchor.originSongSec, raw);
   }
 
   function positionFromAudioClock() {
@@ -604,10 +602,10 @@ export function mountGpPlayer(host, {
     if (pos) syncPlayheadFrame(pos);
   }
 
+  // The tab can sleep and the audio context can stop. Draw one frame from the
+  // player clock when the page wakes, so the line does not stay where it was.
   function reanchorPlayheadFromAudio() {
     if (!isAlive() || !player.playing) return;
-    const sec = player.getPosition?.()?.sec ?? player.currentSec ?? 0;
-    syncPlayheadAnchorFromPlayer(sec);
     applyPlayheadFrame();
   }
 
@@ -621,7 +619,6 @@ export function mountGpPlayer(host, {
   function startPlayheadFrameLoop() {
     if (!activePlaybackTimeline() || playheadFrameId != null) return;
     if (typeof requestAnimationFrame !== 'function') return;
-    syncPlayheadAnchorFromPlayer(player.currentSec);
     const tick = () => {
       if (!isAlive() || !player.playing) {
         playheadFrameId = null;
@@ -675,7 +672,6 @@ export function mountGpPlayer(host, {
       if (info.playing) showAlert('');
       lastTickResting = !!info.resting;
       if (info.playing && activePlaybackTimeline()) {
-        syncPlayheadAnchorFromPlayer(info.currentSec);
         if (!playheadFrameId) startPlayheadFrameLoop();
       } else if (!info.playing) {
         stopPlayheadFrameLoop();
@@ -1804,7 +1800,6 @@ export function mountGpPlayer(host, {
       alive = false;
       stopPlayheadFrameLoop();
       unbindPlayheadClockListeners();
-      playheadAnchor = null;
       playbackTimeline = null;
       if (autoPlayTimer != null) {
         clearTimeout(autoPlayTimer);
