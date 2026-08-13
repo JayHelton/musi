@@ -10,3 +10,8 @@ tests/gp-player/fixtures/*.gp4
 tests/gp-player/fixtures/*.bin
 tests/gp-player/fixtures/passages/*.gp
 tests/gp-player/fixtures/passages/*.gp5
+
+# Stray browser profile directories from headless test runs.
+${profile}/
+chrome-profile*/
+*.SingletonSocket
