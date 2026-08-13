@@ -33,6 +33,7 @@ import {
   weakMidiSet,
   getRegisterBounds,
 } from './pitchProgress.js';
+import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
 
 const WINDOW_CENTS = 50;
 const DISPLAY_SMOOTH_MS = 120;
@@ -130,6 +131,7 @@ const pt = {
   voices: [],
   advanceTimer: null,
   replayActive: false,
+  guideLockActive: false,
   guideEndsAt: 0,
   guideEndsAudioTime: 0,
   puckRatio: 0.5,
@@ -299,15 +301,25 @@ function startGuideTone(midi) {
   return voice;
 }
 
+function armGuideLockout(audibleEnd) {
+  pt.guideEndsAudioTime = lockoutUntil(audibleEnd);
+  if (pt.guideEndsAudioTime === Infinity) {
+    pt.guideEndsAt = Infinity;
+  } else if (audioCtx) {
+    pt.guideEndsAt = performance.now() + (pt.guideEndsAudioTime - audioCtx.currentTime) * 1000;
+  }
+  if (pt.matcher) pt.matcher.markGuideTone();
+  if (pt.capture) pt.capture.reset();
+  pt.guideLockActive = true;
+}
+
 function playTone(midi, duration = 0.7) {
   stopGuideTone();
-  if (pt.matcher) pt.matcher.markGuideTone();
   const voice = startGuideTone(midi);
   const sustain = duration * 0.5;
   const release = duration * 0.35;
-  const muteMs = (sustain + release) * 1000 + 280;
-  pt.guideEndsAt = performance.now() + muteMs;
-  if (audioCtx) pt.guideEndsAudioTime = audioCtx.currentTime + muteMs / 1000;
+  const audibleEnd = audioCtx.currentTime + sustain + release;
+  armGuideLockout(audibleEnd);
   voice.releaseTimer = setTimeout(() => releaseVoice(voice, release), sustain * 1000);
 }
 
@@ -316,18 +328,20 @@ function ptStartReplay() {
   const midi = guideMidi();
   if (midi == null) return;
   stopGuideTone(0.05);
-  if (pt.matcher) pt.matcher.markGuideTone();
   startGuideTone(midi);
-  pt.guideEndsAt = Infinity;
   pt.guideEndsAudioTime = Infinity;
+  pt.guideEndsAt = Infinity;
+  if (pt.matcher) pt.matcher.markGuideTone();
+  if (pt.capture) pt.capture.reset();
+  pt.guideLockActive = true;
   setReplayButtonActive(true);
 }
 
 function ptStopReplay() {
   if (!pt.replayActive) return;
   stopGuideTone(0.14);
-  pt.guideEndsAt = performance.now() + 350;
-  if (audioCtx) pt.guideEndsAudioTime = audioCtx.currentTime + 0.35;
+  const audibleEnd = audioCtx.currentTime + 0.14;
+  armGuideLockout(audibleEnd);
 }
 
 function guideMidi() {
@@ -829,29 +843,55 @@ function renderMeter(res, info, tracked) {
 
 function handlePitchFrame(frame) {
   if (!pt.running) return;
+
+  const { frequencyHz, voiced, clarity, rms, noteInfo, timestampMs, audioTime } = frame;
+  const scoring = isScoringWindowClear(audioTime, pt.guideEndsAudioTime, pt.capture);
+
+  if (!scoring) {
+    if (pt.matcher) pt.matcher.markGuideTone();
+    if (pt.capture) pt.capture.reset();
+    pt.guideLockActive = true;
+    const idleRes = {
+      active: true,
+      freq: -1,
+      centsOff: null,
+      within: false,
+      progress: 0,
+      voiced: false,
+    };
+    const idleTracked = { voiced: false, freq: -1 };
+    renderMeter(idleRes, null, idleTracked);
+    pt.lastFrameMs = performance.now();
+    return;
+  }
+
+  if (pt.guideLockActive) {
+    pt.guideLockActive = false;
+    if (pt.matcher) pt.matcher.reset();
+    if (pt.capture) pt.capture.reset();
+  }
+
   const activeMinRms = pt.noiseFloor ? pt.noiseFloor.ingest(frame.rms) : frame.rms;
   if (pt.capture) pt.capture.setMinRms(activeMinRms);
 
-  const { frequencyHz, voiced, clarity, rms, noteInfo, timestampMs, audioTime } = frame;
-  const scoring = audioTime >= pt.guideEndsAudioTime;
   const res = pt.matcher.update({
     timestampMs,
     frequencyHz: voiced ? frequencyHz : -1,
     voiced: !!voiced,
     clarity,
     rms,
-  }, timestampMs, scoring);
+  }, timestampMs, true);
 
-  if (scoring && res.centsOff != null) {
+  if (res.centsOff != null) {
     pt.attemptSnapshots.push({ voiced: !!voiced, centsOff: res.centsOff, timestampMs });
   }
 
   renderMeter(res, noteInfo, frame);
   pt.lastFrameMs = performance.now();
 
-  if (scoring && res.matched && !pt.advancing) {
+  if (res.matched && !pt.advancing) {
     onMatched();
-  } else if (scoring && res.progress >= 1 && !res.matched && !pt.advancing && !pt.failHandled) {
+  } else if (res.progress >= 1 && !res.matched && !pt.advancing && !pt.failHandled) {
     onAttemptFailed();
   }
 }
@@ -870,6 +910,7 @@ async function startPitchTrainer() {
   pt.completed = 0;
   pt.guideEndsAt = 0;
   pt.guideEndsAudioTime = 0;
+  pt.guideLockActive = false;
   pt.puckRatio = 0.5;
   pt.lastFrameMs = 0;
   buildSequence();
@@ -926,6 +967,8 @@ function stopPitchTrainer() {
   pt.running = false;
   pt.advancing = false;
   pt.guideEndsAt = 0;
+  pt.guideEndsAudioTime = 0;
+  pt.guideLockActive = false;
   clearAdvanceTimer();
   if (pt.rafId) { cancelAnimationFrame(pt.rafId); pt.rafId = null; }
   if (pt.capture) { pt.capture.stop(); pt.capture = null; }
