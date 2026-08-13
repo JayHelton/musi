@@ -20,6 +20,7 @@ const PAGES = [
   'total-duration.html',
   'loop-boundary.html',
   'long-drift.html',
+  'render-cost.html',
 ];
 
 const PORT = Number(process.env.GP_PLAYER_PORT || process.env.PORT || 8080);

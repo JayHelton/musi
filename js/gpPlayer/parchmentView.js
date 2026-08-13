@@ -870,6 +870,28 @@ export function mountParchmentView(host, {
     });
   }
 
+  /** True when two beat spans name the same range. */
+  function sameSpan(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return a.startBeat === b.startBeat && a.endBeat === b.endBeat;
+  }
+
+  /** True when two annotation lists hold the same items in the same order. */
+  function sameAnnotations(a, b) {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i] === b[i]) continue;
+      if (a[i]?.id !== b[i]?.id) return false;
+      if (a[i]?.startBeat !== b[i]?.startBeat) return false;
+      if (a[i]?.endBeat !== b[i]?.endBeat) return false;
+      if (a[i]?.title !== b[i]?.title) return false;
+      if (a[i]?.text !== b[i]?.text) return false;
+    }
+    return true;
+  }
+
   function paintActive(mi) {
     measureEls.forEach((el, i) => {
       if (!el) return;
@@ -962,18 +984,26 @@ export function mountParchmentView(host, {
     if (lsm != null) selectMode = !!lsm;
     if (nsm != null) noteMode = !!nsm;
     if (modeChanged) rebuild();
-    if (nextSel !== undefined) {
+    // The playhead calls update() on every animation frame. Each paint below
+    // removes and rebuilds DOM nodes, and the playhead then reads a layout
+    // value. That write and read pair forces a layout on every frame, which
+    // starves the audio scheduler on the same thread. Paint only what changed.
+    if (nextSel !== undefined && !sameSpan(sel, nextSel)) {
       sel = nextSel ? { ...nextSel } : null;
       paintSelection(sel);
     }
-    if (nextNoteDraft !== undefined) {
+    if (nextNoteDraft !== undefined && !sameSpan(noteSel, nextNoteDraft)) {
       noteSel = nextNoteDraft ? { ...nextNoteDraft } : null;
       paintNoteDraft(noteSel);
     }
     if (nextAnnos !== undefined || highlightId !== undefined) {
-      if (nextAnnos !== undefined) annotations = nextAnnos.slice();
-      if (highlightId !== undefined) highlightedAnnoId = highlightId;
-      paintAnnotations(annotations, highlightedAnnoId);
+      const annosChanged = nextAnnos !== undefined && !sameAnnotations(annotations, nextAnnos);
+      const highlightChanged = highlightId !== undefined && highlightId !== highlightedAnnoId;
+      if (annosChanged) annotations = nextAnnos.slice();
+      if (highlightChanged) highlightedAnnoId = highlightId;
+      if (annosChanged || highlightChanged) {
+        paintAnnotations(annotations, highlightedAnnoId);
+      }
     }
     if (af != null) follow = !!af;
 
@@ -984,8 +1014,6 @@ export function mountParchmentView(host, {
     if (mi !== lastActive) {
       paintActive(mi);
       lastActive = mi;
-    } else {
-      paintActive(mi);
     }
     positionPlayhead(beat, mi);
 

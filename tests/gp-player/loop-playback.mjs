@@ -246,4 +246,8 @@ function clickPlay(host, mount) {
   teardown(mount);
 }
 
+// The audio context is a module singleton, so a test that needs its own
+// clock must run in its own process. See tests/gp-player/loop-scheduling.mjs
+// for the 20 pass scheduling checks.
+
 console.log('gp loop playback: ok');

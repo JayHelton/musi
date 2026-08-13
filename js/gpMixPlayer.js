@@ -169,6 +169,10 @@ export function createGpMixPlayer(opts = {}) {
     metroConfig: normalizeMetronomeConfig(),
     measureStarts: [],
     loopPassCount: 0,
+    // Indexes into events[] that sit inside the loop window, plus the cursor
+    // that the wrap scheduler uses. A null index means "rebuild on next use".
+    loopEventIdx: null,
+    wrapPos: 0,
     loopRestartFlag: false,
     referenceModel: null,
     playing: false,
@@ -210,13 +214,33 @@ export function createGpMixPlayer(opts = {}) {
     return ev.durSec / state.rate;
   }
 
-  function fadeVoices() {
-    if (!audioCtx) {
-      state.voices = [];
-      return;
+  /**
+   * Track one sounding voice and release it when the note ends.
+   * A finished gain node stays connected to the destination until something
+   * disconnects it. Without this cleanup the audio graph grows with every
+   * note, the audio thread walks more nodes on each render block, and the
+   * sound starts to break up during a long session.
+   */
+  function registerVoice(voice) {
+    state.voices.push(voice);
+    const release = () => {
+      const at = state.voices.indexOf(voice);
+      if (at >= 0) state.voices.splice(at, 1);
+      try { voice.gain.disconnect(); } catch (e) { /* ignore */ }
+    };
+    if (typeof voice.osc.addEventListener === 'function') {
+      voice.osc.addEventListener('ended', release, { once: true });
+    } else {
+      voice.osc.onended = release;
     }
+  }
+
+  function fadeVoices() {
+    const voices = state.voices;
+    state.voices = [];
+    if (!audioCtx) return;
     const now = audioCtx.currentTime;
-    state.voices.forEach((v) => {
+    voices.forEach((v) => {
       try {
         v.gain.gain.cancelScheduledValues(now);
         v.gain.gain.setValueAtTime(v.gain.gain.value, now);
@@ -224,7 +248,6 @@ export function createGpMixPlayer(opts = {}) {
         v.osc.stop(now + VOICE_FADE_SEC + 0.002);
       } catch (e) { /* ignore */ }
     });
-    state.voices = [];
   }
 
   function stopTimer() {
@@ -298,6 +321,7 @@ export function createGpMixPlayer(opts = {}) {
 
   function resyncCursor(fromSec) {
     state.nextIndex = 0;
+    state.wrapPos = 0;
     const events = state.events;
     while (
       state.nextIndex < events.length
@@ -372,6 +396,7 @@ export function createGpMixPlayer(opts = {}) {
     }
     out.sort((a, b) => a.startSec - b.startSec || a.trackIndex - b.trackIndex);
     state.events = out;
+    state.loopEventIdx = null;
     state.allGuitarNotes = guitarNotesFromEvents(out, state.rate);
     state.allDrumHits = out
       .filter((e) => e.kind === 'drum')
@@ -406,7 +431,7 @@ export function createGpMixPlayer(opts = {}) {
     const dur = eventDurWall(ev);
     if (ev.kind === 'guitar') {
       const dest = state.trackGains.guitar[ev.trackIndex] || getAnalyserDestination();
-      state.voices.push(scheduleGuitarTone(
+      registerVoice(scheduleGuitarTone(
         ev.midi,
         at,
         dur || 0.2,
@@ -447,21 +472,44 @@ export function createGpMixPlayer(opts = {}) {
     }
   }
 
+  /**
+   * Collect the indexes of the events inside the loop window, in time order.
+   * The wrap scheduler walks this list with a cursor, so it schedules each
+   * note of the next pass one time only.
+   */
+  function rebuildLoopEventIndex() {
+    state.loopEventIdx = [];
+    state.wrapPos = 0;
+    if (!state.loop) return;
+    for (let i = 0; i < state.events.length; i += 1) {
+      const evSec = wallSecFromEvent(state.events[i]);
+      if (evSec < state.loop.startSec - 1e-6) continue;
+      if (evSec >= state.loop.endSec - 1e-6) continue;
+      state.loopEventIdx.push(i);
+    }
+  }
+
+  /**
+   * Schedule the start of the next loop pass inside the current lookahead
+   * window. This keeps the boundary gapless. The cursor stops a note from
+   * sounding more than one time, which would make an audible flam.
+   */
   function scheduleLoopWrapEvents(songNow, horizon, now) {
     if (!state.loop || state.inLoopRest) return;
-    const loopLen = state.loop.endSec - state.loop.startSec;
-    if (loopLen <= 0) return;
+    // A loop rest is a wanted silence, so the next pass must not start early.
+    if ((Number(state.loop.restSec) || 0) > 0) return;
+    if (state.loop.endSec - state.loop.startSec <= 0) return;
     if (songNow + SCHEDULE_AHEAD < state.loop.endSec - 0.001) return;
+    if (!state.loopEventIdx) rebuildLoopEventIndex();
 
     const wrapBase = state.loop.endSec;
-    for (const ev of state.events) {
-      const evSec = wallSecFromEvent(ev);
-      if (evSec < state.loop.startSec - 1e-6 || evSec >= state.loop.endSec - 1e-6) continue;
-      const offset = evSec - state.loop.startSec;
-      const schedSongSec = wrapBase + offset;
-      if (schedSongSec > horizon + 1e-6) continue;
+    while (state.wrapPos < state.loopEventIdx.length) {
+      const ev = state.events[state.loopEventIdx[state.wrapPos]];
+      const schedSongSec = wrapBase + (wallSecFromEvent(ev) - state.loop.startSec);
+      if (schedSongSec > horizon + 1e-6) break;
       const when = state.originAudioTime + (schedSongSec - state.originSongSec);
       scheduleEvent(ev, when, now);
+      state.wrapPos += 1;
     }
   }
 
@@ -499,10 +547,20 @@ export function createGpMixPlayer(opts = {}) {
       state.loopPassCount += 1;
       state.loopRestartFlag = true;
       if (state.onLoopPass) state.onLoopPass({ passCount: state.loopPassCount });
+      // The wrap scheduler already started this many notes of the new pass.
+      const preScheduled = state.wrapPos;
       state.originSongSec = state.loop.startSec + (songNow - state.loop.endSec);
       state.originAudioTime = now;
       songNow = state.originSongSec;
       resyncCursor(songNow);
+      if (preScheduled > 0 && state.loopEventIdx) {
+        const resumeAt = state.loopEventIdx[preScheduled];
+        state.nextIndex = Math.max(
+          state.nextIndex,
+          resumeAt != null ? resumeAt : state.events.length,
+        );
+      }
+      state.wrapPos = 0;
       emitTick();
     }
 
@@ -922,6 +980,8 @@ export function createGpMixPlayer(opts = {}) {
   }
 
   function setLoop(loop) {
+    state.loopEventIdx = null;
+    state.wrapPos = 0;
     if (!loop) {
       state.loop = null;
       state.inLoopRest = false;

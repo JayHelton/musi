@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player render cost</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    #host { width: 900px; height: 420px; overflow: auto; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Measure the cost of one parchment view update during playback.
+    //
+    // The playhead calls update() on every animation frame. A frame has about
+    // 16 milliseconds. The score view must use a small part of that budget,
+    // because the audio scheduler shares the same thread. When the view uses
+    // too much time, the scheduler timer runs late and the sound skips.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+    import { mountParchmentView } from '/js/gpPlayer/parchmentView.js';
+
+    const BAR_COUNT = 200;
+    const FRAMES = 240;
+    // One update must stay well inside a 16 millisecond frame.
+    const MAX_MEAN_MS = 4;
+    const MAX_WORST_MS = 16;
+
+    function makeModel(barCount) {
+      const strings = [
+        { label: 'E', note: 'E', oct: 4, openMidi: 64 },
+        { label: 'B', note: 'B', oct: 3, openMidi: 59 },
+        { label: 'G', note: 'G', oct: 3, openMidi: 55 },
+        { label: 'D', note: 'D', oct: 3, openMidi: 50 },
+        { label: 'A', note: 'A', oct: 2, openMidi: 45 },
+        { label: 'E', note: 'E', oct: 2, openMidi: 40 },
+      ];
+      const events = [];
+      const measures = [];
+      for (let bar = 0; bar < barCount; bar += 1) {
+        measures.push({
+          startSlot: bar * 4,
+          endSlot: bar * 4 + 4,
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          timeSig: [4, 4],
+        });
+        for (let beat = 0; beat < 4; beat += 1) {
+          events.push({
+            slot: bar * 4 + beat,
+            stringIndex: 5,
+            fret: beat,
+            midi: 40 + beat,
+            pc: (40 + beat) % 12,
+            dead: false,
+            start: bar * 4 + beat,
+            duration: 1,
+            techniques: [],
+          });
+        }
+      }
+      return {
+        tuning: 'Standard',
+        strings,
+        events,
+        measures,
+        slots: barCount * 4,
+        tempo: 120,
+        totalBeats: barCount * 4,
+        techniqueCounts: {},
+        warnings: [],
+      };
+    }
+
+    function percentile(sorted, p) {
+      if (!sorted.length) return 0;
+      const i = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
+      return sorted[i];
+    }
+
+    runMain(async () => {
+      const host = document.getElementById('host');
+      const model = makeModel(BAR_COUNT);
+      const view = mountParchmentView(host, {
+        guitarModel: model,
+        percModel: null,
+        zoom: 1,
+        autoFollow: true,
+      });
+
+      const annotations = [
+        { id: 'a1', startBeat: 8, endBeat: 12, measureStart: 2, measureEnd: 3, title: 'Verse', text: 'note' },
+        { id: 'a2', startBeat: 40, endBeat: 44, measureStart: 10, measureEnd: 11, title: 'Chorus', text: 'note' },
+      ];
+      const selection = { startBeat: 16, endBeat: 24 };
+
+      // Warm up so the first layout does not count as steady-state cost.
+      for (let i = 0; i < 10; i += 1) {
+        view.update({
+          currentSec: i * 0.1, bpm: 120, playing: true, measureIndex: 0,
+          selection, noteDraft: null, loopSelectMode: false, noteSelectMode: false,
+          zoom: 1, autoFollow: true, annotations, highlightedAnnotationId: null,
+        });
+      }
+
+      const samples = [];
+      for (let frame = 0; frame < FRAMES; frame += 1) {
+        // Walk the playhead the way real playback does: the bar changes
+        // slowly, and the beat inside the bar changes on every frame.
+        const beat = (frame / FRAMES) * BAR_COUNT * 4 * 0.05;
+        const measureIndex = Math.floor(beat / 4);
+        const t0 = performance.now();
+        view.update({
+          currentSec: (beat * 60) / 120,
+          bpm: 120,
+          playing: true,
+          measureIndex,
+          selection,
+          noteDraft: null,
+          loopSelectMode: false,
+          noteSelectMode: false,
+          zoom: 1,
+          autoFollow: true,
+          annotations,
+          highlightedAnnotationId: null,
+        });
+        // Read a layout value so a deferred layout is charged to this frame.
+        void host.offsetHeight;
+        samples.push(performance.now() - t0);
+      }
+
+      view.destroy();
+
+      const sorted = samples.slice().sort((a, b) => a - b);
+      const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
+      const p50 = percentile(sorted, 50);
+      const p95 = percentile(sorted, 95);
+      const worst = sorted[sorted.length - 1];
+
+      writeln(`render-cost: parchment update during playback`);
+      writeln(`bars: ${BAR_COUNT}  frames: ${FRAMES}`);
+      writeln(`mean threshold: ${MAX_MEAN_MS} ms  worst threshold: ${MAX_WORST_MS} ms`);
+      printTable(
+        [
+          { metric: 'mean', ms: mean.toFixed(3), ok: mean <= MAX_MEAN_MS ? 'yes' : 'no' },
+          { metric: 'p50', ms: p50.toFixed(3), ok: '' },
+          { metric: 'p95', ms: p95.toFixed(3), ok: '' },
+          { metric: 'worst', ms: worst.toFixed(3), ok: worst <= MAX_WORST_MS ? 'yes' : 'no' },
+        ],
+        [{ key: 'metric' }, { key: 'ms' }, { key: 'ok' }],
+      );
+
+      reportResult(mean <= MAX_MEAN_MS && worst <= MAX_WORST_MS);
+    });
+  </script>
+</body>
+</html>

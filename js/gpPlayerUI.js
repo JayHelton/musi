@@ -412,10 +412,22 @@ export function mountGpPlayer(host, {
     playbackTimeline = timeline;
   }
 
+  // withRate() builds a new timeline object. The playhead asks for the
+  // timeline on every animation frame, so cache the result and rebuild it
+  // only when the base timeline or the practice rate changes.
+  let ratedTimeline = null;
+  let ratedTimelineSource = null;
+  let ratedTimelineRate = null;
+
   function activePlaybackTimeline() {
     if (!playbackTimeline) return null;
     const rate = state.scoreBpm > 0 ? state.bpm / state.scoreBpm : 1;
-    return playbackTimeline.withRate(rate);
+    if (ratedTimelineSource !== playbackTimeline || ratedTimelineRate !== rate) {
+      ratedTimeline = playbackTimeline.withRate(rate);
+      ratedTimelineSource = playbackTimeline;
+      ratedTimelineRate = rate;
+    }
+    return ratedTimeline;
   }
 
   function syncPlayheadAnchorFromPlayer(currentSec) {
