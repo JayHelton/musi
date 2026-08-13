@@ -14,6 +14,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 uv tool install specify-cli 2>/dev/null || uv tool install specify-cli --force
+uv tool install minispec-cli --from git+https://github.com/ivo-toby/mini-spec.git 2>/dev/null || uv tool install minispec-cli --from git+https://github.com/ivo-toby/mini-spec.git --force
 
 if [[ -f cli/package.json ]]; then
   npm install --prefix cli
@@ -21,3 +22,4 @@ fi
 
 uv --version
 specify version 2>/dev/null || specify --version
+minispec --version 2>/dev/null || true

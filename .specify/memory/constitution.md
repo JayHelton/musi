@@ -50,7 +50,11 @@ Non-audio features can verify in a browser without mic access.
 
 Use Spec Kit for non-trivial features.
 Follow this flow: `/speckit-specify`, then plan, then tasks, then implement, then converge.
+MiniSpec is the other toolkit.
+MiniSpec runs a pair-programming loop.
+The MiniSpec constitution lives at `.minispec/memory/constitution.md`.
 Keep feature specs in `specs/`.
+One feature folder must use one toolkit only.
 Keep Spec Kit tooling updates separate from feature artifact changes.
 Plans and tasks must align with this constitution.
 
@@ -88,5 +92,7 @@ This constitution guides Spec Kit plans and tasks.
 Amend this constitution when principles change.
 Each amendment needs a version bump and an updated Last Amended date.
 Record the ratification date when you adopt a new major version.
+When you change principles, update `.specify/memory/constitution.md` and `.minispec/memory/constitution.md`.
+Keep both constitution files aligned.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-12 | **Last Amended**: 2026-08-12
+**Version**: 1.1.0 | **Ratified**: 2026-08-12 | **Last Amended**: 2026-08-13
