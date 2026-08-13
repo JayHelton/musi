@@ -101,7 +101,7 @@ looks unchanged.
 
 - [x] T014 Run `node tests/gp-player/run.mjs` and confirm `gp-player suite: ok`
 - [x] T015 Run `node cli/bin/musi.js --help` as a CLI smoke check
-- [ ] T016 Serve the repo root over HTTP and exercise Close score in a browser per
+- [x] T016 Serve the repo root over HTTP and exercise Close score in a browser per
       `specs/003-gp-player-unload/quickstart.md`
 
 ## Dependencies
