@@ -286,7 +286,7 @@ reachable.
 
 **Purpose**: Ship-readiness work that spans the stories.
 
-- [ ] T099 Delete `js/gpFollowView.js` after `tests/gp-player/smoke.mjs` moves off `buildFollowColumns`, and remove `js/gpFollowView.js` from `service-worker.js`
+- [X] T099 Delete `js/gpFollowView.js` after `tests/gp-player/smoke.mjs` moves off `buildFollowColumns`, and remove `js/gpFollowView.js` from `service-worker.js`
 - [X] T100 Extend `tests/gp-player/loop-playback.mjs` to assert gapless loop scheduling across 20 passes through `js/gpMixPlayer.js`
 - [X] T101 Extend `tests/gp-player/metronome.mjs` to assert on-screen count-in and loop rest countdown through `js/gpPlayer/metronomeState.js`
 - [X] T102 Add exports for every new module to `js/gpPlayer/index.js`
@@ -300,6 +300,27 @@ reachable.
 
 **Checkpoint**: Every command in the Verification commands block passes. The full
 `quickstart.md` run passes. The feature is ready to push.
+
+### Status of the three open tasks
+
+T106, T107, and T108 stay open. They need a person, and the build machine cannot
+supply one.
+
+- **T106 (SC-015 reading test)** needs a guitar teacher to read the 10 passages in
+  `tests/gp-player/fixtures/passages/` on screen with no audio. The team passes SC-015
+  when the teacher confirms the rhythm of at least 8 of the 10 passages.
+- **T107 (SC-016 listening test)** needs a listener to name the bass part and the
+  guitar part on the same 10 passages. The team passes SC-016 at 9 of 10. The
+  automated check in `tests/gp-player/audio/instrument-spectral.html` supports this
+  test but does not replace it. That check measures a centroid gap of 432.5 Hz
+  between the bass voice and the guitar voice.
+- **T108 (full `quickstart.md` run)** is part done. The automated checks, the browser
+  harness, and the mobile layout checks at 360 CSS pixels all pass on the build
+  machine. The manual verification steps, the screen reader checks, and the offline
+  check need a person with a browser, a screen reader, and a real device.
+
+The build machine also has no audio output device, so no step that needs a listener
+can run there.
 
 ---
 

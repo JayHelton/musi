@@ -194,7 +194,6 @@ const PRECACHE_URLS = [
   "js/gpAnnotations.js",
   "js/gpExerciseScore.js",
   "js/gpMixPlayer.js",
-  "js/gpFollowView.js",
   "js/tab/tabModel.js",
   "js/tab/tabParser.js",
   "js/tab/tabPlayer.js",

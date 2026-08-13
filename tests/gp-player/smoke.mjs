@@ -21,7 +21,6 @@ import {
 } from '../../js/drums/gpDrumImport.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
 import { DRUM_TAB_LANES } from '../../js/drums/notation.js';
-import { buildFollowColumns } from '../../js/gpFollowView.js';
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
 import { scheduleMetronomeClick } from '../../js/tab/metroClick.js';
 import {
@@ -355,36 +354,40 @@ const snips = buildGpSectionSnippets(fakeGp);
 assert.ok(snips.length >= 2);
 assert.ok(snips.some((s) => s.hasGuitar && s.hasDrums));
 
-// ---- follow columns ----
-const layout = buildFollowColumns({
-  guitarModel: fakeGp.tracks[0].model,
-  percModel: perc,
-  startBeat: 0,
-  endBeat: 2,
-});
-assert.ok(layout.columns.length >= 4);
-assert.ok(layout.columns.some((c) => c.frets.some((f) => f != null)));
-assert.ok(layout.columns.some((c) => Object.keys(c.drums).length));
-assert.ok(layout.columns.some((c) => c.barStart && c.marker === 'Intro'));
-const introCol = layout.columns.find((c) => c.barStart && c.marker === 'Intro');
-assert.equal(introCol.barNumber, 1);
-assert.equal(introCol.measureIndex, 0);
-assert.equal(introCol.beatInBar, 0);
-const verseCol = layout.columns.find((c) => c.barStart && c.marker === 'Verse');
-assert.equal(verseCol?.barNumber, 2);
+// ---- score layout: bar numbers, markers, and drum glyphs ----
+// This block used to read js/gpFollowView.js. The score layout module now
+// owns the drawn score, so the checks read that module instead.
+{
+  const { layoutScore } = await import('../../js/gpPlayer/scoreLayout.js');
 
-for (const col of layout.columns) {
-  for (const hit of Object.values(col.drums)) {
-    assert.notEqual(hit.glyph, '●', 'drum glyphs must be tab symbols, not bullets');
-    assert.ok('label' in hit, 'drum entry should carry label');
+  const guitarLayout = layoutScore(fakeGp.tracks[0].model, { widthPx: 900 });
+  assert.ok(guitarLayout.bars.length >= 2, 'guitar layout draws every bar');
+  const frets = guitarLayout.bars.flatMap((b) => b.glyphs.filter((g) => g.kind === 'fret'));
+  assert.ok(frets.length > 0, 'the guitar layout draws fret numbers');
+
+  const barNumbers = guitarLayout.bars
+    .flatMap((b) => b.glyphs.filter((g) => g.kind === 'barNumber'))
+    .map((g) => g.text);
+  assert.equal(barNumbers[0], '1', 'the first bar shows number 1');
+  assert.equal(barNumbers[1], '2', 'the second bar shows number 2');
+
+  const markers = guitarLayout.bars
+    .flatMap((b) => b.glyphs.filter((g) => g.kind === 'marker'))
+    .map((g) => g.text);
+  assert.ok(markers.includes('Intro'), 'the layout draws the Intro marker');
+  assert.ok(markers.includes('Verse'), 'the layout draws the Verse marker');
+
+  const drumLayout = layoutScore(perc, { widthPx: 900, drumMode: true });
+  const hits = drumLayout.bars.flatMap((b) => b.glyphs.filter((g) => g.kind === 'drumHit'));
+  assert.ok(hits.length > 0, 'the drum layout draws hits');
+  for (const hit of hits) {
+    assert.notEqual(hit.text, '●', 'drum glyphs must be tab symbols, not bullets');
+    assert.ok(hit.aria, 'a drum glyph carries an accessible name');
   }
+  const glyphTexts = new Set(hits.map((h) => h.text));
+  assert.ok(glyphTexts.has('O'), 'a kick or snare draws as O');
+  assert.ok(glyphTexts.has('x'), 'a hi-hat draws as x');
 }
-const kickCol = layout.columns.find((c) => c.drums.kick);
-assert.equal(kickCol?.drums.kick?.glyph, 'O');
-assert.equal(kickCol?.drums.hihat?.glyph, 'x');
-const snareCol = layout.columns.find((c) => c.drums.snare);
-assert.equal(snareCol?.drums.snare?.glyph, 'O');
-assert.equal(snareCol?.drums.hihat?.glyph, 'x');
 
 // ---- loop rest API on mix player ----
 const mixLoop = createGpMixPlayer();
