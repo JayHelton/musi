@@ -12,6 +12,7 @@ import {
 import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.js';
 import { scoreRunnerNote } from './pitchMetrics.js';
 import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
+import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
 
 // "Pitch runner" — a Guitar-Hero / Yousician-style scrolling pitch game that
 // lives in the Pitch section. Note bars stream in from the right in strict 4/4
@@ -49,7 +50,6 @@ const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
 // Short cue length for the optional melody guide. Kept brief so the singer —
 // not the app's own speakers — must sustain the note for the hit.
 const GUIDE_CUE_BEATS = 0.35;
-const GUIDE_CUE_TAIL_SEC = 0.18; // release/reverb tail after the cue ends
 
 // Beats of runway shown to the right of the hit line. Scales with note length
 // so a long, sustained note still fits comfortably on screen with approach time.
@@ -586,7 +586,7 @@ function scheduleAudio(playheadBeat) {
         const t = runner.startAudioTime + note.startBeat * runner.secPerBeat;
         if (t > audioCtx.currentTime - 0.05) {
           const cueSec = scheduleGuideTone(note.midi, t);
-          note.guideMuteUntil = t + cueSec + GUIDE_CUE_TAIL_SEC;
+          note.guideMuteUntil = lockoutUntil(t + cueSec);
         }
         note.guideScheduled = true;
       }
@@ -596,6 +596,24 @@ function scheduleAudio(playheadBeat) {
 
 function handleRunnerPitchFrame(frame) {
   if (!runner.running) return;
+  const audioTime = frame.audioTime;
+  let anyLockActive = false;
+  for (const note of runner.notes) {
+    if (note.guideMuteUntil > 0 && !isScoringWindowClear(audioTime, note.guideMuteUntil, runner.capture)) {
+      anyLockActive = true;
+      break;
+    }
+  }
+  if (anyLockActive) {
+    if (runner.capture) runner.capture.reset();
+    runner.lastPitchFrame = {
+      ...frame,
+      voiced: false,
+      frequencyHz: -1,
+      displayFrequencyHz: -1,
+    };
+    return;
+  }
   const activeMinRms = runner.noiseFloor ? runner.noiseFloor.ingest(frame.rms) : frame.rms;
   if (runner.capture) runner.capture.setMinRms(activeMinRms);
   runner.lastPitchFrame = frame;
@@ -651,8 +669,8 @@ function step() {
     const inNoteWindow = correctedAudioTime >= note.startAudioTime
       && correctedAudioTime < note.endAudioTime;
     if (inNoteWindow) {
-      const guideMute = note.guideMuteUntil > 0 && now < note.guideMuteUntil;
-      if (!guideMute) {
+      const scoring = isScoringWindowClear(correctedAudioTime, note.guideMuteUntil, runner.capture);
+      if (scoring) {
         const cents = voiced && frequencyHz > 0
           ? centsOffFromTarget(frequencyHz, note.midi)
           : null;

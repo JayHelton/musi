@@ -182,8 +182,9 @@ a harsh vocal only when the detector finds a stable fundamental.
 
 ### Guide tone
 
-Remove detuned layers. Use exact-frequency sine and triangle oscillators. Keep
-the scoring lockout until the release tail and the room tail are complete.
+Remove detuned layers. Use exact-frequency sine and triangle oscillators. Score
+only when the analysis window start is after audible end plus a 0.6 s room tail.
+Reset capture and matcher at lockout start and at the first clear frame.
 
 ### Trainer interface
 

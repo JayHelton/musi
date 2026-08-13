@@ -3,7 +3,7 @@ feature: cursor-pitch-trainer-improvement-05f0
 status: planned
 created: 2026-08-13
 chunk_size: medium
-total_tasks: 28
+total_tasks: 29
 estimated_lines: 1680
 ---
 
@@ -324,6 +324,20 @@ Stage 2 until this checkpoint is green.
 - **Acceptance:** Automated tests pass. Manual gaps are listed.
 - **Evidence:** Command output plus the incomplete manual list.
 
+#### Task 29: Guide lockout window-start
+- **Estimate:** ~120 lines
+- **Files:** `js/pitchGuideLock.js`, `js/pitchCapture.js`,
+  `js/pitchTrainer.js`, `js/pitchRunner.js`, `tests/pitch/lockout.mjs`,
+  `service-worker.js`
+- **Description:** Score only when the analysis window start is after audible
+  end plus 0.6 s room tail. Reset capture and matcher at lockout start and
+  at the first clear frame. Reset capture on every locked frame so the
+  smoother does not hold guide pitch. Do not ingest noise floor during lockout.
+- **Depends on:** Task 7, Task 21
+- **Acceptance:** Guide playback never counts as singer input. Lockout tests
+  pass.
+- **Evidence:** `node tests/pitch/run.mjs` exit code 0.
+
 ## Notes
 
 - Do not replace the MPM detector without test evidence from Task 23.
@@ -365,5 +379,6 @@ Stage 2 until this checkpoint is green.
 - [x] Task 26: Mic exclusivity tests
 - [x] Task 27: Service worker, cache, and manual checklist
 - [x] Task 28: Full runner and CLI smoke
+- [x] Task 29: Guide lockout window-start
 
 Manual device checks in `manual-checklist.md` are **not complete**. All items stay unchecked until a real device test runs.

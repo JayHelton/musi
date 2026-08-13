@@ -185,5 +185,6 @@ export async function createPitchCapture(opts) {
     reset,
     setMinRms,
     get windowSize() { return WINDOW_SIZE; },
+    get sampleRate() { return sampleRate; },
   };
 }
