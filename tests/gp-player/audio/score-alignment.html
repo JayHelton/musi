@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player score alignment</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    #host { width: 1200px; height: 520px; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Measure the score geometry in real pixels.
+    //
+    // The page checks five things that a user can see:
+    //   1. The playhead stands on the note that sounds.
+    //   2. The playhead only covers the measure it is in.
+    //   3. The string names line up with the staff rows.
+    //   4. A drum score gives each kit lane its own readable row.
+    //   5. A legato arc joins the correct pair of notes and does not overlap
+    //      another arc.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+
+    const PLAYHEAD_TOLERANCE_PX = 1.5;
+    const GUTTER_TOLERANCE_PX = 1;
+    const ARC_END_TOLERANCE_PX = 3;
+    const MIN_DRUM_ROW_PX = 12;
+    const LAYOUT_WAIT_MS = 400;
+
+    const STRINGS = [
+      { note: 'E', oct: 4, label: 'e', openMidi: 64 },
+      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+    ];
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function beat(measureIndex, start, duration, noteValue, noteIndices) {
+      return {
+        measureIndex,
+        voiceIndex: 0,
+        start,
+        duration,
+        noteValue,
+        dots: 0,
+        tuplet: null,
+        rest: false,
+        noteIndices,
+      };
+    }
+
+    /**
+     * A guitar score with four bars.
+     * Bar 0 holds four hammer-ons on one string, which is the case that used
+     * to draw every arc from the first note of the bar.
+     * Bar 1 holds sixteenth notes across the strings.
+     * Bar 2 holds bends. Bar 3 holds ties.
+     */
+    function guitarModel() {
+      const events = [];
+      const beats = [];
+
+      for (let i = 0; i < 5; i += 1) {
+        events.push({
+          start: i * 0.5,
+          duration: 0.5,
+          stringIndex: 2,
+          fret: 5 + i,
+          midi: 55 + 5 + i,
+          dead: false,
+          techniques: i === 0 ? [] : ['hammer'],
+        });
+        beats.push(beat(0, i * 0.5, 0.5, 8, [events.length - 1]));
+      }
+
+      for (let i = 0; i < 16; i += 1) {
+        events.push({
+          start: 4 + i * 0.25,
+          duration: 0.25,
+          stringIndex: i % 6,
+          fret: 10 + (i % 3),
+          midi: 40 + 10 + (i % 3),
+          dead: false,
+          techniques: [],
+        });
+        beats.push(beat(1, 4 + i * 0.25, 0.25, 16, [events.length - 1]));
+      }
+
+      for (let i = 0; i < 4; i += 1) {
+        events.push({
+          start: 8 + i,
+          duration: 1,
+          stringIndex: 1,
+          fret: 7,
+          midi: 59 + 7,
+          dead: false,
+          techniques: ['bend'],
+          bend: { points: [{ position: 0, cents: 0 }, { position: 60, cents: 100 }] },
+        });
+        beats.push(beat(2, 8 + i, 1, 4, [events.length - 1]));
+      }
+
+      for (let i = 0; i < 4; i += 1) {
+        events.push({
+          start: 12 + i,
+          duration: 1,
+          stringIndex: 4,
+          fret: 3,
+          midi: 45 + 3,
+          dead: false,
+          techniques: [],
+          tie: i > 0,
+        });
+        beats.push(beat(3, 12 + i, 1, 4, [events.length - 1]));
+      }
+
+      return {
+        tuning: 'Standard',
+        strings: STRINGS,
+        events,
+        beats,
+        rests: [],
+        measures: [0, 1, 2, 3].map((bar) => ({
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          startSlot: bar * 4,
+          endSlot: bar * 4 + 4,
+          timeSig: [4, 4],
+        })),
+        tempo: 120,
+        totalBeats: 16,
+        techniqueCounts: {},
+        warnings: [],
+      };
+    }
+
+    /** A drum score with five kit lanes and sixteenth hi-hats. */
+    function drumModel() {
+      const events = [];
+      for (let bar = 0; bar < 2; bar += 1) {
+        for (let i = 0; i < 16; i += 1) {
+          const start = bar * 4 + i * 0.25;
+          events.push({
+            start, duration: 0.25, instrument: 'hihatClosed', midi: 42, velocity: 0.7,
+          });
+          if (i % 8 === 0) {
+            events.push({
+              start, duration: 0.25, instrument: 'kick', midi: 36, velocity: 0.9,
+            });
+          }
+          if (i % 8 === 4) {
+            events.push({
+              start, duration: 0.25, instrument: 'snare', midi: 38, velocity: 0.9,
+            });
+          }
+          if (i === 0) {
+            events.push({
+              start, duration: 0.25, instrument: 'crash', midi: 49, velocity: 1,
+            });
+          }
+          if (i === 12) {
+            events.push({
+              start, duration: 0.25, instrument: 'tomFloor', midi: 41, velocity: 0.8,
+            });
+          }
+        }
+      }
+      return {
+        percussion: true,
+        name: 'Drums',
+        tempo: 120,
+        events,
+        measures: [0, 1].map((bar) => ({
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          startSlot: bar * 4,
+          endSlot: bar * 4 + 4,
+          timeSig: [4, 4],
+        })),
+        slots: 8,
+        totalBeats: 8,
+        warnings: [],
+      };
+    }
+
+    function centreX(el) {
+      const r = el.getBoundingClientRect();
+      return r.left + r.width / 2;
+    }
+
+    function centreY(el) {
+      const r = el.getBoundingClientRect();
+      return r.top + r.height / 2;
+    }
+
+    function measureEl(index) {
+      return [...document.querySelectorAll('.gpp-parch-measure')]
+        .find((el) => el.dataset.index === String(index));
+    }
+
+    function noteGlyphs(index) {
+      const el = measureEl(index);
+      if (!el) return [];
+      return [...el.querySelectorAll('.gpp-parch-lane-tabStaff [data-note="1"]')];
+    }
+
+    // 1. The playhead must stand on the note that sounds.
+    function checkPlayheadOnNotes(parch, model) {
+      const playhead = document.querySelector('.gpp-parch-playhead');
+      if (!playhead) return { pass: false, rows: [], note: 'no playhead element' };
+
+      const rows = [];
+      let worst = 0;
+      for (let mi = 0; mi < model.measures.length; mi += 1) {
+        const glyphs = noteGlyphs(mi);
+        for (const glyph of glyphs) {
+          const beatStart = Number(glyph.dataset.beatStart);
+          if (!Number.isFinite(beatStart)) continue;
+          parch.update({
+            beatInScore: beatStart,
+            bpm: 120,
+            playing: false,
+            measureIndex: mi,
+            autoFollow: false,
+          });
+          const delta = Math.abs(centreX(playhead) - centreX(glyph));
+          if (delta > worst) worst = delta;
+          if (delta > PLAYHEAD_TOLERANCE_PX) {
+            rows.push({
+              bar: String(mi + 1),
+              beat: beatStart.toFixed(2),
+              noteX: centreX(glyph).toFixed(1),
+              lineX: centreX(playhead).toFixed(1),
+              deltaPx: delta.toFixed(2),
+            });
+          }
+        }
+      }
+      return { pass: worst <= PLAYHEAD_TOLERANCE_PX, worst, rows };
+    }
+
+    // 2. The playhead must only cover the measure it is in.
+    function checkPlayheadHeight(parch) {
+      const playhead = document.querySelector('.gpp-parch-playhead');
+      const sheet = document.querySelector('.gpp-parch-sheet');
+      parch.update({ beatInScore: 1, bpm: 120, playing: false, measureIndex: 0, autoFollow: false });
+      const staff = measureEl(0)?.querySelector('.gpp-parch-staff');
+      if (!playhead || !sheet || !staff) return { pass: false };
+      const p = playhead.getBoundingClientRect();
+      const s = staff.getBoundingClientRect();
+      const sh = sheet.getBoundingClientRect();
+      const topDelta = Math.abs(p.top - s.top);
+      const heightDelta = Math.abs(p.height - s.height);
+      const systems = document.querySelectorAll('.gpp-parch-system').length;
+      const shorterThanSheet = systems > 1 ? p.height < sh.height - 1 : true;
+      return {
+        pass: topDelta <= 1 && heightDelta <= 1 && shorterThanSheet,
+        topDelta,
+        heightDelta,
+        playheadH: p.height,
+        staffH: s.height,
+        sheetH: sh.height,
+        systems,
+      };
+    }
+
+    // 3. Each label in the gutter must line up with its staff row.
+    function checkGutterAlignment(rowSelector) {
+      const system = document.querySelector('.gpp-parch-system');
+      if (!system) return { pass: false, rows: [] };
+      const gutterRows = [...system.querySelectorAll(`.gpp-parch-gutter-staff ${rowSelector}`)];
+      const measure = system.querySelector('.gpp-parch-measure');
+      const staffRows = [...measure.querySelectorAll(`.gpp-parch-lane-notes > ${rowSelector}`)];
+      const rows = [];
+      let worst = 0;
+      if (!gutterRows.length || gutterRows.length !== staffRows.length) {
+        return {
+          pass: false,
+          worst: Infinity,
+          rows,
+          note: `gutter rows ${gutterRows.length} against staff rows ${staffRows.length}`,
+        };
+      }
+      for (let i = 0; i < gutterRows.length; i += 1) {
+        const delta = Math.abs(centreY(gutterRows[i]) - centreY(staffRows[i]));
+        if (delta > worst) worst = delta;
+        rows.push({
+          row: String(i),
+          labelY: centreY(gutterRows[i]).toFixed(1),
+          staffRowY: centreY(staffRows[i]).toFixed(1),
+          deltaPx: delta.toFixed(2),
+        });
+      }
+      return { pass: worst <= GUTTER_TOLERANCE_PX, worst, rows };
+    }
+
+    // 4. A drum score must give each kit lane its own readable row.
+    function checkDrumRows() {
+      const measure = measureEl(0);
+      if (!measure) return { pass: false, note: 'no measure' };
+      const rowEls = [...measure.querySelectorAll('.gpp-parch-lane-notes > .gpp-parch-drum-lane')];
+      const hits = [...measure.querySelectorAll('.gpp-parch-drum-hit')];
+      const rowHeights = rowEls.map((el) => el.getBoundingClientRect().height);
+      const minRowH = rowHeights.length ? Math.min(...rowHeights) : 0;
+
+      const lanesY = [...new Set(hits.map((h) => Math.round(centreY(h))))].sort((a, b) => a - b);
+      let minLaneGap = Infinity;
+      for (let i = 1; i < lanesY.length; i += 1) {
+        minLaneGap = Math.min(minLaneGap, lanesY[i] - lanesY[i - 1]);
+      }
+
+      // Two hits in one lane must not sit on top of each other.
+      let worstOverlapPx = 0;
+      const byLane = new Map();
+      for (const hit of hits) {
+        const key = Math.round(centreY(hit));
+        if (!byLane.has(key)) byLane.set(key, []);
+        byLane.get(key).push(hit.getBoundingClientRect());
+      }
+      for (const boxes of byLane.values()) {
+        boxes.sort((a, b) => a.left - b.left);
+        for (let i = 1; i < boxes.length; i += 1) {
+          const overlap = boxes[i - 1].right - boxes[i].left;
+          if (overlap > worstOverlapPx) worstOverlapPx = overlap;
+        }
+      }
+
+      return {
+        pass: rowEls.length >= 5
+          && lanesY.length === rowEls.length
+          && minRowH >= MIN_DRUM_ROW_PX
+          && minLaneGap >= MIN_DRUM_ROW_PX
+          && worstOverlapPx <= 0.5,
+        rowCount: rowEls.length,
+        laneCount: lanesY.length,
+        minRowH,
+        minLaneGap,
+        worstOverlapPx,
+        hitCount: hits.length,
+      };
+    }
+
+    // 5. A legato arc must join the correct pair of notes and stay clear.
+    function checkLegatoArcs() {
+      const measure = measureEl(0);
+      const arcs = [...measure.querySelectorAll('.gpp-parch-overlay--slur')];
+      const notes = noteGlyphs(0)
+        .map((el) => ({ el, x: centreX(el), rect: el.getBoundingClientRect() }))
+        .sort((a, b) => a.x - b.x);
+
+      const rows = [];
+      let worstEnd = 0;
+      let overlapCount = 0;
+      const spans = [];
+
+      for (const arc of arcs) {
+        const r = arc.getBoundingClientRect();
+        const nearLeft = notes.reduce(
+          (best, n) => (Math.abs(n.x - r.left) < Math.abs(best.x - r.left) ? n : best),
+          notes[0],
+        );
+        const nearRight = notes.reduce(
+          (best, n) => (Math.abs(n.x - r.right) < Math.abs(best.x - r.right) ? n : best),
+          notes[0],
+        );
+        const endError = Math.max(
+          Math.abs(nearLeft.x - r.left),
+          Math.abs(nearRight.x - r.right),
+        );
+        if (endError > worstEnd) worstEnd = endError;
+
+        // The arc must curve above the notes it joins.
+        const aboveNotes = r.top < Math.min(nearLeft.rect.top, nearRight.rect.top) + 0.5;
+
+        for (const prev of spans) {
+          if (r.left < prev.right - 0.5 && prev.left < r.right - 0.5) {
+            const sameHeight = Math.abs(prev.top - r.top) < 1;
+            if (sameHeight) overlapCount += 1;
+          }
+        }
+        spans.push({ left: r.left, right: r.right, top: r.top });
+
+        rows.push({
+          leftX: r.left.toFixed(1),
+          rightX: r.right.toFixed(1),
+          topY: r.top.toFixed(1),
+          endErrPx: endError.toFixed(2),
+          aboveNotes: aboveNotes ? 'yes' : 'no',
+        });
+      }
+
+      const distinctLeft = new Set(rows.map((r) => r.leftX)).size;
+      return {
+        pass: arcs.length === 4
+          && worstEnd <= ARC_END_TOLERANCE_PX
+          && overlapCount === 0
+          && distinctLeft === arcs.length
+          && rows.every((r) => r.aboveNotes === 'yes'),
+        arcCount: arcs.length,
+        worstEnd,
+        overlapCount,
+        distinctLeft,
+        rows,
+      };
+    }
+
+    function checkNoOverflow() {
+      const viewport = document.querySelector('.gpp-parch-viewport');
+      let worstRow = 0;
+      for (const row of document.querySelectorAll('.gpp-parch-system')) {
+        worstRow = Math.max(worstRow, row.scrollWidth - row.clientWidth);
+      }
+      const overflow = viewport ? viewport.scrollWidth - viewport.clientWidth : 0;
+      return { pass: overflow <= 1 && worstRow <= 1, overflow, worstRow };
+    }
+
+    runMain(async () => {
+      const { mountParchmentView } = await import('/js/gpPlayer/parchmentView.js');
+      const host = document.getElementById('host');
+      let pass = true;
+
+      // --- Guitar score ---
+      const gModel = guitarModel();
+      const gParch = mountParchmentView(host, { guitarModel: gModel, autoFollow: false });
+      await sleep(LAYOUT_WAIT_MS);
+
+      writeln('=== 1. the playhead must stand on the note that sounds ===');
+      const onNotes = checkPlayheadOnNotes(gParch, gModel);
+      writeln(`notes checked: ${gModel.events.length}`);
+      writeln(`worst gap: ${onNotes.worst.toFixed(2)} px  limit: ${PLAYHEAD_TOLERANCE_PX} px`);
+      if (onNotes.rows.length) {
+        printTable(onNotes.rows, [
+          { key: 'bar', label: 'bar' },
+          { key: 'beat', label: 'beat' },
+          { key: 'noteX', label: 'note x' },
+          { key: 'lineX', label: 'line x' },
+          { key: 'deltaPx', label: 'gap px' },
+        ]);
+      }
+      writeln(onNotes.pass ? 'ok' : 'FAIL');
+      if (!onNotes.pass) pass = false;
+
+      writeln('');
+      writeln('=== 2. the playhead must only cover its own measure ===');
+      const height = checkPlayheadHeight(gParch);
+      writeln(`playhead height: ${height.playheadH?.toFixed(1)} px  staff height: ${height.staffH?.toFixed(1)} px`);
+      writeln(`sheet height: ${height.sheetH?.toFixed(1)} px  systems: ${height.systems}`);
+      writeln(`top gap: ${height.topDelta?.toFixed(2)} px  height gap: ${height.heightDelta?.toFixed(2)} px`);
+      writeln(height.pass ? 'ok' : 'FAIL');
+      if (!height.pass) pass = false;
+
+      writeln('');
+      writeln('=== 3. the string names must line up with the staff rows ===');
+      const gutter = checkGutterAlignment('.gpp-parch-string');
+      if (gutter.note) writeln(gutter.note);
+      printTable(gutter.rows, [
+        { key: 'row', label: 'row' },
+        { key: 'labelY', label: 'label y' },
+        { key: 'staffRowY', label: 'staff row y' },
+        { key: 'deltaPx', label: 'gap px' },
+      ]);
+      writeln(`worst gap: ${Number(gutter.worst).toFixed(2)} px  limit: ${GUTTER_TOLERANCE_PX} px`);
+      writeln(gutter.pass ? 'ok' : 'FAIL');
+      if (!gutter.pass) pass = false;
+
+      writeln('');
+      writeln('=== 5. a legato arc must join the correct pair of notes ===');
+      const arcs = checkLegatoArcs();
+      writeln(`slur arcs: ${arcs.arcCount}  expected: 4`);
+      printTable(arcs.rows, [
+        { key: 'leftX', label: 'left x' },
+        { key: 'rightX', label: 'right x' },
+        { key: 'topY', label: 'top y' },
+        { key: 'endErrPx', label: 'end error px' },
+        { key: 'aboveNotes', label: 'above notes' },
+      ]);
+      writeln(`worst end error: ${arcs.worstEnd.toFixed(2)} px  limit: ${ARC_END_TOLERANCE_PX} px`);
+      writeln(`arcs that overlap at the same height: ${arcs.overlapCount}`);
+      writeln(`arcs with a distinct start: ${arcs.distinctLeft} of ${arcs.arcCount}`);
+      writeln(arcs.pass ? 'ok' : 'FAIL');
+      if (!arcs.pass) pass = false;
+
+      writeln('');
+      writeln('=== 6. a row must not overflow the viewport (guitar) ===');
+      const gOverflow = checkNoOverflow();
+      writeln(`viewport overflow: ${gOverflow.overflow} px  worst row overflow: ${gOverflow.worstRow} px`);
+      writeln(gOverflow.pass ? 'ok' : 'FAIL');
+      if (!gOverflow.pass) pass = false;
+
+      gParch.destroy();
+
+      // --- Drum score ---
+      const dModel = drumModel();
+      const dParch = mountParchmentView(host, { percModel: dModel, autoFollow: false });
+      await sleep(LAYOUT_WAIT_MS);
+
+      writeln('');
+      writeln('=== 4. a drum score must give each kit lane its own row ===');
+      const drums = checkDrumRows();
+      writeln(`kit rows drawn: ${drums.rowCount}  rows that hold a hit: ${drums.laneCount}`);
+      writeln(`hits in bar 1: ${drums.hitCount}`);
+      writeln(`smallest row height: ${Number(drums.minRowH).toFixed(1)} px  limit: ${MIN_DRUM_ROW_PX} px`);
+      writeln(`smallest gap between two rows: ${Number(drums.minLaneGap).toFixed(1)} px`);
+      writeln(`worst overlap of two hits in one row: ${Number(drums.worstOverlapPx).toFixed(2)} px`);
+      writeln(drums.pass ? 'ok' : 'FAIL');
+      if (!drums.pass) pass = false;
+
+      writeln('');
+      writeln('=== 3b. the kit labels must line up with the kit rows ===');
+      const drumGutter = checkGutterAlignment('.gpp-parch-drum-lane');
+      if (drumGutter.note) writeln(drumGutter.note);
+      printTable(drumGutter.rows, [
+        { key: 'row', label: 'row' },
+        { key: 'labelY', label: 'label y' },
+        { key: 'staffRowY', label: 'staff row y' },
+        { key: 'deltaPx', label: 'gap px' },
+      ]);
+      writeln(`worst gap: ${Number(drumGutter.worst).toFixed(2)} px  limit: ${GUTTER_TOLERANCE_PX} px`);
+      writeln(drumGutter.pass ? 'ok' : 'FAIL');
+      if (!drumGutter.pass) pass = false;
+
+      writeln('');
+      writeln('=== 1b. the playhead must stand on the drum hit that sounds ===');
+      const drumOnNotes = checkPlayheadOnNotes(dParch, dModel);
+      writeln(`worst gap: ${drumOnNotes.worst.toFixed(2)} px  limit: ${PLAYHEAD_TOLERANCE_PX} px`);
+      if (drumOnNotes.rows.length) {
+        printTable(drumOnNotes.rows.slice(0, 12), [
+          { key: 'bar', label: 'bar' },
+          { key: 'beat', label: 'beat' },
+          { key: 'noteX', label: 'note x' },
+          { key: 'lineX', label: 'line x' },
+          { key: 'deltaPx', label: 'gap px' },
+        ]);
+      }
+      writeln(drumOnNotes.pass ? 'ok' : 'FAIL');
+      if (!drumOnNotes.pass) pass = false;
+
+      dParch.destroy();
+
+      writeln('');
+      reportResult(pass);
+    });
+  </script>
+</body>
+</html>

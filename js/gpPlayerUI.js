@@ -573,6 +573,9 @@ export function mountGpPlayer(host, {
     const secDisplay = quartersToSeconds(pos.beatInScore, state.bpm);
     parchment?.update({
       currentSec: secDisplay,
+      // The score view needs the written beat, not a second count. A score
+      // with a tempo map has no single tempo, so seconds cannot name a beat.
+      beatInScore: pos.beatInScore,
       bpm: state.bpm,
       playing: player.playing && !resting,
       measureIndex: pos.barIndex,
@@ -887,11 +890,17 @@ export function mountGpPlayer(host, {
     // guard the view repaints on the audio tick and on the animation frame,
     // about 100 times each second, and that work delays the audio scheduler.
     if (playheadFrameId == null) {
+      // The audio tick reports seconds. Ask the score timeline for the written
+      // beat that belongs to those seconds, so the line stops at the note it
+      // plays. The timeline is absent for a score without a rhythm, and the
+      // view then falls back to a plain seconds to beats step.
+      const tickPos = activePlaybackTimeline()?.positionAtSeconds(currentSec) ?? null;
       parchment?.update({
         currentSec,
+        beatInScore: tickPos?.beatInScore,
         bpm: state.bpm,
         playing: playing && !resting,
-        measureIndex,
+        measureIndex: tickPos ? tickPos.barIndex : measureIndex,
         selection: parchmentSelection(),
         noteDraft: noteDraftSelection
           ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }

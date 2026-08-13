@@ -731,7 +731,41 @@ const parchSheet = parchHost.querySelector('.gpp-parch-sheet');
 assert.equal(parseFloat(parchSheet.style.getPropertyValue('--gpp-scale')), 1, 'sheet should publish --gpp-scale at default zoom on narrow host');
 const firstMeasure = parchHost.querySelector('.gpp-parch-measure');
 assert.ok(firstMeasure?.style?.minWidth, 'measures should get inline min-width from density packing');
-assert.ok(firstMeasure?.style?.flexGrow, 'measures should get inline flex-grow from nominal width');
+assert.ok(firstMeasure?.style?.width, 'measures should get inline width from layout');
+assert.equal(firstMeasure?.style?.flex, '0 0 auto', 'measures should not stretch with flex-grow');
+for (const measure of parchHost.querySelectorAll('.gpp-parch-measure')) {
+  assert.ok(measure.style?.width, 'each measure should set inline width');
+  const staff = measure.querySelector('.gpp-parch-staff');
+  assert.ok(staff, 'each measure should contain a staff');
+  const overlay = staff.querySelector('.gpp-parch-overlays');
+  assert.ok(overlay, 'overlay SVG should be a child of the staff');
+}
+
+function staffTabRowCount(measureEl) {
+  const tabLane = measureEl.querySelector('.gpp-parch-lane-tabStaff');
+  const laneNotes = tabLane?.querySelector('.gpp-parch-lane-notes');
+  if (!laneNotes) return 0;
+  return laneNotes.querySelectorAll('.gpp-parch-string').length
+    + laneNotes.querySelectorAll('.gpp-parch-drum-lane').length;
+}
+
+function gutterTabRowCount(gutterEl) {
+  return gutterEl.querySelectorAll('.gpp-parch-gutter-row').length;
+}
+
+for (const sys of parchHost.querySelectorAll('.gpp-parch-system')) {
+  const gutter = sys.querySelector('.gpp-parch-gutter');
+  const measure = sys.querySelector('.gpp-parch-measure');
+  if (!gutter || !measure) continue;
+  assert.equal(
+    gutterTabRowCount(gutter),
+    staffTabRowCount(measure),
+    'gutter row count should match staff row count for guitar',
+  );
+  const spacers = gutter.querySelectorAll('.gpp-parch-gutter-spacer');
+  assert.equal(spacers.length, 2, 'gutter should hold a top spacer and a bottom spacer');
+}
+
 const padStartZoom1 = parseInt(parchSheet.style.getPropertyValue('--gpp-note-pad-start'), 10);
 const padEndZoom1 = parseInt(parchSheet.style.getPropertyValue('--gpp-note-pad-end'), 10);
 assert.ok(padStartZoom1 > 0, 'sheet should set --gpp-note-pad-start at zoom 1');
@@ -861,16 +895,40 @@ assert.ok(
   sixteenthMinW >= quarterMinW,
   `sixteenth bar min-width (${sixteenthMinW}) must be at least the quarter bar (${quarterMinW})`,
 );
-// On a wide screen a row holds several measures, and then a denser bar must
-// claim more room. FR-020 asks the spacing to follow the written length.
+// A denser bar must claim more room. FR-020 asks the spacing to follow the
+// written length. `minWidthUnits` reports the room a bar asks for, and
+// `widthUnits` reports the room the row gives it.
 {
   const { layoutScore } = await import('../../js/gpPlayer/scoreLayout.js');
   const wide = { widthPx: 1600 };
-  const quarterWide = layoutScore(quarterBarModel, wide).bars[0].widthUnits;
-  const sixteenthWide = layoutScore(sixteenthBarModel, wide).bars[0].widthUnits;
+  const quarterWide = layoutScore(quarterBarModel, wide).bars[0].minWidthUnits;
+  const sixteenthWide = layoutScore(sixteenthBarModel, wide).bars[0].minWidthUnits;
   assert.ok(
     sixteenthWide > quarterWide,
-    `on a wide screen the sixteenth bar (${sixteenthWide}) must be wider than the quarter bar (${quarterWide})`,
+    `the sixteenth bar (${sixteenthWide}) must ask for more room than the quarter bar (${quarterWide})`,
+  );
+
+  // Two bars that share one row must split the row by their written length.
+  const mixed = makeParchGuitarModel({
+    name: 'mixedDensity',
+    events: [
+      { start: 0, stringIndex: 0, fret: 3, dead: false },
+      ...Array.from({ length: 16 }, (_, i) => ({
+        start: 4 + i * 0.25,
+        stringIndex: 0,
+        fret: 3,
+        dead: false,
+      })),
+    ],
+    measures: [{ startBeat: 0, endBeat: 4 }, { startBeat: 4, endBeat: 8 }],
+    totalBeats: 8,
+  });
+  const mixedLayout = layoutScore(mixed, wide);
+  const sameRow = mixedLayout.systems.some((s) => s.barIndices.length === 2);
+  assert.ok(sameRow, 'a wide row must hold both bars of the mixed density score');
+  assert.ok(
+    mixedLayout.bars[1].widthUnits > mixedLayout.bars[0].widthUnits,
+    `in one row the sixteenth bar (${mixedLayout.bars[1].widthUnits}) must be wider than the quarter bar (${mixedLayout.bars[0].widthUnits})`,
   );
 }
 quarterParch.destroy();
@@ -891,11 +949,11 @@ assert.ok(
 {
   const { layoutScore } = await import('../../js/gpPlayer/scoreLayout.js');
   const wide = { widthPx: 1600 };
-  const singleWide = layoutScore(singleDigitRhythmModel, wide).bars[0].widthUnits;
-  const twoWide = layoutScore(twoDigitRhythmModel, wide).bars[0].widthUnits;
+  const singleWide = layoutScore(singleDigitRhythmModel, wide).bars[0].minWidthUnits;
+  const twoWide = layoutScore(twoDigitRhythmModel, wide).bars[0].minWidthUnits;
   assert.ok(
     twoWide > singleWide,
-    `on a wide screen a two digit fret bar (${twoWide}) must be wider than a single digit bar (${singleWide})`,
+    `a two digit fret bar (${twoWide}) must ask for more room than a single digit bar (${singleWide})`,
   );
 }
 singleDigitParch.destroy();
@@ -1000,6 +1058,16 @@ for (const sys of drumParchHost.querySelectorAll('.gpp-parch-system')) {
   assert.ok(gutter, 'drum system should have gutter');
   const labels = gutter.querySelectorAll('.gpp-parch-gutter-label').map((el) => el.textContent);
   assert.deepEqual(labels, activeLaneLabels, 'drum gutter labels should match active lanes in order');
+  const measure = sys.querySelector('.gpp-parch-measure');
+  if (measure) {
+    assert.equal(
+      gutterTabRowCount(gutter),
+      staffTabRowCount(measure),
+      'gutter row count should match staff row count for drums',
+    );
+  }
+  const spacers = gutter.querySelectorAll('.gpp-parch-gutter-spacer');
+  assert.equal(spacers.length, 2, 'drum gutter should hold a top spacer and a bottom spacer');
 }
 
 for (const hit of drumHits) {

@@ -7,6 +7,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseGuitarPro } from '../../js/tab/guitarPro.js';
 import {
+  assignArcStackLevels,
+  beatFromXUnits,
+  beatXUnits,
   fitScaleForBar,
   layoutScore,
   ROW_CHROME_UNITS,
@@ -165,6 +168,63 @@ function layoutForModel(model, extraOptions = {}) {
     minFretFontPx: 12,
     ...extraOptions,
   });
+}
+
+
+function hammerOnChainModel() {
+  const events = [0, 1, 2, 3].map((beat, i) => ({
+    start: beat,
+    stringIndex: 0,
+    fret: 5 + i,
+    duration: 1,
+    techniques: i > 0 ? ['hammer'] : [],
+  }));
+  const beats = events.map((ev, i) => ({
+    measureIndex: 0,
+    voiceIndex: 0,
+    start: ev.start,
+    duration: 1,
+    noteValue: 4,
+    dots: 0,
+    tuplet: null,
+    rest: false,
+    noteIndices: [i],
+  }));
+  return {
+    tuning: 'Standard',
+    strings: [
+      { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+    ],
+    events,
+    beats,
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+}
+
+function smallDrumModel() {
+  const events = [
+    { start: 0, instrument: 'kick', duration: 1 },
+    { start: 0.5, instrument: 'snare', duration: 1 },
+    { start: 1, instrument: 'hihatClosed', duration: 1 },
+    { start: 1.5, instrument: 'crash', duration: 1 },
+  ];
+  const beats = [
+    { measureIndex: 0, voiceIndex: 0, start: 0, duration: 1, noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [0] },
+    { measureIndex: 0, voiceIndex: 0, start: 1, duration: 1, noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [2] },
+    { measureIndex: 0, voiceIndex: 0, start: 2, duration: 1, noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [3] },
+  ];
+  return {
+    percussion: true,
+    name: 'Drums',
+    events,
+    beats,
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
 }
 
 ensureFixtures();
@@ -422,6 +482,127 @@ let techniqueReport = null;
   assert.ok(held <= 2, 'scaleThatFits must not exceed desiredScale');
   assert.ok(held >= 1, 'scaleThatFits must not fall below minScale');
   assert.ok(Math.abs(held - fit) < 1e-9, 'scaleThatFits must hold a large desired scale down to fit');
+}
+
+// beatXUnits must match non-grace note glyph centres.
+{
+  const noteKinds = new Set(['fret', 'deadNote', 'drumHit']);
+  const fixtures = [
+    'techniques.gp5', 'ties-rhythm.gp5', 'meter-change.gp5',
+    'odd-meter-13-16.gp5', 'two-voices.gp5', 'seven-string.gp5',
+  ];
+  for (const name of fixtures) {
+    for (const widthPx of [360, 414, 900, 1600]) {
+      const { layout } = await layoutForFixture(name, { widthPx });
+      for (const bar of layout.bars) {
+        for (const glyph of bar.glyphs) {
+          if (!noteKinds.has(glyph.kind)) continue;
+          const beat = glyph.beatStart;
+          const mapped = beatXUnits(bar, beat);
+          const centre = glyph.x + glyph.w / 2;
+          if (centre < mapped - 0.05) continue;
+          assert.ok(
+            Math.abs(mapped - centre) <= 0.01,
+            `${name} at ${widthPx} px: beatXUnits(${beat}) is ${mapped}, glyph centre is ${centre}`,
+          );
+        }
+      }
+    }
+  }
+}
+
+// beatFromXUnits must stay inside the bar beat range.
+{
+  const { layout } = await layoutForFixture('techniques.gp5');
+  const bar = layout.bars[0];
+  for (const x of [bar.noteOriginUnits, bar.noteOriginUnits + bar.contentWidthUnits * 0.5, bar.noteOriginUnits + bar.contentWidthUnits]) {
+    const beat = beatFromXUnits(bar, x);
+    assert.ok(beat >= bar.beatStart - 1e-6);
+    assert.ok(beat <= bar.beatStart + bar.beatSpan + 1e-6);
+  }
+}
+
+// Every bar must share one lane stack geometry.
+{
+  const { layout } = await layoutForFixture('meter-change.gp5', { widthPx: 1600 });
+  assert.ok(Array.isArray(layout.laneStack) && layout.laneStack.length > 0, 'laneStack on score');
+  assert.ok(layout.totalHeightUnits > 0, 'totalHeightUnits on score');
+  for (const bar of layout.bars) {
+    assert.equal(bar.lanes.length, layout.laneStack.length, 'lane count matches laneStack');
+    for (let i = 0; i < layout.laneStack.length; i += 1) {
+      assert.ok(
+        Math.abs(bar.lanes[i].y - layout.laneStack[i].y) <= 0.01,
+        `bar ${bar.barIndex} lane ${bar.lanes[i].name} y must match laneStack`,
+      );
+      assert.ok(
+        Math.abs(bar.lanes[i].h - layout.laneStack[i].h) <= 0.01,
+        `bar ${bar.barIndex} lane ${bar.lanes[i].name} h must match laneStack`,
+      );
+    }
+  }
+}
+
+// assignArcStackLevels must lift overlapping slurs on the same string band apart.
+{
+  const arcs = [
+    {
+      kind: 'slur',
+      from: { x: 10, y: 20, w: 8, h: 10 },
+      to: { x: 50, y: 20, w: 8, h: 10 },
+    },
+    {
+      kind: 'slur',
+      from: { x: 15, y: 20, w: 8, h: 10 },
+      to: { x: 55, y: 20, w: 8, h: 10 },
+    },
+  ];
+  const levels = assignArcStackLevels(arcs);
+  assert.notEqual(levels[0], levels[1], 'overlapping slurs must get different stack levels');
+}
+
+// Hammer-on slurs must connect each note to its nearest earlier neighbour.
+{
+  const layout = layoutForModel(hammerOnChainModel(), { widthPx: 900 });
+  const slurs = layout.bars[0].overlays.filter((o) => o.kind === 'slur');
+  assert.equal(slurs.length, 3, 'three hammer-ons produce three slurs');
+  const fromXs = slurs.map((s) => Math.round(s.fromGlyph.x * 100) / 100);
+  const uniqueFrom = new Set(fromXs);
+  assert.equal(uniqueFrom.size, 3, 'each slur must start at a different note, not all at the first');
+}
+
+// Multi-bar systems must fill their row width after the stretch pass.
+{
+  const { layout } = await layoutForFixture('large-200bar.gp5', { widthPx: 1600 });
+  let checked = 0;
+  for (const sys of layout.systems) {
+    if (sys.barIndices.length <= 1) continue;
+    const sum = sys.barIndices.reduce((s, i) => s + layout.bars[i].widthUnits, 0);
+    assert.ok(
+      Math.abs(sum - sys.widthPx) <= 0.5,
+      `system bar widths (${sum}) must equal system width (${sys.widthPx})`,
+    );
+    checked += 1;
+  }
+  assert.ok(checked >= 1, 'at least one multi-bar system was checked');
+}
+
+// Drum mode with drumLanes must place each kit lane on its own row.
+{
+  const drumLanes = ['crash', 'ride', 'hihat', 'snare', 'kick'];
+  const layout = layoutForModel(smallDrumModel(), {
+    drumMode: true,
+    drumLanes,
+    widthPx: 900,
+  });
+  const hits = layout.bars[0].glyphs.filter((g) => g.kind === 'drumHit');
+  const ys = new Set(hits.map((g) => Math.round(g.y * 100) / 100));
+  assert.equal(ys.size, 4, 'each used drum lane gets a distinct y');
+  const tabLane = layout.bars[0].lanes.find((l) => l.name === 'tabStaff');
+  assert.ok(tabLane, 'tabStaff lane exists');
+  assert.ok(
+    tabLane.h >= drumLanes.length * 14,
+    `tabStaff height (${tabLane.h}) must fit ${drumLanes.length} drum rows`,
+  );
 }
 
 console.log('gp-player score-layout: ok');

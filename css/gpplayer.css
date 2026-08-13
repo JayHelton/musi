@@ -587,6 +587,12 @@
 }
 .gpp-parch-gutter-staff {
   position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.gpp-parch-gutter-spacer {
+  flex: 0 0 auto;
+  pointer-events: none;
 }
 .gpp-parch-gutter-row {
   pointer-events: none;
@@ -705,6 +711,8 @@
   top: 0;
   pointer-events: none;
   overflow: visible;
+  /* An arc must draw over the staff lines and under the note text. */
+  z-index: 1;
 }
 .gpp-parch-overlay {
   fill: none;
@@ -771,7 +779,7 @@
 
 .gpp-parch-string {
   position: relative;
-  height: calc(14px * var(--gpp-scale, 1));
+  height: var(--gpp-row-h, calc(14px * var(--gpp-scale, 1)));
   border-bottom: 1px solid rgba(26, 20, 32, 0.35);
 }
 .gpp-parch-string:last-child {
@@ -786,10 +794,16 @@
   right: var(--gpp-note-pad-end, 7px);
 }
 
+/* The layout gives the top left corner of the box, so the box must not move
+   itself. The text centres inside the box instead. */
 .gpp-parch-note {
   position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: visible;
+  z-index: 2;
   font-family: var(--font-ui, "VT323", monospace);
   font-size: calc(11px * var(--gpp-scale, 1));
   font-weight: 600;
@@ -803,17 +817,20 @@
 
 .gpp-parch-drum-lane {
   position: relative;
-  height: calc(12px * var(--gpp-scale, 1));
+  height: var(--gpp-row-h, calc(12px * var(--gpp-scale, 1)));
   border-bottom: 1px dashed rgba(26, 20, 32, 0.2);
 }
 .gpp-parch-drum-hit {
   position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: visible;
   font-family: var(--font-ui, "VT323", monospace);
   font-size: calc(10px * var(--gpp-scale, 1));
   color: #1a1006;
-  z-index: 1;
+  z-index: 2;
 }
 .gpp-parch-drum-hit[data-glyph="X"],
 .gpp-parch-drum-hit[data-glyph="O"] {
@@ -863,7 +880,6 @@
 .gpp-parch-playhead {
   position: absolute;
   top: 0;
-  bottom: 0;
   width: 2px;
   background: #6b4c9a;
   box-shadow: 0 0 8px rgba(107, 76, 154, 0.45);

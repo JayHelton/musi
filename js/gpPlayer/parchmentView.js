@@ -9,6 +9,8 @@ import {
 import { createFollowScrollGuard } from './followScroll.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
 import {
+  beatFromXUnits,
+  beatXUnits,
   fitScaleForBar,
   layoutScore,
   LAYOUT_BASE_PX,
@@ -63,6 +65,10 @@ function beatPctInMeasure(beat, m) {
 // Sheet-positioned overlays; viewport scroll is already in client rect deltas.
 function xOffsetInSheet(clientLeft, sheetRect) {
   return clientLeft - sheetRect.left;
+}
+
+function yOffsetInSheet(clientTop, sheetRect) {
+  return clientTop - sheetRect.top;
 }
 
 function autoScaleForHostWidth(hostWidth) {
@@ -206,6 +212,7 @@ export function mountParchmentView(host, {
   let lastBeat = 0;
   let rafId = 0;
   let measureSystemIndex = [];
+  let measureGeom = [];
   let drag = null;
   let noteDrag = null;
   let resizeDrag = null;
@@ -247,6 +254,10 @@ export function mountParchmentView(host, {
 
   const ro = typeof ResizeObserver !== 'undefined'
     ? new ResizeObserver(() => {
+      // The sheet can reflow without a width change, for example when a web
+      // font arrives late. The cached measure boxes are then wrong, so drop
+      // them even when the view keeps the layout it has.
+      measureGeom = [];
       const hostWNow = host.clientWidth || 0;
       const layoutWNow = measureLayoutWidthPx();
       if (
@@ -261,6 +272,7 @@ export function mountParchmentView(host, {
   if (ro) {
     ro.observe(host);
     ro.observe(viewport);
+    ro.observe(sheet);
   }
 
   function onViewportScroll() {
@@ -336,6 +348,11 @@ export function mountParchmentView(host, {
     return tuningCaptionText() || 'Drum kit lanes';
   }
 
+  function tabStaffRowCount() {
+    if (isDrum) return Math.max(1, activeDrumLanes().length);
+    return Math.max(1, model?.strings?.length || 1);
+  }
+
   function renderGutter() {
     const gutter = document.createElement('div');
     gutter.className = 'gpp-parch-gutter';
@@ -345,11 +362,32 @@ export function mountParchmentView(host, {
     const gutterStaff = document.createElement('div');
     gutterStaff.className = 'gpp-parch-gutter-staff';
 
+    const tabStaffLane = scoreLayout?.laneStack?.find((l) => l.name === 'tabStaff');
+    const totalH = (scoreLayout?.totalHeightUnits ?? 0) * unitPx;
+    const rowCount = tabStaffRowCount();
+    const rowH = tabStaffLane && rowCount > 0
+      ? (tabStaffLane.h / rowCount) * unitPx
+      : 0;
+
+    if (totalH > 0) gutterStaff.style.height = `${totalH}px`;
+
+    if (tabStaffLane) {
+      const topSpacer = document.createElement('div');
+      topSpacer.className = 'gpp-parch-gutter-spacer';
+      topSpacer.setAttribute('aria-hidden', 'true');
+      topSpacer.style.height = `${tabStaffLane.y * unitPx}px`;
+      gutterStaff.appendChild(topSpacer);
+    }
+
     if (!isDrum && model?.strings?.length) {
       const strings = model.strings;
       for (let si = strings.length - 1; si >= 0; si--) {
         const row = document.createElement('div');
         row.className = 'gpp-parch-string gpp-parch-gutter-row';
+        if (rowH > 0) {
+          row.style.setProperty('--gpp-row-h', `${rowH}px`);
+          row.style.height = `${rowH}px`;
+        }
         const s = strings[si];
         if (s.note != null && s.oct != null) row.title = `${s.note}${s.oct}`;
         const lab = document.createElement('span');
@@ -364,6 +402,10 @@ export function mountParchmentView(host, {
         for (const lane of lanes) {
           const row = document.createElement('div');
           row.className = 'gpp-parch-drum-lane gpp-parch-gutter-row';
+          if (rowH > 0) {
+            row.style.setProperty('--gpp-row-h', `${rowH}px`);
+            row.style.height = `${rowH}px`;
+          }
           row.title = lane.title;
           const lab = document.createElement('span');
           lab.className = 'gpp-parch-gutter-label';
@@ -379,12 +421,22 @@ export function mountParchmentView(host, {
       }
     }
 
+    if (tabStaffLane && scoreLayout?.totalHeightUnits != null) {
+      const bottomH = (scoreLayout.totalHeightUnits - tabStaffLane.y - tabStaffLane.h) * unitPx;
+      const bottomSpacer = document.createElement('div');
+      bottomSpacer.className = 'gpp-parch-gutter-spacer';
+      bottomSpacer.setAttribute('aria-hidden', 'true');
+      bottomSpacer.style.height = `${Math.max(0, bottomH)}px`;
+      gutterStaff.appendChild(bottomSpacer);
+    }
+
     gutter.appendChild(gutterStaff);
     return gutter;
   }
 
   function measureNotesRect(measureEl) {
-    const notesBox = measureEl?.querySelector('.gpp-parch-lane-tabStaff .gpp-parch-lane-notes')
+    const tabLane = measureEl?.querySelector('.gpp-parch-lane-tabStaff');
+    const notesBox = tabLane?.querySelector('.gpp-parch-lane-notes')
       || measureEl?.querySelector('.gpp-parch-lane-notes');
     if (notesBox) return notesBox.getBoundingClientRect();
     return measureEl?.getBoundingClientRect() ?? null;
@@ -456,13 +508,14 @@ export function mountParchmentView(host, {
     return el;
   }
 
-  function renderMeasure(mi, barLayout, widthSpec) {
+  function renderMeasure(mi, barLayout) {
     const wrap = document.createElement('div');
     wrap.className = 'gpp-parch-measure';
     wrap.dataset.index = String(mi);
     const barW = barLayout.widthUnits * unitPx;
     wrap.style.minWidth = `${barW}px`;
-    if (widthSpec?.flexGrow) wrap.style.flexGrow = String(widthSpec.flexGrow);
+    wrap.style.width = `${barW}px`;
+    wrap.style.flex = '0 0 auto';
 
     const notesRail = document.createElement('div');
     notesRail.className = 'gpp-parch-notes-rail';
@@ -484,7 +537,7 @@ export function mountParchmentView(host, {
 
     const staff = document.createElement('div');
     staff.className = 'gpp-parch-staff';
-    staff.style.minHeight = `${barLayout.lanes.reduce((h, l) => h + l.h, 0) * unitPx}px`;
+    staff.style.minHeight = `${(barLayout.totalHeightUnits ?? barLayout.lanes.reduce((h, l) => h + l.h, 0)) * unitPx}px`;
 
     const laneEls = new Map();
     const m = measures()[mi];
@@ -507,7 +560,7 @@ export function mountParchmentView(host, {
         const laneNotes = document.createElement('div');
         laneNotes.className = 'gpp-parch-lane-notes';
         content.appendChild(laneNotes);
-        const stringCount = Math.max(1, isDrum ? activeDrumLanes().length : (model?.strings?.length || 1));
+        const stringCount = tabStaffRowCount();
         renderStringRows(laneNotes, stringCount, lane.h * unitPx);
         laneEls.set(lane.name, { content: laneNotes, laneNotes });
       } else {
@@ -532,20 +585,26 @@ export function mountParchmentView(host, {
       appendGlyph(parent, glyph, unitPx, evForDrum, laneTops.get(glyph.lane) || 0);
     }
 
-    wrap.appendChild(staff);
-
     const svg = createSvgElement('svg');
     svg.classList.add('gpp-parch-overlays');
     svg.setAttribute('aria-hidden', 'true');
-    svg.style.width = `${barW}px`;
-    svg.style.height = staff.style.minHeight;
+    const overlayW = barLayout.widthUnits;
+    const overlayH = barLayout.totalHeightUnits ?? barLayout.lanes.reduce((h, l) => h + l.h, 0);
+    svg.setAttribute('width', String(overlayW));
+    svg.setAttribute('height', String(overlayH));
+    svg.style.width = `${overlayW}px`;
+    svg.style.height = `${overlayH}px`;
+    svg.style.transform = `scale(${unitPx})`;
+    svg.style.transformOrigin = '0 0';
     for (const overlay of barLayout.overlays) {
       const path = createSvgElement('path');
       path.setAttribute('d', overlay.path || '');
+      path.setAttribute('vector-effect', 'non-scaling-stroke');
       path.classList.add('gpp-parch-overlay', `gpp-parch-overlay--${overlay.kind}`);
       svg.appendChild(path);
     }
-    wrap.appendChild(svg);
+    staff.appendChild(svg);
+    wrap.appendChild(staff);
 
     wrap.addEventListener('click', (e) => {
       if (Date.now() < suppressClickUntil) return;
@@ -579,6 +638,7 @@ export function mountParchmentView(host, {
     measureEls = [];
     systemEls = [];
     measureSystemIndex = [];
+    measureGeom = [];
     playheadEl = null;
     selOverlayEl = null;
     handleStart = null;
@@ -619,6 +679,7 @@ export function mountParchmentView(host, {
         showNotationStaff: showNotation,
         showRhythm,
         drumMode: isDrum,
+        drumLanes: isDrum ? activeDrumLanes().map((lane) => lane.key) : [],
         minFretFontPx: LAYOUT_BASE_PX,
         maxMeasuresPerSystem: onePerRow ? 1 : undefined,
       });
@@ -673,12 +734,8 @@ export function mountParchmentView(host, {
       const system = document.createElement('div');
       system.className = 'gpp-parch-system';
       system.appendChild(renderGutter());
-      const rowWidths = sys.barIndices.map((bi) => scoreLayout.bars[bi].widthUnits * unitPx);
-      const nominalSum = rowWidths.reduce((s, w) => s + w, 0) || 1;
-      sys.barIndices.forEach((bi, idx) => {
-        const el = renderMeasure(bi, scoreLayout.bars[bi], {
-          flexGrow: rowWidths[idx] / nominalSum,
-        });
+      sys.barIndices.forEach((bi) => {
+        const el = renderMeasure(bi, scoreLayout.bars[bi]);
         system.appendChild(el);
         measureEls[bi] = el;
         measureSystemIndex[bi] = systemEls.length;
@@ -730,9 +787,15 @@ export function mountParchmentView(host, {
     const mi = Number(el.dataset.index);
     const m = measures()[mi];
     if (!m) return null;
-    const rect = measureNotesRect(el);
-    if (!rect || !rect.width) return null;
-    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const notesRect = measureNotesRect(el);
+    if (!notesRect) return null;
+    const bar = scoreLayout?.bars?.[mi];
+    if (bar && unitPx > 0) {
+      const xUnits = (clientX - notesRect.left) / unitPx;
+      return snapBeat(beatFromXUnits(bar, xUnits));
+    }
+    if (!notesRect.width) return null;
+    const frac = Math.max(0, Math.min(1, (clientX - notesRect.left) / notesRect.width));
     const { start, len } = measureSpan(m);
     return snapBeat(start + frac * len);
   }
@@ -915,6 +978,9 @@ export function mountParchmentView(host, {
 
   function paintAnnotations(annos, highlightId) {
     removeAnnotationDecor();
+    // A callout sits above the staff and pushes it down, so the cached staff
+    // boxes no longer hold.
+    measureGeom = [];
     if (!annos?.length) return;
 
     const byStart = new Map();
@@ -1131,23 +1197,60 @@ export function mountParchmentView(host, {
     }
   }
 
+  /**
+   * The sheet-relative box of one measure staff, and the x origin of its notes.
+   *
+   * The playhead runs on every animation frame. A rect read that follows a
+   * style write forces the browser to lay the page out again inside the frame,
+   * and that work delays the audio scheduler on the same thread. These values
+   * only change when the sheet reflows, so the view measures each measure once
+   * and keeps the result. Every value counts from the sheet, not from the
+   * viewport, so a scroll does not make it stale.
+   */
+  function measureGeomFor(mi) {
+    const cached = measureGeom[mi];
+    if (cached) return cached;
+    const el = measureEls[mi];
+    if (!el) return null;
+    const sheetRect = sheet.getBoundingClientRect();
+    const notesRect = measureNotesRect(el);
+    if (!notesRect) return null;
+    const staffEl = el.querySelector('.gpp-parch-staff');
+    const staffRect = staffEl ? staffEl.getBoundingClientRect() : null;
+    const geom = {
+      notesLeft: xOffsetInSheet(notesRect.left, sheetRect),
+      notesWidth: notesRect.width || 0,
+      staffTop: staffRect ? yOffsetInSheet(staffRect.top, sheetRect) : null,
+      staffHeight: staffRect ? staffRect.height || 0 : null,
+    };
+    measureGeom[mi] = geom;
+    return geom;
+  }
+
   function positionPlayhead(beat, mi) {
     if (!playheadEl) return;
-    const el = measureEls[mi];
-    if (!el) {
+    const geom = measureGeomFor(mi);
+    if (!geom) {
       playheadEl.hidden = true;
       return;
     }
-    const sheetRect = sheet.getBoundingClientRect();
-    const rect = measureNotesRect(el);
-    if (!rect || !rect.width) {
+    const bar = scoreLayout?.bars?.[mi];
+    let x;
+    if (bar && unitPx > 0) {
+      x = geom.notesLeft + beatXUnits(bar, beat) * unitPx;
+    } else if (geom.notesWidth) {
+      const pct = beatPctInMeasure(beat, measures()[mi]) / 100;
+      x = geom.notesLeft + geom.notesWidth * pct;
+    } else {
       playheadEl.hidden = true;
       return;
     }
-    const m = measures()[mi];
-    const pct = beatPctInMeasure(beat, m) / 100;
-    const x = xOffsetInSheet(rect.left, sheetRect) + rect.width * pct;
     playheadEl.style.left = `${x}px`;
+    // The line must only cover the measure it is in, not the whole sheet.
+    if (geom.staffTop != null) {
+      playheadEl.style.top = `${geom.staffTop}px`;
+      playheadEl.style.height = `${geom.staffHeight}px`;
+    }
     playheadEl.hidden = false;
   }
 
@@ -1200,6 +1303,7 @@ export function mountParchmentView(host, {
   function update({
     currentSec = 0,
     bpm = 120,
+    beatInScore = undefined,
     playing = false,
     measureIndex = null,
     selection: nextSel = undefined,
@@ -1244,7 +1348,9 @@ export function mountParchmentView(host, {
     }
     if (af != null) follow = !!af;
 
-    const beat = (Number(currentSec) || 0) * (Number(bpm) || 120) / 60;
+    const beat = Number.isFinite(beatInScore)
+      ? beatInScore
+      : (Number(currentSec) || 0) * (Number(bpm) || 120) / 60;
     lastBeat = beat;
     const mi = measureIndex != null ? measureIndex : measureIndexAtBeatLocal(beat);
 

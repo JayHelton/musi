@@ -2,7 +2,7 @@
 // No DOM access. No global state.
 
 import { TECHNIQUE_LABELS } from '../tab/tabModel.js';
-import { drumTabGlyph } from '../drums/notation.js';
+import { drumTabGlyph, drumLaneFor } from '../drums/notation.js';
 import { measureSpan } from './rangeUtils.js';
 
 const LANE_NAMES = ['notationStaff', 'techniqueAbove', 'tabStaff', 'rhythm', 'techniqueBelow'];
@@ -70,6 +70,9 @@ const LAYOUT_BASE_PX = 12;
 // A bar with one very short note among long ones would otherwise grow without
 // a limit. The learner can scroll, but a bar must stay readable.
 const MAX_BAR_CONTENT_UNITS = 4000;
+const DRUM_ROW_MIN_UNITS = 14;
+const ARC_STACK_LIFT_UNITS = 4;
+const ARC_Y_BAND_TOLERANCE = 2;
 
 /**
  * The fret text size in layout units.
@@ -95,6 +98,7 @@ function defaultOptions(options = {}) {
     showNotationStaff: Boolean(options.showNotationStaff),
     showRhythm: options.showRhythm !== false,
     drumMode: Boolean(options.drumMode),
+    drumLanes: Array.isArray(options.drumLanes) ? options.drumLanes : [],
     minFretFontPx: Number(options.minFretFontPx) || 12,
     barIndex: Number.isFinite(options.barIndex) ? options.barIndex : 0,
     isFirstSystem: Boolean(options.isFirstSystem),
@@ -103,6 +107,8 @@ function defaultOptions(options = {}) {
     maxMeasuresPerSystem: Math.max(1, Math.floor(maxPerSystem)),
     minContentUnits: Number(options.minContentUnits) || 0,
     maxContentUnits: Number(options.maxContentUnits) || 0,
+    fixedMinWidthUnits: Number(options.fixedMinWidthUnits) || 0,
+    retainOverlayRecords: Boolean(options.retainOverlayRecords),
   };
 }
 
@@ -129,23 +135,103 @@ function formatBendAmount(bend) {
   return String(Math.round(maxCents / 100));
 }
 
-function overlayPath(kind, from, to) {
+function arcXRange(from, to) {
   const x1 = from.x + from.w / 2;
-  const y1 = from.y + from.h / 2;
   const x2 = to.x + to.w / 2;
-  const y2 = to.y + to.h / 2;
+  return { xMin: Math.min(x1, x2), xMax: Math.max(x1, x2) };
+}
+
+function arcYBand(kind, from, to) {
+  if (kind === 'bend' || kind === 'slide') {
+    return `tech:${Math.round((from.y + to.y) / 2)}`;
+  }
+  return `tab:${Math.round(from.y / ARC_Y_BAND_TOLERANCE)}`;
+}
+
+function arcsOverlap(a, b) {
+  return a.xMin < b.xMax - 1e-6 && b.xMin < a.xMax - 1e-6;
+}
+
+/**
+ * Assign a stack level to each arc so overlapping arcs in the same band lift apart.
+ * @param {Array<{ kind: string, from: object, to: object }>} arcs
+ * @returns {number[]}
+ */
+export function assignArcStackLevels(arcs) {
+  const meta = arcs.map((arc) => ({
+    ...arcXRange(arc.from, arc.to),
+    yBand: arcYBand(arc.kind, arc.from, arc.to),
+  }));
+  const order = meta.map((_, i) => i).sort((a, b) => meta[a].xMin - meta[b].xMin || meta[a].xMax - meta[b].xMax);
+  const levels = new Array(arcs.length).fill(0);
+  const placed = [];
+
+  for (const idx of order) {
+    const arc = meta[idx];
+    let level = 0;
+    while (placed.some((p) => p.yBand === arc.yBand && p.level === level && arcsOverlap(p, arc))) {
+      level += 1;
+    }
+    levels[idx] = level;
+    placed.push({ ...arc, level });
+  }
+  return levels;
+}
+
+function overlayPath(kind, from, to, stackLevel = 0) {
+  const useTop = kind === 'slur' || kind === 'tie';
+  const x1 = from.x + from.w / 2;
+  const y1 = useTop ? from.y : from.y + from.h / 2;
+  const x2 = to.x + to.w / 2;
+  const y2 = useTop ? to.y : to.y + to.h / 2;
   const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2;
-  const lift = kind === 'bend' ? -8 : -5;
-  const cy = Math.min(y1, y2) + lift;
+  const baseLift = kind === 'bend' ? 8 : 5;
+  const cy = Math.min(y1, y2) - baseLift - stackLevel * ARC_STACK_LIFT_UNITS;
   return `M ${x1} ${y1} Q ${mx} ${cy} ${x2} ${y2}`;
 }
 
-function laneLayout(fontPx, stringCount, showNotationStaff, showRhythm) {
-  const stringH = Math.max(10, fontPx * 1.1);
+/**
+ * Build SVG paths for overlay records that name glyph indices.
+ * @param {object[]} glyphs
+ * @param {object[]} overlayRecords
+ * @returns {object[]}
+ */
+export function buildOverlayPaths(glyphs, overlayRecords) {
+  const arcInputs = overlayRecords.map((rec) => ({
+    kind: rec.kind,
+    from: glyphs[rec.fromIndex],
+    to: glyphs[rec.toIndex],
+  }));
+  const levels = assignArcStackLevels(arcInputs);
+
+  return overlayRecords.map((rec, i) => {
+    const from = glyphs[rec.fromIndex];
+    const to = glyphs[rec.toIndex];
+    const laneName = (g) => g.lane;
+    return {
+      kind: rec.kind,
+      path: overlayPath(rec.kind, from, to, levels[i]),
+      fromGlyph: { lane: laneName(from), x: from.x, y: from.y },
+      toGlyph: { lane: laneName(to), x: to.x, y: to.y },
+    };
+  });
+}
+
+function laneLayout({
+  fontPx,
+  stringCount,
+  showNotationStaff,
+  showRhythm,
+  drumMode,
+  drumLanes,
+}) {
+  const rowCount = drumMode && drumLanes.length ? drumLanes.length : stringCount;
+  const stringH = drumMode && drumLanes.length
+    ? Math.max(DRUM_ROW_MIN_UNITS, fontPx * 1.1)
+    : Math.max(10, fontPx * 1.1);
   const notationH = showNotationStaff ? Math.max(28, fontPx * 3.2) : 0;
   const techAboveH = Math.max(12, fontPx * 1.1);
-  const tabH = Math.max(stringH, stringCount * stringH);
+  const tabH = Math.max(stringH, rowCount * stringH);
   const rhythmH = showRhythm ? Math.max(18, fontPx * 1.6) : 0;
   const techBelowH = Math.max(10, fontPx * 0.95);
   let y = 0;
@@ -194,6 +280,61 @@ function fitLanesToGlyphs(lanes, glyphs) {
     lane.h = needed;
     y += lane.h;
   }
+}
+
+function totalHeightFromLanes(lanes) {
+  if (!lanes.length) return 0;
+  const last = lanes[lanes.length - 1];
+  return last.y + last.h;
+}
+
+function maxLaneHeights(bars) {
+  const maxH = new Map();
+  for (const bar of bars) {
+    for (const lane of bar.lanes) {
+      maxH.set(lane.name, Math.max(maxH.get(lane.name) || 0, lane.h));
+    }
+  }
+  return maxH;
+}
+
+/**
+ * Re-stack lanes to shared heights and move glyphs with their lane.
+ */
+function restackLanesWithHeights(lanes, glyphs, heightByName) {
+  const byLane = new Map();
+  for (const g of glyphs) {
+    const list = byLane.get(g.lane);
+    if (list) list.push(g);
+    else byLane.set(g.lane, [g]);
+  }
+
+  let y = 0;
+  for (const lane of lanes) {
+    const own = byLane.get(lane.name) || [];
+    const shift = y - lane.y;
+    if (shift !== 0) {
+      for (const g of own) g.y += shift;
+      lane.y = y;
+    }
+    lane.h = heightByName.get(lane.name) ?? lane.h;
+    y += lane.h;
+  }
+}
+
+function applySharedLaneStack(bars) {
+  if (!bars.length) return { laneStack: [], totalHeightUnits: 0 };
+  const heightByName = maxLaneHeights(bars);
+  for (const bar of bars) {
+    restackLanesWithHeights(bar.lanes, bar.glyphs, heightByName);
+    bar.overlays = buildOverlayPaths(bar.glyphs, bar._overlayRecords);
+    bar.totalHeightUnits = totalHeightFromLanes(bar.lanes);
+  }
+  const laneStack = bars[0].lanes.map((l) => ({ name: l.name, y: l.y, h: l.h }));
+  return {
+    laneStack,
+    totalHeightUnits: totalHeightFromLanes(bars[0].lanes),
+  };
 }
 
 function laneByName(lanes, name) {
@@ -440,75 +581,105 @@ function xForBeat(cols, beatStart, contentW, fontPx) {
   return BAR_PAD_START + rel * contentW + Math.max(4, fontPx * 0.3);
 }
 
-function addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, drumMode, strings) {
+function findNearestPrevEvent(events, ev, { allowGrace = false } = {}) {
+  let prev = null;
+  let prevStart = -Infinity;
+  for (const e of events) {
+    if (e.stringIndex !== ev.stringIndex) continue;
+    const start = Number(e.start);
+    if (start >= Number(ev.start) - 1e-4) continue;
+    if (!allowGrace && e.grace) continue;
+    if (start > prevStart) {
+      prev = e;
+      prevStart = start;
+    }
+  }
+  return prev;
+}
+
+function addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, drumMode, strings, drumLanes, warnings) {
   const tabLane = laneByName(lanes, 'tabStaff');
-  const stringCount = Math.max(1, strings.length);
-  const stringH = tabLane.h / stringCount;
+  const useDrumRows = drumMode && drumLanes.length > 0;
+  const rowCount = useDrumRows ? drumLanes.length : Math.max(1, strings.length);
+  const stringH = tabLane.h / rowCount;
 
   for (const ev of bar.events) {
     const beatStart = Number(ev.start);
-      const si = Number(ev.stringIndex) || 0;
-      const row = Math.max(0, Math.min(stringCount - 1, stringCount - 1 - si));
-      const y = tabLane.y + row * stringH + stringH * 0.15;
-      const w = Math.max(fontPx * 0.7, String(ev.fret ?? '').length * fontPx * 0.55);
-      // A grace note sounds before the main note of the beat, so it must draw
-      // to the left of it. Both notes share one beat position, and without
-      // this shift the two numbers sit on top of each other.
-      const graceShift = ev.grace ? w * 0.9 + fontPx * 0.2 : 0;
-      const xCenter = xForBeat(cols, beatStart, contentW, fontPx) - graceShift;
-
-      if (ev.dead) {
-        pushGlyph(glyphs, {
-          kind: 'deadNote',
-          lane: 'tabStaff',
-          x: xCenter - w / 2,
-          y,
-          w,
-          h: stringH * 0.7,
-          text: 'x',
-          aria: TECHNIQUE_ARIA.dead,
-          beatStart,
-          stringIndex: si,
-        });
-        continue;
+    let row;
+    let si;
+    if (useDrumRows) {
+      const laneKey = drumLaneFor(ev.instrument)?.key;
+      let idx = drumLanes.indexOf(laneKey);
+      if (idx < 0) {
+        idx = drumLanes.length - 1;
+        const warning = `Unknown drum instrument: ${ev.instrument ?? 'missing'}`;
+        if (!warnings.includes(warning)) warnings.push(warning);
       }
+      row = idx;
+      si = row;
+    } else {
+      si = Number(ev.stringIndex) || 0;
+      row = Math.max(0, Math.min(rowCount - 1, rowCount - 1 - si));
+    }
+    const y = tabLane.y + row * stringH + stringH * 0.15;
+    const w = Math.max(fontPx * 0.7, String(ev.fret ?? '').length * fontPx * 0.55);
+    // A grace note sounds before the main note of the beat, so it must draw
+    // to the left of it. Both notes share one beat position, and without
+    // this shift the two numbers sit on top of each other.
+    const graceShift = ev.grace ? w * 0.9 + fontPx * 0.2 : 0;
+    const xCenter = xForBeat(cols, beatStart, contentW, fontPx) - graceShift;
 
-      if (drumMode) {
-        pushGlyph(glyphs, {
-          kind: 'drumHit',
-          lane: 'tabStaff',
-          x: xCenter - w / 2,
-          y,
-          w,
-          h: stringH * 0.7,
-          text: drumTabGlyph(ev),
-          aria: 'Drum hit',
-          beatStart,
-          stringIndex: si,
-        });
-        continue;
-      }
-
+    if (ev.dead) {
       pushGlyph(glyphs, {
-        kind: 'fret',
+        kind: 'deadNote',
         lane: 'tabStaff',
         x: xCenter - w / 2,
         y,
         w,
         h: stringH * 0.7,
-        text: ev.fret != null ? String(ev.fret) : '',
-        aria: `Fret ${ev.fret}`,
+        text: 'x',
+        aria: TECHNIQUE_ARIA.dead,
         beatStart,
         stringIndex: si,
-        eventRef: ev,
       });
+      continue;
+    }
+
+    if (drumMode) {
+      pushGlyph(glyphs, {
+        kind: 'drumHit',
+        lane: 'tabStaff',
+        x: xCenter - w / 2,
+        y,
+        w,
+        h: stringH * 0.7,
+        text: drumTabGlyph(ev),
+        aria: 'Drum hit',
+        beatStart,
+        stringIndex: si,
+      });
+      continue;
+    }
+
+    pushGlyph(glyphs, {
+      kind: 'fret',
+      lane: 'tabStaff',
+      x: xCenter - w / 2,
+      y,
+      w,
+      h: stringH * 0.7,
+      text: ev.fret != null ? String(ev.fret) : '',
+      aria: `Fret ${ev.fret}`,
+      beatStart,
+      stringIndex: si,
+      eventRef: ev,
+    });
   }
 }
 
-function addTechniqueGlyphs(glyphs, overlays, lanes, bar, cols, contentW, fontPx) {
+function addTechniqueGlyphs(glyphs, overlayRecords, lanes, bar, cols, contentW, fontPx) {
   const above = laneByName(lanes, 'techniqueAbove');
   const below = laneByName(lanes, 'techniqueBelow');
-  const tabLane = laneByName(lanes, 'tabStaff');
 
   for (const ev of bar.events) {
     const techs = [...(ev.techniques || [])];
@@ -560,21 +731,16 @@ function addTechniqueGlyphs(glyphs, overlays, lanes, bar, cols, contentW, fontPx
           beatStart,
         });
         if (noteIdx >= 0) {
-          overlays.push({
+          overlayRecords.push({
             kind: 'bend',
-            path: overlayPath('bend', glyphs[noteIdx], glyphs[techIdx]),
-            fromGlyph: { lane: 'tabStaff', x: glyphs[noteIdx].x, y: glyphs[noteIdx].y },
-            toGlyph: { lane: laneName, x: glyphs[techIdx].x, y: glyphs[techIdx].y },
+            fromIndex: noteIdx,
+            toIndex: techIdx,
           });
         }
       }
 
       if ((tech === 'hammer' || tech === 'pull') && noteIdx >= 0) {
-        const prev = bar.events.find(
-          (e) => e.stringIndex === ev.stringIndex
-            && Number(e.start) < Number(ev.start) - 1e-4
-            && !e.grace,
-        );
+        const prev = findNearestPrevEvent(bar.events, ev, { allowGrace: false });
         if (prev) {
           let prevIdx = -1;
           for (let i = 0; i < glyphs.length; i += 1) {
@@ -585,11 +751,10 @@ function addTechniqueGlyphs(glyphs, overlays, lanes, bar, cols, contentW, fontPx
             }
           }
           if (prevIdx >= 0) {
-            overlays.push({
+            overlayRecords.push({
               kind: 'slur',
-              path: overlayPath('slur', glyphs[prevIdx], glyphs[noteIdx]),
-              fromGlyph: { lane: 'tabStaff', x: glyphs[prevIdx].x, y: glyphs[prevIdx].y },
-              toGlyph: { lane: 'tabStaff', x: glyphs[noteIdx].x, y: glyphs[noteIdx].y },
+              fromIndex: prevIdx,
+              toIndex: noteIdx,
             });
           }
         }
@@ -611,19 +776,16 @@ function addTechniqueGlyphs(glyphs, overlays, lanes, bar, cols, contentW, fontPx
         techId: 'slide',
       });
       if (noteIdx >= 0) {
-        overlays.push({
+        overlayRecords.push({
           kind: 'slide',
-          path: overlayPath('slide', glyphs[noteIdx], glyphs[slideIdx]),
-          fromGlyph: { lane: 'tabStaff', x: glyphs[noteIdx].x, y: glyphs[noteIdx].y },
-          toGlyph: { lane: 'techniqueBelow', x: glyphs[slideIdx].x, y: glyphs[slideIdx].y },
+          fromIndex: noteIdx,
+          toIndex: slideIdx,
         });
       }
     }
 
     if (ev.tie && noteIdx >= 0) {
-      const prev = bar.events.find(
-        (e) => e.stringIndex === ev.stringIndex && Number(e.start) < Number(ev.start) - 1e-4,
-      );
+      const prev = findNearestPrevEvent(bar.events, ev, { allowGrace: true });
       if (prev) {
         let prevIdx = -1;
         for (let i = 0; i < glyphs.length; i += 1) {
@@ -631,11 +793,10 @@ function addTechniqueGlyphs(glyphs, overlays, lanes, bar, cols, contentW, fontPx
           if (g.eventRef === prev) { prevIdx = i; break; }
         }
         if (prevIdx >= 0) {
-          overlays.push({
+          overlayRecords.push({
             kind: 'tie',
-            path: overlayPath('tie', glyphs[prevIdx], glyphs[noteIdx]),
-            fromGlyph: { lane: 'tabStaff', x: glyphs[prevIdx].x, y: tabLane.y },
-            toGlyph: { lane: 'tabStaff', x: glyphs[noteIdx].x, y: tabLane.y },
+            fromIndex: prevIdx,
+            toIndex: noteIdx,
           });
         }
       }
@@ -825,6 +986,24 @@ function addMeasureChrome(glyphs, lanes, bar, options, contentW, fontPx) {
 }
 
 /**
+ * Map a beat to x in layout units for a bar layout result.
+ */
+export function beatXUnits(barLayout, beat) {
+  const rel = (Number(beat) - barLayout.beatStart) / barLayout.beatSpan;
+  const clampedRel = Math.max(0, Math.min(1, rel));
+  return barLayout.noteOriginUnits + clampedRel * barLayout.contentWidthUnits;
+}
+
+/**
+ * Map x in layout units to a beat inside the bar.
+ */
+export function beatFromXUnits(barLayout, xUnits) {
+  const rel = (xUnits - barLayout.noteOriginUnits) / barLayout.contentWidthUnits;
+  const clampedRel = Math.max(0, Math.min(1, rel));
+  return barLayout.beatStart + clampedRel * barLayout.beatSpan;
+}
+
+/**
  * Layout one written bar.
  * @param {object} bar - bar slice from layoutScore
  * @param {object} options
@@ -841,12 +1020,14 @@ export function layoutBar(bar, options = {}) {
   // into each other.
   const geoPx = LAYOUT_BASE_PX;
   const stringCount = Math.max(1, (bar.strings || []).length);
-  const { lanes, totalH, stringH } = laneLayout(
-    geoPx,
+  const { lanes, stringH } = laneLayout({
+    fontPx: geoPx,
     stringCount,
-    opts.showNotationStaff,
-    opts.showRhythm,
-  );
+    showNotationStaff: opts.showNotationStaff,
+    showRhythm: opts.showRhythm,
+    drumMode: opts.drumMode,
+    drumLanes: opts.drumLanes,
+  });
 
   // A bar can hold more written time than its time signature names. The
   // layout must span the real content, or every late note clamps to the bar
@@ -910,17 +1091,20 @@ export function layoutBar(bar, options = {}) {
     );
   }
   const widthUnits = BAR_PAD_START + contentW + BAR_PAD_END;
-  const minWidthUnits = BAR_PAD_START + idealContentW + BAR_PAD_END;
+  const minWidthUnits = opts.fixedMinWidthUnits > 0
+    ? opts.fixedMinWidthUnits
+    : BAR_PAD_START + idealContentW + BAR_PAD_END;
+  const noteOriginUnits = BAR_PAD_START + Math.max(4, geoPx * 0.3);
 
   for (const lane of lanes) lane.w = widthUnits;
 
   const glyphs = [];
-  const overlays = [];
+  const overlayRecords = [];
 
   addMeasureChrome(glyphs, lanes, bar, opts, contentW, geoPx);
-  addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, geoPx, opts.showRhythm);
-  addTabGlyphs(glyphs, lanes, bar, cols, contentW, geoPx, opts.drumMode, bar.strings || []);
-  addTechniqueGlyphs(glyphs, overlays, lanes, bar, cols, contentW, geoPx);
+  addRhythmGlyphs(glyphs, overlayRecords, lanes, cols, contentW, geoPx, opts.showRhythm);
+  addTabGlyphs(glyphs, lanes, bar, cols, contentW, geoPx, opts.drumMode, bar.strings || [], opts.drumLanes, warnings);
+  addTechniqueGlyphs(glyphs, overlayRecords, lanes, bar, cols, contentW, geoPx);
 
   if (opts.showNotationStaff) {
     addNotationGlyphs(glyphs, lanes, cols, contentW, geoPx, bar, bar.strings || []);
@@ -931,6 +1115,8 @@ export function layoutBar(bar, options = {}) {
   // ticks then sit on top of the fret numbers above them.
   fitLanesToGlyphs(lanes, glyphs);
 
+  const overlays = buildOverlayPaths(glyphs, overlayRecords);
+
   // Strip internal refs before return.
   for (const g of glyphs) {
     delete g.eventRef;
@@ -939,10 +1125,9 @@ export function layoutBar(bar, options = {}) {
     }
   }
 
-  void totalH;
   void stringH;
 
-  return {
+  const result = {
     barIndex: opts.barIndex,
     widthUnits,
     minWidthUnits,
@@ -951,7 +1136,16 @@ export function layoutBar(bar, options = {}) {
     glyphs,
     overlays,
     warnings,
+    beatStart: barStart,
+    beatSpan: measureLen,
+    noteOriginUnits,
+    contentWidthUnits: contentW,
+    totalHeightUnits: totalHeightFromLanes(lanes),
   };
+  if (opts.retainOverlayRecords) {
+    result._overlayRecords = overlayRecords;
+  }
+  return result;
 }
 
 // The caller passes the width it has, measured in layout units. Geometry and
@@ -984,6 +1178,42 @@ function packSystems(bars, widthPx, maxPerSystem) {
   return systems;
 }
 
+// The view draws a bar at the width the layout reports, and it draws every
+// glyph at a fixed unit position inside that bar. A row must therefore fill
+// its width here, in the layout. When CSS grew the bar instead, the bar line
+// moved but the notes stayed, and the playhead could not match either one.
+function stretchSystemsToWidth(model, bars, systems, opts, barMeta) {
+  for (const system of systems) {
+    const indices = system.barIndices;
+    const sumWidth = indices.reduce((s, i) => s + bars[i].widthUnits, 0);
+    const leftover = system.widthPx - sumWidth;
+    if (Math.abs(leftover) < 1e-6) continue;
+
+    const totalContent = indices.reduce((s, i) => s + bars[i].contentWidthUnits, 0);
+    for (const idx of indices) {
+      const bar = bars[idx];
+      const share = totalContent > 0
+        ? bar.contentWidthUnits / totalContent
+        : 1 / indices.length;
+      const targetContent = bar.contentWidthUnits + leftover * share;
+      const slice = buildBarSlice(model, idx);
+      const meta = barMeta[idx];
+      const newBar = layoutBar(slice, {
+        ...opts,
+        minContentUnits: targetContent,
+        maxContentUnits: targetContent,
+        barIndex: idx,
+        prevTimeSig: meta.prevTimeSig,
+        tuningLabel: meta.tuningLabel,
+        isFirstSystem: meta.isFirstSystem,
+        fixedMinWidthUnits: meta.minWidthUnits,
+        retainOverlayRecords: true,
+      });
+      bars[idx] = newBar;
+    }
+  }
+}
+
 /**
  * Layout a full track model.
  * @param {object} model
@@ -995,7 +1225,7 @@ export function layoutScore(model, options = {}) {
   const fontPx = clampFontPx(opts.widthPx, opts.zoom, opts.minFretFontPx);
 
   if (!model?.measures?.length) {
-    return { bars: [], systems: [], fontPx, warnings };
+    return { bars: [], systems: [], fontPx, warnings, laneStack: [], totalHeightUnits: 0 };
   }
 
   // With one measure per row the bar must fill the row. A narrow bar in a
@@ -1009,6 +1239,7 @@ export function layoutScore(model, options = {}) {
   );
 
   const bars = [];
+  const barMeta = [];
   let prevTimeSig = null;
   for (let i = 0; i < model.measures.length; i += 1) {
     const slice = buildBarSlice(model, i);
@@ -1020,6 +1251,13 @@ export function layoutScore(model, options = {}) {
       prevTimeSig,
       tuningLabel: slice.tuningLabel,
       isFirstSystem: i === 0,
+      retainOverlayRecords: true,
+    });
+    barMeta.push({
+      prevTimeSig,
+      tuningLabel: slice.tuningLabel,
+      isFirstSystem: i === 0,
+      minWidthUnits: barLayout.minWidthUnits,
     });
     bars.push(barLayout);
     warnings.push(...barLayout.warnings);
@@ -1027,7 +1265,19 @@ export function layoutScore(model, options = {}) {
   }
 
   const systems = packSystems(bars, opts.widthPx, opts.maxMeasuresPerSystem);
-  return { bars, systems, fontPx, warnings };
+  stretchSystemsToWidth(model, bars, systems, {
+    ...opts,
+    minContentUnits: 0,
+    maxContentUnits: 0,
+  }, barMeta);
+
+  const { laneStack, totalHeightUnits } = applySharedLaneStack(bars);
+
+  for (const bar of bars) {
+    delete bar._overlayRecords;
+  }
+
+  return { bars, systems, fontPx, warnings, laneStack, totalHeightUnits };
 }
 
 export const ROW_CHROME_UNITS = VIEWPORT_PAD + GUTTER_UNITS;
