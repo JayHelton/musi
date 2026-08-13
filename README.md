@@ -250,9 +250,11 @@ installable web app.
 
 ## Spec-Driven Development
 
-Musi uses [GitHub Spec Kit](https://github.com/github/spec-kit) for spec-driven
-development. Specs, plans, and tasks live under `specs/`. Cursor skills in
-`.cursor/skills/` run each workflow step.
+Musi uses [GitHub Spec Kit](https://github.com/github/spec-kit) and
+[MiniSpec](https://github.com/ivo-toby/mini-spec) for spec-driven development.
+Feature artifacts live under `specs/`. Spec Kit uses Cursor skills in
+`.cursor/skills/`. MiniSpec uses `/minispec.*` slash commands in
+`.cursor/commands/`. Use one toolkit per feature folder.
 
-See [docs/spec-kit.md](docs/spec-kit.md) for prerequisites, install steps, and
-the full skill list.
+See [docs/spec-kit.md](docs/spec-kit.md) and [docs/mini-spec.md](docs/mini-spec.md)
+for prerequisites, install steps, and each workflow.

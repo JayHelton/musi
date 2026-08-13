@@ -140,5 +140,22 @@ Use Spec Kit skills for non-trivial features when they are present in this repo.
 - **Workflow:** run Cursor skills in order: `/speckit-specify`, `/speckit-plan`,
   `/speckit-tasks`, `/speckit-implement`, `/speckit-converge` (see `docs/spec-kit.md`).
 - **Details:** read `docs/spec-kit.md` for install, skills, and upgrade notes.
+- **Other option:** MiniSpec is the pair-programming toolkit; see `docs/mini-spec.md`.
 - **Do not** remove or bypass `.specify/` or `.cursor/skills/speckit-*` scaffolding unless
+  the user explicitly asks for that.
+
+### MiniSpec (pair-programming development)
+
+Use MiniSpec for non-trivial features when you want a chunk-by-chunk loop with
+engineer review between steps.
+
+- **Constitution:** `.minispec/memory/constitution.md` — design and tasks must align with it.
+- **Commands:** `/minispec.*` slash commands in `.cursor/commands/` (see `docs/mini-spec.md`).
+- **Feature artifacts:** `specs/<feature-name>/` — one directory per feature (`design.md`, `tasks.md`).
+- **One toolkit per folder:** do not mix MiniSpec and Spec Kit files in the same `specs/` directory.
+- **Feature branch:** MiniSpec scripts refuse `main`, `master`, `develop`, and `production`.
+- **Workflow:** run slash commands in order: `/minispec.design`, `/minispec.tasks`,
+  `/minispec.analyze`, `/minispec.next` (repeat), `/minispec.status` (see `docs/mini-spec.md`).
+- **Details:** read `docs/mini-spec.md` for install, commands, knowledge base, and upgrade notes.
+- **Do not** remove or bypass `.minispec/` or `.cursor/commands/minispec.*` scaffolding unless
   the user explicitly asks for that.
