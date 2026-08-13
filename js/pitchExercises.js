@@ -1,4 +1,5 @@
 import { SCALES } from './scales.js';
+import { parseNote } from './theory.js';
 
 export const INTERVAL_SEQUENCE = [0, 2, 0, 4, 0, 5, 0, 7, 0, 9, 0, 11, 0, 12];
 
@@ -278,16 +279,182 @@ export function buildStages(scaleName = 'Major (Ionian)', patternId = 'full') {
   ];
 }
 
+export const INTERVAL_SEMITONES = {
+  m2: 1, M2: 2, m3: 3, M3: 4, P4: 5, 'A4/d5': 6, P5: 7,
+  m6: 8, M6: 9, m7: 10, M7: 11, P8: 12,
+};
+
+export function midiInRange(midi, low, high) {
+  const lo = Math.min(low, high);
+  const hi = Math.max(low, high);
+  return midi >= lo && midi <= hi;
+}
+
+export function chromaticMidisInRange(low, high) {
+  const lo = Math.min(low, high);
+  const hi = Math.max(low, high);
+  const midis = [];
+  for (let m = lo; m <= hi; m++) midis.push(m);
+  return midis;
+}
+
+/**
+ * Place offsets (semitones from a root pitch class) into [low, high].
+ * Returns { ok, midis, rootMidi, error }.
+ */
+export function placeOffsetsInRange(offsets, rootPc, low, high) {
+  const lo = Math.min(low, high);
+  const hi = Math.max(low, high);
+  const pc = ((rootPc % 12) + 12) % 12;
+  if (!offsets.length) {
+    return { ok: false, midis: [], rootMidi: null, error: 'No notes in pattern.' };
+  }
+  const span = offsets.reduce((m, o) => Math.max(m, o), 0);
+  const first = lo + (((pc - (lo % 12)) % 12) + 12) % 12;
+
+  for (let rootMidi = first; rootMidi <= hi; rootMidi += 12) {
+    if (rootMidi + span > hi) break;
+    const midis = offsets.map(off => rootMidi + off);
+    if (midis.every(m => midiInRange(m, lo, hi))) {
+      return { ok: true, midis, rootMidi, error: null };
+    }
+  }
+
+  return {
+    ok: false,
+    midis: [],
+    rootMidi: null,
+    error: 'This pattern does not fit the selected range.',
+  };
+}
+
+/** Validate a concrete midi array. ok:false with error if any note is outside. */
+export function validateMidiSequence(midis, low, high) {
+  const lo = Math.min(low, high);
+  const hi = Math.max(low, high);
+  if (!midis.length) {
+    return { ok: false, error: 'No notes in sequence.' };
+  }
+  for (const m of midis) {
+    if (!midiInRange(m, lo, hi)) {
+      return { ok: false, error: 'A note is outside the selected range.' };
+    }
+  }
+  return { ok: true, error: null };
+}
+
 export function chooseRootMidi(rootPc, lowMidi, highMidi, span) {
   const pc = ((rootPc % 12) + 12) % 12;
-  const low = Math.floor(lowMidi);
-  const high = Math.floor(highMidi);
-  const maxRoot = high - Math.max(0, Math.floor(span));
-  const first = low + (((pc - (low % 12)) % 12) + 12) % 12;
+  const lo = Math.floor(Math.min(lowMidi, highMidi));
+  const hi = Math.floor(Math.max(lowMidi, highMidi));
+  const maxRoot = hi - Math.max(0, Math.floor(span));
+  const first = lo + (((pc - (lo % 12)) % 12) + 12) % 12;
 
-  // Prefer the lowest matching root whose whole pattern span fits the range.
-  // If the selected range is narrower than the pattern, keep the historical
-  // low-range anchor so the exercise remains predictable.
-  if (maxRoot >= low && first <= maxRoot) return first;
+  if (maxRoot >= lo && first <= maxRoot) return first;
   return first;
+}
+
+function fiveToneOffsets(scaleName) {
+  const scale = selectedScaleOffsets(scaleName);
+  return ascendDescend(scale.slice(0, Math.min(5, scale.length)));
+}
+
+function triadOffsets(scaleName) {
+  const scale = selectedScaleOffsets(scaleName);
+  return ascendDescend(pickSteps(scale, [0, 2, 4]));
+}
+
+function placeIntervalInRange(low, high, intervalSemitones, direction) {
+  const lo = Math.min(low, high);
+  const hi = Math.max(low, high);
+  const semis = INTERVAL_SEMITONES[intervalSemitones] ?? INTERVAL_SEMITONES.M2;
+  const delta = direction === 'descending' ? -semis : semis;
+
+  for (let anchor = lo; anchor <= hi; anchor++) {
+    const target = anchor + delta;
+    if (midiInRange(target, lo, hi)) {
+      return { ok: true, midis: [target], anchorMidi: anchor, error: null };
+    }
+  }
+
+  return {
+    ok: false,
+    midis: [],
+    anchorMidi: null,
+    error: 'This interval does not fit the selected range.',
+  };
+}
+
+/**
+ * Build a validated note sequence for a trainer task.
+ */
+export function buildSequenceForTask({
+  task = 'pattern',
+  patternId = 'full',
+  scaleName = 'Major (Ionian)',
+  rootName = 'C',
+  low,
+  high,
+  intervalSemitones = 'M2',
+  intervalDirection = 'ascending',
+}) {
+  const lo = Math.min(low, high);
+  const hi = Math.max(low, high);
+
+  if (task === 'center' || task === 'land') {
+    const midis = chromaticMidisInRange(lo, hi);
+    if (!midis.length) {
+      return { ok: false, midis: [], error: 'The selected range has no notes.' };
+    }
+    return { ok: true, midis, error: null };
+  }
+
+  if (task === 'interval') {
+    return placeIntervalInRange(lo, hi, intervalSemitones, intervalDirection);
+  }
+
+  const parsed = parseNote(rootName);
+  const rootPc = parsed ? parsed.semi : 0;
+  const offsets = buildPatternOffsets(scaleName, patternId);
+  let placed = placeOffsetsInRange(offsets, rootPc, lo, hi);
+
+  if (!placed.ok && patternId !== 'five-tone') {
+    placed = placeOffsetsInRange(fiveToneOffsets(scaleName), rootPc, lo, hi);
+  }
+  if (!placed.ok) {
+    placed = placeOffsetsInRange(triadOffsets(scaleName), rootPc, lo, hi);
+  }
+
+  if (!placed.ok) {
+    return { ok: false, midis: [], error: placed.error || 'This pattern does not fit the selected range.' };
+  }
+  return { ok: true, midis: placed.midis, rootMidi: placed.rootMidi, error: null };
+}
+
+/**
+ * Pick the next target MIDI from candidates using adaptive note stats.
+ * Higher priority for large errors, recent fails, and fewer consecutive passes.
+ */
+export function pickNextCenterMidi(candidates, stats = {}) {
+  if (!candidates.length) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  const weights = candidates.map(midi => {
+    const s = stats[midi] || { attempts: 0, fails: 0, lastErrorAbs: 0, consecutivePasses: 0 };
+    let score = 1;
+    score += s.lastErrorAbs * 0.15;
+    score += s.fails * 2;
+    if (s.consecutivePasses >= 2) score *= 0.2;
+    else if (s.consecutivePasses === 1) score *= 0.6;
+    score += Math.max(0, 3 - s.attempts) * 0.5;
+    return Math.max(0.05, score);
+  });
+
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (let i = 0; i < candidates.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return candidates[i];
+  }
+  return candidates[candidates.length - 1];
 }

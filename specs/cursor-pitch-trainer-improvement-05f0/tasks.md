@@ -346,13 +346,13 @@ Stage 2 until this checkpoint is green.
 - [x] Task 7: Matcher wrap and guide-tone lockout
 - [x] Task 8: Exact-frequency guide tone
 - [x] Task 9: Stage 1 detector tests
-- [ ] Task 10: Range validation
-- [ ] Task 11: Custom range presets
-- [ ] Task 12: Center and Land tasks
-- [ ] Task 13: Interval and Pattern tasks
-- [ ] Task 14: Attempt result panel and correction text
-- [ ] Task 15: Meter, zones, and visual smoothing
-- [ ] Task 16: Feedback progression
+- [x] Task 10: Range validation
+- [x] Task 11: Custom range presets
+- [x] Task 12: Center and Land tasks
+- [x] Task 13: Interval and Pattern tasks
+- [x] Task 14: Attempt result panel and correction text
+- [x] Task 15: Meter, zones, and visual smoothing
+- [x] Task 16: Feedback progression
 - [ ] Task 17: Timestamp Runner scoring
 - [ ] Task 18: Runner note results
 - [ ] Task 19: Runner tests
