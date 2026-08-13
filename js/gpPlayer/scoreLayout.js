@@ -73,6 +73,14 @@ const MAX_BAR_CONTENT_UNITS = 4000;
 const DRUM_ROW_MIN_UNITS = 14;
 const ARC_STACK_LIFT_UNITS = 4;
 const ARC_Y_BAND_TOLERANCE = 2;
+// A slur and a tie arch over the note text by this much.
+const SLUR_LIFT_UNITS = 5;
+// A bend arrow rises beside the note by this much.
+const BEND_RISE_UNITS = 11;
+const BEND_RUN_UNITS = 5;
+// A slide leaves a note at this slope when no next note follows it.
+const SLIDE_RISE_UNITS = 5;
+const SLIDE_RUN_UNITS = 8;
 
 /**
  * The fret text size in layout units.
@@ -179,14 +187,35 @@ export function assignArcStackLevels(arcs) {
 }
 
 function overlayPath(kind, from, to, stackLevel = 0) {
-  const useTop = kind === 'slur' || kind === 'tie';
   const x1 = from.x + from.w / 2;
-  const y1 = useTop ? from.y : from.y + from.h / 2;
   const x2 = to.x + to.w / 2;
-  const y2 = useTop ? to.y : to.y + to.h / 2;
+
+  // A bend rises from the note. Tab notation draws a short arrow, so the mark
+  // stays beside the note. A line that reached the letter in the lane above
+  // would cross the whole staff when the note sits on a low string.
+  if (kind === 'bend') {
+    const yStart = from.y;
+    const yTop = yStart - BEND_RISE_UNITS - stackLevel * ARC_STACK_LIFT_UNITS;
+    const xEnd = x1 + BEND_RUN_UNITS;
+    return `M ${x1} ${yStart} Q ${xEnd} ${yStart} ${xEnd} ${yTop}`;
+  }
+
+  // A slide runs from this note to the next note, as a straight line between
+  // the two frets. When no next note follows, it leaves the note at a slope.
+  if (kind === 'slide') {
+    const y1 = from.y + from.h / 2;
+    const sameLane = to.lane === from.lane;
+    const y2 = sameLane ? to.y + to.h / 2 : y1 - SLIDE_RISE_UNITS;
+    const xTo = sameLane ? x2 : x1 + SLIDE_RUN_UNITS;
+    const gapStart = x1 + from.w / 2;
+    const gapEnd = sameLane ? Math.max(gapStart, xTo - to.w / 2) : xTo;
+    return `M ${gapStart} ${y1} L ${gapEnd} ${y2}`;
+  }
+
+  const y1 = from.y;
+  const y2 = to.y;
   const mx = (x1 + x2) / 2;
-  const baseLift = kind === 'bend' ? 8 : 5;
-  const cy = Math.min(y1, y2) - baseLift - stackLevel * ARC_STACK_LIFT_UNITS;
+  const cy = Math.min(y1, y2) - SLUR_LIFT_UNITS - stackLevel * ARC_STACK_LIFT_UNITS;
   return `M ${x1} ${y1} Q ${mx} ${cy} ${x2} ${y2}`;
 }
 
@@ -597,6 +626,22 @@ function findNearestPrevEvent(events, ev, { allowGrace = false } = {}) {
   return prev;
 }
 
+function findNearestNextEvent(events, ev) {
+  let next = null;
+  let nextStart = Infinity;
+  for (const e of events) {
+    if (e.stringIndex !== ev.stringIndex) continue;
+    if (e.grace) continue;
+    const start = Number(e.start);
+    if (start <= Number(ev.start) + 1e-4) continue;
+    if (start < nextStart) {
+      next = e;
+      nextStart = start;
+    }
+  }
+  return next;
+}
+
 function addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, drumMode, strings, drumLanes, warnings) {
   const tabLane = laneByName(lanes, 'tabStaff');
   const useDrumRows = drumMode && drumLanes.length > 0;
@@ -776,10 +821,24 @@ function addTechniqueGlyphs(glyphs, overlayRecords, lanes, bar, cols, contentW, 
         techId: 'slide',
       });
       if (noteIdx >= 0) {
+        // A slide joins two frets on one string. Aim at the next note on that
+        // string, and fall back to the slide letter when the bar holds none.
+        const next = findNearestNextEvent(bar.events, ev);
+        let nextIdx = -1;
+        if (next) {
+          for (let i = 0; i < glyphs.length; i += 1) {
+            const g = glyphs[i];
+            if (g.eventRef === next
+              || (g.kind === 'fret' && g.stringIndex === next.stringIndex && g.beatStart === next.start)) {
+              nextIdx = i;
+              break;
+            }
+          }
+        }
         overlayRecords.push({
           kind: 'slide',
           fromIndex: noteIdx,
-          toIndex: slideIdx,
+          toIndex: nextIdx >= 0 ? nextIdx : slideIdx,
         });
       }
     }

@@ -30,6 +30,7 @@ const PAGES = [
   'zoom-overflow.html',
   'score-alignment.html',
   'score-follow.html',
+  'score-fixtures-visual.html',
 ];
 
 const argvPages = process.argv.slice(2);

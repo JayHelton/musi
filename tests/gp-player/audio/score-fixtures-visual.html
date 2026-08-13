@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player score fixtures visual</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    body { margin: 0; padding: 10px; }
+    .panel { margin-bottom: 12px; }
+    .panel h2 {
+      font-family: var(--font-ui, "VT323", monospace);
+      font-size: 15px;
+      margin: 0 0 3px;
+      color: var(--accent, #ffd83d);
+    }
+    .host { width: 940px; height: 300px; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; color: #cfc4e6; }
+  </style>
+</head>
+<body>
+  <div id="panels"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Draw real Guitar Pro fixture files, then report the arc geometry.
+    //
+    // The synthetic fixtures cannot show every case that a real file holds.
+    // This page parses the generated .gp5 fixtures and checks that no two arcs
+    // in one bar share a curve, and that every arc ends on a note.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+
+    const FILES = [
+      { name: 'techniques.gp5', label: 'Real file: bends, hammer-ons, pull-offs, slides, ties' },
+      { name: 'ties-rhythm.gp5', label: 'Real file: ties and rests' },
+      { name: 'drums-only.gp5', label: 'Real file: a drum track' },
+      { name: 'seven-string.gp5', label: 'Real file: a seven string guitar' },
+    ];
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function centreX(el) {
+      const r = el.getBoundingClientRect();
+      return r.left + r.width / 2;
+    }
+
+    /** Report the arcs of one mounted score. */
+    function arcReport(host, label) {
+      const arcs = [...host.querySelectorAll('.gpp-parch-overlay')];
+      const notes = [...host.querySelectorAll('.gpp-parch-lane-tabStaff [data-note="1"]')]
+        .map((el) => ({ x: centreX(el), rect: el.getBoundingClientRect() }));
+
+      let worstEnd = 0;
+      let identical = 0;
+      const seen = new Set();
+      let offNote = 0;
+
+      for (const arc of arcs) {
+        const r = arc.getBoundingClientRect();
+        if (!r.width && !r.height) continue;
+        const key = `${r.left.toFixed(1)}:${r.right.toFixed(1)}:${r.top.toFixed(1)}`;
+        if (seen.has(key)) identical += 1;
+        seen.add(key);
+
+        if (!notes.length) continue;
+        // The left end of an arc must start at a note. A slur starts at the
+        // centre of the note text, and a slide starts at its edge, so the test
+        // measures the distance to the whole note box.
+        const nearLeft = notes.reduce(
+          (best, n) => (Math.abs(n.x - r.left) < Math.abs(best.x - r.left) ? n : best),
+          notes[0],
+        );
+        const box = nearLeft.rect;
+        const err = r.left < box.left
+          ? box.left - r.left
+          : Math.max(0, r.left - box.right);
+        if (err > worstEnd) worstEnd = err;
+        if (err > 4) offNote += 1;
+      }
+
+      return {
+        label,
+        arcs: arcs.length,
+        identical,
+        offNote,
+        worstEnd,
+        notes: notes.length,
+      };
+    }
+
+    runMain(async () => {
+      const { parseGuitarPro } = await import('/js/tab/guitarPro.js');
+      const { mountParchmentView } = await import('/js/gpPlayer/parchmentView.js');
+      const panels = document.getElementById('panels');
+      const rows = [];
+      let pass = true;
+
+      for (const file of FILES) {
+        const res = await fetch(`/tests/gp-player/fixtures/${file.name}`);
+        if (!res.ok) throw new Error(`cannot read ${file.name}. Build the fixtures first.`);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        const parsed = await parseGuitarPro(bytes);
+
+        const guitar = parsed.tracks?.[0]?.model || null;
+        const drums = parsed.drumTracks?.[0]?.model || null;
+        if (!guitar && !drums) throw new Error(`${file.name} held no track`);
+
+        const panel = document.createElement('div');
+        panel.className = 'panel';
+        const title = document.createElement('h2');
+        title.textContent = file.label;
+        const host = document.createElement('div');
+        host.className = 'host';
+        panel.append(title, host);
+        panels.appendChild(panel);
+
+        const parch = mountParchmentView(host, {
+          guitarModel: guitar,
+          percModel: drums,
+          autoFollow: false,
+        });
+        await sleep(300);
+        parch.update({
+          beatInScore: 1, currentSec: 0.5, bpm: 120, playing: false, measureIndex: 0,
+        });
+        await sleep(60);
+
+        const report = arcReport(host, file.name);
+        const ok = report.identical === 0 && report.offNote === 0;
+        if (!ok) pass = false;
+        rows.push({
+          file: report.label,
+          notes: String(report.notes),
+          arcs: String(report.arcs),
+          identical: String(report.identical),
+          offNote: String(report.offNote),
+          worstEndPx: report.worstEnd.toFixed(2),
+          ok: ok ? 'yes' : 'no',
+        });
+      }
+
+      writeln('score-fixtures-visual: arcs on real Guitar Pro files');
+      printTable(rows, [
+        { key: 'file', label: 'file' },
+        { key: 'notes', label: 'notes' },
+        { key: 'arcs', label: 'arcs' },
+        { key: 'identical', label: 'arcs that share a curve' },
+        { key: 'offNote', label: 'arcs that miss a note' },
+        { key: 'worstEndPx', label: 'worst end error px' },
+        { key: 'ok', label: 'ok' },
+      ]);
+      reportResult(pass);
+    });
+  </script>
+</body>
+</html>
