@@ -120,7 +120,7 @@ export function mountToolPage(sectionEl, descriptor = {}) {
 
   const contextEl = document.createElement('div');
   contextEl.className = 'tool-page-context';
-  contextEl.hidden = !(descriptor.contextFields?.length);
+  contextEl.hidden = true;
 
   const modesEl = document.createElement('div');
   modesEl.className = 'tool-page-modes';
