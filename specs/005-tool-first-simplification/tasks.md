@@ -1,6 +1,6 @@
 # Tasks: Tool-First Simplification
 
-**Input**: Design documents from `/specs/002-tool-first-simplification/`
+**Input**: Design documents from `/specs/005-tool-first-simplification/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
@@ -64,10 +64,10 @@ this record. Fill the table in T001 and T003.
 
 **Purpose**: WP-00 records the baseline and changes no behavior.
 
-- [ ] T001 Run every Node runner under `tests/` and record the pass list in the Regression baseline table of `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T001 Run every Node runner under `tests/` and record the pass list in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
 - [ ] T002 [P] Run `node cli/bin/musi.js --help` and confirm the activity list prints for SC-029.
-- [ ] T003 Read `CACHE_VERSION` in `service-worker.js` and record the value in the Regression baseline table of `specs/002-tool-first-simplification/tasks.md`.
-- [ ] T004 [P] Compare `specs/002-tool-first-simplification/research-inventory.md` against each code path it names.
+- [ ] T003 Read `CACHE_VERSION` in `service-worker.js` and record the value in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
+- [ ] T004 [P] Compare `specs/005-tool-first-simplification/research-inventory.md` against each code path it names.
 
 ---
 
@@ -116,8 +116,8 @@ This phase is WP-01.
 - [ ] T023 [US1] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
 - [ ] T024 [US1] Run `node tests/migrations/run.mjs` and fix every failure it reports.
 - [ ] T025 [US1] Run `node tests/routes/run.mjs` and fix every failure it reports.
-- [ ] T026 [US1] Walk through every numbered step in the WP-01 section of `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T027 [US1] Record WP-01 sign-off and quickstart evidence in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T026 [US1] Walk through every numbered step in the WP-01 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T027 [US1] Record WP-01 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: The app boots, migrations run idempotently, and every legacy bookmark in `contracts/route-map.md` resolves.
 
@@ -146,7 +146,7 @@ This phase is WP-02.
 - [ ] T037 [US2] Flip the root route to `tools` with no hash in `js/main.js` and `js/appRoute.js`.
 - [ ] T038 [US2] Run `node tests/shell/run.mjs` and fix every failure it reports.
 - [ ] T039 [US2] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T040 [US2] Walk through every numbered step in the WP-02 section of `specs/002-tool-first-simplification/quickstart.md` and record WP-02 sign-off in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T040 [US2] Walk through every numbered step in the WP-02 section of `specs/005-tool-first-simplification/quickstart.md` and record WP-02 sign-off in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: The root opens Tools home, primary navigation lists no individual tool, and the Metronome opens without a routine prompt.
 
@@ -179,8 +179,8 @@ This phase is WP-03.
 - [ ] T053 [US3] Wire the context row to the scope API in `js/screenUx.js`.
 - [ ] T054 [US3] Run `node tests/shell/run.mjs` and fix every failure it reports.
 - [ ] T055 [US3] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T056 [US3] Walk through every numbered step in the WP-03 section of `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T057 [US3] Record WP-03 sign-off and quickstart evidence in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T056 [US3] Walk through every numbered step in the WP-03 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T057 [US3] Record WP-03 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Back restores origin state, one audio owner holds playback, and unsaved prompts use the correct labels.
 
@@ -220,8 +220,8 @@ This phase is WP-04.
 - [ ] T075 [US4] Delete `js/scaleQuiz.js`, `js/intervalQuiz.js`, `js/fretboardTrainer.js`, `js/chordWorkout.js`, `js/studyLab.js`, and `js/studyLabMic.js` after redirects and tests pass per FR-105.
 - [ ] T076 [US4] Delete `css/quiz.css`, `css/chordworkout.css`, and `css/study-lab.css` after redirects and tests pass per FR-105.
 - [ ] T077 [US4] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T078 [US4] Walk through every numbered step in the WP-04 section of `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T079 [US4] Record WP-04 sign-off and quickstart evidence in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T078 [US4] Walk through every numbered step in the WP-04 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T079 [US4] Record WP-04 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Study labs share context and one fretboard renderer. Legacy quiz modules are gone. Every legacy Study hash resolves.
 
@@ -254,8 +254,8 @@ This phase is WP-05.
 - [ ] T091 [US5] Delete the unused scheduler path in `js/tab/tabPlayer.js` after redirects and tests pass per FR-105.
 - [ ] T092 [US5] Run `node tests/track-to-sheet/dsp.mjs` and fix every failure it reports.
 - [ ] T093 [US5] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T094 [US5] Walk through every numbered step in the WP-05 section of `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T095 [US5] Record WP-05 sign-off and quickstart evidence in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T094 [US5] Walk through every numbered step in the WP-05 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T095 [US5] Record WP-05 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Pitch & Ear Lab holds every scored mode. One tempo scheduler owns metronome playback. Legacy timing and practice-timer hashes resolve.
 
@@ -287,8 +287,8 @@ This phase is WP-06.
 - [ ] T106 [US6] Keep Capture drafts in `js/recorder.js` without overwriting source audio until save completes.
 - [ ] T107 [US6] Extend `tests/shell/run.mjs` for song, capture, and transcription unsaved cases.
 - [ ] T108 [US6] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T109 [US6] Walk through every numbered step in the WP-06 section of `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T110 [US6] Record WP-06 sign-off and quickstart evidence in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T109 [US6] Walk through every numbered step in the WP-06 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T110 [US6] Record WP-06 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Create tools protect drafts. Unfiled Notes lists every legacy note. Unsaved prompts cover song and capture work.
 
@@ -327,8 +327,8 @@ This phase is WP-07.
 - [ ] T128 [US7] Extend `tests/exercises/run.mjs`, `tests/workbooks/run.mjs`, and the suites under `tests/gp-player/`.
 - [ ] T129 [US7] Delete `js/tab/tabPlayer.js` after redirects and tests pass per FR-105.
 - [ ] T130 [US7] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T131 [US7] Walk through every numbered step in the WP-07 section of `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T132 [US7] Record WP-07 sign-off and quickstart evidence in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T131 [US7] Walk through every numbered step in the WP-07 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T132 [US7] Record WP-07 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Library filters and list restore work. Score Player keeps no private list. Every write path routes through `js/exercises.js`.
 
@@ -358,8 +358,8 @@ This phase is WP-08.
 - [ ] T142 [US8] Extend `tests/routines/run.mjs` for Open cards, no timer, and optional completion flows.
 - [ ] T143 [US8] Extend `tests/routine-nav/run.mjs` for layer Back and compact breadcrumb cases.
 - [ ] T144 [US8] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T145 [US8] Walk through every numbered step in the WP-08 section of `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T146 [US8] Record WP-08 sign-off and quickstart evidence in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T145 [US8] Walk through every numbered step in the WP-08 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T146 [US8] Record WP-08 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Routine cards use Open. Back walks layers in order. Tools home shows Continue only when active routines exist.
 
@@ -390,8 +390,8 @@ This phase is WP-09.
 - [ ] T157 [P] [US9] Stop new `drumPatterns` sync writes in `js/cloud/recordMap.js` per decision D24.
 - [ ] T158 [US9] Run `node tests/removal-guard/run.mjs` and fix every failure it reports.
 - [ ] T159 [US9] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T160 [US9] Walk through every numbered step in the WP-09 section of `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T161 [US9] Record WP-09 sign-off and quickstart evidence in `specs/002-tool-first-simplification/tasks.md`.
+- [ ] T160 [US9] Walk through every numbered step in the WP-09 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T161 [US9] Record WP-09 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Settings shows four sections only. Removed modules and stylesheets stay gone. The `musi-drums` database is removed after verify.
 
@@ -407,14 +407,14 @@ across every completed work package.
 - [ ] T164 [P] Sweep interactive targets and mobile safe areas in `css/library.css` for FR-098 to FR-102.
 - [ ] T165 [P] Sweep fretboard playback controls and reduced-motion rules in `css/fretboard.css` for FR-102.
 - [ ] T166 Confirm new stylesheets add no new colour value and no new font family outside `css/base.css` and `css/theme-gbc.css`.
-- [ ] T167 Complete a keyboard-only pass for SC-017 across Tools home, Library, Routines, Score Player, and Audio Studio in `specs/002-tool-first-simplification/quickstart.md`.
+- [ ] T167 Complete a keyboard-only pass for SC-017 across Tools home, Library, Routines, Score Player, and Audio Studio in `specs/005-tool-first-simplification/quickstart.md`.
 - [ ] T168 Update tool-first navigation and Library guidance in `README.md`.
 - [ ] T169 Update Score Player and exercise guidance in `docs/gp-exercises-roadmap.md` and `docs/tab-analyzer-roadmap.md`.
 - [ ] T170 Run every Node runner under `tests/` and fix every failure they report.
 - [ ] T171 Run `node cli/bin/musi.js --help` and confirm the activity list prints for SC-029.
-- [ ] T172 Walk through every section in `specs/002-tool-first-simplification/quickstart.md` including accessibility and critical flows.
-- [ ] T173 Confirm a full boot loads no removed feature code for SC-034 using the Network tab steps in `specs/002-tool-first-simplification/quickstart.md`.
-- [ ] T174 Compare every Node runner result against the Regression baseline table in `specs/002-tool-first-simplification/tasks.md` for SC-028.
+- [ ] T172 Walk through every section in `specs/005-tool-first-simplification/quickstart.md` including accessibility and critical flows.
+- [ ] T173 Confirm a full boot loads no removed feature code for SC-034 using the Network tab steps in `specs/005-tool-first-simplification/quickstart.md`.
+- [ ] T174 Compare every Node runner result against the Regression baseline table in `specs/005-tool-first-simplification/tasks.md` for SC-028.
 
 **Checkpoint**: Accessibility, theme, keyboard, documentation, and regression checks pass. The feature meets SC-028, SC-029, SC-034, and the full quickstart.
 
@@ -457,7 +457,7 @@ Run tasks in this order inside each phase:
 5. Run deletions only after redirects, migrations, and tests pass.
 6. Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
 7. Walk through the quickstart section for the work package.
-8. Record the sign-off line in `specs/002-tool-first-simplification/tasks.md`.
+8. Record the sign-off line in `specs/005-tool-first-simplification/tasks.md`.
 
 ### Parallel opportunities
 
@@ -525,7 +525,7 @@ package before the next package starts.
 - `[US1]` through `[US9]` map each task to the user story that owns it. Phase 12 tasks
   carry no story label.
 - FR-106 requires product-owner sign-off before the next work package starts. Record each
-  confirmation in `specs/002-tool-first-simplification/tasks.md` with quickstart evidence.
+  confirmation in `specs/005-tool-first-simplification/tasks.md` with quickstart evidence.
 - Every package that adds or removes a file must bump `CACHE_VERSION` and update
   `PRECACHE_URLS` in `service-worker.js`.
 - Each commit must stay shippable because `main` is the trunk. Push only complete work

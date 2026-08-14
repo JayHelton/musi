@@ -1,12 +1,12 @@
 # Implementation Plan: Tool-First Simplification
 
-**Branch**: `002-tool-first-simplification` | **Date**: 2026-08-13 | **Spec**: [spec.md](./spec.md)
+**Branch**: `005-tool-first-simplification` | **Date**: 2026-08-13 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/002-tool-first-simplification/spec.md`
+**Input**: Feature specification from `/specs/005-tool-first-simplification/spec.md`
 
-The Spec Kit setup script reports the branch as `002-tool-first-simplification`. The real
-git branch for this work is `cursor/tool-first-simplification-spec-4db7`, because the
-cloud-agent harness forces branch and pull request delivery.
+The Spec Kit setup script reports the branch as `005-tool-first-simplification`. There is
+no git branch with that name. The specification artifacts land on `main`, because the repo
+uses trunk-based delivery.
 
 ## Summary
 
@@ -84,7 +84,7 @@ and hundreds of legacy notes that land in Unfiled Notes.
 | V. Spec-Driven Feature Work | Spec first, then plan, then tasks, then implement. Artifacts live in `specs/`. | PASS. This plan follows [spec.md](./spec.md) and precedes `tasks.md`. Phase 0 and Phase 1 artifacts live in this directory. |
 | Communication | Written output follows ASD-STE100 Simplified Technical English. | PASS. Every artifact in this directory follows it. Code identifiers and UI strings stay verbatim. |
 | Agent Workflow | The main agent thread plans and coordinates work. Composer 2.5 sub-agents perform implementation. | PASS. FR-103 splits work into nine packages. Each package suits a focused sub-agent with contract and decision context. |
-| Delivery | The repo prefers trunk-based push to `main`. A harness may force branch and pull request delivery. | PASS. The plan states the harness override. Work lands on `cursor/tool-first-simplification-spec-4db7` with pull request delivery. FR-106 requires product-owner sign-off per package before the next package starts. |
+| Delivery | The repo prefers trunk-based push to `main`. A harness may force branch and pull request delivery. | PASS. The specification artifacts land on `main` with a trunk-based push. FR-106 requires product-owner sign-off per package before the next package starts. |
 
 **Post-design re-check**: PASS. The Phase 1 design adds no dependency, no backend, and no
 new tooling. It keeps the routine export format unchanged. It adds no new colour value and
@@ -96,7 +96,7 @@ design has no constitution violation.
 ### Documentation (this feature)
 
 ```text
-specs/002-tool-first-simplification/
+specs/005-tool-first-simplification/
 ├── plan.md                       # This file
 ├── spec.md                       # Feature requirements
 ├── research.md                   # Phase 0 decisions (D1 to D27)
@@ -342,7 +342,7 @@ next one starts.
 
 Every package that adds or removes a file must bump `CACHE_VERSION` and update
 `PRECACHE_URLS` in `service-worker.js`. The current value is
-`v190-routine-sibling-switch-and-phone-layout`.
+`v205-nested-folder-tree`.
 
 ## Complexity Tracking
 

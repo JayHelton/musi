@@ -1,6 +1,6 @@
 # Feature Specification: Tool-First Simplification
 
-**Feature Branch**: `002-tool-first-simplification`
+**Feature Branch**: `005-tool-first-simplification`
 
 **Created**: 2026-08-13
 
@@ -932,8 +932,10 @@ without sign-in.
   and CLI smoke commands.
 - The app keeps its address-fragment routing shell. This feature adds no path router.
 - The service worker cache name needs a bump when file names change.
-- Musi uses sequential feature numbering, so this feature directory is
-  `specs/002-tool-first-simplification`.
+- Musi uses sequential feature numbering. This feature directory is
+  `specs/005-tool-first-simplification`. The author first chose `002`. The trunk already
+  held `002-gp-player-overhaul`, `003-gp-player-unload`, and `004-nested-library-folders`,
+  so the directory moved to `005`.
 - `research-inventory.md` in this directory records the verified state of the current
   code. It is background input for planning and it is not a requirement source.
 - The root route today is `home` with no hash. After the change the root route opens
