@@ -197,53 +197,6 @@
   font-weight:600;margin-bottom:12px;font-family:var(--font-body)
 }
 
-/* Metronome */
-.rt-metro-bpm-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.rt-metro-bpm-readout{
-  font-family:var(--font-ui);font-size:2.4rem;font-weight:700;color:var(--accent);
-  font-variant-numeric:tabular-nums;line-height:1;min-width:3ch
-}
-.rt-metro-bpm-input{
-  width:72px;padding:6px 8px;border:1px solid var(--border);border-radius:10px;
-  background:var(--bg2);color:var(--text);font-family:var(--font-ui);font-size:1.1rem;
-  text-align:center
-}
-.rt-metro-bpm-input:focus{outline:none;border-color:var(--accent)}
-.rt-metro-slider{flex:1;min-width:120px;accent-color:var(--accent)}
-.rt-metro-step-btns{display:flex;gap:6px}
-.rt-metro-step-btns .btn{min-width:40px;min-height:40px;padding:0;font-size:1.1rem}
-.rt-metro-tap{margin-bottom:12px}
-.rt-metro-seg{margin-bottom:12px}
-.rt-metro-seg .seg-row{gap:6px}
-.rt-metro-seg .seg-btn{min-height:40px;padding:8px 12px;font-size:.8rem}
-.rt-metro-accent{
-  display:inline-flex;align-items:center;gap:8px;font-size:.85rem;color:var(--text);
-  margin-bottom:12px;cursor:pointer;user-select:none
-}
-.rt-metro-accent input{width:16px;height:16px;accent-color:var(--accent)}
-.rt-metro-play-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-.rt-metro-duration{
-  display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.85rem;color:var(--text)
-}
-.rt-metro-duration input{
-  width:72px;padding:6px 10px;border:1px solid var(--border);border-radius:10px;
-  background:var(--bg2);color:var(--text);font-family:var(--font-body);font-size:.85rem
-}
-.rt-beat-dots{
-  display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
-  min-height:44px;padding:8px
-}
-.rt-beat-dot{
-  width:14px;height:14px;border-radius:50%;background:var(--bg2);
-  border:2px solid var(--border);transition:transform .08s ease,background .08s ease,border-color .08s ease
-}
-.rt-beat-dot.accent{border-color:var(--accent2)}
-.rt-beat-dot.current{
-  background:var(--accent);border-color:var(--accent);transform:scale(1.25);
-  box-shadow:0 0 8px var(--accent-dim)
-}
-.rt-beat-dot.accent.current{background:var(--accent2);border-color:var(--accent2)}
-
 /* Workbooks attachment list */
 .rt-wb-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
 .rt-wb-row{
@@ -313,8 +266,6 @@
 
 @media(max-width:768px){
   .rt-session-body{padding:12px}
-  .rt-metro-bpm-readout{font-size:2rem}
-  .rt-metro-bpm-row{gap:8px}
 }
 
 @media (orientation:landscape) and (max-height:500px){
@@ -345,8 +296,6 @@
   .rt-workspace{flex:1;min-height:0;overflow:hidden}
   .rt-session-head{padding:6px 10px}
   .rt-session-body{padding:10px;gap:10px}
-  .rt-metro-bpm-readout{font-size:1.6rem}
-  .rt-metro-step-btns .btn{min-height:36px}
   .home-routine-grid{grid-template-columns:repeat(2,1fr)}
 }
 
@@ -361,10 +310,6 @@
 
 @media (min-width:1280px) and (min-height:501px){
   .rt-session-body{gap:16px}
-}
-
-@media (min-width:1800px) and (min-height:501px){
-  .rt-metro-bpm-readout{font-size:2.8rem}
 }
 
 /* ---- Home routine dashboard ---- */

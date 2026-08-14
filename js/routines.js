@@ -1,5 +1,5 @@
 // Practice Routines UI for Musi. Ordered sessions with workbook attachments,
-// per-session metronome, notes, and JSON export/import.
+// notes, and JSON export/import.
 
 import {
   listRoutines,
@@ -25,27 +25,16 @@ import {
   applyRoutineImport,
   serializeRoutineExport,
   routineExportFilename,
-  SESSION_SUBDIVISIONS,
 } from './routineModel.js';
-import {
-  createRoutineMetronome,
-  ROUTINE_METRONOME_SUBDIVISIONS,
-} from './routineMetronome.js';
 import {
   listWorkbooks,
   getWorkbook,
   createWorkbook,
 } from './workbookModel.js';
 import { getExercises } from './exercises.js';
-import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
-import { metro, stopMetronome } from './metronome.js';
 
 const NAME_LIMIT = 120;
 const AUTOSAVE_MS = 700;
-const BPM_MIN = 30;
-const BPM_MAX = 300;
-
-const SUBDIV_LABEL = new Map(SESSION_SUBDIVISIONS.map(s => [s.id, s.label]));
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -77,12 +66,6 @@ let sessionPaneEl, sessionTitleEl, sessionActionsEl, sessionBodyEl, sessionBackB
 let newBtn, importBtn, exportAllBtn, importFileEl;
 
 let dialogRoot = null;
-let sessionMetronome = null;
-let sessionMetronomeKey = null;
-let routineNowPlaying = false;
-let lastBeatDetail = null;
-let beatDotsEl = null;
-let tapTimes = [];
 
 let descAutosaveTimer = null;
 let notesAutosaveTimer = null;
@@ -123,94 +106,13 @@ function formatRoutineMeta(stats) {
   return parts.join(' · ');
 }
 
-function subdivLabel(id) {
-  return SUBDIV_LABEL.get(id) || '4ths';
-}
-
 function formatSessionMeta(session) {
-  const parts = [];
   const wbCount = session.workbookIds?.length || 0;
-  parts.push(plural(wbCount, 'workbook'));
-  const m = session.metronome || {};
-  parts.push(`${m.bpm || 100} BPM · ${m.beats || 4}/4 · ${subdivLabel(m.subdiv)}`);
-  return parts.join(' · ');
+  return plural(wbCount, 'workbook');
 }
 
 function sessionKey(routineId, sessionId) {
   return `${routineId}:${sessionId}`;
-}
-
-function destroySessionMetronome() {
-  if (sessionMetronome) {
-    sessionMetronome.stop();
-    sessionMetronome.destroy();
-    sessionMetronome = null;
-    sessionMetronomeKey = null;
-  }
-  beatDotsEl = null;
-  lastBeatDetail = null;
-  tapTimes = [];
-  if (routineNowPlaying) {
-    hideNowPlaying();
-    routineNowPlaying = false;
-  }
-}
-
-// Subdivision clicks land between beats; letting them move the marker would
-// blink it off mid-beat, so only the beat itself advances the dots.
-function updateBeatDots(detail) {
-  if (detail && detail.sub !== 0) return;
-  lastBeatDetail = detail;
-  if (!beatDotsEl) return;
-  beatDotsEl.querySelectorAll('.rt-beat-dot').forEach((dot, i) => {
-    dot.classList.toggle('current', !!detail && detail.beat === i);
-  });
-}
-
-function markAccentDot(accentFirst) {
-  if (!beatDotsEl) return;
-  beatDotsEl.querySelectorAll('.rt-beat-dot').forEach((dot, i) => {
-    dot.classList.toggle('accent', accentFirst && i === 0);
-  });
-}
-
-function ensureSessionMetronome(routineId, sessionId, config, sessionName) {
-  const key = sessionKey(routineId, sessionId);
-  if (sessionMetronome && sessionMetronomeKey !== key) {
-    destroySessionMetronome();
-  }
-  if (!sessionMetronome) {
-    sessionMetronome = createRoutineMetronome({
-      ...config,
-      onBeat: (detail) => {
-        if (!isRoutinesSectionActive()) return;
-        updateBeatDots(detail);
-      },
-      onStateChange: (playing) => {
-        if (!isRoutinesSectionActive()) return;
-        syncPlayButton(playing);
-        if (playing) return;
-        updateBeatDots(null);
-        if (routineNowPlaying) {
-          hideNowPlaying();
-          routineNowPlaying = false;
-        }
-      },
-    });
-    sessionMetronomeKey = key;
-    routineNowPlaying = false;
-  } else {
-    sessionMetronome.setConfig(config);
-  }
-  return sessionMetronome;
-}
-
-let playBtnRef = null;
-
-function syncPlayButton(playing) {
-  if (!playBtnRef) return;
-  playBtnRef.textContent = playing ? 'Stop' : 'Play';
-  playBtnRef.classList.toggle('primary', !playing);
 }
 
 export function setRoutineNavigator(nav) {
@@ -471,7 +373,6 @@ function scheduleNotesAutosave() {
 
 function closeSessionPane() {
   flushNotesAutosave();
-  destroySessionMetronome();
   openSessionId = null;
   if (sessionPaneEl) sessionPaneEl.hidden = true;
   if (workspaceEl) workspaceEl.classList.remove('is-open');
@@ -485,7 +386,6 @@ function openSession(routineId, sessionId) {
     openSessionId = null;
     return;
   }
-  if (openSessionId !== sessionId) destroySessionMetronome();
   openSessionId = sessionId;
   selectedRoutineId = routineId;
   setActiveRoutineSession(routineId, sessionId);
@@ -506,31 +406,6 @@ function validateSelection() {
       if (sessionPaneEl) sessionPaneEl.hidden = true;
       if (workspaceEl) workspaceEl.classList.remove('is-open');
     }
-  }
-}
-
-function tapTempo(onBpm) {
-  const now = performance.now();
-  if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
-  tapTimes.push(now);
-  if (tapTimes.length > 5) tapTimes.shift();
-  if (tapTimes.length >= 2) {
-    const intervals = [];
-    for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i - 1]);
-    const recent = intervals.slice(-4);
-    const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
-    onBpm(Math.round(60000 / avg));
-  }
-}
-
-function persistMetronome(routineId, sessionId, patch) {
-  const rt = getRoutine(routineId);
-  const session = rt?.sessions.find(s => s.id === sessionId);
-  if (!session) return;
-  const merged = { ...session.metronome, ...patch };
-  updateRoutineSession(routineId, sessionId, { metronome: merged });
-  if (sessionMetronome && sessionMetronomeKey === sessionKey(routineId, sessionId)) {
-    sessionMetronome.setConfig(merged);
   }
 }
 
@@ -933,145 +808,8 @@ function renderSessionPane() {
   }
 
   sessionBodyEl.innerHTML = '';
-  sessionBodyEl.appendChild(renderMetronomeCard(rt, session));
   sessionBodyEl.appendChild(renderWorkbooksCard(rt, session));
   sessionBodyEl.appendChild(renderNotesCard(rt, session));
-}
-
-function renderMetronomeCard(rt, session) {
-  const card = el('div', { class: 'rt-card' });
-  card.appendChild(el('div', { class: 'rt-card-title', text: 'Metronome' }));
-  const m = session.metronome || {};
-
-  const bpmRow = el('div', { class: 'rt-metro-bpm-row' });
-  const readout = el('span', { class: 'rt-metro-bpm-readout', text: String(m.bpm || 100) });
-  bpmRow.appendChild(readout);
-
-  const bpmInput = el('input', {
-    type: 'number', class: 'rt-metro-bpm-input', min: String(BPM_MIN), max: String(BPM_MAX),
-    value: String(m.bpm || 100), 'aria-label': 'BPM',
-  });
-  const slider = el('input', {
-    type: 'range', class: 'rt-metro-slider', min: String(BPM_MIN), max: String(BPM_MAX),
-    value: String(m.bpm || 100), 'aria-label': 'BPM slider',
-  });
-
-  // Dragging the slider fires continuously, so the library meta only refreshes
-  // once the value settles.
-  function applyBpm(val, { refreshMeta = true } = {}) {
-    const n = Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(Number(val) || m.bpm)));
-    bpmInput.value = String(n);
-    slider.value = String(n);
-    readout.textContent = String(n);
-    persistMetronome(rt.id, session.id, { bpm: n });
-    if (refreshMeta) refreshLibraryMeta();
-  }
-
-  bpmInput.addEventListener('change', () => applyBpm(bpmInput.value));
-  slider.addEventListener('input', () => applyBpm(slider.value, { refreshMeta: false }));
-  slider.addEventListener('change', () => applyBpm(slider.value));
-
-  const stepBtns = el('div', { class: 'rt-metro-step-btns' });
-  stepBtns.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: '\u2212', 'aria-label': 'Decrease BPM',
-    onClick: () => applyBpm((Number(bpmInput.value) || m.bpm) - 1),
-  }));
-  stepBtns.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: '+', 'aria-label': 'Increase BPM',
-    onClick: () => applyBpm((Number(bpmInput.value) || m.bpm) + 1),
-  }));
-
-  bpmRow.appendChild(bpmInput);
-  bpmRow.appendChild(slider);
-  bpmRow.appendChild(stepBtns);
-  card.appendChild(bpmRow);
-
-  card.appendChild(el('button', {
-    class: 'btn sm rt-metro-tap', type: 'button', text: 'Tap tempo',
-    onClick: () => tapTempo(applyBpm),
-  }));
-
-  const beatsField = el('div', { class: 'rt-metro-seg metro-seg-field' });
-  beatsField.appendChild(el('span', { class: 'metro-seg-label', text: 'Beats per bar' }));
-  const beatsRow = el('div', { class: 'seg-row metro-seg' });
-  for (let b = 1; b <= 12; b++) {
-    beatsRow.appendChild(el('button', {
-      type: 'button',
-      class: 'seg-btn' + ((m.beats || 4) === b ? ' active' : ''),
-      text: String(b),
-      onClick: () => {
-        persistMetronome(rt.id, session.id, { beats: b });
-        renderSessionPane();
-        refreshLibraryMeta();
-      },
-    }));
-  }
-  beatsField.appendChild(beatsRow);
-  card.appendChild(beatsField);
-
-  const subdivField = el('div', { class: 'rt-metro-seg metro-seg-field' });
-  subdivField.appendChild(el('span', { class: 'metro-seg-label', text: 'Subdivision' }));
-  const subdivRow = el('div', { class: 'seg-row metro-seg' });
-  ROUTINE_METRONOME_SUBDIVISIONS.forEach(opt => {
-    subdivRow.appendChild(el('button', {
-      type: 'button',
-      class: 'seg-btn' + ((m.subdiv || 'quarter') === opt.id ? ' active' : ''),
-      text: opt.label,
-      onClick: () => {
-        persistMetronome(rt.id, session.id, { subdiv: opt.id });
-        renderSessionPane();
-        refreshLibraryMeta();
-      },
-    }));
-  });
-  subdivField.appendChild(subdivRow);
-  card.appendChild(subdivField);
-
-  const accentLabel = el('label', { class: 'rt-metro-accent' });
-  const accentCb = el('input', { type: 'checkbox' });
-  accentCb.checked = m.accentFirst !== false;
-  accentCb.addEventListener('change', () => {
-    persistMetronome(rt.id, session.id, { accentFirst: accentCb.checked });
-    markAccentDot(accentCb.checked);
-  });
-  accentLabel.appendChild(accentCb);
-  accentLabel.appendChild(document.createTextNode('Accent first beat'));
-  card.appendChild(accentLabel);
-
-  const playRow = el('div', { class: 'rt-metro-play-row' });
-  const engine = ensureSessionMetronome(rt.id, session.id, m, session.name);
-  const playing = engine.isPlaying();
-  playBtnRef = el('button', {
-    class: 'btn sm' + (playing ? '' : ' primary'),
-    type: 'button',
-    text: playing ? 'Stop' : 'Play',
-    onClick: () => {
-      if (engine.isPlaying()) {
-        engine.stop();
-      } else {
-        if (metro.playing) stopMetronome();
-        showNowPlaying(`Routine \u2014 ${session.name}`, () => engine.stop());
-        routineNowPlaying = true;
-        engine.start();
-      }
-    },
-  });
-  playRow.appendChild(playBtnRef);
-  card.appendChild(playRow);
-
-  beatDotsEl = el('div', { class: 'rt-beat-dots', 'aria-label': 'Beat indicator' });
-  const beats = m.beats || 4;
-  for (let i = 0; i < beats; i++) {
-    beatDotsEl.appendChild(el('span', {
-      class: 'rt-beat-dot' + (i === 0 && m.accentFirst !== false ? ' accent' : ''),
-    }));
-  }
-  if (lastBeatDetail && sessionMetronomeKey === sessionKey(rt.id, session.id)) {
-    updateBeatDots(lastBeatDetail);
-  }
-  card.appendChild(beatDotsEl);
-
-  return card;
 }
 
 function renderWorkbooksCard(rt, session) {
@@ -1343,12 +1081,6 @@ function render() {
   if (exportAllBtn) exportAllBtn.disabled = !listRoutines().length;
 }
 
-/** Repaints the routine list and overview meta without disturbing the open session pane. */
-function refreshLibraryMeta() {
-  renderSidebar();
-  renderOverview();
-}
-
 // --- lifecycle ---------------------------------------------------------------
 
 export function initRoutines() {
@@ -1408,6 +1140,5 @@ export function initRoutines() {
 export function stopRoutines() {
   flushDescAutosave();
   flushNotesAutosave();
-  destroySessionMetronome();
   closeDialog();
 }

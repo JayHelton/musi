@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v205-nested-folder-tree";
+const CACHE_VERSION = "v206-session-metronome-removed";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -145,7 +145,6 @@ const PRECACHE_URLS = [
   "js/recorder.js",
   "js/recorderWorklet.js",
   "js/riffGenerator.js",
-  "js/routineMetronome.js",
   "js/routineModel.js",
   "js/routines.js",
   "js/scaleQuiz.js",
