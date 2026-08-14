@@ -1,0 +1,100 @@
+/* Conditional audio dock (FR-057). Shows only while audio work is active. */
+
+[hidden] {
+  display: none !important;
+}
+
+.audio-dock {
+  position: fixed;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-family: var(--font-body);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+.audio-dock-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.audio-dock-state {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.audio-dock-elapsed {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-dock-stop {
+  flex-shrink: 0;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.audio-dock-stop:hover {
+  filter: brightness(1.05);
+}
+
+.audio-dock-stop:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+}
+
+/* Mobile: fixed bar above the bottom nav. */
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+  .audio-dock {
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(var(--dock-h) + 10px);
+    justify-content: space-between;
+  }
+}
+
+/* Desktop: sit above the viewport bottom without covering the left rail. */
+@media (min-width: 769px) {
+  body.app-shell .audio-dock {
+    left: calc(var(--shell-rail-w, 88px) + var(--content-pad, 24px));
+    right: max(24px, env(safe-area-inset-right, 0px));
+    bottom: 18px;
+    max-width: calc(
+      var(--content-max, 1100px) - var(--shell-rail-w, 88px) - var(--content-pad, 24px) * 2
+    );
+    justify-content: space-between;
+  }
+
+  body:not(.app-shell) .audio-dock {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 18px;
+    max-width: min(520px, calc(100vw - 32px));
+    justify-content: space-between;
+  }
+}

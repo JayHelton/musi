@@ -157,9 +157,9 @@ function toggleFavorite(id) {
   render();
 }
 
-function openTool(id) {
+function openTool(id, origin = 'tools') {
   const tool = getTool(id);
-  if (!tool || !showSectionFn) return;
+  if (!tool) return;
   const recents = getSetting('tool.recents', []);
   const entry = {
     id,
@@ -168,7 +168,11 @@ function openTool(id) {
     at: new Date().toISOString(),
   };
   saveSetting('tool.recents', pushRecent(Array.isArray(recents) ? recents : [], entry));
-  showSectionFn(id);
+  if (openRouteFn) {
+    openRouteFn(id, {}, { origin });
+    return;
+  }
+  if (showSectionFn) showSectionFn(id);
 }
 
 function wireHost() {
@@ -208,7 +212,10 @@ function wireHost() {
 
     const toolBtn = e.target.closest('[data-tool-id]');
     if (toolBtn) {
-      openTool(toolBtn.dataset.toolId);
+      let origin = 'tools';
+      if (searchQuery.trim()) origin = 'search';
+      else if (toolBtn.closest('[data-section="recents"]')) origin = 'recent';
+      openTool(toolBtn.dataset.toolId, origin);
     }
   });
 
@@ -217,7 +224,10 @@ function wireHost() {
     const toolBtn = e.target.closest('[data-tool-id]');
     if (!toolBtn || e.target.closest('[data-fav-id]')) return;
     e.preventDefault();
-    openTool(toolBtn.dataset.toolId);
+    let origin = 'tools';
+    if (searchQuery.trim()) origin = 'search';
+    else if (toolBtn.closest('[data-section="recents"]')) origin = 'recent';
+    openTool(toolBtn.dataset.toolId, origin);
   });
 
   hostEl.addEventListener('input', (e) => {

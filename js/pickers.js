@@ -6,7 +6,7 @@ import { ROOTS, TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
 import { TUNING_CATALOG, findPresetByName, pitchSequenceString } from './tunings.js';
 import { SCALES, shortScaleName } from './scales.js';
 import { CHORDS, DARK_METAL_CHORDS } from './chords.js';
-import { setContext } from './musicalContext.js';
+import { setContext, setLocal } from './musicalContext.js';
 
 const ENHARMONIC_PAIRS = {
   'C#': 'Db', Db: 'C#',
@@ -206,9 +206,39 @@ function chordKeywords(name) {
   return [formula.replace(/ · /g, ' '), ...aliases];
 }
 
+/** Route a picker write to the scope local layer or saved defaults. */
+export function writePickerValue(scopeId, partial, source) {
+  if (typeof scopeId === 'string' && scopeId.length > 0) {
+    return setLocal(scopeId, partial);
+  }
+  return setContext(partial, source);
+}
+
+const COMMON_METERS = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '9/8', '12/8'];
+
+function buildTempoOptions(current) {
+  const steps = [];
+  for (let bpm = 40; bpm <= 240; bpm += 5) steps.push(bpm);
+  const cur = Math.round(Number(current));
+  if (Number.isFinite(cur) && cur >= 40 && cur <= 240 && !steps.includes(cur)) steps.push(cur);
+  steps.sort((a, b) => a - b);
+  return steps;
+}
+
+function meterOptions(current) {
+  const meters = [...COMMON_METERS];
+  if (current && !meters.includes(current)) meters.push(current);
+  return meters;
+}
+
 /* ── Root picker ─────────────────────────────────────────────── */
 
-export function openRootPicker({ value, source = 'root-picker', syncContext = true } = {}) {
+export function openRootPicker({
+  value,
+  source = 'root-picker',
+  syncContext = true,
+  scopeId,
+} = {}) {
   const current = normalizeRootSelection(value || 'C');
   const recent = getList('picker.recentRoots', ROOTS);
   const favorites = getList('picker.favoriteRoots', ROOTS);
@@ -248,7 +278,7 @@ export function openRootPicker({ value, source = 'root-picker', syncContext = tr
     },
     onSelect: (id) => {
       pushRecent('picker.recentRoots', id, { allowed: ROOTS });
-      if (syncContext) setContext({ root: id }, source);
+      if (syncContext) writePickerValue(scopeId, { root: id }, source);
     },
   }).then(id => {
     // Pref toolbar: inject enharmonic toggle into header once sheet is open —
@@ -278,7 +308,12 @@ export function cycleEnharmonicPref() {
 
 /* ── Scale picker ────────────────────────────────────────────── */
 
-export function openScalePicker({ value, source = 'scale-picker', syncContext = true } = {}) {
+export function openScalePicker({
+  value,
+  source = 'scale-picker',
+  syncContext = true,
+  scopeId,
+} = {}) {
   const current = value && SCALES[value] ? value : 'Major (Ionian)';
   const recent = getList('picker.recentScales', Object.keys(SCALES));
   const favorites = getList('picker.favoriteScales', Object.keys(SCALES));
@@ -307,7 +342,7 @@ export function openScalePicker({ value, source = 'scale-picker', syncContext = 
     onSelect: (id) => {
       pushRecent('picker.recentScales', id, { allowed: Object.keys(SCALES) });
       saveSetting('picker.lastScale', id);
-      if (syncContext) setContext({ scale: id }, source);
+      if (syncContext) writePickerValue(scopeId, { scale: id }, source);
     },
   });
 }
@@ -372,6 +407,9 @@ export function openTuningPicker({
   includeCustom = false,
   onCustom,
   stringCount = null,
+  scopeId,
+  source = 'tuning-picker',
+  syncContext = true,
 } = {}) {
   // Prefer catalog names (deduped) so legacy aliases don't double-list.
   const catalogNames = TUNING_CATALOG.map((p) => p.name);
@@ -433,6 +471,84 @@ export function openTuningPicker({
       pushRecent('picker.recentTunings', id, { allowed: [...names, 'Custom'] });
       saveSetting('picker.lastTuning', id);
       if (id === 'Custom' && typeof onCustom === 'function') onCustom();
+      else if (syncContext && typeof scopeId === 'string' && scopeId.length > 0) {
+        writePickerValue(scopeId, { tuning: id }, source);
+      }
+    },
+  });
+}
+
+/* ── Tempo picker ────────────────────────────────────────────── */
+
+export function openTempoPicker({
+  value,
+  scopeId,
+  source = 'tempo-picker',
+  syncContext = true,
+} = {}) {
+  const current = Math.round(Number(value)) || 120;
+  const tempos = buildTempoOptions(current);
+  const recent = getList('picker.recentTempos', tempos.map(String));
+  const favorites = getList('picker.favoriteTempos', tempos.map(String));
+
+  const items = tempos.map((bpm) => ({
+    id: String(bpm),
+    label: `${bpm} BPM`,
+    sub: bpm < 80 ? 'Slow' : bpm > 160 ? 'Fast' : 'Moderate',
+    keywords: [String(bpm), `${bpm} bpm`, `${bpm} tempo`],
+  }));
+
+  return openSelectionSheet({
+    title: 'Tempo',
+    value: String(current),
+    search: true,
+    searchPlaceholder: '120, 90, 140…',
+    recent,
+    favorites,
+    items,
+    onToggleFavorite: (id) => toggleFavorite('picker.favoriteTempos', id, { allowed: tempos.map(String) }),
+    onSelect: (id) => {
+      const bpm = Number(id);
+      pushRecent('picker.recentTempos', id, { allowed: tempos.map(String) });
+      saveSetting('picker.lastTempo', bpm);
+      if (syncContext) writePickerValue(scopeId, { tempo: bpm }, source);
+    },
+  });
+}
+
+/* ── Meter picker ────────────────────────────────────────────── */
+
+export function openMeterPicker({
+  value,
+  scopeId,
+  source = 'meter-picker',
+  syncContext = true,
+} = {}) {
+  const current = value || '4/4';
+  const meters = meterOptions(current);
+  const recent = getList('picker.recentMeters', meters);
+  const favorites = getList('picker.favoriteMeters', meters);
+
+  const items = meters.map((meter) => ({
+    id: meter,
+    label: meter,
+    sub: meter.endsWith('/8') ? 'Compound' : 'Simple',
+    keywords: [meter, meter.replace('/', ' '), `${meter} time`],
+  }));
+
+  return openSelectionSheet({
+    title: 'Meter',
+    value: current,
+    search: true,
+    searchPlaceholder: '4/4, 3/4, 6/8…',
+    recent,
+    favorites,
+    items,
+    onToggleFavorite: (id) => toggleFavorite('picker.favoriteMeters', id, { allowed: meters }),
+    onSelect: (id) => {
+      pushRecent('picker.recentMeters', id, { allowed: meters });
+      saveSetting('picker.lastMeter', id);
+      if (syncContext) writePickerValue(scopeId, { meter: id }, source);
     },
   });
 }

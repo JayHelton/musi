@@ -45,7 +45,22 @@ import {
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
 import { parseAppRoute, routeUrl } from './appRoute.js';
-import { shouldShowNotice } from './routeMap.js';
+import { resolveRoute, shouldShowNotice, isKnownRoute, LEGACY_ROUTES } from './routeMap.js';
+import { initAudioDock } from './audioDock.js';
+import { mountToolPage } from './shell/toolPage.js';
+import {
+  pushRoute,
+  popRoute,
+  currentOrigin,
+  parentAddress,
+  saveViewState,
+  readViewState,
+  restoreScroll,
+  focusHeading,
+} from './shell/navStack.js';
+import { hasUnsaved, confirmLeave } from './shell/unsavedGuard.js';
+import { openSelectionSheet } from './selectionSheet.js';
+import { getExercises } from './exercises.js';
 import { runMigrations, createLiveContext } from './migrations/index.js';
 import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
 import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
@@ -117,10 +132,14 @@ function initTool(id) {
 
 let splitSecondaryId = null;
 let currentNavId = 'tools';
+let currentRouteId = 'tools';
+let currentRouteParams = {};
 /** How many in-app pushState entries sit above the boot entry (phone Back pops these). */
 let navPushCount = 0;
 /** True while applying a popstate/hashchange so we don't push another history entry. */
 let applyingHistory = false;
+/** True for one hashchange that a replaceState already handled. */
+let suppressHashChange = false;
 
 function clearSplitPane() {
   if (!splitSecondaryId) return;
@@ -143,17 +162,137 @@ function sectionUrl(id, params = {}) {
   return routeUrl({ id: id || 'tools', params });
 }
 
+const LIVE_SECTION_BY_ROUTE = {
+  tools: 'tools',
+  home: 'tools',
+  scalelab: 'scaleref',
+  fretmap: 'intervalorbit',
+  chordlab: 'chords',
+  pitchear: 'tuner',
+  metronome: 'metronome',
+  audiostudio: 'recorder',
+  songstudio: 'songwriter',
+  library: 'exercises',
+  routines: 'routines',
+  scoreplayer: 'gpplayer',
+  settings: 'musicprefs',
+};
+
 function resolveSectionAlias(id) {
   if (id === 'intervalmap') return 'intervalorbit';
   if (id === 'tabanalyzer') return 'gpplayer';
   return id;
 }
 
+function liveSectionId(routeId) {
+  if (!routeId) return 'tools';
+  if (LIVE_SECTION_BY_ROUTE[routeId]) return LIVE_SECTION_BY_ROUTE[routeId];
+  return resolveSectionAlias(routeId);
+}
+
+function routeResolveCtx() {
+  return {
+    hasDrumExercises() {
+      try {
+        return getExercises().some(item => item && item.instrument === 'drums');
+      } catch (e) {
+        return false;
+      }
+    },
+    noticesSeen: getSetting('route.noticesSeen', []),
+  };
+}
+
+function resolveIncomingRoute(id, params = {}) {
+  const resolved = resolveRoute({ id: id || '', params }, routeResolveCtx());
+  return {
+    routeId: resolved.id,
+    sectionId: liveSectionId(resolved.id),
+    params: resolved.params || {},
+    notice: resolved.notice,
+  };
+}
+
 function isValidSection(id) {
-  const resolved = resolveSectionAlias(id);
-  return resolved === 'home' ||
-    resolved === 'tools' ||
-    getTabs().some(t => t.id === resolved);
+  if (id === '' || id === 'home') return true;
+  if (isKnownRoute(id) || LEGACY_ROUTES[id]) return true;
+  const sectionId = liveSectionId(id);
+  if (sectionId === ROUTINE_ROUTE_ID) return true;
+  return sectionId === 'tools' || getTabs().some(t => t.id === sectionId);
+}
+
+async function promptUnsaved({ title, choices }) {
+  const choiceId = await openSelectionSheet({
+    title,
+    items: choices.map((label) => ({ id: label, label })),
+    search: false,
+  });
+  return choiceId;
+}
+
+async function guardLeave({ fromPopstate = false } = {}) {
+  if (!hasUnsaved()) return true;
+  const choice = await confirmLeave(promptUnsaved);
+  if (choice === 'keep') {
+    if (fromPopstate) history.forward();
+    return false;
+  }
+  return true;
+}
+
+function saveLeaveViewState(sectionId) {
+  if (sectionId === 'tools') {
+    const state = readViewState('tools') || {};
+    saveViewState('tools', {
+      ...state,
+      scrollY: window.scrollY,
+      purpose: getSetting('tools.purpose', 'train'),
+    });
+  }
+  if (sectionId === 'exercises') {
+    const state = readViewState('library:exercises') || {};
+    saveViewState('library:exercises', { ...state, scrollY: window.scrollY });
+  }
+}
+
+function restoreArriveViewState(sectionId) {
+  if (sectionId === 'tools') {
+    const state = readViewState('tools');
+    const purpose = state?.purpose;
+    if (purpose === 'train' || purpose === 'study' || purpose === 'create') {
+      saveSetting('tools.purpose', purpose);
+    }
+    restoreScroll('tools');
+  }
+  if (sectionId === 'exercises') {
+    restoreScroll('library:exercises');
+  }
+}
+
+function mountToolPageIfNeeded(sectionId, sec) {
+  if (sectionId !== 'scaleref' && sectionId !== 'metronome') return;
+  if (sec.dataset.toolPage === '1') return;
+  const tool = getTool(sectionId);
+  if (!tool) return;
+  mountToolPage(sec, {
+    id: sectionId,
+    title: tool.title || tool.label,
+    modes: tool.modes || [],
+    defaultMode: tool.defaultMode || '',
+    contextFields: sectionId === 'scaleref' ? ['root', 'scale', 'tuning'] : ['tempo'],
+    moreItems: [],
+    isFavorite: (getSetting('home.favorites', []) || []).includes(sectionId),
+    onBack: () => goBack(() => applyRoute({ id: 'tools', params: {}, mode: 'replace', source: 'internal' })),
+    onFavorite: (next) => {
+      const favs = getSetting('home.favorites', []) || [];
+      const list = Array.isArray(favs) ? [...favs] : [];
+      const index = list.indexOf(sectionId);
+      if (next && index < 0) list.push(sectionId);
+      else if (!next && index >= 0) list.splice(index, 1);
+      saveSetting('home.favorites', list);
+      refreshToolsHome();
+    },
+  });
 }
 
 function getRoutineSession(routine, sessionId) {
@@ -202,16 +341,28 @@ function showHub(_categoryId, skipHash) {
  * Navigate back through in-app screen history (same as the phone Back button).
  * Falls back to category hub / home when there is nothing left to pop.
  */
-function goBack(fallback) {
+async function goBack(fallback) {
+  const canLeave = await guardLeave();
+  if (!canLeave) return false;
+
   if (navPushCount > 0) {
     history.back();
     return true;
   }
+
   if (typeof fallback === 'function') {
     fallback();
     return false;
   }
-  if (currentNavId !== 'tools') showSection('tools');
+
+  const parent = parentAddress(currentOrigin(), { id: currentRouteId, params: currentRouteParams });
+  popRoute();
+  await applyRoute({
+    id: parent.id,
+    params: parent.params,
+    mode: 'replace',
+    source: 'internal',
+  });
   return false;
 }
 
@@ -265,10 +416,12 @@ function applySection(id, { keep = [] } = {}) {
     recordToolVisit(id);
   }
 
-  const back = sec.querySelector('.tool-back');
-  if (back && tool) {
+  mountToolPageIfNeeded(sectionId, sec);
+
+  const back = sec.querySelector('.tool-back:not(.tool-page-back)');
+  if (back && tool && sec.dataset.toolPage !== '1') {
     const hubLabel = CATEGORIES.find(c => c.id === tool.category)?.label || 'Back';
-    back.onclick = () => goBack(() => showSection('tools'));
+    back.onclick = () => goBack(() => applyRoute({ id: 'tools', params: {}, mode: 'replace', source: 'internal' }));
     back.textContent = `← ${hubLabel}`;
   }
 
@@ -281,26 +434,19 @@ function applySection(id, { keep = [] } = {}) {
 }
 
 function showSection(id, skipHash, params = {}) {
-  const toolForGate = getTool(id);
-  if (toolForGate && !isFeatureEnabled(id)) {
+  const incoming = resolveIncomingRoute(id, params);
+  const toolForGate = getTool(incoming.sectionId);
+  if (toolForGate && !isFeatureEnabled(incoming.sectionId)) {
     showSection('tools', skipHash);
     return;
   }
-
-  const prevId = currentNavId;
-
-  if (!applyingHistory) {
-    const url = sectionUrl(id, params);
-    const histState = { musiNav: id, params };
-    if (skipHash || prevId === id) {
-      history.replaceState(histState, '', url);
-    } else {
-      history.pushState(histState, '', url);
-      navPushCount += 1;
-    }
-  }
-
-  applySection(id);
+  const mode = (skipHash || currentNavId === incoming.sectionId) ? 'replace' : 'push';
+  void applyRoute({
+    id: incoming.routeId,
+    params: incoming.params,
+    mode,
+    source: 'internal',
+  });
 }
 
 let routineNavigator = null;
@@ -429,6 +575,81 @@ function updateRouteNotice(notice) {
   hideRouteNotice();
 }
 
+async function applyRoute({
+  id,
+  params = {},
+  mode = 'push',
+  source = 'internal',
+  notice = null,
+  origin = null,
+}) {
+  const inboundId = id;
+  const incoming = resolveIncomingRoute(inboundId, params);
+  let routeId = incoming.routeId;
+  let sectionId = gatedSectionId(incoming.sectionId);
+  const routeParams = incoming.params;
+  if (notice == null) notice = incoming.notice;
+
+  if (!isValidSection(inboundId)) {
+    routeId = 'tools';
+    sectionId = 'tools';
+  }
+
+  const prevSectionId = currentNavId;
+  if (sectionId !== prevSectionId) {
+    const canLeave = await guardLeave({ fromPopstate: source === 'popstate' });
+    if (!canLeave) return;
+    saveLeaveViewState(prevSectionId);
+  }
+
+  currentRouteId = routeId;
+  currentRouteParams = { ...routeParams };
+
+  if (routeId === ROUTINE_ROUTE_ID) {
+    if (!applyingHistory && mode !== 'none') {
+      const url = sectionUrl(ROUTINE_ROUTE_ID, routeParams);
+      const histState = { musiNav: ROUTINE_ROUTE_ID, params: routeParams };
+      if (mode === 'replace') {
+        suppressHashChange = true;
+        history.replaceState(histState, '', url);
+      } else if (mode === 'push') {
+        suppressHashChange = true;
+        history.pushState(histState, '', url);
+        navPushCount += 1;
+        pushRoute({ id: routeId, params: routeParams }, origin || currentOrigin() || 'direct');
+      }
+    }
+    const navigator = getRoutineNavigator();
+    if (navigator) {
+      navigator.applyRoute(routeParams, { source });
+    } else {
+      applySection(ROUTINE_ROUTE_ID);
+    }
+    updateRouteNotice(notice);
+    focusHeading(document.getElementById('sec-' + ROUTINE_ROUTE_ID));
+    return;
+  }
+
+  if (!applyingHistory && mode !== 'none') {
+    const url = sectionUrl(routeId, routeParams);
+    const histState = { musiNav: routeId, params: routeParams };
+    if (mode === 'replace') {
+      suppressHashChange = true;
+      history.replaceState(histState, '', url);
+    } else if (mode === 'push') {
+      suppressHashChange = true;
+      history.pushState(histState, '', url);
+      navPushCount += 1;
+      pushRoute({ id: routeId, params: routeParams }, origin || currentOrigin() || 'direct');
+    }
+  }
+
+  applySection(sectionId);
+  updateRouteNotice(notice);
+  restoreArriveViewState(sectionId);
+  focusHeading(document.getElementById('sec-' + sectionId));
+}
+
 function initRouteNoticeBanner() {
   const closeBtn = document.getElementById('route-notice-close');
   if (closeBtn) {
@@ -438,49 +659,6 @@ function initRouteNoticeBanner() {
   }
 }
 
-function applyRoute({ id, params = {}, mode = 'push', source = 'internal', notice = null }) {
-  const resolved = resolveSectionAlias(id);
-
-  if (resolved === ROUTINE_ROUTE_ID) {
-    if (!applyingHistory && mode !== 'none') {
-      const url = sectionUrl(ROUTINE_ROUTE_ID, params);
-      const histState = { musiNav: ROUTINE_ROUTE_ID, params };
-      if (mode === 'replace') {
-        history.replaceState(histState, '', url);
-      } else if (mode === 'push') {
-        history.pushState(histState, '', url);
-        navPushCount += 1;
-      }
-    }
-    const navigator = getRoutineNavigator();
-    if (navigator) {
-      navigator.applyRoute(params, { source });
-    } else {
-      applySection(ROUTINE_ROUTE_ID);
-    }
-    updateRouteNotice(notice);
-    return;
-  }
-
-  const targetId = resolved && isValidSection(resolved) ? gatedSectionId(resolved) : 'tools';
-  const routeParams = targetId === resolved ? params : {};
-
-  if (mode === 'push') {
-    showSection(targetId, false, routeParams);
-    updateRouteNotice(notice);
-    return;
-  }
-  if (mode === 'replace') {
-    if (!applyingHistory) {
-      history.replaceState({ musiNav: targetId, params: routeParams }, '', sectionUrl(targetId, routeParams));
-    }
-    applySection(targetId);
-    updateRouteNotice(notice);
-    return;
-  }
-  applySection(targetId);
-  updateRouteNotice(notice);
-}
 window.showSection = showSection;
 window.showHub = showHub;
 window.goBack = goBack;
@@ -616,6 +794,7 @@ function rebuildNav() {
 }
 
 async function init() {
+  const bootHash = location.hash;
   if ('scrollRestoration' in history) {
     history.scrollRestoration = 'manual';
   }
@@ -713,11 +892,18 @@ async function init() {
   initMetronome();
   initVisualizer();
   initNowPlaying();
+  initAudioDock(document.getElementById('audio-dock'));
   initHoldRecordButton();
   initProgressHeaders();
   initToolsHome({
     showSection,
-    openRoute: (id, params) => applyRoute({ id, params, mode: 'push', source: 'internal' }),
+    openRoute: (routeId, routeParams, { origin } = {}) => applyRoute({
+      id: routeId,
+      params: routeParams || {},
+      mode: 'push',
+      source: 'internal',
+      origin: origin || 'tools',
+    }),
   });
   initStats();
   initMusicPreferences({ showSection });
@@ -738,47 +924,68 @@ async function init() {
     wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('tools'); } };
   }
 
-  const bootRoute = parseAppRoute(location.hash);
-  const bootId = resolveSectionAlias(bootRoute.id);
-  if (bootId && isValidSection(bootId)) {
-    applyRoute({ id: bootId, params: bootRoute.params, mode: 'replace', source: 'boot' });
+  const bootRoute = parseAppRoute(bootHash);
+  if (isValidSection(bootRoute.id)) {
+    await applyRoute({
+      id: bootRoute.id,
+      params: bootRoute.params,
+      mode: 'replace',
+      source: 'boot',
+    });
   } else {
     history.replaceState({ musiNav: 'tools', params: {} }, '', sectionUrl('tools'));
     applySection('tools');
   }
 
   // Phone / browser Back: walk the screen stack instead of leaving the PWA.
-  window.addEventListener('popstate', (e) => {
+  window.addEventListener('popstate', async (e) => {
     applyingHistory = true;
     navPushCount = Math.max(0, navPushCount - 1);
+    popRoute();
     try {
-      let id = e.state?.musiNav;
-      let params = e.state?.params || {};
-      if (!id) {
+      let routeId = e.state?.musiNav;
+      let routeParams = e.state?.params || {};
+      if (!routeId) {
         const parsed = parseAppRoute(location.hash);
-        id = parsed.id;
-        params = parsed.params;
+        routeId = parsed.id;
+        routeParams = parsed.params;
       }
-      id = resolveSectionAlias(id);
-      if (isValidSection(id)) applyRoute({ id, params, mode: 'none', source: 'popstate' });
-      else applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'popstate' });
+      if (isValidSection(routeId)) {
+        await applyRoute({
+          id: routeId,
+          params: routeParams,
+          mode: 'none',
+          source: 'popstate',
+        });
+      } else {
+        await applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'popstate' });
+      }
     } finally {
       applyingHistory = false;
     }
   });
 
-  window.addEventListener('hashchange', () => {
+  window.addEventListener('hashchange', async () => {
+    if (suppressHashChange) {
+      suppressHashChange = false;
+      return;
+    }
     if (applyingHistory) return;
     const parsed = parseAppRoute(location.hash);
-    const id = resolveSectionAlias(parsed.id);
+    const incoming = resolveIncomingRoute(parsed.id, parsed.params);
     applyingHistory = true;
     try {
-      if (id && isValidSection(id)) {
-        if (id !== currentNavId) navPushCount += 1;
-        applyRoute({ id, params: parsed.params, mode: 'none', source: 'hashchange' });
-      } else if (!id) {
+      if (parsed.id && isValidSection(parsed.id)) {
+        if (incoming.sectionId !== currentNavId) navPushCount += 1;
+        await applyRoute({
+          id: parsed.id,
+          params: parsed.params,
+          mode: 'none',
+          source: 'hashchange',
+        });
+      } else if (!parsed.id) {
         if (currentNavId !== 'tools') navPushCount += 1;
-        applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'hashchange' });
+        await applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'hashchange' });
       }
     } finally {
       applyingHistory = false;

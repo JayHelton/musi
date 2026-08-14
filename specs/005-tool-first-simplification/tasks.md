@@ -194,21 +194,21 @@ results, context precedence, dock visibility, and the unsaved-recording prompt.
 
 This phase is WP-03.
 
-- [ ] T041 [US3] Extend `tests/shell/run.mjs` with `navStack`, `toolPage`, and `unsavedGuard` cases from `contracts/tool-shell.md`.
-- [ ] T042 [P] [US3] Implement route origin and scroll restore in `js/shell/navStack.js`.
-- [ ] T043 [P] [US3] Implement `mountToolPage` with the standard header order in `js/shell/toolPage.js`.
-- [ ] T044 [P] [US3] Implement `registerUnsaved` with Save, Discard, and Keep editing in `js/shell/unsavedGuard.js`.
-- [ ] T045 [P] [US3] Add the scope API with `openScope` and `getEffective` in `js/musicalContext.js`.
-- [ ] T046 [US3] Implement `claimAudio` and `releaseAudio` in `js/audioOwner.js`.
-- [ ] T047 [US3] Show Save, Discard, and Cancel on the audio-claim prompt in `js/audioOwner.js`.
-- [ ] T048 [P] [US3] Implement the conditional Audio Dock in `js/audioDock.js`.
-- [ ] T049 [US3] Wire `resolveRoute` on boot and hashchange in `js/main.js`.
-- [ ] T050 [US3] Show dismissible route notices using `route.noticesSeen` in `js/main.js`.
-- [ ] T051 [P] [US3] Delegate scroll restore and focus to `navStack` from `js/routineNav.js`.
-- [ ] T052 [P] [US3] Add searchable option sets for the context row in `js/pickers.js`.
-- [ ] T053 [US3] Wire the context row to the scope API in `js/screenUx.js`.
-- [ ] T054 [US3] Run `node tests/shell/run.mjs` and fix every failure it reports.
-- [ ] T055 [US3] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
+- [X] T041 [US3] Extend `tests/shell/run.mjs` with `navStack`, `toolPage`, and `unsavedGuard` cases from `contracts/tool-shell.md`.
+- [X] T042 [P] [US3] Implement route origin and scroll restore in `js/shell/navStack.js`.
+- [X] T043 [P] [US3] Implement `mountToolPage` with the standard header order in `js/shell/toolPage.js`.
+- [X] T044 [P] [US3] Implement `registerUnsaved` with Save, Discard, and Keep editing in `js/shell/unsavedGuard.js`.
+- [X] T045 [P] [US3] Add the scope API with `openScope` and `getEffective` in `js/musicalContext.js`.
+- [X] T046 [US3] Implement `claimAudio` and `releaseAudio` in `js/audioOwner.js`.
+- [X] T047 [US3] Show Save, Discard, and Cancel on the audio-claim prompt in `js/audioOwner.js`.
+- [X] T048 [P] [US3] Implement the conditional Audio Dock in `js/audioDock.js`.
+- [X] T049 [US3] Wire `resolveRoute` on boot and hashchange in `js/main.js`.
+- [X] T050 [US3] Show dismissible route notices using `route.noticesSeen` in `js/main.js`.
+- [X] T051 [P] [US3] Delegate scroll restore and focus to `navStack` from `js/routineNav.js`.
+- [X] T052 [P] [US3] Add searchable option sets for the context row in `js/pickers.js`.
+- [X] T053 [US3] Wire the context row to the scope API in `js/screenUx.js`.
+- [X] T054 [US3] Run `node tests/shell/run.mjs` and fix every failure it reports.
+- [X] T055 [US3] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
 - [ ] T056 [US3] Walk through every numbered step in the WP-03 section of `specs/005-tool-first-simplification/quickstart.md`.
 - [ ] T057 [US3] Record WP-03 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 

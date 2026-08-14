@@ -469,6 +469,171 @@ test('Train, Study, and Create each list the expected tools', () => {
   }
 });
 
+function installLocalStorageShim() {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    setItem(key, value) {
+      store.set(key, String(value));
+    },
+    removeItem(key) {
+      store.delete(key);
+    },
+    clear() {
+      store.clear();
+    },
+  };
+  return store;
+}
+
+function makeDescriptor(overrides = {}) {
+  return {
+    id: 'metronome',
+    title: 'Metronome',
+    modes: [{ id: 'plan', label: 'Plan' }, { id: 'play', label: 'Play' }],
+    defaultMode: 'plan',
+    contextFields: [],
+    moreItems: [],
+    isFavorite: false,
+    ...overrides,
+  };
+}
+
+console.log('toolPage');
+testAsync('toolPage: mountToolPage returns workspace, setContextRow, setModes, destroy', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const handle = mountToolPage(section, makeDescriptor());
+  assert.equal(typeof handle.workspace, 'object');
+  assert.equal(typeof handle.setContextRow, 'function');
+  assert.equal(typeof handle.setModes, 'function');
+  assert.equal(typeof handle.destroy, 'function');
+  handle.destroy();
+});
+
+testAsync('toolPage: header child order is Back, title, favorite, More', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const { destroy } = mountToolPage(section, makeDescriptor({ title: 'Tuner' }));
+  const header = section.querySelector('.tool-page-header');
+  const classes = [...header.children].map((el) => el.className);
+  assert.deepEqual(classes, [
+    'tool-page-back tool-back',
+    '',
+    'tool-page-favorite',
+    'tool-page-more',
+  ]);
+  assert.equal(header.children[1].dataset.pageHeading, '');
+  assert.equal(header.children[1].textContent, 'Tuner');
+  destroy();
+});
+
+testAsync('toolPage: wrapper child order is header, context, modes, workspace, primary, advanced', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const { destroy } = mountToolPage(section, makeDescriptor());
+  const page = section.querySelector('.tool-page');
+  const classes = [...page.children].map((el) => el.className);
+  assert.deepEqual(classes, [
+    'tool-page-header',
+    'tool-page-context',
+    'tool-page-modes subview-tabs',
+    'tool-page-workspace',
+    'tool-page-primary',
+    'adv-options tool-page-advanced',
+  ]);
+  destroy();
+});
+
+testAsync('toolPage: existing section children move into workspace', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const legacy = document.createElement('div');
+  legacy.className = 'legacy-tool-body';
+  legacy.textContent = 'Keep me';
+  section.appendChild(legacy);
+
+  const { workspace, destroy } = mountToolPage(section, makeDescriptor());
+  assert.equal(section.children.length, 1);
+  assert.equal(section.firstChild.className, 'tool-page');
+  assert.equal(workspace.children.length, 1);
+  assert.equal(workspace.firstChild.className, 'legacy-tool-body');
+  assert.equal(workspace.firstChild.textContent, 'Keep me');
+  destroy();
+});
+
+testAsync('toolPage: setContextRow shows labels, values, and fallback reason', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const { setContextRow, destroy } = mountToolPage(section, makeDescriptor());
+  setContextRow([
+    {
+      key: 'root',
+      label: 'Root',
+      value: 'G',
+      fallbackReason: 'Workbook uses G',
+      onClick() {},
+    },
+  ]);
+
+  const context = section.querySelector('.tool-page-context');
+  assert.equal(context.hidden, false);
+  assert.equal(context.querySelector('.tool-page-context-label').textContent, 'Root');
+  assert.equal(context.querySelector('.setup-chip-value').textContent, 'G');
+  assert.equal(context.querySelector('.tool-page-context-fallback').textContent, 'Workbook uses G');
+  destroy();
+});
+
+testAsync('toolPage: destroy restores children to the section', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const legacy = document.createElement('p');
+  legacy.className = 'legacy-markup';
+  legacy.textContent = 'Restored';
+  section.appendChild(legacy);
+
+  const { destroy } = mountToolPage(section, makeDescriptor());
+  assert.equal(section.dataset.toolPage, '1');
+  destroy();
+
+  assert.equal(section.dataset.toolPage, undefined);
+  assert.equal(section.children.length, 1);
+  assert.equal(section.firstChild.className, 'legacy-markup');
+  assert.equal(section.firstChild.textContent, 'Restored');
+});
+
 for (const { name, fn } of pendingAsync) {
   try {
     await fn();

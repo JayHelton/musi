@@ -7,6 +7,12 @@ import {
   ROUTINE_ROUTE_ID,
 } from './routineRoute.js';
 import { buildAppRoute } from './appRoute.js';
+import {
+  saveViewState,
+  readViewState,
+  restoreScroll as restoreNavScroll,
+  focusHeading as focusNavHeading,
+} from './shell/navStack.js';
 import * as workbooks from './workbooks.js';
 
 const NOT_FOUND_MESSAGE = 'Item not found';
@@ -288,11 +294,13 @@ export function createRoutineNavigator({
     const hostEl = getHostElement(layerName);
     const scrollerEl = getScrollerElement(layerName);
     const windowY = typeof window !== 'undefined' ? window.scrollY : 0;
-    state.scrollPositions.set(routeKey(route), {
+    const key = routeKey(route);
+    state.scrollPositions.set(key, {
       windowY,
       hostScrollTop: hostEl ? hostEl.scrollTop : 0,
       scrollerScrollTop: scrollerEl ? scrollerEl.scrollTop : 0,
     });
+    saveViewState(key, { scrollY: windowY });
   }
 
   function restoreScroll(route) {
@@ -308,6 +316,7 @@ export function createRoutineNavigator({
       && scrollerScrollTop === 0;
 
     const apply = () => {
+      restoreNavScroll(key);
       if (typeof window !== 'undefined') {
         window.scrollTo(0, positions.windowY);
       }
@@ -336,9 +345,8 @@ export function createRoutineNavigator({
     const layer = layers[layerName];
     if (!layer) return;
     const heading = layer.heading();
-    if (!heading) return;
-    heading.setAttribute('tabindex', '-1');
-    heading.focus({ preventScroll: true });
+    const hostEl = getHostElement(layerName);
+    focusNavHeading(heading || hostEl);
   }
 
   function clearStatusEl(el) {

@@ -2,6 +2,7 @@ import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting, saveSettings } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
+import { claimAudio, releaseAudio } from './audioOwner.js';
 
 const NV_BEATS = {whole:4, half:2, quarter:1, eighth:0.5, sixteenth:0.25};
 
@@ -50,6 +51,7 @@ const SUBDIVISIONS = {
 const SUBDIV_IDS = Object.keys(SUBDIVISIONS);
 
 let metroSettingsLoaded = false;
+let metroAudioHandle = null;
 
 function numberSetting(id, fallback, min, max) {
   const value = Number(getSetting(id, fallback));
@@ -655,9 +657,17 @@ function stopPhaseStatusTimer() {
   if (metro._phaseTimer) { clearInterval(metro._phaseTimer); metro._phaseTimer = null; }
 }
 
-function startMetronome() {
+async function startMetronome() {
   if (metro.measure.length === 0) setSimpleMeasure();
   ensureAudio();
+  const handle = await claimAudio({
+    id: 'metronome',
+    label: 'Metronome',
+    kind: 'metronome',
+    onStop: () => { if (metro.playing) stopMetronome(); },
+  });
+  if (!handle) return;
+  metroAudioHandle = handle;
   // When phases are active the first phase sets the starting tempo + subdivision.
   // Otherwise stay on straight beats so the simple metronome behaves as before.
   if (phaseActive()) {
@@ -699,6 +709,10 @@ function stopMetronome() {
   highlightSub(-1);
   hideNowPlaying();
   renderPhases();
+  if (metroAudioHandle) {
+    releaseAudio(metroAudioHandle);
+    metroAudioHandle = null;
+  }
 }
 
 function metroScheduler() {
