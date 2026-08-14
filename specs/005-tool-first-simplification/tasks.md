@@ -230,15 +230,15 @@ notice.
 
 This phase is WP-04.
 
-- [ ] T058 [US4] Create `tests/fretboard/run.mjs` for pure `fretPositions` output across tunings.
-- [ ] T059 [US4] Implement `fretPositions`, `renderFretboard`, and `FRET_MARKERS` in `js/fretboard/renderer.js`.
-- [ ] T060 [P] [US4] Create `css/fretboard.css` with theme tokens from `css/base.css`.
-- [ ] T061 [P] [US4] Remove `SCALE_MAJOR_INTERVALS` from `js/interval-map/model.js` and read `js/scales.js`.
-- [ ] T062 [P] [US4] Derive `TRIAD_QUALITIES` from `js/chords.js` in `js/triadReference.js`.
-- [ ] T063 [P] [US4] Remove `CHORD_TYPES` from `js/analysis/chordDetect.js` and read `js/chords.js`.
-- [ ] T064 [P] [US4] Remove `CHORD_FORMULAS` and `QUALITY_FORMULAS` from `js/intervalOrbitModel.js`.
-- [ ] T065 [P] [US4] Remove local `TRIAD_QUALITIES` from `js/scaleReference.js`.
-- [ ] T066 [P] [US4] Remove `SWEEP_OPEN_MIDI` from `js/sweepReference.js` and `OPEN_PC` from `js/sweepPatterns.js`.
+- [X] T058 [US4] Create `tests/fretboard/run.mjs` for pure `fretPositions` output across tunings.
+- [X] T059 [US4] Implement `fretPositions`, `renderFretboard`, and `FRET_MARKERS` in `js/fretboard/renderer.js`.
+- [X] T060 [P] [US4] Create `css/fretboard.css` with theme tokens from `css/base.css`.
+- [X] T061 [P] [US4] Remove `SCALE_MAJOR_INTERVALS` from `js/interval-map/model.js` and read `js/scales.js`.
+- [X] T062 [P] [US4] Derive `TRIAD_QUALITIES` from `js/chords.js` in `js/triadReference.js`.
+- [X] T063 [P] [US4] Remove `CHORD_TYPES` from `js/analysis/chordDetect.js` and read `js/chords.js`.
+- [X] T064 [P] [US4] Remove `CHORD_FORMULAS` and `QUALITY_FORMULAS` from `js/intervalOrbitModel.js`.
+- [X] T065 [P] [US4] Remove local `TRIAD_QUALITIES` from `js/scaleReference.js`.
+- [X] T066 [P] [US4] Remove `SWEEP_OPEN_MIDI` from `js/sweepReference.js` and `OPEN_PC` from `js/sweepPatterns.js`.
 - [ ] T067 [P] [US4] Replace private tuning in `js/movableChordCards.js` with the scope API in `js/musicalContext.js`.
 - [ ] T068 [US4] Replace private root and tuning in `js/sweepReference.js` with `js/musicalContext.js`.
 - [ ] T069 [US4] Mount Scale Lab modes and convert `js/scaleReference.js` to `renderFretboard` from `js/fretboard/renderer.js`.
@@ -246,7 +246,7 @@ This phase is WP-04.
 - [ ] T071 [US4] Mount Chord Lab modes and convert `js/chordReference.js`, `js/triadReference.js`, and `js/sweepReference.js` to `renderFretboard`.
 - [ ] T072 [P] [US4] Convert `js/exerciseCompanions/diagram.js` and `js/exerciseCompanions/triadRef.js` to `renderFretboard`.
 - [ ] T073 [US4] Retarget `tests/study-lab/run.mjs` at the Scale Lab Guide model and extend `tests/companions/run.mjs`.
-- [ ] T074 [US4] Run `node tests/fretboard/run.mjs` and fix every failure it reports.
+- [X] T074 [US4] Run `node tests/fretboard/run.mjs` and fix every failure it reports.
 - [ ] T075 [US4] Delete `js/scaleQuiz.js`, `js/intervalQuiz.js`, `js/fretboardTrainer.js`, `js/chordWorkout.js`, `js/studyLab.js`, and `js/studyLabMic.js` after redirects and tests pass per FR-105.
 - [ ] T076 [US4] Delete `css/quiz.css`, `css/chordworkout.css`, and `css/study-lab.css` after redirects and tests pass per FR-105.
 - [ ] T077 [US4] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.

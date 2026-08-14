@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v210-tool-first-wp03-back";
+const CACHE_VERSION = "v211-tool-first-wp04-fretboard";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -82,6 +82,8 @@ const PRECACHE_URLS = [
   "js/audioDock.js",
   "css/tool-page.css",
   "css/audio-dock.css",
+  "css/fretboard.css",
+  "js/fretboard/renderer.js",
   "js/audioOwner.js",
   "js/appRoute.js",
   "js/routeMap.js",

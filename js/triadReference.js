@@ -1,4 +1,5 @@
 import { parseNote, spellNote, ROOTS, TUNINGS } from './theory.js';
+import { triadQualities as buildTriadQualities } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
@@ -17,58 +18,7 @@ import {
 
 // Quality colors come from CSS custom properties (--triad-*) so the Atomic
 // Purple / GBC theme can re-token them. JS only picks the variable name.
-export const TRIAD_QUALITIES = [
-  {
-    id: 'major',
-    name: 'Major',
-    sym: '',
-    displaySym: '',
-    tones: [[0, 0, 'R'], [2, 4, '3'], [4, 7, '5']],
-    colorVar: '--triad-major',
-  },
-  {
-    id: 'minor',
-    name: 'Minor',
-    sym: 'm',
-    displaySym: 'm',
-    tones: [[0, 0, 'R'], [2, 3, 'b3'], [4, 7, '5']],
-    colorVar: '--triad-minor',
-  },
-  {
-    id: 'diminished',
-    name: 'Diminished',
-    sym: '°',
-    displaySym: '°',
-    tones: [[0, 0, 'R'], [2, 3, 'b3'], [4, 6, 'b5']],
-    colorVar: '--triad-diminished',
-  },
-  {
-    id: 'augmented',
-    name: 'Augmented',
-    sym: '+',
-    displaySym: '+',
-    tones: [[0, 0, 'R'], [2, 4, '3'], [4, 8, '#5']],
-    colorVar: '--triad-augmented',
-  },
-  {
-    id: 'sus2',
-    name: 'Sus 2',
-    sym: 'sus2',
-    displaySym: 'sus2',
-    tones: [[0, 0, 'R'], [1, 2, '2'], [4, 7, '5']],
-    colorVar: '--triad-sus2',
-    optional: true,
-  },
-  {
-    id: 'sus4',
-    name: 'Sus 4',
-    sym: 'sus4',
-    displaySym: '4',
-    tones: [[0, 0, 'R'], [3, 5, '4'], [4, 7, '5']],
-    colorVar: '--triad-sus4',
-    optional: true,
-  },
-];
+export const TRIAD_QUALITIES = buildTriadQualities();
 
 function qualityColor(q) {
   return `var(${q.colorVar})`;

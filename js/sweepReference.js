@@ -1,4 +1,5 @@
 import { INTERVAL_LABELS } from './theory.js';
+import { standardSixStringOpenMidi } from './tunings.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext } from './musicalContext.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
@@ -11,7 +12,6 @@ import {
 } from './sweepPatterns.js';
 
 const SWEEP_SET_OPTIONS = [3, 4, 5];
-const SWEEP_OPEN_MIDI = { E: 40, A: 45, D: 50, G: 55, B: 59, e: 64 };
 const SWEEP_NECK = [
   { key: 'E', label: 'E2' },
   { key: 'A', label: 'A2' },
@@ -138,7 +138,7 @@ export function playSweepRef() {
   const selected = selectedSweep();
   if (!selected?.events?.length) return;
   const midis = selected.events.map(ev => {
-    const open = SWEEP_OPEN_MIDI[ev.s];
+    const open = standardSixStringOpenMidi(ev.s);
     return open == null ? null : open + ev.f;
   }).filter(m => m != null);
   if (!midis.length) return;

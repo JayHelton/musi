@@ -4,6 +4,7 @@
  */
 
 import { parseNote, NOTE_NAMES_SHARP, TUNINGS, ROOTS } from './theory.js';
+import { chordFormulasByLabel, qualityFormulas } from './chords.js';
 
 export const ORBIT_LABELS = {
   0: 'R', 1: '♭2', 2: '2', 3: '♭3', 4: '3', 5: '4',
@@ -54,35 +55,9 @@ export const ORBIT_DEFS = {
   },
 };
 
-export const CHORD_FORMULAS = {
-  'Minor triad': [0, 3, 7],
-  'Major triad': [0, 4, 7],
-  'Sus2': [0, 2, 7],
-  'Sus4': [0, 5, 7],
-  'Diminished': [0, 3, 6],
-  'Augmented': [0, 4, 8],
-  'Power chord': [0, 7],
-  'Minor add9': [0, 2, 3, 7],
-  'Add9': [0, 2, 4, 7],
-  'Minor 7': [0, 3, 7, 10],
-  'Major 7': [0, 4, 7, 11],
-  'Dominant 7': [0, 4, 7, 10],
-};
+export const CHORD_FORMULAS = chordFormulasByLabel();
 
-export const QUALITY_FORMULAS = {
-  major: [0, 4, 7],
-  minor: [0, 3, 7],
-  power: [0, 7],
-  dim: [0, 3, 6],
-  aug: [0, 4, 8],
-  sus2: [0, 2, 7],
-  sus4: [0, 5, 7],
-  maj7: [0, 4, 7, 11],
-  min7: [0, 3, 7, 10],
-  dom7: [0, 4, 7, 10],
-  add9: [0, 2, 4, 7],
-  madd9: [0, 2, 3, 7],
-};
+export const QUALITY_FORMULAS = qualityFormulas();
 
 /** Preset progressions: roman degrees relative to tonal center + quality key. */
 export const PRESET_PROGRESSIONS = [

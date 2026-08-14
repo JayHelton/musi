@@ -32,7 +32,6 @@ export const INTERVAL_INFO = {
 
 export const ALL_INTERVALS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 export const CHORD_TONE_INTERVALS = [0, 3, 4, 7, 10, 11];
-export const SCALE_MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 
 /** Map ranges (legacy orbitSize 1/2/3 preserved in storage). */
 export const MAP_RANGE_DEFS = {

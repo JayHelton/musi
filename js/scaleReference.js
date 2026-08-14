@@ -1,5 +1,6 @@
 import { parseNote, ROOTS, INTERVAL_LABELS, TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
 import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './scales.js';
+import { diatonicTriadQuality } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
@@ -8,12 +9,6 @@ const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
 const TRIAD_SUFFIX = ['','m','m','','','m','dim'];
 const SEVENTH_SUFFIX = ['maj7','m7','m7','maj7','7','m7','m7b5'];
 const MAJOR_SCALE = 'Major (Ionian)';
-const TRIAD_QUALITIES = {
-  '4,7': { name: 'Major', suffix: '' },
-  '3,7': { name: 'Minor', suffix: 'm' },
-  '3,6': { name: 'Diminished', suffix: 'dim' },
-  '4,8': { name: 'Augmented', suffix: 'aug' },
-};
 const KEY_SIGS = {
   'C':'none','G':'1#','D':'2#','A':'3#','E':'4#','B':'5#','F#':'6#','Gb':'6b',
   'Db':'5b','Ab':'4b','Eb':'3b','Bb':'2b','F':'1b',
@@ -427,7 +422,7 @@ function triadQuality(notes) {
 
   const thirdIv = (third - root + 12) % 12;
   const fifthIv = (fifth - root + 12) % 12;
-  return TRIAD_QUALITIES[`${thirdIv},${fifthIv}`] || {
+  return diatonicTriadQuality(thirdIv, fifthIv) || {
     name: `${INTERVAL_LABELS[thirdIv] || thirdIv} + ${INTERVAL_LABELS[fifthIv] || fifthIv}`,
     suffix: '',
   };
