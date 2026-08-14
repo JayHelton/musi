@@ -269,9 +269,9 @@ SQL DDL, RLS, Realtime trigger, Storage policies, `config.toml`, and GitHub inte
 | `notes` | `musi.notes[]` | note id (`note-*`) |
 | `songs` | `musi.songs[]` | song id (`song-*`) |
 | `exercises` | `musi.exercises.items[]` | exercise id (`ex-*`) |
-| `exerciseCategories` | `musi.exercises.categories[]` | category id (`cat-*`) |
+| `exerciseCategories` | `musi.exercises.categories[]` | category id (`cat-*`); payload includes `parentId` |
 | `workbooks` | `musi.workbooks.workbooks[]` | workbook id (`wb-*`) |
-| `workbookFolders` | `musi.workbooks.folders[]` | folder id (`wbf-*`) |
+| `workbookFolders` | `musi.workbooks.folders[]` | folder id (`wbf-*`); payload includes `parentId` |
 | `routines` | `musi.routines.routines[]` | routine id (`rt-*`) |
 | `gpAnnotations` | `musi.gpAnnotations.byScore[scoreKey]` | `gpAnnotations:{scoreKey}` |
 | `drumPatterns` | `musi-drums` IDB `patterns` store | pattern id (`usr-*`; builtins excluded) |

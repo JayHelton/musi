@@ -104,4 +104,30 @@ export async function runRecordMapTests(test) {
     assert.equal(isDeviceLocalSettingKey('cloud.blobSyncEnabled'), true);
     assert.equal(isDeviceLocalSettingKey('global.volume'), false);
   });
+
+  await test('toRecords fromRecords keeps parentId on nested folder domains', async () => {
+    globalThis.localStorage.setItem('musi.exercises', JSON.stringify({
+      categories: [
+        { id: 'cat-parent', name: 'Guitar', parentId: '' },
+        { id: 'cat-child', name: 'Scales', parentId: 'cat-parent' },
+      ],
+      items: [],
+    }));
+    globalThis.localStorage.setItem('musi.workbooks', JSON.stringify({
+      folders: [
+        { id: 'wbf-parent', name: 'Studies', parentId: '' },
+        { id: 'wbf-child', name: 'Technique', parentId: 'wbf-parent' },
+      ],
+      workbooks: [],
+    }));
+
+    const snapshot = buildSnapshot({ scopes: ['content'] });
+    const records = toRecords(snapshot);
+    const rebuilt = fromRecords(records);
+    const exercises = JSON.parse(rebuilt.data['musi.exercises']);
+    const workbooks = JSON.parse(rebuilt.data['musi.workbooks']);
+
+    assert.equal(exercises.categories.find((c) => c.id === 'cat-child').parentId, 'cat-parent');
+    assert.equal(workbooks.folders.find((f) => f.id === 'wbf-child').parentId, 'wbf-parent');
+  });
 }

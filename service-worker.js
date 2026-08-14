@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v204-gp-fit-score-width";
+const CACHE_VERSION = "v205-nested-folder-tree";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -217,6 +217,7 @@ const PRECACHE_URLS = [
   "js/analysis/segments.js",
   "js/stats.js",
   "js/songwriter.js",
+  "js/folderTree.js",
   "js/exercises.js",
   "js/exerciseCompanions/types.js",
   "js/exerciseCompanions/panel.js",

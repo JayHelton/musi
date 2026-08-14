@@ -192,6 +192,14 @@ listed in [What does not sync](#what-does-not-sync).
 independently. `fromRecords` must reassemble `{ categories, items, seededAt? }`
 identically to `mergeExercises` in `syncProfile.js`.
 
+**Nested folders:** `exerciseCategories` and `workbookFolders` payloads carry
+`parentId` (empty string means top level). The field lives inside the JSON
+payload, so Postgres needs no migration. `mergeExercises` and `mergeWorkbooks`
+keep `parentId` on merged folder records. If a merge leaves a folder pointing at
+a parent that no longer exists, the next store read through `js/exercises.js` or
+`js/workbookModel.js` repairs that folder to the top level (and breaks cycles the
+same way).
+
 **`musi.gpAnnotations` split:** one row per `scoreKey` (from
 `scoreKeyFromAttachmentId` / `resolveScoreKey`), not per annotation id. Each
 payload holds `{ annotations: [...] }` for that score.

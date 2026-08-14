@@ -459,4 +459,98 @@ await test('summarizeSnapshot reports routines label and count', async () => {
   assert.ok(summary.items.some((i) => i.label === 'Routines' && i.count === 2));
 });
 
+await test('merge mode keeps parentId on exercise and workbook folders', async () => {
+  store.clear();
+  store.set('musi.exercises', JSON.stringify({
+    categories: [
+      { id: 'cat-parent', name: 'Guitar', parentId: '' },
+      { id: 'cat-child', name: 'Scales', parentId: 'cat-parent' },
+    ],
+    items: [],
+  }));
+  store.set('musi.workbooks', JSON.stringify({
+    folders: [
+      { id: 'wbf-parent', name: 'Studies', parentId: '' },
+      { id: 'wbf-child', name: 'Technique', parentId: 'wbf-parent' },
+    ],
+    workbooks: [],
+  }));
+
+  const incoming = {
+    app: 'musi',
+    kind: SNAPSHOT_KIND,
+    version: SNAPSHOT_VERSION,
+    createdAt: new Date().toISOString(),
+    scopes: ['content'],
+    data: {
+      'musi.exercises': JSON.stringify({
+        categories: [
+          { id: 'cat-parent', name: 'Guitar incoming', parentId: '' },
+          { id: 'cat-child', name: 'Scales incoming', parentId: 'cat-parent' },
+        ],
+        items: [],
+      }),
+      'musi.workbooks': JSON.stringify({
+        folders: [
+          { id: 'wbf-parent', name: 'Studies incoming', parentId: '' },
+          { id: 'wbf-child', name: 'Technique incoming', parentId: 'wbf-parent' },
+        ],
+        workbooks: [],
+      }),
+    },
+  };
+
+  const result = await applySnapshot(incoming, { mode: 'merge', scopes: ['content'] });
+  assert.equal(result.errors.length, 0);
+
+  const exercises = JSON.parse(localStorage.getItem('musi.exercises'));
+  assert.equal(exercises.categories.find((c) => c.id === 'cat-child').parentId, 'cat-parent');
+
+  const workbooks = JSON.parse(localStorage.getItem('musi.workbooks'));
+  assert.equal(workbooks.folders.find((f) => f.id === 'wbf-child').parentId, 'wbf-parent');
+});
+
+await test('merge then store read repairs orphan folder parentId', async () => {
+  store.clear();
+  store.set('musi.exercises', JSON.stringify({
+    categories: [{ id: 'cat-child', name: 'Scales', parentId: 'cat-gone' }],
+    items: [],
+  }));
+  store.set('musi.workbooks', JSON.stringify({
+    folders: [{ id: 'wbf-child', name: 'Technique', parentId: 'wbf-gone' }],
+    workbooks: [],
+  }));
+
+  const incoming = {
+    app: 'musi',
+    kind: SNAPSHOT_KIND,
+    version: SNAPSHOT_VERSION,
+    createdAt: new Date().toISOString(),
+    scopes: ['content'],
+    data: {
+      'musi.exercises': JSON.stringify({
+        categories: [{ id: 'cat-child', name: 'Scales remote', parentId: 'cat-gone' }],
+        items: [],
+      }),
+      'musi.workbooks': JSON.stringify({
+        folders: [{ id: 'wbf-child', name: 'Technique remote', parentId: 'wbf-gone' }],
+        workbooks: [],
+      }),
+    },
+  };
+
+  const result = await applySnapshot(incoming, { mode: 'merge', scopes: ['content'] });
+  assert.equal(result.errors.length, 0);
+
+  const { invalidateExercisesCache } = await import('../../js/exercises.js');
+  invalidateExercisesCache?.();
+  const { getCategories } = await import('../../js/exercises.js');
+  assert.equal(getCategories().find((c) => c.id === 'cat-child').parentId, '');
+
+  const { invalidateWorkbooksCache } = await import('../../js/workbookModel.js');
+  invalidateWorkbooksCache?.();
+  const { listWorkbookFolders } = await import('../../js/workbookModel.js');
+  assert.equal(listWorkbookFolders().find((f) => f.id === 'wbf-child').parentId, '');
+});
+
 console.log(`\n${passed} tests passed`);

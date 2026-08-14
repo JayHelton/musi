@@ -24,6 +24,7 @@ import {
   createExerciseFolder,
   requestExerciseFolderDelete,
 } from './exercises.js';
+import { MAX_FOLDER_DEPTH, FOLDER_PATH_SEPARATOR } from './folderTree.js';
 
 let showSectionFn = null;
 
@@ -1191,12 +1192,26 @@ function setupExercises() {
     }
   };
 
+  const newFolderParentLabel = () => {
+    const selected = getSelectedExerciseFolder();
+    if (selected === 'all' || selected === 'uncategorized') return '';
+    return getSelectedExerciseFolderLabel();
+  };
+
   const promptNewFolder = () => {
-    const name = window.prompt('New folder name');
+    const parentLabel = newFolderParentLabel();
+    const promptText = parentLabel
+      ? `New folder in "${parentLabel}"`
+      : 'New folder name';
+    const name = window.prompt(promptText);
     if (name == null) return;
     const result = createExerciseFolder(name);
     if (!result.ok && result.reason === 'empty') {
       window.alert('Enter a folder name.');
+      return;
+    }
+    if (!result.ok && result.reason === 'depth') {
+      window.alert(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`);
       return;
     }
     if (result.category?.id) {
@@ -1213,14 +1228,31 @@ function setupExercises() {
 
   document.getElementById('ex-folder-pick').onclick = async () => {
     const folders = getExerciseFolderOptions();
+    const folderIndent = (depth) => (depth > 1 ? '\u00A0\u00A0'.repeat(depth - 1) : '');
+    const folderMeta = (f) => (
+      f.totalCount > f.count ? `${f.count} here, ${f.totalCount} total` : String(f.count)
+    );
+    const folderParentSub = (f) => {
+      if (!f.path || f.depth <= 1) return undefined;
+      const parts = f.path.split(FOLDER_PATH_SEPARATOR);
+      return parts.length > 1 ? parts.slice(0, -1).join(' › ') : undefined;
+    };
+    const parentLabel = newFolderParentLabel();
+    const newFolderSub = parentLabel
+      ? `Create a folder inside "${parentLabel}"`
+      : 'Create a folder at the top level';
     const items = [
       ...folders.map(f => {
         const row = {
           id: f.id,
-          label: f.label,
-          meta: String(f.count),
+          label: f.id === 'all' || f.id === 'uncategorized'
+            ? f.label
+            : `${folderIndent(f.depth)}${f.label}`,
+          meta: folderMeta(f),
         };
         if (f.id !== 'all' && f.id !== 'uncategorized') {
+          const sub = folderParentSub(f);
+          if (sub) row.sub = sub;
           row.actions = [{
             id: 'delete',
             label: `Delete folder ${f.label}`,
@@ -1230,7 +1262,7 @@ function setupExercises() {
         }
         return row;
       }),
-      { id: '__new__', label: '+ New folder', sub: 'Create a tag for grouping exercises' },
+      { id: '__new__', label: '+ New folder', sub: newFolderSub },
     ];
     const next = await openSelectionSheet({
       title: 'Folder',
