@@ -65,6 +65,27 @@
 .ex-add-cat input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
 .ex-add-cat .btn{flex-shrink:0}
 
+.ex-cat-item[data-depth="1"]{padding-left:12px}
+.ex-cat-item[data-depth="2"]{padding-left:24px}
+.ex-cat-item[data-depth="3"]{padding-left:34px}
+.ex-cat-item[data-depth="4"]{padding-left:42px}
+.ex-cat-item[data-depth="5"]{padding-left:48px}
+.ex-cat-twisty,.ex-cat-twisty-spacer{
+  flex-shrink:0;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:.72rem;line-height:1;color:var(--muted)
+}
+.ex-cat-twisty{
+  border:none;background:transparent;cursor:pointer;border-radius:6px;padding:0;font-family:inherit
+}
+.ex-cat-twisty:hover{color:var(--text);background:var(--hover)}
+.ex-cat-twisty.is-expanded,.ex-cat-twisty.is-collapsed{color:var(--accent2)}
+.ex-move-folder-select{font-family:var(--font-body,inherit);font-size:.88rem}
+
+.ex-folder[data-depth="2"]{margin-left:10px}
+.ex-folder[data-depth="3"]{margin-left:18px}
+.ex-folder[data-depth="4"]{margin-left:24px}
+.ex-folder[data-depth="5"]{margin-left:28px}
+
 .ex-folder-bar{margin-bottom:12px}
 
 /* ---- Main column ---- */

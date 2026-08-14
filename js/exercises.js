@@ -31,6 +31,22 @@ import { BULK_ACCEPT_ATTR, UPLOAD_ACCEPT_ATTR, classifyUploadFile } from './exer
 import { openBulkUploadDialog, closeBulkUploadDialog } from './exercisesBulkUI.js';
 import { mountExerciseTakePanel } from './exerciseTakePanel.js';
 import { emitDataChanged } from './dataEvents.js';
+import {
+  MAX_FOLDER_DEPTH,
+  FOLDER_PATH_SEPARATOR,
+  normalizeParentId,
+  sanitizeFolderTree,
+  folderById,
+  folderChildren,
+  folderSubtreeIds,
+  folderDepth,
+  folderPathLabel,
+  flattenFolderTree,
+  canMoveFolder,
+  findSiblingByName,
+  validMoveTargets,
+  nextParentAfterDelete,
+} from './folderTree.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -112,7 +128,8 @@ function normalizeCategory(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const id = typeof raw.id === 'string' && raw.id ? raw.id : uid('cat');
   const name = clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Folder', CAT_LIMIT);
-  return { id, name };
+  const parentId = normalizeParentId(raw.parentId);
+  return { id, name, parentId };
 }
 
 const MAX_TAKES = 50;
@@ -189,9 +206,9 @@ function defaultStore() {
   const t = nowISO();
   return {
     categories: [
-      { id: uid('cat'), name: 'Tabs' },
-      { id: uid('cat'), name: 'Etudes' },
-      { id: uid('cat'), name: 'Warm-ups' },
+      { id: uid('cat'), name: 'Tabs', parentId: '' },
+      { id: uid('cat'), name: 'Etudes', parentId: '' },
+      { id: uid('cat'), name: 'Warm-ups', parentId: '' },
     ],
     items: [],
     seededAt: t,
@@ -210,10 +227,12 @@ function getStore() {
   }
   try {
     const parsed = JSON.parse(raw);
+    const normalized = Array.isArray(parsed && parsed.categories)
+      ? parsed.categories.map(normalizeCategory).filter(Boolean)
+      : [];
+    const { folders } = sanitizeFolderTree(normalized);
     storeCache = {
-      categories: Array.isArray(parsed && parsed.categories)
-        ? parsed.categories.map(normalizeCategory).filter(Boolean)
-        : [],
+      categories: folders,
       items: Array.isArray(parsed && parsed.items)
         ? parsed.items.map(normalizeItem).filter(Boolean)
         : [],
@@ -255,13 +274,20 @@ function categoryName(categoryId) {
   return cat ? cat.name : 'No folder';
 }
 
-export function addCategory(name) {
+export function addCategory(name, parentId = '') {
   const clean = clampText((name || '').trim(), CAT_LIMIT);
   if (!clean) return null;
   const store = getStore();
-  const exists = store.categories.find(c => c.name.toLowerCase() === clean.toLowerCase());
+  let resolvedParent = normalizeParentId(parentId);
+  if (resolvedParent && !folderById(store.categories, resolvedParent)) {
+    resolvedParent = '';
+  }
+  const exists = findSiblingByName(store.categories, resolvedParent, clean);
   if (exists) return exists;
-  const cat = { id: uid('cat'), name: clean };
+  if (resolvedParent && folderDepth(store.categories, resolvedParent) >= MAX_FOLDER_DEPTH) {
+    return null;
+  }
+  const cat = { id: uid('cat'), name: clean, parentId: resolvedParent };
   store.categories.push(cat);
   persist();
   return cat;
@@ -269,20 +295,42 @@ export function addCategory(name) {
 
 /** Options for the folder / tag picker (sidebar + mobile sheet). */
 export function getExerciseFolderOptions() {
+  const store = getStore();
   const items = getExercises();
   const uncategorizedCount = items.filter(it => !it.categoryId).length;
   const opts = [
-    { id: 'all', label: 'All Exercises', count: items.length },
+    {
+      id: 'all',
+      label: 'All Exercises',
+      count: items.length,
+      totalCount: items.length,
+      depth: 0,
+      parentId: '',
+      path: '',
+    },
   ];
-  getCategories().forEach(cat => {
+  flattenFolderTree(store.categories).forEach((row) => {
+    const subtreeIds = folderSubtreeIds(store.categories, row.id);
     opts.push({
-      id: cat.id,
-      label: cat.name,
-      count: items.filter(it => it.categoryId === cat.id).length,
+      id: row.id,
+      label: row.name,
+      count: items.filter(it => it.categoryId === row.id).length,
+      totalCount: items.filter(it => subtreeIds.has(it.categoryId)).length,
+      depth: row.depth,
+      parentId: row.parentId,
+      path: row.path,
     });
   });
   if (uncategorizedCount > 0) {
-    opts.push({ id: 'uncategorized', label: 'No folder', count: uncategorizedCount });
+    opts.push({
+      id: 'uncategorized',
+      label: 'No folder',
+      count: uncategorizedCount,
+      totalCount: uncategorizedCount,
+      depth: 0,
+      parentId: '',
+      path: '',
+    });
   }
   return opts;
 }
@@ -307,11 +355,20 @@ export function selectExerciseFolder(id) {
 }
 
 /** Create a folder/tag and refresh the UI. Selects the folder so mobile Delete is available. */
-export function createExerciseFolder(name) {
+export function createExerciseFolder(name, parentId) {
   const clean = clampText((name || '').trim(), CAT_LIMIT);
   if (!clean) return { ok: false, reason: 'empty' };
+  let resolvedParent = parentId;
+  if (resolvedParent === undefined) {
+    resolvedParent = (selectedCategory !== 'all' && selectedCategory !== 'uncategorized')
+      ? selectedCategory : '';
+  }
+  resolvedParent = normalizeParentId(resolvedParent);
+  if (resolvedParent && !folderById(getStore().categories, resolvedParent)) {
+    resolvedParent = '';
+  }
   const store = getStore();
-  const exists = store.categories.find(c => c.name.toLowerCase() === clean.toLowerCase());
+  const exists = findSiblingByName(store.categories, resolvedParent, clean);
   if (exists) {
     setSelectedCategory(exists.id);
     if (wired) {
@@ -320,15 +377,48 @@ export function createExerciseFolder(name) {
     }
     return { ok: true, created: false, category: exists };
   }
-  const cat = addCategory(clean);
+  const cat = addCategory(clean, resolvedParent);
+  if (!cat) {
+    if (wired) {
+      setStatus(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`, true);
+    }
+    return { ok: false, reason: 'depth' };
+  }
   setSelectedCategory(cat.id);
-  // Keep new folders collapsed; user opens them when ready.
+  // New folders stay collapsed until the user expands them.
   expandedFolders.delete(cat.id);
   if (wired) {
     setStatus(`Created folder “${cat.name}”. Assign exercises with the folder menu on each row.`);
     render();
   }
   return { ok: true, created: true, category: cat };
+}
+
+export function moveExerciseFolder(id, parentId) {
+  const store = getStore();
+  const nextParent = normalizeParentId(parentId);
+  const check = canMoveFolder(store.categories, id, nextParent);
+  if (!check.ok) return { ok: false, reason: check.reason };
+  const folder = folderById(store.categories, id);
+  if (!folder) return { ok: false, reason: 'missing' };
+  folder.parentId = nextParent;
+  persist();
+  if (wired) {
+    setStatus(`Moved folder “${folder.name}”.`);
+    render();
+  }
+  return { ok: true, reason: '' };
+}
+
+export function getExercisesInFolder(id, { includeDescendants = false } = {}) {
+  const items = getExercises();
+  if (!id || id === 'uncategorized') return items.filter(it => !it.categoryId);
+  if (id === 'all') return items;
+  if (includeDescendants) {
+    const subtreeIds = folderSubtreeIds(getStore().categories, id);
+    return items.filter(it => subtreeIds.has(it.categoryId));
+  }
+  return items.filter(it => it.categoryId === id);
 }
 
 function renameCategory(id, name) {
@@ -341,28 +431,43 @@ function renameCategory(id, name) {
   return true;
 }
 
-// deleteCategory leaves its exercises in place but uncategorized; see deleteCategoryWithContents.
+// deleteCategory lifts child folders and unfiles direct exercises only.
 function countExercisesInCategory(id) {
   return getStore().items.filter(it => it.categoryId === id).length;
+}
+
+function countExercisesInCategorySubtree(id) {
+  const subtreeIds = folderSubtreeIds(getStore().categories, id);
+  return getStore().items.filter(it => subtreeIds.has(it.categoryId)).length;
 }
 
 function deleteCategory(id) {
   const store = getStore();
   const idx = store.categories.findIndex(c => c.id === id);
   if (idx < 0) return false;
+  const nextParent = nextParentAfterDelete(store.categories, id);
+  store.categories.forEach((cat) => {
+    if (normalizeParentId(cat.parentId) === id) {
+      cat.parentId = nextParent;
+    }
+  });
+  store.items.forEach((it) => {
+    if (it.categoryId === id) it.categoryId = '';
+  });
   store.categories.splice(idx, 1);
-  store.items.forEach(it => { if (it.categoryId === id) it.categoryId = ''; });
   persist();
   return true;
 }
 
 async function deleteCategoryWithContents(id) {
   const store = getStore();
-  if (!store.categories.some(c => c.id === id)) return { ok: false, deleted: 0 };
-  const ids = store.items.filter(it => it.categoryId === id).map(it => it.id);
-  const deleted = await deleteExercises(ids);
-  deleteCategory(id);
-  return { ok: true, deleted };
+  if (!folderById(store.categories, id)) return { ok: false, deleted: 0 };
+  const subtreeIds = folderSubtreeIds(store.categories, id);
+  const itemIds = store.items.filter(it => subtreeIds.has(it.categoryId)).map(it => it.id);
+  const deleted = await deleteExercises(itemIds);
+  store.categories = store.categories.filter(cat => !subtreeIds.has(cat.id));
+  persist();
+  return { ok: true, deleted, foldersDeleted: subtreeIds.size };
 }
 
 function renameExercise(id, name) {
@@ -640,6 +745,8 @@ let wired = false;
 let selectedCategory = 'all'; // 'all', 'uncategorized', or a category id.
 // Folder sections open in the "All" grouped view. Default closed.
 const expandedFolders = new Set();
+// Sidebar tree rows default expanded; ids here are collapsed.
+const collapsedSidebarFolders = new Set();
 let selectionMode = false;
 const selectedIds = new Set();
 
@@ -665,7 +772,8 @@ function visibleItems() {
   const items = getExercises();
   if (selectedCategory === 'all') return items;
   if (selectedCategory === 'uncategorized') return items.filter(it => !it.categoryId);
-  return items.filter(it => it.categoryId === selectedCategory);
+  const subtreeIds = folderSubtreeIds(getStore().categories, selectedCategory);
+  return items.filter(it => subtreeIds.has(it.categoryId));
 }
 
 function scopedItems() {
@@ -827,7 +935,7 @@ function onDeleteAll() {
   } else {
     const folderName = currentTitleText();
     title = `Delete all ${pluralExercises(count)} in "${folderName}"?`;
-    body = 'Only exercises in this folder are removed. The folder itself stays. This cannot be undone.';
+    body = 'This removes exercises in this folder and in its subfolders. The folders stay. This cannot be undone.';
   }
   openConfirm(title, body, 'Delete All', async () => {
     selectionMode = false;
@@ -876,19 +984,78 @@ function emitFoldersChanged() {
   document.dispatchEvent(new CustomEvent('musi:exercise-folders-change'));
 }
 
+function folderOptionIndent(depth) {
+  if (!depth || depth < 1) return '';
+  return '\u2003'.repeat(Math.min(depth - 1, 4));
+}
+
+function categoryHasChildFolders(categoryId) {
+  return folderChildren(getStore().categories, categoryId).length > 0;
+}
+
+function isSidebarFolderVisible(opt) {
+  if (opt.id === 'all' || opt.id === 'uncategorized') return true;
+  let parentId = normalizeParentId(opt.parentId);
+  while (parentId) {
+    if (collapsedSidebarFolders.has(parentId)) return false;
+    const parent = folderById(getStore().categories, parentId);
+    parentId = parent ? normalizeParentId(parent.parentId) : '';
+  }
+  return true;
+}
+
+function selectedFolderParentLabel() {
+  if (selectedCategory === 'all' || selectedCategory === 'uncategorized') return '';
+  const cat = folderById(getStore().categories, selectedCategory);
+  return cat ? cat.name : '';
+}
+
+function moveBlockMessage(reason) {
+  const messages = {
+    self: 'A folder cannot move into itself.',
+    descendant: 'A folder cannot move into its own descendant.',
+    depth: `This move would exceed the depth limit of ${MAX_FOLDER_DEPTH} levels.`,
+    'parent-missing': 'The chosen parent folder no longer exists.',
+    missing: 'This folder no longer exists.',
+  };
+  return messages[reason] || 'This move is not allowed.';
+}
+
 function renderCategories() {
   if (!catListEl) return;
   catListEl.innerHTML = '';
 
   const makeRow = (key, name, count, opts = {}) => {
-    // Use a div row (not <button>) so rename/delete tool buttons aren't nested.
+    const depth = opts.depth || 0;
+    // Use a div, not a button, so tool buttons are not nested inside a button.
     const row = el('div', {
       class: 'ex-cat-item' + (selectedCategory === key ? ' active' : ''),
       'data-cat': key,
+      'data-depth': depth ? String(depth) : undefined,
       role: 'button',
       tabindex: '0',
       'aria-pressed': selectedCategory === key ? 'true' : 'false',
     });
+    if (opts.hasChildren) {
+      const expanded = !collapsedSidebarFolders.has(key);
+      const twisty = el('button', {
+        class: 'ex-cat-twisty' + (expanded ? ' is-expanded' : ' is-collapsed'),
+        type: 'button',
+        title: expanded ? 'Collapse folder' : 'Expand folder',
+        'aria-label': expanded ? `Collapse ${name}` : `Expand ${name}`,
+        'aria-expanded': expanded ? 'true' : 'false',
+        html: expanded ? '&#9662;' : '&#9656;',
+        onClick: (e) => {
+          e.stopPropagation();
+          if (collapsedSidebarFolders.has(key)) collapsedSidebarFolders.delete(key);
+          else collapsedSidebarFolders.add(key);
+          renderCategories();
+        },
+      });
+      row.appendChild(twisty);
+    } else if (opts.editable) {
+      row.appendChild(el('span', { class: 'ex-cat-twisty-spacer', 'aria-hidden': 'true' }));
+    }
     row.appendChild(el('span', { class: 'ex-cat-name', text: name }));
     row.appendChild(el('span', { class: 'ex-cat-count', text: String(count) }));
     const select = () => {
@@ -896,7 +1063,7 @@ function renderCategories() {
       render();
     };
     row.addEventListener('click', (e) => {
-      if (e.target.closest('.ex-cat-tool')) return;
+      if (e.target.closest('.ex-cat-tool') || e.target.closest('.ex-cat-twisty')) return;
       select();
     });
     row.addEventListener('keydown', (e) => {
@@ -912,6 +1079,10 @@ function renderCategories() {
         html: '&#9998;', onClick: (e) => { e.stopPropagation(); onRenameCategory(opts.id, name); },
       }));
       tools.appendChild(el('button', {
+        class: 'ex-cat-tool', type: 'button', title: 'Move folder', 'aria-label': `Move ${name}`,
+        html: '&#8644;', onClick: (e) => { e.stopPropagation(); onMoveCategory(opts.id, name); },
+      }));
+      tools.appendChild(el('button', {
         class: 'ex-cat-tool ex-cat-del', type: 'button', title: 'Delete folder', 'aria-label': `Delete ${name}`,
         html: '&#10005;', onClick: (e) => { e.stopPropagation(); onDeleteCategory(opts.id, name); },
       }));
@@ -920,10 +1091,21 @@ function renderCategories() {
     catListEl.appendChild(row);
   };
 
-  getExerciseFolderOptions().forEach(opt => {
+  getExerciseFolderOptions().forEach((opt) => {
+    if (!isSidebarFolderVisible(opt)) return;
     const editable = opt.id !== 'all' && opt.id !== 'uncategorized';
-    makeRow(opt.id, opt.label, opt.count, editable ? { editable: true, id: opt.id } : {});
+    makeRow(opt.id, opt.label, opt.count, editable ? {
+      editable: true,
+      id: opt.id,
+      depth: opt.depth,
+      hasChildren: categoryHasChildFolders(opt.id),
+    } : { depth: opt.depth });
   });
+
+  if (addCatInput) {
+    const parentName = selectedFolderParentLabel();
+    addCatInput.placeholder = parentName ? `New folder in ${parentName}` : 'New folder';
+  }
   syncFolderChipLabel();
   emitFoldersChanged();
 }
@@ -931,21 +1113,25 @@ function renderCategories() {
 function currentTitleText() {
   if (selectedCategory === 'all') return 'All Exercises';
   if (selectedCategory === 'uncategorized') return 'No folder';
-  return categoryName(selectedCategory);
+  return folderPathLabel(getStore().categories, selectedCategory, FOLDER_PATH_SEPARATOR) || categoryName(selectedCategory);
 }
 
 function buildCategorySelect(item) {
   const select = el('select', { class: 'ex-item-cat-select', 'aria-label': 'Folder' });
   select.appendChild(el('option', { value: '', text: 'No folder' }));
-  getCategories().forEach(cat => {
-    const opt = el('option', { value: cat.id, text: cat.name });
-    if (cat.id === item.categoryId) opt.selected = true;
-    select.appendChild(opt);
+  getExerciseFolderOptions().forEach((opt) => {
+    if (opt.id === 'all' || opt.id === 'uncategorized') return;
+    const optEl = el('option', {
+      value: opt.id,
+      text: `${folderOptionIndent(opt.depth)}${opt.label}`,
+    });
+    if (opt.id === item.categoryId) optEl.selected = true;
+    select.appendChild(optEl);
   });
   if (!item.categoryId) select.value = '';
   select.addEventListener('change', () => {
     moveExercise(item.id, select.value);
-    // Re-render so counts update and the row drops out of a filtered view.
+    // Re-render updates counts and drops the row out of a filtered view.
     render();
   });
   return select;
@@ -1065,11 +1251,21 @@ function groupItemsByCategory(items) {
   return groups;
 }
 
-function buildFolder(group) {
+function folderCountLabel(directCount, totalCount) {
+  const direct = `${directCount} exercise${directCount === 1 ? '' : 's'}`;
+  if (totalCount > directCount) return `${direct} · ${totalCount} total`;
+  return direct;
+}
+
+function buildFolder(group, opts = {}) {
+  const depth = opts.depth || 1;
+  const nestedChildren = opts.nestedChildren || [];
+  const totalCount = opts.totalCount != null ? opts.totalCount : group.items.length;
   const open = expandedFolders.has(group.key);
   const folder = el('div', {
     class: 'ex-folder' + (open ? ' is-open' : ''),
     'data-folder': group.key,
+    'data-depth': String(depth),
   });
 
   const head = el('button', {
@@ -1087,7 +1283,7 @@ function buildFolder(group) {
   head.appendChild(el('span', { class: 'ex-folder-name', text: group.name }));
   head.appendChild(el('span', {
     class: 'ex-folder-count',
-    text: `${group.items.length} exercise${group.items.length === 1 ? '' : 's'}`,
+    text: folderCountLabel(group.items.length, totalCount),
   }));
   head.addEventListener('click', () => {
     if (expandedFolders.has(group.key)) expandedFolders.delete(group.key);
@@ -1133,9 +1329,17 @@ function buildFolder(group) {
     hidden: open ? undefined : true,
   });
   if (open) {
-    if (group.items.length) {
-      group.items.forEach(item => body.appendChild(buildExerciseRow(item, { hideCategory: true })));
-    } else {
+    const appendChildren = () => {
+      nestedChildren.forEach((child) => body.appendChild(child));
+    };
+    const appendItems = () => {
+      if (group.items.length) {
+        group.items.forEach(item => body.appendChild(buildExerciseRow(item, { hideCategory: true })));
+      }
+    };
+    appendChildren();
+    appendItems();
+    if (!group.items.length && !nestedChildren.length) {
       body.appendChild(el('div', {
         class: 'ex-folder-empty',
         text: 'Empty folder — move exercises here with the folder menu on each row.',
@@ -1146,14 +1350,35 @@ function buildFolder(group) {
   return folder;
 }
 
+function buildNestedFolderSection(folderId, depth) {
+  const store = getStore();
+  const folder = folderById(store.categories, folderId);
+  if (!folder) return null;
+  const directItems = getExercises().filter(it => it.categoryId === folderId);
+  const childSections = folderChildren(store.categories, folderId)
+    .map(child => buildNestedFolderSection(child.id, depth + 1))
+    .filter(Boolean);
+  const subtreeIds = folderSubtreeIds(store.categories, folderId);
+  const totalCount = getExercises().filter(it => subtreeIds.has(it.categoryId)).length;
+  return buildFolder({
+    key: folderId,
+    name: folder.name,
+    items: directItems,
+  }, {
+    depth,
+    nestedChildren: childSections,
+    totalCount,
+  });
+}
+
 function renderList() {
   if (!listEl) return;
   listEl.innerHTML = '';
 
-  const items = visibleItems();
+  const allItems = getExercises();
   if (!attachmentsSupported()) {
     if (uploadBtn) uploadBtn.disabled = true;
-    if (items.length === 0) {
+    if (allItems.length === 0) {
       listEl.appendChild(el('div', {
         class: 'ex-empty',
         text: 'File uploads need browser storage (IndexedDB), which is unavailable here. You can still add exercise links.',
@@ -1164,14 +1389,13 @@ function renderList() {
     uploadBtn.disabled = false;
   }
 
-  // "All" view: group by folder tag into collapsible sections (default closed).
-  // Filtered views stay a flat list (the sidebar / chip already picks the folder).
   if (selectedCategory === 'all') {
-    const groups = groupItemsByCategory(getExercises());
-    const tagged = groups.filter(g => g.key !== 'uncategorized');
+    // Top-level folder sections nest their children; unfiled items stay in a flat block at the end.
+    const groups = groupItemsByCategory(allItems);
     const untagged = groups.find(g => g.key === 'uncategorized');
+    const topLevel = folderChildren(getStore().categories, '');
 
-    if (tagged.length === 0 && !untagged) {
+    if (topLevel.length === 0 && !untagged) {
       listEl.appendChild(el('div', {
         class: 'ex-empty',
         text: 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.',
@@ -1179,13 +1403,15 @@ function renderList() {
       return;
     }
 
-    if (tagged.length === 0 && untagged) {
-      // Nothing tagged — keep a simple flat list.
+    if (topLevel.length === 0 && untagged) {
       untagged.items.forEach(item => listEl.appendChild(buildExerciseRow(item)));
       return;
     }
 
-    tagged.forEach(group => listEl.appendChild(buildFolder(group)));
+    topLevel.forEach((folder) => {
+      const section = buildNestedFolderSection(folder.id, 1);
+      if (section) listEl.appendChild(section);
+    });
     if (untagged) {
       const loose = el('div', { class: 'ex-ungrouped' });
       loose.appendChild(el('div', { class: 'ex-ungrouped-label', text: 'No folder' }));
@@ -1195,15 +1421,39 @@ function renderList() {
     return;
   }
 
-  if (items.length === 0) {
-    const msg = getExercises().length === 0
-      ? 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.'
-      : 'No exercises in this folder yet. Open All Exercises and move items here, or upload while this folder is selected.';
-    listEl.appendChild(el('div', { class: 'ex-empty', text: msg }));
+  if (selectedCategory === 'uncategorized') {
+    const items = visibleItems();
+    if (!items.length) {
+      listEl.appendChild(el('div', {
+        class: 'ex-empty',
+        text: allItems.length === 0
+          ? 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.'
+          : 'No exercises without a folder.',
+      }));
+      return;
+    }
+    items.forEach(item => listEl.appendChild(buildExerciseRow(item)));
     return;
   }
 
-  items.forEach(item => listEl.appendChild(buildExerciseRow(item)));
+  const directItems = getExercises().filter(it => it.categoryId === selectedCategory);
+  const childFolders = folderChildren(getStore().categories, selectedCategory);
+  if (!directItems.length && !childFolders.length) {
+    listEl.appendChild(el('div', {
+      class: 'ex-empty',
+      text: allItems.length === 0
+        ? 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.'
+        : 'No exercises in this folder yet. Open All Exercises and move items here, or upload while this folder is selected.',
+    }));
+    return;
+  }
+
+  directItems.forEach(item => listEl.appendChild(buildExerciseRow(item)));
+  const parentDepth = folderDepth(getStore().categories, selectedCategory) || 1;
+  childFolders.forEach((child) => {
+    const section = buildNestedFolderSection(child.id, parentDepth + 1);
+    if (section) listEl.appendChild(section);
+  });
 }
 
 function applyActiveRowHighlight() {
@@ -1852,17 +2102,29 @@ function openConfirm(title, body, confirmLabel, onConfirm, { danger = false } = 
   dialogRoot.appendChild(overlay);
 }
 
-function openFolderDeleteDialog({ name, count, onDeleteFolderOnly, onDeleteAll }) {
+function openFolderDeleteDialog({
+  name,
+  directCount,
+  childFolderCount,
+  subtreeExerciseCount,
+  subtreeFolderCount,
+  onDeleteFolderOnly,
+  onDeleteAll,
+}) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
-  const exerciseWord = count === 1 ? 'exercise' : 'exercises';
+  const exerciseWord = subtreeExerciseCount === 1 ? 'exercise' : 'exercises';
+  const folderWord = subtreeFolderCount === 1 ? 'folder' : 'folders';
+  let bodyText = `"${name}" holds ${directCount} direct ${directCount === 1 ? 'exercise' : 'exercises'}.`;
+  if (childFolderCount > 0) {
+    bodyText += ` It also holds ${childFolderCount} child ${childFolderCount === 1 ? 'folder' : 'folders'}. Delete the folder only and child folders move up one level while direct exercises become unfiled, or delete the folder and its whole subtree from this device.`;
+  } else {
+    bodyText += ` Delete the folder only and keep them unfiled, or delete the folder and its ${subtreeExerciseCount} ${exerciseWord} from this device.`;
+  }
   const overlay = el('div', { class: 'modal-overlay' });
   const dialog = el('div', { class: 'modal-dialog modal-confirm' }, [
     el('h3', { class: 'modal-title', text: `Delete folder "${name}"?` }),
-    el('p', {
-      class: 'modal-body',
-      text: `"${name}" holds ${count} ${exerciseWord}. Delete the folder only and keep them unfiled, or delete the folder and its ${count} ${exerciseWord} from this device.`,
-    }),
+    el('p', { class: 'modal-body', text: bodyText }),
   ]);
   const actions = el('div', { class: 'modal-actions' });
   let escapeHandler = null;
@@ -1875,18 +2137,87 @@ function openFolderDeleteDialog({ name, count, onDeleteFolderOnly, onDeleteAll }
     class: 'btn sm', type: 'button', text: 'Cancel',
     onClick: () => finish(() => {}),
   }));
+  const folderOnlyLabel = childFolderCount > 0
+    ? 'Delete folder only (move subfolders up)'
+    : 'Delete folder only';
   actions.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: 'Delete folder only',
+    class: 'btn sm', type: 'button', text: folderOnlyLabel,
     onClick: () => finish(onDeleteFolderOnly),
   }));
+  const deleteAllLabel = subtreeFolderCount > 1
+    ? `Delete folder + ${subtreeFolderCount} ${folderWord} + ${subtreeExerciseCount} ${exerciseWord}`
+    : `Delete folder + ${subtreeExerciseCount} ${exerciseWord}`;
   actions.appendChild(el('button', {
-    class: 'btn modal-danger', type: 'button', text: `Delete folder + ${count} ${exerciseWord}`,
+    class: 'btn modal-danger', type: 'button', text: deleteAllLabel,
     onClick: () => finish(onDeleteAll),
   }));
   dialog.appendChild(actions);
   overlay.appendChild(dialog);
   overlay.addEventListener('click', e => { if (e.target === overlay) finish(() => {}); });
   escapeHandler = (e) => { if (e.key === 'Escape') finish(() => {}); };
+  document.addEventListener('keydown', escapeHandler);
+  dialogRoot.appendChild(overlay);
+}
+
+function openFolderMoveDialog(id, name) {
+  const store = getStore();
+  const folder = folderById(store.categories, id);
+  if (!folder) return;
+  const targets = validMoveTargets(store.categories, id);
+  const currentParent = normalizeParentId(folder.parentId);
+
+  ensureDialogRoot();
+  dialogRoot.innerHTML = '';
+  const overlay = el('div', { class: 'modal-overlay' });
+  const dialog = el('div', { class: 'modal-dialog ex-move-folder-dialog' });
+  dialog.appendChild(el('h3', { class: 'modal-title', text: `Move folder "${name}"` }));
+  dialog.appendChild(el('p', {
+    class: 'modal-body',
+    text: 'Choose a new parent folder. The folder and everything inside it move together.',
+  }));
+
+  const select = el('select', { class: 'modal-input ex-move-folder-select', 'aria-label': 'New parent folder' });
+  const topOpt = el('option', { value: '', text: 'Top level (no parent)' });
+  if (!currentParent) topOpt.selected = true;
+  select.appendChild(topOpt);
+  targets.forEach((row) => {
+    const opt = el('option', {
+      value: row.id,
+      text: `${folderOptionIndent(row.depth)}${row.name}`,
+    });
+    if (row.id === currentParent) opt.selected = true;
+    select.appendChild(opt);
+  });
+  dialog.appendChild(select);
+
+  const error = el('div', { class: 'modal-errors' });
+  dialog.appendChild(error);
+
+  const actions = el('div', { class: 'modal-actions' });
+  let escapeHandler = null;
+  const finish = () => {
+    if (escapeHandler) document.removeEventListener('keydown', escapeHandler);
+    closeDialog();
+  };
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Cancel', onClick: finish,
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn primary', type: 'button', text: 'Move',
+    onClick: () => {
+      const result = moveExerciseFolder(id, select.value);
+      if (result.ok) {
+        finish();
+        return;
+      }
+      error.textContent = moveBlockMessage(result.reason);
+      setStatus(moveBlockMessage(result.reason), true);
+    },
+  }));
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', e => { if (e.target === overlay) finish(); });
+  escapeHandler = (e) => { if (e.key === 'Escape') finish(); };
   document.addEventListener('keydown', escapeHandler);
   dialogRoot.appendChild(overlay);
 }
@@ -1973,13 +2304,20 @@ function onRenameCategory(id, current) {
   });
 }
 
+function onMoveCategory(id, name) {
+  openFolderMoveDialog(id, name);
+}
+
 function onDeleteCategory(id, name) {
-  const count = countExercisesInCategory(id);
+  const directCount = countExercisesInCategory(id);
+  const childFolderCount = folderChildren(getStore().categories, id).length;
+  const subtreeExerciseCount = countExercisesInCategorySubtree(id);
+  const subtreeFolderCount = folderSubtreeIds(getStore().categories, id).size;
   const afterDelete = () => {
     if (selectedCategory === id) setSelectedCategory('all');
     render();
   };
-  if (count === 0) {
+  if (directCount === 0 && childFolderCount === 0) {
     openConfirm(
       `Delete folder "${name}"?`,
       'This folder is empty.',
@@ -1994,16 +2332,22 @@ function onDeleteCategory(id, name) {
   }
   openFolderDeleteDialog({
     name,
-    count,
+    directCount,
+    childFolderCount,
+    subtreeExerciseCount,
+    subtreeFolderCount,
     onDeleteFolderOnly: () => {
       deleteCategory(id);
-      setStatus(`Deleted folder "${name}". ${pluralExercises(count)} ${count === 1 ? 'is' : 'are'} now unfiled.`);
+      setStatus(`Deleted folder "${name}". ${pluralExercises(directCount)} ${directCount === 1 ? 'is' : 'are'} now unfiled.`);
       afterDelete();
     },
     onDeleteAll: async () => {
       const result = await deleteCategoryWithContents(id);
       if (result.ok) {
-        setStatus(`Deleted folder "${name}" and ${pluralExercises(result.deleted)}.`);
+        const folderPart = result.foldersDeleted > 1
+          ? `${result.foldersDeleted} folders and `
+          : '';
+        setStatus(`Deleted folder "${name}" and ${folderPart}${pluralExercises(result.deleted)}.`);
       }
       afterDelete();
     },
@@ -2072,6 +2416,9 @@ export function initExercises() {
           if (addCatInput) addCatInput.value = '';
         } else if (result.reason === 'empty') {
           setStatus('Enter a folder name.', true);
+          addCatInput?.focus();
+        } else if (result.reason === 'depth') {
+          setStatus(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`, true);
           addCatInput?.focus();
         }
       });
