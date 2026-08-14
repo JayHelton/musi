@@ -61,7 +61,9 @@ const SETUP_SHEET_LANDSCAPE = `
 `;
 
 function ensureBackButton(section) {
-  if (!section || section.querySelector('.tool-back')) return;
+  if (!section) return;
+  if (section.dataset.toolPage === '1' || section.querySelector('.tool-page')) return;
+  if (section.querySelector('.tool-back')) return;
   const head = section.querySelector('.section-head');
   if (!head) return;
   const btn = document.createElement('button');
@@ -94,6 +96,7 @@ export function syncSetupToolbars() {
   document.querySelectorAll('.setup-toolbar').forEach((host) => {
     const section = host.closest('.section');
     if (!section) return;
+    if (section.dataset.toolPage === '1' || section.querySelector('.tool-page')) return;
     const back = section.querySelector('.tool-back:not(.tool-page-back)');
     const inner = host.querySelector('.setup-summary-inner');
     const head = section.querySelector('.section-head');

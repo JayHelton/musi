@@ -1,6 +1,6 @@
 .route-notice{
-  position:fixed;top:calc(env(safe-area-inset-top,0px) + 52px);left:50%;transform:translateX(-50%);
-  z-index:195;width:min(var(--content-max,1100px),calc(100vw - 32px));
+  position:fixed;top:var(--shell-bar-h);left:50%;transform:translateX(-50%);
+  z-index:195;width:min(var(--content-max,1100px),calc(100vw - 24px));
   display:flex;align-items:flex-start;gap:12px;padding:12px 14px;
   background:var(--card);color:var(--text);border:1px solid var(--border);
   border-radius:var(--radius-screen);box-shadow:0 8px 28px rgba(0,0,0,0.45);

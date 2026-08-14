@@ -576,9 +576,22 @@ function clearPendingNotice() {
   }
 }
 
+function syncRouteNoticeLayout() {
+  const el = document.getElementById('route-notice');
+  const visible = el && !el.hidden;
+  document.body.classList.toggle('route-notice-on', visible);
+  if (visible) {
+    document.body.style.setProperty('--route-notice-h', `${el.offsetHeight}px`);
+  } else {
+    document.body.classList.remove('route-notice-on');
+    document.body.style.removeProperty('--route-notice-h');
+  }
+}
+
 function hideRouteNotice() {
   const el = document.getElementById('route-notice');
   if (el) el.hidden = true;
+  syncRouteNoticeLayout();
 }
 
 function showRouteNotice(noticeId) {
@@ -590,6 +603,8 @@ function showRouteNotice(noticeId) {
   activeRouteNoticeId = noticeId;
   textEl.textContent = message;
   el.hidden = false;
+  syncRouteNoticeLayout();
+  requestAnimationFrame(() => syncRouteNoticeLayout());
 }
 
 function dismissRouteNotice(noticeId) {

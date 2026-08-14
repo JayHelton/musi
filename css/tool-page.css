@@ -32,7 +32,19 @@
   color: var(--text);
 }
 
-.tool-page .section-head .tool-back {
+.tool-page .section-head {
+  display: none;
+}
+
+.tool-page .tool-back:not(.tool-page-back) {
+  display: none;
+}
+
+.tool-page-primary:empty {
+  display: none;
+}
+
+.tool-page-advanced:not([data-has-content]) {
   display: none;
 }
 

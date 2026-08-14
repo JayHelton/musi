@@ -182,6 +182,11 @@ body.app-shell .app-main {
   padding-top: var(--shell-bar-h);
 }
 
+body.app-shell.route-notice-on .app-main,
+body.app-shell.route-notice-on main.app-main {
+  padding-top: calc(var(--shell-bar-h) + var(--route-notice-h, 64px) + 10px);
+}
+
 body.app-shell main.app-main,
 body.app-shell .app-main {
   max-width: var(--content-max);

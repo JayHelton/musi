@@ -148,6 +148,17 @@ export function mountToolPage(sectionEl, descriptor = {}) {
   advancedEl.className = 'adv-options tool-page-advanced';
   advancedEl.innerHTML = '<summary><span class="adv-gear">⚙</span> Advanced options</summary>';
 
+  const syncAdvancedVisibility = () => {
+    const hasContent = [...advancedEl.children].some((ch) => ch.tagName !== 'SUMMARY');
+    if (hasContent) advancedEl.dataset.hasContent = '';
+    else delete advancedEl.dataset.hasContent;
+  };
+  let advancedObserver = null;
+  if (typeof MutationObserver === 'function') {
+    advancedObserver = new MutationObserver(syncAdvancedVisibility);
+    advancedObserver.observe(advancedEl, { childList: true });
+  }
+
   page.append(header, contextEl, modesEl, workspace, primaryEl, advancedEl);
   sectionEl.appendChild(page);
   sectionEl.dataset.toolPage = '1';
@@ -194,6 +205,7 @@ export function mountToolPage(sectionEl, descriptor = {}) {
   }
 
   function destroy() {
+    advancedObserver?.disconnect();
     while (workspace.firstChild) {
       const child = workspace.firstChild;
       workspace.removeChild(child);
