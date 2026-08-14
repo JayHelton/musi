@@ -39,7 +39,7 @@ records each confirmation in the table below. Name the quickstart steps that pas
 | --- | --- | --- | --- | --- |
 | WP-01 | US1 | WP-01 | done | Cloud agent. All 10 WP-01 steps pass |
 | WP-02 | US2 | WP-02 | done | Cloud agent. All 9 WP-02 steps pass |
-| WP-03 | US3 | WP-03 | pending | — |
+| WP-03 | US3 | WP-03 | done | Cloud agent. Steps 1, 4–7, 11–12, and notice/dismiss pass in the browser. Steps 2–3 wait for the Library package. Context and unsaved prompts pass in Node suites. |
 | WP-04 | US4 | WP-04 | pending | — |
 | WP-05 | US5 | WP-05 | pending | — |
 | WP-06 | US6 | WP-06 | pending | — |
@@ -209,8 +209,8 @@ This phase is WP-03.
 - [X] T053 [US3] Wire the context row to the scope API in `js/screenUx.js`.
 - [X] T054 [US3] Run `node tests/shell/run.mjs` and fix every failure it reports.
 - [X] T055 [US3] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T056 [US3] Walk through every numbered step in the WP-03 section of `specs/005-tool-first-simplification/quickstart.md`.
-- [ ] T057 [US3] Record WP-03 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
+- [X] T056 [US3] Walk through every numbered step in the WP-03 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [X] T057 [US3] Record WP-03 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Back restores origin state, one audio owner holds playback, and unsaved prompts use the correct labels.
 

@@ -355,13 +355,17 @@ async function goBack(fallback) {
     return false;
   }
 
-  const parent = parentAddress(currentOrigin(), { id: currentRouteId, params: currentRouteParams });
+  const origin = (currentRouteId === ROUTINE_ROUTE_ID || currentNavId === 'workbooks')
+    ? 'routine'
+    : currentOrigin();
+  const parent = parentAddress(origin, { id: currentRouteId, params: currentRouteParams });
   popRoute();
   await applyRoute({
     id: parent.id,
     params: parent.params,
     mode: 'replace',
     source: 'internal',
+    origin,
   });
   return false;
 }
@@ -650,6 +654,7 @@ async function applyRoute({
   currentRouteParams = { ...routeParams };
 
   if (routeId === ROUTINE_ROUTE_ID) {
+    const routineOrigin = origin || (currentOrigin() === 'direct' ? 'routine' : currentOrigin()) || 'routine';
     if (!applyingHistory && mode !== 'none') {
       const url = sectionUrl(ROUTINE_ROUTE_ID, routeParams);
       const histState = { musiNav: ROUTINE_ROUTE_ID, params: routeParams };
@@ -660,8 +665,10 @@ async function applyRoute({
         suppressHashChange = true;
         history.pushState(histState, '', url);
         navPushCount += 1;
-        pushRoute({ id: routeId, params: routeParams }, origin || currentOrigin() || 'direct');
       }
+    }
+    if (mode === 'push' || currentOrigin() === 'direct') {
+      pushRoute({ id: routeId, params: routeParams }, routineOrigin);
     }
     const navigator = getRoutineNavigator();
     if (navigator) {
