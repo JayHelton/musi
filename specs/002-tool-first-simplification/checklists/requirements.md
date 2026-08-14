@@ -34,7 +34,7 @@
 - Validation ran in three passes. Pass 1 found six problems. Pass 2 found four more
   problems. Pass 3 confirmed every fix and found no new problem.
 - Scale of the specification: 9 user stories, 74 acceptance scenarios, 22 edge cases,
-  108 functional requirements in 20 groups, 23 key entities, 34 success criteria, 30
+  110 functional requirements in 20 groups, 23 key entities, 34 success criteria, 30
   assumptions, 14 out-of-scope items, and 13 dependencies.
 - Pass 1, problem 1: the brief routed `#practice` to the Metronome and `#keyboard` to a
   Train destination. The product owner's route table sends `#practice` to Practice Plan
