@@ -53,7 +53,13 @@ import {
   reorderWorkbookCompanions,
   setWorkbookCompanionCollapsed,
 } from './workbookModel.js';
-import { validMoveTargets, folderSubtreeIds } from './folderTree.js';
+import {
+  MAX_FOLDER_DEPTH,
+  findSiblingByName,
+  folderDepth,
+  folderSubtreeIds,
+  validMoveTargets,
+} from './folderTree.js';
 import { mountCompanions } from './exerciseCompanions/index.js';
 import { mountWorkbookCompanionPanel } from './workbookCompanionPanel.js';
 import { initSubviewTabs } from './uxPrimitives.js';
@@ -2229,13 +2235,35 @@ export function initWorkbooks() {
       addFolderForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const name = addFolderInput?.value || '';
-        const folder = createWorkbookFolder(name, createFolderIdForSelection());
-        if (folder) {
-          if (addFolderInput) addFolderInput.value = '';
-          render();
-        } else {
+        const clean = name.trim();
+        if (!clean) {
           setStatus('Enter a folder name.', true);
           addFolderInput?.focus();
+          return;
+        }
+        const parentId = createFolderIdForSelection();
+        if (parentId) {
+          const depth = folderDepth(listWorkbookFolders(), parentId);
+          if (depth + 1 > MAX_FOLDER_DEPTH) {
+            setStatus(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`, true);
+            addFolderInput?.focus();
+            return;
+          }
+        }
+        const existing = findSiblingByName(listWorkbookFolders(), parentId, clean);
+        if (existing) {
+          selectedFolder = existing.id;
+          if (addFolderInput) addFolderInput.value = '';
+          setStatus(`Folder "${existing.name}" already exists.`);
+          render();
+          return;
+        }
+        const folder = createWorkbookFolder(name, parentId);
+        if (folder) {
+          selectedFolder = folder.id;
+          if (addFolderInput) addFolderInput.value = '';
+          setStatus(`Created folder "${folder.name}". New workbooks land here.`);
+          render();
         }
       });
     }
