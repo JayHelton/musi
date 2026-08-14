@@ -108,10 +108,13 @@ export function createLiveContext() {
     },
     notes: {
       readAll() {
-        return readJsonArray(NOTES_KEY).map(normalizeNote).filter(Boolean);
+        return readJsonArray(NOTES_KEY);
       },
       writeAll(notes) {
         writeJson(NOTES_KEY, notes);
+      },
+      normalizeNote(raw) {
+        return normalizeNote(raw);
       },
     },
     songs: {
@@ -127,7 +130,7 @@ export function createLiveContext() {
         const store = readExerciseStore();
         return {
           categories: store.categories,
-          items: store.items.map(normalizeExerciseItem).filter(Boolean),
+          items: store.items,
         };
       },
       writeStore(store) {
@@ -145,7 +148,7 @@ export function createLiveContext() {
         const store = readWorkbookStore();
         return {
           folders: store.folders,
-          workbooks: store.workbooks.map(normalizeWorkbook).filter(Boolean),
+          workbooks: store.workbooks,
         };
       },
       writeStore(store) {
@@ -160,10 +163,13 @@ export function createLiveContext() {
     },
     routines: {
       readAll() {
-        return readRoutineStore().map(normalizeRoutine).filter(Boolean);
+        return readRoutineStore();
       },
       writeAll(routines) {
         writeJson(ROUTINES_KEY, { routines: Array.isArray(routines) ? routines : [] });
+      },
+      normalizeRoutine(raw) {
+        return normalizeRoutine(raw);
       },
     },
     attachments: {

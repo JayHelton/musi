@@ -18,16 +18,13 @@ export default {
   },
   async detect(ctx) {
     const { items } = ctx.exercises.readStore();
-    const stale = items.filter((item) => {
-      return METADATA_FIELDS.some((field) => item[field] === undefined);
-    });
-    if (!stale.length) {
-      return { needed: false, count: 0, reason: 'All exercises already expose metadata fields.' };
-    }
+    const count = items.length;
     return {
       needed: true,
-      count: stale.length,
-      reason: `${stale.length} exercise(s) need metadata defaults.`,
+      count,
+      reason: count === 0
+        ? 'Exercise store is empty; first-run migration must verify defaults.'
+        : `${count} exercise item(s) require metadata verification.`,
     };
   },
   async apply(ctx) {

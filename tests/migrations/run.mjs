@@ -47,6 +47,15 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizedNotes(ctx) {
+  return ctx.notes.readAll().map((note) => ctx.notes.normalizeNote(note)).filter(Boolean);
+}
+
+function normalizedExerciseItems(ctx) {
+  const { items } = ctx.exercises.readStore();
+  return items.map((item) => ctx.exercises.normalizeItem(item)).filter(Boolean);
+}
+
 function metaOf(rec) {
   if (!rec) return null;
   return {
@@ -94,10 +103,13 @@ function createFakeCtx(seed = {}) {
     },
     notes: {
       readAll() {
-        return state.notes.map((note) => normalizeNote(note)).filter(Boolean);
+        return clone(state.notes);
       },
       writeAll(notes) {
         state.notes = clone(notes);
+      },
+      normalizeNote(raw) {
+        return normalizeNote(raw);
       },
     },
     songs: {
@@ -112,9 +124,7 @@ function createFakeCtx(seed = {}) {
       readStore() {
         return {
           categories: clone(state.exerciseStore.categories || []),
-          items: (state.exerciseStore.items || [])
-            .map((item) => normalizeExerciseItem(item))
-            .filter(Boolean),
+          items: clone(state.exerciseStore.items || []),
         };
       },
       writeStore(store) {
@@ -131,9 +141,7 @@ function createFakeCtx(seed = {}) {
       readStore() {
         return {
           folders: clone(state.workbookStore.folders || []),
-          workbooks: (state.workbookStore.workbooks || [])
-            .map((wb) => normalizeWorkbook(wb))
-            .filter(Boolean),
+          workbooks: clone(state.workbookStore.workbooks || []),
         };
       },
       writeStore(store) {
@@ -148,10 +156,13 @@ function createFakeCtx(seed = {}) {
     },
     routines: {
       readAll() {
-        return (state.routines || []).map((rt) => normalizeRoutine(rt)).filter(Boolean);
+        return clone(state.routines || []);
       },
       writeAll(routines) {
         state.routines = clone(routines);
+      },
+      normalizeRoutine(raw) {
+        return normalizeRoutine(raw);
       },
     },
     attachments: {
@@ -260,6 +271,62 @@ await test('empty stores: all migrations detect, verify, and record ids', async 
     'exercise-metadata.v1',
     'drums-to-exercises.v1',
   ]);
+  ['notes-unfiled.v1', 'exercise-metadata.v1'].forEach((id) => {
+    const detail = report.details.find((row) => row.id === id);
+    assert.ok(detail, `missing detail for ${id}`);
+    assert.equal(detail.detect.needed, true, `${id} detect must be needed on first run`);
+    assert.notEqual(detail.apply, null, `${id} apply must run`);
+    assert.notEqual(detail.verify, null, `${id} verify must run`);
+    assert.equal(detail.verify.ok, true, `${id} verify must pass`);
+  });
+  const drumsDetail = report.details.find((row) => row.id === 'drums-to-exercises.v1');
+  assert.ok(drumsDetail);
+  assert.equal(drumsDetail.detect.needed, false);
+});
+
+await test('notes detect reports needed for empty store and legacy records', async () => {
+  const emptyCtx = createFakeCtx(buildEmptyData());
+  const emptyDetect = await notesUnfiled.detect(emptyCtx);
+  assert.equal(emptyDetect.needed, true);
+  assert.equal(emptyDetect.count, 0);
+
+  const legacyCtx = createFakeCtx({ notes: buildNormalNotes(), settings: {} });
+  const legacyDetect = await notesUnfiled.detect(legacyCtx);
+  assert.equal(legacyDetect.needed, true);
+  assert.equal(legacyDetect.count, buildNormalNotes().length);
+});
+
+await test('exercise metadata detect reports needed for empty store and legacy records', async () => {
+  const emptyCtx = createFakeCtx(buildEmptyData());
+  const emptyDetect = await exerciseMetadata.detect(emptyCtx);
+  assert.equal(emptyDetect.needed, true);
+  assert.equal(emptyDetect.count, 0);
+
+  const legacyCtx = createFakeCtx({
+    exerciseStore: buildNormalExerciseStore(),
+    settings: {},
+  });
+  const legacyDetect = await exerciseMetadata.detect(legacyCtx);
+  assert.equal(legacyDetect.needed, true);
+  assert.equal(legacyDetect.count, buildNormalExerciseStore().items.length);
+});
+
+await test('first run report details include apply and verify for read-time migrations', async () => {
+  const ctx = createFakeCtx({
+    notes: buildNormalNotes(),
+    exerciseStore: buildNormalExerciseStore(),
+    settings: {},
+    attachments: new Map(),
+  });
+  const report = await runMigrations(ctx);
+  ['notes-unfiled.v1', 'exercise-metadata.v1'].forEach((id) => {
+    const detail = report.details.find((row) => row.id === id);
+    assert.ok(detail, `missing detail for ${id}`);
+    assert.equal(detail.detect.needed, true);
+    assert.notEqual(detail.apply, null);
+    assert.notEqual(detail.verify, null);
+    assert.equal(detail.verify.ok, true);
+  });
 });
 
 await test('normal notes: legacy fields default and ids stay stable', async () => {
@@ -268,7 +335,7 @@ await test('normal notes: legacy fields default and ids stay stable', async () =
   const before = clone(notes);
   await runMigrations(ctx);
   assert.deepEqual(ctx.state.notes, before);
-  const after = ctx.notes.readAll();
+  const after = normalizedNotes(ctx);
   assert.equal(after.length, before.length);
   after.forEach((note) => {
     assert.equal(note.linkedType, '');
@@ -276,11 +343,23 @@ await test('normal notes: legacy fields default and ids stay stable', async () =
   });
 });
 
+await test('legacy notes verify passes without apply writes', async () => {
+  const notes = buildNormalNotes();
+  const ctx = createFakeCtx({ notes, settings: {} });
+  const detect = await notesUnfiled.detect(ctx);
+  assert.equal(detect.needed, true);
+  const apply = await notesUnfiled.apply(ctx);
+  assert.equal(apply.skipped, notes.length);
+  const verify = await notesUnfiled.verify(ctx);
+  assert.equal(verify.ok, true);
+  assert.deepEqual(ctx.state.notes, notes);
+});
+
 await test('duplicate note titles: both notes remain unfiled', async () => {
   const notes = buildDuplicateTitleNotes();
   const ctx = createFakeCtx({ notes, settings: {} });
   await runMigrations(ctx);
-  const after = ctx.notes.readAll();
+  const after = normalizedNotes(ctx);
   assert.equal(after.length, 2);
   assert.equal(after.filter((n) => n.linkedId === '').length, 2);
 });
@@ -289,7 +368,7 @@ await test('partial legacy note: updatedAt fills from createdAt', async () => {
   const note = buildPartialLegacyNote();
   const ctx = createFakeCtx({ notes: [note], settings: {} });
   await runMigrations(ctx);
-  const normalized = ctx.notes.readAll()[0];
+  const normalized = normalizedNotes(ctx)[0];
   assert.equal(normalized.updatedAt, note.createdAt);
   assert.equal(normalized.linkedId, '');
 });
@@ -298,9 +377,10 @@ await test('already-linked note: link fields stay intact', async () => {
   const note = buildLinkedNote();
   const ctx = createFakeCtx({ notes: [note], settings: {} });
   await runMigrations(ctx);
-  const normalized = ctx.notes.readAll()[0];
+  const normalized = normalizedNotes(ctx)[0];
   assert.equal(normalized.linkedType, 'exercise');
   assert.equal(normalized.linkedId, 'ex-normal-001');
+  assert.equal(ctx.state.notes[0].linkedId, 'ex-normal-001');
 });
 
 await test('broken note link: note is not deleted', async () => {
@@ -311,12 +391,24 @@ await test('broken note link: note is not deleted', async () => {
   assert.equal(ctx.notes.readAll()[0].id, note.id);
 });
 
+await test('legacy exercises verify passes without apply writes', async () => {
+  const store = buildNormalExerciseStore();
+  const ctx = createFakeCtx({ exerciseStore: store, settings: {} });
+  const detect = await exerciseMetadata.detect(ctx);
+  assert.equal(detect.needed, true);
+  const apply = await exerciseMetadata.apply(ctx);
+  assert.equal(apply.skipped, store.items.length);
+  const verify = await exerciseMetadata.verify(ctx);
+  assert.equal(verify.ok, true);
+  assert.deepEqual(ctx.state.exerciseStore, store);
+});
+
 await test('repeated notes migration run creates no new notes', async () => {
   const ctx = createFakeCtx({ notes: buildNormalNotes(), settings: {} });
   await runMigrations(ctx);
-  const countAfterFirst = ctx.notes.readAll().length;
+  const countAfterFirst = normalizedNotes(ctx).length;
   await runMigrations(ctx);
-  assert.equal(ctx.notes.readAll().length, countAfterFirst);
+  assert.equal(normalizedNotes(ctx).length, countAfterFirst);
 });
 
 await test('normal exercises: metadata defaults and ids stay stable', async () => {
@@ -328,7 +420,7 @@ await test('normal exercises: metadata defaults and ids stay stable', async () =
   });
   const beforeIds = store.items.map((item) => item.id);
   await runMigrations(ctx);
-  const items = ctx.exercises.readStore().items;
+  const items = normalizedExerciseItems(ctx);
   assert.deepEqual(items.map((item) => item.id).sort(), beforeIds.sort());
   const pdf = items.find((item) => item.id === 'ex-normal-pdf');
   assert.equal(pdf.materialType, 'pdf');
@@ -345,7 +437,7 @@ await test('duplicate fileName exercises: both items remain', async () => {
     settings: {},
   });
   await runMigrations(ctx);
-  assert.equal(ctx.exercises.readStore().items.length, 2);
+  assert.equal(normalizedExerciseItems(ctx).length, 2);
 });
 
 await test('partial legacy exercise: takes default to empty array', async () => {
@@ -354,7 +446,7 @@ await test('partial legacy exercise: takes default to empty array', async () => 
     settings: {},
   });
   await runMigrations(ctx);
-  const item = ctx.exercises.readStore().items[0];
+  const item = normalizedExerciseItems(ctx)[0];
   assert.deepEqual(item.takes, []);
   assert.equal(item.instrument, '');
   assert.equal(item.materialType, 'pdf');
@@ -367,8 +459,9 @@ await test('already-migrated exercise instrument is not overwritten', async () =
     attachments: new Map(),
   });
   await runMigrations(ctx);
-  const item = ctx.exercises.readStore().items.find((row) => row.id === 'ex-normal-instrument');
+  const item = normalizedExerciseItems(ctx).find((row) => row.id === 'ex-normal-instrument');
   assert.equal(item.instrument, 'bass');
+  assert.equal(ctx.state.exerciseStore.items.find((row) => row.id === 'ex-normal-instrument').instrument, 'bass');
 });
 
 await test('broken exercise attachment: item is not deleted', async () => {
@@ -378,7 +471,7 @@ await test('broken exercise attachment: item is not deleted', async () => {
     attachments: new Map(),
   });
   await runMigrations(ctx);
-  assert.ok(ctx.exercises.readStore().items.some((item) => item.id === 'ex-broken-att'));
+  assert.ok(normalizedExerciseItems(ctx).some((item) => item.id === 'ex-broken-att'));
 });
 
 await test('drums empty inbox: apply creates no exercises', async () => {
@@ -489,8 +582,8 @@ await test('drums repeated run creates no duplicate exercises', async () => {
 await test('large data set: migrations finish without duplicate ids', async () => {
   const ctx = createFakeCtx(buildLargeData());
   await runMigrations(ctx);
-  assertNoDuplicateIds(ctx.notes.readAll());
-  assertNoDuplicateIds(ctx.exercises.readStore().items);
+  assertNoDuplicateIds(normalizedNotes(ctx));
+  assertNoDuplicateIds(normalizedExerciseItems(ctx));
 });
 
 await test('failed verify leaves id out of migrations.applied', async () => {

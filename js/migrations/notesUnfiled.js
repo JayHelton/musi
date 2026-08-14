@@ -8,18 +8,13 @@ export default {
   },
   async detect(ctx) {
     const notes = ctx.notes.readAll();
-    const stale = notes.filter((note) => {
-      const linkedType = typeof note.linkedType === 'string' ? note.linkedType : '';
-      const linkedId = note.linkedId;
-      return !ALLOWED_LINKED_TYPES.has(linkedType) || typeof linkedId !== 'string';
-    });
-    if (!stale.length) {
-      return { needed: false, count: 0, reason: 'All notes already expose link fields.' };
-    }
+    const count = notes.length;
     return {
       needed: true,
-      count: stale.length,
-      reason: `${stale.length} note(s) need link field defaults.`,
+      count,
+      reason: count === 0
+        ? 'Note store is empty; first-run migration must verify defaults.'
+        : `${count} note record(s) require link field verification.`,
     };
   },
   async apply(ctx) {
@@ -28,7 +23,12 @@ export default {
   },
   async verify(ctx) {
     const problems = [];
-    ctx.notes.readAll().forEach((note, index) => {
+    ctx.notes.readAll().forEach((raw, index) => {
+      const note = ctx.notes.normalizeNote(raw);
+      if (!note) {
+        problems.push(`note[${index}] failed normalizeNote`);
+        return;
+      }
       const linkedType = typeof note.linkedType === 'string' ? note.linkedType : '';
       if (!ALLOWED_LINKED_TYPES.has(linkedType)) {
         problems.push(`note[${index}] linkedType invalid: ${linkedType}`);
