@@ -538,6 +538,39 @@ const ROUTE_NOTICE_MESSAGES = {
 };
 
 let activeRouteNoticeId = null;
+const PENDING_NOTICE_KEY = 'musi:routeNotice';
+
+function readPendingNotice() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_NOTICE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.id !== 'string') return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writePendingNotice(noticeId, routeId) {
+  if (typeof noticeId !== 'string' || noticeId === '') return;
+  try {
+    sessionStorage.setItem(PENDING_NOTICE_KEY, JSON.stringify({
+      id: noticeId,
+      routeId: routeId || '',
+    }));
+  } catch (e) {
+    // sessionStorage can be blocked; the live notice still shows on this pass
+  }
+}
+
+function clearPendingNotice() {
+  try {
+    sessionStorage.removeItem(PENDING_NOTICE_KEY);
+  } catch (e) {
+    // ignore
+  }
+}
 
 function hideRouteNotice() {
   const el = document.getElementById('route-notice');
@@ -561,14 +594,22 @@ function dismissRouteNotice(noticeId) {
   if (!next.includes(noticeId)) next.push(noticeId);
   saveSetting('route.noticesSeen', next);
   activeRouteNoticeId = null;
+  clearPendingNotice();
   hideRouteNotice();
 }
 
-function updateRouteNotice(notice) {
+function updateRouteNotice(notice, routeId) {
   if (typeof notice === 'string' && notice !== '') {
+    writePendingNotice(notice, routeId);
+  }
+  const pending = readPendingNotice();
+  const noticeId = (typeof notice === 'string' && notice !== '')
+    ? notice
+    : (pending && pending.routeId && pending.routeId === routeId ? pending.id : null);
+  if (noticeId) {
     const seen = getSetting('route.noticesSeen', []);
-    if (shouldShowNotice(notice, seen)) {
-      showRouteNotice(notice);
+    if (shouldShowNotice(noticeId, seen)) {
+      showRouteNotice(noticeId);
       return;
     }
   }
@@ -589,6 +630,9 @@ async function applyRoute({
   let sectionId = gatedSectionId(incoming.sectionId);
   const routeParams = incoming.params;
   if (notice == null) notice = incoming.notice;
+  if (typeof notice === 'string' && notice !== '') {
+    writePendingNotice(notice, incoming.routeId);
+  }
 
   if (!isValidSection(inboundId)) {
     routeId = 'tools';
@@ -625,7 +669,7 @@ async function applyRoute({
     } else {
       applySection(ROUTINE_ROUTE_ID);
     }
-    updateRouteNotice(notice);
+    updateRouteNotice(notice, routeId);
     focusHeading(document.getElementById('sec-' + ROUTINE_ROUTE_ID));
     return;
   }
@@ -645,7 +689,7 @@ async function applyRoute({
   }
 
   applySection(sectionId);
-  updateRouteNotice(notice);
+  updateRouteNotice(notice, routeId);
   restoreArriveViewState(sectionId);
   focusHeading(document.getElementById('sec-' + sectionId));
 }
@@ -795,6 +839,9 @@ function rebuildNav() {
 
 async function init() {
   const bootHash = location.hash;
+  const earlyBoot = parseAppRoute(bootHash);
+  const earlyResolved = resolveRoute({ id: earlyBoot.id, params: earlyBoot.params || {} });
+  if (earlyResolved.notice) writePendingNotice(earlyResolved.notice, earlyResolved.id);
   if ('scrollRestoration' in history) {
     history.scrollRestoration = 'manual';
   }

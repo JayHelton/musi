@@ -94,7 +94,7 @@ export function syncSetupToolbars() {
   document.querySelectorAll('.setup-toolbar').forEach((host) => {
     const section = host.closest('.section');
     if (!section) return;
-    const back = section.querySelector('.tool-back');
+    const back = section.querySelector('.tool-back:not(.tool-page-back)');
     const inner = host.querySelector('.setup-summary-inner');
     const head = section.querySelector('.section-head');
     if (!back || !inner) return;

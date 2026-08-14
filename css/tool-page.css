@@ -32,6 +32,10 @@
   color: var(--text);
 }
 
+.tool-page .section-head .tool-back {
+  display: none;
+}
+
 .tool-page-back {
   display: inline-flex;
   align-items: center;
