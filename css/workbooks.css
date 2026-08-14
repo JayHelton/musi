@@ -61,15 +61,9 @@
   opacity:0;pointer-events:none;transition:opacity .15s ease
 }
 .wb-folder-item:hover .wb-folder-tools,
-.wb-folder-item:focus-within .wb-folder-tools{
+.wb-folder-item:focus-within .wb-folder-tools,
+.wb-folder-item.is-active .wb-folder-tools{
   opacity:1;pointer-events:auto
-}
-@media (hover:none){
-  .wb-folder-tools{
-    position:static;top:auto;right:auto;transform:none;z-index:auto;
-    padding:0;border-radius:0;background:none;box-shadow:none;
-    opacity:1;pointer-events:auto
-  }
 }
 .wb-folder-tool{
   border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;

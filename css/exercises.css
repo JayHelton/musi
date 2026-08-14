@@ -47,15 +47,9 @@
   opacity:0;pointer-events:none;transition:opacity .15s ease
 }
 .ex-cat-item:hover .ex-cat-tools,
-.ex-cat-item:focus-within .ex-cat-tools{
+.ex-cat-item:focus-within .ex-cat-tools,
+.ex-cat-item.active .ex-cat-tools{
   opacity:1;pointer-events:auto
-}
-@media (hover:none){
-  .ex-cat-tools{
-    position:static;top:auto;right:auto;transform:none;z-index:auto;
-    padding:0;border-radius:0;background:none;box-shadow:none;
-    opacity:1;pointer-events:auto
-  }
 }
 .ex-cat-tool{
   border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;
