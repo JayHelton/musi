@@ -8,6 +8,20 @@
 
 **Input**: User description: "Refactor Musi into a tool-first music-practice app. The default experience must provide three purposes: Train, Study, and Create. Routines must remain available, but they must be optional. A user must be able to use every retained tool without selecting or creating a routine. Complete one work package at a time. Keep the app functional between packages. Do not remove legacy code until its replacement, migration, route redirect, and tests pass. There must be 0 regressions."
 
+## Clarifications
+
+### Session 2026-08-14
+
+The clarify run had no interactive reviewer. The agent recorded its own recommended
+answer for each question. The product owner must confirm or change each answer before
+implementation starts.
+
+- Q: When the player leaves a tool that holds an unsaved recording, does the prompt show Cancel or Keep editing? → A: The leave prompt shows Save, Discard, and Keep editing. The audio-claim prompt shows Save, Discard, and Cancel.
+- Q: What does the Search section on Tools home search? → A: Tool names and tool modes only.
+- Q: What does Practice Plan show when the player opens it without a routine? → A: A manual practice item list and a manual timer.
+- Q: How many Recents entries does Tools home keep? → A: Five entries, newest first, one entry per tool.
+- Q: How does the team record the product-owner confirmation for each work package? → A: A per-package sign-off line in `tasks.md` with the quickstart evidence.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Keep stored material and saved links working (Priority: P1)
@@ -153,8 +167,9 @@ Back results, context precedence, dock visibility, and the unsaved-recording pro
     shows the active source while work continues, and the dock clears when no playback,
     recording, or microphone work stays active.
 11. **Given** the player records audio and has not saved it, **When** the player tries
-    to leave the recording tool, **Then** the app offers Save, Discard, or Cancel and
-    does not discard the recording without an explicit choice.
+    to leave the recording tool, **Then** the app offers Save, Discard, or Keep editing,
+    and **When** another tool claims audio instead, **Then** the app offers Save,
+    Discard, or Cancel. The app never discards the recording without an explicit choice.
 
 ---
 
@@ -445,7 +460,7 @@ without sign-in.
   single audio owner rule applies per active document, and the prior source stops or
   pauses in that document.
 - A recording runs while the player navigates away inside the same document. The app
-  offers Save, Discard, or Cancel and does not discard the capture silently.
+  offers Save, Discard, or Keep editing and does not discard the capture silently.
 - Migration stops part way through a model batch. The next boot resumes or safely
   reruns normalization without duplicate records or partial deletes.
 - The player already ran migration on a prior boot. A later boot reruns migration
@@ -489,12 +504,17 @@ without sign-in.
 - **FR-008**: Tools home MUST render sections in this order: the Train, Study, and
   Create purposes; Favorites when any exist; Recents when any exist; Continue a
   routine when active routines exist; then Search and Browse all tools.
+- **FR-008a**: The Tools home Search MUST cover tool names and tool modes only. It MUST
+  NOT search Library material, songs, notes, or routines.
 - **FR-009**: The app MUST NOT render an empty Favorites, Recents, or Continue
   section on Tools home.
 - **FR-010**: Tools home MUST NOT show the text "No routines yet".
 - **FR-011**: A normal tool card MUST open the tool default mode with saved defaults.
 - **FR-012**: A Recent card MUST restore the prior mode and local context for that
   tool.
+- **FR-012a**: Tools home MUST keep at most five Recents entries. It MUST hold one entry
+  per tool and MUST show the newest entry first. A new visit to the same tool MUST
+  replace the prior entry for that tool.
 - **FR-013**: A favorite action MUST exist on tool cards and on tool pages.
 
 #### Standard tool page
@@ -561,6 +581,9 @@ without sign-in.
 - **FR-039**: The Metronome MUST support subdivisions, accents, tempo phases, and an
   optional countdown.
 - **FR-040**: Practice Plan MUST stay optional and MUST NOT require a routine session.
+  Practice Plan MUST show a manual practice item list and a manual timer. The player
+  MUST start and stop that timer by hand. Practice Plan MUST record no completion on
+  its own.
 
 #### Create and capture
 
@@ -601,8 +624,9 @@ without sign-in.
 - **FR-055**: The app MUST allow one active audio owner at a time. When the player
   starts another metronome, tone, score, recording, or media item, the app MUST stop
   or pause the prior audio owner.
-- **FR-056**: The app MUST NOT discard an unsaved recording. It MUST offer Save,
-  Discard, or Cancel.
+- **FR-056**: The app MUST NOT discard an unsaved recording. When another audio owner
+  claims audio, the app MUST offer Save, Discard, or Cancel. Cancel MUST refuse the new
+  claim and MUST keep the recording.
 - **FR-057**: The app MUST show the Audio Dock only while playback, recording, or
   microphone work is active. The dock MUST show the source, the state, the elapsed time
   when useful, and Stop.
@@ -611,7 +635,9 @@ without sign-in.
 #### Unsaved work
 
 - **FR-059**: When the player leaves an unsaved song edit, recording, transcription,
-  or Library edit, the app MUST offer Save, Discard, or Keep editing.
+  or Library edit, the app MUST offer Save, Discard, or Keep editing. The leave prompt
+  MUST use the label Keep editing. Only the audio-claim prompt in FR-056 MUST use the
+  label Cancel.
 - **FR-060**: Song text MAY auto-save and MUST show a Saving or Saved state.
 
 #### Optional routines
@@ -751,7 +777,9 @@ without sign-in.
 - **FR-105**: The app MUST stay functional between work packages. The team MUST remove
   legacy code only after its replacement, migration, route redirect, and tests pass.
 - **FR-106**: The target for the feature is zero regressions. The product owner MUST
-  confirm each work package before the next one starts.
+  confirm each work package before the next one starts. The team MUST record that
+  confirmation as a sign-off line for the package in `tasks.md`. The sign-off line MUST
+  name the quickstart steps that passed for the package.
 - **FR-107**: The repository has no lint tooling, no type checker, and no build step.
   Definition of done MUST map to Node runners under `tests/`, a browser check over HTTP,
   and CLI smoke commands such as `node cli/bin/musi.js --help`.

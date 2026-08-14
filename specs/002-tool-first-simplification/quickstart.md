@@ -544,7 +544,9 @@ Run only the checks for packages that already shipped.
     owner plays. The Audio Dock shows the active source. — FR-055, SC-013
 12. Stop all audio. The Audio Dock clears. — FR-057, SC-032
 13. Record audio in Audio Studio without saving. Try to leave. The app offers Save,
-    Discard, and Cancel. — FR-056, SC-014
+    Discard, and Keep editing. — FR-059, SC-014
+14. Keep the capture unsaved. Start the Metronome in another tool. The app offers
+    Save, Discard, and Cancel. — FR-056, SC-014
 
 ### WP-04 — Study consolidation
 
