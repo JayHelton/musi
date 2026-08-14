@@ -39,8 +39,11 @@
   padding:2px 8px;border-radius:999px;font-weight:600;font-variant-numeric:tabular-nums
 }
 .ex-cat-item.active .ex-cat-count{color:var(--accent);background:var(--accent-dim)}
+/* Folder name keeps the full row width; tools float at the row end on hover. */
 .ex-cat-tools{
-  display:flex;gap:2px;flex-shrink:0;
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:1;
+  display:flex;gap:2px;flex-shrink:0;padding:2px 4px;border-radius:8px;
+  background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,0.35);
   opacity:0;pointer-events:none;transition:opacity .15s ease
 }
 .ex-cat-item:hover .ex-cat-tools,
@@ -48,7 +51,11 @@
   opacity:1;pointer-events:auto
 }
 @media (hover:none){
-  .ex-cat-tools{opacity:1;pointer-events:auto}
+  .ex-cat-tools{
+    position:static;top:auto;right:auto;transform:none;z-index:auto;
+    padding:0;border-radius:0;background:none;box-shadow:none;
+    opacity:1;pointer-events:auto
+  }
 }
 .ex-cat-tool{
   border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;
@@ -322,7 +329,11 @@
   #sec-exercises .ex-cat-item{
     flex:0 0 auto!important;width:100%!important;min-height:44px;border-radius:10px;white-space:normal
   }
-  .ex-cat-tools{opacity:1;pointer-events:auto}
+  .ex-cat-tools{
+    position:static;top:auto;right:auto;transform:none;z-index:auto;
+    padding:0;border-radius:0;background:none;box-shadow:none;
+    opacity:1;pointer-events:auto
+  }
   .ex-cat-tool,.ex-cat-del{min-width:36px;min-height:36px;padding:8px}
 }
 
@@ -357,7 +368,16 @@
     scroll-snap-type:none!important;padding:4px!important;-webkit-overflow-scrolling:touch
   }
   #sec-exercises .ex-cat-item{min-height:36px;padding:6px 8px;border-radius:8px}
-  .ex-cat-tools{opacity:1;pointer-events:auto}
+  .ex-cat-tools{
+    position:static;top:auto;right:auto;transform:none;z-index:auto;
+    padding:0;border-radius:0;background:none;box-shadow:none;
+    opacity:1;pointer-events:auto
+  }
+  .ex-cat-item[data-depth="1"]{padding-left:8px}
+  .ex-cat-item[data-depth="2"]{padding-left:14px}
+  .ex-cat-item[data-depth="3"]{padding-left:20px}
+  .ex-cat-item[data-depth="4"]{padding-left:24px}
+  .ex-cat-item[data-depth="5"]{padding-left:28px}
   #sec-exercises .ex-cat-name{font-size:.78rem}
   #sec-exercises .ex-add-cat{
     padding:0;border:none;background:transparent;flex-shrink:0
@@ -448,6 +468,11 @@
   #sec-exercises .ex-sidebar .sl-scroll,
   #sec-exercises #ex-category-list{max-height:min(96px,28vh)!important}
   #sec-exercises .ex-cat-item{min-height:32px;padding:5px 6px}
+  .ex-cat-item[data-depth="1"]{padding-left:6px}
+  .ex-cat-item[data-depth="2"]{padding-left:10px}
+  .ex-cat-item[data-depth="3"]{padding-left:14px}
+  .ex-cat-item[data-depth="4"]{padding-left:17px}
+  .ex-cat-item[data-depth="5"]{padding-left:20px}
   #sec-exercises .ex-add-cat input,
   #sec-exercises .ex-add-cat .btn,
   #sec-exercises .ex-toolbar-actions .btn,

@@ -53,8 +53,11 @@
   padding:2px 8px;border-radius:999px;font-weight:600;font-variant-numeric:tabular-nums
 }
 .wb-folder-item.is-active .wb-folder-count{color:var(--accent);background:var(--accent-dim)}
+/* Folder name keeps the full row width; tools float at the row end on hover. */
 .wb-folder-tools{
-  display:flex;gap:2px;flex-shrink:0;
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:1;
+  display:flex;gap:2px;flex-shrink:0;padding:2px 4px;border-radius:8px;
+  background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,0.35);
   opacity:0;pointer-events:none;transition:opacity .15s ease
 }
 .wb-folder-item:hover .wb-folder-tools,
@@ -62,7 +65,11 @@
   opacity:1;pointer-events:auto
 }
 @media (hover:none){
-  .wb-folder-tools{opacity:1;pointer-events:auto}
+  .wb-folder-tools{
+    position:static;top:auto;right:auto;transform:none;z-index:auto;
+    padding:0;border-radius:0;background:none;box-shadow:none;
+    opacity:1;pointer-events:auto
+  }
 }
 .wb-folder-tool{
   border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;
@@ -660,7 +667,11 @@ body.wb-cmp-drawer-open{overflow:hidden}
     padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-screen,14px);
     background:rgba(22,31,54,0.88)
   }
-  .wb-folder-tools{opacity:1;pointer-events:auto}
+  .wb-folder-tools{
+    position:static;top:auto;right:auto;transform:none;z-index:auto;
+    padding:0;border-radius:0;background:none;box-shadow:none;
+    opacity:1;pointer-events:auto
+  }
 }
 
 @media (orientation:landscape) and (max-height:500px){
@@ -689,7 +700,16 @@ body.wb-cmp-drawer-open{overflow:hidden}
     scroll-snap-type:none!important;padding:4px!important;-webkit-overflow-scrolling:touch
   }
   #sec-workbooks:not(.wb-practicing) .wb-folder-item{min-height:36px;padding:6px 8px;border-radius:8px}
-  .wb-folder-tools{opacity:1;pointer-events:auto}
+  .wb-folder-tools{
+    position:static;top:auto;right:auto;transform:none;z-index:auto;
+    padding:0;border-radius:0;background:none;box-shadow:none;
+    opacity:1;pointer-events:auto
+  }
+  .wb-folder-item[data-depth="1"]{padding-left:6px}
+  .wb-folder-item[data-depth="2"]{padding-left:10px}
+  .wb-folder-item[data-depth="3"]{padding-left:14px}
+  .wb-folder-item[data-depth="4"]{padding-left:17px}
+  .wb-folder-item[data-depth="5"]{padding-left:20px}
   #sec-workbooks:not(.wb-practicing) .wb-folder-name{font-size:.78rem}
   #sec-workbooks:not(.wb-practicing) .wb-add-folder{padding:0;border:none;background:transparent;flex-shrink:0}
   #sec-workbooks:not(.wb-practicing) .wb-add-folder input{font-size:.78rem;padding:6px 8px;min-height:36px}
@@ -760,6 +780,11 @@ body.wb-cmp-drawer-open{overflow:hidden}
   #sec-workbooks:not(.wb-practicing) .wb-sidebar .sl-scroll,
   #sec-workbooks:not(.wb-practicing) #wb-folder-list{max-height:min(96px,28vh)!important}
   #sec-workbooks:not(.wb-practicing) .wb-folder-item{min-height:32px;padding:5px 6px}
+  .wb-folder-item[data-depth="1"]{padding-left:4px}
+  .wb-folder-item[data-depth="2"]{padding-left:7px}
+  .wb-folder-item[data-depth="3"]{padding-left:10px}
+  .wb-folder-item[data-depth="4"]{padding-left:12px}
+  .wb-folder-item[data-depth="5"]{padding-left:14px}
   #sec-workbooks:not(.wb-practicing) .wb-add-folder input,
   #sec-workbooks:not(.wb-practicing) .wb-add-folder .btn,
   #sec-workbooks:not(.wb-practicing) .wb-toolbar-actions .btn,

@@ -1911,7 +1911,8 @@ function renderFolders() {
     } else if (rowOpts.editable) {
       row.appendChild(el('span', { class: 'wb-folder-twisty-spacer', 'aria-hidden': 'true' }));
     }
-    row.appendChild(el('span', { class: 'wb-folder-name', text: name }));
+    // A deep row can clip the name, so the tooltip carries the full path.
+    row.appendChild(el('span', { class: 'wb-folder-name', text: name, title: rowOpts.path || name }));
     row.appendChild(el('span', { class: 'wb-folder-count', text: String(count) }));
     const select = () => {
       selectedFolder = key;
@@ -1953,6 +1954,7 @@ function renderFolders() {
       editable: true,
       id: opt.id,
       depth: opt.depth,
+      path: opt.path,
       hasChildren: folderHasChildFolders(opt.id, opts),
     } : { depth: opt.depth });
   });

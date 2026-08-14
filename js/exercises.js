@@ -1056,7 +1056,8 @@ function renderCategories() {
     } else if (opts.editable) {
       row.appendChild(el('span', { class: 'ex-cat-twisty-spacer', 'aria-hidden': 'true' }));
     }
-    row.appendChild(el('span', { class: 'ex-cat-name', text: name }));
+    // A deep row can clip the name, so the tooltip carries the full path.
+    row.appendChild(el('span', { class: 'ex-cat-name', text: name, title: opts.path || name }));
     row.appendChild(el('span', { class: 'ex-cat-count', text: String(count) }));
     const select = () => {
       setSelectedCategory(key);
@@ -1098,6 +1099,7 @@ function renderCategories() {
       editable: true,
       id: opt.id,
       depth: opt.depth,
+      path: opt.path,
       hasChildren: categoryHasChildFolders(opt.id),
     } : { depth: opt.depth });
   });
