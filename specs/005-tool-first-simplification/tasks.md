@@ -38,7 +38,7 @@ records each confirmation in the table below. Name the quickstart steps that pas
 | Package | Story | Quickstart section | Status | Confirmed by |
 | --- | --- | --- | --- | --- |
 | WP-01 | US1 | WP-01 | done | Cloud agent. All 10 WP-01 steps pass |
-| WP-02 | US2 | WP-02 | pending | — |
+| WP-02 | US2 | WP-02 | done | Cloud agent. All 9 WP-02 steps pass |
 | WP-03 | US3 | WP-03 | pending | — |
 | WP-04 | US4 | WP-04 | pending | — |
 | WP-05 | US5 | WP-05 | pending | — |
@@ -150,19 +150,33 @@ Metronome opens in two interactions or fewer.
 
 This phase is WP-02.
 
-- [ ] T028 [US2] Create `tests/shell/run.mjs` with pure `js/tools/homeModel.js` cases for FR-008 order, FR-009 empty sections, FR-008a Search scope, and FR-012a Recents cap.
-- [ ] T029 [P] [US2] Implement pure section order and five-entry Recents cap in `js/tools/homeModel.js`.
-- [ ] T030 [US2] Implement the Tools home renderer in `js/tools/home.js`.
-- [ ] T031 [P] [US2] Implement the app bar, rail, and bottom nav in `js/shell/nav.js`.
-- [ ] T032 [P] [US2] Add `purpose`, `modes`, and `defaultMode` to each tool in `js/tools.js`.
-- [ ] T033 [P] [US2] Create `css/shell.css` for the app bar and navigation chrome.
-- [ ] T034 [P] [US2] Create `css/tools-home.css` for Tools home sections and cards.
-- [ ] T035 [US2] Add shell markup and stylesheet links in `index.html`.
-- [ ] T036 [US2] Remove `rebuildDesktopDock` and the `hub-<categoryId>` routes from `js/main.js`.
-- [ ] T037 [US2] Flip the root route to `tools` with no hash in `js/main.js` and `js/appRoute.js`.
-- [ ] T038 [US2] Run `node tests/shell/run.mjs` and fix every failure it reports.
-- [ ] T039 [US2] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T040 [US2] Walk through every numbered step in the WP-02 section of `specs/005-tool-first-simplification/quickstart.md` and record WP-02 sign-off in `specs/005-tool-first-simplification/tasks.md`.
+- [X] T028 [US2] Create `tests/shell/run.mjs` with pure `js/tools/homeModel.js` cases for FR-008 order, FR-009 empty sections, FR-008a Search scope, and FR-012a Recents cap.
+- [X] T029 [P] [US2] Implement pure section order and five-entry Recents cap in `js/tools/homeModel.js`.
+- [X] T030 [US2] Implement the Tools home renderer in `js/tools/home.js`.
+- [X] T031 [P] [US2] Implement the app bar, rail, and bottom nav in `js/shell/nav.js`.
+- [X] T032 [P] [US2] Add `purpose`, `modes`, and `defaultMode` to each tool in `js/tools.js`.
+- [X] T033 [P] [US2] Create `css/shell.css` for the app bar and navigation chrome.
+- [X] T034 [P] [US2] Create `css/tools-home.css` for Tools home sections and cards.
+- [X] T035 [US2] Add shell markup and stylesheet links in `index.html`.
+- [X] T036 [US2] Remove `rebuildDesktopDock` and the `hub-<categoryId>` routes from `js/main.js`.
+- [X] T037 [US2] Flip the root route to `tools` with no hash in `js/main.js` and `js/appRoute.js`.
+- [X] T038 [US2] Run `node tests/shell/run.mjs` and fix every failure it reports.
+- [X] T039 [US2] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
+- [X] T040 [US2] Walk through every numbered step in the WP-02 section of `specs/005-tool-first-simplification/quickstart.md` and record WP-02 sign-off in `specs/005-tool-first-simplification/tasks.md`.
+
+**WP-02 quickstart evidence.** The team runs the walk-through with `tests/appcheck/run.mjs`.
+
+| Quickstart step | Evidence |
+| --- | --- |
+| 1. Empty hash opens Tools with Train selected | `activeSection` is `sec-tools`. Hash is empty. Train is active |
+| 2. Section order | Purpose switch, then Search, then Browse. Empty Favorites, Recents, and Continue stay hidden |
+| 3. Empty lists hide optional sections | No Favorites, Recents, or Continue on a fresh profile |
+| 4. No `No routines yet` text | `hasNoRoutinesYet` is false |
+| 5. Desktop rail lists four items | Tools, Library, Routines, Settings |
+| 6. Phone bar lists four items | Tools, Library, Routines, More |
+| 7. Metronome opens with no routine prompt | Click opens `sec-metronome`. `hasRoutinePrompt` is false |
+| 8. Tuner opens in two interactions or fewer | One click on Pitch & Ear Lab opens `sec-tuner` |
+| 9. Favorite add and remove | Favorites section appears with Metronome, then hides after remove |
 
 **Checkpoint**: The root opens Tools home, primary navigation lists no individual tool, and the Metronome opens without a routine prompt.
 

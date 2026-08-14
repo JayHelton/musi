@@ -96,9 +96,11 @@
 <link rel="stylesheet" href="css/cloud.css">
 <link rel="stylesheet" href="css/theme-gbc.css">
 <link rel="stylesheet" href="css/route-notice.css">
+<link rel="stylesheet" href="css/shell.css">
+<link rel="stylesheet" href="css/tools-home.css">
 <link rel="stylesheet" href="css/landscape.css">
 </head>
-<body class="boot-locked">
+<body class="boot-locked app-shell">
 <div id="boot-splash" class="boot-splash" role="dialog" aria-label="Loading musi" aria-busy="true">
   <div class="boot-splash-inner">
     <div class="boot-pixel-stage" aria-hidden="true">
@@ -153,8 +155,8 @@
   </div>
 </div>
 <canvas id="visualizer-canvas"></canvas>
-<header>
-  <h1 class="wordmark" id="wordmark-home" role="button" tabindex="0" title="Home">musi</h1>
+<header class="app-bar">
+  <h1 class="wordmark" id="wordmark-home" role="button" tabindex="0" title="Tools">musi</h1>
   <div class="header-actions">
     <button id="split-trigger" class="header-icon-btn split-trigger" type="button" aria-label="Split view" title="Split view">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>
@@ -197,9 +199,14 @@
 </button>
 
 <nav id="nav" class="dock"></nav>
-<main>
-  <!-- HOME -->
-  <section id="sec-home" class="section active">
+<main class="app-main">
+  <!-- TOOLS HOME -->
+  <section id="sec-tools" class="section">
+    <div id="tools-home" class="tools-home"></div>
+  </section>
+
+  <!-- HOME (legacy; no longer boot target) -->
+  <section id="sec-home" class="section">
     <div class="section-head">
       <div class="section-kicker">Practice</div>
       <h2>musi</h2>

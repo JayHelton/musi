@@ -6,6 +6,12 @@ import { getSetting, saveSetting } from './persistence.js';
 export const FEATURES_ENABLED_KEY = 'features.enabled';
 const LOCKED_FEATURE_IDS = ['musicprefs'];
 
+export const PURPOSES = [
+  { id: 'train', label: 'Train' },
+  { id: 'study', label: 'Study' },
+  { id: 'create', label: 'Create' },
+];
+
 export const CATEGORIES = [
   {
     id: 'train',
@@ -80,11 +86,19 @@ export const TOOLS = [
   },
   {
     id: 'intervalorbit',
-    label: 'Interval Map',
+    label: 'Fretboard & Interval Map',
     short: 'Interval Map',
     category: 'train',
     description: 'Learn the reusable fretboard shapes for every interval around an anchor root, then test yourself by locating, naming, or playing them.',
-    title: 'Fretboard Interval Map',
+    title: 'Fretboard & Interval Map',
+    purpose: 'study',
+    modes: [
+      { id: 'learn', label: 'Learn' },
+      { id: 'map', label: 'Map' },
+      { id: 'chordtones', label: 'Chord tones' },
+      { id: 'explain', label: 'Explain' },
+    ],
+    defaultMode: 'map',
     drill: true,
     holdRecord: true,
   },
@@ -100,11 +114,20 @@ export const TOOLS = [
   },
   {
     id: 'tuner',
-    label: 'Pitch',
+    label: 'Pitch & Ear Lab',
     short: 'Pitch',
     category: 'train',
     description: 'Tuner, reference tones, pitch trainer, and Pitch Runner.',
-    title: 'Pitch',
+    title: 'Pitch & Ear Lab',
+    purpose: 'train',
+    modes: [
+      { id: 'tuner', label: 'Tuner' },
+      { id: 'tone', label: 'Reference tone' },
+      { id: 'match', label: 'Pitch match' },
+      { id: 'runner', label: 'Pitch runner' },
+      { id: 'ear', label: 'Ear' },
+    ],
+    defaultMode: 'tuner',
     drill: true,
     holdRecord: true,
   },
@@ -130,20 +153,38 @@ export const TOOLS = [
   },
   {
     id: 'scaleref',
-    label: 'Scale Reference',
+    label: 'Scale Lab',
     short: 'Scales',
     category: 'reference',
     description: 'Find scales, modes, and diatonic chords on the neck.',
-    title: 'Scale Reference',
+    title: 'Scale Lab',
+    purpose: 'study',
+    modes: [
+      { id: 'overview', label: 'Overview' },
+      { id: 'neck', label: 'Neck' },
+      { id: 'harmony', label: 'Harmony' },
+      { id: 'modes', label: 'Modes' },
+      { id: 'guide', label: 'Guide' },
+    ],
+    defaultMode: 'overview',
     holdRecord: false,
   },
   {
     id: 'chords',
-    label: 'Chords',
+    label: 'Chord Lab',
     short: 'Chords',
     category: 'reference',
     description: 'Map voicings, movable cards, builder, and CAGED.',
-    title: 'Chords',
+    title: 'Chord Lab',
+    purpose: 'study',
+    modes: [
+      { id: 'reference', label: 'Reference' },
+      { id: 'map', label: 'Map' },
+      { id: 'voicings', label: 'Voicings' },
+      { id: 'triads', label: 'Triads' },
+      { id: 'build', label: 'Build' },
+    ],
+    defaultMode: 'reference',
     holdRecord: false,
   },
   {
@@ -166,20 +207,30 @@ export const TOOLS = [
   },
   {
     id: 'recorder',
-    label: 'Recorder',
+    label: 'Audio Studio',
     short: 'Record',
     category: 'create',
     description: 'Capture takes, inspect pitch, and map a sung riff to guitar tab.',
-    title: 'Recorder',
+    title: 'Audio Studio',
+    purpose: 'create',
+    modes: [
+      { id: 'capture', label: 'Capture' },
+      { id: 'analyze', label: 'Analyze' },
+      { id: 'transcribe', label: 'Transcribe' },
+    ],
+    defaultMode: 'capture',
     holdRecord: true,
   },
   {
     id: 'songwriter',
-    label: 'Songwriting',
+    label: 'Song Studio',
     short: 'Lyrics',
     category: 'create',
     description: 'Write lyrics and attach recordings.',
-    title: 'Songwriting',
+    title: 'Song Studio',
+    purpose: 'create',
+    modes: [],
+    defaultMode: '',
     holdRecord: true,
   },
   {
@@ -193,11 +244,16 @@ export const TOOLS = [
   },
   {
     id: 'tracktosheet',
-    label: 'Track → Sheet',
+    label: 'Audio Studio Transcribe',
     short: 'To Sheet',
     category: 'create',
     description: 'Upload an isolated track and turn pitches into basic sheet music.',
-    title: 'Track → Sheet',
+    title: 'Audio Studio Transcribe',
+    purpose: 'create',
+    modes: [
+      { id: 'transcribe', label: 'Transcribe' },
+    ],
+    defaultMode: 'transcribe',
     holdRecord: false,
   },
   {
@@ -216,15 +272,26 @@ export const TOOLS = [
     category: 'tools',
     description: 'Tempo, meter, tap tempo, and practice phases with subdivisions.',
     title: 'Metronome',
+    purpose: 'train',
+    modes: [
+      { id: 'metronome', label: 'Metronome' },
+      { id: 'plan', label: 'Practice Plan' },
+    ],
+    defaultMode: 'metronome',
     holdRecord: false,
   },
   {
     id: 'practice',
-    label: 'Practice Timer',
+    label: 'Practice Plan',
     short: 'Timer',
     category: 'tools',
     description: 'Countdown timer with a metronome tempo plan.',
-    title: 'Practice Timer',
+    title: 'Practice Plan',
+    purpose: 'train',
+    modes: [
+      { id: 'plan', label: 'Practice Plan' },
+    ],
+    defaultMode: 'plan',
     holdRecord: false,
   },
   {
@@ -243,6 +310,9 @@ export const TOOLS = [
     category: 'tools',
     description: 'Upload tabs, Guitar Pro files, audio, videos and lesson links.',
     title: 'Exercises',
+    purpose: 'train',
+    modes: [],
+    defaultMode: '',
     holdRecord: false,
   },
   {
@@ -252,6 +322,9 @@ export const TOOLS = [
     category: 'tools',
     description: 'Ordered exercise workbooks with looping and auto-advance.',
     title: 'Exercise Workbooks',
+    purpose: 'train',
+    modes: [],
+    defaultMode: '',
     holdRecord: false,
   },
   {
@@ -265,11 +338,14 @@ export const TOOLS = [
   },
   {
     id: 'gpplayer',
-    label: 'Guitar Pro Player',
+    label: 'Score Player',
     short: 'GP Player',
     category: 'tools',
     description: 'Play Guitar Pro tracks, analyze key/chords/scales inline, select measure ranges, and save them as Exercises.',
-    title: 'Guitar Pro Player',
+    title: 'Score Player',
+    purpose: 'train',
+    modes: [],
+    defaultMode: '',
     holdRecord: false,
   },
   {
@@ -331,6 +407,20 @@ export const TOOL_ICONS = {
   studylab: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15v-4"/><path d="M12 15V8"/><path d="M16 15v-6"/><circle cx="18" cy="6" r="2"/></svg>',
   musicprefs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.4.7 1.1 1.1 1.9 1.1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
 };
+
+export function toolSearchText(tool) {
+  const parts = [tool.label, tool.short, tool.title];
+  if (Array.isArray(tool.modes)) {
+    for (const mode of tool.modes) {
+      if (mode && typeof mode.label === 'string') parts.push(mode.label);
+    }
+  }
+  return parts.filter(Boolean).join(' ').toLowerCase();
+}
+
+export function toolsForPurpose(purposeId) {
+  return TOOLS.filter(t => t.purpose === purposeId);
+}
 
 export function getTool(id) {
   return TOOLS.find(t => t.id === id) || null;

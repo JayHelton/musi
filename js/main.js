@@ -32,12 +32,14 @@ import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { initProgressHeaders } from './progressHeader.js';
-import { initHome, refreshHome, renderHub } from './home.js';
+import { renderHub } from './home.js';
+import { initShellNav, setActiveNav } from './shell/nav.js';
+import { initToolsHome, refreshToolsHome, recordToolVisit } from './tools/home.js';
 import { initStats } from './stats.js';
 import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
 import { initStudyLab, stopStudyLab } from './studyLab.js';
 import {
-  TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
+  CATEGORIES,
   getTabs, getTool, isHoldRecordRelevant, isFeatureEnabled,
 } from './tools.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
@@ -50,7 +52,6 @@ import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routin
 import { getRoutine } from './routineModel.js';
 import { getWorkbook } from './workbookModel.js';
 
-const ICONS = TOOL_ICONS;
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 
 const TOOL_STOPPERS = {
@@ -115,7 +116,7 @@ function initTool(id) {
 }
 
 let splitSecondaryId = null;
-let currentNavId = 'home';
+let currentNavId = 'tools';
 /** How many in-app pushState entries sit above the boot entry (phone Back pops these). */
 let navPushCount = 0;
 /** True while applying a popstate/hashchange so we don't push another history entry. */
@@ -139,7 +140,7 @@ function hubCategory(id) {
 }
 
 function sectionUrl(id, params = {}) {
-  return routeUrl({ id: id || 'home', params });
+  return routeUrl({ id: id || 'tools', params });
 }
 
 function resolveSectionAlias(id) {
@@ -151,7 +152,7 @@ function resolveSectionAlias(id) {
 function isValidSection(id) {
   const resolved = resolveSectionAlias(id);
   return resolved === 'home' ||
-    isHubId(resolved) && CATEGORIES.some(c => c.id === hubCategory(resolved)) ||
+    resolved === 'tools' ||
     getTabs().some(t => t.id === resolved);
 }
 
@@ -187,21 +188,14 @@ function updateHoldRecordVisibility(id) {
 }
 
 function updateHeaderChrome(id) {
-  const isTool = id && id !== 'home' && !isHubId(id);
+  const isRoot = id === 'home' || id === 'tools';
+  const isTool = id && !isRoot && !isHubId(id) && !!getTool(id);
   document.body.classList.toggle('tool-screen', !!isTool);
-  const tool = getTool(id);
-  document.querySelectorAll('.dock-cat-btn').forEach(btn => {
-    const cat = btn.dataset.cat;
-    let active = false;
-    if (id === 'home') active = cat === 'home';
-    else if (isHubId(id)) active = cat === hubCategory(id);
-    else if (tool) active = cat === tool.category;
-    btn.classList.toggle('active', active);
-  });
+  setActiveNav(id);
 }
 
-function showHub(categoryId, skipHash) {
-  showSection('hub-' + categoryId, skipHash);
+function showHub(_categoryId, skipHash) {
+  showSection('tools', skipHash);
 }
 
 /**
@@ -217,7 +211,7 @@ function goBack(fallback) {
     fallback();
     return false;
   }
-  if (currentNavId !== 'home') showSection('home');
+  if (currentNavId !== 'tools') showSection('tools');
   return false;
 }
 
@@ -232,30 +226,31 @@ function applySection(id, { keep = [] } = {}) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
 
-  const sec = document.getElementById('sec-' + id);
+  const sectionId = id === 'home' ? 'tools' : id;
+  const sec = document.getElementById('sec-' + sectionId);
   if (!sec) return;
 
   sec.classList.add('active');
-  currentNavId = id;
+  currentNavId = sectionId;
 
   document.querySelectorAll(`.dock-item[data-s="${id}"]`).forEach(el => el.classList.add('active'));
+
+  if (sectionId === 'tools') {
+    refreshToolsHome();
+    stopOtherTools([]);
+    updateHoldRecordVisibility(null);
+    updateHeaderChrome(sectionId);
+    updateSplitUI();
+    return;
+  }
 
   if (isHubId(id)) {
     const cat = hubCategory(id);
     saveSetting('nav.lastCategory', cat);
     renderHub(cat, sec, {
       showSection,
-      onFavorite: () => { refreshHome(); renderHub(cat, sec, { showSection, onFavorite: refreshHome }); },
+      onFavorite: () => { refreshToolsHome(); renderHub(cat, sec, { showSection, onFavorite: refreshToolsHome }); },
     });
-    stopOtherTools([]);
-    updateHoldRecordVisibility(null);
-    updateHeaderChrome(id);
-    updateSplitUI();
-    return;
-  }
-
-  if (id === 'home') {
-    refreshHome();
     stopOtherTools([]);
     updateHoldRecordVisibility(null);
     updateHeaderChrome(id);
@@ -267,12 +262,13 @@ function applySection(id, { keep = [] } = {}) {
   if (tool) {
     saveSetting('nav.lastTool', id);
     saveSetting('nav.lastCategory', tool.category);
+    recordToolVisit(id);
   }
 
   const back = sec.querySelector('.tool-back');
   if (back && tool) {
     const hubLabel = CATEGORIES.find(c => c.id === tool.category)?.label || 'Back';
-    back.onclick = () => goBack(() => showHub(tool.category));
+    back.onclick = () => goBack(() => showSection('tools'));
     back.textContent = `← ${hubLabel}`;
   }
 
@@ -281,14 +277,13 @@ function applySection(id, { keep = [] } = {}) {
   updateHoldRecordVisibility(id);
   updateHeaderChrome(id);
   updateSplitUI();
-  refreshHome();
   syncSetupToolbars();
 }
 
 function showSection(id, skipHash, params = {}) {
   const toolForGate = getTool(id);
   if (toolForGate && !isFeatureEnabled(id)) {
-    showSection('home', skipHash);
+    showSection('tools', skipHash);
     return;
   }
 
@@ -336,8 +331,8 @@ const routineShell = {
     if (nav) nav.applyRoute(buildRoutineParams(parentRoute), { source: 'internal' });
   },
   goHome() {
-    applySection('home');
-    history.replaceState({ musiNav: 'home', params: {} }, '', sectionUrl('home'));
+    applySection('tools');
+    history.replaceState({ musiNav: 'tools', params: {} }, '', sectionUrl('tools'));
   },
   hasInAppHistory() {
     return navPushCount > 0;
@@ -380,7 +375,7 @@ function getRoutineNavigator() {
 
 function gatedSectionId(id) {
   const toolForGate = getTool(id);
-  if (toolForGate && !isFeatureEnabled(id)) return 'home';
+  if (toolForGate && !isFeatureEnabled(id)) return 'tools';
   return id;
 }
 
@@ -467,7 +462,7 @@ function applyRoute({ id, params = {}, mode = 'push', source = 'internal', notic
     return;
   }
 
-  const targetId = resolved && isValidSection(resolved) ? gatedSectionId(resolved) : 'home';
+  const targetId = resolved && isValidSection(resolved) ? gatedSectionId(resolved) : 'tools';
   const routeParams = targetId === resolved ? params : {};
 
   if (mode === 'push') {
@@ -493,7 +488,7 @@ window.goBack = goBack;
 function enterSplit(secondaryId) {
   const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
   if (isMobileSwipeNav()) return;
-  if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || secondaryId === 'home') return;
+  if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || primaryId === 'tools' || secondaryId === 'home' || secondaryId === 'tools') return;
   if (isHubId(primaryId) || isHubId(secondaryId)) return;
   if (!getTabs().some(t => t.id === secondaryId)) return;
   splitSecondaryId = secondaryId;
@@ -567,7 +562,7 @@ function updateSplitUI() {
       if (sec) sec.classList.remove('active', 'split-secondary');
       splitSecondaryId = null;
       document.body.classList.remove('split-mode');
-      stopOtherTools(primaryId && !isHubId(primaryId) && primaryId !== 'home' ? [primaryId] : []);
+      stopOtherTools(primaryId && !isHubId(primaryId) && primaryId !== 'home' && primaryId !== 'tools' ? [primaryId] : []);
     }
     closeSplitMenu();
     trigger.style.display = 'none';
@@ -575,7 +570,7 @@ function updateSplitUI() {
     return;
   }
   const primary = currentPrimaryId();
-  trigger.style.display = (primary === 'home' || isHubId(primary)) ? 'none' : '';
+  trigger.style.display = (primary === 'home' || primary === 'tools' || isHubId(primary)) ? 'none' : '';
   trigger.classList.toggle('active', !!splitSecondaryId);
 }
 
@@ -607,65 +602,11 @@ function isMobileSwipeNav() {
 }
 
 function initNav() {
-  const nav = document.getElementById('nav');
-  if (!nav) return;
-
-  rebuildDesktopDock(nav);
-
-  // Mobile: 5 persistent destinations
-  const mobileCats = document.createElement('div');
-  mobileCats.className = 'dock-mobile-cats';
-  const destinations = [
-    { id: 'home', label: 'Home', icon: CATEGORY_ICONS.home, action: () => showSection('home') },
-    ...CATEGORIES.map(cat => ({
-      id: cat.id,
-      label: cat.short,
-      icon: CATEGORY_ICONS[cat.id],
-      action: () => {
-        // If already on a tool in this category, go to hub; else hub
-        const tool = getTool(currentNavId);
-        if (currentNavId === 'hub-' + cat.id) return;
-        if (tool && tool.category === cat.id && currentNavId === tool.id) {
-          showHub(cat.id);
-        } else {
-          showHub(cat.id);
-        }
-      },
-    })),
-  ];
-  destinations.forEach(dest => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'dock-cat-btn';
-    btn.dataset.cat = dest.id;
-    btn.innerHTML = `<span class="dock-icon">${dest.icon}</span><span class="dock-label">${dest.label}</span>`;
-    btn.onclick = dest.action;
-    mobileCats.appendChild(btn);
-  });
-  nav.appendChild(mobileCats);
-}
-
-function rebuildDesktopDock(navEl) {
-  const nav = navEl || document.getElementById('nav');
-  if (!nav) return;
-  nav.querySelectorAll('.dock-item.dock-desktop').forEach(el => el.remove());
-  const mobileCats = nav.querySelector('.dock-mobile-cats');
-  getTabs().forEach(t => {
-    const item = document.createElement('button');
-    item.className = 'dock-item dock-desktop';
-    item.dataset.s = t.id;
-    item.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span class="dock-label">${t.label}</span>`;
-    item.onclick = () => showSection(t.id);
-    if (mobileCats) nav.insertBefore(item, mobileCats);
-    else nav.appendChild(item);
-  });
-  if (currentNavId) {
-    document.querySelectorAll(`.dock-item[data-s="${currentNavId}"]`).forEach(el => el.classList.add('active'));
-  }
+  initShellNav({ showSection, currentId: currentNavId });
 }
 
 function rebuildNav() {
-  rebuildDesktopDock();
+  setActiveNav(currentNavId);
   closeSplitMenu();
   if (splitSecondaryId && !isFeatureEnabled(splitSecondaryId)) {
     exitSplit();
@@ -774,9 +715,8 @@ async function init() {
   initNowPlaying();
   initHoldRecordButton();
   initProgressHeaders();
-  initHome({
+  initToolsHome({
     showSection,
-    showHub,
     openRoute: (id, params) => applyRoute({ id, params, mode: 'push', source: 'internal' }),
   });
   initStats();
@@ -786,16 +726,16 @@ async function init() {
 
   window.addEventListener('musi:features-changed', () => {
     rebuildNav();
-    refreshHome();
+    refreshToolsHome();
     if (currentNavId && getTool(currentNavId) && !isFeatureEnabled(currentNavId)) {
-      showSection('home');
+      showSection('tools');
     }
   });
 
   const wordmark = document.getElementById('wordmark-home');
   if (wordmark) {
-    wordmark.onclick = () => showSection('home');
-    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
+    wordmark.onclick = () => showSection('tools');
+    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('tools'); } };
   }
 
   const bootRoute = parseAppRoute(location.hash);
@@ -803,9 +743,8 @@ async function init() {
   if (bootId && isValidSection(bootId)) {
     applyRoute({ id: bootId, params: bootRoute.params, mode: 'replace', source: 'boot' });
   } else {
-    history.replaceState({ musiNav: 'home', params: {} }, '', sectionUrl('home'));
-    updateHeaderChrome('home');
-    updateHoldRecordVisibility(null);
+    history.replaceState({ musiNav: 'tools', params: {} }, '', sectionUrl('tools'));
+    applySection('tools');
   }
 
   // Phone / browser Back: walk the screen stack instead of leaving the PWA.
@@ -822,7 +761,7 @@ async function init() {
       }
       id = resolveSectionAlias(id);
       if (isValidSection(id)) applyRoute({ id, params, mode: 'none', source: 'popstate' });
-      else applyRoute({ id: 'home', params: {}, mode: 'none', source: 'popstate' });
+      else applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'popstate' });
     } finally {
       applyingHistory = false;
     }
@@ -838,8 +777,8 @@ async function init() {
         if (id !== currentNavId) navPushCount += 1;
         applyRoute({ id, params: parsed.params, mode: 'none', source: 'hashchange' });
       } else if (!id) {
-        if (currentNavId !== 'home') navPushCount += 1;
-        applyRoute({ id: 'home', params: {}, mode: 'none', source: 'hashchange' });
+        if (currentNavId !== 'tools') navPushCount += 1;
+        applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'hashchange' });
       }
     } finally {
       applyingHistory = false;
