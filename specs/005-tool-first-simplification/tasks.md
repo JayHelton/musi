@@ -54,7 +54,7 @@ this record. Fill the table in T001 and T003.
 
 | Item | Baseline value |
 | --- | --- |
-| Node runners that pass | All 15 pass: `tests/cloud/run.mjs`, `tests/companions/run.mjs`, `tests/exercises/run.mjs`, `tests/folder-tree/run.mjs`, `tests/genre-removal/run.mjs`, `tests/gp-player/run.mjs`, `tests/interval-map/run.mjs`, `tests/pitch/run.mjs`, `tests/qr/run.mjs`, `tests/routine-nav/run.mjs`, `tests/routines/run.mjs`, `tests/study-lab/run.mjs`, `tests/track-to-sheet/dsp.mjs`, `tests/track-to-sheet/run.mjs`, `tests/workbooks/run.mjs` |
+| Node runners that pass | All 32 suites in the quickstart baseline list pass. The list holds `tests/workbooks/run.mjs`, the six `tests/track-to-sheet/` suites, the four `tests/sync/` suites, `tests/study-lab/run.mjs`, `tests/routines/run.mjs`, `tests/routine-nav/run.mjs`, `tests/qr/run.mjs`, `tests/interval-map/run.mjs`, `tests/genre-removal/run.mjs`, `tests/exercises/run.mjs`, `tests/companions/run.mjs`, `tests/cloud/run.mjs`, `tests/folder-tree/run.mjs`, `tests/pitch/run.mjs`, and the twelve `tests/gp-player/` suites. The four new suites `tests/routes/run.mjs`, `tests/migrations/run.mjs`, `tests/shell/run.mjs`, `tests/library/run.mjs`, `tests/fretboard/run.mjs`, and `tests/removal-guard/run.mjs` did not exist at baseline. |
 | `CACHE_VERSION` in `service-worker.js` | `v205-nested-folder-tree` |
 | CLI activity list prints | Yes. `node cli/bin/musi.js --help` lists scale, interval, sight, fretboard, orbit, ear, pitch, reference, and tab |
 
@@ -77,12 +77,12 @@ this record. Fill the table in T001 and T003.
 
 **⚠️ CRITICAL**: No WP-01 task can start until this phase finishes.
 
-- [ ] T005 Extend `tests/exercises/idbShim.mjs` to shim the `musi-drums` IndexedDB database.
-- [ ] T006 Extend `tests/exercises/idbShim.mjs` to shim the `musi-attachments` object store.
-- [ ] T007 [P] Add empty-data fixtures in `tests/migrations/fixtures/emptyData.mjs` per decision D27.
-- [ ] T008 [P] Add normal-data fixtures in `tests/migrations/fixtures/normalData.mjs` per decision D27.
-- [ ] T009 [P] Add large-data fixtures in `tests/migrations/fixtures/largeData.mjs` per decision D27.
-- [ ] T010 [P] Add shared assertion helpers in `tests/migrations/assertHelpers.mjs` for the new suites.
+- [X] T005 Extend `tests/exercises/idbShim.mjs` to shim the `musi-drums` IndexedDB database.
+- [X] T006 Extend `tests/exercises/idbShim.mjs` to shim the `musi-attachments` object store.
+- [X] T007 [P] Add empty-data fixtures in `tests/migrations/fixtures/emptyData.mjs` per decision D27.
+- [X] T008 [P] Add normal-data fixtures in `tests/migrations/fixtures/normalData.mjs` per decision D27.
+- [X] T009 [P] Add large-data fixtures in `tests/migrations/fixtures/largeData.mjs` per decision D27.
+- [X] T010 [P] Add shared assertion helpers in `tests/migrations/assertHelpers.mjs` for the new suites.
 
 **Checkpoint**: `tests/exercises/idbShim.mjs` covers both databases, fixture sets exist, and assertion helpers are ready for WP-01 suites.
 
@@ -101,21 +101,21 @@ duplicate record, and that an old bookmark opens the correct destination.
 
 This phase is WP-01.
 
-- [ ] T011 [US1] Create `tests/migrations/run.mjs` with fixture rows from the three migration tables in `data-model.md`.
-- [ ] T012 [US1] Create `tests/routes/run.mjs` with the full legacy hash table from `contracts/route-map.md`.
-- [ ] T013 [P] [US1] Implement `resolveRoute`, `isKnownRoute`, `ROUTE_IDS`, and `LEGACY_ROUTES` in `js/routeMap.js`.
-- [ ] T014 [US1] Implement the registry and `runMigrations` in `js/migrations/index.js`.
-- [ ] T015 [P] [US1] Implement migration `notes-unfiled.v1` in `js/migrations/notesUnfiled.js`.
-- [ ] T016 [P] [US1] Implement migration `exercise-metadata.v1` in `js/migrations/exerciseMetadata.js`.
-- [ ] T017 [P] [US1] Implement migration `drums-to-exercises.v1` in `js/migrations/drumsToExercises.js`.
-- [ ] T018 [P] [US1] Add `linkedType` and `linkedId` defaults in `normalizeNote` in `js/notes.js`.
-- [ ] T019 [P] [US1] Add exercise metadata fields in `normalizeItem` in `js/exercises.js`.
-- [ ] T020 [US1] Await `runMigrations` in `init()` in `js/main.js` before the first render.
-- [ ] T021 [US1] Read `route.noticesSeen` when `applyRoute` runs in `js/main.js`.
-- [ ] T022 [US1] Read the `drumPatterns` sync inbox in `js/cloud/recordMap.js` for drums migration.
-- [ ] T023 [US1] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T024 [US1] Run `node tests/migrations/run.mjs` and fix every failure it reports.
-- [ ] T025 [US1] Run `node tests/routes/run.mjs` and fix every failure it reports.
+- [X] T011 [US1] Create `tests/migrations/run.mjs` with fixture rows from the three migration tables in `data-model.md`.
+- [X] T012 [US1] Create `tests/routes/run.mjs` with the full legacy hash table from `contracts/route-map.md`.
+- [X] T013 [P] [US1] Implement `resolveRoute`, `isKnownRoute`, `ROUTE_IDS`, and `LEGACY_ROUTES` in `js/routeMap.js`.
+- [X] T014 [US1] Implement the registry and `runMigrations` in `js/migrations/index.js`.
+- [X] T015 [P] [US1] Implement migration `notes-unfiled.v1` in `js/migrations/notesUnfiled.js`.
+- [X] T016 [P] [US1] Implement migration `exercise-metadata.v1` in `js/migrations/exerciseMetadata.js`.
+- [X] T017 [P] [US1] Implement migration `drums-to-exercises.v1` in `js/migrations/drumsToExercises.js`.
+- [X] T018 [P] [US1] Add `linkedType` and `linkedId` defaults in `normalizeNote` in `js/notes.js`.
+- [X] T019 [P] [US1] Add exercise metadata fields in `normalizeItem` in `js/exercises.js`.
+- [X] T020 [US1] Await `runMigrations` in `init()` in `js/main.js` before the first render.
+- [X] T021 [US1] Read `route.noticesSeen` when `applyRoute` runs in `js/main.js`.
+- [X] T022 [US1] Read the `drumPatterns` sync inbox in `js/cloud/recordMap.js` for drums migration.
+- [X] T023 [US1] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
+- [X] T024 [US1] Run `node tests/migrations/run.mjs` and fix every failure it reports.
+- [X] T025 [US1] Run `node tests/routes/run.mjs` and fix every failure it reports.
 - [ ] T026 [US1] Walk through every numbered step in the WP-01 section of `specs/005-tool-first-simplification/quickstart.md`.
 - [ ] T027 [US1] Record WP-01 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 

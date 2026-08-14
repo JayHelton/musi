@@ -95,6 +95,7 @@
 <link rel="stylesheet" href="css/sync.css">
 <link rel="stylesheet" href="css/cloud.css">
 <link rel="stylesheet" href="css/theme-gbc.css">
+<link rel="stylesheet" href="css/route-notice.css">
 <link rel="stylesheet" href="css/landscape.css">
 </head>
 <body class="boot-locked">
@@ -160,6 +161,11 @@
     </button>
   </div>
 </header>
+
+<div id="route-notice" class="route-notice" hidden role="status" aria-live="polite">
+  <p class="route-notice-text" id="route-notice-text"></p>
+  <button type="button" class="route-notice-close" id="route-notice-close" aria-label="Dismiss">&times;</button>
+</div>
 
 <div id="now-playing" class="now-playing">
   <div class="np-eq">

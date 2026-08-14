@@ -59,16 +59,28 @@ function clampText(value, limit) {
   return value.slice(0, limit);
 }
 
-function normalizeNote(raw) {
+const LINKED_TYPES = new Set(['', 'song', 'exercise', 'workbook', 'routine']);
+
+function normalizeLinkedType(value) {
+  const t = typeof value === 'string' ? value : '';
+  return LINKED_TYPES.has(t) ? t : '';
+}
+
+export function normalizeNote(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const created = typeof raw.createdAt === 'string' ? raw.createdAt : nowISO();
-  return {
+  const core = {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid(),
     title: clampText(typeof raw.title === 'string' ? raw.title : '', TITLE_LIMIT),
     body: clampText(typeof raw.body === 'string' ? raw.body : '', BODY_LIMIT),
     createdAt: created,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : created,
+    linkedType: normalizeLinkedType(raw.linkedType),
+    linkedId: typeof raw.linkedId === 'string' ? raw.linkedId : '',
   };
+  const out = { ...raw };
+  Object.assign(out, core);
+  return out;
 }
 
 function getNotes() {

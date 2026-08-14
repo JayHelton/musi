@@ -122,6 +122,77 @@ function titleFromUrl(url) {
   }
 }
 
+function extensionFromName(fileName) {
+  const name = typeof fileName === 'string' ? fileName : '';
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot === name.length - 1) return '';
+  return name.slice(dot + 1).toLowerCase();
+}
+
+function deriveInstrument(type, fileName) {
+  const t = typeof type === 'string' ? type.toLowerCase() : '';
+  const ext = extensionFromName(fileName);
+  if (
+    t === 'application/x-guitar-pro' ||
+    t.includes('guitar-pro') ||
+    /^(gp|gp5|gpx)$/i.test(ext) ||
+    /\.musi-tab\.json$/i.test(fileName || '')
+  ) {
+    return 'guitar';
+  }
+  if (t.startsWith('audio/') || /^(mp3|m4a|aac|wav|opus|flac|ogg|oga|webm)$/.test(ext)) {
+    return 'guitar';
+  }
+  if (t.startsWith('video/') || /^(mp4|m4v|mov|ogv)$/.test(ext)) {
+    return 'guitar';
+  }
+  return '';
+}
+
+function deriveMaterialType(type, fileName, url) {
+  if (url) return 'link';
+  const t = typeof type === 'string' ? type.toLowerCase() : '';
+  const ext = extensionFromName(fileName);
+  if (t === 'application/pdf' || ext === 'pdf') return 'pdf';
+  if (
+    t === 'application/x-guitar-pro' ||
+    t.includes('guitar-pro') ||
+    /^(gp|gp5|gpx)$/i.test(ext) ||
+    /\.musi-tab\.json$/i.test(fileName || '')
+  ) {
+    return 'tab';
+  }
+  if (t.startsWith('audio/') || /^(mp3|m4a|aac|wav|opus|flac|ogg|oga|webm)$/.test(ext)) {
+    return 'audio';
+  }
+  if (t.startsWith('video/') || /^(mp4|m4v|mov|ogv)$/.test(ext)) {
+    return 'video';
+  }
+  if (t.startsWith('image/') || /^(png|jpe?g|gif|webp|bmp|svg)$/.test(ext)) {
+    return 'image';
+  }
+  if (
+    /^(docx?|txt|rtf|odt|md|pages|csv)$/i.test(ext) ||
+    t === 'application/msword' ||
+    t === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    t === 'text/plain' ||
+    t === 'text/markdown' ||
+    t === 'text/csv'
+  ) {
+    return 'doc';
+  }
+  if (t === 'text/uri-list') return 'link';
+  return '';
+}
+
+function normalizeTags(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((tag) => typeof tag === 'string' && tag.trim())
+    .map((tag) => tag.trim())
+    .slice(0, 50);
+}
+
 // --- normalization ---------------------------------------------------------
 
 function normalizeCategory(raw) {
@@ -168,14 +239,18 @@ function normalizeItem(raw) {
   const measureEnd = bar(raw.measureEnd);
   const startBeat = num(raw.startBeat);
   const endBeat = num(raw.endBeat);
-  return {
+  const fileName = typeof raw.fileName === 'string' ? raw.fileName : '';
+  const type = typeof raw.type === 'string' ? raw.type : '';
+  const instrumentRaw = typeof raw.instrument === 'string' ? raw.instrument.trim() : '';
+  const materialTypeRaw = typeof raw.materialType === 'string' ? raw.materialType.trim() : '';
+  const core = {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('ex'),
     name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : defaultName, NAME_LIMIT),
     categoryId: typeof raw.categoryId === 'string' ? raw.categoryId : '',
     attachmentId,
     url,
-    fileName: typeof raw.fileName === 'string' ? raw.fileName : '',
-    type: typeof raw.type === 'string' ? raw.type : '',
+    fileName,
+    type,
     size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : 0,
     addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : nowISO(),
     // Guitar Pro practice settings (optional).
@@ -195,7 +270,19 @@ function normalizeItem(raw) {
     tuning: typeof raw.tuning === 'string' && raw.tuning ? raw.tuning : null,
     retuneMode: raw.retuneMode === 'pitches' ? 'pitches' : 'fingerings',
     takes: normalizeTakes(raw.takes),
+    instrument: instrumentRaw || deriveInstrument(type, fileName),
+    materialType: materialTypeRaw || deriveMaterialType(type, fileName, url),
+    technique: typeof raw.technique === 'string' ? raw.technique : '',
+    difficulty: typeof raw.difficulty === 'string' ? raw.difficulty : '',
+    tags: normalizeTags(raw.tags),
+    source: typeof raw.source === 'string' ? raw.source : '',
+    contentHash: typeof raw.contentHash === 'string' ? raw.contentHash : '',
+    favorite: raw.favorite === true,
+    sourceRef: typeof raw.sourceRef === 'string' ? raw.sourceRef : '',
   };
+  const out = { ...raw };
+  Object.assign(out, core);
+  return out;
 }
 
 export function normalizeExerciseItem(raw) {

@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v205-nested-folder-tree";
+const CACHE_VERSION = "v206-tool-first-wp01";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -50,6 +50,7 @@ const PRECACHE_URLS = [
   "css/theme-gbc.css",
   "css/landscape.css",
   "css/boot-splash.css",
+  "css/route-notice.css",
   "chord-cards/",
   "chord-cards/index.html",
   "chord-cards/css/cards.css",
@@ -71,6 +72,7 @@ const PRECACHE_URLS = [
   "js/musicalContext.js",
   "js/home.js",
   "js/appRoute.js",
+  "js/routeMap.js",
   "js/routineRoute.js",
   "js/routineDashboardModel.js",
   "js/routineNav.js",
@@ -129,6 +131,10 @@ const PRECACHE_URLS = [
   "js/notes.js",
   "js/nowPlaying.js",
   "js/persistence.js",
+  "js/migrations/index.js",
+  "js/migrations/notesUnfiled.js",
+  "js/migrations/exerciseMetadata.js",
+  "js/migrations/drumsToExercises.js",
   "js/practiceTimer.js",
   "js/pitch.js",
   "js/pitchMetrics.js",

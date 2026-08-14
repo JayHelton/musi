@@ -1,4 +1,9 @@
-// Minimal IndexedDB shim for Node tests (backs js/attachments.js saveFile).
+// Minimal IndexedDB shim for Node tests (backs js/attachments.js and js/drums/drumPatternDb.js).
+
+export const ATTACHMENTS_DB = 'musi-attachments';
+export const ATTACHMENTS_STORE = 'files';
+export const DRUMS_DB = 'musi-drums';
+export const DRUMS_STORE = 'patterns';
 
 function storageKeyForRecord(rec, keyPath) {
   if (!keyPath || keyPath === 'id') return rec.id;
@@ -16,6 +21,12 @@ function storageKeyForLookup(key, keyPath) {
 
 const stores = new Map();
 const storeKeyPaths = new Map();
+
+function ensureStore(storeName, keyPath = 'id') {
+  if (!stores.has(storeName)) stores.set(storeName, new Map());
+  if (!storeKeyPaths.has(storeName)) storeKeyPaths.set(storeName, keyPath);
+  return stores.get(storeName);
+}
 
 // Empties every object store but keeps the open handles valid. Modules cache
 // their database promise, so a test that only replaces `globalThis.indexedDB`
@@ -39,14 +50,12 @@ export function installIdbShim() {
         name,
         objectStoreNames: { contains: (n) => stores.has(n) },
         createObjectStore(storeName, options = {}) {
-          if (!stores.has(storeName)) stores.set(storeName, new Map());
           const keyPath = options.keyPath || 'id';
-          storeKeyPaths.set(storeName, keyPath);
+          ensureStore(storeName, keyPath);
           return {};
         },
         transaction(storeName, mode) {
-          if (!stores.has(storeName)) stores.set(storeName, new Map());
-          const data = stores.get(storeName);
+          const data = ensureStore(storeName);
           const keyPath = storeKeyPaths.get(storeName) || 'id';
           return {
             objectStore() {
@@ -88,6 +97,11 @@ export function installIdbShim() {
         },
       };
       queueMicrotask(() => {
+        if (name === ATTACHMENTS_DB) {
+          ensureStore(ATTACHMENTS_STORE, 'id');
+        } else if (name === DRUMS_DB) {
+          ensureStore(DRUMS_STORE, 'id');
+        }
         req.result = db;
         req.onupgradeneeded?.({ target: req });
         req.onsuccess?.({ target: req });

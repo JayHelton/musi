@@ -43,6 +43,8 @@ import {
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
 import { parseAppRoute, routeUrl } from './appRoute.js';
+import { shouldShowNotice } from './routeMap.js';
+import { runMigrations, createLiveContext } from './migrations/index.js';
 import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
 import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
 import { getRoutine } from './routineModel.js';
@@ -382,7 +384,66 @@ function gatedSectionId(id) {
   return id;
 }
 
-function applyRoute({ id, params = {}, mode = 'push', source = 'internal' }) {
+const ROUTE_NOTICE_MESSAGES = {
+  'notice.scales-removed': 'The Scales screen moved to Scale Lab.',
+  'notice.intervals-removed': 'The Intervals quiz moved to Fretboard & Interval Map at Learn.',
+  'notice.fretboard-removed': 'The Fretboard trainer moved to Fretboard & Interval Map.',
+  'notice.chordlab-removed': 'This link now opens Chord Lab Reference.',
+  'notice.timing-removed': 'The Timing drill moved to Metronome.',
+  'notice.sightreading-removed': 'The Sight Reading quiz moved to Train.',
+  'notice.notes-removed': 'Your notes moved to Song Studio under Unfiled Notes.',
+  'notice.pitch-reference': 'The keyboard is now a pitch reference in Study.',
+  'notice.drums-removed': 'Drum patterns moved to exercises in Library.',
+};
+
+let activeRouteNoticeId = null;
+
+function hideRouteNotice() {
+  const el = document.getElementById('route-notice');
+  if (el) el.hidden = true;
+}
+
+function showRouteNotice(noticeId) {
+  const el = document.getElementById('route-notice');
+  const textEl = document.getElementById('route-notice-text');
+  if (!el || !textEl) return;
+  const message = ROUTE_NOTICE_MESSAGES[noticeId];
+  if (!message) return;
+  activeRouteNoticeId = noticeId;
+  textEl.textContent = message;
+  el.hidden = false;
+}
+
+function dismissRouteNotice(noticeId) {
+  const seen = getSetting('route.noticesSeen', []);
+  const next = Array.isArray(seen) ? [...seen] : [];
+  if (!next.includes(noticeId)) next.push(noticeId);
+  saveSetting('route.noticesSeen', next);
+  activeRouteNoticeId = null;
+  hideRouteNotice();
+}
+
+function updateRouteNotice(notice) {
+  if (typeof notice === 'string' && notice !== '') {
+    const seen = getSetting('route.noticesSeen', []);
+    if (shouldShowNotice(notice, seen)) {
+      showRouteNotice(notice);
+      return;
+    }
+  }
+  hideRouteNotice();
+}
+
+function initRouteNoticeBanner() {
+  const closeBtn = document.getElementById('route-notice-close');
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      if (activeRouteNoticeId) dismissRouteNotice(activeRouteNoticeId);
+    };
+  }
+}
+
+function applyRoute({ id, params = {}, mode = 'push', source = 'internal', notice = null }) {
   const resolved = resolveSectionAlias(id);
 
   if (resolved === ROUTINE_ROUTE_ID) {
@@ -402,6 +463,7 @@ function applyRoute({ id, params = {}, mode = 'push', source = 'internal' }) {
     } else {
       applySection(ROUTINE_ROUTE_ID);
     }
+    updateRouteNotice(notice);
     return;
   }
 
@@ -410,6 +472,7 @@ function applyRoute({ id, params = {}, mode = 'push', source = 'internal' }) {
 
   if (mode === 'push') {
     showSection(targetId, false, routeParams);
+    updateRouteNotice(notice);
     return;
   }
   if (mode === 'replace') {
@@ -417,9 +480,11 @@ function applyRoute({ id, params = {}, mode = 'push', source = 'internal' }) {
       history.replaceState({ musiNav: targetId, params: routeParams }, '', sectionUrl(targetId, routeParams));
     }
     applySection(targetId);
+    updateRouteNotice(notice);
     return;
   }
   applySection(targetId);
+  updateRouteNotice(notice);
 }
 window.showSection = showSection;
 window.showHub = showHub;
@@ -609,12 +674,25 @@ function rebuildNav() {
   }
 }
 
-function init() {
+async function init() {
   if ('scrollRestoration' in history) {
     history.scrollRestoration = 'manual';
   }
   initBootSplash();
+
+  try {
+    const report = await runMigrations(createLiveContext());
+    if (report.failed?.length) {
+      for (const failure of report.failed) {
+        console.warn(`Migration ${failure.id} failed at ${failure.stage}: ${failure.error}`);
+      }
+    }
+  } catch (err) {
+    console.warn('Migration runner failed:', err);
+  }
+
   initNav();
+  initRouteNoticeBanner();
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);

@@ -24,6 +24,80 @@ const CONTENT_KEY_WORKBOOKS = 'musi.workbooks';
 const CONTENT_KEY_ROUTINES = 'musi.routines';
 const CONTENT_KEY_GP_ANNOTATIONS = 'musi.gpAnnotations';
 
+export const DRUM_PATTERNS_INBOX_KEY = 'cloud.drumPatternsInbox';
+
+function getStorage() {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.localStorage) {
+      return globalThis.localStorage;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return null;
+}
+
+export function readDrumPatternsInbox() {
+  const storage = getStorage();
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(DRUM_PATTERNS_INBOX_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row) => isPlainObject(row) && row.id);
+  } catch (e) {
+    return [];
+  }
+}
+
+export function writeDrumPatternsInbox(patterns) {
+  const storage = getStorage();
+  if (!storage) return false;
+  const list = Array.isArray(patterns)
+    ? patterns.filter((row) => isPlainObject(row) && row.id)
+    : [];
+  try {
+    storage.setItem(DRUM_PATTERNS_INBOX_KEY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function drumPatternsFromSyncRows(rows) {
+  const patterns = [];
+  const list = Array.isArray(rows) ? rows : [];
+  list.forEach((row) => {
+    if (!row || row.domain !== 'drumPatterns' || row.deleted) return;
+    const payload = row.payload;
+    if (!isPlainObject(payload) || !payload.id) return;
+    if (payload.builtin === true) return;
+    patterns.push(payload);
+  });
+  return patterns;
+}
+
+export function mergeDrumPatternLists(...lists) {
+  const byId = new Map();
+  lists.forEach((list) => {
+    if (!Array.isArray(list)) return;
+    list.forEach((pattern) => {
+      if (!isPlainObject(pattern) || !pattern.id) return;
+      byId.set(pattern.id, pattern);
+    });
+  });
+  return [...byId.values()];
+}
+
+export function stageDrumPatternsInboxFromRows(rows) {
+  const incoming = drumPatternsFromSyncRows(rows);
+  if (!incoming.length) return [];
+  const merged = mergeDrumPatternLists(readDrumPatternsInbox(), incoming);
+  writeDrumPatternsInbox(merged);
+  return incoming;
+}
+
 export const SYNC_DOMAINS = Object.freeze([
   'settings',
   'progress',
