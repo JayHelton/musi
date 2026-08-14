@@ -11,9 +11,25 @@ import {
   searchTools,
 } from '../../js/tools/homeModel.js';
 import { TOOLS, toolsForPurpose } from '../../js/tools.js';
+import {
+  pushRoute,
+  popRoute,
+  currentOrigin,
+  saveViewState,
+  readViewState,
+  restoreScroll,
+  parentAddress,
+} from '../../js/shell/navStack.js';
+import {
+  registerUnsaved,
+  clearUnsaved,
+  hasUnsaved,
+  confirmLeave,
+} from '../../js/shell/unsavedGuard.js';
 
 let passed = 0;
 let failed = 0;
+const pendingAsync = [];
 
 function test(name, fn) {
   try {
@@ -24,6 +40,19 @@ function test(name, fn) {
     failed += 1;
     console.error(`  ✗ ${name}`);
     console.error(`    ${err.message}`);
+  }
+}
+
+function testAsync(name, fn) {
+  pendingAsync.push({ name, fn });
+}
+
+const NAV_ORIGINS = ['tools', 'library', 'workbook', 'routine', 'search', 'recent', 'direct'];
+
+function drainNavStack() {
+  while (true) {
+    const prior = popRoute();
+    if (prior === null && currentOrigin() === 'direct') break;
   }
 }
 
@@ -234,6 +263,189 @@ test('no section or item label equals "No routines yet"', () => {
   assert.equal(labels.includes('No routines yet'), false);
 });
 
+console.log('navStack origins');
+for (const origin of NAV_ORIGINS) {
+  test(`pushRoute and currentOrigin track ${origin}`, () => {
+    drainNavStack();
+    const route = { id: 'metronome', params: { mode: 'plan' } };
+    pushRoute(route, origin);
+    assert.equal(currentOrigin(), origin);
+    drainNavStack();
+  });
+}
+
+test('popRoute returns the prior stack entry', () => {
+  drainNavStack();
+  const first = { id: 'tools', params: {} };
+  const second = { id: 'metronome', params: {} };
+  pushRoute(first, 'tools');
+  pushRoute(second, 'library');
+  assert.deepEqual(popRoute(), { route: first, origin: 'tools' });
+  assert.equal(currentOrigin(), 'tools');
+  assert.equal(popRoute(), null);
+  assert.equal(currentOrigin(), 'direct');
+});
+
+test('popRoute does not call history', () => {
+  drainNavStack();
+  const historyLog = [];
+  const priorHistory = globalThis.history;
+  globalThis.history = {
+    pushState(...args) { historyLog.push(['pushState', ...args]); },
+    replaceState(...args) { historyLog.push(['replaceState', ...args]); },
+    back() { historyLog.push(['back']); },
+    go(...args) { historyLog.push(['go', ...args]); },
+  };
+  try {
+    pushRoute({ id: 'tools', params: {} }, 'tools');
+    pushRoute({ id: 'metronome', params: {} }, 'search');
+    popRoute();
+    popRoute();
+    assert.equal(historyLog.length, 0);
+  } finally {
+    globalThis.history = priorHistory;
+  }
+});
+
+console.log('navStack view state');
+test('saveViewState and readViewState round-trip Library filter shape', () => {
+  const routeKey = 'library:exercises';
+  const state = {
+    query: 'scale',
+    filters: {
+      instrument: 'guitar',
+      materialType: 'exercise',
+      technique: 'alternate',
+      tuning: 'standard',
+      difficulty: 'easy',
+      tags: ['warmup', 'scales'],
+      source: 'local',
+      favorite: true,
+    },
+    sort: 'name-asc',
+    selectedId: 'ex-42',
+    scrollY: 240,
+  };
+  saveViewState(routeKey, state);
+  assert.deepEqual(readViewState(routeKey), state);
+  assert.equal(restoreScroll(routeKey), 240);
+});
+
+console.log('navStack parentAddress');
+test('parentAddress for tools, library, search, recent, and direct', () => {
+  assert.deepEqual(parentAddress('tools', { id: 'metronome', params: {} }), {
+    id: 'tools',
+    params: {},
+  });
+  assert.deepEqual(parentAddress('library', { id: 'scalelab', params: { mode: 'overview' } }), {
+    id: 'library',
+    params: { mode: 'exercises' },
+  });
+  assert.deepEqual(parentAddress('search', { id: 'fretmap', params: {} }), {
+    id: 'tools',
+    params: {},
+  });
+  assert.deepEqual(parentAddress('recent', { id: 'chordlab', params: {} }), {
+    id: 'tools',
+    params: {},
+  });
+  assert.deepEqual(parentAddress('direct', { id: 'pitchear', params: { mode: 'tuner' } }), {
+    id: 'tools',
+    params: {},
+  });
+});
+
+test('parentAddress for routine peels exercise, workbook, session, routine, then tools', () => {
+  const full = {
+    id: 'routines',
+    params: { routine: 'r1', session: 's1', workbook: 'w1', exercise: 'e1' },
+  };
+  assert.deepEqual(parentAddress('routine', full), {
+    id: 'routines',
+    params: { routine: 'r1', session: 's1', workbook: 'w1' },
+  });
+  assert.deepEqual(parentAddress('routine', {
+    id: 'routines',
+    params: { routine: 'r1', session: 's1', workbook: 'w1' },
+  }), {
+    id: 'routines',
+    params: { routine: 'r1', session: 's1' },
+  });
+  assert.deepEqual(parentAddress('routine', {
+    id: 'routines',
+    params: { routine: 'r1', session: 's1' },
+  }), {
+    id: 'routines',
+    params: { routine: 'r1' },
+  });
+  assert.deepEqual(parentAddress('routine', {
+    id: 'routines',
+    params: { routine: 'r1' },
+  }), {
+    id: 'tools',
+    params: {},
+  });
+});
+
+console.log('unsavedGuard');
+test('registerUnsaved sets hasUnsaved', () => {
+  clearUnsaved('scope-a');
+  assert.equal(hasUnsaved(), false);
+  registerUnsaved('scope-a', {
+    describe: () => 'Draft recording',
+    save: () => {},
+    discard: () => {},
+  });
+  assert.equal(hasUnsaved(), true);
+  clearUnsaved('scope-a');
+  assert.equal(hasUnsaved(), false);
+});
+
+const unsavedPromptCases = [
+  { label: 'Save', result: 'save', handler: 'save' },
+  { label: 'Discard', result: 'discard', handler: 'discard' },
+  { label: 'Keep editing', result: 'keep', handler: null },
+];
+
+for (const { label, result, handler } of unsavedPromptCases) {
+  testAsync(`confirmLeave maps "${label}" to ${result}`, async () => {
+    const scopeId = `scope-prompt-${result}`;
+    clearUnsaved(scopeId);
+    let saveCalls = 0;
+    let discardCalls = 0;
+    registerUnsaved(scopeId, {
+      describe: () => 'Unsaved take',
+      save: () => { saveCalls += 1; },
+      discard: () => { discardCalls += 1; },
+    });
+
+    const promptCalls = [];
+    const choice = await confirmLeave(({ title, choices }) => {
+      promptCalls.push({ title, choices });
+      return label;
+    });
+
+    assert.equal(choice, result);
+    assert.equal(promptCalls.length, 1);
+    assert.deepEqual(promptCalls[0].choices, ['Save', 'Discard', 'Keep editing']);
+
+    if (handler === 'save') {
+      assert.equal(saveCalls, 1);
+      assert.equal(discardCalls, 0);
+      assert.equal(hasUnsaved(), false);
+    } else if (handler === 'discard') {
+      assert.equal(saveCalls, 0);
+      assert.equal(discardCalls, 1);
+      assert.equal(hasUnsaved(), false);
+    } else {
+      assert.equal(saveCalls, 0);
+      assert.equal(discardCalls, 0);
+      assert.equal(hasUnsaved(), true);
+      clearUnsaved(scopeId);
+    }
+  });
+}
+
 console.log('Live catalog');
 test('Train, Study, and Create each list the expected tools', () => {
   const trainIds = toolsForPurpose('train').map(t => t.id);
@@ -257,9 +469,25 @@ test('Train, Study, and Create each list the expected tools', () => {
   }
 });
 
-console.log('');
-if (failed) {
-  console.error(`${failed} failed, ${passed} passed`);
-  process.exit(1);
+for (const { name, fn } of pendingAsync) {
+  try {
+    await fn();
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } catch (err) {
+    failed += 1;
+    console.error(`  ✗ ${name}`);
+    console.error(`    ${err.message}`);
+  }
 }
-console.log(`${passed} passed, 0 failed`);
+
+async function run() {
+  console.log('');
+  if (failed) {
+    console.error(`${failed} failed, ${passed} passed`);
+    process.exit(1);
+  }
+  console.log(`${passed} passed, 0 failed`);
+}
+
+await run();
