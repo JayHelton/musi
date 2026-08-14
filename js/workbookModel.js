@@ -11,6 +11,19 @@ import {
   normalizeCompanions,
 } from './exerciseCompanions/types.js';
 import { emitDataChanged } from './dataEvents.js';
+import {
+  MAX_FOLDER_DEPTH,
+  normalizeParentId,
+  sanitizeFolderTree,
+  findSiblingByName,
+  flattenFolderTree,
+  folderPathLabel,
+  folderSubtreeIds,
+  folderDepth,
+  folderById,
+  canMoveFolder,
+  nextParentAfterDelete,
+} from './folderTree.js';
 
 export const WORKBOOKS_STORAGE_KEY = 'musi.workbooks';
 
@@ -69,7 +82,8 @@ export function normalizeWorkbookFolder(raw) {
     typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Folder',
     FOLDER_LIMIT,
   );
-  return { id, name };
+  const parentId = normalizeParentId(raw.parentId);
+  return { id, name, parentId };
 }
 
 function normalizeEntry(raw) {
@@ -125,10 +139,12 @@ function getStore() {
   }
   try {
     const parsed = JSON.parse(raw);
+    const normalizedFolders = Array.isArray(parsed && parsed.folders)
+      ? parsed.folders.map(normalizeWorkbookFolder).filter(Boolean)
+      : [];
+    const { folders: repairedFolders } = sanitizeFolderTree(normalizedFolders);
     storeCache = {
-      folders: Array.isArray(parsed && parsed.folders)
-        ? parsed.folders.map(normalizeWorkbookFolder).filter(Boolean)
-        : [],
+      folders: repairedFolders,
       workbooks: Array.isArray(parsed && parsed.workbooks)
         ? parsed.workbooks.map(normalizeWorkbook).filter(Boolean)
         : [],
@@ -191,16 +207,34 @@ export function listWorkbookFolders() {
   return getStore().folders.map(f => ({ ...f }));
 }
 
-export function createWorkbookFolder(name) {
+export function createWorkbookFolder(name, parentId = '') {
   const clean = clampText((name || '').trim(), FOLDER_LIMIT);
   if (!clean) return null;
   const store = getStore();
-  const exists = store.folders.find(f => f.name.toLowerCase() === clean.toLowerCase());
+  let resolvedParent = typeof parentId === 'string' && parentId ? parentId : '';
+  if (resolvedParent && !store.folders.some(f => f.id === resolvedParent)) {
+    resolvedParent = '';
+  }
+  const exists = findSiblingByName(store.folders, resolvedParent, clean);
   if (exists) return { ...exists };
-  const folder = normalizeWorkbookFolder({ id: uid('wbf'), name: clean });
+  const parentDepth = resolvedParent ? folderDepth(store.folders, resolvedParent) : 0;
+  if (parentDepth + 1 > MAX_FOLDER_DEPTH) return null;
+  const folder = normalizeWorkbookFolder({ id: uid('wbf'), name: clean, parentId: resolvedParent });
   store.folders.push(folder);
   persist();
   return { ...folder };
+}
+
+export function moveWorkbookFolder(id, parentId) {
+  const store = getStore();
+  const targetParent = normalizeParentId(parentId);
+  const check = canMoveFolder(store.folders, id, targetParent);
+  if (!check.ok) return { ok: false, reason: check.reason };
+  const folder = store.folders.find(f => f.id === id);
+  if (!folder) return { ok: false, reason: 'missing' };
+  folder.parentId = targetParent;
+  persist();
+  return { ok: true, reason: '' };
 }
 
 export function renameWorkbookFolder(id, name) {
@@ -213,47 +247,89 @@ export function renameWorkbookFolder(id, name) {
   return true;
 }
 
-/** Removes the folder; workbooks filed here become uncategorized. */
+/** Removes the folder; child folders move up one level; direct workbooks become uncategorized. */
 export function deleteWorkbookFolder(id) {
   const store = getStore();
   const idx = store.folders.findIndex(f => f.id === id);
   if (idx < 0) return false;
-  store.folders.splice(idx, 1);
+  const nextParent = nextParentAfterDelete(store.folders, id);
+  for (const folder of store.folders) {
+    if (normalizeParentId(folder.parentId) === id) {
+      folder.parentId = nextParent;
+    }
+  }
   store.workbooks.forEach(wb => {
     if (wb.folderId === id) wb.folderId = '';
   });
+  store.folders.splice(idx, 1);
   persist();
   return true;
 }
 
-/** Removes the folder and every workbook filed under it. */
+/** Removes the folder subtree and every workbook filed in it. */
 export function deleteWorkbookFolderWithContents(id) {
   const store = getStore();
-  const idx = store.folders.findIndex(f => f.id === id);
-  if (idx < 0) return { ok: false, deleted: 0 };
+  if (!folderById(store.folders, id)) return { ok: false, deleted: 0 };
+  const subtree = folderSubtreeIds(store.folders, id);
+  const foldersDeleted = subtree.size;
   const before = store.workbooks.length;
-  store.workbooks = store.workbooks.filter(wb => wb.folderId !== id);
+  store.workbooks = store.workbooks.filter(wb => !subtree.has(wb.folderId));
   const deleted = before - store.workbooks.length;
-  store.folders.splice(idx, 1);
+  store.folders = store.folders.filter(f => !subtree.has(f.id));
   persist();
-  return { ok: true, deleted };
+  return { ok: true, deleted, foldersDeleted };
+}
+
+function directWorkbookCount(folderId) {
+  return getStore().workbooks.filter(wb => wb.folderId === folderId).length;
+}
+
+function subtreeWorkbookCount(folderId) {
+  const subtree = folderSubtreeIds(getStore().folders, folderId);
+  return getStore().workbooks.filter(wb => subtree.has(wb.folderId)).length;
+}
+
+export function getWorkbookFolderPath(id) {
+  if (!id) return '';
+  return folderPathLabel(getStore().folders, id);
 }
 
 export function getWorkbookFolderOptions() {
-  const workbooks = getStore().workbooks;
+  const store = getStore();
+  const workbooks = store.workbooks;
   const uncategorizedCount = workbooks.filter(wb => !wb.folderId).length;
   const opts = [
-    { id: 'all', label: 'All Workbooks', count: workbooks.length },
+    {
+      id: 'all',
+      label: 'All Workbooks',
+      count: workbooks.length,
+      totalCount: workbooks.length,
+      depth: 0,
+      parentId: '',
+      path: '',
+    },
   ];
-  getStore().folders.forEach(folder => {
+  for (const row of flattenFolderTree(store.folders)) {
     opts.push({
-      id: folder.id,
-      label: folder.name,
-      count: workbooks.filter(wb => wb.folderId === folder.id).length,
+      id: row.id,
+      label: row.name,
+      count: directWorkbookCount(row.id),
+      totalCount: subtreeWorkbookCount(row.id),
+      depth: row.depth,
+      parentId: row.parentId,
+      path: row.path,
     });
-  });
+  }
   if (uncategorizedCount > 0) {
-    opts.push({ id: 'uncategorized', label: 'No folder', count: uncategorizedCount });
+    opts.push({
+      id: 'uncategorized',
+      label: 'No folder',
+      count: uncategorizedCount,
+      totalCount: uncategorizedCount,
+      depth: 0,
+      parentId: '',
+      path: '',
+    });
   }
   return opts;
 }
@@ -261,11 +337,14 @@ export function getWorkbookFolderOptions() {
 // --- workbooks -------------------------------------------------------------
 
 /** Returns workbooks sorted by updatedAt descending (newest first). */
-export function listWorkbooks({ folderId } = {}) {
+export function listWorkbooks({ folderId, includeDescendants = false } = {}) {
   let items = getStore().workbooks.slice();
   if (folderId && folderId !== 'all') {
     if (folderId === 'uncategorized') {
       items = items.filter(wb => !wb.folderId);
+    } else if (includeDescendants) {
+      const subtree = folderSubtreeIds(getStore().folders, folderId);
+      items = items.filter(wb => subtree.has(wb.folderId));
     } else {
       items = items.filter(wb => wb.folderId === folderId);
     }

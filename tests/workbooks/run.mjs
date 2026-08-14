@@ -14,6 +14,9 @@ import {
   deleteWorkbookFolder,
   deleteWorkbookFolderWithContents,
   getWorkbookFolderOptions,
+  getWorkbookFolderPath,
+  moveWorkbookFolder,
+  invalidateWorkbooksCache,
   listWorkbooks,
   getWorkbook,
   createWorkbook,
@@ -40,6 +43,7 @@ import {
   setWorkbookCompanionCollapsed,
 } from '../../js/workbookModel.js';
 import { MAX_COMPANIONS } from '../../js/exerciseCompanions/types.js';
+import { MAX_FOLDER_DEPTH } from '../../js/folderTree.js';
 import {
   WB_KEY_ACTIONS,
   isWorkbookShortcutTargetBlocked,
@@ -48,6 +52,28 @@ import {
 } from '../../js/workbookKeyboard.js';
 
 let passed = 0;
+
+function withWorkbooksStorage(seed, fn) {
+  const prevWindow = globalThis.window;
+  const prevLs = globalThis.localStorage;
+  const map = new Map();
+  globalThis.window = globalThis;
+  globalThis.localStorage = {
+    getItem(key) { return map.has(key) ? map.get(key) : null; },
+    setItem(key, value) { map.set(key, value); },
+    removeItem(key) { map.delete(key); },
+    clear() { map.clear(); },
+  };
+  if (seed) globalThis.localStorage.setItem(WORKBOOKS_STORAGE_KEY, JSON.stringify(seed));
+  invalidateWorkbooksCache();
+  try {
+    fn();
+  } finally {
+    invalidateWorkbooksCache();
+    globalThis.window = prevWindow;
+    globalThis.localStorage = prevLs;
+  }
+}
 
 function test(name, fn) {
   fn();
@@ -297,7 +323,9 @@ test('deleteWorkbookFolderWithContents removes folder and its workbooks only', (
   const wbKeep = createWorkbook({ name: 'Keep', folderId: keepFolder.id });
 
   const result = deleteWorkbookFolderWithContents(dropFolder.id);
-  assert.deepEqual(result, { ok: true, deleted: 2 });
+  assert.equal(result.ok, true);
+  assert.equal(result.deleted, 2);
+  assert.equal(result.foldersDeleted, 1);
   assert.ok(!listWorkbookFolders().some(f => f.id === dropFolder.id));
   assert.equal(getWorkbook(wbDrop1.id), null);
   assert.equal(getWorkbook(wbDrop2.id), null);
@@ -311,7 +339,9 @@ test('deleteWorkbookFolderWithContents removes folder and its workbooks only', (
 test('deleteWorkbookFolderWithContents on empty folder reports zero deleted', () => {
   const empty = createWorkbookFolder('Empty Folder');
   const result = deleteWorkbookFolderWithContents(empty.id);
-  assert.deepEqual(result, { ok: true, deleted: 0 });
+  assert.equal(result.ok, true);
+  assert.equal(result.deleted, 0);
+  assert.equal(result.foldersDeleted, 1);
   assert.ok(!listWorkbookFolders().some(f => f.id === empty.id));
 });
 
@@ -508,6 +538,178 @@ test('update remove move reorder and collapse companions', () => {
   const collapsed = getWorkbook(wb.id);
   assert.equal(collapsed.companions.find((c) => c.id === ids[0]).collapsed, true);
   assert.equal(collapsed.updatedAt, beforeUpdated);
+});
+
+test('normalizeWorkbookFolder keeps parentId default empty', () => {
+  const folder = normalizeWorkbookFolder({ id: 'wbf-plain', name: 'Plain' });
+  assert.equal(folder.parentId, '');
+});
+
+test('legacy folders without parentId read as top level', () => {
+  withWorkbooksStorage({
+    folders: [
+      { id: 'wbf-legacy-a', name: 'Legacy A' },
+      { id: 'wbf-legacy-b', name: 'Legacy B' },
+    ],
+    workbooks: [],
+  }, () => {
+    const folders = listWorkbookFolders();
+    assert.equal(folders.length, 2);
+    assert.ok(folders.every(f => f.parentId === ''));
+  });
+});
+
+test('createWorkbookFolder sibling dedupe and empty name', () => {
+  const parentA = createWorkbookFolder('Parent A');
+  const parentB = createWorkbookFolder('Parent B');
+  const scalesA = createWorkbookFolder('Scales', parentA.id);
+  const scalesB = createWorkbookFolder('Scales', parentB.id);
+  assert.notEqual(scalesA.id, scalesB.id);
+  const dup = createWorkbookFolder('scales', parentA.id);
+  assert.equal(dup.id, scalesA.id);
+  assert.equal(createWorkbookFolder(''), null);
+  assert.equal(createWorkbookFolder('   '), null);
+});
+
+test('createWorkbookFolder blocks past MAX_FOLDER_DEPTH', () => {
+  let parentId = '';
+  let deepestId = '';
+  for (let i = 0; i < MAX_FOLDER_DEPTH; i += 1) {
+    const folder = createWorkbookFolder(`Depth ${i + 1}`, parentId);
+    assert.ok(folder);
+    deepestId = folder.id;
+    parentId = folder.id;
+  }
+  assert.equal(createWorkbookFolder('Too deep', deepestId), null);
+});
+
+test('moveWorkbookFolder success and blocked moves keep contents', () => {
+  const guitar = createWorkbookFolder('Guitar Move');
+  const scales = createWorkbookFolder('Scales Move', guitar.id);
+  const songs = createWorkbookFolder('Songs Move', guitar.id);
+  const wb = createWorkbook({ name: 'Move WB', folderId: scales.id });
+
+  assert.deepEqual(moveWorkbookFolder(scales.id, ''), { ok: true, reason: '' });
+  assert.equal(listWorkbookFolders().find(f => f.id === scales.id).parentId, '');
+  assert.equal(getWorkbook(wb.id).folderId, scales.id);
+
+  assert.deepEqual(moveWorkbookFolder(scales.id, songs.id), { ok: true, reason: '' });
+  assert.equal(listWorkbookFolders().find(f => f.id === scales.id).parentId, songs.id);
+
+  assert.deepEqual(moveWorkbookFolder(guitar.id, guitar.id), { ok: false, reason: 'self' });
+  assert.deepEqual(moveWorkbookFolder(guitar.id, scales.id), { ok: false, reason: 'descendant' });
+
+  let chainParent = '';
+  const chainIds = [];
+  for (let i = 0; i < MAX_FOLDER_DEPTH; i += 1) {
+    const folder = createWorkbookFolder(`Chain ${i}`, chainParent);
+    chainIds.push(folder.id);
+    chainParent = folder.id;
+  }
+  const anchor = createWorkbookFolder('Depth Anchor');
+  const blocked = moveWorkbookFolder(chainIds[0], anchor.id);
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.reason, 'depth');
+});
+
+test('getWorkbookFolderOptions tree order depth path and counts', () => {
+  const guitar = createWorkbookFolder('Guitar Opt');
+  const scales = createWorkbookFolder('Scales Opt', guitar.id);
+  createWorkbook({ name: 'Root WB', folderId: guitar.id });
+  createWorkbook({ name: 'Child WB', folderId: scales.id });
+
+  const opts = getWorkbookFolderOptions();
+  assert.equal(opts[0].id, 'all');
+  assert.equal(opts[0].depth, 0);
+  const guitarOpt = opts.find(o => o.id === guitar.id);
+  const scalesOpt = opts.find(o => o.id === scales.id);
+  assert.ok(guitarOpt);
+  assert.ok(scalesOpt);
+  assert.equal(guitarOpt.depth, 1);
+  assert.equal(scalesOpt.depth, 2);
+  assert.equal(guitarOpt.count, 1);
+  assert.equal(guitarOpt.totalCount, 2);
+  assert.equal(scalesOpt.count, 1);
+  assert.equal(scalesOpt.totalCount, 1);
+  assert.ok(guitarOpt.path.includes('Guitar Opt'));
+  assert.ok(scalesOpt.path.includes('Scales Opt'));
+  assert.ok(opts.indexOf(guitarOpt) < opts.indexOf(scalesOpt));
+
+  const path = getWorkbookFolderPath(scales.id);
+  assert.ok(path.includes('Guitar Opt'));
+  assert.ok(path.includes('Scales Opt'));
+});
+
+test('listWorkbooks includeDescendants defaults false', () => {
+  const parent = createWorkbookFolder('List Parent');
+  const child = createWorkbookFolder('List Child', parent.id);
+  const parentWb = createWorkbook({ name: 'Parent only', folderId: parent.id });
+  const childWb = createWorkbook({ name: 'Child only', folderId: child.id });
+
+  const direct = listWorkbooks({ folderId: parent.id });
+  assert.equal(direct.length, 1);
+  assert.equal(direct[0].id, parentWb.id);
+
+  const subtree = listWorkbooks({ folderId: parent.id, includeDescendants: true });
+  assert.equal(subtree.length, 2);
+  assert.ok(subtree.some(w => w.id === parentWb.id));
+  assert.ok(subtree.some(w => w.id === childWb.id));
+});
+
+test('deleteWorkbookFolder lifts child folders and clears direct workbooks only', () => {
+  const guitar = createWorkbookFolder('Guitar Del');
+  const scales = createWorkbookFolder('Scales Del', guitar.id);
+  const licks = createWorkbookFolder('Licks Del', scales.id);
+  const directWb = createWorkbook({ name: 'Direct Del', folderId: guitar.id });
+  const nestedWb = createWorkbook({ name: 'Nested Del', folderId: scales.id });
+
+  assert.ok(deleteWorkbookFolder(guitar.id));
+  assert.ok(!listWorkbookFolders().some(f => f.id === guitar.id));
+  assert.equal(listWorkbookFolders().find(f => f.id === scales.id).parentId, '');
+  assert.equal(listWorkbookFolders().find(f => f.id === licks.id).parentId, scales.id);
+  assert.equal(getWorkbook(directWb.id).folderId, '');
+  assert.equal(getWorkbook(nestedWb.id).folderId, scales.id);
+});
+
+test('deleteWorkbookFolderWithContents removes nested subtree', () => {
+  const parent = createWorkbookFolder('Subtree Parent');
+  const child = createWorkbookFolder('Subtree Child', parent.id);
+  createWorkbook({ name: 'Subtree WB 1', folderId: parent.id });
+  createWorkbook({ name: 'Subtree WB 2', folderId: child.id });
+  const keep = createWorkbook({ name: 'Subtree Keep' });
+
+  const result = deleteWorkbookFolderWithContents(parent.id);
+  assert.equal(result.ok, true);
+  assert.equal(result.deleted, 2);
+  assert.equal(result.foldersDeleted, 2);
+  assert.ok(!listWorkbookFolders().some(f => f.id === parent.id || f.id === child.id));
+  assert.ok(getWorkbook(keep.id));
+});
+
+test('sanitize repairs orphan parentId and cycle on read', () => {
+  withWorkbooksStorage({
+    folders: [
+      { id: 'wbf-root', name: 'Root', parentId: '' },
+      { id: 'wbf-orphan', name: 'Orphan', parentId: 'wbf-gone' },
+    ],
+    workbooks: [],
+  }, () => {
+    const orphan = listWorkbookFolders().find(f => f.id === 'wbf-orphan');
+    assert.equal(orphan.parentId, '');
+    assert.equal(listWorkbookFolders().length, 2);
+  });
+
+  withWorkbooksStorage({
+    folders: [
+      { id: 'wbf-cycle-a', name: 'Cycle A', parentId: 'wbf-cycle-b' },
+      { id: 'wbf-cycle-b', name: 'Cycle B', parentId: 'wbf-cycle-a' },
+    ],
+    workbooks: [],
+  }, () => {
+    const folders = listWorkbookFolders();
+    assert.equal(folders.length, 2);
+    assert.ok(folders.some(f => f.parentId === ''));
+  });
 });
 
 test('isWorkbookShortcutTargetBlocked includes companion drawer zones', () => {

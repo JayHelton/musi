@@ -24,9 +24,11 @@ import { formatBarRange } from './gpPlayer/measureDigest.js';
 import {
   createWorkbookFolder,
   renameWorkbookFolder,
+  moveWorkbookFolder,
   deleteWorkbookFolder,
   deleteWorkbookFolderWithContents,
   getWorkbookFolderOptions,
+  getWorkbookFolderPath,
   listWorkbookFolders,
   listWorkbooks,
   getWorkbook,
@@ -51,6 +53,7 @@ import {
   reorderWorkbookCompanions,
   setWorkbookCompanionCollapsed,
 } from './workbookModel.js';
+import { validMoveTargets, folderSubtreeIds } from './folderTree.js';
 import { mountCompanions } from './exerciseCompanions/index.js';
 import { mountWorkbookCompanionPanel } from './workbookCompanionPanel.js';
 import { initSubviewTabs } from './uxPrimitives.js';
@@ -87,6 +90,9 @@ let folderListEl, titleEl, statusEl, listEl, workspaceEl, detailPaneEl, detailTi
 let detailActionsEl, detailBodyEl, detailBackBtn, newBtn, addFolderForm, addFolderInput;
 
 let dialogRoot = null;
+
+// Collapsed folder ids. Folders start expanded when absent from this set.
+const collapsedFolders = new Set();
 
 // Detail view / player state
 let detailRenderedWorkbookId = null;
@@ -126,13 +132,16 @@ function setStatus(text, isError) {
 
 function folderLabel(folderId) {
   if (!folderId) return 'No folder';
-  const folder = listWorkbookFolders().find(f => f.id === folderId);
-  return folder ? folder.name : 'No folder';
+  const path = getWorkbookFolderPath(folderId);
+  return path || 'No folder';
 }
 
 function currentTitleText() {
+  if (selectedFolder === 'all') return 'All Workbooks';
+  if (selectedFolder === 'uncategorized') return 'No folder';
   const opt = getWorkbookFolderOptions().find(o => o.id === selectedFolder);
-  return opt ? opt.label : 'All Workbooks';
+  if (!opt) return 'All Workbooks';
+  return opt.path || opt.label;
 }
 
 function createFolderIdForSelection() {
@@ -932,17 +941,32 @@ function openConfirm(title, body, confirmLabel, onConfirm, { danger = false } = 
   dialogRoot.appendChild(overlay);
 }
 
-function openFolderDeleteDialog({ name, count, onDeleteFolderOnly, onDeleteAll }) {
+function openFolderDeleteDialog({
+  name,
+  directCount,
+  childFolderCount,
+  subtreeWorkbookCount,
+  subtreeFolderCount,
+  onDeleteFolderOnly,
+  onDeleteAll,
+}) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
-  const workbookWord = count === 1 ? 'workbook' : 'workbooks';
+  const workbookWord = subtreeWorkbookCount === 1 ? 'workbook' : 'workbooks';
+  const folderWord = subtreeFolderCount === 1 ? 'folder' : 'folders';
+  let bodyText = `"${name}" holds `;
+  if (childFolderCount > 0 && directCount > 0) {
+    bodyText += `${childFolderCount} nested ${childFolderCount === 1 ? 'folder' : 'folders'} and ${directCount} ${directCount === 1 ? 'workbook' : 'workbooks'} directly. `;
+  } else if (childFolderCount > 0) {
+    bodyText += `${childFolderCount} nested ${childFolderCount === 1 ? 'folder' : 'folders'}. `;
+  } else {
+    bodyText += `${directCount} ${directCount === 1 ? 'workbook' : 'workbooks'}. `;
+  }
+  bodyText += 'Delete the folder only and subfolders move up one level while workbooks in this folder become uncategorized, or delete the folder and its whole subtree from this device.';
   const overlay = el('div', { class: 'modal-overlay' });
   const dialog = el('div', { class: 'modal-dialog modal-confirm' }, [
     el('h3', { class: 'modal-title', text: `Delete folder "${name}"?` }),
-    el('p', {
-      class: 'modal-body',
-      text: `"${name}" holds ${count} ${workbookWord}. Delete the folder only and keep them uncategorized, or delete the folder and its ${count} ${workbookWord} from this device.`,
-    }),
+    el('p', { class: 'modal-body', text: bodyText }),
   ]);
   const actions = el('div', { class: 'modal-actions' });
   let escapeHandler = null;
@@ -960,7 +984,11 @@ function openFolderDeleteDialog({ name, count, onDeleteFolderOnly, onDeleteAll }
     onClick: () => finish(onDeleteFolderOnly),
   }));
   actions.appendChild(el('button', {
-    class: 'btn modal-danger', type: 'button', text: `Delete folder + ${count} ${workbookWord}`,
+    class: 'btn modal-danger',
+    type: 'button',
+    text: subtreeFolderCount > 1
+      ? `Delete folder + ${subtreeFolderCount} ${folderWord} + ${subtreeWorkbookCount} ${workbookWord}`
+      : `Delete folder + ${subtreeWorkbookCount} ${workbookWord}`,
     onClick: () => finish(onDeleteAll),
   }));
   dialog.appendChild(actions);
@@ -969,6 +997,92 @@ function openFolderDeleteDialog({ name, count, onDeleteFolderOnly, onDeleteAll }
   escapeHandler = (e) => { if (e.key === 'Escape') finish(() => {}); };
   document.addEventListener('keydown', escapeHandler);
   dialogRoot.appendChild(overlay);
+}
+
+function moveFolderBlockMessage(reason) {
+  switch (reason) {
+    case 'self':
+      return 'A folder cannot move into itself.';
+    case 'descendant':
+      return 'A folder cannot move into one of its own subfolders.';
+    case 'depth':
+      return 'That move would exceed the folder depth limit.';
+    case 'parent-missing':
+      return 'The chosen parent folder no longer exists.';
+    case 'missing':
+      return 'That folder no longer exists.';
+    default:
+      return 'That move is not allowed.';
+  }
+}
+
+function folderSelectIndent(depth) {
+  return '\u2003'.repeat(Math.max(0, Number(depth) - 1));
+}
+
+function openFolderMoveDialog(folderId, folderName) {
+  const folders = listWorkbookFolders();
+  const folder = folders.find(f => f.id === folderId);
+  if (!folder) return;
+  const currentParent = folder.parentId || '';
+  const targets = validMoveTargets(folders, folderId);
+
+  ensureDialogRoot();
+  dialogRoot.innerHTML = '';
+  const overlay = el('div', { class: 'modal-overlay' });
+  const dialog = el('div', { class: 'modal-dialog' });
+  dialog.appendChild(el('h3', { class: 'modal-title', text: `Move folder "${folderName}"` }));
+  dialog.appendChild(el('p', {
+    class: 'modal-body',
+    text: 'Pick a new parent. The folder and everything inside it move together.',
+  }));
+
+  const select = el('select', { class: 'modal-input wb-folder-move-select', 'aria-label': 'Parent folder' });
+  const topOpt = el('option', { value: '', text: 'Top level (no parent)' });
+  if (!currentParent) topOpt.selected = true;
+  select.appendChild(topOpt);
+  for (const row of targets) {
+    const opt = el('option', {
+      value: row.id,
+      text: `${folderSelectIndent(row.depth)}${row.name}`,
+    });
+    if (row.id === currentParent) opt.selected = true;
+    select.appendChild(opt);
+  }
+  dialog.appendChild(select);
+
+  const errorEl = el('div', { class: 'modal-errors' });
+  dialog.appendChild(errorEl);
+
+  const actions = el('div', { class: 'modal-actions' });
+  let escapeHandler = null;
+  const finish = () => {
+    if (escapeHandler) document.removeEventListener('keydown', escapeHandler);
+    closeDialog();
+  };
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Cancel', onClick: finish,
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn primary', type: 'button', text: 'Save',
+    onClick: () => {
+      const result = moveWorkbookFolder(folderId, select.value);
+      if (!result.ok) {
+        errorEl.textContent = moveFolderBlockMessage(result.reason);
+        return;
+      }
+      finish();
+      render();
+      setStatus(`Moved folder "${folderName}".`);
+    },
+  }));
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', e => { if (e.target === overlay) finish(); });
+  escapeHandler = (e) => { if (e.key === 'Escape') finish(); };
+  document.addEventListener('keydown', escapeHandler);
+  dialogRoot.appendChild(overlay);
+  setTimeout(() => select.focus(), 40);
 }
 
 function openPrompt(title, initialValue, confirmLabel, onConfirm, { maxlength = NAME_LIMIT } = {}) {
@@ -1738,18 +1852,65 @@ function openAddExercisesPicker(wb) {
 
 // --- library rendering -------------------------------------------------------
 
+function folderHasChildFolders(folderId, opts) {
+  return opts.some(o => o.parentId === folderId);
+}
+
+function isFolderRowVisible(opt, opts) {
+  if (opt.id === 'all' || opt.id === 'uncategorized') return true;
+  let parentId = opt.parentId;
+  while (parentId) {
+    if (collapsedFolders.has(parentId)) return false;
+    const parent = opts.find(o => o.id === parentId);
+    parentId = parent?.parentId || '';
+  }
+  return true;
+}
+
+function newFolderPlaceholder() {
+  if (selectedFolder === 'all' || selectedFolder === 'uncategorized') return 'New folder';
+  const opt = getWorkbookFolderOptions().find(o => o.id === selectedFolder);
+  const label = opt?.label || 'folder';
+  return `New folder in ${label}`;
+}
+
 function renderFolders() {
   if (!folderListEl) return;
   folderListEl.innerHTML = '';
+  if (addFolderInput) addFolderInput.placeholder = newFolderPlaceholder();
 
-  const makeRow = (key, name, count, opts = {}) => {
+  const opts = getWorkbookFolderOptions();
+
+  const makeRow = (key, name, count, rowOpts = {}) => {
+    const depth = rowOpts.depth || 0;
     const row = el('div', {
       class: 'wb-folder-item' + (selectedFolder === key ? ' is-active' : ''),
       'data-folder': key,
+      'data-depth': String(depth),
       role: 'button',
       tabindex: '0',
       'aria-pressed': selectedFolder === key ? 'true' : 'false',
     });
+    if (rowOpts.hasChildren) {
+      const expanded = !collapsedFolders.has(key);
+      const twisty = el('button', {
+        class: 'wb-folder-twisty' + (expanded ? ' is-expanded' : ''),
+        type: 'button',
+        title: expanded ? 'Collapse folder' : 'Expand folder',
+        'aria-label': expanded ? `Collapse ${name}` : `Expand ${name}`,
+        'aria-expanded': expanded ? 'true' : 'false',
+        html: expanded ? '&#9662;' : '&#9656;',
+        onClick: (e) => {
+          e.stopPropagation();
+          if (collapsedFolders.has(key)) collapsedFolders.delete(key);
+          else collapsedFolders.add(key);
+          renderFolders();
+        },
+      });
+      row.appendChild(twisty);
+    } else if (rowOpts.editable) {
+      row.appendChild(el('span', { class: 'wb-folder-twisty-spacer', 'aria-hidden': 'true' }));
+    }
     row.appendChild(el('span', { class: 'wb-folder-name', text: name }));
     row.appendChild(el('span', { class: 'wb-folder-count', text: String(count) }));
     const select = () => {
@@ -1757,7 +1918,7 @@ function renderFolders() {
       render();
     };
     row.addEventListener('click', (e) => {
-      if (e.target.closest('.wb-folder-tool')) return;
+      if (e.target.closest('.wb-folder-tool, .wb-folder-twisty')) return;
       select();
     });
     row.addEventListener('keydown', (e) => {
@@ -1766,34 +1927,48 @@ function renderFolders() {
         select();
       }
     });
-    if (opts.editable) {
+    if (rowOpts.editable) {
       const tools = el('div', { class: 'wb-folder-tools' });
       tools.appendChild(el('button', {
         class: 'wb-folder-tool', type: 'button', title: 'Rename folder', 'aria-label': `Rename ${name}`,
-        html: '&#9998;', onClick: (e) => { e.stopPropagation(); onRenameFolder(opts.id, name); },
+        html: '&#9998;', onClick: (e) => { e.stopPropagation(); onRenameFolder(rowOpts.id, name); },
+      }));
+      tools.appendChild(el('button', {
+        class: 'wb-folder-tool wb-folder-move', type: 'button', title: 'Move folder', 'aria-label': `Move ${name}`,
+        html: '&#8644;', onClick: (e) => { e.stopPropagation(); openFolderMoveDialog(rowOpts.id, name); },
       }));
       tools.appendChild(el('button', {
         class: 'wb-folder-tool wb-folder-del', type: 'button', title: 'Delete folder', 'aria-label': `Delete ${name}`,
-        html: '&#10005;', onClick: (e) => { e.stopPropagation(); onDeleteFolder(opts.id, name); },
+        html: '&#10005;', onClick: (e) => { e.stopPropagation(); onDeleteFolder(rowOpts.id, name); },
       }));
       row.appendChild(tools);
     }
     folderListEl.appendChild(row);
   };
 
-  getWorkbookFolderOptions().forEach(opt => {
+  opts.forEach(opt => {
+    if (!isFolderRowVisible(opt, opts)) return;
     const editable = opt.id !== 'all' && opt.id !== 'uncategorized';
-    makeRow(opt.id, opt.label, opt.count, editable ? { editable: true, id: opt.id } : {});
+    makeRow(opt.id, opt.label, opt.count, editable ? {
+      editable: true,
+      id: opt.id,
+      depth: opt.depth,
+      hasChildren: folderHasChildFolders(opt.id, opts),
+    } : { depth: opt.depth });
   });
 }
 
 function buildFolderSelect(wb) {
   const select = el('select', { class: 'wb-card-folder-select', 'aria-label': 'Folder' });
   select.appendChild(el('option', { value: '', text: 'No folder' }));
-  listWorkbookFolders().forEach(folder => {
-    const opt = el('option', { value: folder.id, text: folder.name });
-    if (folder.id === wb.folderId) opt.selected = true;
-    select.appendChild(opt);
+  getWorkbookFolderOptions().forEach(opt => {
+    if (opt.id === 'all' || opt.id === 'uncategorized') return;
+    const optEl = el('option', {
+      value: opt.id,
+      text: `${folderSelectIndent(opt.depth)}${opt.label}`,
+    });
+    if (opt.id === wb.folderId) optEl.selected = true;
+    select.appendChild(optEl);
   });
   if (!wb.folderId) select.value = '';
   select.addEventListener('change', () => {
@@ -1854,7 +2029,7 @@ function renderList() {
   if (!listEl) return;
   listEl.innerHTML = '';
 
-  const items = listWorkbooks({ folderId: selectedFolder });
+  const items = listWorkbooks({ folderId: selectedFolder, includeDescendants: true });
   if (items.length === 0) {
     listEl.appendChild(el('div', {
       class: 'wb-empty',
@@ -1934,14 +2109,22 @@ function onRenameFolder(id, current) {
 }
 
 function onDeleteFolder(id, name) {
-  const count = listWorkbooks({ folderId: id }).length;
-  if (count === 0) {
+  const opts = getWorkbookFolderOptions();
+  const folders = listWorkbookFolders();
+  const subtreeIds = folderSubtreeIds(folders, id);
+  const childFolderCount = opts.filter(o => o.parentId === id).length;
+  const directCount = listWorkbooks({ folderId: id }).length;
+  const subtreeWorkbookCount = listWorkbooks({ folderId: id, includeDescendants: true }).length;
+  const subtreeFolderTotal = subtreeIds.size;
+
+  if (directCount === 0 && childFolderCount === 0) {
     openConfirm(
       `Delete folder "${name}"?`,
       'This folder is empty.',
       'Delete',
       () => {
         deleteWorkbookFolder(id);
+        collapsedFolders.delete(id);
         if (selectedFolder === id) selectedFolder = 'all';
         render();
       },
@@ -1951,22 +2134,28 @@ function onDeleteFolder(id, name) {
   }
   openFolderDeleteDialog({
     name,
-    count,
+    directCount,
+    childFolderCount,
+    subtreeWorkbookCount,
+    subtreeFolderCount: subtreeFolderTotal,
     onDeleteFolderOnly: () => {
       deleteWorkbookFolder(id);
+      collapsedFolders.delete(id);
       if (selectedFolder === id) selectedFolder = 'all';
       render();
-      const word = count === 1 ? 'workbook' : 'workbooks';
-      setStatus(`Deleted folder "${name}". ${count} ${word} ${count === 1 ? 'is' : 'are'} now uncategorized.`);
+      const word = directCount === 1 ? 'workbook' : 'workbooks';
+      setStatus(`Deleted folder "${name}". ${directCount} ${word} ${directCount === 1 ? 'is' : 'are'} now uncategorized. Subfolders moved up one level.`);
     },
     onDeleteAll: () => {
       const openWb = openWorkbookId ? getWorkbook(openWorkbookId) : null;
-      if (openWb && openWb.folderId === id) closeWorkbookDetail();
+      if (openWb && subtreeIds.has(openWb.folderId)) closeWorkbookDetail();
       const { deleted } = deleteWorkbookFolderWithContents(id);
-      if (selectedFolder === id) selectedFolder = 'all';
+      collapsedFolders.delete(id);
+      if (selectedFolder === id || subtreeIds.has(selectedFolder)) selectedFolder = 'all';
       render();
-      const word = deleted === 1 ? 'workbook' : 'workbooks';
-      setStatus(`Deleted folder "${name}" and ${deleted} ${word}.`);
+      const wbWord = deleted === 1 ? 'workbook' : 'workbooks';
+      const fWord = subtreeFolderTotal === 1 ? 'folder' : 'folders';
+      setStatus(`Deleted folder "${name}" and ${subtreeFolderTotal} ${fWord} with ${deleted} ${wbWord}.`);
     },
   });
 }
@@ -2038,7 +2227,7 @@ export function initWorkbooks() {
       addFolderForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const name = addFolderInput?.value || '';
-        const folder = createWorkbookFolder(name);
+        const folder = createWorkbookFolder(name, createFolderIdForSelection());
         if (folder) {
           if (addFolderInput) addFolderInput.value = '';
           render();
