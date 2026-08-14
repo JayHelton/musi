@@ -54,9 +54,9 @@ this record. Fill the table in T001 and T003.
 
 | Item | Baseline value |
 | --- | --- |
-| Node runners that pass | pending |
-| `CACHE_VERSION` in `service-worker.js` | pending |
-| CLI activity list prints | pending |
+| Node runners that pass | All 15 pass: `tests/cloud/run.mjs`, `tests/companions/run.mjs`, `tests/exercises/run.mjs`, `tests/folder-tree/run.mjs`, `tests/genre-removal/run.mjs`, `tests/gp-player/run.mjs`, `tests/interval-map/run.mjs`, `tests/pitch/run.mjs`, `tests/qr/run.mjs`, `tests/routine-nav/run.mjs`, `tests/routines/run.mjs`, `tests/study-lab/run.mjs`, `tests/track-to-sheet/dsp.mjs`, `tests/track-to-sheet/run.mjs`, `tests/workbooks/run.mjs` |
+| `CACHE_VERSION` in `service-worker.js` | `v205-nested-folder-tree` |
+| CLI activity list prints | Yes. `node cli/bin/musi.js --help` lists scale, interval, sight, fretboard, orbit, ear, pitch, reference, and tab |
 
 ---
 
@@ -64,10 +64,10 @@ this record. Fill the table in T001 and T003.
 
 **Purpose**: WP-00 records the baseline and changes no behavior.
 
-- [ ] T001 Run every Node runner under `tests/` and record the pass list in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
-- [ ] T002 [P] Run `node cli/bin/musi.js --help` and confirm the activity list prints for SC-029.
-- [ ] T003 Read `CACHE_VERSION` in `service-worker.js` and record the value in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
-- [ ] T004 [P] Compare `specs/005-tool-first-simplification/research-inventory.md` against each code path it names.
+- [X] T001 Run every Node runner under `tests/` and record the pass list in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
+- [X] T002 [P] Run `node cli/bin/musi.js --help` and confirm the activity list prints for SC-029.
+- [X] T003 Read `CACHE_VERSION` in `service-worker.js` and record the value in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
+- [X] T004 [P] Compare `specs/005-tool-first-simplification/research-inventory.md` against each code path it names.
 
 ---
 
