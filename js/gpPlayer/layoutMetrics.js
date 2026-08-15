@@ -1,12 +1,13 @@
 const GUTTER_PX = 4;
 
 export function releaseGpPlayerShell({ host = null, section = null } = {}) {
-  const html = typeof document !== 'undefined' ? document.documentElement : null;
-  html?.classList?.remove('gpp-player-locked');
   const sec = section
-    || (host && typeof host.closest === 'function' ? host.closest('#sec-gpplayer') : null)
-    || (typeof document !== 'undefined' ? document.getElementById?.('sec-gpplayer') : null);
+    || (host && typeof host.closest === 'function' ? host.closest('#sec-gpplayer') : null);
   sec?.classList?.remove('gpp-score-loaded');
+  if (sec) {
+    const html = typeof document !== 'undefined' ? document.documentElement : null;
+    html?.classList?.remove('gpp-player-locked');
+  }
   if (host?.classList) {
     host.classList.remove('gpp-root', 'is-loading', 'gpp-has-layout-metrics');
   }

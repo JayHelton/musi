@@ -56,3 +56,4 @@ export {
   normalizeTempoRampConfig,
 } from './metronomeState.js';
 export { mountExerciseImportPanel } from './exerciseImportPanel.js';
+export { pinnedScrollTop, installGppLayoutMetrics, releaseGpPlayerShell } from './layoutMetrics.js';
