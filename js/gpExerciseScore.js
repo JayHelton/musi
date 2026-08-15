@@ -1,6 +1,6 @@
 // Shared helpers for mounting GP exercises with optional bar-range slicing.
 
-import { sliceModelByBeats } from './tab/tabModel.js';
+import { concatModels, sliceModelByBeats } from './tab/tabModel.js';
 import { beatsFromMeasureRange } from './gpPlayer/rangeUtils.js';
 
 const BAR_RANGE_KEYS = ['measureStart', 'measureEnd', 'startBeat', 'endBeat'];
@@ -43,6 +43,155 @@ function coversWholeScore(gpResult, item) {
 
 function countTrackNotes(model) {
   return (model?.events || []).filter((e) => e.fret != null || e.dead).length;
+}
+
+function referenceModelInResult(result) {
+  for (const t of result.tracks || []) {
+    if (t?.model) return t.model;
+  }
+  for (const t of result.drumTracks || []) {
+    if (t?.model) return t.model;
+  }
+  return null;
+}
+
+function firstGuitarTuningSource(results, guitarIndex) {
+  for (const result of results) {
+    const t = result.tracks?.[guitarIndex];
+    if (t?.model) return t.model;
+  }
+  for (const result of results) {
+    for (const t of result.tracks || []) {
+      if (t?.model) return t.model;
+    }
+  }
+  return null;
+}
+
+function cloneMeasureLocal(m) {
+  const out = {
+    ...m,
+    timeSig: m.timeSig ? m.timeSig.slice() : undefined,
+  };
+  if (m.repeat != null) {
+    out.repeat = { ...m.repeat };
+    if (m.repeat.endings != null) out.repeat.endings = m.repeat.endings.slice();
+  }
+  return out;
+}
+
+function buildPadModel(reference, tuningSource) {
+  const src = tuningSource || reference;
+  const measures = (reference.measures || []).map((m) => cloneMeasureLocal(m));
+  const out = {
+    tuning: src.tuning,
+    strings: (src.strings || []).map((s) => ({ ...s })),
+    events: [],
+    measures,
+    tempo: reference.tempo,
+    totalBeats: Number(reference.totalBeats)
+      || (measures.length ? Number(measures[measures.length - 1].endBeat) || 0 : 0),
+    slots: measures.length,
+    techniqueCounts: {},
+    warnings: [],
+  };
+  if (reference.beats != null) out.beats = [];
+  if (reference.rests != null) out.rests = [];
+  if (reference.tempoMap != null) {
+    out.tempoMap = reference.tempoMap.map((t) => ({ ...t }));
+  }
+  if (src.trackInfo != null) out.trackInfo = { ...src.trackInfo };
+  if (reference.voiceCount != null) out.voiceCount = reference.voiceCount;
+  return out;
+}
+
+function resolveGpTempo(result) {
+  return Number(result.tempo)
+    || Number(result.tracks?.[0]?.model?.tempo)
+    || Number(result.drumTracks?.[0]?.model?.tempo)
+    || 120;
+}
+
+/**
+ * Join gpResult values in order. Returns a new result; inputs are not mutated.
+ */
+export function concatGpResults(results) {
+  if (!results || !results.length) return null;
+  const parts = results.filter(Boolean);
+  if (!parts.length) return null;
+
+  if (parts.length === 1) {
+    const result = parts[0];
+    return {
+      tempo: resolveGpTempo(result),
+      tracks: (result.tracks || []).map((t) => ({ ...t })),
+      drumTracks: (result.drumTracks || []).map((t) => ({ ...t })),
+      warnings: [...(result.warnings || [])],
+    };
+  }
+
+  const maxGuitars = Math.max(0, ...parts.map((r) => (r.tracks || []).length));
+  const maxDrums = Math.max(0, ...parts.map((r) => (r.drumTracks || []).length));
+  const warnings = [];
+
+  const tracks = [];
+  for (let i = 0; i < maxGuitars; i++) {
+    const models = [];
+    let metaSource = null;
+    const tuningSource = firstGuitarTuningSource(parts, i);
+    for (const result of parts) {
+      const t = result.tracks?.[i];
+      if (t?.model) {
+        models.push(t.model);
+        if (!metaSource) metaSource = t;
+      } else {
+        const ref = referenceModelInResult(result);
+        if (ref) models.push(buildPadModel(ref, tuningSource));
+      }
+    }
+    const model = concatModels(models);
+    tracks.push({
+      index: Number.isFinite(metaSource?.index) ? metaSource.index : i,
+      name: metaSource?.name || `Track ${i + 1}`,
+      tuning: metaSource?.tuning || model?.tuning || 'Standard',
+      noteCount: countTrackNotes(model),
+      model,
+    });
+  }
+
+  const drumTracks = [];
+  for (let i = 0; i < maxDrums; i++) {
+    const models = [];
+    let metaSource = null;
+    for (const result of parts) {
+      const t = result.drumTracks?.[i];
+      if (t?.model) {
+        models.push(t.model);
+        if (!metaSource) metaSource = t;
+      } else {
+        const ref = referenceModelInResult(result);
+        if (ref) models.push(buildPadModel(ref, null));
+      }
+    }
+    const model = concatModels(models);
+    drumTracks.push({
+      index: Number.isFinite(metaSource?.index) ? metaSource.index : i,
+      name: metaSource?.name || `Drums ${i + 1}`,
+      model,
+      hitCount: (model?.events || []).length,
+    });
+  }
+
+  for (const result of parts) {
+    if (result.warnings?.length) warnings.push(...result.warnings);
+  }
+
+  return {
+    tempo: resolveGpTempo(parts[0]),
+    tracks,
+    drumTracks,
+    warnings,
+  };
 }
 
 /** Slice every track/drum model in a gpResult to a beat window. */
