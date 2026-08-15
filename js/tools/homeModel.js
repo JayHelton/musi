@@ -1,13 +1,12 @@
 // Pure Tools home section model. The caller supplies catalog data and stored lists.
 
-import { PURPOSES, toolSearchText } from '../tools.js';
+import { toolSearchText } from '../tools.js';
 
-export const SECTION_IDS = ['purposes', 'favorites', 'recents', 'continue', 'search', 'browse'];
+export const SECTION_IDS = ['favorites', 'recents', 'continue', 'search', 'browse'];
 
 const RECENTS_DEFAULT_LIMIT = 5;
 
 const SECTION_LABELS = {
-  purposes: '',
   favorites: 'Favorites',
   recents: 'Recents',
   continue: 'Continue a routine',
@@ -17,10 +16,6 @@ const SECTION_LABELS = {
 
 function toolById(tools, id) {
   return tools.find(t => t.id === id) || null;
-}
-
-function toolsForPurpose(tools, purpose) {
-  return tools.filter(t => t.purpose === purpose);
 }
 
 function catalogItem(tool) {
@@ -87,7 +82,7 @@ export function searchTools(tools, query) {
 
   const matches = [];
   for (const tool of tools) {
-    if (!tool || !tool.purpose) continue;
+    if (!tool) continue;
 
     const haystack = toolSearchText(tool);
     if (!haystack.includes(q)) continue;
@@ -113,10 +108,9 @@ export function searchTools(tools, query) {
   return matches;
 }
 
-/** Build ordered Tools home sections for the active purpose and stored lists. */
+/** Build ordered Tools home sections for stored lists and browse. */
 export function buildHomeSections(input) {
   const {
-    purpose,
     tools = [],
     favorites = [],
     recents = [],
@@ -126,17 +120,10 @@ export function buildHomeSections(input) {
 
   const sections = [];
 
-  sections.push({
-    id: 'purposes',
-    label: SECTION_LABELS.purposes,
-    activePurpose: purpose,
-    items: PURPOSES.map(p => ({ id: p.id, label: p.label })),
-  });
-
   const favoriteItems = [];
   for (const favId of favorites) {
     const tool = toolById(tools, favId);
-    if (!tool || !tool.purpose) continue;
+    if (!tool) continue;
     favoriteItems.push(catalogItem(tool));
   }
   if (favoriteItems.length) {
@@ -150,7 +137,7 @@ export function buildHomeSections(input) {
   const recentItems = [];
   for (const entry of recents) {
     const tool = toolById(tools, entry?.id);
-    if (!tool || !tool.purpose) continue;
+    if (!tool) continue;
     recentItems.push({
       id: entry.id,
       label: tool.label,
@@ -189,7 +176,7 @@ export function buildHomeSections(input) {
     items: searchTools(tools, query),
   });
 
-  const browseItems = toolsForPurpose(tools, purpose).map(catalogItem);
+  const browseItems = tools.map(catalogItem);
   sections.push({
     id: 'browse',
     label: SECTION_LABELS.browse,

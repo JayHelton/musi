@@ -1,5 +1,7 @@
 const VALID_ORIGINS = new Set([
   'tools',
+  'reference',
+  'create',
   'library',
   'workbook',
   'routine',
@@ -129,6 +131,10 @@ export function parentAddress(origin, route) {
   switch (origin) {
     case 'tools':
       return { id: 'tools', params: {} };
+    case 'reference':
+      return { id: 'reference', params: {} };
+    case 'create':
+      return { id: 'create', params: {} };
     case 'library':
       return { id: 'library', params: { mode: 'exercises' } };
     case 'workbook':

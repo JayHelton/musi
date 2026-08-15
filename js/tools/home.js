@@ -2,7 +2,6 @@ import { getSetting, saveSetting } from '../persistence.js';
 import { TOOLS, TOOL_ICONS, getTool, isFeatureEnabled } from '../tools.js';
 import { buildHomeSections, normalizeRecents, pushRecent } from './homeModel.js';
 import { listRoutines, getRoutineStats } from '../routineModel.js';
-import { parseAppRoute } from '../appRoute.js';
 import { onDataChanged } from '../dataEvents.js';
 
 let showSectionFn = null;
@@ -19,26 +18,24 @@ function escapeHtml(str) {
 }
 
 function catalogTools() {
-  return TOOLS.filter(t => t.purpose && isFeatureEnabled(t.id));
+  return TOOLS.filter((t) => {
+    if (!isFeatureEnabled(t.id)) return false;
+    if (t.category === 'reference' || t.category === 'create') return false;
+    if (t.id === 'exercises' || t.id === 'workbooks' || t.id === 'musicprefs') return false;
+    return true;
+  });
 }
 
 function storedFavorites() {
+  const catalogIds = new Set(catalogTools().map(t => t.id));
   const v = getSetting('home.favorites', []);
-  return Array.isArray(v) ? v.filter(id => getTool(id)) : [];
+  return Array.isArray(v) ? v.filter(id => catalogIds.has(id)) : [];
 }
 
 function storedRecents() {
+  const catalogIds = new Set(catalogTools().map(t => t.id));
   const v = getSetting('tool.recents', []);
-  return normalizeRecents(Array.isArray(v) ? v : []);
-}
-
-function activePurpose() {
-  const route = parseAppRoute(location.hash);
-  const mode = route.params?.mode;
-  if (mode === 'train' || mode === 'study' || mode === 'create') return mode;
-  const saved = getSetting('tools.purpose', 'train');
-  if (saved === 'train' || saved === 'study' || saved === 'create') return saved;
-  return 'train';
+  return normalizeRecents(Array.isArray(v) ? v.filter(entry => entry && catalogIds.has(entry.id)) : []);
 }
 
 function activeRoutines() {
@@ -78,13 +75,6 @@ function continueCardHtml(item) {
   `;
 }
 
-function renderPurposeSwitch(section) {
-  const buttons = (section.items || []).map(p => `
-    <button type="button" class="purpose-switch-btn${section.activePurpose === p.id ? ' active' : ''}" data-purpose="${escapeHtml(p.id)}">${escapeHtml(p.label)}</button>
-  `).join('');
-  return `<div class="purpose-switch" role="group" aria-label="Purpose">${buttons}</div>`;
-}
-
 function renderSearchSection(section) {
   const results = (section.items || []).map(item => toolCardHtml(item, { showMode: true })).join('');
   return `
@@ -115,9 +105,7 @@ function render() {
 
   const favorites = storedFavorites();
   const favSet = new Set(favorites);
-  const purpose = activePurpose();
   const sections = buildHomeSections({
-    purpose,
     tools: catalogTools(),
     favorites,
     recents: storedRecents(),
@@ -127,14 +115,10 @@ function render() {
 
   const parts = [
     '<p class="tools-home-kicker">Practice</p>',
-    '<h2 class="tools-home-title">Tools</h2>',
+    '<h2 class="tools-home-title">Practice tools</h2>',
   ];
 
   for (const section of sections) {
-    if (section.id === 'purposes') {
-      parts.push(renderPurposeSwitch(section));
-      continue;
-    }
     if (section.id === 'search') {
       parts.push(renderSearchSection(section));
       continue;
@@ -197,16 +181,6 @@ function wireHost() {
         return;
       }
       if (showSectionFn) showSectionFn('routines');
-      return;
-    }
-
-    const purposeBtn = e.target.closest('[data-purpose]');
-    if (purposeBtn) {
-      const purpose = purposeBtn.dataset.purpose;
-      if (purpose === 'train' || purpose === 'study' || purpose === 'create') {
-        saveSetting('tools.purpose', purpose);
-        render();
-      }
       return;
     }
 

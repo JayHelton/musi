@@ -66,6 +66,7 @@ import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
 import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
 import { getRoutine } from './routineModel.js';
 import { getWorkbook } from './workbookModel.js';
+import { initLibraryTabs, syncLibraryTabs } from './library/libraryTabs.js';
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 
@@ -131,8 +132,8 @@ function initTool(id) {
 }
 
 let splitSecondaryId = null;
-let currentNavId = 'tools';
-let currentRouteId = 'tools';
+let currentNavId = 'hub-reference';
+let currentRouteId = 'reference';
 let currentRouteParams = {};
 /** How many in-app pushState entries sit above the boot entry (phone Back pops these). */
 let navPushCount = 0;
@@ -159,24 +160,41 @@ function hubCategory(id) {
 }
 
 function sectionUrl(id, params = {}) {
-  return routeUrl({ id: id || 'tools', params });
+  return routeUrl({ id: id || 'reference', params });
 }
 
 const LIVE_SECTION_BY_ROUTE = {
+  reference: 'hub-reference',
+  create: 'hub-create',
   tools: 'tools',
-  home: 'tools',
+  home: 'hub-reference',
   scalelab: 'scaleref',
   fretmap: 'intervalorbit',
   chordlab: 'chords',
+  circle: 'circle',
+  triads: 'triads',
+  studylab: 'studylab',
   pitchear: 'tuner',
   metronome: 'metronome',
   audiostudio: 'recorder',
   songstudio: 'songwriter',
-  library: 'exercises',
+  notes: 'notes',
   routines: 'routines',
   scoreplayer: 'gpplayer',
   settings: 'musicprefs',
 };
+
+const ROOT_SECTION_IDS = new Set([
+  'tools',
+  'hub-reference',
+  'hub-create',
+  'reference',
+  'create',
+  'exercises',
+  'workbooks',
+]);
+
+const LIBRARY_SECTION_IDS = new Set(['exercises', 'workbooks']);
 
 function resolveSectionAlias(id) {
   if (id === 'intervalmap') return 'intervalorbit';
@@ -184,10 +202,28 @@ function resolveSectionAlias(id) {
   return id;
 }
 
-function liveSectionId(routeId) {
-  if (!routeId) return 'tools';
+function liveSectionId(routeId, params = {}) {
+  if (!routeId) return 'hub-reference';
+  if (routeId === 'library') {
+    return params.mode === 'workbooks' ? 'workbooks' : 'exercises';
+  }
   if (LIVE_SECTION_BY_ROUTE[routeId]) return LIVE_SECTION_BY_ROUTE[routeId];
   return resolveSectionAlias(routeId);
+}
+
+function inferNavigationOrigin(sectionId) {
+  if (sectionId === 'hub-reference') return 'reference';
+  if (sectionId === 'hub-create') return 'create';
+  if (sectionId === 'exercises' || sectionId === 'workbooks') return 'library';
+  if (sectionId === 'tools') return 'tools';
+  return currentOrigin() || 'direct';
+}
+
+function hubRouteForTool(tool) {
+  if (!tool) return 'tools';
+  if (tool.category === 'reference') return 'reference';
+  if (tool.category === 'create') return 'create';
+  return 'tools';
 }
 
 function routeResolveCtx() {
@@ -207,7 +243,7 @@ function resolveIncomingRoute(id, params = {}) {
   const resolved = resolveRoute({ id: id || '', params }, routeResolveCtx());
   return {
     routeId: resolved.id,
-    sectionId: liveSectionId(resolved.id),
+    sectionId: liveSectionId(resolved.id, resolved.params || {}),
     params: resolved.params || {},
     notice: resolved.notice,
   };
@@ -215,10 +251,30 @@ function resolveIncomingRoute(id, params = {}) {
 
 function isValidSection(id) {
   if (id === '' || id === 'home') return true;
+  if (
+    id === 'reference'
+    || id === 'create'
+    || id === 'hub-reference'
+    || id === 'hub-create'
+    || id === 'circle'
+    || id === 'triads'
+    || id === 'studylab'
+    || id === 'notes'
+    || id === 'exercises'
+    || id === 'workbooks'
+  ) {
+    return true;
+  }
   if (isKnownRoute(id) || LEGACY_ROUTES[id]) return true;
-  const sectionId = liveSectionId(id);
+  const sectionId = liveSectionId(id, paramsForSectionProbe(id));
   if (sectionId === ROUTINE_ROUTE_ID) return true;
-  return sectionId === 'tools' || getTabs().some(t => t.id === sectionId);
+  return ROOT_SECTION_IDS.has(sectionId) || getTabs().some(t => t.id === sectionId);
+}
+
+function paramsForSectionProbe(id) {
+  if (id === 'workbooks') return { mode: 'workbooks' };
+  if (id === 'exercises') return { mode: 'exercises' };
+  return {};
 }
 
 async function promptUnsaved({ title, choices }) {
@@ -270,19 +326,25 @@ function restoreArriveViewState(sectionId) {
 }
 
 function mountToolPageIfNeeded(sectionId, sec) {
-  if (sectionId !== 'scaleref' && sectionId !== 'metronome') return;
+  if (sectionId !== 'metronome') return;
   if (sec.dataset.toolPage === '1') return;
   const tool = getTool(sectionId);
   if (!tool) return;
+  const parentRoute = hubRouteForTool(tool);
   mountToolPage(sec, {
     id: sectionId,
     title: tool.title || tool.label,
     modes: tool.modes || [],
     defaultMode: tool.defaultMode || '',
-    contextFields: sectionId === 'scaleref' ? ['root', 'scale', 'tuning'] : ['tempo'],
+    contextFields: ['tempo'],
     moreItems: [],
     isFavorite: (getSetting('home.favorites', []) || []).includes(sectionId),
-    onBack: () => goBack(() => applyRoute({ id: 'tools', params: {}, mode: 'replace', source: 'internal' })),
+    onBack: () => goBack(() => applyRoute({
+      id: parentRoute,
+      params: {},
+      mode: 'replace',
+      source: 'internal',
+    })),
     onFavorite: (next) => {
       const favs = getSetting('home.favorites', []) || [];
       const list = Array.isArray(favs) ? [...favs] : [];
@@ -327,13 +389,17 @@ function updateHoldRecordVisibility(id) {
 }
 
 function updateHeaderChrome(id) {
-  const isRoot = id === 'home' || id === 'tools';
+  const isRoot = ROOT_SECTION_IDS.has(id) || id === 'home';
   const isTool = id && !isRoot && !isHubId(id) && !!getTool(id);
   document.body.classList.toggle('tool-screen', !!isTool);
   setActiveNav(id);
 }
 
-function showHub(_categoryId, skipHash) {
+function showHub(categoryId, skipHash) {
+  if (categoryId === 'reference' || categoryId === 'create') {
+    showSection(categoryId, skipHash);
+    return;
+  }
   showSection('tools', skipHash);
 }
 
@@ -381,7 +447,7 @@ function applySection(id, { keep = [] } = {}) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
 
-  const sectionId = id === 'home' ? 'tools' : id;
+  const sectionId = id === 'home' ? 'hub-reference' : id;
   const sec = document.getElementById('sec-' + sectionId);
   if (!sec) return;
 
@@ -399,16 +465,41 @@ function applySection(id, { keep = [] } = {}) {
     return;
   }
 
-  if (isHubId(id)) {
-    const cat = hubCategory(id);
+  if (LIBRARY_SECTION_IDS.has(sectionId)) {
+    const mode = sectionId === 'workbooks' ? 'workbooks' : 'exercises';
+    syncLibraryTabs(mode);
+    stopOtherTools([sectionId]);
+    initTool(sectionId);
+    updateHoldRecordVisibility(sectionId);
+    updateHeaderChrome(sectionId);
+    updateSplitUI();
+    syncSetupToolbars();
+    return;
+  }
+
+  if (isHubId(sectionId)) {
+    const cat = hubCategory(sectionId);
     saveSetting('nav.lastCategory', cat);
-    renderHub(cat, sec, {
-      showSection,
-      onFavorite: () => { refreshToolsHome(); renderHub(cat, sec, { showSection, onFavorite: refreshToolsHome }); },
-    });
+    const hubOrigin = cat === 'reference' ? 'reference' : (cat === 'create' ? 'create' : 'tools');
+    const hubShowSection = (toolId) => {
+      void applyRoute({
+        id: toolId,
+        params: {},
+        mode: 'push',
+        source: 'internal',
+        origin: hubOrigin,
+      });
+    };
+    const repaintHub = () => {
+      renderHub(cat, sec, {
+        showSection: hubShowSection,
+        onFavorite: () => { refreshToolsHome(); repaintHub(); },
+      });
+    };
+    repaintHub();
     stopOtherTools([]);
     updateHoldRecordVisibility(null);
-    updateHeaderChrome(id);
+    updateHeaderChrome(sectionId);
     updateSplitUI();
     return;
   }
@@ -424,8 +515,14 @@ function applySection(id, { keep = [] } = {}) {
 
   const back = sec.querySelector('.tool-back:not(.tool-page-back)');
   if (back && tool && sec.dataset.toolPage !== '1') {
+    const parentRoute = hubRouteForTool(tool);
     const hubLabel = CATEGORIES.find(c => c.id === tool.category)?.label || 'Back';
-    back.onclick = () => goBack(() => applyRoute({ id: 'tools', params: {}, mode: 'replace', source: 'internal' }));
+    back.onclick = () => goBack(() => applyRoute({
+      id: parentRoute,
+      params: {},
+      mode: 'replace',
+      source: 'internal',
+    }));
     back.textContent = `← ${hubLabel}`;
   }
 
@@ -441,7 +538,7 @@ function showSection(id, skipHash, params = {}) {
   const incoming = resolveIncomingRoute(id, params);
   const toolForGate = getTool(incoming.sectionId);
   if (toolForGate && !isFeatureEnabled(incoming.sectionId)) {
-    showSection('tools', skipHash);
+    showSection('reference', skipHash);
     return;
   }
   const mode = (skipHash || currentNavId === incoming.sectionId) ? 'replace' : 'push';
@@ -525,7 +622,7 @@ function getRoutineNavigator() {
 
 function gatedSectionId(id) {
   const toolForGate = getTool(id);
-  if (toolForGate && !isFeatureEnabled(id)) return 'tools';
+  if (toolForGate && !isFeatureEnabled(id)) return 'hub-reference';
   return id;
 }
 
@@ -654,8 +751,8 @@ async function applyRoute({
   }
 
   if (!isValidSection(inboundId)) {
-    routeId = 'tools';
-    sectionId = 'tools';
+    routeId = 'reference';
+    sectionId = 'hub-reference';
   }
 
   const prevSectionId = currentNavId;
@@ -706,7 +803,8 @@ async function applyRoute({
       suppressHashChange = true;
       history.pushState(histState, '', url);
       navPushCount += 1;
-      pushRoute({ id: routeId, params: routeParams }, origin || currentOrigin() || 'direct');
+      const navOrigin = origin || inferNavigationOrigin(prevSectionId);
+      pushRoute({ id: routeId, params: routeParams }, navOrigin);
     }
   }
 
@@ -974,6 +1072,15 @@ async function init() {
       origin: origin || 'tools',
     }),
   });
+  initLibraryTabs({
+    openRoute: (routeId, routeParams, { replace } = {}) => applyRoute({
+      id: routeId,
+      params: routeParams || {},
+      mode: replace ? 'replace' : 'push',
+      source: 'internal',
+      origin: 'library',
+    }),
+  });
   initStats();
   initMusicPreferences({ showSection });
   initSplitView();
@@ -983,14 +1090,15 @@ async function init() {
     rebuildNav();
     refreshToolsHome();
     if (currentNavId && getTool(currentNavId) && !isFeatureEnabled(currentNavId)) {
-      showSection('tools');
+      showSection('reference');
     }
   });
 
   const wordmark = document.getElementById('wordmark-home');
   if (wordmark) {
-    wordmark.onclick = () => showSection('tools');
-    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('tools'); } };
+    wordmark.title = 'Reference';
+    wordmark.onclick = () => showSection('reference');
+    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('reference'); } };
   }
 
   const bootRoute = parseAppRoute(bootHash);
@@ -1002,8 +1110,8 @@ async function init() {
       source: 'boot',
     });
   } else {
-    history.replaceState({ musiNav: 'tools', params: {} }, '', sectionUrl('tools'));
-    applySection('tools');
+    history.replaceState({ musiNav: 'reference', params: {} }, '', sectionUrl('reference'));
+    applySection('hub-reference');
   }
 
   // Phone / browser Back: walk the screen stack instead of leaving the PWA.
@@ -1027,7 +1135,7 @@ async function init() {
           source: 'popstate',
         });
       } else {
-        await applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'popstate' });
+        await applyRoute({ id: 'reference', params: {}, mode: 'none', source: 'popstate' });
       }
     } finally {
       applyingHistory = false;
@@ -1053,8 +1161,8 @@ async function init() {
           source: 'hashchange',
         });
       } else if (!parsed.id) {
-        if (currentNavId !== 'tools') navPushCount += 1;
-        await applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'hashchange' });
+        if (currentNavId !== 'hub-reference') navPushCount += 1;
+        await applyRoute({ id: 'reference', params: {}, mode: 'none', source: 'hashchange' });
       }
     } finally {
       applyingHistory = false;

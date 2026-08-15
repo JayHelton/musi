@@ -1,12 +1,18 @@
 export const ROUTE_IDS = [
+  'reference',
+  'create',
   'tools',
   'scalelab',
   'fretmap',
   'chordlab',
+  'circle',
+  'triads',
+  'studylab',
   'pitchear',
   'metronome',
   'audiostudio',
   'songstudio',
+  'notes',
   'library',
   'routines',
   'scoreplayer',
@@ -14,10 +20,7 @@ export const ROUTE_IDS = [
 ];
 
 const ROUTE_MODE_DEFAULTS = {
-  tools: 'train',
-  scalelab: 'overview',
   fretmap: 'map',
-  chordlab: 'reference',
   pitchear: 'tuner',
   metronome: 'metronome',
   audiostudio: 'capture',
@@ -30,16 +33,16 @@ const ROUTINE_PARAM_KEYS = ['routine', 'session', 'workbook', 'exercise', 'compa
 /** @type {Record<string, { id: string, params: Record<string, string>, notice: string | null }>} */
 export const LEGACY_ROUTES = {
   scales: { id: 'scalelab', params: { mode: 'overview' }, notice: 'notice.scales-removed' },
-  scaleref: { id: 'scalelab', params: { mode: 'overview' }, notice: null },
-  circle: { id: 'scalelab', params: { mode: 'modes' }, notice: null },
-  studylab: { id: 'scalelab', params: { mode: 'guide' }, notice: null },
+  scaleref: { id: 'scalelab', params: {}, notice: null },
+  circle: { id: 'circle', params: {}, notice: null },
+  studylab: { id: 'studylab', params: {}, notice: null },
   intervals: { id: 'fretmap', params: { mode: 'learn' }, notice: 'notice.intervals-removed' },
   fretboard: { id: 'fretmap', params: { mode: 'map' }, notice: 'notice.fretboard-removed' },
   intervalorbit: { id: 'fretmap', params: { mode: 'map' }, notice: null },
   intervalmap: { id: 'fretmap', params: { mode: 'map' }, notice: null },
   chordlab: { id: 'chordlab', params: { mode: 'reference' }, notice: 'notice.chordlab-removed' },
-  chords: { id: 'chordlab', params: { mode: 'reference' }, notice: null },
-  triads: { id: 'chordlab', params: { mode: 'triads' }, notice: null },
+  chords: { id: 'chordlab', params: {}, notice: null },
+  triads: { id: 'triads', params: {}, notice: null },
   tuner: { id: 'pitchear', params: { mode: 'tuner' }, notice: null },
   ear: { id: 'pitchear', params: { mode: 'ear' }, notice: null },
   timing: { id: 'metronome', params: { mode: 'metronome' }, notice: 'notice.timing-removed' },
@@ -49,7 +52,7 @@ export const LEGACY_ROUTES = {
   recorder: { id: 'audiostudio', params: { mode: 'capture' }, notice: null },
   tracktosheet: { id: 'audiostudio', params: { mode: 'transcribe' }, notice: null },
   songwriter: { id: 'songstudio', params: {}, notice: null },
-  notes: { id: 'songstudio', params: {}, notice: 'notice.notes-removed' },
+  notes: { id: 'notes', params: {}, notice: null },
   keyboard: { id: 'tools', params: { mode: 'study' }, notice: 'notice.pitch-reference' },
   drums: { id: 'library', params: { mode: 'exercises' }, notice: 'notice.drums-removed' },
   exercises: { id: 'library', params: { mode: 'exercises' }, notice: null },
@@ -58,7 +61,7 @@ export const LEGACY_ROUTES = {
   gpplayer: { id: 'scoreplayer', params: {}, notice: null },
   tabanalyzer: { id: 'scoreplayer', params: {}, notice: null },
   musicprefs: { id: 'settings', params: { mode: 'preferences' }, notice: null },
-  home: { id: 'tools', params: {}, notice: null },
+  home: { id: 'reference', params: {}, notice: null },
 };
 
 /**
@@ -140,8 +143,8 @@ export function resolveRoute(route, ctx) {
 
   if (route.id === '') {
     return {
-      id: 'tools',
-      params: normalizeMode('tools', {}),
+      id: 'reference',
+      params: {},
       notice: null,
     };
   }
