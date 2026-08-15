@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v220-gp-drums-next-exercise";
+const CACHE_VERSION = "v221-gp-synth-pack-silence";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the

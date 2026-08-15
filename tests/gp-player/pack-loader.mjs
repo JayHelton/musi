@@ -162,4 +162,50 @@ resetAll();
   assert.equal(getLoadState('score-a').status, 'cancelled');
 }
 
+resetAll();
+
+// cancelLoad(score A) must not cancel an in-flight load for score B.
+{
+  registerPack({
+    id: 'delay-pack-3',
+    version: '1',
+    license: 'CC0-1.0',
+    attribution: 'Test',
+    sampleRate: 48000,
+    instrument: 'Guitar',
+    midiProgram: 27,
+    samples: [{ file: 'solo.wav' }],
+  });
+
+  globalThis.fetch = async () => {
+    await new Promise((r) => setTimeout(r, 50));
+    return {
+      ok: true,
+      async arrayBuffer() {
+        return new ArrayBuffer(8);
+      },
+      clone() {
+        return this;
+      },
+    };
+  };
+
+  const ctx = makeAudioCtx();
+  const pendingB = loadPacksForScore({
+    scoreId: 'score-b',
+    programs: [27],
+    drumNotes: [],
+    audioCtx: ctx,
+  });
+
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(getLoadState('score-b').status, 'loading');
+
+  cancelLoad('score-a');
+  const resultB = await pendingB;
+  assert.equal(resultB.status, 'ready');
+  assert.equal(getLoadState('score-b').status, 'ready');
+  assert.ok(Object.keys(resultB.buffers).length > 0);
+}
+
 console.log('gp-player pack-loader: ok');

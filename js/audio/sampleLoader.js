@@ -179,6 +179,10 @@ export async function loadPacksForScore({ scoreId, programs, drumNotes, audioCtx
         buffers[key] = buffer;
         loaded += 1;
         report('Loading guitar sounds');
+        const afterFetch = sessions.get(scoreId);
+        if (!afterFetch || afterFetch.status === 'cancelled') {
+          return { status: 'cancelled', packIds, progress: loaded / total, buffers: {}, error: 'Load cancelled.' };
+        }
       } catch (e) {
         const msg = e?.message || String(e);
         setSession(scoreId, { status: 'fallback', packIds, progress: 1, buffers: {}, error: msg });
@@ -189,6 +193,11 @@ export async function loadPacksForScore({ scoreId, programs, drumNotes, audioCtx
     if (token !== activeLoadToken) {
       setSession(scoreId, { status: 'cancelled', progress: 1 });
       return { status: 'cancelled', packIds, progress: 1, buffers: {}, error: 'Load cancelled.' };
+    }
+
+    const finalSession = sessions.get(scoreId);
+    if (!finalSession || finalSession.status === 'cancelled') {
+      return { status: 'cancelled', packIds, progress: loaded / total, buffers: {}, error: 'Load cancelled.' };
     }
 
     setSession(scoreId, { status: 'ready', packIds, progress: 1, buffers, error: null });
@@ -211,7 +220,6 @@ export function getLoadState(scoreId) {
 
 /** Cancel an in-progress load for one score. */
 export function cancelLoad(scoreId) {
-  activeLoadToken += 1;
   const session = sessions.get(scoreId);
   if (session) {
     sessions.set(scoreId, { ...session, status: 'cancelled' });

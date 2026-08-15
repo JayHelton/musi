@@ -156,6 +156,9 @@ export function getTrackBus(trackKey, { volume = 1, pan = 0 } = {}) {
   if (!mixCtx || !mixInput) return null;
 
   let bus = trackBuses.get(trackKey);
+  if (bus) {
+    bus.inputNode.connect(bus.gainNode);
+  }
   if (!bus) {
     const inputNode = mixCtx.createGain();
     inputNode.gain.value = 1;
@@ -219,6 +222,15 @@ export function setTrackMuteSolo({ mutedKeys: muted = [], soloKey: solo = null, 
   mutedKeys = new Set(muted || []);
   soloKey = soloedKeys?.length ? soloedKeys[0] : solo;
   applyAllBusGains();
+}
+
+/** True when the node is a shared track-bus input from getTrackBus. */
+export function isTrackBusInput(node) {
+  if (!node) return false;
+  for (const bus of trackBuses.values()) {
+    if (bus.inputNode === node) return true;
+  }
+  return false;
 }
 
 /** Clear track buses and graph references for tests or a new context. */

@@ -226,6 +226,7 @@ export function mountGpPlayer(host, {
           return;
         }
         await registerCorePacks();
+        if (!isAlive()) return;
         await loadPacksForScore({
           scoreId: packScoreId,
           programs,
@@ -233,6 +234,7 @@ export function mountGpPlayer(host, {
           audioCtx,
           onProgress: () => updateSourceLabel(),
         });
+        if (!isAlive()) return;
       } catch (e) {
         // Pack load must not block the score view.
       } finally {

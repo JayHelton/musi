@@ -5,6 +5,7 @@ import { audioCtx, ensureAudio, getMixDestination } from './audio.js';
 import { claimAudio, releaseAudio } from './audio/audioOwner.js';
 import {
   getTrackBus,
+  isTrackBusInput,
   setTrackBusGain,
   setTrackBusPan,
   setTrackMuteSolo,
@@ -1324,9 +1325,11 @@ export function createGpMixPlayer(opts = {}) {
     state.onLoopPass = null;
     state.onEnded = null;
     for (const g of state.trackGains.guitar) {
+      if (isTrackBusInput(g)) continue;
       try { g.disconnect(); } catch (e) { /* ignore */ }
     }
     for (const g of state.trackGains.drum) {
+      if (isTrackBusInput(g)) continue;
       try { g.disconnect(); } catch (e) { /* ignore */ }
     }
     state.trackGains.guitar = [];
