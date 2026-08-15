@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Seed workbook playthrough</title>
+</head>
+<body>
+  <p id="status">Seeding two Guitar Pro exercises and one workbook…</p>
+  <script type="module">
+    import { saveFile } from '../../js/attachments.js';
+    import { addGpExerciseFromAttachment } from '../../js/exercises.js';
+    import {
+      createWorkbook,
+      addExercisesToWorkbook,
+      setWorkbookLoop,
+    } from '../../js/workbookModel.js';
+
+    function makeScore(name, startFret) {
+      const measures = [];
+      const events = [];
+      for (let i = 0; i < 2; i += 1) {
+        measures.push({
+          startSlot: i,
+          endSlot: i + 1,
+          startBeat: i * 4,
+          endBeat: (i + 1) * 4,
+          timeSig: [4, 4],
+          marker: i === 0 ? name : null,
+        });
+        events.push({
+          slot: i,
+          start: i * 4,
+          duration: 2,
+          stringIndex: 0,
+          fret: startFret + i,
+          midi: 40 + startFret + i,
+          pc: 4,
+          techniques: [],
+          dead: false,
+        });
+      }
+      const model = {
+        tuning: 'Standard',
+        strings: [
+          { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+          { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+          { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+          { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+          { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+          { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+        ],
+        events,
+        measures,
+        tempo: 120,
+        totalBeats: 8,
+        slots: 2,
+        techniqueCounts: {},
+        warnings: [],
+      };
+      return {
+        format: 'musi-tab-model',
+        version: 3,
+        tempo: 120,
+        tracks: [{
+          index: 0,
+          name: 'Guitar',
+          tuning: 'Standard',
+          model,
+        }],
+        drumTracks: [],
+        warnings: [],
+      };
+    }
+
+    async function addPart(name, startFret) {
+      const json = JSON.stringify(makeScore(name, startFret));
+      const blob = new Blob([json], { type: 'application/x-musi-tab-model' });
+      const fileName = `${name}.musi-tab.json`;
+      const meta = await saveFile({
+        blob,
+        name,
+        type: 'application/x-musi-tab-model',
+        fileName,
+        size: blob.size,
+        source: 'exercise',
+      });
+      if (!meta) throw new Error(`Could not save ${name}`);
+      const item = addGpExerciseFromAttachment({
+        attachmentId: meta.id,
+        name,
+        fileName,
+        type: 'application/x-musi-tab-model',
+        size: blob.size,
+        loopEnabled: false,
+      });
+      if (!item) throw new Error(`Could not add ${name}`);
+      return item;
+    }
+
+    const status = document.getElementById('status');
+    try {
+      const a = await addPart('Playthrough A', 0);
+      const b = await addPart('Playthrough B', 5);
+      const wb = createWorkbook({ name: 'Seamless Playthrough' });
+      addExercisesToWorkbook(wb.id, [a.id, b.id]);
+      setWorkbookLoop(wb.id, false);
+      status.textContent = 'Seed complete. Opening Workbooks…';
+      window.location.replace('../../index.html#workbooks');
+    } catch (err) {
+      status.textContent = err?.message || String(err);
+    }
+  </script>
+</body>
+</html>
