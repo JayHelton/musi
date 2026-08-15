@@ -71,6 +71,7 @@ import {
   entryIdAtMeasure,
   boundaryForEntry,
 } from './workbookPlaythrough.js';
+import { showAppToast } from './appToast.js';
 
 const NAME_LIMIT = 120;
 const FOLDER_LIMIT = 40;
@@ -1355,9 +1356,17 @@ function moveToWorkbookEntry(entryId, { autoPlay } = {}) {
       syncPlayerHead(fresh);
       notifyWorkbookEntryChange();
       if (detailMountHandle?.seekToBeat) {
-        detailMountHandle.seekToBeat(boundary.startBeat, { autoplay: wasPlaying });
+        try {
+          detailMountHandle.seekToBeat(boundary.startBeat, { autoplay: wasPlaying });
+        } catch (err) {
+          showAppToast(err?.message);
+        }
       } else if (detailMountHandle?.seekToBar) {
-        detailMountHandle.seekToBar(boundary.startMeasure, { autoplay: wasPlaying });
+        try {
+          detailMountHandle.seekToBar(boundary.startMeasure, { autoplay: wasPlaying });
+        } catch (err) {
+          showAppToast(err?.message);
+        }
       }
       return;
     }
@@ -1564,8 +1573,8 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
   teardownDetailPlayer();
 
   try {
-  const wb = getWorkbook(workbookId);
-  if (!wb || isDetailLoadStale(loadToken, workbookId)) return;
+    const wb = getWorkbook(workbookId);
+    if (!wb || isDetailLoadStale(loadToken, workbookId)) return;
 
   syncTransportDisabled(wb);
 
@@ -1600,7 +1609,6 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
   const kind = mediaKind(exercise);
   const onPlaybackEnd = () => advance({ autoPlay: true });
 
-  try {
     if (kind === 'gp') {
       detailGpMountEl.innerHTML = '';
       if (!wb.loopEnabled) {
@@ -1680,13 +1688,15 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
   } catch (err) {
     if (!isDetailLoadStale(loadToken, workbookId)) {
       setStatus(err?.message || 'Could not load this exercise.', true);
-      detailGpMountEl.innerHTML = '';
-      detailGpMountEl.appendChild(el('div', {
-        class: 'wb-player-missing',
-        text: err?.message || 'Could not load this exercise.',
-      }));
+      showAppToast(err?.message);
+      if (detailGpMountEl) {
+        detailGpMountEl.innerHTML = '';
+        detailGpMountEl.appendChild(el('div', {
+          class: 'wb-player-missing',
+          text: err?.message || 'Could not load this exercise.',
+        }));
+      }
     }
-  }
   } finally {
     refreshPracticeMetrics();
   }

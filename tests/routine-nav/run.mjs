@@ -105,6 +105,20 @@ test('parseAppRoute drops a pair with an empty key or an empty value', () => {
   });
 });
 
+test('parseAppRoute does not throw on a bad percent in library mode', () => {
+  assert.deepEqual(parseAppRoute('library?mode=workbooks%'), {
+    id: 'library',
+    params: { mode: 'workbooks%' },
+  });
+});
+
+test('parseAppRoute does not throw on a bad percent in routine params', () => {
+  assert.deepEqual(parseAppRoute('routines?routine=bad%'), {
+    id: 'routines',
+    params: { routine: 'bad%' },
+  });
+});
+
 test('buildAppRoute omits the query part for an empty parameter set', () => {
   assert.equal(buildAppRoute({ id: 'routines', params: {} }), 'routines');
 });

@@ -26,6 +26,7 @@ import {
   hasUnsaved,
   confirmLeave,
 } from '../../js/shell/unsavedGuard.js';
+import { runAppToastTests } from './app-toast.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -684,6 +685,11 @@ for (const { name, fn } of pendingAsync) {
     console.error(`    ${err.message}`);
   }
 }
+
+console.log('');
+const toastResult = runAppToastTests();
+passed += toastResult.passed;
+failed += toastResult.failed;
 
 async function run() {
   console.log('');

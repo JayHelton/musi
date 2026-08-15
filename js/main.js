@@ -74,6 +74,7 @@ import { runMigrations, createLiveContext } from './migrations/index.js';
 // import { getRoutine } from './routineModel.js';
 // import { getWorkbook } from './workbookModel.js';
 import { initLibraryTabs, syncLibraryTabs } from './library/libraryTabs.js';
+import { showAppToast } from './appToast.js';
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 
@@ -465,6 +466,22 @@ async function goBack(fallback) {
   return false;
 }
 
+const VALID_NAV_ORIGINS = new Set([
+  'tools',
+  'reference',
+  'create',
+  'library',
+  'workbook',
+  'routine',
+  'search',
+  'recent',
+  'direct',
+]);
+
+function coerceNavOrigin(origin) {
+  return VALID_NAV_ORIGINS.has(origin) ? origin : 'direct';
+}
+
 function applySection(id, { keep = [] } = {}) {
   if (splitSecondaryId) {
     const sec = document.getElementById('sec-' + splitSecondaryId);
@@ -473,12 +490,12 @@ function applySection(id, { keep = [] } = {}) {
     document.body.classList.remove('split-mode');
   }
 
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
-
   const sectionId = id === 'home' ? 'hub-reference' : id;
   const sec = document.getElementById('sec-' + sectionId);
   if (!sec) return;
+
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
 
   sec.classList.add('active');
   currentNavId = sectionId;
@@ -779,6 +796,7 @@ async function applyRoute({
   notice = null,
   origin = null,
 }) {
+  try {
   const inboundId = id;
   const incoming = resolveIncomingRoute(inboundId, params);
   let routeId = incoming.routeId;
@@ -846,7 +864,7 @@ async function applyRoute({
       suppressHashChange = true;
       history.pushState(histState, '', url);
       navPushCount += 1;
-      const navOrigin = origin || inferNavigationOrigin(prevSectionId);
+      const navOrigin = coerceNavOrigin(origin || inferNavigationOrigin(prevSectionId));
       pushRoute({ id: routeId, params: routeParams }, navOrigin);
     }
   }
@@ -855,6 +873,10 @@ async function applyRoute({
   updateRouteNotice(notice, routeId);
   restoreArriveViewState(sectionId);
   focusHeading(document.getElementById('sec-' + sectionId));
+  } catch (err) {
+    console.error('applyRoute failed:', err);
+    showAppToast(err?.message);
+  }
 }
 
 function initRouteNoticeBanner() {
@@ -1024,6 +1046,20 @@ async function init() {
   initNav();
   initRouteNoticeBanner();
 
+  window.addEventListener('error', (event) => {
+    if (!event?.error) return;
+    const msg = event.error.message || event.message || '';
+    if (!msg) return;
+    showAppToast(msg);
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    const msg = reason?.message || (typeof reason === 'string' ? reason : '');
+    if (msg) showAppToast(msg);
+    event.preventDefault();
+  });
+
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -1180,6 +1216,8 @@ async function init() {
       } else {
         await applyRoute({ id: 'reference', params: {}, mode: 'none', source: 'popstate' });
       }
+    } catch (err) {
+      console.error('popstate handler failed:', err);
     } finally {
       applyingHistory = false;
     }
@@ -1191,10 +1229,10 @@ async function init() {
       return;
     }
     if (applyingHistory) return;
-    const parsed = parseAppRoute(location.hash);
-    const incoming = resolveIncomingRoute(parsed.id, parsed.params);
     applyingHistory = true;
     try {
+      const parsed = parseAppRoute(location.hash);
+      const incoming = resolveIncomingRoute(parsed.id, parsed.params);
       if (parsed.id && isValidSection(parsed.id)) {
         if (incoming.sectionId !== currentNavId) navPushCount += 1;
         await applyRoute({
@@ -1207,6 +1245,8 @@ async function init() {
         if (currentNavId !== 'hub-reference') navPushCount += 1;
         await applyRoute({ id: 'reference', params: {}, mode: 'none', source: 'hashchange' });
       }
+    } catch (err) {
+      console.error('hashchange handler failed:', err);
     } finally {
       applyingHistory = false;
     }

@@ -11,6 +11,7 @@ import {
   ROUTE_IDS,
   LEGACY_ROUTES,
 } from '../../js/routeMap.js';
+import { sectionIdForRoute } from '../../js/routeSection.js';
 
 let passed = 0;
 let failed = 0;
@@ -200,6 +201,25 @@ test('legacy routines resolves to tools train with notice', () => {
   const result = resolveRoute({ id: 'routines', params });
   assert.deepEqual(result.params, { mode: 'train' });
   assert.equal(result.notice, 'notice.routines-removed');
+});
+
+console.log('sectionIdForRoute');
+test('sectionIdForRoute maps library workbooks mode to workbooks', () => {
+  assert.equal(sectionIdForRoute('library', { mode: 'workbooks' }), 'workbooks');
+});
+
+test('sectionIdForRoute maps library exercises mode to exercises', () => {
+  assert.equal(sectionIdForRoute('library', { mode: 'exercises' }), 'exercises');
+});
+
+test('sectionIdForRoute maps library without mode to exercises', () => {
+  assert.equal(sectionIdForRoute('library', {}), 'exercises');
+  assert.equal(sectionIdForRoute('library'), 'exercises');
+});
+
+test('sectionIdForRoute keeps intervalmap and tabanalyzer aliases', () => {
+  assert.equal(sectionIdForRoute('intervalmap'), 'intervalorbit');
+  assert.equal(sectionIdForRoute('tabanalyzer'), 'gpplayer');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

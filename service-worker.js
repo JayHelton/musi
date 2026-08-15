@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v227-gp-score-spacing";
+const CACHE_VERSION = "v228-workbook-player-crash";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -52,6 +52,7 @@ const PRECACHE_URLS = [
   "css/landscape.css",
   "css/boot-splash.css",
   "css/route-notice.css",
+  "css/app-toast.css",
   "css/shell.css",
   "css/tools-home.css",
   "chord-cards/",
@@ -94,6 +95,8 @@ const PRECACHE_URLS = [
   "js/fretboard/renderer.js",
   "js/audioOwner.js",
   "js/appRoute.js",
+  "js/appToast.js",
+  "js/routeSection.js",
   "js/routeMap.js",
   "js/routineRoute.js",
   "js/routineDashboardModel.js",
