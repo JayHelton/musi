@@ -11,6 +11,7 @@ import {
   subscribe,
   stopActive,
 } from '../../js/audioOwner.js';
+import { shouldDeferServiceWorkerReload } from '../../js/swReloadGuard.js';
 
 let passed = 0;
 
@@ -183,6 +184,21 @@ await test('subscribe notifies after claim release and stop', async () => {
   unsub();
 
   assert.deepEqual(events, ['sub-1', null, 'sub-2', null]);
+});
+
+await test('score kind defers service-worker reload (see swReloadGuard)', async () => {
+  const handle = await claimAudio({
+    id: 'sw-score',
+    label: 'GP score',
+    kind: 'score',
+    onStop: () => {},
+  });
+  assert.equal(getActiveOwner().kind, 'score');
+  assert.equal(
+    shouldDeferServiceWorkerReload({ captureActive: false, scorePlaying: true }),
+    true,
+  );
+  releaseAudio(handle);
 });
 
 console.log(`audio-owner tests: ${passed} passed`);

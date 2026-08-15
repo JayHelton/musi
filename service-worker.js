@@ -89,6 +89,7 @@ const PRECACHE_URLS = [
   "js/shell/unsavedGuard.js",
   "js/shell/toolPage.js",
   "js/audioDock.js",
+  "js/swReloadGuard.js",
   "css/tool-page.css",
   "css/audio-dock.css",
   "css/fretboard.css",

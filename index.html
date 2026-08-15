@@ -1963,11 +1963,10 @@
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (refreshing) return;
         refreshing = true;
-        // Don't reload while the microphone is in use (tuner, pitch trainer,
-        // pitch runner, recorder, etc.) — a reload tears down the live audio
-        // session and makes the mic appear to "drop". Defer until it's idle.
+        // Do not reload while a score plays or the mic is in use.
+        // A reload tears down in-memory playback and live capture.
         const reloadWhenIdle = () => {
-          if (window.__musiCaptureActive) {
+          if (window.__musiShouldDeferReload?.()) {
             setTimeout(reloadWhenIdle, 1000);
           } else {
             window.location.reload();

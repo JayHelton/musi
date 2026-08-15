@@ -27,6 +27,7 @@ import {
   confirmLeave,
 } from '../../js/shell/unsavedGuard.js';
 import { runAppToastTests } from './app-toast.mjs';
+import { runSwReloadGuardTests } from './sw-reload-guard.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -690,6 +691,10 @@ console.log('');
 const toastResult = runAppToastTests();
 passed += toastResult.passed;
 failed += toastResult.failed;
+
+const swReloadResult = runSwReloadGuardTests();
+passed += swReloadResult.passed;
+failed += swReloadResult.failed;
 
 async function run() {
   console.log('');

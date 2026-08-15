@@ -21,8 +21,8 @@ import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initMovableChordCards } from './movableChordCards.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
-import { initExercises, stopExercises, closeExerciseViewer } from './exercises.js';
-import { initWorkbooks, stopWorkbooks, closeWorkbookDetail } from './workbooks.js';
+import { initExercises, stopExercises, closeExerciseViewer, openExerciseViewer, onExerciseViewerChange } from './exercises.js';
+import { initWorkbooks, stopWorkbooks, closeWorkbookDetail, openWorkbookForRoute, onWorkbookDetailChange } from './workbooks.js';
 // SIMPLIFY: Routines and Sessions hidden.
 // import { initRoutines, stopRoutines, createRoutineLayerDescriptors, setRoutineNavigator } from './routines.js';
 import { initNotes, stopNotes } from './notes.js';
@@ -50,9 +50,10 @@ import {
 } from './tools.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
-import { parseAppRoute, routeUrl } from './appRoute.js';
+import { parseAppRoute, routeUrl, sameRoute } from './appRoute.js';
 import { resolveRoute, shouldShowNotice, isKnownRoute, LEGACY_ROUTES } from './routeMap.js';
 import { initAudioDock } from './audioDock.js';
+import { initSwReloadGuard } from './swReloadGuard.js';
 import { mountToolPage } from './shell/toolPage.js';
 import {
   pushRoute,
@@ -74,6 +75,7 @@ import { runMigrations, createLiveContext } from './migrations/index.js';
 // import { getRoutine } from './routineModel.js';
 // import { getWorkbook } from './workbookModel.js';
 import { initLibraryTabs, syncLibraryTabs } from './library/libraryTabs.js';
+import { shouldKeepLibraryPlayer, libraryRouteParams } from './library/libraryPlayerRoute.js';
 import { showAppToast } from './appToast.js';
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
@@ -180,6 +182,24 @@ function hubCategory(id) {
 
 function sectionUrl(id, params = {}) {
   return routeUrl({ id: id || 'reference', params });
+}
+
+function replaceLibraryPlayerHash(params) {
+  const nextParams = { ...params };
+  if (
+    currentRouteId === 'library'
+    && sameRoute({ id: 'library', params: currentRouteParams }, { id: 'library', params: nextParams })
+  ) {
+    return;
+  }
+  currentRouteId = 'library';
+  currentRouteParams = { ...nextParams };
+  suppressHashChange = true;
+  history.replaceState(
+    { musiNav: 'library', params: nextParams },
+    '',
+    sectionUrl('library', nextParams),
+  );
 }
 
 const LIVE_SECTION_BY_ROUTE = {
@@ -514,11 +534,26 @@ function applySection(id, { keep = [] } = {}) {
   if (LIBRARY_SECTION_IDS.has(sectionId)) {
     const mode = sectionId === 'workbooks' ? 'workbooks' : 'exercises';
     syncLibraryTabs(mode);
-    // Library nav and Library tabs reopen the list. They do not keep an open player.
-    closeExerciseViewer();
-    if (sectionId === 'workbooks') closeWorkbookDetail();
+    const keepWorkbookPlayer = shouldKeepLibraryPlayer('workbooks', currentRouteParams);
+    const keepExercisePlayer = shouldKeepLibraryPlayer('exercises', currentRouteParams);
+    if (sectionId === 'workbooks') {
+      closeExerciseViewer();
+      if (!keepWorkbookPlayer) closeWorkbookDetail();
+    } else {
+      closeWorkbookDetail();
+      if (!keepExercisePlayer) closeExerciseViewer();
+    }
     stopOtherTools([sectionId]);
     initTool(sectionId);
+    if (keepWorkbookPlayer && sectionId === 'workbooks') {
+      openWorkbookForRoute({
+        workbookId: currentRouteParams.workbook,
+        exerciseId: currentRouteParams.exercise,
+        companionId: currentRouteParams.companion,
+      });
+    } else if (keepExercisePlayer && sectionId === 'exercises') {
+      void openExerciseViewer(currentRouteParams.exercise);
+    }
     updateHoldRecordVisibility(sectionId);
     updateHeaderChrome(sectionId);
     updateSplitUI();
@@ -1139,6 +1174,7 @@ async function init() {
   initVisualizer();
   initNowPlaying();
   initAudioDock(document.getElementById('audio-dock'));
+  initSwReloadGuard();
   initHoldRecordButton();
   initProgressHeaders();
   initToolsHome({
@@ -1159,6 +1195,26 @@ async function init() {
       source: 'internal',
       origin: 'library',
     }),
+  });
+  onWorkbookDetailChange(({ open, workbookId, exerciseId }) => {
+    if (currentNavId !== 'workbooks' && currentRouteId !== 'library') return;
+    if (open && workbookId) {
+      replaceLibraryPlayerHash(libraryRouteParams({
+        mode: 'workbooks',
+        workbook: workbookId,
+        exercise: exerciseId,
+      }));
+    } else if (currentRouteParams.mode === 'workbooks' || currentNavId === 'workbooks') {
+      replaceLibraryPlayerHash(libraryRouteParams({ mode: 'workbooks' }));
+    }
+  });
+  onExerciseViewerChange(({ open, exerciseId }) => {
+    if (currentNavId !== 'exercises' && currentRouteId !== 'library') return;
+    if (open && exerciseId) {
+      replaceLibraryPlayerHash(libraryRouteParams({ mode: 'exercises', exercise: exerciseId }));
+    } else if (currentRouteParams.mode === 'exercises' || currentNavId === 'exercises') {
+      replaceLibraryPlayerHash(libraryRouteParams({ mode: 'exercises' }));
+    }
   });
   initStats();
   initMusicPreferences({ showSection });
