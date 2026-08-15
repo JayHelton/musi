@@ -1,19 +1,20 @@
 import { openSelectionSheet } from '../selectionSheet.js';
+import { getSetting } from '../persistence.js';
 import { CATEGORY_ICONS, TOOL_ICONS, getTool } from '../tools.js';
 
 const MORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>';
 
 const RAIL_ITEMS = [
-  { id: 'tools', label: 'Tools', icon: CATEGORY_ICONS.home, section: 'tools' },
-  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'exercises' },
-  { id: 'routines', label: 'Routines', icon: TOOL_ICONS.routines, section: 'routines' },
-  { id: 'settings', label: 'Settings', icon: TOOL_ICONS.musicprefs, section: 'musicprefs' },
+  { id: 'reference', label: 'Reference', icon: CATEGORY_ICONS.reference, section: 'reference' },
+  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'library' },
+  { id: 'create', label: 'Create', icon: CATEGORY_ICONS.create, section: 'create' },
+  { id: 'more', label: 'More', icon: MORE_ICON, section: 'more' },
 ];
 
 const BOTTOM_ITEMS = [
-  { id: 'tools', label: 'Tools', icon: CATEGORY_ICONS.home, section: 'tools' },
-  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'exercises' },
-  { id: 'routines', label: 'Routines', icon: TOOL_ICONS.routines, section: 'routines' },
+  { id: 'reference', label: 'Reference', icon: CATEGORY_ICONS.reference, section: 'reference' },
+  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'library' },
+  { id: 'create', label: 'Create', icon: CATEGORY_ICONS.create, section: 'create' },
   { id: 'more', label: 'More', icon: MORE_ICON, section: 'more' },
 ];
 
@@ -22,28 +23,60 @@ let railEl = null;
 let bottomEl = null;
 
 function navHighlightId(sectionId) {
-  if (!sectionId || sectionId === 'home' || sectionId === 'tools') return 'tools';
+  if (!sectionId) return null;
+  if (sectionId === 'reference' || sectionId === 'hub-reference') return 'reference';
+  if (sectionId === 'create' || sectionId === 'hub-create') return 'create';
   if (sectionId === 'exercises' || sectionId === 'workbooks') return 'library';
-  if (sectionId === 'musicprefs') return 'settings';
-  if (sectionId === 'routines') return 'routines';
-  if (getTool(sectionId)) return 'tools';
+
+  const tool = getTool(sectionId);
+  if (tool) {
+    if (tool.category === 'reference') return 'reference';
+    if (tool.category === 'create') return 'create';
+  }
+
+  if (
+    sectionId === 'tools'
+    || sectionId === 'routines'
+    || sectionId === 'musicprefs'
+  ) {
+    return 'more';
+  }
+
+  if (tool) return 'more';
   return null;
 }
 
 function openMoreSheet() {
   openSelectionSheet({
     title: 'More',
-    items: [{ id: 'settings', label: 'Settings' }],
+    items: [
+      { id: 'tools', label: 'Practice tools' },
+      { id: 'routines', label: 'Routines' },
+      { id: 'settings', label: 'Settings' },
+    ],
     search: false,
-    onSelect: () => {
-      if (showSectionFn) showSectionFn('musicprefs');
+    onSelect: (id) => {
+      if (!showSectionFn) return;
+      if (id === 'tools') showSectionFn('tools');
+      else if (id === 'routines') showSectionFn('routines');
+      else if (id === 'settings') showSectionFn('musicprefs');
     },
   });
+}
+
+function openLibraryNav() {
+  if (!showSectionFn) return;
+  const mode = getSetting('library.tab', 'exercises');
+  const tab = mode === 'workbooks' ? 'workbooks' : 'exercises';
+  showSectionFn('library', false, { mode: tab });
 }
 
 function wireNavAction(item) {
   if (item.section === 'more') {
     return () => openMoreSheet();
+  }
+  if (item.section === 'library') {
+    return () => openLibraryNav();
   }
   return () => {
     if (showSectionFn) showSectionFn(item.section);

@@ -1,0 +1,12 @@
+/* Library tab bar on Exercises and Workbooks sections */
+.library-tabs {
+  margin: 0 0 12px;
+  max-width: 100%;
+}
+
+#sec-exercises .library-tabs,
+#sec-workbooks .library-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}

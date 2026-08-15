@@ -10,7 +10,7 @@ import {
   pushRecent,
   searchTools,
 } from '../../js/tools/homeModel.js';
-import { TOOLS, toolsForPurpose } from '../../js/tools.js';
+import { TOOLS } from '../../js/tools.js';
 import {
   pushRoute,
   popRoute,
@@ -47,7 +47,7 @@ function testAsync(name, fn) {
   pendingAsync.push({ name, fn });
 }
 
-const NAV_ORIGINS = ['tools', 'library', 'workbook', 'routine', 'search', 'recent', 'direct'];
+const NAV_ORIGINS = ['tools', 'reference', 'create', 'library', 'workbook', 'routine', 'search', 'recent', 'direct'];
 
 function drainNavStack() {
   while (true) {
@@ -116,33 +116,29 @@ function collectLabels(sections) {
 console.log('Section order and visibility');
 test('section order with favorites, recents, and active routines', () => {
   const sections = buildHomeSections({
-    purpose: 'train',
     tools: FAKE_TOOLS,
-    favorites: ['alpha', 'legacy'],
+    favorites: ['alpha'],
     recents: [{ id: 'alpha', mode: 'mode-a', at: '2026-08-14T10:00:00.000Z' }],
     activeRoutines: [{ id: 'r1', name: 'Morning routine' }],
     query: '',
   });
 
   assert.deepEqual(sectionIds(sections), [
-    'purposes',
     'favorites',
     'recents',
     'continue',
     'search',
     'browse',
   ]);
-  assert.equal(sections[0].activePurpose, 'train');
-  assert.equal(sections[1].items.length, 1);
-  assert.equal(sections[1].items[0].id, 'alpha');
-  assert.equal(sections[2].items[0].source, 'recent');
-  assert.equal(sections[3].label, 'Continue a routine');
-  assert.equal(sections[3].items[0].label, 'Morning routine');
+  assert.equal(sections[0].items.length, 1);
+  assert.equal(sections[0].items[0].id, 'alpha');
+  assert.equal(sections[1].items[0].source, 'recent');
+  assert.equal(sections[2].label, 'Continue a routine');
+  assert.equal(sections[2].items[0].label, 'Morning routine');
 });
 
 test('empty favorites, recents, and routines omit those sections', () => {
   const sections = buildHomeSections({
-    purpose: 'study',
     tools: FAKE_TOOLS,
     favorites: [],
     recents: [],
@@ -150,7 +146,7 @@ test('empty favorites, recents, and routines omit those sections', () => {
     query: '',
   });
 
-  assert.deepEqual(sectionIds(sections), ['purposes', 'search', 'browse']);
+  assert.deepEqual(sectionIds(sections), ['search', 'browse']);
 });
 
 console.log('Recents');
@@ -227,20 +223,18 @@ test('empty search query returns no rows', () => {
 });
 
 console.log('Browse and favorites');
-test('browse lists only tools for the active purpose', () => {
+test('browse lists all supplied tools', () => {
   const sections = buildHomeSections({
-    purpose: 'study',
     tools: FAKE_TOOLS,
     query: '',
   });
   const browse = sections.find(s => s.id === 'browse');
-  assert.deepEqual(browse.items.map(item => item.id), ['beta']);
+  assert.deepEqual(browse.items.map(item => item.id), ['alpha', 'beta', 'gamma', 'legacy']);
 });
 
-test('favorites skip tools without purpose', () => {
+test('favorites skip tools not in the catalog list', () => {
   const sections = buildHomeSections({
-    purpose: 'train',
-    tools: FAKE_TOOLS,
+    tools: FAKE_TOOLS.filter(t => t.id !== 'legacy'),
     favorites: ['legacy', 'alpha'],
     query: '',
   });
@@ -251,7 +245,6 @@ test('favorites skip tools without purpose', () => {
 console.log('Copy guardrails');
 test('no section or item label equals "No routines yet"', () => {
   const sections = buildHomeSections({
-    purpose: 'train',
     tools: FAKE_TOOLS,
     favorites: ['alpha'],
     recents: [{ id: 'alpha', mode: '', at: '2026-08-14T10:00:00.000Z' }],
@@ -332,9 +325,17 @@ test('saveViewState and readViewState round-trip Library filter shape', () => {
 });
 
 console.log('navStack parentAddress');
-test('parentAddress for tools, library, search, recent, and direct', () => {
+test('parentAddress for tools, reference, create, library, search, recent, and direct', () => {
   assert.deepEqual(parentAddress('tools', { id: 'metronome', params: {} }), {
     id: 'tools',
+    params: {},
+  });
+  assert.deepEqual(parentAddress('reference', { id: 'circle', params: {} }), {
+    id: 'reference',
+    params: {},
+  });
+  assert.deepEqual(parentAddress('create', { id: 'recorder', params: {} }), {
+    id: 'create',
     params: {},
   });
   assert.deepEqual(parentAddress('library', { id: 'scalelab', params: { mode: 'overview' } }), {
@@ -447,25 +448,23 @@ for (const { label, result, handler } of unsavedPromptCases) {
 }
 
 console.log('Live catalog');
-test('Train, Study, and Create each list the expected tools', () => {
-  const trainIds = toolsForPurpose('train').map(t => t.id);
-  const studyIds = toolsForPurpose('study').map(t => t.id);
-  const createIds = toolsForPurpose('create').map(t => t.id);
+test('reference, create, and practice tools use expected categories', () => {
+  const referenceIds = TOOLS.filter(t => t.category === 'reference').map(t => t.id);
+  const createIds = TOOLS.filter(t => t.category === 'create').map(t => t.id);
+  const practiceIds = TOOLS.filter((t) => {
+    if (t.category === 'reference' || t.category === 'create') return false;
+    if (t.id === 'exercises' || t.id === 'workbooks' || t.id === 'musicprefs') return false;
+    return true;
+  }).map(t => t.id);
 
-  for (const id of ['tuner', 'metronome', 'practice', 'exercises', 'workbooks', 'gpplayer']) {
-    assert.equal(trainIds.includes(id), true, `train missing ${id}`);
+  for (const id of ['scaleref', 'chords', 'triads', 'circle']) {
+    assert.equal(referenceIds.includes(id), true, `reference missing ${id}`);
   }
-  for (const id of ['scaleref', 'intervalorbit', 'chords']) {
-    assert.equal(studyIds.includes(id), true, `study missing ${id}`);
-  }
-  for (const id of ['songwriter', 'recorder', 'tracktosheet']) {
+  for (const id of ['recorder', 'songwriter', 'notes', 'tracktosheet']) {
     assert.equal(createIds.includes(id), true, `create missing ${id}`);
   }
-
-  for (const id of ['scales', 'drums', 'musicprefs']) {
-    const tool = TOOLS.find(t => t.id === id);
-    assert.ok(tool, `${id} missing from TOOLS`);
-    assert.equal(tool.purpose, undefined, `${id} should have no purpose`);
+  for (const id of ['metronome', 'tuner', 'intervalorbit', 'chordlab', 'studylab', 'drums']) {
+    assert.equal(practiceIds.includes(id), true, `practice missing ${id}`);
   }
 });
 

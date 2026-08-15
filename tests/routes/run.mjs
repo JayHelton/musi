@@ -29,16 +29,16 @@ function test(name, fn) {
 
 const LEGACY_CASES = [
   { hash: 'scales', id: 'scalelab', params: { mode: 'overview' }, notice: 'notice.scales-removed' },
-  { hash: 'scaleref', id: 'scalelab', params: { mode: 'overview' }, notice: null },
-  { hash: 'circle', id: 'scalelab', params: { mode: 'modes' }, notice: null },
-  { hash: 'studylab', id: 'scalelab', params: { mode: 'guide' }, notice: null },
+  { hash: 'scaleref', id: 'scalelab', params: {}, notice: null },
+  { hash: 'circle', id: 'circle', params: {}, notice: null },
+  { hash: 'studylab', id: 'studylab', params: {}, notice: null },
   { hash: 'intervals', id: 'fretmap', params: { mode: 'learn' }, notice: 'notice.intervals-removed' },
   { hash: 'fretboard', id: 'fretmap', params: { mode: 'map' }, notice: 'notice.fretboard-removed' },
   { hash: 'intervalorbit', id: 'fretmap', params: { mode: 'map' }, notice: null },
   { hash: 'intervalmap', id: 'fretmap', params: { mode: 'map' }, notice: null },
   { hash: 'chordlab', id: 'chordlab', params: { mode: 'reference' }, notice: 'notice.chordlab-removed' },
-  { hash: 'chords', id: 'chordlab', params: { mode: 'reference' }, notice: null },
-  { hash: 'triads', id: 'chordlab', params: { mode: 'triads' }, notice: null },
+  { hash: 'chords', id: 'chordlab', params: {}, notice: null },
+  { hash: 'triads', id: 'triads', params: {}, notice: null },
   { hash: 'tuner', id: 'pitchear', params: { mode: 'tuner' }, notice: null },
   { hash: 'ear', id: 'pitchear', params: { mode: 'ear' }, notice: null },
   { hash: 'timing', id: 'metronome', params: { mode: 'metronome' }, notice: 'notice.timing-removed' },
@@ -48,7 +48,7 @@ const LEGACY_CASES = [
   { hash: 'recorder', id: 'audiostudio', params: { mode: 'capture' }, notice: null },
   { hash: 'tracktosheet', id: 'audiostudio', params: { mode: 'transcribe' }, notice: null },
   { hash: 'songwriter', id: 'songstudio', params: {}, notice: null },
-  { hash: 'notes', id: 'songstudio', params: {}, notice: 'notice.notes-removed' },
+  { hash: 'notes', id: 'notes', params: {}, notice: null },
   { hash: 'keyboard', id: 'tools', params: { mode: 'study' }, notice: 'notice.pitch-reference' },
   { hash: 'exercises', id: 'library', params: { mode: 'exercises' }, notice: null },
   { hash: 'workbooks', id: 'library', params: { mode: 'workbooks' }, notice: null },
@@ -56,7 +56,7 @@ const LEGACY_CASES = [
   { hash: 'gpplayer', id: 'scoreplayer', params: {}, notice: null },
   { hash: 'tabanalyzer', id: 'scoreplayer', params: {}, notice: null },
   { hash: 'musicprefs', id: 'settings', params: { mode: 'preferences' }, notice: null },
-  { hash: 'home', id: 'tools', params: { mode: 'train' }, notice: null },
+  { hash: 'home', id: 'reference', params: {}, notice: null },
 ];
 
 function assertResolved(route, expected, ctx) {
@@ -89,10 +89,10 @@ test('#drums with drum exercises', () => {
 });
 
 console.log('Section 9 cases');
-test('empty hash -> tools train', () => {
+test('empty hash -> reference', () => {
   assertResolved(
     { id: '', params: {} },
-    { id: 'tools', params: { mode: 'train' }, notice: null },
+    { id: 'reference', params: {}, notice: null },
   );
 });
 
@@ -108,10 +108,10 @@ test('#tabanalyzer alias matches #gpplayer', () => {
   assert.deepEqual(tab, gp);
 });
 
-test('scalelab without mode defaults to overview', () => {
+test('scalelab without mode keeps empty params', () => {
   assertResolved(
     { id: 'scalelab', params: {} },
-    { id: 'scalelab', params: { mode: 'overview' }, notice: null },
+    { id: 'scalelab', params: {}, notice: null },
   );
 });
 
@@ -141,14 +141,20 @@ test('shouldShowNotice rejects empty notice id', () => {
 console.log('Catalogue integrity');
 test('ROUTE_IDS lists every contract section 3 id', () => {
   const expected = [
+    'reference',
+    'create',
     'tools',
     'scalelab',
     'fretmap',
     'chordlab',
+    'circle',
+    'triads',
+    'studylab',
     'pitchear',
     'metronome',
     'audiostudio',
     'songstudio',
+    'notes',
     'library',
     'routines',
     'scoreplayer',
