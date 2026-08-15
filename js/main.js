@@ -21,8 +21,8 @@ import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initMovableChordCards } from './movableChordCards.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
-import { initExercises, stopExercises } from './exercises.js';
-import { initWorkbooks, stopWorkbooks } from './workbooks.js';
+import { initExercises, stopExercises, closeExerciseViewer } from './exercises.js';
+import { initWorkbooks, stopWorkbooks, closeWorkbookDetail } from './workbooks.js';
 // SIMPLIFY: Routines and Sessions hidden.
 // import { initRoutines, stopRoutines, createRoutineLayerDescriptors, setRoutineNavigator } from './routines.js';
 import { initNotes, stopNotes } from './notes.js';
@@ -497,6 +497,9 @@ function applySection(id, { keep = [] } = {}) {
   if (LIBRARY_SECTION_IDS.has(sectionId)) {
     const mode = sectionId === 'workbooks' ? 'workbooks' : 'exercises';
     syncLibraryTabs(mode);
+    // Library nav and Library tabs reopen the list. They do not keep an open player.
+    closeExerciseViewer();
+    if (sectionId === 'workbooks') closeWorkbookDetail();
     stopOtherTools([sectionId]);
     initTool(sectionId);
     updateHoldRecordVisibility(sectionId);
@@ -566,7 +569,7 @@ function applySection(id, { keep = [] } = {}) {
 function showSection(id, skipHash, params = {}) {
   const incoming = resolveIncomingRoute(id, params);
   const toolForGate = getTool(incoming.sectionId);
-  if (toolForGate && !isFeatureEnabled(incoming.sectionId)) {
+  if (incoming.routeId !== 'library' && toolForGate && !isFeatureEnabled(incoming.sectionId)) {
     showSection('reference', skipHash);
     return;
   }
@@ -653,6 +656,7 @@ function getRoutineNavigator() {
 */
 
 function gatedSectionId(id) {
+  if (LIBRARY_SECTION_IDS.has(id)) return id;
   const toolForGate = getTool(id);
   if (toolForGate && !isFeatureEnabled(id)) return 'hub-reference';
   return id;
