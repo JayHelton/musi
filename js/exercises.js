@@ -47,6 +47,7 @@ import {
   validMoveTargets,
   nextParentAfterDelete,
 } from './folderTree.js';
+import { mountLibraryTabs } from './library/libraryTabs.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -2480,6 +2481,10 @@ export function initExercises() {
   playerTitleEl = document.getElementById('ex-player-title');
   playerActionsEl = document.getElementById('ex-player-actions');
   playerBackBtn = document.getElementById('ex-player-back');
+
+  mountLibraryTabs(document.getElementById('ex-library-tabs'), 'exercises', {
+    showSection: window.showSection,
+  });
 
   if (!listEl) return;
 

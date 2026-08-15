@@ -1,0 +1,49 @@
+/* Library mode tabs (Exercises / Workbooks) */
+
+.library-tabs {
+  margin-top: 8px;
+  margin-bottom: 10px;
+  max-width: 100%;
+  font-family: var(--font-ui);
+  border-radius: var(--radius-screen);
+  background: var(--card);
+  border: 1px solid var(--border);
+  position: relative;
+  top: 0;
+}
+
+.library-tabs .subview-tab {
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  border-radius: var(--radius-pill);
+  min-height: 40px;
+  color: var(--muted);
+}
+
+.library-tabs .subview-tab.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.library-tabs .subview-tab:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+}
+
+#sec-exercises .section-head .library-tabs,
+#sec-workbooks .section-head .library-tabs {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .library-tabs {
+    margin-top: 6px;
+    margin-bottom: 8px;
+  }
+
+  .library-tabs .subview-tab {
+    min-height: 36px;
+    font-size: 0.82rem;
+    padding: 6px 12px;
+  }
+}

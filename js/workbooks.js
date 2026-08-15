@@ -71,6 +71,7 @@ import {
   entryIdAtMeasure,
   boundaryForEntry,
 } from './workbookPlaythrough.js';
+import { mountLibraryTabs } from './library/libraryTabs.js';
 
 const NAME_LIMIT = 120;
 const FOLDER_LIMIT = 40;
@@ -2480,6 +2481,10 @@ export function initWorkbooks() {
   newBtn = document.getElementById('wb-new-btn');
   addFolderForm = document.getElementById('wb-add-folder-form');
   addFolderInput = document.getElementById('wb-add-folder-input');
+
+  mountLibraryTabs(document.getElementById('wb-library-tabs'), 'workbooks', {
+    showSection: window.showSection,
+  });
 
   if (!listEl) return;
 
