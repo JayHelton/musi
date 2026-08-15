@@ -10,6 +10,7 @@ import {
   assignArcStackLevels,
   beatFromXUnits,
   beatXUnits,
+  buildOverlayPaths,
   fitScaleForBar,
   layoutScore,
   ROW_CHROME_UNITS,
@@ -121,6 +122,61 @@ async function layoutForFixture(name, extraOptions = {}) {
 
 function availableWidthPx(widthPx) {
   return Math.max(100, widthPx - ROW_CHROME_UNITS);
+}
+
+function denseEightBarTripletModel() {
+  const strings = [
+    { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+    { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+    { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+    { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+    { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+    { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+  ];
+  const beats = [];
+  const events = [];
+  const measures = [];
+  const notesPerBar = 24;
+  const noteDuration = 4 / notesPerBar;
+
+  for (let bar = 0; bar < 8; bar += 1) {
+    measures.push({
+      startBeat: bar * 4,
+      endBeat: (bar + 1) * 4,
+      timeSig: [4, 4],
+    });
+    for (let n = 0; n < notesPerBar; n += 1) {
+      const start = bar * 4 + n * noteDuration;
+      const stringIndex = n % 6;
+      const idx = events.length;
+      events.push({
+        start,
+        stringIndex,
+        fret: (n % 12) + 1,
+        dead: false,
+        duration: noteDuration,
+      });
+      beats.push({
+        measureIndex: bar,
+        voiceIndex: 0,
+        start,
+        duration: noteDuration,
+        noteValue: 16,
+        dots: 0,
+        tuplet: { num: 3, den: 2 },
+        rest: false,
+        noteIndices: [idx],
+      });
+    }
+  }
+
+  return {
+    tuning: 'Standard',
+    strings,
+    events,
+    beats,
+    measures,
+  };
 }
 
 function denseTwoDigitSixteenthModel() {
@@ -758,6 +814,59 @@ let techniqueReport = null;
   ];
   const levels = assignArcStackLevels(arcs);
   assert.notEqual(levels[0], levels[1], 'overlapping slurs must get different stack levels');
+}
+
+// assignArcStackLevels must skip arcs with a missing from or to endpoint.
+{
+  const arcs = [
+    {
+      kind: 'slur',
+      from: { x: 10, y: 20, w: 8, h: 10 },
+      to: { x: 50, y: 20, w: 8, h: 10 },
+    },
+    {
+      kind: 'slur',
+      from: null,
+      to: { x: 55, y: 20, w: 8, h: 10 },
+    },
+    {
+      kind: 'tie',
+      from: { x: 20, y: 20, w: 8, h: 10 },
+      to: undefined,
+    },
+  ];
+  const levels = assignArcStackLevels(arcs);
+  assert.equal(levels.length, 3, 'levels array matches input length');
+  assert.equal(levels[1], 0, 'missing from keeps level 0');
+  assert.equal(levels[2], 0, 'missing to keeps level 0');
+}
+
+// buildOverlayPaths must skip out-of-range glyph indices and must not throw.
+{
+  const glyphs = [
+    { lane: 'tabStaff', x: 10, y: 20, w: 8, h: 10 },
+    { lane: 'tabStaff', x: 50, y: 20, w: 8, h: 10 },
+  ];
+  const overlays = buildOverlayPaths(glyphs, [
+    { kind: 'slur', fromIndex: 0, toIndex: 1 },
+    { kind: 'tie', fromIndex: 0, toIndex: 99 },
+    { kind: 'slide', fromIndex: -1, toIndex: 1 },
+    { kind: 'bend', fromIndex: 1, toIndex: 0 },
+  ]);
+  assert.equal(overlays.length, 2, 'only valid overlay records become paths');
+  assert.ok(overlays.every((o) => typeof o.path === 'string' && o.path.startsWith('M ')));
+}
+
+// layoutScore must handle an eight-bar dense 16th-triplet model.
+{
+  const model = denseEightBarTripletModel();
+  const layout = layoutForModel(model, { widthPx: 360, maxMeasuresPerSystem: 1 });
+  assert.equal(layout.bars.length, 8, 'eight bars in layout');
+  assert.ok(layout.systems.length >= 8, 'one bar per row at phone width');
+  assert.ok(layout.bars.every((bar) => bar.glyphs.length > 0), 'each bar has glyphs');
+  for (const sys of layout.systems) {
+    assert.equal(sys.barIndices.length, 1, 'dense triplets use one bar per system');
+  }
 }
 
 // Hammer-on slurs must connect each note to its nearest earlier neighbour.

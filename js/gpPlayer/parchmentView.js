@@ -223,6 +223,8 @@ export function mountParchmentView(host, {
   let reportedZoomLimit = null;
   let lastBuildLayoutWidthPx = 0;
   let lastBuildHostW = 0;
+  let rebuilding = false;
+  let resizeQuietRaf = 0;
 
   const viewport = document.createElement('div');
   viewport.className = 'gpp-parch-viewport';
@@ -254,6 +256,7 @@ export function mountParchmentView(host, {
 
   const ro = typeof ResizeObserver !== 'undefined'
     ? new ResizeObserver(() => {
+      if (rebuilding || resizeQuietRaf) return;
       // The sheet can reflow without a width change, for example when a web
       // font arrives late. The cached measure boxes are then wrong, so drop
       // them even when the view keeps the layout it has.
@@ -272,7 +275,6 @@ export function mountParchmentView(host, {
   if (ro) {
     ro.observe(host);
     ro.observe(viewport);
-    ro.observe(sheet);
   }
 
   function onViewportScroll() {
@@ -628,33 +630,46 @@ export function mountParchmentView(host, {
     return wrap;
   }
 
-  function rebuild() {
-    if (destroyed) return;
-    try {
-      sheet.innerHTML = '';
-      if (legendEl) {
-        legendEl.remove();
-        legendEl = null;
-      }
-      measureEls = [];
-      systemEls = [];
-      measureSystemIndex = [];
-      measureGeom = [];
-      playheadEl = null;
-      selOverlayEl = null;
-      handleStart = null;
-      handleEnd = null;
-      lastActiveBeatKey = '';
+  function scheduleResizeQuiet() {
+    if (resizeQuietRaf) cancelAnimationFrame(resizeQuietRaf);
+    resizeQuietRaf = requestAnimationFrame(() => {
+      resizeQuietRaf = 0;
+    });
+  }
 
+  function rebuild() {
+    if (destroyed || rebuilding) return;
+    rebuilding = true;
+
+    const hadContent = sheet.children.length > 0;
+    let layoutPlan = null;
+
+    try {
       const ms = measures();
       const hostW = host.clientWidth || 600;
       const layoutWidthRawPx = measureLayoutWidthPx();
       const layoutWidthPx = layoutWidthRawPx - ROW_EDGE_INSET_PX;
-      lastBuildHostW = hostW;
-      lastBuildLayoutWidthPx = layoutWidthRawPx;
 
       if (!ms.length) {
         reportZoomLimitIfChanged(Infinity);
+        sheet.innerHTML = '';
+        if (legendEl) {
+          legendEl.remove();
+          legendEl = null;
+        }
+        measureEls = [];
+        systemEls = [];
+        measureSystemIndex = [];
+        measureGeom = [];
+        playheadEl = null;
+        selOverlayEl = null;
+        handleStart = null;
+        handleEnd = null;
+        lastActiveBeatKey = '';
+        scoreLayout = null;
+        lastBuildHostW = hostW;
+        lastBuildLayoutWidthPx = layoutWidthRawPx;
+        scheduleResizeQuiet();
         return;
       }
 
@@ -687,10 +702,10 @@ export function mountParchmentView(host, {
       }
 
       let scale = desired;
-      scoreLayout = buildLayoutAtScale(scale);
+      let nextScoreLayout = buildLayoutAtScale(scale);
 
       let widestMinUnits = 0;
-      for (const bar of scoreLayout.bars) {
+      for (const bar of nextScoreLayout.bars) {
         const minUnits = bar.minWidthUnits ?? bar.widthUnits;
         if (minUnits > widestMinUnits) widestMinUnits = minUnits;
       }
@@ -703,7 +718,7 @@ export function mountParchmentView(host, {
       });
       if (fittedScale !== scale) {
         scale = fittedScale;
-        scoreLayout = buildLayoutAtScale(scale);
+        nextScoreLayout = buildLayoutAtScale(scale);
       }
 
       const fit = widestMinUnits > 0
@@ -712,8 +727,58 @@ export function mountParchmentView(host, {
       const limit = fit == null
         ? Infinity
         : Math.max(MIN_FIT_SCALE, fit) / autoScaleForHostWidth(hostW);
+
+      layoutPlan = {
+        hostW,
+        layoutWidthRawPx,
+        scale,
+        nextScoreLayout,
+        limit,
+      };
+    } catch (err) {
+      if (!hadContent) {
+        sheet.innerHTML = '';
+        const errEl = document.createElement('div');
+        errEl.className = 'gpp-parch-error';
+        errEl.textContent = 'Could not draw this score.';
+        sheet.appendChild(errEl);
+      }
+      console.error(err);
+      return;
+    } finally {
+      rebuilding = false;
+    }
+
+    rebuilding = true;
+    try {
+      if (legendEl) {
+        legendEl.remove();
+        legendEl = null;
+      }
+      measureEls = [];
+      systemEls = [];
+      measureSystemIndex = [];
+      measureGeom = [];
+      playheadEl = null;
+      selOverlayEl = null;
+      handleStart = null;
+      handleEnd = null;
+      lastActiveBeatKey = '';
+
+      const {
+        hostW,
+        layoutWidthRawPx,
+        scale,
+        nextScoreLayout,
+        limit,
+      } = layoutPlan;
+
+      lastBuildHostW = hostW;
+      lastBuildLayoutWidthPx = layoutWidthRawPx;
+      scoreLayout = nextScoreLayout;
       reportZoomLimitIfChanged(limit);
 
+      sheet.innerHTML = '';
       sheet.style.setProperty('--gpp-scale', String(scale));
       const layoutFontPx = Math.max(12, Math.round(LAYOUT_BASE_PX * scale));
       sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * scale))}px`);
@@ -776,13 +841,18 @@ export function mountParchmentView(host, {
       paintAnnotations(annotations, highlightedAnnoId);
       paintActive(lastActive);
       paintActiveBeat(activePosition);
+      scheduleResizeQuiet();
     } catch (err) {
-      sheet.innerHTML = '';
-      const errEl = document.createElement('div');
-      errEl.className = 'gpp-parch-error';
-      errEl.textContent = 'Could not draw this score.';
-      sheet.appendChild(errEl);
+      if (!hadContent) {
+        sheet.innerHTML = '';
+        const errEl = document.createElement('div');
+        errEl.className = 'gpp-parch-error';
+        errEl.textContent = 'Could not draw this score.';
+        sheet.appendChild(errEl);
+      }
       console.error(err);
+    } finally {
+      rebuilding = false;
     }
   }
 
@@ -1466,6 +1536,7 @@ export function mountParchmentView(host, {
     destroyed = true;
     clearLongPress();
     cancelAnimationFrame(rafId);
+    if (resizeQuietRaf) cancelAnimationFrame(resizeQuietRaf);
     if (ro) ro.disconnect();
     viewport.removeEventListener('scroll', onViewportScroll);
     viewport.removeEventListener('wheel', onUserScrollGesture);

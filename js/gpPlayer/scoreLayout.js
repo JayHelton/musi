@@ -162,21 +162,30 @@ function arcsOverlap(a, b) {
  * @returns {number[]}
  */
 export function assignArcStackLevels(arcs) {
-  const meta = arcs.map((arc) => ({
-    ...arcXRange(arc.from, arc.to),
-    yBand: arcYBand(arc.kind, arc.from, arc.to),
-  }));
-  const order = meta.map((_, i) => i).sort((a, b) => meta[a].xMin - meta[b].xMin || meta[a].xMax - meta[b].xMax);
   const levels = new Array(arcs.length).fill(0);
+  const validIndices = [];
+  const validMeta = [];
+  for (let i = 0; i < arcs.length; i += 1) {
+    const arc = arcs[i];
+    if (!arc.from || !arc.to) continue;
+    validIndices.push(i);
+    validMeta.push({
+      ...arcXRange(arc.from, arc.to),
+      yBand: arcYBand(arc.kind, arc.from, arc.to),
+    });
+  }
+  const order = validMeta.map((_, i) => i).sort(
+    (a, b) => validMeta[a].xMin - validMeta[b].xMin || validMeta[a].xMax - validMeta[b].xMax,
+  );
   const placed = [];
 
-  for (const idx of order) {
-    const arc = meta[idx];
+  for (const vi of order) {
+    const arc = validMeta[vi];
     let level = 0;
     while (placed.some((p) => p.yBand === arc.yBand && p.level === level && arcsOverlap(p, arc))) {
       level += 1;
     }
-    levels[idx] = level;
+    levels[validIndices[vi]] = level;
     placed.push({ ...arc, level });
   }
   return levels;
@@ -222,17 +231,21 @@ function overlayPath(kind, from, to, stackLevel = 0) {
  * @returns {object[]}
  */
 export function buildOverlayPaths(glyphs, overlayRecords) {
-  const arcInputs = overlayRecords.map((rec) => ({
-    kind: rec.kind,
-    from: glyphs[rec.fromIndex],
-    to: glyphs[rec.toIndex],
-  }));
-  const levels = assignArcStackLevels(arcInputs);
-
-  return overlayRecords.map((rec, i) => {
+  const validRecords = [];
+  const arcInputs = [];
+  for (const rec of overlayRecords) {
     const from = glyphs[rec.fromIndex];
     const to = glyphs[rec.toIndex];
-    const laneName = (g) => g.lane;
+    if (!from || !to) continue;
+    validRecords.push(rec);
+    arcInputs.push({ kind: rec.kind, from, to });
+  }
+  const levels = assignArcStackLevels(arcInputs);
+  const laneName = (g) => g.lane;
+
+  return validRecords.map((rec, i) => {
+    const from = glyphs[rec.fromIndex];
+    const to = glyphs[rec.toIndex];
     return {
       kind: rec.kind,
       path: overlayPath(rec.kind, from, to, levels[i]),
