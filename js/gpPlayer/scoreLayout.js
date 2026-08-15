@@ -54,8 +54,8 @@ const GUTTER_UNITS = 20;
 const VIEWPORT_PAD = 12;
 // A fret number must never touch the next one, and it must never touch a
 // rhythm tick below it. Each beat column therefore keeps a clear gap after
-// its widest text.
-const MIN_COL_GAP_UNITS = 9;
+// its widest text. Two-digit frets need this gap or the score is hard to read.
+const MIN_COL_GAP_UNITS = 14;
 // A phone screen holds one measure per row. Two measures on a 360 CSS pixel
 // screen leave about 160 pixels for each bar, and the fret numbers then run
 // into each other.

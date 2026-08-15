@@ -564,8 +564,8 @@ let techniqueReport = null;
       `mixed bar at ${widthPx}px: widthUnits (${bar.widthUnits}) must be >= minWidthUnits (${bar.minWidthUnits})`,
     );
     assert.ok(
-      minGap >= 2,
-      `mixed bar at ${widthPx}px: closest same-string gap (${minGap}) must be at least 2 units`,
+      minGap >= 6,
+      `mixed bar at ${widthPx}px: closest same-string gap (${minGap}) must be at least 6 units`,
     );
   }
 }
