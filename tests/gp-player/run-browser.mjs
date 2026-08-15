@@ -31,6 +31,7 @@ const PAGES = [
   'follow-scroll.html',
   'zoom-overflow.html',
   'score-alignment.html',
+  'score-spacing.html',
   'score-follow.html',
   'score-fixtures-visual.html',
   'audio-owner.html',
