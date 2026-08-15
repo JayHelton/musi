@@ -46,6 +46,10 @@ function collectRequiredModules() {
 
   files.add('css/gpplayer.css');
   files.add('js/audio.js');
+  files.add('js/audio/audioOwner.js');
+  files.add('js/audio/mixBus.js');
+  files.add('js/audio/samplePackRegistry.js');
+  files.add('js/audio/sampleLoader.js');
   files.add('js/drums/drumEngine.js');
 
   // Inventory files that were missing from an earlier precache list.
@@ -70,6 +74,15 @@ function extractPrecacheUrls(swText) {
 
 const swText = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
 const precache = extractPrecacheUrls(swText);
+const packInPrecache = [...precache].filter((url) => url.includes('assets/audio/packs/'));
+if (packInPrecache.length > 0) {
+  console.error('PRECACHE_URLS must not include assets/audio/packs/:');
+  for (const path of packInPrecache) {
+    console.error(`  ${path}`);
+  }
+  process.exit(1);
+}
+
 const required = collectRequiredModules();
 const missing = required.filter((path) => !precache.has(path));
 

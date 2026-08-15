@@ -15,3 +15,14 @@ tests/gp-player/fixtures/passages/*.gp5
 ${profile}/
 chrome-profile*/
 *.SingletonSocket
+
+# Local tooling and secrets
+node_modules/
+dist/
+build/
+*.log
+.env*
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp

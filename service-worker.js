@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v206-session-metronome-removed";
+const CACHE_VERSION = "v207-audio-engine-foundation";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -68,6 +68,10 @@ const PRECACHE_URLS = [
   "js/screenUx.js",
   "js/attachments.js",
   "js/audio.js",
+  "js/audio/audioOwner.js",
+  "js/audio/mixBus.js",
+  "js/audio/samplePackRegistry.js",
+  "js/audio/sampleLoader.js",
   "js/musicalContext.js",
   "js/home.js",
   "js/appRoute.js",
@@ -275,7 +279,9 @@ self.addEventListener("activate", (event) => {
     (async () => {
       const keys = await caches.keys();
       await Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys
+          .filter((key) => key !== CACHE_NAME && !key.startsWith("musi-pack-"))
+          .map((key) => caches.delete(key))
       );
       await self.clients.claim();
     })()

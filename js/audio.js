@@ -1,3 +1,10 @@
+import {
+  attachMixGraph,
+  getMixInput,
+  getMasterGainNode,
+  getSafetyStage,
+} from './audio/mixBus.js';
+
 export let audioCtx = null;
 export let analyserNode = null;
 let compressorNode = null;
@@ -20,11 +27,12 @@ export function setMasterVolume(v) {
   const vol = Math.max(0, Math.min(MAX_MASTER_VOLUME, Number(v)));
   if (Number.isNaN(vol)) return masterVolume;
   masterVolume = vol;
-  if (masterGain && audioCtx) {
+  const gainNode = masterGain || getMasterGainNode();
+  if (gainNode && audioCtx) {
     const now = audioCtx.currentTime;
-    masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    masterGain.gain.linearRampToValueAtTime(masterVolume, now + 0.05);
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+    gainNode.gain.linearRampToValueAtTime(masterVolume, now + 0.05);
   }
   return masterVolume;
 }
@@ -41,22 +49,17 @@ export function ensureAudio() {
       audioCtx = new Ctx();
     }
 
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = masterVolume;
-
-    compressorNode = audioCtx.createDynamicsCompressor();
-    compressorNode.threshold.value = -24;
-    compressorNode.knee.value = 12;
-    compressorNode.ratio.value = 6;
-    compressorNode.attack.value = 0.003;
-    compressorNode.release.value = 0.15;
+    const graph = attachMixGraph(audioCtx, { masterVolume });
+    compressorNode = graph.compressorNode;
+    masterGain = graph.masterGainNode;
 
     analyserNode = audioCtx.createAnalyser();
     analyserNode.fftSize = 256;
 
-    analyserNode.connect(compressorNode);
-    compressorNode.connect(masterGain);
-    masterGain.connect(audioCtx.destination);
+    const { output } = getSafetyStage();
+    if (output) {
+      output.connect(analyserNode);
+    }
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
@@ -180,13 +183,13 @@ export function releaseMicStream(stream) {
 
 export function getAnalyserDestination() {
   ensureAudio();
-  return analyserNode;
+  return getMixInput();
 }
 
 /** Mix bus input before the shared dynamics compressor. */
 export function getMixDestination() {
   ensureAudio();
-  return analyserNode;
+  return getMixInput();
 }
 
 export function getCompressorNode() {

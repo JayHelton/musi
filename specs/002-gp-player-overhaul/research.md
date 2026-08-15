@@ -322,6 +322,8 @@ fret numbers.
 `--tap-min`. The score body keeps parchment classes. The team must measure the contrast ratio
 in the browser before ship. Constitution principle III passes with this recorded exception.
 
+> **Replacement pointer:** Feature 006 decision D1 in `specs/006-audio-engine-foundation/research.md` replaces this decision for future sound work. The text below stays as history.
+
 ### D13 — Instrument voices
 
 **Decision**: Build one wavetable voice for each instrument family in
