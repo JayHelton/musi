@@ -264,13 +264,24 @@
 }
 
 @media (max-width: 768px) {
+  .tool-page-modes.subview-tabs {
+    gap: 2px;
+    padding: 3px;
+  }
   .tool-page-modes.subview-tabs .subview-tab {
     flex: 1 1 0;
     min-width: 0;
-    padding: 8px 6px;
-    font-size: 0.78rem;
+    padding: 8px 4px;
+    font-size: 0.72rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 480px) {
+  .tool-page-modes.subview-tabs .subview-tab {
+    padding: 8px 3px;
+    font-size: 0.66rem;
   }
 }

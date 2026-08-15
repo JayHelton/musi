@@ -132,7 +132,7 @@ select:focus,input[type=text]:focus,input[type=number]:focus{outline:none;border
   .has-setup-summary .quiz-layout .sl-group-label{flex:0 0 auto;display:flex;align-items:center;padding:0 2px 0 4px;font-size:.58rem;white-space:nowrap}
 }
 @media(max-width:768px){
-  :root{--content-max:100%}
+  :root{--content-max:100%;--content-pad:14px}
   html,body{overflow-x:clip;max-width:100%;scrollbar-width:none}
   html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0}
   main{max-width:100%;overflow-x:clip}
@@ -166,6 +166,7 @@ select:focus,input[type=text]:focus,input[type=number]:focus{outline:none;border
   .btn{min-height:var(--tap-min)}
 }
 @media(max-width:480px){
+  :root{--content-pad:10px}
   header{padding:8px 12px}
   .wordmark{font-size:1rem;letter-spacing:3px}
   main{padding:10px 10px calc(var(--dock-h) + 14px)}
