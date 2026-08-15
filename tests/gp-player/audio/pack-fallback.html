@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>gp-player pack fallback</title></head>
+<body>
+<div id="out">running</div>
+<script type="module">
+import { writeln, reportResult, runMain } from './harness.js';
+import { loadPacksForScore, getPlaybackSourceState } from '../../../js/audio/sampleLoader.js';
+import { __resetPackRegistryForTests } from '../../../js/audio/samplePackRegistry.js';
+import { __resetSampleLoaderForTests } from '../../../js/audio/sampleLoader.js';
+
+const errors = [];
+
+window.onerror = (msg) => {
+  errors.push(String(msg));
+};
+
+window.onunhandledrejection = (ev) => {
+  errors.push(String(ev?.reason || ev));
+};
+
+async function runCase(label, fn) {
+  __resetPackRegistryForTests();
+  __resetSampleLoaderForTests();
+  writeln(`case: ${label}`);
+  await fn();
+}
+
+runMain(async () => {
+  writeln('pack-fallback: loader returns synth when packs fail');
+
+  const ctx = {
+    decodeAudioData: async () => ({ duration: 0.01, numberOfChannels: 1, length: 1 }),
+  };
+
+  await runCase('no registered pack', async () => {
+    const result = await loadPacksForScore({
+      scoreId: 'fallback-none',
+      programs: [27],
+      drumNotes: [],
+      audioCtx: ctx,
+    });
+    assert.equal(result.status, 'fallback');
+    assert.equal(getPlaybackSourceState('fallback-none'), 'Synth fallback');
+  });
+
+  await runCase('broken manifest registration', async () => {
+    const { registerPack } = await import('../../../js/audio/samplePackRegistry.js');
+    const reg = registerPack({
+      version: '1',
+      license: 'CC0-1.0',
+      attribution: 'Test',
+      sampleRate: 48000,
+      instrument: 'Guitar',
+      midiProgram: 27,
+      samples: [{ file: 'a.wav' }],
+    });
+    assert.equal(reg.ok, false);
+    const result = await loadPacksForScore({
+      scoreId: 'fallback-broken',
+      programs: [27],
+      drumNotes: [],
+      audioCtx: ctx,
+    });
+    assert.equal(result.status, 'fallback');
+    assert.equal(getPlaybackSourceState('fallback-broken'), 'Synth fallback');
+  });
+
+  await runCase('cache storage reject', async () => {
+    const { registerPack } = await import('../../../js/audio/samplePackRegistry.js');
+    registerPack({
+      id: 'cache-fail-pack',
+      version: '1',
+      license: 'CC0-1.0',
+      attribution: 'Test',
+      sampleRate: 48000,
+      instrument: 'Guitar',
+      midiProgram: 27,
+      samples: [{ file: 'a.wav' }],
+    });
+
+    const rejectCaches = {
+      open: async () => { throw new Error('Cache rejected'); },
+    };
+    try {
+      Object.defineProperty(globalThis, 'caches', {
+        configurable: true,
+        writable: true,
+        value: rejectCaches,
+      });
+    } catch (e) {
+      writeln('skip cache reject stub: caches is not writable');
+      return;
+    }
+
+    globalThis.fetch = async () => {
+      throw new Error('Fetch failed after cache reject.');
+    };
+
+    const result = await loadPacksForScore({
+      scoreId: 'fallback-cache',
+      programs: [27],
+      drumNotes: [],
+      audioCtx: ctx,
+    });
+    assert.equal(result.status, 'fallback');
+    assert.equal(getPlaybackSourceState('fallback-cache'), 'Synth fallback');
+  });
+
+  const pass = errors.length === 0;
+  if (errors.length) {
+    for (const err of errors) writeln(`unhandled: ${err}`);
+  }
+  reportResult(pass);
+});
+
+// Minimal assert helper for the harness page.
+const assert = {
+  equal(actual, expected) {
+    if (actual !== expected) {
+      throw new Error(`expected ${expected}, got ${actual}`);
+    }
+  },
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>gp-player audio owner</title></head>
+<body>
+<div id="out">running</div>
+<script type="module">
+import { writeln, reportResult, runMain } from './harness.js';
+import {
+  claimAudio,
+  releaseAudio,
+  getActiveOwner,
+  __resetAudioOwnerForTests,
+} from '../../../js/audio/audioOwner.js';
+
+function assertOk(cond, msg) {
+  if (!cond) throw new Error(msg);
+}
+
+await runMain(async () => {
+  __resetAudioOwnerForTests();
+
+  let firstStopped = false;
+  let secondStopped = false;
+
+  const first = claimAudio({
+    id: 'owner-a',
+    label: 'Owner A',
+    kind: 'tone',
+    onStop: () => { firstStopped = true; },
+  });
+  assertOk(first, 'first claim must return a handle');
+  writeln('claimed owner-a');
+
+  const second = claimAudio({
+    id: 'owner-b',
+    label: 'Owner B',
+    kind: 'tone',
+    onStop: () => { secondStopped = true; },
+  });
+  assertOk(second, 'second claim must return a handle');
+  assertOk(firstStopped, 'first owner onStop must run on second claim');
+  assertOk(getActiveOwner()?.id === 'owner-b', 'exactly one active owner after second claim');
+  writeln('second claim stopped first owner');
+
+  let sameIdStopCount = 0;
+  __resetAudioOwnerForTests();
+  const same1 = claimAudio({
+    id: 'same-id',
+    label: 'Same',
+    kind: 'tone',
+    onStop: () => { sameIdStopCount += 1; },
+  });
+  const same2 = claimAudio({
+    id: 'same-id',
+    label: 'Same refreshed',
+    kind: 'tone',
+    onStop: () => { sameIdStopCount += 1; },
+  });
+  assertOk(same1 && same2, 'same-id re-claim must return a handle');
+  assertOk(sameIdStopCount === 0, 'same-id re-claim must not stop itself');
+  assertOk(getActiveOwner()?.id === 'same-id', 'same-id owner stays active');
+  writeln('same-id re-claim ok');
+
+  releaseAudio(same2);
+  assertOk(getActiveOwner() === null, 'release clears active owner');
+  writeln('release ok');
+
+  reportResult(true);
+});
+</script>
+</body>
+</html>

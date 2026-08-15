@@ -24,9 +24,9 @@
 
 **Purpose**: Create the folders and empty pack tree for the foundation
 
-- [ ] T001 Create `js/audio/` and add `assets/audio/packs/README.md` plus `assets/audio/impulses/README.md` with the same-origin pack rule
-- [ ] T002 [P] Add a fixture manifest at `tests/gp-player/fixtures/packs/empty-core/manifest.json` with an empty `samples` array
-- [ ] T003 [P] Record the D13 replacement pointer in `specs/002-gp-player-overhaul/research.md` without editing the old D13 decision text
+- [X] T001 Create `js/audio/` and add `assets/audio/packs/README.md` plus `assets/audio/impulses/README.md` with the same-origin pack rule
+- [X] T002 [P] Add a fixture manifest at `tests/gp-player/fixtures/packs/empty-core/manifest.json` with an empty `samples` array
+- [X] T003 [P] Record the D13 replacement pointer in `specs/002-gp-player-overhaul/research.md` without editing the old D13 decision text
 
 ---
 
@@ -36,14 +36,14 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Implement `parsePackManifest` and `registerPack` in `js/audio/samplePackRegistry.js` per `specs/006-audio-engine-foundation/contracts/pack-manifest.md`
-- [ ] T005 Implement `claimAudio`, `releaseAudio`, `getAudioOwner`, and `getActiveOwner` in `js/audio/audioOwner.js` per `specs/006-audio-engine-foundation/contracts/audio-owner.md`
-- [ ] T006 Implement track buses, mix input, master-then-safety order, and the analyser tap in `js/audio/mixBus.js` per `specs/006-audio-engine-foundation/contracts/mix-bus.md`
-- [ ] T007 Wire `ensureAudio`, `getMixDestination`, and `getAnalyserDestination` in `js/audio.js` to the new mix graph in `js/audio/mixBus.js`
-- [ ] T008 Implement `loadPacksForScore`, `cancelLoad`, and `getPlaybackSourceState` in `js/audio/sampleLoader.js` per `specs/006-audio-engine-foundation/contracts/pack-loader.md`
-- [ ] T009 Precache `js/audio/audioOwner.js`, `js/audio/mixBus.js`, `js/audio/samplePackRegistry.js`, and `js/audio/sampleLoader.js` in `service-worker.js` and bump `CACHE_VERSION`
-- [ ] T010 Change the activate handler in `service-worker.js` so it keeps cache names that start with `musi-pack-`
-- [ ] T011 Update `tests/gp-player/offline-manifest.mjs` so it requires the new `js/audio/` modules and rejects `assets/audio/packs/` in `PRECACHE_URLS`
+- [X] T004 Implement `parsePackManifest` and `registerPack` in `js/audio/samplePackRegistry.js` per `specs/006-audio-engine-foundation/contracts/pack-manifest.md`
+- [X] T005 Implement `claimAudio`, `releaseAudio`, `getAudioOwner`, and `getActiveOwner` in `js/audio/audioOwner.js` per `specs/006-audio-engine-foundation/contracts/audio-owner.md`
+- [X] T006 Implement track buses, mix input, master-then-safety order, and the analyser tap in `js/audio/mixBus.js` per `specs/006-audio-engine-foundation/contracts/mix-bus.md`
+- [X] T007 Wire `ensureAudio`, `getMixDestination`, and `getAnalyserDestination` in `js/audio.js` to the new mix graph in `js/audio/mixBus.js`
+- [X] T008 Implement `loadPacksForScore`, `cancelLoad`, and `getPlaybackSourceState` in `js/audio/sampleLoader.js` per `specs/006-audio-engine-foundation/contracts/pack-loader.md`
+- [X] T009 Precache `js/audio/audioOwner.js`, `js/audio/mixBus.js`, `js/audio/samplePackRegistry.js`, and `js/audio/sampleLoader.js` in `service-worker.js` and bump `CACHE_VERSION`
+- [X] T010 Change the activate handler in `service-worker.js` so it keeps cache names that start with `musi-pack-`
+- [X] T011 Update `tests/gp-player/offline-manifest.mjs` so it requires the new `js/audio/` modules and rejects `assets/audio/packs/` in `PRECACHE_URLS`
 
 **Checkpoint**: Foundation ready. User story work can start.
 
@@ -57,16 +57,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add `tests/gp-player/pack-loader.mjs` for missing-pack fallback and score-replace cancel
-- [ ] T013 [P] [US1] Add `tests/gp-player/audio/pack-fallback.html` and register it in `tests/gp-player/run-browser.mjs`
+- [X] T012 [P] [US1] Add `tests/gp-player/pack-loader.mjs` for missing-pack fallback and score-replace cancel
+- [X] T013 [P] [US1] Add `tests/gp-player/audio/pack-fallback.html` and register it in `tests/gp-player/run-browser.mjs`
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Keep `createVoiceFactory` as the Guitar Pro sounding path in `js/gpMixPlayer.js` when no pack is ready
-- [ ] T015 [US1] Start `loadPacksForScore` after score parse in `js/gpPlayerUI.js` without blocking the first render
-- [ ] T016 [US1] Allow `play()` in `js/gpMixPlayer.js` before a pack load settles
-- [ ] T017 [US1] Add a `role="status"` source label in `js/gpPlayerUI.js` that shows `Loading guitar sounds`, `Studio ready`, or `Synth fallback`
-- [ ] T018 [US1] Refuse a mid-note or mid-loop source switch in `js/gpMixPlayer.js` per FR-029
+- [X] T014 [US1] Keep `createVoiceFactory` as the Guitar Pro sounding path in `js/gpMixPlayer.js` when no pack is ready
+- [X] T015 [US1] Start `loadPacksForScore` after score parse in `js/gpPlayerUI.js` without blocking the first render
+- [X] T016 [US1] Allow `play()` in `js/gpMixPlayer.js` before a pack load settles
+- [X] T017 [US1] Add a `role="status"` source label in `js/gpPlayerUI.js` that shows `Loading guitar sounds`, `Studio ready`, or `Synth fallback`
+- [X] T018 [US1] Refuse a mid-note or mid-loop source switch in `js/gpMixPlayer.js` per FR-029
 
 **Checkpoint**: Play works at once with the synth fallback. The current Guitar Pro suite still passes.
 
@@ -80,17 +80,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Add `tests/gp-player/audio-owner.mjs` for second-claim, same-id re-claim, and preview-under-3s cases
-- [ ] T020 [P] [US2] Add `tests/gp-player/audio/audio-owner.html` and register it in `tests/gp-player/run-browser.mjs`
+- [X] T019 [P] [US2] Add `tests/gp-player/audio-owner.mjs` for second-claim, same-id re-claim, and preview-under-3s cases
+- [X] T020 [P] [US2] Add `tests/gp-player/audio/audio-owner.html` and register it in `tests/gp-player/run-browser.mjs`
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Claim kind `score` before Guitar Pro play in `js/gpMixPlayer.js` and release on stop or destroy
-- [ ] T022 [P] [US2] Claim and release the owner in `js/keyboard.js`
-- [ ] T023 [P] [US2] Claim and release the owner on drum-machine start in `js/drums/drumEngine.js`
-- [ ] T024 [P] [US2] Claim and release the owner in `js/metronome.js`
-- [ ] T025 [US2] Claim the owner for study tones longer than three seconds in `js/studyLabMic.js` and connect that output to `getMixDestination()`
-- [ ] T026 [US2] Keep short previews on `getMixDestination()` without a claim in `js/earTrainer.js` and `js/chordReference.js`
+- [X] T021 [US2] Claim kind `score` before Guitar Pro play in `js/gpMixPlayer.js` and release on stop or destroy
+- [X] T022 [P] [US2] Claim and release the owner in `js/keyboard.js`
+- [X] T023 [P] [US2] Claim and release the owner on drum-machine start in `js/drums/drumEngine.js`
+- [X] T024 [P] [US2] Claim and release the owner in `js/metronome.js`
+- [X] T025 [US2] Claim the owner for study tones longer than three seconds in `js/studyLabMic.js` and connect that output to `getMixDestination()`
+- [X] T026 [US2] Keep short previews on `getMixDestination()` without a claim in `js/earTrainer.js` and `js/chordReference.js`
 
 **Checkpoint**: A second long-running tool stops or pauses the first tool. A short preview does not steal the metronome.
 
@@ -104,15 +104,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T027 [P] [US3] Add `tests/gp-player/imported-mix.mjs` that reads `trackInfo` into player state and mix-player buses
+- [X] T027 [P] [US3] Add `tests/gp-player/imported-mix.mjs` that reads `trackInfo` into player state and mix-player buses
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Initialize `trackVolumes` from `model.trackInfo.volume` in `js/gpPlayer/playerState.js` on first load and on `resetForNewScore()`
-- [ ] T029 [US3] Store and apply `trackPans` from `model.trackInfo.pan` in `js/gpPlayer/playerState.js`
-- [ ] T030 [US3] Create each Guitar Pro track bus with source volume and pan in `js/gpMixPlayer.js` instead of a bare gain of `1`
-- [ ] T031 [US3] Add `setTrackPan` in `js/gpMixPlayer.js` and keep `setTrackVolume` on the track bus
-- [ ] T032 [US3] Keep mute and solo on the track bus in `js/gpPlayer/trackMixer.js` without changing display-track choice
+- [X] T028 [US3] Initialize `trackVolumes` from `model.trackInfo.volume` in `js/gpPlayer/playerState.js` on first load and on `resetForNewScore()`
+- [X] T029 [US3] Store and apply `trackPans` from `model.trackInfo.pan` in `js/gpPlayer/playerState.js`
+- [X] T030 [US3] Create each Guitar Pro track bus with source volume and pan in `js/gpMixPlayer.js` instead of a bare gain of `1`
+- [X] T031 [US3] Add `setTrackPan` in `js/gpMixPlayer.js` and keep `setTrackVolume` on the track bus
+- [X] T032 [US3] Keep mute and solo on the track bus in `js/gpPlayer/trackMixer.js` without changing display-track choice
 
 **Checkpoint**: Imported volume and pan affect the first play. Mute and solo still work.
 
@@ -126,14 +126,14 @@
 
 ### Tests for User Story 4
 
-- [ ] T033 [US4] Change `tests/gp-player/audio/peak-headroom.html` so it renders through the shared mix and safety stage and uses a `-1 dBFS` limit
+- [X] T033 [US4] Change `tests/gp-player/audio/peak-headroom.html` so it renders through the shared mix and safety stage and uses a `-1 dBFS` limit
 
 ### Implementation for User Story 4
 
-- [ ] T034 [US4] Replace `headroomGain` in `js/gpPlayer/instrumentVoices.js` so it uses `chordSize` and does not divide by `active.length`
-- [ ] T035 [US4] Group same-onset notes and pass `chordSize` from `js/gpMixPlayer.js` into `playNote`
-- [ ] T036 [US4] Keep `MAX_ACTIVE_VOICES` as a steal cap only in `js/gpPlayer/instrumentVoices.js`
-- [ ] T037 [US4] Confirm master volume `1.5` still stays at or below `-1 dBFS` in `js/audio/mixBus.js` and `tests/gp-player/audio/peak-headroom.html`
+- [X] T034 [US4] Replace `headroomGain` in `js/gpPlayer/instrumentVoices.js` so it uses `chordSize` and does not divide by `active.length`
+- [X] T035 [US4] Group same-onset notes and pass `chordSize` from `js/gpMixPlayer.js` into `playNote`
+- [X] T036 [US4] Keep `MAX_ACTIVE_VOICES` as a steal cap only in `js/gpPlayer/instrumentVoices.js`
+- [X] T037 [US4] Confirm master volume `1.5` still stays at or below `-1 dBFS` in `js/audio/mixBus.js` and `tests/gp-player/audio/peak-headroom.html`
 
 **Checkpoint**: Dense playback stays safe. Later notes do not drop from held-voice count.
 
@@ -147,15 +147,15 @@
 
 ### Tests for User Story 5
 
-- [ ] T038 [P] [US5] Add `tests/gp-player/pack-manifest.mjs` for valid empty samples, missing id, foreign URL, and path escape
-- [ ] T039 [US5] Extend `tests/gp-player/audio/pack-fallback.html` for broken manifest, storage reject, and no unhandled error
+- [X] T038 [P] [US5] Add `tests/gp-player/pack-manifest.mjs` for valid empty samples, missing id, foreign URL, and path escape
+- [X] T039 [US5] Extend `tests/gp-player/audio/pack-fallback.html` for broken manifest, storage reject, and no unhandled error
 
 ### Implementation for User Story 5
 
-- [ ] T040 [US5] Reject foreign hosts and path escape in `js/audio/samplePackRegistry.js`
-- [ ] T041 [US5] Return `{ status: 'fallback' }` without a throw from `js/audio/sampleLoader.js` on miss, decode failure, or storage reject
-- [ ] T042 [US5] Write successful fixture files only to `musi-pack-<id>-<version>` from `js/audio/sampleLoader.js` and never to `PRECACHE_URLS`
-- [ ] T043 [US5] Add a size check in `tests/gp-player/pack-loader.mjs` that fails when `js/audio/*.js` exceeds 150 KiB
+- [X] T040 [US5] Reject foreign hosts and path escape in `js/audio/samplePackRegistry.js`
+- [X] T041 [US5] Return `{ status: 'fallback' }` without a throw from `js/audio/sampleLoader.js` on miss, decode failure, or storage reject
+- [X] T042 [US5] Write successful fixture files only to `musi-pack-<id>-<version>` from `js/audio/sampleLoader.js` and never to `PRECACHE_URLS`
+- [X] T043 [US5] Add a size check in `tests/gp-player/pack-loader.mjs` that fails when `js/audio/*.js` exceeds 150 KiB
 
 **Checkpoint**: The loader is safe without production samples. The app shell stays small.
 
@@ -165,10 +165,10 @@
 
 **Purpose**: Verify the whole foundation before Feature 007
 
-- [ ] T044 Run `node tests/gp-player/run.mjs` and fix any regression in `js/gpMixPlayer.js` or `js/gpPlayer/instrumentVoices.js`
+- [X] T044 Run `node tests/gp-player/run.mjs` and fix any regression in `js/gpMixPlayer.js` or `js/gpPlayer/instrumentVoices.js`
 - [ ] T045 [P] Run `node tests/gp-player/run-browser.mjs peak-headroom.html audio-owner.html pack-fallback.html onset-timing.html loop-boundary.html` against a server at `http://localhost:8080`
 - [ ] T046 [P] Follow `specs/006-audio-engine-foundation/quickstart.md` for first render, owner, imported mix, and offline fallback
-- [ ] T047 Confirm `CACHE_VERSION` in `service-worker.js` changed after the shipped JS edits
+- [X] T047 Confirm `CACHE_VERSION` in `service-worker.js` changed after the shipped JS edits
 
 ---
 
