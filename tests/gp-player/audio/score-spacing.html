@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player score spacing</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    body { margin: 0; padding: 12px; background: #1a1420; color: #f7efd8; }
+    h2 {
+      font-family: var(--font-ui, "VT323", monospace);
+      font-size: 18px;
+      margin: 12px 0 6px;
+      color: var(--accent, #ffd83d);
+    }
+    .host {
+      width: 360px;
+      height: 240px;
+      border: 1px solid #6b4c9a;
+      background: #f7efd8;
+      overflow: auto;
+    }
+    #wideHost { width: 900px; height: 220px; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h2>Phone width — long note then two-digit 32nds</h2>
+  <div class="host" id="mixedHost"></div>
+  <h2>Phone width — sixteen two-digit 16ths</h2>
+  <div class="host" id="denseHost"></div>
+  <h2>Wide row — same mixed bar</h2>
+  <div class="host" id="wideHost"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    import { writeln, runMain, reportResult } from './harness.js';
+    import { mountParchmentView } from '/js/gpPlayer/parchmentView.js';
+
+    const STRINGS = [
+      { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+    ];
+
+    function beatOf(start, duration, noteValue, noteIndices) {
+      return {
+        measureIndex: 0,
+        voiceIndex: 0,
+        start,
+        duration,
+        noteValue,
+        dots: 0,
+        tuplet: null,
+        rest: false,
+        noteIndices,
+      };
+    }
+
+    function mixedBurstModel() {
+      const events = [
+        { start: 0, stringIndex: 0, fret: 14, dead: false, duration: 2 },
+      ];
+      const beats = [beatOf(0, 2, 2, [0])];
+      const frets = [17, 22, 17, 22, 13, 10, 13, 12];
+      for (let i = 0; i < frets.length; i += 1) {
+        const start = 2 + i * 0.125;
+        events.push({
+          start,
+          stringIndex: 0,
+          fret: frets[i],
+          dead: false,
+          duration: 0.125,
+          techniques: i === 1 ? ['tap'] : [],
+        });
+        beats.push(beatOf(start, 0.125, 32, [events.length - 1]));
+      }
+      return {
+        tuning: 'Standard',
+        strings: STRINGS,
+        events,
+        beats,
+        measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+      };
+    }
+
+    function denseSixteenthModel() {
+      const beats = Array.from({ length: 16 }, (_, i) => beatOf(i * 0.25, 0.25, 16, [i]));
+      const events = beats.map((beat, i) => ({
+        start: beat.start,
+        stringIndex: 0,
+        fret: i % 2 === 0 ? 17 : 22,
+        dead: false,
+        duration: 0.25,
+      }));
+      return {
+        tuning: 'Standard',
+        strings: STRINGS,
+        events,
+        beats,
+        measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+      };
+    }
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function worstSameStringOverlap(host) {
+      const notes = [...host.querySelectorAll('[data-note="1"]')];
+      const byY = new Map();
+      for (const el of notes) {
+        const r = el.getBoundingClientRect();
+        const key = Math.round(r.top);
+        if (!byY.has(key)) byY.set(key, []);
+        byY.get(key).push(r);
+      }
+      let worst = 0;
+      let minGap = Infinity;
+      for (const boxes of byY.values()) {
+        boxes.sort((a, b) => a.left - b.left);
+        for (let i = 1; i < boxes.length; i += 1) {
+          const gap = boxes[i].left - boxes[i - 1].right;
+          minGap = Math.min(minGap, gap);
+          if (gap < 0) worst = Math.max(worst, -gap);
+        }
+      }
+      return { worst, minGap: minGap === Infinity ? 0 : minGap, count: notes.length };
+    }
+
+    runMain(async () => {
+      const mixed = mountParchmentView(document.getElementById('mixedHost'), {
+        guitarModel: mixedBurstModel(),
+        autoFollow: false,
+      });
+      const dense = mountParchmentView(document.getElementById('denseHost'), {
+        guitarModel: denseSixteenthModel(),
+        autoFollow: false,
+      });
+      const wide = mountParchmentView(document.getElementById('wideHost'), {
+        guitarModel: mixedBurstModel(),
+        autoFollow: false,
+      });
+      void mixed;
+      void dense;
+      void wide;
+      await sleep(400);
+
+      const mixedCheck = worstSameStringOverlap(document.getElementById('mixedHost'));
+      const denseCheck = worstSameStringOverlap(document.getElementById('denseHost'));
+      const wideCheck = worstSameStringOverlap(document.getElementById('wideHost'));
+
+      writeln(`mixed notes: ${mixedCheck.count} worst overlap ${mixedCheck.worst.toFixed(2)} px min gap ${mixedCheck.minGap.toFixed(2)} px`);
+      writeln(`dense notes: ${denseCheck.count} worst overlap ${denseCheck.worst.toFixed(2)} px min gap ${denseCheck.minGap.toFixed(2)} px`);
+      writeln(`wide notes: ${wideCheck.count} worst overlap ${wideCheck.worst.toFixed(2)} px min gap ${wideCheck.minGap.toFixed(2)} px`);
+
+      const pass = mixedCheck.worst <= 0.5
+        && denseCheck.worst <= 0.5
+        && wideCheck.worst <= 0.5
+        && mixedCheck.minGap >= 8
+        && denseCheck.minGap >= 8
+        && wideCheck.minGap >= 8;
+      reportResult(pass);
+    });
+  </script>
+</body>
+</html>
