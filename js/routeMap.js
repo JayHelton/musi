@@ -173,3 +173,44 @@ export function resolveRoute(route, ctx) {
     notice: null,
   };
 }
+
+const LIVE_SECTION_BY_ROUTE = {
+  tools: 'tools',
+  home: 'tools',
+  scalelab: 'scaleref',
+  fretmap: 'intervalorbit',
+  chordlab: 'chords',
+  pitchear: 'tuner',
+  metronome: 'metronome',
+  audiostudio: 'recorder',
+  songstudio: 'songwriter',
+  routines: 'routines',
+  scoreplayer: 'gpplayer',
+  settings: 'musicprefs',
+};
+
+/**
+ * @param {string} id
+ * @returns {string}
+ */
+function resolveSectionAlias(id) {
+  if (id === 'intervalmap') return 'intervalorbit';
+  if (id === 'tabanalyzer') return 'gpplayer';
+  return id;
+}
+
+/**
+ * Map a resolved route id and params to the live DOM section id.
+ *
+ * @param {string} routeId
+ * @param {Record<string, string>} [params]
+ * @returns {string}
+ */
+export function liveSectionForRoute(routeId, params = {}) {
+  if (!routeId) return 'tools';
+  if (routeId === 'library') {
+    return params.mode === 'workbooks' ? 'workbooks' : 'exercises';
+  }
+  if (LIVE_SECTION_BY_ROUTE[routeId]) return LIVE_SECTION_BY_ROUTE[routeId];
+  return resolveSectionAlias(routeId);
+}

@@ -10,6 +10,7 @@ import {
   shouldShowNotice,
   ROUTE_IDS,
   LEGACY_ROUTES,
+  liveSectionForRoute,
 } from '../../js/routeMap.js';
 
 let passed = 0;
@@ -200,6 +201,26 @@ test('legacy routines passes through routine parameter keys', () => {
   };
   const result = resolveRoute({ id: 'routines', params });
   assert.deepEqual(result.params, params);
+});
+
+console.log('liveSectionForRoute');
+test('library + mode workbooks -> workbooks', () => {
+  assert.equal(liveSectionForRoute('library', { mode: 'workbooks' }), 'workbooks');
+});
+
+test('library + mode exercises -> exercises', () => {
+  assert.equal(liveSectionForRoute('library', { mode: 'exercises' }), 'exercises');
+});
+
+test('library with no mode -> exercises', () => {
+  assert.equal(liveSectionForRoute('library', {}), 'exercises');
+});
+
+test('workbooks legacy hash resolves to library/workbooks section', () => {
+  const resolved = resolveRoute({ id: 'workbooks', params: {} });
+  assert.equal(resolved.id, 'library');
+  assert.deepEqual(resolved.params, { mode: 'workbooks' });
+  assert.equal(liveSectionForRoute(resolved.id, resolved.params), 'workbooks');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

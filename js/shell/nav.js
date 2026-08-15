@@ -5,14 +5,14 @@ const MORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 
 const RAIL_ITEMS = [
   { id: 'tools', label: 'Tools', icon: CATEGORY_ICONS.home, section: 'tools' },
-  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'exercises' },
+  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'library' },
   { id: 'routines', label: 'Routines', icon: TOOL_ICONS.routines, section: 'routines' },
   { id: 'settings', label: 'Settings', icon: TOOL_ICONS.musicprefs, section: 'musicprefs' },
 ];
 
 const BOTTOM_ITEMS = [
   { id: 'tools', label: 'Tools', icon: CATEGORY_ICONS.home, section: 'tools' },
-  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'exercises' },
+  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'library' },
   { id: 'routines', label: 'Routines', icon: TOOL_ICONS.routines, section: 'routines' },
   { id: 'more', label: 'More', icon: MORE_ICON, section: 'more' },
 ];

@@ -45,7 +45,13 @@ import {
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
 import { parseAppRoute, routeUrl } from './appRoute.js';
-import { resolveRoute, shouldShowNotice, isKnownRoute, LEGACY_ROUTES } from './routeMap.js';
+import {
+  resolveRoute,
+  shouldShowNotice,
+  isKnownRoute,
+  LEGACY_ROUTES,
+  liveSectionForRoute,
+} from './routeMap.js';
 import { initAudioDock } from './audioDock.js';
 import { mountToolPage } from './shell/toolPage.js';
 import {
@@ -162,34 +168,6 @@ function sectionUrl(id, params = {}) {
   return routeUrl({ id: id || 'tools', params });
 }
 
-const LIVE_SECTION_BY_ROUTE = {
-  tools: 'tools',
-  home: 'tools',
-  scalelab: 'scaleref',
-  fretmap: 'intervalorbit',
-  chordlab: 'chords',
-  pitchear: 'tuner',
-  metronome: 'metronome',
-  audiostudio: 'recorder',
-  songstudio: 'songwriter',
-  library: 'exercises',
-  routines: 'routines',
-  scoreplayer: 'gpplayer',
-  settings: 'musicprefs',
-};
-
-function resolveSectionAlias(id) {
-  if (id === 'intervalmap') return 'intervalorbit';
-  if (id === 'tabanalyzer') return 'gpplayer';
-  return id;
-}
-
-function liveSectionId(routeId) {
-  if (!routeId) return 'tools';
-  if (LIVE_SECTION_BY_ROUTE[routeId]) return LIVE_SECTION_BY_ROUTE[routeId];
-  return resolveSectionAlias(routeId);
-}
-
 function routeResolveCtx() {
   return {
     hasDrumExercises() {
@@ -207,7 +185,7 @@ function resolveIncomingRoute(id, params = {}) {
   const resolved = resolveRoute({ id: id || '', params }, routeResolveCtx());
   return {
     routeId: resolved.id,
-    sectionId: liveSectionId(resolved.id),
+    sectionId: liveSectionForRoute(resolved.id, resolved.params),
     params: resolved.params || {},
     notice: resolved.notice,
   };
@@ -216,7 +194,7 @@ function resolveIncomingRoute(id, params = {}) {
 function isValidSection(id) {
   if (id === '' || id === 'home') return true;
   if (isKnownRoute(id) || LEGACY_ROUTES[id]) return true;
-  const sectionId = liveSectionId(id);
+  const sectionId = liveSectionForRoute(id, {});
   if (sectionId === ROUTINE_ROUTE_ID) return true;
   return sectionId === 'tools' || getTabs().some(t => t.id === sectionId);
 }
@@ -253,6 +231,10 @@ function saveLeaveViewState(sectionId) {
     const state = readViewState('library:exercises') || {};
     saveViewState('library:exercises', { ...state, scrollY: window.scrollY });
   }
+  if (sectionId === 'workbooks') {
+    const state = readViewState('library:workbooks') || {};
+    saveViewState('library:workbooks', { ...state, scrollY: window.scrollY });
+  }
 }
 
 function restoreArriveViewState(sectionId) {
@@ -266,6 +248,9 @@ function restoreArriveViewState(sectionId) {
   }
   if (sectionId === 'exercises') {
     restoreScroll('library:exercises');
+  }
+  if (sectionId === 'workbooks') {
+    restoreScroll('library:workbooks');
   }
 }
 
