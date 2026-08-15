@@ -285,6 +285,26 @@ const afterLoop = loopMount.getState();
 assert.equal(afterLoop.loopStart, beforeLoop.loopStart, 'loopStart restored after toggle');
 assert.equal(afterLoop.loopEnd, beforeLoop.loopEnd, 'loopEnd restored after toggle');
 
+assert.equal(typeof loopMount.seekToBar, 'function', 'handle exposes seekToBar');
+assert.equal(typeof loopMount.seekToBeat, 'function', 'handle exposes seekToBeat');
+loopMount.seekToBar(0);
+loopMount.seekToBeat(0);
+
+const tickHost = document.createElement('div');
+let tickCalled = false;
+const tickMount = mountGpPlayer(tickHost, {
+  gpResult: fakeGp,
+  title: 'Tick hooks',
+  onPlaybackTick: () => { tickCalled = true; },
+  skipCountIn: true,
+});
+assert.equal(typeof tickMount.seekToBar, 'function', 'tick mount exposes seekToBar');
+assert.equal(typeof tickMount.seekToBeat, 'function', 'tick mount exposes seekToBeat');
+assert.equal(typeof tickMount.play, 'function', 'tick mount exposes play');
+tickMount.seekToBar(0);
+tickMount.seekToBeat(4);
+tickMount.destroy();
+
 loopMount.destroy();
 
 // ---- User Story 3: main-screen practice controls (no panel open) ----

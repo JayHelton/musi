@@ -22,6 +22,7 @@ import {
   canNextMeasure,
   restartTarget,
   measureIndicesForBeats,
+  measureIndexAtBeat,
 } from './gpPlayer/rangeUtils.js';
 import { mountParchmentView } from './gpPlayer/parchmentView.js';
 import { createLoopSelectionController } from './gpPlayer/loopSelection.js';
@@ -75,6 +76,8 @@ let mountGeneration = 0;
  *   play:()=>void,
  *   stop:()=>void,
  *   togglePlayPause:()=>void,
+ *   seekToBar:(barIndex:number, opts?:{ autoplay?: boolean })=>void,
+ *   seekToBeat:(beat:number, opts?:{ autoplay?: boolean })=>void,
  *   stepBpm:(delta:number)=>void,
  * }}
  */
@@ -95,6 +98,8 @@ export function mountGpPlayer(host, {
   loopRestSec = 0,
   onPracticeSettingsChange = null,
   onPlaybackEnd = null,
+  onPlaybackTick = null,
+  skipCountIn = false,
   autoPlay = false,
   exerciseScope = false,
   initialBpm = null,
@@ -751,6 +756,11 @@ export function mountGpPlayer(host, {
       });
       detectNaturalPlaybackEnd(info);
       syncPlaybackUi(info);
+      if (typeof onPlaybackTick === 'function') {
+        try {
+          onPlaybackTick(info);
+        } catch (_) { /* embedder */ }
+      }
     },
   });
 
@@ -1046,6 +1056,32 @@ export function mountGpPlayer(host, {
       currentSec: startSec,
       durationSec: player.durationSec,
       measureIndex: i,
+    });
+  }
+
+  function seekToBeat(beat, { autoplay = false } = {}) {
+    if (!isAlive()) return;
+    const measures = state.viewModel?.measures || [];
+    const quarterBeat = Number(beat);
+    if (!Number.isFinite(quarterBeat)) return;
+    const timeline = activePlaybackTimeline();
+    const fromSec = timeline?.secondsAtQuarter
+      ? timeline.secondsAtQuarter(quarterBeat)
+      : quartersToSeconds(quarterBeat, state.bpm);
+    let measureIndex = 0;
+    if (measures.length) {
+      const scope = stateController.getScope();
+      const idx = measureIndexAtBeat(measures, quarterBeat);
+      measureIndex = Math.max(scope.start, Math.min(scope.end, idx));
+      state.navBar = measureIndex;
+    }
+    if (autoplay || player.playing) player.play({ fromSec });
+    else player.seek(fromSec);
+    syncPlaybackUi({
+      playing: player.playing,
+      currentSec: fromSec,
+      durationSec: player.durationSec,
+      measureIndex,
     });
   }
 
@@ -1624,6 +1660,13 @@ export function mountGpPlayer(host, {
     if (state.tempoRamp.enabled) tempoRamp.startSession(state.bpm);
   }
 
+  function startPlaybackNow() {
+    ensureAudio();
+    bindPlayheadClockListeners();
+    beginPlaybackSession();
+    startPlayFromNav();
+  }
+
   function startPlayback() {
     if (!player.playing) togglePlayPause();
   }
@@ -1659,7 +1702,7 @@ export function mountGpPlayer(host, {
     trackTabs?.sync();
       return;
     }
-    if (state.metro.countInEnabled) {
+    if (state.metro.countInEnabled && !skipCountIn) {
       ensureAudio();
       bindPlayheadClockListeners();
       runCountIn(() => {
@@ -1669,10 +1712,7 @@ export function mountGpPlayer(host, {
       });
       return;
     }
-    ensureAudio();
-    bindPlayheadClockListeners();
-    beginPlaybackSession();
-    startPlayFromNav();
+    startPlaybackNow();
   }
 
   function stopPlayback() {
@@ -1869,6 +1909,8 @@ export function mountGpPlayer(host, {
     play: startPlayback,
     stop: stopPlayback,
     togglePlayPause,
+    seekToBar,
+    seekToBeat,
     stepBpm,
     getState: () => ({
       ...state,
