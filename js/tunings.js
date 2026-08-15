@@ -534,6 +534,25 @@ export function findPresetByName(name) {
   ) || null;
 }
 
+/** Map a picker or legacy tuning label to a key in TUNINGS. */
+export function resolveTuningKey(name) {
+  if (!name) return 'Standard';
+  if (name === 'Custom') return 'Custom';
+  if (TUNINGS[name]) {
+    const preset = findPresetByName(name);
+    if (preset?.name && TUNINGS[preset.name]) return preset.name;
+    return name;
+  }
+  const preset = findPresetByName(name);
+  if (preset) {
+    if (TUNINGS[preset.name]) return preset.name;
+    for (const key of preset.legacyKeys || []) {
+      if (TUNINGS[key]) return key;
+    }
+  }
+  return 'Standard';
+}
+
 export function resolveTuningPitches(name, customStrings) {
   if (name === 'Custom' && Array.isArray(customStrings) && customStrings.length) {
     return clonePitches(customStrings);

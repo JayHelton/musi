@@ -3,6 +3,7 @@ import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './
 import { diatonicTriadQuality } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
+import { resolveTuningKey } from './tunings.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
@@ -764,6 +765,39 @@ function renderScaleRef() {
   renderRefFretboard();
   renderRefModes();
   syncRefPlayButton();
+}
+
+/** Apply setup-chip picks: update state, persist, sync sidebar, re-render. */
+export function applyScaleRefSelection({ root, scale, tuning } = {}) {
+  let changed = false;
+
+  if (root && ROOTS.includes(root) && root !== refRoot) {
+    refRoot = root;
+    saveSetting('ref.root', refRoot);
+    setContext({ root: refRoot }, 'scaleref');
+    changed = true;
+  }
+
+  if (scale && SCALES[scale] && scale !== refScale) {
+    refScale = scale;
+    refModeIndex = 0;
+    saveSetting('ref.scale', refScale);
+    saveSetting('ref.modeIndex', refModeIndex);
+    setContext({ scale: refScale }, 'scaleref');
+    changed = true;
+  }
+
+  if (tuning) {
+    const key = resolveTuningKey(tuning);
+    if (key !== refTuning) {
+      refTuning = key;
+      saveSetting('ref.tuning', refTuning);
+      changed = true;
+    }
+  }
+
+  syncRefSelection();
+  if (changed) renderScaleRef();
 }
 
 export { initScaleRef, stopScaleRef };

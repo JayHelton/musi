@@ -2,6 +2,7 @@ import { parseNote, spellNote, ROOTS, TUNINGS } from './theory.js';
 import { triadQualities as buildTriadQualities } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
+import { resolveTuningKey } from './tunings.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import {
   initSweepRef,
@@ -750,4 +751,38 @@ export function initTriadRef() {
 export function stopTriadRef() {
   stopTriadAudio();
   stopSweepRef();
+}
+
+/** Apply setup-chip picks: update state, persist, sync sidebar, re-render. */
+export function applyTriadRefSelection({ root, tuning, stringSet } = {}) {
+  if (root && ROOTS.includes(root) && root !== trRoot) {
+    trRoot = root;
+    saveSetting('triadref.root', trRoot);
+    setContext({ root: trRoot }, 'triadref');
+  }
+
+  if (tuning) {
+    const key = resolveTuningKey(tuning);
+    if (key && key !== trTuning) {
+      trTuning = key;
+      saveSetting('triadref.tuning', trTuning);
+      const sets = stringSetsForTuning(trTuning);
+      const preferHigh = sets.find(s => s.isHighest);
+      trStringSet = preferHigh ? preferHigh.index : 0;
+      saveSetting('triadref.stringSet', trStringSet);
+      buildStringSetList();
+    }
+  }
+
+  if (stringSet != null && Number.isFinite(Number(stringSet))) {
+    const idx = Number(stringSet);
+    const sets = stringSetsForTuning(trTuning);
+    if (sets.some(s => s.index === idx)) {
+      trStringSet = idx;
+      saveSetting('triadref.stringSet', trStringSet);
+    }
+  }
+
+  syncSelection();
+  renderTriadRef();
 }
