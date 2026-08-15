@@ -570,6 +570,7 @@
   display: flex;
   flex-direction: row;
   align-items: stretch;
+  min-width: max-content;
   margin-bottom: 10px;
 }
 
@@ -625,8 +626,7 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 0 0 auto;
   padding: 4px 0 8px;
   border-left: 2px solid #1a1420;
   transition: background 0.12s ease, outline 0.12s ease;

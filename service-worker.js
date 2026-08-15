@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v226-library-reopen-list";
+const CACHE_VERSION = "v227-gp-score-spacing";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
