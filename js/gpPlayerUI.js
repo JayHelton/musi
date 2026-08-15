@@ -78,6 +78,7 @@ let mountGeneration = 0;
  *   togglePlayPause:()=>void,
  *   seekToBar:(barIndex:number, opts?:{ autoplay?: boolean })=>void,
  *   seekToBeat:(beat:number, opts?:{ autoplay?: boolean })=>void,
+ *   isPendingPlayback:()=>boolean,
  *   stepBpm:(delta:number)=>void,
  * }}
  */
@@ -1041,6 +1042,12 @@ export function mountGpPlayer(host, {
     return state.navBar == null ? scope.start : state.navBar;
   }
 
+  function isPendingPlayback() {
+    return countInTimer != null
+      || autoPlayTimer != null
+      || (countInDisplay != null && countInDisplay.remaining > 0);
+  }
+
   function seekToBar(barIndex, { autoplay = false } = {}) {
     const measures = state.viewModel?.measures || [];
     if (!measures.length) return;
@@ -1049,7 +1056,11 @@ export function mountGpPlayer(host, {
     state.navBar = i;
     const beats = beatsFromMeasureRange(measures, i, i);
     const startSec = quartersToSeconds(beats.startBeat, state.bpm);
-    if (autoplay || player.playing) player.play({ fromSec: startSec });
+    if (autoplay || player.playing) {
+      clearCountIn();
+      ensureAudio();
+      player.play({ fromSec: startSec });
+    }
     else player.seek(startSec);
     syncPlaybackUi({
       playing: player.playing,
@@ -1075,8 +1086,11 @@ export function mountGpPlayer(host, {
       measureIndex = Math.max(scope.start, Math.min(scope.end, idx));
       state.navBar = measureIndex;
     }
-    if (autoplay || player.playing) player.play({ fromSec });
-    else player.seek(fromSec);
+    if (autoplay || player.playing) {
+      clearCountIn();
+      ensureAudio();
+      player.play({ fromSec });
+    } else player.seek(fromSec);
     syncPlaybackUi({
       playing: player.playing,
       currentSec: fromSec,
@@ -1911,6 +1925,7 @@ export function mountGpPlayer(host, {
     togglePlayPause,
     seekToBar,
     seekToBeat,
+    isPendingPlayback,
     stepBpm,
     getState: () => ({
       ...state,

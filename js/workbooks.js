@@ -11,6 +11,7 @@ import {
   isTabModelItem,
   exerciseIconSvg,
 } from './exercises.js';
+import { ensureAudio } from './audio.js';
 import { getFileBlob } from './attachments.js';
 import { parseGuitarPro, mountGpPlayer } from './gpPlayerUI.js';
 import { resolveScoreKey } from './gpAnnotations.js';
@@ -394,6 +395,10 @@ function getDetailPlayingState() {
   if (detailMountHandle) {
     try {
       if (detailMountHandle.player?.playing) return true;
+      if (typeof detailMountHandle.isPendingPlayback === 'function'
+        && detailMountHandle.isPendingPlayback()) {
+        return true;
+      }
     } catch (e) { /* ignore */ }
     return false;
   }
@@ -1338,6 +1343,7 @@ function moveToWorkbookEntry(entryId, { autoPlay } = {}) {
   const wb = getWorkbook(openWorkbookId);
   if (!wb) return;
   const wasPlaying = autoPlay === undefined ? getDetailPlayingState() : !!autoPlay;
+  if (wasPlaying) ensureAudio();
 
   if (detailPlaythrough?.boundaries) {
     const boundary = boundaryForEntry(detailPlaythrough.boundaries, entryId);
