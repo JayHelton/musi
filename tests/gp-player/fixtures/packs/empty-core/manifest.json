@@ -1,0 +1,10 @@
+{
+  "id": "empty-core",
+  "version": "1",
+  "license": "CC0-1.0",
+  "attribution": "Musi test fixture",
+  "sampleRate": 48000,
+  "instrument": "Test instrument",
+  "midiProgram": 27,
+  "samples": []
+}
