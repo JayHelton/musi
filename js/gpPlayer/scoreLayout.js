@@ -1342,6 +1342,7 @@ const FIRST_FRAGMENT_ONLY_KINDS = new Set([
   'barNumber', 'marker', 'timeSig', 'repeatOpen', 'volta', 'tuning',
 ]);
 const LAST_FRAGMENT_ONLY_KINDS = new Set(['repeatClose']);
+const SPANNING_GLYPH_KINDS = new Set(['beam', 'tupletBracket']);
 
 /**
  * Width of a column-range fragment before stretch.
@@ -1425,6 +1426,18 @@ function sliceBarLayout(bar, { colStart, colEnd, isContinuation, isLastFragment 
         oldToNew.set(i, newGlyphs.length);
         newGlyphs.push({ ...g, x: shiftX(g.x) });
       }
+      continue;
+    }
+
+    if (SPANNING_GLYPH_KINDS.has(g.kind)) {
+      const nx = shiftX(g.x);
+      const right = nx + g.w;
+      if (right < 0 || nx > widthUnits) continue;
+      const cx = Math.max(0, nx);
+      const cw = Math.min(widthUnits, right) - cx;
+      if (cw <= 0) continue;
+      oldToNew.set(i, newGlyphs.length);
+      newGlyphs.push({ ...g, x: cx, w: cw });
       continue;
     }
 
@@ -1748,6 +1761,26 @@ export function layoutScore(model, options = {}) {
 }
 
 export const ROW_CHROME_UNITS = VIEWPORT_PAD + GUTTER_UNITS;
+
+/**
+ * The widest one-column fragment in a layout. Wrap can split a measure, so
+ * the view must fit this width, not the full measure.
+ */
+export function maxAtomicWidthUnits(scoreLayout) {
+  let widest = 0;
+  for (const bar of scoreLayout?.bars || []) {
+    const cols = bar.columns || [];
+    if (!cols.length) {
+      widest = Math.max(widest, bar.minWidthUnits ?? bar.widthUnits ?? 0);
+      continue;
+    }
+    for (const col of cols) {
+      const w = BAR_PAD_START + (Number(col.advance) || 0) + BAR_PAD_END;
+      if (w > widest) widest = w;
+    }
+  }
+  return widest;
+}
 
 /**
  * The largest view scale at which a bar of `barUnits` fits `availablePx`.

@@ -13,6 +13,7 @@ import {
   buildOverlayPaths,
   fitScaleForBar,
   layoutScore,
+  maxAtomicWidthUnits,
   ROW_CHROME_UNITS,
   scaleThatFits,
 } from '../../js/gpPlayer/scoreLayout.js';
@@ -681,6 +682,16 @@ let techniqueReport = null;
     firstColX < 30,
     `continuation first column x (${firstColX}) must be near the start pad, not the original large x`,
   );
+
+  for (const sys of layout.systems) {
+    const part = sys.parts[0];
+    for (const g of part.layout.glyphs) {
+      assert.ok(
+        g.x + g.w <= part.layout.widthUnits + 0.5,
+        `a ${g.kind} glyph must not extend past the fragment width`,
+      );
+    }
+  }
 }
 
 // Mixed-duration bar: long note then a burst of two-digit 32nds.
@@ -813,6 +824,24 @@ let techniqueReport = null;
   assert.ok(held <= 2, 'scaleThatFits must not exceed desiredScale');
   assert.ok(held >= 1, 'scaleThatFits must not fall below minScale');
   assert.ok(Math.abs(held - fit) < 1e-9, 'scaleThatFits must hold a large desired scale down to fit');
+}
+
+// Zoom fit must use one column, not the full dense measure.
+{
+  const model = denseTwoDigitSixteenthModel();
+  const layout = layoutForModel(model, { widthPx: 340 });
+  const atomic = maxAtomicWidthUnits(layout);
+  const rowWidth = availableWidthPx(340);
+  assert.ok(atomic > 0, 'atomic width must be positive');
+  assert.ok(
+    atomic < layout.bars[0].minWidthUnits,
+    `one column (${atomic}) must be narrower than the full bar (${layout.bars[0].minWidthUnits})`,
+  );
+  assert.ok(
+    atomic < rowWidth,
+    `one column (${atomic}) must fit a 340px row (${rowWidth})`,
+  );
+  assert.ok(layout.systems.length >= 2, 'the dense bar still wraps at 340px');
 }
 
 // beatXUnits must match non-grace note glyph centres.

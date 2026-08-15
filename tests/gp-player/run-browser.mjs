@@ -30,6 +30,7 @@ const PAGES = [
   'realtime-ui-jank.html',
   'follow-scroll.html',
   'zoom-overflow.html',
+  'score-wrap.html',
   'score-alignment.html',
   'score-spacing.html',
   'score-follow.html',

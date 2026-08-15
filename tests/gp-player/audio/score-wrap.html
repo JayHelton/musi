@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player score wrap</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    body { margin: 0; padding: 12px; background: #1a1420; color: #f7efd8; }
+    h2 {
+      font-family: var(--font-ui, "VT323", monospace);
+      font-size: 16px;
+      margin: 0 0 8px;
+      color: var(--accent, #ffd83d);
+    }
+    #host {
+      width: 360px;
+      height: 640px;
+      border: 2px solid #6b4c9a;
+    }
+    #out {
+      margin-top: 10px;
+      white-space: pre;
+      font-family: monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Phone width — a dense measure wraps to a new row</h2>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    import { writeln, reportResult, runMain } from './harness.js';
+    import { layoutScore } from '/js/gpPlayer/scoreLayout.js';
+
+    function denseModel(barCount) {
+      const strings = [
+        { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+        { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+        { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+        { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+        { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+        { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+      ];
+      const events = [];
+      const beats = [];
+      const measures = [];
+      for (let bar = 0; bar < barCount; bar += 1) {
+        measures.push({
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          timeSig: [4, 4],
+        });
+        for (let n = 0; n < 16; n += 1) {
+          const start = bar * 4 + n * 0.25;
+          const idx = events.length;
+          events.push({
+            start,
+            duration: 0.25,
+            stringIndex: 5,
+            fret: 10 + (n % 10),
+            midi: 40 + 10 + (n % 10),
+            dead: false,
+            techniques: [],
+          });
+          beats.push({
+            measureIndex: bar,
+            voiceIndex: 0,
+            start,
+            duration: 0.25,
+            noteValue: 16,
+            dots: 0,
+            tuplet: null,
+            rest: false,
+            noteIndices: [idx],
+          });
+        }
+      }
+      return { tuning: 'Standard', strings, events, beats, measures, tempo: 120, totalBeats: barCount * 4 };
+    }
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    runMain(async () => {
+      const { mountParchmentView } = await import('/js/gpPlayer/parchmentView.js');
+      const model = denseModel(4);
+      const host = document.getElementById('host');
+      mountParchmentView(host, { guitarModel: model, autoFollow: false, zoom: 1 });
+      await sleep(400);
+
+      const viewport = host.querySelector('.gpp-parch-viewport');
+      const systems = [...host.querySelectorAll('.gpp-parch-system')];
+      const measures = [...host.querySelectorAll('.gpp-parch-measure')];
+      const continuations = host.querySelectorAll('.gpp-parch-measure.is-continuation');
+      const overflowPx = viewport ? viewport.scrollWidth - viewport.clientWidth : -1;
+      let worstRow = 0;
+      for (const row of systems) {
+        worstRow = Math.max(worstRow, row.scrollWidth - row.clientWidth);
+      }
+      const uniqueBars = new Set(measures.map((el) => el.dataset.index));
+      const layout = layoutScore(model, { widthPx: 360, zoom: 1, maxMeasuresPerSystem: 1 });
+
+      writeln(`host: 360px  written bars: ${uniqueBars.size}`);
+      writeln(`systems: ${systems.length}  measure nodes: ${measures.length}  continuations: ${continuations.length}`);
+      writeln(`layout systems: ${layout.systems.length}`);
+      writeln(`viewport overflow: ${overflowPx} px  worst row overflow: ${worstRow} px`);
+
+      const pass = uniqueBars.size === 4
+        && systems.length > 4
+        && continuations.length > 0
+        && overflowPx <= 1
+        && worstRow <= 1;
+      reportResult(pass);
+    });
+  </script>
+</body>
+</html>

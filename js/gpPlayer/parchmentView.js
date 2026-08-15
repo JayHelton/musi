@@ -14,6 +14,7 @@ import {
   fitScaleForBar,
   layoutScore,
   LAYOUT_BASE_PX,
+  maxAtomicWidthUnits,
   ONE_BAR_MAX_WIDTH_PX,
   scaleThatFits,
 } from './scoreLayout.js';
@@ -739,27 +740,12 @@ export function mountParchmentView(host, {
       let scale = desired;
       let nextScoreLayout = buildLayoutAtScale(scale);
 
-      let widestMinUnits = 0;
-      for (const sys of nextScoreLayout.systems) {
-        const rowParts = sys.parts || sys.barIndices?.map((bi) => ({
-          widthUnits: nextScoreLayout.bars[bi]?.widthUnits ?? 0,
-          layout: nextScoreLayout.bars[bi],
-        })) || [];
-        for (const part of rowParts) {
-          const w = part.layout?.widthUnits ?? part.widthUnits ?? 0;
-          if (w > widestMinUnits) widestMinUnits = w;
-        }
-      }
-      if (!widestMinUnits) {
-        for (const bar of nextScoreLayout.bars) {
-          const minUnits = bar.minWidthUnits ?? bar.widthUnits;
-          if (minUnits > widestMinUnits) widestMinUnits = minUnits;
-        }
-      }
+      // Wrap splits a wide measure. Fit zoom to one column, not the full row.
+      const atomicUnits = maxAtomicWidthUnits(nextScoreLayout);
 
       const fittedScale = scaleThatFits({
         availablePx: layoutWidthPx,
-        barUnits: widestMinUnits,
+        barUnits: atomicUnits,
         desiredScale: desired,
         minScale: MIN_FIT_SCALE,
       });
@@ -768,8 +754,8 @@ export function mountParchmentView(host, {
         nextScoreLayout = buildLayoutAtScale(scale);
       }
 
-      const fit = widestMinUnits > 0
-        ? fitScaleForBar({ availablePx: layoutWidthPx, barUnits: widestMinUnits })
+      const fit = atomicUnits > 0
+        ? fitScaleForBar({ availablePx: layoutWidthPx, barUnits: atomicUnits })
         : null;
       const limit = fit == null
         ? Infinity
