@@ -8,6 +8,7 @@
 // schedulePattern(), trigger() (one-shot audition) and dispose().
 
 import { audioCtx, ensureAudio, getAnalyserDestination } from '../audio.js';
+import { claimAudio, releaseAudio } from '../audio/audioOwner.js';
 import { stepsPerBeat } from './types.js';
 
 let noiseBuffer = null;
@@ -185,6 +186,24 @@ const engine = {
   onStep: null,
   onLoop: null,
 };
+
+let ownerHandle = null;
+
+function stopFromOwner() {
+  stopEngine(true);
+  ownerHandle = null;
+}
+
+function stopEngine(fromOwner = false) {
+  engine.playing = false;
+  if (engine._timer) { clearTimeout(engine._timer); engine._timer = null; }
+  engine._step = engine.loopStart;
+  if (engine.onStep) engine.onStep(-1);
+  if (!fromOwner && ownerHandle) {
+    releaseAudio(ownerHandle);
+    ownerHandle = null;
+  }
+}
 
 function secondsPerStep() {
   return (60 / engine.bpm) / engine.per;
@@ -382,6 +401,14 @@ export function start(opts = {}) {
   if (!engine.pattern) return;
   ensureAudio();
   if (engine.playing) stop();
+  const handle = claimAudio({
+    id: 'drums',
+    label: 'Drums',
+    kind: 'tone',
+    onStop: () => stopFromOwner(),
+  });
+  if (!handle) return;
+  ownerHandle = handle;
   engine.playing = true;
   engine._loopCount = 0;
   engine._step = opts.fromStep != null ? opts.fromStep : engine.loopStart;
@@ -391,10 +418,7 @@ export function start(opts = {}) {
 }
 
 export function stop() {
-  engine.playing = false;
-  if (engine._timer) { clearTimeout(engine._timer); engine._timer = null; }
-  engine._step = engine.loopStart;
-  if (engine.onStep) engine.onStep(-1);
+  stopEngine(false);
 }
 
 export function pause() {
@@ -406,6 +430,14 @@ export function pause() {
 export function resume() {
   if (engine.playing || !engine.pattern) return;
   ensureAudio();
+  const handle = claimAudio({
+    id: 'drums',
+    label: 'Drums',
+    kind: 'tone',
+    onStop: () => stopFromOwner(),
+  });
+  if (!handle) return;
+  ownerHandle = handle;
   engine.playing = true;
   engine._nextTime = audioCtx.currentTime + 0.06;
   scheduler();
@@ -420,7 +452,7 @@ export function setCallbacks({ onStep, onLoop } = {}) {
 }
 
 export function dispose() {
-  stop();
+  stopEngine(false);
   engine.onStep = null;
   engine.onLoop = null;
   engine.pattern = null;

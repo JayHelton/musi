@@ -2,6 +2,14 @@
 // loop/rest, and optional score metronome on one clock.
 
 import { audioCtx, ensureAudio, getMixDestination } from './audio.js';
+import { claimAudio, releaseAudio } from './audio/audioOwner.js';
+import {
+  getTrackBus,
+  setTrackBusGain,
+  setTrackBusPan,
+  setTrackMuteSolo,
+} from './audio/mixBus.js';
+import { canUsePackOnNextStart } from './audio/sampleLoader.js';
 import { createVoiceFactory } from './gpPlayer/instrumentVoices.js';
 import { quartersToSeconds, modelHasRhythm } from './tab/tabModel.js';
 import { buildPlayOrder } from './tab/playOrder.js';
@@ -26,6 +34,7 @@ const SCHEDULE_AHEAD = 0.3;
 // seek or a stop makes a note later than this, and then the engine drops it.
 const MAX_LATE_SEC = 1;
 const VOICE_FADE_SEC = 0.008;
+const CHORD_ONSET_EPS = 1e-6;
 const MIN_RATE = 0.25;
 const MAX_RATE = 3;
 
@@ -39,6 +48,17 @@ function clampGain(g) {
   const n = Number(g);
   if (!Number.isFinite(n)) return 1;
   return Math.max(0, Math.min(1, n));
+}
+
+function sourceVolumeFromModel(model) {
+  const v = model?.trackInfo?.volume;
+  return Number.isFinite(Number(v)) ? clampGain(v) : 1;
+}
+
+function sourcePanFromModel(model) {
+  const p = model?.trackInfo?.pan;
+  if (!Number.isFinite(Number(p))) return 0;
+  return Math.max(-1, Math.min(1, Number(p)));
 }
 
 function buildTimedDrums(percModel, bpm, trackIndex) {
@@ -175,7 +195,13 @@ export function createGpMixPlayer(opts = {}) {
     enabledGuitars: [],
     enabledDrums: [],
     trackVolumes: { guitar: [], drum: [] },
+    trackPans: { guitar: [], drum: [] },
     trackGains: { guitar: [], drum: [] },
+    trackMixInitialized: false,
+    scoreId: '',
+    playbackSource: 'synth',
+    audioHandle: null,
+    ownerCallbackActive: false,
     metronomeEnabled: false,
     loop: null,
     inLoopRest: false,
@@ -209,7 +235,7 @@ export function createGpMixPlayer(opts = {}) {
    * note, the audio thread walks more nodes on each render block, and the
    * sound starts to break up during a long session.
    */
-  function scheduleGuitarVoice(factory, ev, when, dur, destination) {
+  function scheduleGuitarVoice(factory, ev, when, dur, destination, chordSize = 1) {
     const model = state.guitarModels[ev.trackIndex];
     const program = model?.trackInfo?.program;
     const family = factory.familyForProgram(program != null ? program : 27);
@@ -222,6 +248,7 @@ export function createGpMixPlayer(opts = {}) {
       techniques: ev.techniques || [],
       bend: ev.bend ?? null,
       slideKind: ev.slideKind ?? null,
+      chordSize,
       destination: destination || getMixDestination(),
     });
   }
@@ -411,23 +438,64 @@ export function createGpMixPlayer(opts = {}) {
     }
   }
 
+  function trackBusKey(kind, index) {
+    return `${kind === 'drum' ? 'drum' : 'guitar'}:${index}`;
+  }
+
+  function syncMuteSoloBuses() {
+    const mutedKeys = [];
+    state.enabledGuitars.forEach((on, i) => {
+      if (!on) mutedKeys.push(trackBusKey('guitar', i));
+    });
+    state.enabledDrums.forEach((on, i) => {
+      if (!on) mutedKeys.push(trackBusKey('drum', i));
+    });
+    let soloKey = null;
+    const enabledTotal = state.enabledGuitars.filter(Boolean).length
+      + state.enabledDrums.filter(Boolean).length;
+    if (enabledTotal === 1) {
+      const gi = state.enabledGuitars.findIndex(Boolean);
+      if (gi >= 0) soloKey = trackBusKey('guitar', gi);
+      else {
+        const di = state.enabledDrums.findIndex(Boolean);
+        if (di >= 0) soloKey = trackBusKey('drum', di);
+      }
+    }
+    setTrackMuteSolo({ mutedKeys, soloKey });
+  }
+
   function ensureTrackGains() {
     ensureAudio();
     if (!state.voiceFactory) state.voiceFactory = createVoiceFactory(audioCtx);
     while (state.trackGains.guitar.length < state.guitarModels.length) {
       const i = state.trackGains.guitar.length;
-      const g = audioCtx.createGain();
-      g.gain.value = state.trackVolumes.guitar[i] ?? 1;
-      g.connect(getMixDestination());
-      state.trackGains.guitar.push(g);
+      const vol = state.trackVolumes.guitar[i] ?? 1;
+      const pan = state.trackPans.guitar[i] ?? 0;
+      const busInput = getTrackBus(trackBusKey('guitar', i), { volume: vol, pan });
+      if (busInput) {
+        state.trackGains.guitar.push(busInput);
+      } else {
+        const g = audioCtx.createGain();
+        g.gain.value = vol;
+        g.connect(getMixDestination());
+        state.trackGains.guitar.push(g);
+      }
     }
     while (state.trackGains.drum.length < state.drumModels.length) {
       const i = state.trackGains.drum.length;
-      const g = audioCtx.createGain();
-      g.gain.value = state.trackVolumes.drum[i] ?? 1;
-      g.connect(getMixDestination());
-      state.trackGains.drum.push(g);
+      const vol = state.trackVolumes.drum[i] ?? 1;
+      const pan = state.trackPans.drum[i] ?? 0;
+      const busInput = getTrackBus(trackBusKey('drum', i), { volume: vol, pan });
+      if (busInput) {
+        state.trackGains.drum.push(busInput);
+      } else {
+        const g = audioCtx.createGain();
+        g.gain.value = vol;
+        g.connect(getMixDestination());
+        state.trackGains.drum.push(g);
+      }
     }
+    syncMuteSoloBuses();
   }
 
   function rebuildEvents() {
@@ -468,6 +536,16 @@ export function createGpMixPlayer(opts = {}) {
     return midiToDrumInstrument(ev.midi, { velocity: ev.velocity }) || 'kick';
   }
 
+  function guitarChordSize(ev) {
+    const onset = wallSecFromEvent(ev);
+    let count = 0;
+    for (const e of state.events) {
+      if (e.kind !== 'guitar') continue;
+      if (Math.abs(wallSecFromEvent(e) - onset) < CHORD_ONSET_EPS) count += 1;
+    }
+    return Math.max(1, count);
+  }
+
   function scheduleEvent(ev, when, now) {
     // A late note must still sound. The engine used to drop any note whose
     // time had passed, so one slow frame deleted notes from the score and the
@@ -479,12 +557,14 @@ export function createGpMixPlayer(opts = {}) {
     if (ev.kind === 'guitar') {
       ensureTrackGains();
       const dest = state.trackGains.guitar[ev.trackIndex] || getMixDestination();
+      const chordSize = guitarChordSize(ev);
       registerVoice(scheduleGuitarVoice(
         state.voiceFactory,
         ev,
         at,
         dur || 0.2,
         dest,
+        chordSize,
       ));
     } else if (ev.kind === 'drum') {
       scheduleHit(drumInstrument(ev), at, ev.velocity ?? 0.78);
@@ -674,6 +754,13 @@ export function createGpMixPlayer(opts = {}) {
     state.timeline = state.baseTimeline.withRate(state.rate);
   }
 
+  function releaseOwnerIfHeld() {
+    if (!state.audioHandle) return;
+    const handle = state.audioHandle;
+    state.audioHandle = null;
+    releaseAudio(handle);
+  }
+
   function load(params = {}) {
     const {
       timeline: providedTimeline = null,
@@ -690,10 +777,14 @@ export function createGpMixPlayer(opts = {}) {
       enabledGuitars = null,
       enabledDrums = null,
       metronomeEnabled = null,
+      trackVolumes: paramTrackVolumes = null,
+      trackPans: paramTrackPans = null,
+      scoreId = null,
     } = params;
 
-    stop();
+    stop({ releaseOwner: true });
     state.endedFired = false;
+    if (scoreId != null) state.scoreId = String(scoreId);
     state.guitarModels = guitarModels.filter(Boolean);
     state.drumModels = drumModels.filter(Boolean);
 
@@ -739,14 +830,39 @@ export function createGpMixPlayer(opts = {}) {
       state.enabledDrums = state.drumModels.map(() => true);
     }
 
-    while (state.trackVolumes.guitar.length < state.guitarModels.length) {
-      state.trackVolumes.guitar.push(1);
-    }
-    while (state.trackVolumes.drum.length < state.drumModels.length) {
-      state.trackVolumes.drum.push(1);
-    }
+    const firstMixLoad = !state.trackMixInitialized;
     state.trackVolumes.guitar.length = state.guitarModels.length;
     state.trackVolumes.drum.length = state.drumModels.length;
+    state.trackPans.guitar.length = state.guitarModels.length;
+    state.trackPans.drum.length = state.drumModels.length;
+
+    for (let i = 0; i < state.guitarModels.length; i += 1) {
+      if (paramTrackVolumes?.guitar?.[i] != null) {
+        state.trackVolumes.guitar[i] = clampGain(paramTrackVolumes.guitar[i]);
+      } else if (firstMixLoad || state.trackVolumes.guitar[i] == null) {
+        state.trackVolumes.guitar[i] = sourceVolumeFromModel(state.guitarModels[i]);
+      }
+      if (paramTrackPans?.guitar?.[i] != null) {
+        state.trackPans.guitar[i] = sourcePanFromModel({ trackInfo: { pan: paramTrackPans.guitar[i] } });
+      } else if (firstMixLoad || state.trackPans.guitar[i] == null) {
+        state.trackPans.guitar[i] = sourcePanFromModel(state.guitarModels[i]);
+      }
+    }
+    for (let i = 0; i < state.drumModels.length; i += 1) {
+      if (paramTrackVolumes?.drum?.[i] != null) {
+        state.trackVolumes.drum[i] = clampGain(paramTrackVolumes.drum[i]);
+      } else if (firstMixLoad || state.trackVolumes.drum[i] == null) {
+        state.trackVolumes.drum[i] = sourceVolumeFromModel(state.drumModels[i]);
+      }
+      if (paramTrackPans?.drum?.[i] != null) {
+        state.trackPans.drum[i] = sourcePanFromModel({ trackInfo: { pan: paramTrackPans.drum[i] } });
+      } else if (firstMixLoad || state.trackPans.drum[i] == null) {
+        state.trackPans.drum[i] = sourcePanFromModel(state.drumModels[i]);
+      }
+    }
+    state.trackMixInitialized = true;
+    state.trackGains.guitar = [];
+    state.trackGains.drum = [];
 
     if (metronome?.config) {
       state.metroConfig = normalizeMetronomeConfig({ ...state.metroConfig, ...metronome.config });
@@ -864,6 +980,28 @@ export function createGpMixPlayer(opts = {}) {
       }
     }
 
+    const handle = claimAudio({
+      id: 'gp-player',
+      label: 'Guitar Pro',
+      kind: 'score',
+      onStop: () => {
+        if (state.ownerCallbackActive) return;
+        state.ownerCallbackActive = true;
+        try {
+          stopInternal({ releaseOwner: false });
+        } finally {
+          state.ownerCallbackActive = false;
+          state.audioHandle = null;
+        }
+      },
+      onPause: () => { pause(); },
+      canPause: true,
+    });
+    if (!handle) return;
+
+    state.audioHandle = handle;
+    state.playbackSource = canUsePackOnNextStart(state.scoreId) ? 'pack' : 'synth';
+
     initEngine();
     ensureTrackGains();
     fadeVoices();
@@ -898,19 +1036,7 @@ export function createGpMixPlayer(opts = {}) {
     emitTick();
   }
 
-  function pause() {
-    if (!state.playing) return;
-    state.pauseAtSec = songTimeNow();
-    state.playing = false;
-    state.paused = true;
-    state.inLoopRest = false;
-    stopTimer();
-    stopFrameLoop();
-    fadeVoices();
-    emitTick();
-  }
-
-  function stop() {
+  function stopInternal({ releaseOwner = false } = {}) {
     state.playing = false;
     state.paused = false;
     state.inLoopRest = false;
@@ -934,6 +1060,24 @@ export function createGpMixPlayer(opts = {}) {
     stopFrameLoop();
     fadeVoices();
     emitTick();
+    if (releaseOwner && !state.ownerCallbackActive) releaseOwnerIfHeld();
+  }
+
+  function pause() {
+    if (!state.playing) return;
+    state.pauseAtSec = songTimeNow();
+    state.playing = false;
+    state.paused = true;
+    state.inLoopRest = false;
+    stopTimer();
+    stopFrameLoop();
+    fadeVoices();
+    emitTick();
+  }
+
+  function stop(opts = {}) {
+    const releaseOwner = opts?.releaseOwner !== false;
+    stopInternal({ releaseOwner });
   }
 
   /** Jump to a song position without starting playback. */
@@ -1022,6 +1166,7 @@ export function createGpMixPlayer(opts = {}) {
     const arr = kind === 'drum' ? state.enabledDrums : state.enabledGuitars;
     if (index < 0 || index >= arr.length) return;
     arr[index] = !!enabled;
+    syncMuteSoloBuses();
     const was = state.playing;
     const at = songTimeNow();
     rebuildEvents();
@@ -1040,7 +1185,18 @@ export function createGpMixPlayer(opts = {}) {
     const gains = kind === 'drum' ? state.trackGains.drum : state.trackGains.guitar;
     if (index < 0 || index >= vols.length) return;
     vols[index] = clampGain(gain);
-    if (gains[index]) gains[index].gain.value = vols[index];
+    const key = trackBusKey(kind, index);
+    setTrackBusGain(key, vols[index]);
+    const node = gains[index];
+    if (node?.gain) node.gain.value = vols[index];
+  }
+
+  function setTrackPan(kind, index, pan) {
+    const pans = kind === 'drum' ? state.trackPans.drum : state.trackPans.guitar;
+    if (index < 0 || index >= pans.length) return;
+    pans[index] = Math.max(-1, Math.min(1, Number(pan) || 0));
+    const key = trackBusKey(kind, index);
+    setTrackBusPan(key, pans[index]);
   }
 
   function setMetronomeEnabled(on) {
@@ -1104,7 +1260,7 @@ export function createGpMixPlayer(opts = {}) {
   function destroy() {
     state.destroyed = true;
     const wasPlaying = state.playing;
-    stop();
+    stopInternal({ releaseOwner: true });
     fadeVoices();
     stopTimer();
     stopFrameLoop();
@@ -1151,6 +1307,7 @@ export function createGpMixPlayer(opts = {}) {
     setBpm,
     setTrackEnabled,
     setTrackVolume,
+    setTrackPan,
     setMetronomeEnabled,
     setMetronomeConfig,
     setLoop,
@@ -1168,6 +1325,7 @@ export function createGpMixPlayer(opts = {}) {
     get metronomeEnabled() { return state.metronomeEnabled; },
     get enabledGuitars() { return [...state.enabledGuitars]; },
     get enabledDrums() { return [...state.enabledDrums]; },
+    get playbackSource() { return state.playbackSource; },
     get guitarNotes() { return state.allGuitarNotes; },
     get events() { return state.events; },
     get range() { return { ...state.range }; },

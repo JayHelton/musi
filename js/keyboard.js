@@ -1,6 +1,27 @@
 import { ensureAudio, midiFreq, audioCtx, getAnalyserDestination } from './audio.js';
+import { claimAudio, releaseAudio } from './audio/audioOwner.js';
 import { NOTE_NAMES_SHARP } from './theory.js';
 import { S } from './scaleQuiz.js';
+
+let ownerHandle = null;
+
+function stopOscillatorsOnly() {
+  const t = audioCtx.currentTime;
+  Object.keys(S.kb.drones).forEach((midi) => {
+    const dr = S.kb.drones[midi];
+    dr.gain.gain.setValueAtTime(dr.gain.gain.value, t);
+    dr.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    setTimeout(() => { try { dr.osc1.stop(); dr.osc2.stop(); dr.osc3.stop(); } catch (e) {} }, 200);
+  });
+  S.kb.drones = {};
+  document.querySelectorAll('.white-key,.black-key').forEach((el) => el.classList.remove('active'));
+  updateDroneDisplay();
+}
+
+function stopAllFromOwner() {
+  stopOscillatorsOnly();
+  ownerHandle = null;
+}
 
 export const QWERTY_ROWS = ['qwertyu','asdfghj','zxcvbnm'];
 export const QWERTY_MAP = {};
@@ -69,7 +90,22 @@ export function toggleDrone(midi) {
     dr.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
     setTimeout(() => { try { dr.osc1.stop(); dr.osc2.stop(); dr.osc3.stop(); } catch(e){} }, 200);
     delete S.kb.drones[midi];
+    if (Object.keys(S.kb.drones).length === 0 && ownerHandle) {
+      releaseAudio(ownerHandle);
+      ownerHandle = null;
+    }
   } else {
+    const wasEmpty = Object.keys(S.kb.drones).length === 0;
+    if (wasEmpty) {
+      const handle = claimAudio({
+        id: 'keyboard',
+        label: 'Keyboard',
+        kind: 'tone',
+        onStop: () => stopAllFromOwner(),
+      });
+      if (!handle) return;
+      ownerHandle = handle;
+    }
     const freq = midiFreq(midi);
     const osc1 = audioCtx.createOscillator();
     const osc2 = audioCtx.createOscillator();
@@ -109,16 +145,11 @@ export function toggleDrone(midi) {
 }
 
 export function stopAll() {
-  const t = audioCtx.currentTime;
-  Object.keys(S.kb.drones).forEach(midi => {
-    const dr = S.kb.drones[midi];
-    dr.gain.gain.setValueAtTime(dr.gain.gain.value, t);
-    dr.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
-    setTimeout(() => { try { dr.osc1.stop(); dr.osc2.stop(); dr.osc3.stop(); } catch(e){} }, 200);
-  });
-  S.kb.drones = {};
-  document.querySelectorAll('.white-key,.black-key').forEach(el => el.classList.remove('active'));
-  updateDroneDisplay();
+  stopOscillatorsOnly();
+  if (ownerHandle) {
+    releaseAudio(ownerHandle);
+    ownerHandle = null;
+  }
 }
 
 export function updateDroneDisplay() {

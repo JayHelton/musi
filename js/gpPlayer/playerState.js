@@ -59,6 +59,27 @@ function clampGain(v) {
   return Math.max(0, Math.min(1, n));
 }
 
+function sourceVolume(track) {
+  const v = track?.model?.trackInfo?.volume;
+  return Number.isFinite(Number(v)) ? clampGain(v) : 1;
+}
+
+function sourcePan(track) {
+  const p = track?.model?.trackInfo?.pan;
+  if (!Number.isFinite(Number(p))) return 0;
+  return Math.max(-1, Math.min(1, Number(p)));
+}
+
+function buildTrackPans(gpResult, initGuitarPans, initDrumPans) {
+  const guitars = initGuitarPans?.length === gpResult.tracks.length
+    ? initGuitarPans.map((p) => sourcePan({ model: { trackInfo: { pan: p } } }))
+    : gpResult.tracks.map((t) => sourcePan(t));
+  const drums = initDrumPans?.length === (gpResult.drumTracks || []).length
+    ? initDrumPans.map((p) => sourcePan({ model: { trackInfo: { pan: p } } }))
+    : (gpResult.drumTracks || []).map((t) => sourcePan(t));
+  return { guitars, drums };
+}
+
 /**
  * Apply an exercise-saved BPM only when it is a real positive finite value.
  * @returns {{ apply: false } | { apply: true, bpm: number, bpmUserOverride: boolean }}
@@ -110,6 +131,9 @@ export function createPlayerState(gpResult, options = {}) {
   const initVols = options.initialTrackVolumes;
   const initGuitars = Array.isArray(initVols?.guitars) ? initVols.guitars : null;
   const initDrums = Array.isArray(initVols?.drums) ? initVols.drums : null;
+  const initPans = options.initialTrackPans;
+  const initGuitarPans = Array.isArray(initPans?.guitars) ? initPans.guitars : null;
+  const initDrumPans = Array.isArray(initPans?.drums) ? initPans.drums : null;
 
   const state = {
     gp: gpResult,
@@ -126,11 +150,12 @@ export function createPlayerState(gpResult, options = {}) {
     trackVolumes: {
       guitars: initGuitars?.length === gpResult.tracks.length
         ? initGuitars.map((v) => clampGain(v))
-        : gpResult.tracks.map(() => 1),
+        : gpResult.tracks.map((t) => sourceVolume(t)),
       drums: initDrums?.length === (gpResult.drumTracks || []).length
         ? initDrums.map((v) => clampGain(v))
-        : (gpResult.drumTracks || []).map(() => 1),
+        : (gpResult.drumTracks || []).map((t) => sourceVolume(t)),
     },
+    trackPans: buildTrackPans(gpResult, initGuitarPans, initDrumPans),
     solo: null,
     metronomeEnabled: !!metroDefaults.enabled,
     countInEnabled: !!metroDefaults.countInEnabled,
@@ -258,6 +283,17 @@ export function createPlayerState(gpResult, options = {}) {
   function getTrackVolume(kind, index) {
     const arr = kind === 'guitar' ? state.trackVolumes.guitars : state.trackVolumes.drums;
     return arr[index] ?? 1;
+  }
+
+  function setTrackPan(kind, index, pan) {
+    const arr = kind === 'guitar' ? state.trackPans.guitars : state.trackPans.drums;
+    if (index < 0 || index >= arr.length) return;
+    arr[index] = sourcePan({ model: { trackInfo: { pan } } });
+  }
+
+  function getTrackPan(kind, index) {
+    const arr = kind === 'guitar' ? state.trackPans.guitars : state.trackPans.drums;
+    return arr[index] ?? 0;
   }
 
   function playAll() {
@@ -420,8 +456,12 @@ export function createPlayerState(gpResult, options = {}) {
     state.retuneMode = 'fingerings';
     state.solo = null;
     state.trackVolumes = {
-      guitars: state.gp.tracks.map(() => 1),
-      drums: (state.gp.drumTracks || []).map(() => 1),
+      guitars: state.gp.tracks.map((t) => sourceVolume(t)),
+      drums: (state.gp.drumTracks || []).map((t) => sourceVolume(t)),
+    };
+    state.trackPans = {
+      guitars: state.gp.tracks.map((t) => sourcePan(t)),
+      drums: (state.gp.drumTracks || []).map((t) => sourcePan(t)),
     };
     state.trackIndex = hasFrettedNow ? 0 : -1;
     state.viewKind = hasFrettedNow ? 'guitar' : 'drum';
@@ -486,6 +526,8 @@ export function createPlayerState(gpResult, options = {}) {
     setTrackEnabled,
     setTrackVolume,
     getTrackVolume,
+    setTrackPan,
+    getTrackPan,
     playAll,
     setViewTrack,
     applyTransforms,

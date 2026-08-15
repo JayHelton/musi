@@ -10,6 +10,7 @@ import { createGpMixPlayer } from './gpMixPlayer.js';
 import { analyzeModel } from './tab/tabAnalyzer.js';
 import { renderAnalysisReport } from './tab/tabAnalysisView.js';
 import { audioCtx, ensureAudio } from './audio.js';
+import { loadPacksForScore, cancelLoad, getPlaybackSourceState } from './audio/sampleLoader.js';
 import { scheduleMetronomeClick } from './tab/metroClick.js';
 
 import { el, uid, fmtTime } from './gpPlayer/dom.js';
@@ -133,6 +134,8 @@ export function mountGpPlayer(host, {
   const state = stateController.state;
   syncMetroMirrors();
 
+  const packScoreId = scoreKey || fileName || title || 'score';
+
   const resolvedBpm = resolveInitialBpm(initialBpm, state.scoreBpm);
   if (resolvedBpm.apply) {
     state.bpm = resolvedBpm.bpm;
@@ -157,7 +160,12 @@ export function mountGpPlayer(host, {
   const titles = el('div', { class: 'gpp-score-header-titles' });
   const scoreTitle = el('div', { class: 'gpp-score-title', text: hideTitle ? '' : title, title: fileName || title });
   const scoreTrack = el('div', { class: 'gpp-score-track', text: '' });
-  titles.append(scoreTitle, scoreTrack);
+  const sourceStatus = el('div', {
+    class: 'gpp-source-status gpp-status',
+    role: 'status',
+    text: 'Synth fallback',
+  });
+  titles.append(scoreTitle, scoreTrack, sourceStatus);
   // A screen reader reads this region when the text changes. FR-066 needs it
   // for the bar announcement, and FR-052 needs it for a blocked audio message.
   const liveRegion = el('div', {
@@ -180,6 +188,46 @@ export function mountGpPlayer(host, {
   }
 
   let lastAnnouncedText = '';
+
+  function updateSourceLabel() {
+    if (!isAlive()) return;
+    sourceStatus.textContent = getPlaybackSourceState(packScoreId);
+  }
+
+  function beginPackLoad() {
+    const programs = (gpResult.tracks || [])
+      .map((t) => t.model?.trackInfo?.program)
+      .filter((p) => p != null);
+    const drumNotes = [];
+    for (const t of gpResult.drumTracks || []) {
+      for (const e of t.model?.events || []) {
+        if (e?.midi != null) drumNotes.push(e.midi);
+      }
+    }
+    try {
+      const Ctx = typeof window !== 'undefined'
+        && (window.AudioContext || window.webkitAudioContext);
+      if (!Ctx || typeof Ctx !== 'function') {
+        updateSourceLabel();
+        return;
+      }
+      ensureAudio();
+      if (!audioCtx) {
+        updateSourceLabel();
+        return;
+      }
+      loadPacksForScore({
+        scoreId: packScoreId,
+        programs,
+        drumNotes,
+        audioCtx,
+        onProgress: () => updateSourceLabel(),
+      }).then(() => updateSourceLabel());
+    } catch (e) {
+      updateSourceLabel();
+    }
+  }
+  beginPackLoad();
 
   /** Put one short sentence into the live region for a screen reader. */
   function announce(text) {
@@ -405,12 +453,22 @@ export function mountGpPlayer(host, {
         guitar: [...state.trackVolumes.guitars],
         drum: [...state.trackVolumes.drums],
       },
+      trackPans: {
+        guitar: [...state.trackPans.guitars],
+        drum: [...state.trackPans.drums],
+      },
+      scoreId: packScoreId,
     };
   }
 
   function applyTrackVolumesToPlayer() {
     state.trackVolumes.guitars.forEach((gain, i) => player.setTrackVolume('guitar', i, gain));
     state.trackVolumes.drums.forEach((gain, i) => player.setTrackVolume('drum', i, gain));
+  }
+
+  function applyTrackPansToPlayer() {
+    state.trackPans.guitars.forEach((pan, i) => player.setTrackPan('guitar', i, pan));
+    state.trackPans.drums.forEach((pan, i) => player.setTrackPan('drum', i, pan));
   }
 
   function hasBeatLoop() {
@@ -738,6 +796,7 @@ export function mountGpPlayer(host, {
     const beat = (at / 60) * state.bpm;
     player.load(loadOpts);
     applyTrackVolumesToPlayer();
+    applyTrackPansToPlayer();
     applyLoopToPlayer();
     buildPlaybackTimeline();
     const newSec = quartersToSeconds(beat, state.bpm);
@@ -1798,6 +1857,7 @@ export function mountGpPlayer(host, {
     destroy() {
       if (!alive) return;
       alive = false;
+      cancelLoad(packScoreId);
       stopPlayheadFrameLoop();
       unbindPlayheadClockListeners();
       playbackTimeline = null;

@@ -44,6 +44,14 @@
   flex-wrap: wrap;
 }
 
+.gpp-source-status {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-family: var(--font-ui, "VT323", monospace);
+  border-radius: var(--radius-screen, 18px);
+}
+
 .gpp-status {
   font-size: 0.82rem;
   color: var(--muted);
