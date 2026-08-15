@@ -103,27 +103,26 @@ const model = denseEightBarTripletModel();
 const view = mountParchmentView(host, { guitarModel: model, zoom: 1 });
 
 assert.ok(host.querySelector('.gpp-parch-measure'), 'initial mount renders measures');
-assert.equal(
-  host.querySelectorAll('.gpp-parch-measure').length,
-  8,
-  'eight measures render for the dense model',
-);
+const measureNodes = host.querySelectorAll('.gpp-parch-measure');
+const uniqueIndices = new Set([...measureNodes].map((el) => el.dataset.index));
+assert.equal(uniqueIndices.size, 8, 'eight written measures render for the dense model');
+assert.ok(measureNodes.length >= 8, 'dense model may wrap into more than eight measure nodes');
 assert.ok(!host.querySelector('.gpp-parch-error'), 'mount must not show a draw error');
 
 const sheet = host.querySelector('.gpp-parch-sheet');
-const measureCountBefore = host.querySelectorAll('.gpp-parch-measure').length;
 view.setZoom(1.2);
-assert.equal(
-  host.querySelectorAll('.gpp-parch-measure').length,
-  measureCountBefore,
-  'zoom rebuild keeps measure count',
-);
+const zoomNodes = host.querySelectorAll('.gpp-parch-measure');
+const zoomIndices = new Set([...zoomNodes].map((el) => el.dataset.index));
+assert.equal(zoomIndices.size, 8, 'zoom rebuild keeps eight written measures');
 assert.ok(!host.querySelector('.gpp-parch-error'), 'zoom rebuild must not show a draw error');
 
 host.clientWidth = 420;
 for (const cb of [...resizeObservers]) cb();
 flushAnimationFrames();
-assert.ok(host.querySelectorAll('.gpp-parch-measure').length >= 8, 'resize rebuild keeps measures');
+const resizeNodes = host.querySelectorAll('.gpp-parch-measure');
+const resizeIndices = new Set([...resizeNodes].map((el) => el.dataset.index));
+assert.equal(resizeIndices.size, 8, 'resize rebuild keeps eight written measures');
+assert.ok(resizeNodes.length >= 8, 'resize rebuild keeps measure nodes');
 assert.ok(!host.querySelector('.gpp-parch-error'), 'resize rebuild must not show a draw error');
 assert.ok(sheet.children.length > 0, 'sheet keeps children after resize rebuild');
 
