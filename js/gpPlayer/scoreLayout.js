@@ -56,10 +56,6 @@ const VIEWPORT_PAD = 12;
 // rhythm tick below it. Each beat column therefore keeps a clear gap after
 // its widest text.
 const MIN_COL_GAP_UNITS = 9;
-// A row that cannot hold the ideal gap gives gap space up first. The floor
-// still keeps a space between two fret numbers.
-const MIN_COL_GAP_FLOOR_UNITS = 3;
-const CHAR_WIDTH_RATIO = 0.62;
 // A phone screen holds one measure per row. Two measures on a 360 CSS pixel
 // screen leave about 160 pixels for each bar, and the fret numbers then run
 // into each other.
@@ -417,28 +413,93 @@ function buildBarSlice(model, barIndex) {
   };
 }
 
-/** Content width for one bar at a given column gap. */
-function barContentWidth(cols, measureLen, charUnits, colGapUnits, minContentUnits, minRelGap) {
-  const colUnits = charUnits + colGapUnits;
-  return Math.max(
-    MIN_BAR_UNITS - BAR_PAD_START - BAR_PAD_END,
-    measureLen * UNITS_PER_QUARTER,
-    cols.reduce((w, c) => w + Math.max(c.width * UNITS_PER_QUARTER, colUnits), 0),
-    cols.length * colUnits,
-    minRelGap > 0 ? Math.min(colUnits / minRelGap, MAX_BAR_CONTENT_UNITS) : 0,
-    minContentUnits,
-  );
+function noteOriginOffset(geoPx) {
+  return Math.max(4, geoPx * 0.3);
 }
 
-/** The smallest distance between two column starts, as a fraction of a bar. */
-function smallestRelGap(cols) {
-  const starts = [...new Set(cols.map((c) => c.relStart))].sort((a, b) => a - b);
-  let min = Infinity;
-  for (let i = 1; i < starts.length; i += 1) {
-    const gap = starts[i] - starts[i - 1];
-    if (gap > 1e-9 && gap < min) min = gap;
+/** Fret text width in layout units for a column. */
+function fretTextWidth(maxChars, geoPx) {
+  return Math.max(geoPx * 0.7, maxChars * geoPx * 0.55);
+}
+
+/** Build per-column minimum advances from events at each beat. */
+function columnMinAdvances(bar, cols, geoPx) {
+  return cols.map((col) => {
+    const beatStart = col.beat.start;
+    let maxChars = 1;
+    let graceBearing = 0;
+    for (const ev of bar.events) {
+      if (Math.abs(Number(ev.start) - beatStart) >= 1e-4) continue;
+      const label = ev.dead ? 'x' : String(ev.fret ?? '');
+      maxChars = Math.max(maxChars, label.length);
+      if (ev.grace) {
+        const gw = fretTextWidth(label.length, geoPx);
+        graceBearing = Math.max(graceBearing, gw * 0.9 + geoPx * 0.2);
+      }
+    }
+    const textW = fretTextWidth(maxChars, geoPx);
+    return {
+      col,
+      maxChars,
+      textW,
+      graceBearing,
+      minAdvance: textW + MIN_COL_GAP_UNITS + graceBearing,
+    };
+  });
+}
+
+/**
+ * Place beat columns with spring spacing. Each column keeps a readable minimum
+ * advance. Extra width follows written duration.
+ */
+function placeSpringColumns(bar, cols, measureLen, geoPx, opts) {
+  const originOffset = noteOriginOffset(geoPx);
+  const minContentFloor = MIN_BAR_UNITS - BAR_PAD_START - BAR_PAD_END;
+  const measureFloor = measureLen * UNITS_PER_QUARTER;
+  const colAdvances = columnMinAdvances(bar, cols, geoPx);
+
+  let sumMin = colAdvances.reduce((s, c) => s + c.minAdvance, 0);
+  let scale = 1;
+  if (sumMin > MAX_BAR_CONTENT_UNITS) {
+    scale = MAX_BAR_CONTENT_UNITS / sumMin;
+    sumMin = MAX_BAR_CONTENT_UNITS;
   }
-  return min === Infinity ? 0 : min;
+
+  const idealContentW = Math.max(
+    minContentFloor,
+    measureFloor,
+    sumMin,
+    opts.minContentUnits || 0,
+  );
+
+  let contentW = idealContentW;
+  if (opts.maxContentUnits > 0 && opts.maxContentUnits > contentW) {
+    contentW = opts.maxContentUnits;
+  }
+
+  const scaledMins = colAdvances.map((c) => c.minAdvance * scale);
+  const scaledSum = scaledMins.reduce((s, a) => s + a, 0);
+  const extra = Math.max(0, contentW - scaledSum);
+  const totalDuration = cols.reduce((s, c) => s + c.width, 0) || 1;
+
+  let x = BAR_PAD_START;
+  const columns = [];
+  for (let i = 0; i < cols.length; i += 1) {
+    const col = cols[i];
+    const durationShare = extra * (col.width / totalDuration);
+    const advance = scaledMins[i] + durationShare;
+    const leftBearing = colAdvances[i].graceBearing * scale;
+    col.xLeft = x + leftBearing;
+    col.x = col.xLeft + originOffset;
+    columns.push({
+      beat: col.beat.start,
+      x: col.x,
+      relStart: col.relStart,
+    });
+    x += advance;
+  }
+
+  return { contentW, idealContentW, columns, originOffset };
 }
 
 function beatColumns(bar, measureLen) {
@@ -516,7 +577,7 @@ function addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, fontPx, showRh
 
   for (const col of cols) {
     const beat = col.beat;
-    const x = BAR_PAD_START + col.relStart * contentW;
+    const x = col.xLeft;
     const beatStart = beat.start;
 
     if (beat.rest) {
@@ -604,10 +665,10 @@ function addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, fontPx, showRh
   flushBeam();
 }
 
-function xForBeat(cols, beatStart, contentW, fontPx) {
+function xForBeat(cols, beatStart, fontPx) {
   const col = cols.find((c) => Math.abs(c.beat.start - beatStart) < 1e-4);
-  const rel = col ? col.relStart : 0;
-  return BAR_PAD_START + rel * contentW + Math.max(4, fontPx * 0.3);
+  const originOffset = noteOriginOffset(fontPx);
+  return col ? col.xLeft + originOffset : BAR_PAD_START + originOffset;
 }
 
 function findNearestPrevEvent(events, ev, { allowGrace = false } = {}) {
@@ -672,7 +733,7 @@ function addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, drumMode, stri
     // to the left of it. Both notes share one beat position, and without
     // this shift the two numbers sit on top of each other.
     const graceShift = ev.grace ? w * 0.9 + fontPx * 0.2 : 0;
-    const xCenter = xForBeat(cols, beatStart, contentW, fontPx) - graceShift;
+    const xCenter = xForBeat(cols, beatStart, fontPx) - graceShift;
 
     if (ev.dead) {
       pushGlyph(glyphs, {
@@ -731,9 +792,7 @@ function addTechniqueGlyphs(glyphs, overlayRecords, lanes, bar, cols, contentW, 
     if (ev.dead && !techs.includes('dead')) techs.push('dead');
     const beat = bar.beats.find((b) => Math.abs(b.start - Number(ev.start)) < 1e-4);
     const col = cols.find((c) => Math.abs(c.beat.start - Number(ev.start)) < 1e-4);
-    const x = col
-      ? BAR_PAD_START + col.relStart * contentW
-      : BAR_PAD_START;
+    const x = col ? col.xLeft : BAR_PAD_START;
     const beatStart = Number(ev.start);
 
     let noteIdx = -1;
@@ -916,9 +975,10 @@ function addNotationGlyphs(glyphs, lanes, cols, contentW, fontPx, bar, strings) 
   }
 
   const stringCount = Math.max(1, strings.length);
+  const originOffset = noteOriginOffset(fontPx);
   for (const col of cols) {
     if (col.beat.rest) continue;
-    const x = BAR_PAD_START + col.relStart * contentW + Math.max(4, fontPx * 0.3);
+    const x = col.xLeft + originOffset;
     for (const idx of col.beat.noteIndices || []) {
       const ev = bar.events[idx];
       if (!ev?.midi) continue;
@@ -1048,18 +1108,94 @@ function addMeasureChrome(glyphs, lanes, bar, options, contentW, fontPx) {
  * Map a beat to x in layout units for a bar layout result.
  */
 export function beatXUnits(barLayout, beat) {
-  const rel = (Number(beat) - barLayout.beatStart) / barLayout.beatSpan;
-  const clampedRel = Math.max(0, Math.min(1, rel));
-  return barLayout.noteOriginUnits + clampedRel * barLayout.contentWidthUnits;
+  const beatNum = Number(beat);
+  const columns = barLayout.columns;
+  const origin = barLayout.noteOriginUnits;
+  const contentW = barLayout.contentWidthUnits;
+  const barEnd = barLayout.beatStart + barLayout.beatSpan;
+  const barEndX = origin + contentW;
+
+  if (!columns?.length) {
+    const rel = (beatNum - barLayout.beatStart) / barLayout.beatSpan;
+    const clampedRel = Math.max(0, Math.min(1, rel));
+    return origin + clampedRel * contentW;
+  }
+
+  const sorted = [...columns].sort((a, b) => a.beat - b.beat);
+
+  if (beatNum <= sorted[0].beat + 1e-6) {
+    return sorted[0].x;
+  }
+
+  if (beatNum >= sorted[sorted.length - 1].beat - 1e-6) {
+    const last = sorted[sorted.length - 1];
+    if (beatNum >= barEnd - 1e-6) return barEndX;
+    const span = barEnd - last.beat;
+    if (span < 1e-9) return last.x;
+    const t = (beatNum - last.beat) / span;
+    return last.x + t * (barEndX - last.x);
+  }
+
+  for (let i = 0; i < sorted.length; i += 1) {
+    if (Math.abs(sorted[i].beat - beatNum) < 1e-4) {
+      return sorted[i].x;
+    }
+    if (i < sorted.length - 1
+      && beatNum > sorted[i].beat + 1e-6
+      && beatNum < sorted[i + 1].beat - 1e-6) {
+      const span = sorted[i + 1].beat - sorted[i].beat;
+      const t = (beatNum - sorted[i].beat) / span;
+      return sorted[i].x + t * (sorted[i + 1].x - sorted[i].x);
+    }
+  }
+
+  return barEndX;
 }
 
 /**
  * Map x in layout units to a beat inside the bar.
  */
 export function beatFromXUnits(barLayout, xUnits) {
-  const rel = (xUnits - barLayout.noteOriginUnits) / barLayout.contentWidthUnits;
-  const clampedRel = Math.max(0, Math.min(1, rel));
-  return barLayout.beatStart + clampedRel * barLayout.beatSpan;
+  const columns = barLayout.columns;
+  const origin = barLayout.noteOriginUnits;
+  const contentW = barLayout.contentWidthUnits;
+  const barEnd = barLayout.beatStart + barLayout.beatSpan;
+  const barEndX = origin + contentW;
+
+  if (!columns?.length) {
+    const rel = (xUnits - origin) / contentW;
+    const clampedRel = Math.max(0, Math.min(1, rel));
+    return barLayout.beatStart + clampedRel * barLayout.beatSpan;
+  }
+
+  const sorted = [...columns].sort((a, b) => a.beat - b.beat);
+
+  if (xUnits <= sorted[0].x + 1e-6) {
+    return sorted[0].beat;
+  }
+
+  if (xUnits >= barEndX - 1e-6) {
+    return barEnd;
+  }
+
+  if (xUnits >= sorted[sorted.length - 1].x - 1e-6) {
+    const last = sorted[sorted.length - 1];
+    const span = barEndX - last.x;
+    if (span < 1e-9) return last.beat;
+    const t = (xUnits - last.x) / span;
+    return last.beat + t * (barEnd - last.beat);
+  }
+
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    if (xUnits >= sorted[i].x - 1e-6 && xUnits <= sorted[i + 1].x + 1e-6) {
+      const span = sorted[i + 1].x - sorted[i].x;
+      if (span < 1e-9) return sorted[i].beat;
+      const t = (xUnits - sorted[i].x) / span;
+      return sorted[i].beat + t * (sorted[i + 1].beat - sorted[i].beat);
+    }
+  }
+
+  return barEnd;
 }
 
 /**
@@ -1105,55 +1241,17 @@ export function layoutBar(bar, options = {}) {
   }
   const measureLen = Math.max(0.25, contentLen);
   const cols = beatColumns(bar, measureLen);
-  let maxChars = 1;
-  for (const ev of bar.events) {
-    const label = ev.dead ? 'x' : String(ev.fret ?? '');
-    maxChars = Math.max(maxChars, label.length);
-  }
-  // Each beat column needs room for its widest fret text plus a clear gap.
-  // Without that gap a two digit fret runs into the next one, and the tail of
-  // the number sits on top of the rhythm tick below it.
-  const charUnits = maxChars * (geoPx * CHAR_WIDTH_RATIO);
-  // The glyphs sit at a position that follows the written time, so the
-  // closest pair of columns decides the width. A bar with a triplet needs
-  // more room than the note count alone suggests.
-  const minRelGap = smallestRelGap(cols);
-  const colCount = Math.max(1, cols.length);
-  let colGapUnits = MIN_COL_GAP_UNITS;
-  if (opts.maxContentUnits > 0) {
-    const thatFitGap = opts.maxContentUnits / colCount - charUnits;
-    colGapUnits = Math.max(
-      MIN_COL_GAP_FLOOR_UNITS,
-      Math.min(MIN_COL_GAP_UNITS, thatFitGap),
-    );
-  }
-  const idealContentW = barContentWidth(
-    cols,
-    measureLen,
-    charUnits,
-    MIN_COL_GAP_UNITS,
-    0,
-    minRelGap,
-  );
-  let contentW = barContentWidth(
-    cols,
-    measureLen,
-    charUnits,
-    colGapUnits,
-    opts.minContentUnits,
-    minRelGap,
-  );
-  if (opts.maxContentUnits > 0) {
-    contentW = Math.max(
-      MIN_BAR_UNITS - BAR_PAD_START - BAR_PAD_END,
-      Math.min(contentW, opts.maxContentUnits),
-    );
-  }
+  const {
+    contentW,
+    idealContentW,
+    columns,
+    originOffset,
+  } = placeSpringColumns(bar, cols, measureLen, geoPx, opts);
   const widthUnits = BAR_PAD_START + contentW + BAR_PAD_END;
   const minWidthUnits = opts.fixedMinWidthUnits > 0
     ? opts.fixedMinWidthUnits
     : BAR_PAD_START + idealContentW + BAR_PAD_END;
-  const noteOriginUnits = BAR_PAD_START + Math.max(4, geoPx * 0.3);
+  const noteOriginUnits = BAR_PAD_START + originOffset;
 
   for (const lane of lanes) lane.w = widthUnits;
 
@@ -1199,6 +1297,7 @@ export function layoutBar(bar, options = {}) {
     beatSpan: measureLen,
     noteOriginUnits,
     contentWidthUnits: contentW,
+    columns,
     totalHeightUnits: totalHeightFromLanes(lanes),
     // The first and the last beat column of the bar. A caller that moves a
     // cursor needs these, because the bar holds padding at each end that no
@@ -1253,7 +1352,7 @@ function stretchSystemsToWidth(model, bars, systems, opts, barMeta) {
     const indices = system.barIndices;
     const sumWidth = indices.reduce((s, i) => s + bars[i].widthUnits, 0);
     const leftover = system.widthPx - sumWidth;
-    if (Math.abs(leftover) < 1e-6) continue;
+    if (leftover <= 1e-6) continue;
 
     const totalContent = indices.reduce((s, i) => s + bars[i].contentWidthUnits, 0);
     for (const idx of indices) {
@@ -1299,10 +1398,6 @@ export function layoutScore(model, options = {}) {
   const minContentUnits = opts.maxMeasuresPerSystem === 1
     ? Math.max(0, availableWidthPx(opts.widthPx) - BAR_PAD_START - BAR_PAD_END)
     : opts.minContentUnits;
-  const maxContentUnits = Math.max(
-    0,
-    availableWidthPx(opts.widthPx) - BAR_PAD_START - BAR_PAD_END,
-  );
 
   const bars = [];
   const barMeta = [];
@@ -1312,7 +1407,7 @@ export function layoutScore(model, options = {}) {
     const barLayout = layoutBar(slice, {
       ...opts,
       minContentUnits,
-      maxContentUnits,
+      maxContentUnits: opts.maxContentUnits || 0,
       barIndex: i,
       prevTimeSig,
       tuningLabel: slice.tuningLabel,

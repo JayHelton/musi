@@ -158,6 +158,105 @@ function denseTwoDigitSixteenthModel() {
   };
 }
 
+function sparseOneNotePerBarModel() {
+  return {
+    tuning: 'Standard',
+    strings: [
+      { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+    ],
+    events: [{ start: 0, stringIndex: 0, fret: 3, dead: false, duration: 4 }],
+    beats: [{
+      measureIndex: 0,
+      voiceIndex: 0,
+      start: 0,
+      duration: 4,
+      noteValue: 1,
+      dots: 0,
+      tuplet: null,
+      rest: false,
+      noteIndices: [0],
+    }],
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+}
+
+function mixedDurationBurstModel() {
+  const events = [
+    { start: 0, stringIndex: 0, fret: 5, dead: false, duration: 2 },
+  ];
+  const beats = [{
+    measureIndex: 0,
+    voiceIndex: 0,
+    start: 0,
+    duration: 2,
+    noteValue: 2,
+    dots: 0,
+    tuplet: null,
+    rest: false,
+    noteIndices: [0],
+  }];
+  const frets = [17, 22, 17, 22, 17, 22, 17, 22];
+  let beatStart = 2;
+  for (let i = 0; i < frets.length; i += 1) {
+    const start = beatStart + i * 0.125;
+    const idx = events.length;
+    events.push({
+      start,
+      stringIndex: 0,
+      fret: frets[i],
+      dead: false,
+      duration: 0.125,
+      techniques: i === 2 ? ['tap'] : [],
+    });
+    beats.push({
+      measureIndex: 0,
+      voiceIndex: 0,
+      start,
+      duration: 0.125,
+      noteValue: 32,
+      dots: 0,
+      tuplet: null,
+      rest: false,
+      noteIndices: [idx],
+      techniques: i === 2 ? ['tap'] : [],
+    });
+  }
+  return {
+    tuning: 'Standard',
+    strings: [
+      { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+    ],
+    events,
+    beats,
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+}
+
+function noteOverlapGap(bar) {
+  const noteKinds = new Set(['fret', 'deadNote', 'drumHit']);
+  const notes = bar.glyphs
+    .filter((g) => noteKinds.has(g.kind))
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  let minGap = Infinity;
+  for (let i = 1; i < notes.length; i += 1) {
+    if (Math.abs(notes[i].y - notes[i - 1].y) > 0.01) continue;
+    const gap = notes[i].x - (notes[i - 1].x + notes[i - 1].w);
+    assert.ok(gap >= 0, `bar ${bar.barIndex} note text overlaps by ${(-gap).toFixed(2)} units`);
+    minGap = Math.min(minGap, gap);
+  }
+  return minGap === Infinity ? Infinity : minGap;
+}
+
 function layoutForModel(model, extraOptions = {}) {
   return layoutScore(model, {
     widthPx: 900,
@@ -364,9 +463,6 @@ let techniqueReport = null;
     for (const widthPx of [360, 414, 900, 1600]) {
       const { layout } = await layoutForFixture(name, { widthPx });
       for (const bar of layout.bars) {
-        if (bar.minWidthUnits > bar.widthUnits + 0.01) {
-          continue;
-        }
         const notes = bar.glyphs
           .filter((g) => noteKinds.has(g.kind))
           .sort((a, b) => a.y - b.y || a.x - b.x);
@@ -421,7 +517,7 @@ let techniqueReport = null;
   }
 }
 
-// A dense bar must fit a narrow row, and minWidthUnits must stay stable.
+// A dense bar may be wider than a narrow row. minWidthUnits must stay stable.
 {
   const model = denseTwoDigitSixteenthModel();
   const narrowWidthPx = 340;
@@ -431,26 +527,17 @@ let techniqueReport = null;
 
   for (const bar of narrow.bars) {
     assert.ok(
-      bar.widthUnits <= rowWidth + 0.01,
-      `bar ${bar.barIndex} width (${bar.widthUnits}) must fit row (${rowWidth})`,
-    );
-    assert.ok(
-      bar.minWidthUnits >= bar.widthUnits,
-      `bar ${bar.barIndex} minWidthUnits (${bar.minWidthUnits}) must be >= widthUnits (${bar.widthUnits})`,
+      bar.widthUnits >= bar.minWidthUnits - 0.01,
+      `bar ${bar.barIndex} width (${bar.widthUnits}) must be >= minWidthUnits (${bar.minWidthUnits})`,
     );
     assert.ok(bar.widthUnits >= 96, 'bar width must stay above MIN_BAR_UNITS');
+    noteOverlapGap(bar);
   }
 
-  for (const sys of narrow.systems) {
-    let sum = 0;
-    for (const idx of sys.barIndices) {
-      sum += narrow.bars[idx].widthUnits;
-    }
-    assert.ok(
-      sum <= sys.widthPx + 0.01,
-      `system bar widths (${sum}) must fit system width (${sys.widthPx})`,
-    );
-  }
+  assert.ok(
+    narrow.bars[0].widthUnits > rowWidth + 0.01,
+    `a dense bar (${narrow.bars[0].widthUnits}) may be wider than the row (${rowWidth})`,
+  );
 
   assert.equal(
     narrow.bars[0].minWidthUnits,
@@ -458,10 +545,123 @@ let techniqueReport = null;
     'minWidthUnits must not change when widthPx changes',
   );
 
+  const sparse = layoutForModel(sparseOneNotePerBarModel(), { widthPx: narrowWidthPx });
   assert.ok(
-    narrow.bars[0].widthUnits < wide.bars[0].widthUnits,
-    'a dense bar at a narrow width must be narrower than at a wide width',
+    Math.abs(sparse.bars[0].widthUnits - rowWidth) <= 1,
+    `a sparse bar (${sparse.bars[0].widthUnits}) must fill the row (${rowWidth})`,
   );
+}
+
+// Mixed-duration bar: long note then a burst of two-digit 32nds.
+{
+  const model = mixedDurationBurstModel();
+  for (const widthPx of [360, 900]) {
+    const layout = layoutForModel(model, { widthPx });
+    const bar = layout.bars[0];
+    const minGap = noteOverlapGap(bar);
+    assert.ok(
+      bar.widthUnits >= bar.minWidthUnits - 0.01,
+      `mixed bar at ${widthPx}px: widthUnits (${bar.widthUnits}) must be >= minWidthUnits (${bar.minWidthUnits})`,
+    );
+    assert.ok(
+      minGap >= 2,
+      `mixed bar at ${widthPx}px: closest same-string gap (${minGap}) must be at least 2 units`,
+    );
+  }
+}
+
+// A grace note must stay clear of the previous fret and of its main note.
+{
+  const model = {
+    tuning: 'Standard',
+    strings: [
+      { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+    ],
+    events: [
+      { start: 0, stringIndex: 0, fret: 12, dead: false, duration: 1 },
+      { start: 1, stringIndex: 0, fret: 17, dead: false, duration: 0.05, grace: true },
+      { start: 1, stringIndex: 0, fret: 22, dead: false, duration: 1 },
+    ],
+    beats: [
+      {
+        measureIndex: 0, voiceIndex: 0, start: 0, duration: 1,
+        noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [0],
+      },
+      {
+        measureIndex: 0, voiceIndex: 0, start: 1, duration: 1,
+        noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [1, 2],
+      },
+    ],
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+  const layout = layoutForModel(model, { widthPx: 360 });
+  noteOverlapGap(layout.bars[0]);
+}
+
+// Two dense bars must not share one row when they do not both fit.
+{
+  const model = {
+    ...denseTwoDigitSixteenthModel(),
+    measures: [
+      { startBeat: 0, endBeat: 4, timeSig: [4, 4] },
+      { startBeat: 4, endBeat: 8, timeSig: [4, 4] },
+    ],
+    beats: [
+      ...denseTwoDigitSixteenthModel().beats.map((b) => ({ ...b, measureIndex: 0 })),
+      ...denseTwoDigitSixteenthModel().beats.map((b) => ({
+        ...b,
+        measureIndex: 1,
+        start: b.start + 4,
+        noteIndices: b.noteIndices.map((i) => i + 16),
+      })),
+    ],
+    events: [
+      ...denseTwoDigitSixteenthModel().events.map((e) => ({ ...e, start: e.start })),
+      ...denseTwoDigitSixteenthModel().events.map((e) => ({ ...e, start: e.start + 4 })),
+    ],
+  };
+  const narrow = layoutForModel(model, { widthPx: 900 });
+  const rowWidth = availableWidthPx(900);
+  const combinedMin = narrow.bars[0].minWidthUnits + narrow.bars[1].minWidthUnits;
+  if (combinedMin > rowWidth + 0.01) {
+    for (const sys of narrow.systems) {
+      assert.equal(
+        sys.barIndices.length,
+        1,
+        'two dense bars at 900px must not share one row when they do not fit',
+      );
+    }
+  }
+
+  const tight = layoutForModel(model, { widthPx: 750 });
+  const tightRow = availableWidthPx(750);
+  const tightCombined = tight.bars[0].minWidthUnits + tight.bars[1].minWidthUnits;
+  assert.ok(
+    tightCombined > tightRow + 0.01,
+    `two dense bars combined min (${tightCombined}) must exceed a tight row (${tightRow})`,
+  );
+  for (const sys of tight.systems) {
+    assert.equal(
+      sys.barIndices.length,
+      1,
+      'two dense bars must not share one row when their combined min exceeds the row',
+    );
+  }
+
+  const wide = layoutForModel(model, { widthPx: 1600 });
+  const wideRow = availableWidthPx(1600);
+  const wideCombined = wide.bars[0].minWidthUnits + wide.bars[1].minWidthUnits;
+  if (wideCombined <= wideRow + 0.01) {
+    assert.ok(
+      wide.systems.some((s) => s.barIndices.length === 2),
+      'two dense bars at 1600px may share one row when they fit',
+    );
+  }
 }
 
 // fitScaleForBar and scaleThatFits
