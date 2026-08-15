@@ -2,6 +2,7 @@ import { parseNote, ROOTS, INTERVAL_LABELS, TUNINGS, NOTE_NAMES_SHARP } from './
 import { CHORDS, groupedChordEntries, orderedChordNames, getChordNotes, getChordMood, DARK_METAL_CHORDS } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
+import { resolveTuningKey } from './tunings.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { renderMovableChordCards } from './movableChordCards.js';
 
@@ -692,6 +693,38 @@ function renderChordRef() {
   renderChordInfo();
   renderCaged();
   renderMovableChordCards({ chord: chChord, tuning: chTuning });
+}
+
+/** Apply setup-chip picks: update state, persist, sync sidebar, re-render. */
+export function applyChordRefSelection({ root, chord, tuning } = {}) {
+  if (root && ROOTS.includes(root) && root !== chRoot) {
+    chRoot = root;
+    saveSetting('chordref.root', chRoot);
+    setContext({ root: chRoot }, 'chordref');
+  }
+
+  if (tuning) {
+    const key = resolveTuningKey(tuning);
+    if (key && key !== chTuning) {
+      chTuning = key;
+      saveSetting('chordref.tuning', chTuning);
+    }
+  }
+
+  if (chord && CHORDS[chord]) {
+    const chordChanged = chord !== chChord;
+    if (chordChanged) {
+      selectChord(chord);
+    } else {
+      syncChordSelection();
+      renderChordRef();
+      notifyChordRefChange();
+    }
+  } else {
+    syncChordSelection();
+    renderChordRef();
+    notifyChordRefChange();
+  }
 }
 
 export { initChordRef, stopChordRef, stepChord, selectChord, chOscillators };

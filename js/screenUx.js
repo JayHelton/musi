@@ -1,14 +1,7 @@
 // Screen-level UX restructuring: setup summaries, subviews, focus mode,
 // and picker wiring. Preserves existing element IDs so domain modules keep working.
 import { getSetting, saveSetting } from './persistence.js';
-import {
-  getContext,
-  subscribeContext,
-  openScope,
-  getEffective,
-  setAsDefault,
-  subscribeScope,
-} from './musicalContext.js';
+import { getContext, subscribeContext } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
 import { TUNINGS } from './theory.js';
 import { CHORDS } from './chords.js';
@@ -16,7 +9,9 @@ import {
   openRootPicker, openScalePicker, openChordPicker, openTuningPicker,
   formatChordLabel, getQuickScales, cycleEnharmonicPref, getEnharmonicPref,
 } from './pickers.js';
-import { stepChord } from './chordReference.js';
+import { stepChord, applyChordRefSelection } from './chordReference.js';
+import { applyScaleRefSelection } from './scaleReference.js';
+import { applyTriadRefSelection } from './triadReference.js';
 import { openSelectionSheet, closeSelectionSheet } from './selectionSheet.js';
 import {
   renderSetupSummary, initSubviewTabs, renderCompactProgress,
@@ -34,13 +29,6 @@ import {
 import { MAX_FOLDER_DEPTH, FOLDER_PATH_SEPARATOR } from './folderTree.js';
 
 let showSectionFn = null;
-let scalerefScopeId = null;
-
-const SCALEREF_TUNING_CAPS = {
-  tuning: {
-    compatible: (v) => !String(v).startsWith('7-String') && !String(v).startsWith('8-String'),
-  },
-};
 
 const MOBILE_UX_MQ = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 const LANDSCAPE_PHONE_MQ = '(orientation: landscape) and (max-height: 500px)';
@@ -166,10 +154,6 @@ function setupScaleRef() {
     if (fbCard) fbCard.insertBefore(details, fbCard.querySelector('.ref-fb-scroll'));
   }
 
-  if (!scalerefScopeId) {
-    scalerefScopeId = openScope({ toolId: 'scaleref', origin: 'tools' });
-    subscribeScope(scalerefScopeId, () => refreshScaleRefSetup());
-  }
   subscribeContext(() => refreshScaleRefSetup());
   refreshScaleRefSetup();
 }
@@ -177,75 +161,63 @@ function setupScaleRef() {
 function refreshScaleRefSetup() {
   const el = getSetupSummaryTarget('scaleref-setup');
   if (!el) return;
-  const scopeId = scalerefScopeId;
-  const effective = scopeId
-    ? getEffective(scopeId, SCALEREF_TUNING_CAPS)
-    : getEffective('', SCALEREF_TUNING_CAPS);
-  const tuningFallback = effective.fallbacks?.tuning;
-  const tuningHint = tuningFallback
-    ? `was ${tuningFallback.fallbackFrom}`
-    : 'Tuning';
+  const ctx = getContext();
+  const tuningNames = Object.keys(TUNINGS);
+  const tuning = getSetting('ref.tuning', 'Standard', tuningNames);
 
   renderSetupSummary(el, [
     {
       key: 'root',
       label: 'Root',
-      value: effective.root,
+      value: ctx.root,
       hint: 'Root',
-      onClick: () => openRootPicker({
-        value: effective.root,
-        source: 'scaleref',
-        scopeId,
-      }),
+      onClick: async () => {
+        const next = await openRootPicker({
+          value: ctx.root,
+          source: 'scaleref',
+          syncContext: false,
+        });
+        if (next) {
+          applyScaleRefSelection({ root: next });
+          refreshScaleRefSetup();
+        }
+      },
     },
     {
       key: 'scale',
       label: 'Scale',
-      value: shortScaleName(effective.scale),
+      value: shortScaleName(ctx.scale),
       hint: 'Scale',
-      onClick: () => openScalePicker({
-        value: effective.scale,
-        source: 'scaleref',
-        scopeId,
-      }),
+      onClick: async () => {
+        const next = await openScalePicker({
+          value: ctx.scale,
+          source: 'scaleref',
+          syncContext: false,
+        });
+        if (next) {
+          applyScaleRefSelection({ scale: next });
+          refreshScaleRefSetup();
+        }
+      },
     },
     {
       key: 'tuning',
       label: 'Tuning',
-      value: effective.tuning,
-      hint: tuningHint,
+      value: tuning,
+      hint: 'Tuning',
       onClick: async () => {
         const next = await openTuningPicker({
-          value: effective.tuning,
-          scopeId,
+          value: tuning,
           source: 'scaleref',
+          syncContext: false,
         });
         if (next && next !== 'Custom') {
-          saveSetting('ref.tuning', next);
-          const item = document.querySelector(`#sl-ref-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
-          if (item) item.click();
+          applyScaleRefSelection({ tuning: next });
           refreshScaleRefSetup();
         }
       },
     },
   ]);
-
-  const host = el.closest('.setup-toolbar') || el.parentElement;
-  if (!host) return;
-  let defaultBtn = host.querySelector('.scaleref-set-default');
-  if (!defaultBtn) {
-    defaultBtn = document.createElement('button');
-    defaultBtn.type = 'button';
-    defaultBtn.className = 'setup-chip scaleref-set-default';
-    defaultBtn.textContent = 'Set as default';
-    defaultBtn.setAttribute('aria-label', 'Set root, scale, and tuning as default');
-    host.querySelector('.setup-summary')?.appendChild(defaultBtn);
-  }
-  defaultBtn.onclick = () => {
-    if (!scopeId) return;
-    setAsDefault(scopeId, ['root', 'scale', 'tuning']);
-    refreshScaleRefSetup();
-  };
 }
 
 function wireTriadSweepNav() {
@@ -436,10 +408,9 @@ function refreshChordsSetup() {
     {
       key: 'root', label: 'Root', value: c.root, hint: 'Root',
       onClick: async () => {
-        const next = await openRootPicker({ value: c.root, source: 'chordref' });
+        const next = await openRootPicker({ value: c.root, source: 'chordref', syncContext: false });
         if (next) {
-          const item = document.querySelector(`#sl-chord-root .sl-item[data-val="${CSS.escape(next)}"]`);
-          if (item) item.click();
+          applyChordRefSelection({ root: next });
           refreshChordsSetup();
         }
       },
@@ -449,9 +420,7 @@ function refreshChordsSetup() {
       onClick: async () => {
         const next = await openChordPicker({ value: chord });
         if (next) {
-          saveSetting('chordref.chord', next);
-          const item = document.querySelector(`#sl-chord-type .sl-item[data-val="${CSS.escape(next)}"]`);
-          if (item) item.click();
+          applyChordRefSelection({ chord: next });
           refreshChordsSetup();
         }
       },
@@ -459,11 +428,9 @@ function refreshChordsSetup() {
     {
       key: 'tuning', label: 'Tuning', value: tuning, hint: 'Tuning',
       onClick: async () => {
-        const next = await openTuningPicker({ value: tuning });
+        const next = await openTuningPicker({ value: tuning, syncContext: false });
         if (next && next !== 'Custom') {
-          saveSetting('chordref.tuning', next);
-          const item = document.querySelector(`#sl-chord-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
-          if (item) item.click();
+          applyChordRefSelection({ tuning: next });
           refreshChordsSetup();
         }
       },
@@ -1647,10 +1614,9 @@ function refreshTriadsSetup() {
     {
       key: 'root', label: 'Root', value: c.root, hint: 'Root',
       onClick: async () => {
-        const next = await openRootPicker({ value: c.root, source: 'triadref' });
+        const next = await openRootPicker({ value: c.root, source: 'triadref', syncContext: false });
         if (next) {
-          const item = document.querySelector(`#sl-triad-root .sl-item[data-val="${CSS.escape(next)}"]`);
-          if (item) item.click();
+          applyTriadRefSelection({ root: next });
           refreshTriadsSetup();
         }
       },
@@ -1673,8 +1639,7 @@ function refreshTriadsSetup() {
           value: current,
         });
         if (next != null) {
-          const item = document.querySelector(`#sl-triad-stringset .sl-item[data-val="${CSS.escape(String(next))}"]`);
-          if (item) item.click();
+          applyTriadRefSelection({ stringSet: next });
           refreshTriadsSetup();
         }
       },
@@ -1684,11 +1649,9 @@ function refreshTriadsSetup() {
   fields.push({
     key: 'tuning', label: 'Tuning', value: tuning, hint: viewMode === 'sweep' ? 'Ignored for sweeps' : 'Tuning',
     onClick: async () => {
-      const next = await openTuningPicker({ value: tuning });
+      const next = await openTuningPicker({ value: tuning, syncContext: false });
       if (next && next !== 'Custom') {
-        saveSetting('triadref.tuning', next);
-        const item = document.querySelector(`#sl-triad-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
-        if (item) item.click();
+        applyTriadRefSelection({ tuning: next });
         refreshTriadsSetup();
       }
     },
