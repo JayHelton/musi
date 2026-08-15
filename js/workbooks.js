@@ -1234,10 +1234,14 @@ async function parseGpFromBlob(item, blob, loadToken, workbookId) {
 function onDetailGpPracticeSettingsChange(wb, item, sliced, settings) {
   const patch = filterPracticeSettingsPatch(settings, { sliced });
   updateExercisePracticeSettings(item.id, patch);
-  if (patch.loopEnabled != null) {
-    const enabled = !!patch.loopEnabled;
-    setWorkbookLoop(wb.id, enabled);
-    if (detailLoopInput) detailLoopInput.checked = enabled;
+  if (patch.loopEnabled == null) return;
+  const enabled = !!patch.loopEnabled;
+  const current = getWorkbook(wb.id);
+  const loopChanged = !!current?.loopEnabled !== enabled;
+  setWorkbookLoop(wb.id, enabled);
+  if (detailLoopInput) detailLoopInput.checked = enabled;
+  // Remount only when Loop actually changes. A mount emit also sends loopEnabled.
+  if (loopChanged) {
     loadCurrentExercise({ autoPlay: getDetailPlayingState() });
   }
 }
