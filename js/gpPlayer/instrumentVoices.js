@@ -179,10 +179,9 @@ export function createVoiceFactory(audioCtx) {
     try { oldest.stopNow(); } catch (e) { /* ignore */ }
   }
 
-  function headroomGain(velocity, familyPeak) {
-    const count = Math.max(1, active.length);
-    const share = HEADROOM_TARGET / Math.min(count, MAX_ACTIVE_VOICES);
-    return familyPeak * clampVelocity(velocity) * share;
+  function headroomGain(velocity, familyPeak, chordSize = 1) {
+    const size = Math.max(1, Number(chordSize) || 1);
+    return familyPeak * clampVelocity(velocity) * (HEADROOM_TARGET / Math.sqrt(size));
   }
 
   function schedulePitch(osc, baseFreq, when, durSec, bend, slideKind, vibrato) {
@@ -227,6 +226,7 @@ export function createVoiceFactory(audioCtx) {
     techniques = [],
     bend = null,
     slideKind = null,
+    chordSize = 1,
     destination,
   }) {
     const familyDef = FAMILIES[family] || FAMILIES.cleanGuitar;
@@ -274,7 +274,7 @@ export function createVoiceFactory(audioCtx) {
       if (filter.Q) filter.Q.value = muted ? 0.6 : 0.9;
     }
 
-    const peak = headroomGain(velocity, familyDef.peak);
+    const peak = headroomGain(velocity, familyDef.peak, chordSize);
     const attack = familyDef.attack;
     const releaseTail = Math.min(decay, durSec * 0.45);
     const end = when + Math.max(0.04, durSec);

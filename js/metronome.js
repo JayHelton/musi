@@ -1,4 +1,5 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
+import { claimAudio, releaseAudio } from './audio/audioOwner.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting, saveSettings } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
@@ -50,6 +51,7 @@ const SUBDIVISIONS = {
 const SUBDIV_IDS = Object.keys(SUBDIVISIONS);
 
 let metroSettingsLoaded = false;
+let metroOwnerHandle = null;
 
 function numberSetting(id, fallback, min, max) {
   const value = Number(getSetting(id, fallback));
@@ -655,9 +657,40 @@ function stopPhaseStatusTimer() {
   if (metro._phaseTimer) { clearInterval(metro._phaseTimer); metro._phaseTimer = null; }
 }
 
+function stopMetronomeFromOwner() {
+  stopMetronomeInternal(true);
+}
+
+function stopMetronomeInternal(fromOwner = false) {
+  metro.playing = false;
+  if (metro._timer) { clearTimeout(metro._timer); metro._timer = null; }
+  pauseSessionTimer();
+  stopPhaseStatusTimer();
+  metro._phaseStartTime = 0;
+  metro._phaseIndex = -1;
+  document.getElementById('m-play').textContent = '\u25B6 Play';
+  document.getElementById('m-play').classList.remove('playing');
+  highlightSlot(-1);
+  highlightSub(-1);
+  hideNowPlaying();
+  renderPhases();
+  if (!fromOwner && metroOwnerHandle) {
+    releaseAudio(metroOwnerHandle);
+    metroOwnerHandle = null;
+  }
+}
+
 function startMetronome() {
   if (metro.measure.length === 0) setSimpleMeasure();
   ensureAudio();
+  const handle = claimAudio({
+    id: 'metronome',
+    label: 'Metronome',
+    kind: 'metronome',
+    onStop: () => stopMetronomeFromOwner(),
+  });
+  if (!handle) return;
+  metroOwnerHandle = handle;
   // When phases are active the first phase sets the starting tempo + subdivision.
   // Otherwise stay on straight beats so the simple metronome behaves as before.
   if (phaseActive()) {
@@ -687,18 +720,7 @@ function startMetronome() {
 }
 
 function stopMetronome() {
-  metro.playing = false;
-  if (metro._timer) { clearTimeout(metro._timer); metro._timer = null; }
-  pauseSessionTimer();
-  stopPhaseStatusTimer();
-  metro._phaseStartTime = 0;
-  metro._phaseIndex = -1;
-  document.getElementById('m-play').textContent = '\u25B6 Play';
-  document.getElementById('m-play').classList.remove('playing');
-  highlightSlot(-1);
-  highlightSub(-1);
-  hideNowPlaying();
-  renderPhases();
+  stopMetronomeInternal(false);
 }
 
 function metroScheduler() {

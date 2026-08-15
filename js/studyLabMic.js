@@ -2,7 +2,9 @@
 
 import {
   audioCtx, ensureAudio, midiFreq, requestMicStream, releaseMicStream,
+  getMixDestination,
 } from './audio.js';
+import { claimAudio, releaseAudio } from './audio/audioOwner.js';
 import { createPitchTracker } from './pitch.js';
 import { createPitchMatcher, midiToLabel } from './pitchMatch.js';
 import { createStableNoteGate } from './interval-map/audioAnswer.js';
@@ -24,6 +26,7 @@ export function createStudyLabMic({
     gate: createStableNoteGate({ stableMs: holdMs, toleranceCents }),
     drone: null,
     droneMutedForScore: false,
+    droneOwnerHandle: null,
   };
 
   async function start() {
@@ -103,9 +106,46 @@ export function createStudyLabMic({
     state.gate.reset();
   }
 
+  function stopDroneFromOwner() {
+    stopDroneInternal(true);
+  }
+
+  function stopDroneInternal(fromOwner = false) {
+    if (!state.drone) {
+      if (!fromOwner && state.droneOwnerHandle) {
+        releaseAudio(state.droneOwnerHandle);
+        state.droneOwnerHandle = null;
+      }
+      return;
+    }
+    const dr = state.drone;
+    const t = audioCtx.currentTime;
+    try {
+      dr.gain.gain.cancelScheduledValues(t);
+      dr.gain.gain.setValueAtTime(dr.gain.gain.value, t);
+      dr.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    } catch (_) { /* ignore */ }
+    setTimeout(() => {
+      try { dr.osc1.stop(); dr.osc2.stop(); } catch (_) { /* ignore */ }
+    }, 180);
+    state.drone = null;
+    if (!fromOwner && state.droneOwnerHandle) {
+      releaseAudio(state.droneOwnerHandle);
+      state.droneOwnerHandle = null;
+    }
+  }
+
   function startDrone(midi, { level = 0.08 } = {}) {
     ensureAudio();
-    stopDrone();
+    stopDroneInternal(false);
+    const handle = claimAudio({
+      id: 'study-lab',
+      label: 'Study Lab',
+      kind: 'tone',
+      onStop: () => stopDroneFromOwner(),
+    });
+    if (!handle) return;
+    state.droneOwnerHandle = handle;
     const freq = midiFreq(midi);
     const osc1 = audioCtx.createOscillator();
     const osc2 = audioCtx.createOscillator();
@@ -122,7 +162,7 @@ export function createStudyLabMic({
     osc1.connect(filter);
     osc2.connect(filter);
     filter.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(getMixDestination());
     const t = audioCtx.currentTime;
     gain.gain.exponentialRampToValueAtTime(level, t + 0.2);
     osc1.start();
@@ -134,18 +174,7 @@ export function createStudyLabMic({
   }
 
   function stopDrone() {
-    if (!state.drone) return;
-    const dr = state.drone;
-    const t = audioCtx.currentTime;
-    try {
-      dr.gain.gain.cancelScheduledValues(t);
-      dr.gain.gain.setValueAtTime(dr.gain.gain.value, t);
-      dr.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-    } catch (_) { /* ignore */ }
-    setTimeout(() => {
-      try { dr.osc1.stop(); dr.osc2.stop(); } catch (_) { /* ignore */ }
-    }, 180);
-    state.drone = null;
+    stopDroneInternal(false);
   }
 
   function setDroneEnabled(on, midi) {
