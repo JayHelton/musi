@@ -166,7 +166,7 @@
 **Purpose**: Verify the whole foundation before Feature 007
 
 - [X] T044 Run `node tests/gp-player/run.mjs` and fix any regression in `js/gpMixPlayer.js` or `js/gpPlayer/instrumentVoices.js`
-- [ ] T045 [P] Run `node tests/gp-player/run-browser.mjs peak-headroom.html audio-owner.html pack-fallback.html onset-timing.html loop-boundary.html` against a server at `http://localhost:8080`
+- [X] T045 [P] Run `node tests/gp-player/run-browser.mjs peak-headroom.html audio-owner.html pack-fallback.html onset-timing.html loop-boundary.html` against a server at `http://localhost:8080`
 - [ ] T046 [P] Follow `specs/006-audio-engine-foundation/quickstart.md` for first render, owner, imported mix, and offline fallback
 - [X] T047 Confirm `CACHE_VERSION` in `service-worker.js` changed after the shipped JS edits
 
