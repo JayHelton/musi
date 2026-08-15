@@ -724,4 +724,5 @@ test('isWorkbookShortcutTargetBlocked includes companion drawer zones', () => {
 console.log(`\n${passed} tests passed`);
 
 await import('./companion-panel.mjs');
+await import('./playthrough.mjs');
 
