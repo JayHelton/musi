@@ -44,6 +44,8 @@ export const CATEGORIES = [
 ];
 
 export const TOOLS = [
+  // SIMPLIFY: Scale Spelling hidden. Keep this object to restore later.
+  /*
   {
     id: 'scales',
     label: 'Scale Spelling',
@@ -54,6 +56,7 @@ export const TOOLS = [
     drill: true,
     holdRecord: false,
   },
+  */
   {
     id: 'intervals',
     label: 'Intervals',
@@ -74,6 +77,8 @@ export const TOOLS = [
     drill: true,
     holdRecord: false,
   },
+  // SIMPLIFY: Fretboard trainer hidden. Keep this object to restore later.
+  /*
   {
     id: 'fretboard',
     label: 'Fretboard',
@@ -84,6 +89,9 @@ export const TOOLS = [
     drill: true,
     holdRecord: true,
   },
+  */
+  // SIMPLIFY: Fretboard & Interval Map hidden. Keep this object to restore later.
+  /*
   {
     id: 'intervalorbit',
     label: 'Fretboard & Interval Map',
@@ -102,6 +110,7 @@ export const TOOLS = [
     drill: true,
     holdRecord: true,
   },
+  */
   {
     id: 'chordlab',
     label: 'Chord Workout',
@@ -141,6 +150,8 @@ export const TOOLS = [
     drill: true,
     holdRecord: false,
   },
+  // SIMPLIFY: Timing hidden. Keep this object to restore later.
+  /*
   {
     id: 'timing',
     label: 'Timing',
@@ -151,6 +162,7 @@ export const TOOLS = [
     drill: true,
     holdRecord: false,
   },
+  */
   {
     id: 'scaleref',
     label: 'Scale Lab',
@@ -164,7 +176,8 @@ export const TOOLS = [
       { id: 'neck', label: 'Neck' },
       { id: 'harmony', label: 'Harmony' },
       { id: 'modes', label: 'Modes' },
-      { id: 'guide', label: 'Guide' },
+      // SIMPLIFY: Guide mode hidden. Keep this line to restore later.
+      // { id: 'guide', label: 'Guide' },
     ],
     defaultMode: 'overview',
     holdRecord: false,
@@ -294,6 +307,8 @@ export const TOOLS = [
     defaultMode: 'plan',
     holdRecord: false,
   },
+  // SIMPLIFY: Drums hidden. Keep this object to restore later.
+  /*
   {
     id: 'drums',
     label: 'Drums',
@@ -303,6 +318,7 @@ export const TOOLS = [
     title: 'Drums',
     holdRecord: false,
   },
+  */
   {
     id: 'exercises',
     label: 'Exercises',
@@ -327,6 +343,8 @@ export const TOOLS = [
     defaultMode: '',
     holdRecord: false,
   },
+  // SIMPLIFY: Routines hidden. Keep this object to restore later.
+  /*
   {
     id: 'routines',
     label: 'Routines',
@@ -336,6 +354,7 @@ export const TOOLS = [
     title: 'Practice Routines',
     holdRecord: false,
   },
+  */
   {
     id: 'gpplayer',
     label: 'Score Player',
@@ -348,6 +367,8 @@ export const TOOLS = [
     defaultMode: '',
     holdRecord: false,
   },
+  // SIMPLIFY: Study Lab hidden. Keep this object to restore later.
+  /*
   {
     id: 'studylab',
     label: 'Study Lab',
@@ -358,6 +379,7 @@ export const TOOLS = [
     drill: true,
     holdRecord: true,
   },
+  */
   {
     id: 'musicprefs',
     label: 'Settings & Preferences',

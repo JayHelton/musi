@@ -6,14 +6,16 @@ const MORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const RAIL_ITEMS = [
   { id: 'tools', label: 'Tools', icon: CATEGORY_ICONS.home, section: 'tools' },
   { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'exercises' },
-  { id: 'routines', label: 'Routines', icon: TOOL_ICONS.routines, section: 'routines' },
+  // SIMPLIFY: Routines dock item hidden.
+  // { id: 'routines', label: 'Routines', icon: TOOL_ICONS.routines, section: 'routines' },
   { id: 'settings', label: 'Settings', icon: TOOL_ICONS.musicprefs, section: 'musicprefs' },
 ];
 
 const BOTTOM_ITEMS = [
   { id: 'tools', label: 'Tools', icon: CATEGORY_ICONS.home, section: 'tools' },
   { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'exercises' },
-  { id: 'routines', label: 'Routines', icon: TOOL_ICONS.routines, section: 'routines' },
+  // SIMPLIFY: Routines dock item hidden.
+  // { id: 'routines', label: 'Routines', icon: TOOL_ICONS.routines, section: 'routines' },
   { id: 'more', label: 'More', icon: MORE_ICON, section: 'more' },
 ];
 
@@ -25,7 +27,8 @@ function navHighlightId(sectionId) {
   if (!sectionId || sectionId === 'home' || sectionId === 'tools') return 'tools';
   if (sectionId === 'exercises' || sectionId === 'workbooks') return 'library';
   if (sectionId === 'musicprefs') return 'settings';
-  if (sectionId === 'routines') return 'routines';
+  // SIMPLIFY: Routines dock item hidden.
+  // if (sectionId === 'routines') return 'routines';
   if (getTool(sectionId)) return 'tools';
   return null;
 }

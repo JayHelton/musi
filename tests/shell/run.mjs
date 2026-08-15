@@ -128,7 +128,6 @@ test('section order with favorites, recents, and active routines', () => {
     'purposes',
     'favorites',
     'recents',
-    'continue',
     'search',
     'browse',
   ]);
@@ -136,8 +135,7 @@ test('section order with favorites, recents, and active routines', () => {
   assert.equal(sections[1].items.length, 1);
   assert.equal(sections[1].items[0].id, 'alpha');
   assert.equal(sections[2].items[0].source, 'recent');
-  assert.equal(sections[3].label, 'Continue a routine');
-  assert.equal(sections[3].items[0].label, 'Morning routine');
+  assert.equal(sectionIds(sections).includes('continue'), false);
 });
 
 test('empty favorites, recents, and routines omit those sections', () => {
@@ -455,18 +453,22 @@ test('Train, Study, and Create each list the expected tools', () => {
   for (const id of ['tuner', 'metronome', 'practice', 'exercises', 'workbooks', 'gpplayer']) {
     assert.equal(trainIds.includes(id), true, `train missing ${id}`);
   }
-  for (const id of ['scaleref', 'intervalorbit', 'chords']) {
+  for (const id of ['scaleref', 'chords']) {
     assert.equal(studyIds.includes(id), true, `study missing ${id}`);
   }
+  assert.equal(studyIds.includes('intervalorbit'), false, 'intervalorbit should be hidden');
   for (const id of ['songwriter', 'recorder', 'tracktosheet']) {
     assert.equal(createIds.includes(id), true, `create missing ${id}`);
   }
 
-  for (const id of ['scales', 'drums', 'musicprefs']) {
+  for (const id of ['musicprefs']) {
     const tool = TOOLS.find(t => t.id === id);
     assert.ok(tool, `${id} missing from TOOLS`);
     assert.equal(tool.purpose, undefined, `${id} should have no purpose`);
   }
+
+  assert.equal(TOOLS.some(t => t.id === 'scales'), false, 'scales should be hidden');
+  assert.equal(TOOLS.some(t => t.id === 'drums'), false, 'drums should be hidden');
 });
 
 function installLocalStorageShim() {

@@ -4,14 +4,17 @@ import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
 import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
 import { initMetronome, stopMetronome, metro } from './metronome.js';
-import { initFretboard } from './fretboardTrainer.js';
-import { initIntervalOrbit, stopIntervalOrbit } from './intervalOrbit.js';
+// SIMPLIFY: Fretboard trainer hidden.
+// import { initFretboard } from './fretboardTrainer.js';
+// SIMPLIFY: Fretboard Interval Map hidden.
+// import { initIntervalOrbit, stopIntervalOrbit } from './intervalOrbit.js';
 import { initChordWorkout, stopChordWorkout } from './chordWorkout.js';
 import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
 import { initPitchTrainer, stopPitchTrainer, pt } from './pitchTrainer.js';
 import { initPitchRunner, stopPitchRunner, runner } from './pitchRunner.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
-import { initTimingDrill, stopTimingDrill, timingDrill } from './timingDrill.js';
+// SIMPLIFY: Timing drill hidden.
+// import { initTimingDrill, stopTimingDrill, timingDrill } from './timingDrill.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
@@ -20,10 +23,12 @@ import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './re
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises } from './exercises.js';
 import { initWorkbooks, stopWorkbooks } from './workbooks.js';
-import { initRoutines, stopRoutines, createRoutineLayerDescriptors, setRoutineNavigator } from './routines.js';
+// SIMPLIFY: Routines and Sessions hidden.
+// import { initRoutines, stopRoutines, createRoutineLayerDescriptors, setRoutineNavigator } from './routines.js';
 import { initNotes, stopNotes } from './notes.js';
 import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
-import { initDrums, stopDrums } from './drums/drumsUI.js';
+// SIMPLIFY: Drums generators and builder hidden. Guitar Pro drum playback stays.
+// import { initDrums, stopDrums } from './drums/drumsUI.js';
 import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
@@ -37,7 +42,8 @@ import { initShellNav, setActiveNav } from './shell/nav.js';
 import { initToolsHome, refreshToolsHome, recordToolVisit } from './tools/home.js';
 import { initStats } from './stats.js';
 import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
-import { initStudyLab, stopStudyLab } from './studyLab.js';
+// SIMPLIFY: Study Lab hidden.
+// import { initStudyLab, stopStudyLab } from './studyLab.js';
 import {
   CATEGORIES,
   getTabs, getTool, isHoldRecordRelevant, isFeatureEnabled,
@@ -77,21 +83,26 @@ const TOOL_STOPPERS = {
   chords: () => { if (chordBuilder.oscillators.length) stopChord(); if (chOscillators.length) stopChordRef(); },
   tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); if (runner.running) stopPitchRunner(); },
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
-  timing: () => { if (timingDrill.playing) stopTimingDrill(); },
+  // SIMPLIFY: Timing drill hidden.
+  // timing: () => { if (timingDrill.playing) stopTimingDrill(); },
   sightreading: () => stopSightReading(),
   chordlab: () => stopChordWorkout(),
-  intervalorbit: () => stopIntervalOrbit(),
+  // SIMPLIFY: Fretboard Interval Map hidden.
+  // intervalorbit: () => stopIntervalOrbit(),
   recorder: () => { if (recorder.playing) stopRecorder(); },
   songwriter: () => stopSongwriter(),
   exercises: () => stopExercises(),
   workbooks: () => stopWorkbooks(),
-  routines: () => stopRoutines(),
+  // SIMPLIFY: Routines and Sessions hidden.
+  // routines: () => stopRoutines(),
   notes: () => stopNotes(),
   practice: () => stopPracticeTimer(),
-  drums: () => stopDrums(),
+  // SIMPLIFY: Drums generators and builder hidden.
+  // drums: () => stopDrums(),
   tracktosheet: () => stopTrackToSheet(),
   gpplayer: () => stopGpPlayer(),
-  studylab: () => stopStudyLab(),
+  // SIMPLIFY: Study Lab hidden.
+  // studylab: () => stopStudyLab(),
 };
 const TOOL_INITS = {
   circle: drawCoF,
@@ -100,24 +111,30 @@ const TOOL_INITS = {
   scaleref: initScaleRef,
   triads: initTriadRef,
   chords: () => { initMovableChordCards(); initChordRef(); initChordBuilder(); },
-  fretboard: initFretboard,
-  intervalorbit: initIntervalOrbit,
+  // SIMPLIFY: Fretboard trainer hidden.
+  // fretboard: initFretboard,
+  // SIMPLIFY: Fretboard Interval Map hidden.
+  // intervalorbit: initIntervalOrbit,
   chordlab: initChordWorkout,
   tuner: () => { initTuner(); initPitchTrainer(); initPitchRunner(); },
   ear: initEarTrainer,
-  timing: initTimingDrill,
+  // SIMPLIFY: Timing drill hidden.
+  // timing: initTimingDrill,
   sightreading: initSightReading,
   recorder: initRecorder,
   songwriter: initSongwriter,
   exercises: initExercises,
   workbooks: initWorkbooks,
-  routines: initRoutines,
+  // SIMPLIFY: Routines and Sessions hidden.
+  // routines: initRoutines,
   notes: initNotes,
   practice: initPracticeTimer,
-  drums: initDrums,
+  // SIMPLIFY: Drums generators and builder hidden.
+  // drums: initDrums,
   tracktosheet: initTrackToSheet,
   gpplayer: initGpPlayer,
-  studylab: initStudyLab,
+  // SIMPLIFY: Study Lab hidden.
+  // studylab: initStudyLab,
   musicprefs: () => initMusicPreferences({ showSection }),
 };
 
@@ -166,14 +183,16 @@ const LIVE_SECTION_BY_ROUTE = {
   tools: 'tools',
   home: 'tools',
   scalelab: 'scaleref',
-  fretmap: 'intervalorbit',
+  // SIMPLIFY: Fretboard and Interval Map hidden.
+  // fretmap: 'intervalorbit',
   chordlab: 'chords',
   pitchear: 'tuner',
   metronome: 'metronome',
   audiostudio: 'recorder',
   songstudio: 'songwriter',
   library: 'exercises',
-  routines: 'routines',
+  // SIMPLIFY: Routines and Sessions hidden.
+  // routines: 'routines',
   scoreplayer: 'gpplayer',
   settings: 'musicprefs',
 };
@@ -495,6 +514,8 @@ function onEntryReplace(route) {
 
 function getRoutineNavigator() {
   if (routineNavigator) return routineNavigator;
+  // SIMPLIFY: Routines navigator setup hidden. Routines UI is not live.
+  /*
   try {
     const root = document.getElementById('sec-routines');
     if (!root) return null;
@@ -521,6 +542,8 @@ function getRoutineNavigator() {
   } catch (_) {
     return null;
   }
+  */
+  return null;
 }
 
 function gatedSectionId(id) {
@@ -530,15 +553,18 @@ function gatedSectionId(id) {
 }
 
 const ROUTE_NOTICE_MESSAGES = {
-  'notice.scales-removed': 'The Scales screen moved to Scale Lab.',
+  'notice.scales-removed': 'Scale Spelling is hidden.',
   'notice.intervals-removed': 'The Intervals quiz moved to Fretboard & Interval Map at Learn.',
-  'notice.fretboard-removed': 'The Fretboard trainer moved to Fretboard & Interval Map.',
+  'notice.fretboard-removed': 'The Fretboard trainer is hidden.',
+  'notice.fretmap-removed': 'Fretboard and Interval Map is hidden.',
   'notice.chordlab-removed': 'This link now opens Chord Lab Reference.',
-  'notice.timing-removed': 'The Timing drill moved to Metronome.',
+  'notice.timing-removed': 'The Timing drill is hidden.',
   'notice.sightreading-removed': 'The Sight Reading quiz moved to Train.',
   'notice.notes-removed': 'Your notes moved to Song Studio under Unfiled Notes.',
   'notice.pitch-reference': 'The keyboard is now a pitch reference in Study.',
-  'notice.drums-removed': 'Drum patterns moved to exercises in Library.',
+  'notice.drums-removed': 'Drum generators and builder are hidden.',
+  'notice.studylab-removed': 'Study Lab is hidden.',
+  'notice.routines-removed': 'Routines and Sessions are hidden.',
 };
 
 let activeRouteNoticeId = null;

@@ -184,7 +184,8 @@ function render() {
   const routinesHost = document.getElementById('home-routines');
   const allPanel = document.getElementById('home-all-panel');
 
-  if (routinesHost) renderRoutines(routinesHost);
+  // SIMPLIFY: Routines home cards hidden.
+  // if (routinesHost) renderRoutines(routinesHost);
   if (allPanel) {
     allPanel.open = false;
     renderAllTools(allPanel);

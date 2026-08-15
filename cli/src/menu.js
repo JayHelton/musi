@@ -1,20 +1,26 @@
 import { c, print, clear, banner, choose, ask, closeRl } from './ui.js';
-import { runScaleQuiz } from './quizzes/scale.js';
+// SIMPLIFY: scale hidden. Keep this code to restore later.
+// import { runScaleQuiz } from './quizzes/scale.js';
 import { runIntervalQuiz } from './quizzes/interval.js';
 import { runSightReading } from './quizzes/sight.js';
-import { runFretboard } from './trainers/fretboard.js';
-import { runIntervalOrbit } from './trainers/orbit.js';
+// SIMPLIFY: fretboard hidden. Keep this code to restore later.
+// import { runFretboard } from './trainers/fretboard.js';
+// SIMPLIFY: orbit hidden. Keep this code to restore later.
+// import { runIntervalOrbit } from './trainers/orbit.js';
 import { runEarTrainer } from './trainers/ear.js';
 import { runPitch } from './trainers/pitch.js';
 import { runReference } from './reference.js';
 import { runTabAnalyzer } from './analyzers/tab.js';
 
 const ACTIVITIES = {
-  scale: runScaleQuiz,
+  // SIMPLIFY: scale hidden. Keep this code to restore later.
+  // scale: runScaleQuiz,
   interval: runIntervalQuiz,
   sight: runSightReading,
-  fretboard: runFretboard,
-  orbit: runIntervalOrbit,
+  // SIMPLIFY: fretboard hidden. Keep this code to restore later.
+  // fretboard: runFretboard,
+  // SIMPLIFY: orbit hidden. Keep this code to restore later.
+  // orbit: runIntervalOrbit,
   ear: runEarTrainer,
   pitch: runPitch,
   reference: runReference,
@@ -37,11 +43,14 @@ export async function runMenu() {
     const choice = await choose(
       'What do you want to practice?',
       [
-        { label: c.bold('Quiz') + c.gray('  · Scale spelling'), value: 'scale' },
+        // SIMPLIFY: scale hidden. Keep this code to restore later.
+        // { label: c.bold('Quiz') + c.gray('  · Scale spelling'), value: 'scale' },
         { label: c.bold('Quiz') + c.gray('  · Intervals'), value: 'interval' },
         { label: c.bold('Quiz') + c.gray('  · Sight reading'), value: 'sight' },
-        { label: c.bold('Train') + c.gray(' · Fretboard'), value: 'fretboard' },
-        { label: c.bold('Train') + c.gray(' · Interval Orbit'), value: 'orbit' },
+        // SIMPLIFY: fretboard hidden. Keep this code to restore later.
+        // { label: c.bold('Train') + c.gray(' · Fretboard'), value: 'fretboard' },
+        // SIMPLIFY: orbit hidden. Keep this code to restore later.
+        // { label: c.bold('Train') + c.gray(' · Interval Orbit'), value: 'orbit' },
         { label: c.bold('Train') + c.gray(' · Ear training'), value: 'ear' },
         { label: c.bold('Pitch') + c.gray(' · Play scales'), value: 'pitch' },
         { label: c.bold('Learn') + c.gray(' · Scale reference'), value: 'reference' },

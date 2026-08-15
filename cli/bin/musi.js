@@ -3,18 +3,21 @@ import { runMenu, runActivity } from '../src/menu.js';
 import { c, print, closeRl } from '../src/ui.js';
 
 const ALIASES = {
-  scale: 'scale',
-  scales: 'scale',
+  // SIMPLIFY: scale hidden. Keep this code to restore later.
+  // scale: 'scale',
+  // scales: 'scale',
   interval: 'interval',
   intervals: 'interval',
   sight: 'sight',
   sightreading: 'sight',
   'sight-reading': 'sight',
-  fretboard: 'fretboard',
-  fret: 'fretboard',
-  orbit: 'orbit',
-  'interval-orbit': 'orbit',
-  intervalorbit: 'orbit',
+  // SIMPLIFY: fretboard hidden. Keep this code to restore later.
+  // fretboard: 'fretboard',
+  // fret: 'fretboard',
+  // SIMPLIFY: orbit hidden. Keep this code to restore later.
+  // orbit: 'orbit',
+  // 'interval-orbit': 'orbit',
+  // intervalorbit: 'orbit',
   ear: 'ear',
   pitch: 'pitch',
   play: 'pitch',
@@ -73,18 +76,22 @@ function printHelp() {
   print('  musi <activity> [flags]   ' + c.gray('Jump straight into an activity'));
   print();
   print(c.bold('Activities:'));
-  print('  scale       ' + c.gray('Scale spelling quiz   (--root, --type)'));
+  // SIMPLIFY: scale hidden. Keep this code to restore later.
+  // print('  scale       ' + c.gray('Scale spelling quiz   (--root, --type)'));
   print('  interval    ' + c.gray('Interval quiz         (--root, --diff easy|medium|hard)'));
   print('  sight       ' + c.gray('Sight reading quiz    (--clef Treble|Bass|both, --diff)'));
-  print('  fretboard   ' + c.gray('Fretboard trainer     (--key, --tuning, --mode findInterval|interval|note)'));
-  print('  orbit       ' + c.gray('Interval Orbit        (--tuning, --mode find|identify|formula, --stage 1-7)'));
+  // SIMPLIFY: fretboard hidden. Keep this code to restore later.
+  // print('  fretboard   ' + c.gray('Fretboard trainer     (--key, --tuning, --mode findInterval|interval|note)'));
+  // SIMPLIFY: orbit hidden. Keep this code to restore later.
+  // print('  orbit       ' + c.gray('Interval Orbit        (--tuning, --mode find|identify|formula, --stage 1-7)'));
   print('  ear         ' + c.gray('Ear trainer           (--key, --mode easy|hard)'));
   print('  pitch       ' + c.gray('Play scales           (--root, --type, --octave, --tempo, --start, --count, --step)'));
   print('  reference   ' + c.gray('Scale reference/learn (--root, --type, --sweep 3|4|5|all)'));
   print('  tab         ' + c.gray('Analyze a guitar tab  (--file .txt/.gp/.gp5, --tuning, --track)'));
   print();
   print(c.bold('Examples:'));
-  print('  musi scale --root C --type "Major (Ionian)"');
+  // SIMPLIFY: scale hidden. Keep this code to restore later.
+  // print('  musi scale --root C --type "Major (Ionian)"');
   print('  musi interval --diff medium');
   print('  musi pitch --root A --type "Natural Minor (Aeolian)" --tempo 120');
   print('  musi reference --root F --type Dorian');

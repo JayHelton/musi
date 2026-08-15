@@ -31,11 +31,12 @@ const LEGACY_CASES = [
   { hash: 'scales', id: 'scalelab', params: { mode: 'overview' }, notice: 'notice.scales-removed' },
   { hash: 'scaleref', id: 'scalelab', params: { mode: 'overview' }, notice: null },
   { hash: 'circle', id: 'scalelab', params: { mode: 'modes' }, notice: null },
-  { hash: 'studylab', id: 'scalelab', params: { mode: 'guide' }, notice: null },
-  { hash: 'intervals', id: 'fretmap', params: { mode: 'learn' }, notice: 'notice.intervals-removed' },
-  { hash: 'fretboard', id: 'fretmap', params: { mode: 'map' }, notice: 'notice.fretboard-removed' },
-  { hash: 'intervalorbit', id: 'fretmap', params: { mode: 'map' }, notice: null },
-  { hash: 'intervalmap', id: 'fretmap', params: { mode: 'map' }, notice: null },
+  { hash: 'studylab', id: 'scalelab', params: { mode: 'overview' }, notice: 'notice.studylab-removed' },
+  { hash: 'intervals', id: 'tools', params: { mode: 'train' }, notice: 'notice.intervals-removed' },
+  { hash: 'fretboard', id: 'tools', params: { mode: 'train' }, notice: 'notice.fretboard-removed' },
+  { hash: 'intervalorbit', id: 'tools', params: { mode: 'study' }, notice: 'notice.fretmap-removed' },
+  { hash: 'intervalmap', id: 'tools', params: { mode: 'study' }, notice: 'notice.fretmap-removed' },
+  { hash: 'fretmap', id: 'tools', params: { mode: 'study' }, notice: 'notice.fretmap-removed' },
   { hash: 'chordlab', id: 'chordlab', params: { mode: 'reference' }, notice: 'notice.chordlab-removed' },
   { hash: 'chords', id: 'chordlab', params: { mode: 'reference' }, notice: null },
   { hash: 'triads', id: 'chordlab', params: { mode: 'triads' }, notice: null },
@@ -52,7 +53,7 @@ const LEGACY_CASES = [
   { hash: 'keyboard', id: 'tools', params: { mode: 'study' }, notice: 'notice.pitch-reference' },
   { hash: 'exercises', id: 'library', params: { mode: 'exercises' }, notice: null },
   { hash: 'workbooks', id: 'library', params: { mode: 'workbooks' }, notice: null },
-  { hash: 'routines', id: 'routines', params: {}, notice: null },
+  { hash: 'routines', id: 'tools', params: { mode: 'train' }, notice: 'notice.routines-removed' },
   { hash: 'gpplayer', id: 'scoreplayer', params: {}, notice: null },
   { hash: 'tabanalyzer', id: 'scoreplayer', params: {}, notice: null },
   { hash: 'musicprefs', id: 'settings', params: { mode: 'preferences' }, notice: null },
@@ -123,6 +124,14 @@ test("isKnownRoute('scales') is false", () => {
   assert.equal(isKnownRoute('scales'), false);
 });
 
+test("isKnownRoute('fretmap') is false", () => {
+  assert.equal(isKnownRoute('fretmap'), false);
+});
+
+test("isKnownRoute('routines') is false", () => {
+  assert.equal(isKnownRoute('routines'), false);
+});
+
 test('resolver returns notice id even when seen; helper hides banner', () => {
   const resolved = resolveRoute({ id: 'scales', params: {} });
   assert.equal(resolved.notice, 'notice.scales-removed');
@@ -143,14 +152,12 @@ test('ROUTE_IDS lists every contract section 3 id', () => {
   const expected = [
     'tools',
     'scalelab',
-    'fretmap',
     'chordlab',
     'pitchear',
     'metronome',
     'audiostudio',
     'songstudio',
     'library',
-    'routines',
     'scoreplayer',
     'settings',
   ];
@@ -177,7 +184,7 @@ test('LEGACY_ROUTES has one row per section 4 hash', () => {
   }
 });
 
-test('routines passes through routine parameter keys', () => {
+test('legacy routines resolves to tools train with notice', () => {
   const params = {
     routine: 'r1',
     session: 's1',
@@ -186,20 +193,8 @@ test('routines passes through routine parameter keys', () => {
     companion: 'c1',
   };
   const result = resolveRoute({ id: 'routines', params });
-  assert.deepEqual(result.params, params);
-  assert.equal(result.notice, null);
-});
-
-test('legacy routines passes through routine parameter keys', () => {
-  const params = {
-    routine: 'r1',
-    session: 's1',
-    workbook: 'w1',
-    exercise: 'e1',
-    companion: 'c1',
-  };
-  const result = resolveRoute({ id: 'routines', params });
-  assert.deepEqual(result.params, params);
+  assert.deepEqual(result.params, { mode: 'train' });
+  assert.equal(result.notice, 'notice.routines-removed');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
