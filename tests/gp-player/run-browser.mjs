@@ -23,6 +23,7 @@ const PAGES = [
   'long-drift.html',
   'render-cost.html',
   'peak-headroom.html',
+  'pack-fallback.html',
   'instrument-spectral.html',
   'realtime-dropouts.html',
   'realtime-ui-jank.html',
@@ -31,6 +32,7 @@ const PAGES = [
   'score-alignment.html',
   'score-follow.html',
   'score-fixtures-visual.html',
+  'audio-owner.html',
 ];
 
 const argvPages = process.argv.slice(2);
