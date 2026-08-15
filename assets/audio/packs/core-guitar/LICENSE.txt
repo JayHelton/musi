@@ -1,0 +1,3 @@
+Wavebase instrument recordings by ClueSurf.
+License: public domain / CC0-1.0.
+Source: https://github.com/cluesurf/wavebase

@@ -26,4 +26,6 @@ Wavebase recordings are CC0-1.0. FluidR3 samples are MIT.
 ## Registration
 
 `js/audio/packCatalog.js` fetches each core manifest and registers it at score load.
-The Guitar Pro player uses samples when the load session is ready; otherwise it uses synth voices.
+The Guitar Pro player uses samples when the load session is ready. Otherwise it uses synth voices.
+
+To rebuild the committed MP3 files, run `python3 scripts/fetch-core-packs.py` from the repo root.

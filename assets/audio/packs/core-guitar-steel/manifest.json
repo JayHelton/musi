@@ -1,0 +1,179 @@
+{
+  "id": "core-guitar-steel",
+  "version": "1",
+  "license": "MIT",
+  "attribution": "FluidR3 GM by Frank Wen, rendered by midi-js-soundfonts",
+  "sampleRate": 44100,
+  "instrument": "Steel-string guitar",
+  "midiProgram": [
+    24,
+    25
+  ],
+  "samples": [
+    {
+      "file": "n40.mp3",
+      "rootMidi": 40,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n43.mp3",
+      "rootMidi": 43,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n46.mp3",
+      "rootMidi": 46,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n49.mp3",
+      "rootMidi": 49,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n52.mp3",
+      "rootMidi": 52,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n55.mp3",
+      "rootMidi": 55,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n58.mp3",
+      "rootMidi": 58,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n61.mp3",
+      "rootMidi": 61,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n64.mp3",
+      "rootMidi": 64,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n67.mp3",
+      "rootMidi": 67,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n70.mp3",
+      "rootMidi": 70,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n73.mp3",
+      "rootMidi": 73,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n76.mp3",
+      "rootMidi": 76,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n79.mp3",
+      "rootMidi": 79,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n82.mp3",
+      "rootMidi": 82,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    }
+  ]
+}

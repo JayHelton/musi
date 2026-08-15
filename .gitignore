@@ -16,6 +16,9 @@ ${profile}/
 chrome-profile*/
 *.SingletonSocket
 
+# Local pack fetch workspace
+.tmp-pack-fetch/
+
 # Local tooling and secrets
 node_modules/
 dist/

@@ -1,0 +1,174 @@
+{
+  "id": "core-bass",
+  "version": "1",
+  "license": "CC0-1.0",
+  "attribution": "ClueSurf Wavebase public-domain recordings",
+  "sampleRate": 44100,
+  "instrument": "Electric bass",
+  "midiProgram": [
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39
+  ],
+  "samples": [
+    {
+      "file": "n28.mp3",
+      "rootMidi": 28,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n31.mp3",
+      "rootMidi": 31,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n34.mp3",
+      "rootMidi": 34,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n37.mp3",
+      "rootMidi": 37,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n40.mp3",
+      "rootMidi": 40,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n43.mp3",
+      "rootMidi": 43,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n46.mp3",
+      "rootMidi": 46,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n49.mp3",
+      "rootMidi": 49,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n52.mp3",
+      "rootMidi": 52,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n55.mp3",
+      "rootMidi": 55,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n58.mp3",
+      "rootMidi": 58,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n61.mp3",
+      "rootMidi": 61,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n64.mp3",
+      "rootMidi": 64,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    },
+    {
+      "file": "n67.mp3",
+      "rootMidi": 67,
+      "velocityMin": 0,
+      "velocityMax": 1,
+      "roundRobin": 0,
+      "articulation": "sustain",
+      "loopStart": null,
+      "loopEnd": null,
+      "gainTrim": 1
+    }
+  ]
+}
