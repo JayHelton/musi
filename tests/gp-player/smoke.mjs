@@ -965,12 +965,17 @@ const denseHost = document.createElement('div');
 const denseParch = mountParchmentView(denseHost, { guitarModel: denseFourBarModel() });
 const sparseSystemCount = sparseHost.querySelectorAll('.gpp-parch-system').length;
 const denseSystemCount = denseHost.querySelectorAll('.gpp-parch-system').length;
-// A phone row holds one measure, so a four bar score always uses four rows.
+// A phone row holds one written measure, so a four bar score uses four rows.
 assert.equal(sparseSystemCount, 4, 'a phone row holds one measure');
-assert.equal(denseSystemCount, 4, 'a phone row holds one measure');
-const everySystemHasOneBar = [...denseHost.querySelectorAll('.gpp-parch-system')]
-  .every((sys) => systemMeasureCount(sys) === 1);
-assert.ok(everySystemHasOneBar, 'every phone row must hold exactly one measure');
+assert.ok(denseSystemCount >= 4, 'a dense score may wrap into more than four rows');
+function systemWrittenMeasureIndices(sys) {
+  return [...new Set(
+    [...sys.querySelectorAll('.gpp-parch-measure')].map((el) => el.dataset.index),
+  )];
+}
+const everySystemHasOneWrittenMeasure = [...denseHost.querySelectorAll('.gpp-parch-system')]
+  .every((sys) => systemWrittenMeasureIndices(sys).length === 1);
+assert.ok(everySystemHasOneWrittenMeasure, 'every phone row must hold one written measure');
 // On a wide screen a dense score still needs more rows than a sparse one.
 {
   const { layoutScore } = await import('../../js/gpPlayer/scoreLayout.js');

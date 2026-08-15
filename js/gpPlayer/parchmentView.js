@@ -200,6 +200,8 @@ export function mountParchmentView(host, {
   let destroyed = false;
 
   let measureEls = [];
+  let measureFragEls = [];
+  let measurePartInfo = [];
   let systemEls = [];
   let playheadEl = null;
   let legendEl = null;
@@ -510,10 +512,38 @@ export function mountParchmentView(host, {
     return el;
   }
 
-  function renderMeasure(mi, barLayout) {
+  function eachMeasureEl(mi, fn) {
+    for (const el of measureFragEls[mi] || []) fn(el);
+  }
+
+  function eachAllMeasureEls(fn) {
+    measureFragEls.forEach((list, i) => {
+      if (!list) return;
+      for (const el of list) fn(el, i);
+    });
+  }
+
+  function findPartForBeat(mi, beat) {
+    const parts = measurePartInfo[mi];
+    if (!parts?.length) return null;
+    for (const part of parts) {
+      const first = part.layout.firstColumnBeat;
+      const last = part.layout.lastColumnBeat;
+      if (first != null && last != null
+        && beat >= first - BEAT_EPS && beat <= last + BEAT_EPS) {
+        return part;
+      }
+    }
+    if (beat < (parts[0].layout.firstColumnBeat ?? Infinity)) return parts[0];
+    return parts[parts.length - 1];
+  }
+
+  function renderMeasure(mi, barLayout, part) {
     const wrap = document.createElement('div');
-    wrap.className = 'gpp-parch-measure';
+    const isContinuation = part?.isContinuation || barLayout.isContinuation;
+    wrap.className = 'gpp-parch-measure' + (isContinuation ? ' is-continuation' : '');
     wrap.dataset.index = String(mi);
+    wrap.dataset.fragment = String(part?.colStart ?? 0);
     const barW = barLayout.widthUnits * unitPx;
     wrap.style.minWidth = `${barW}px`;
     wrap.style.width = `${barW}px`;
@@ -524,10 +554,12 @@ export function mountParchmentView(host, {
     wrap.appendChild(notesRail);
 
     const barNumGlyph = barLayout.glyphs.find((g) => g.kind === 'barNumber');
-    const barNum = document.createElement('div');
-    barNum.className = 'gpp-parch-bar-num';
-    barNum.textContent = barNumGlyph?.text || String(mi + 1);
-    wrap.appendChild(barNum);
+    if (barNumGlyph?.text) {
+      const barNum = document.createElement('div');
+      barNum.className = 'gpp-parch-bar-num';
+      barNum.textContent = barNumGlyph.text;
+      wrap.appendChild(barNum);
+    }
 
     const markerGlyph = barLayout.glyphs.find((g) => g.kind === 'marker');
     if (markerGlyph?.text) {
@@ -658,6 +690,8 @@ export function mountParchmentView(host, {
           legendEl = null;
         }
         measureEls = [];
+        measureFragEls = [];
+        measurePartInfo = [];
         systemEls = [];
         measureSystemIndex = [];
         measureGeom = [];
@@ -706,9 +740,21 @@ export function mountParchmentView(host, {
       let nextScoreLayout = buildLayoutAtScale(scale);
 
       let widestMinUnits = 0;
-      for (const bar of nextScoreLayout.bars) {
-        const minUnits = bar.minWidthUnits ?? bar.widthUnits;
-        if (minUnits > widestMinUnits) widestMinUnits = minUnits;
+      for (const sys of nextScoreLayout.systems) {
+        const rowParts = sys.parts || sys.barIndices?.map((bi) => ({
+          widthUnits: nextScoreLayout.bars[bi]?.widthUnits ?? 0,
+          layout: nextScoreLayout.bars[bi],
+        })) || [];
+        for (const part of rowParts) {
+          const w = part.layout?.widthUnits ?? part.widthUnits ?? 0;
+          if (w > widestMinUnits) widestMinUnits = w;
+        }
+      }
+      if (!widestMinUnits) {
+        for (const bar of nextScoreLayout.bars) {
+          const minUnits = bar.minWidthUnits ?? bar.widthUnits;
+          if (minUnits > widestMinUnits) widestMinUnits = minUnits;
+        }
       }
 
       const fittedScale = scaleThatFits({
@@ -755,6 +801,8 @@ export function mountParchmentView(host, {
         legendEl = null;
       }
       measureEls = [];
+      measureFragEls = [];
+      measurePartInfo = [];
       systemEls = [];
       measureSystemIndex = [];
       measureGeom = [];
@@ -799,12 +847,34 @@ export function mountParchmentView(host, {
         const system = document.createElement('div');
         system.className = 'gpp-parch-system';
         system.appendChild(renderGutter());
-        sys.barIndices.forEach((bi) => {
-          const el = renderMeasure(bi, scoreLayout.bars[bi]);
+        const systemIndex = systemEls.length;
+        const rowParts = sys.parts || sys.barIndices.map((bi) => ({
+          barIndex: bi,
+          colStart: 0,
+          isContinuation: false,
+          isLastFragment: true,
+          layout: scoreLayout.bars[bi],
+        }));
+        for (const part of rowParts) {
+          const bi = part.barIndex;
+          const barLayout = part.layout ?? scoreLayout.bars[bi];
+          const el = renderMeasure(bi, barLayout, part);
           system.appendChild(el);
-          measureEls[bi] = el;
-          measureSystemIndex[bi] = systemEls.length;
-        });
+          if (!measureFragEls[bi]) measureFragEls[bi] = [];
+          measureFragEls[bi].push(el);
+          if (!measurePartInfo[bi]) measurePartInfo[bi] = [];
+          measurePartInfo[bi].push({
+            el,
+            layout: barLayout,
+            systemIndex,
+            colStart: part.colStart ?? 0,
+            isLastFragment: part.isLastFragment !== false,
+          });
+          if (!measureEls[bi]) {
+            measureEls[bi] = el;
+            measureSystemIndex[bi] = systemIndex;
+          }
+        }
         sheet.appendChild(system);
         systemEls.push(system);
       });
@@ -867,7 +937,9 @@ export function mountParchmentView(host, {
     if (!m) return null;
     const notesRect = measureNotesRect(el);
     if (!notesRect) return null;
-    const bar = scoreLayout?.bars?.[mi];
+    const colStart = Number(el.dataset.fragment || 0);
+    const part = measurePartInfo[mi]?.find((p) => p.colStart === colStart);
+    const bar = part?.layout ?? scoreLayout?.bars?.[mi];
     if (bar && unitPx > 0) {
       const xUnits = (clientX - notesRect.left) / unitPx;
       return snapBeat(beatFromXUnits(bar, xUnits));
@@ -978,28 +1050,26 @@ export function mountParchmentView(host, {
 
   function highlightNoteSelecting(norm) {
     const { startIdx, endIdx } = beatToMeasureRange(norm.startBeat, norm.endBeat);
-    measureEls.forEach((el, i) => {
-      if (!el) return;
+    eachAllMeasureEls((el, i) => {
       el.classList.toggle('note-selecting', i >= startIdx && i <= endIdx);
     });
   }
 
   function clearNoteSelecting() {
-    measureEls.forEach((el) => el?.classList.remove('note-selecting'));
+    eachAllMeasureEls((el) => el.classList.remove('note-selecting'));
   }
 
   function highlightSelecting(norm) {
     const { startIdx, endIdx } = beatToMeasureRange(norm.startBeat, norm.endBeat);
-    measureEls.forEach((el, i) => {
-      if (!el) return;
+    eachAllMeasureEls((el, i) => {
       const inRange = i >= startIdx && i <= endIdx;
       el.classList.toggle('selecting', inRange);
     });
   }
 
   function clearSelecting() {
-    measureEls.forEach((el) => {
-      el?.classList.remove('selecting');
+    eachAllMeasureEls((el) => {
+      el.classList.remove('selecting');
     });
   }
 
@@ -1019,7 +1089,7 @@ export function mountParchmentView(host, {
     if (selOverlayEl) { selOverlayEl.remove(); selOverlayEl = null; }
     if (handleStart) { handleStart.remove(); handleStart = null; }
     if (handleEnd) { handleEnd.remove(); handleEnd = null; }
-    measureEls.forEach((el) => el?.classList.remove('in-loop'));
+    eachAllMeasureEls((el) => el.classList.remove('in-loop'));
   }
 
   function removeNoteDraftDecor() {
@@ -1028,8 +1098,7 @@ export function mountParchmentView(host, {
   }
 
   function removeAnnotationDecor() {
-    measureEls.forEach((el) => {
-      if (!el) return;
+    eachAllMeasureEls((el) => {
       el.classList.remove('in-anno-span', 'has-anno-start');
       const rail = el.querySelector('.gpp-parch-notes-rail');
       if (rail) rail.innerHTML = '';
@@ -1050,7 +1119,7 @@ export function mountParchmentView(host, {
     noteOverlayEl.style.width = `${bounds.width}px`;
     sheet.appendChild(noteOverlayEl);
     for (let i = startIdx; i <= endIdx; i++) {
-      measureEls[i]?.classList.add('note-selecting');
+      eachMeasureEl(i, (el) => el.classList.add('note-selecting'));
     }
   }
 
@@ -1121,7 +1190,7 @@ export function mountParchmentView(host, {
       if (!bounds) continue;
 
       for (let i = startMi + 1; i <= endMi; i++) {
-        measureEls[i]?.classList.add('in-anno-span');
+        eachMeasureEl(i, (el) => el.classList.add('in-anno-span'));
       }
 
       const spanEl = document.createElement('div');
@@ -1139,10 +1208,10 @@ export function mountParchmentView(host, {
     let firstEl = null;
     let lastEl = null;
     for (let i = startIdx; i <= endIdx; i++) {
-      const el = measureEls[i];
-      if (!el) continue;
-      if (!firstEl) firstEl = el;
-      lastEl = el;
+      const frags = measureFragEls[i];
+      if (!frags?.length) continue;
+      if (!firstEl) firstEl = frags[0];
+      lastEl = frags[frags.length - 1];
     }
     if (!firstEl || !sheet) return null;
     const sheetRect = sheet.getBoundingClientRect();
@@ -1160,11 +1229,12 @@ export function mountParchmentView(host, {
     let firstEl = null;
     let lastEl = null;
     for (let i = startIdx; i <= endIdx; i++) {
-      const el = measureEls[i];
-      if (!el) continue;
-      el.classList.add('in-loop');
-      if (!firstEl) firstEl = el;
-      lastEl = el;
+      eachMeasureEl(i, (el) => el.classList.add('in-loop'));
+      const frags = measureFragEls[i];
+      if (frags?.length) {
+        if (!firstEl) firstEl = frags[0];
+        lastEl = frags[frags.length - 1];
+      }
     }
     if (!firstEl || !sheet) return;
 
@@ -1245,8 +1315,7 @@ export function mountParchmentView(host, {
   }
 
   function paintActive(mi) {
-    measureEls.forEach((el, i) => {
-      if (!el) return;
+    eachAllMeasureEls((el, i) => {
       el.classList.toggle('is-active', i === mi);
     });
   }
@@ -1257,16 +1326,17 @@ export function mountParchmentView(host, {
       : '';
     if (key === lastActiveBeatKey) return;
     lastActiveBeatKey = key;
-    measureEls.forEach((el) => {
-      el?.querySelectorAll('.gpp-glyph.is-sounding').forEach((n) => n.classList.remove('is-sounding'));
+    eachAllMeasureEls((el) => {
+      el.querySelectorAll('.gpp-glyph.is-sounding').forEach((n) => n.classList.remove('is-sounding'));
     });
     if (!pos || pos.barIndex == null) return;
-    const el = measureEls[pos.barIndex];
-    if (!el) return;
     const m = measures()[pos.barIndex];
     if (!m) return;
     const { start } = measureSpan(m);
     const beatStart = start + (Number(pos.beatInBar) || 0);
+    const part = findPartForBeat(pos.barIndex, beatStart);
+    const el = part?.el ?? measureEls[pos.barIndex];
+    if (!el) return;
     const hits = el.querySelectorAll(`[data-beat-start="${beatStart}"]`);
     hits.forEach((n) => n.classList.add('is-sounding'));
     if (!hits.length) {
@@ -1276,19 +1346,15 @@ export function mountParchmentView(host, {
   }
 
   /**
-   * The sheet-relative box of one measure staff, and the x origin of its notes.
-   *
-   * The playhead runs on every animation frame. A rect read that follows a
-   * style write forces the browser to lay the page out again inside the frame,
-   * and that work delays the audio scheduler on the same thread. These values
-   * only change when the sheet reflows, so the view measures each measure once
-   * and keeps the result. Every value counts from the sheet, not from the
-   * viewport, so a scroll does not make it stale.
+   * The sheet-relative box of one measure fragment staff, and the x origin of
+   * its notes. Values count from the sheet, not from the viewport.
    */
-  function measureGeomFor(mi) {
-    const cached = measureGeom[mi];
+  function measureGeomFor(mi, colStart = 0) {
+    const key = `${mi}:${colStart}`;
+    const cached = measureGeom[key];
     if (cached) return cached;
-    const el = measureEls[mi];
+    const part = measurePartInfo[mi]?.find((p) => p.colStart === colStart);
+    const el = part?.el ?? measureEls[mi];
     if (!el) return null;
     const sheetRect = sheet.getBoundingClientRect();
     const notesRect = measureNotesRect(el);
@@ -1300,31 +1366,35 @@ export function mountParchmentView(host, {
       notesWidth: notesRect.width || 0,
       staffTop: staffRect ? yOffsetInSheet(staffRect.top, sheetRect) : null,
       staffHeight: staffRect ? staffRect.height || 0 : null,
+      colStart,
     };
-    measureGeom[mi] = geom;
+    measureGeom[key] = geom;
     return geom;
   }
 
   /**
-   * The sheet x of the playhead for one beat inside one measure.
+   * The sheet x of the playhead for one beat inside one measure fragment.
    *
    * A bar holds padding at its left end for the time signature and the repeat
    * marks, and no beat column stands in it. A plain map from beat to x would
    * therefore jump across that padding at every bar line. The line instead
    * runs from the last column of this bar to the first column of the next bar,
    * across the bar line. The line still stands on every column at the exact
-   * beat of that column.
+   * beat of that column. Across a wrap row the line does not cross to the next
+   * bar on another row.
    */
-  function playheadSheetX(bar, geom, beat, mi) {
+  function playheadSheetX(bar, geom, beat, mi, partInfo) {
     const xAt = (b) => geom.notesLeft + beatXUnits(bar, b) * unitPx;
     const tailStart = Number.isFinite(bar.lastColumnBeat) ? bar.lastColumnBeat : null;
     const barEnd = bar.beatStart + bar.beatSpan;
-    if (tailStart == null || beat <= tailStart || barEnd <= tailStart) return xAt(beat);
+    if (!partInfo?.isLastFragment || tailStart == null || beat <= tailStart || barEnd <= tailStart) {
+      return xAt(beat);
+    }
 
     const next = scoreLayout?.bars?.[mi + 1];
-    const sameRow = measureSystemIndex[mi + 1] != null
-      && measureSystemIndex[mi + 1] === measureSystemIndex[mi];
-    const nextGeom = next && sameRow ? measureGeomFor(mi + 1) : null;
+    const nextPart = measurePartInfo[mi + 1]?.[0];
+    const sameRow = nextPart && partInfo.systemIndex === nextPart.systemIndex;
+    const nextGeom = next && sameRow ? measureGeomFor(mi + 1, nextPart.colStart) : null;
     const from = xAt(tailStart);
     const to = nextGeom
       ? nextGeom.notesLeft + next.noteOriginUnits * unitPx
@@ -1335,15 +1405,20 @@ export function mountParchmentView(host, {
 
   function positionPlayhead(beat, mi) {
     if (!playheadEl) return;
-    const geom = measureGeomFor(mi);
+    const part = findPartForBeat(mi, beat);
+    if (!part) {
+      playheadEl.hidden = true;
+      return;
+    }
+    const geom = measureGeomFor(mi, part.colStart);
     if (!geom) {
       playheadEl.hidden = true;
       return;
     }
-    const bar = scoreLayout?.bars?.[mi];
+    const bar = part.layout;
     let x;
     if (bar && unitPx > 0) {
-      x = playheadSheetX(bar, geom, beat, mi);
+      x = playheadSheetX(bar, geom, beat, mi, part);
     } else if (geom.notesWidth) {
       const pct = beatPctInMeasure(beat, measures()[mi]) / 100;
       x = geom.notesLeft + geom.notesWidth * pct;
@@ -1360,15 +1435,20 @@ export function mountParchmentView(host, {
     playheadEl.hidden = false;
   }
 
-  function systemForMeasure(mi) {
+  function systemForMeasure(mi, colStart = 0) {
+    const part = measurePartInfo[mi]?.find((p) => p.colStart === colStart)
+      ?? measurePartInfo[mi]?.[0];
+    if (part?.systemIndex != null) return systemEls[part.systemIndex] ?? null;
     const idx = measureSystemIndex[mi];
     return idx != null ? systemEls[idx] ?? null : null;
   }
 
-  function pinSystemToViewportTop(mi, topPad) {
-    const el = measureEls[mi];
+  function pinSystemToViewportTop(mi, topPad, colStart = 0) {
+    const part = measurePartInfo[mi]?.find((p) => p.colStart === colStart)
+      ?? measurePartInfo[mi]?.[0];
+    const el = part?.el ?? measureEls[mi];
     if (!el) return;
-    const sys = systemForMeasure(mi);
+    const sys = systemForMeasure(mi, colStart);
     const target = sys || el;
     const vRect = viewport.getBoundingClientRect();
     const tRect = target.getBoundingClientRect();
@@ -1386,24 +1466,13 @@ export function mountParchmentView(host, {
     }
   }
 
-  function scrollActiveIntoView(mi) {
-    pinSystemToViewportTop(mi, 16);
+  function scrollActiveIntoView(mi, beat) {
+    const part = findPartForBeat(mi, beat ?? lastBeat);
+    pinSystemToViewportTop(mi, 16, part?.colStart ?? 0);
   }
 
   function scrollToMeasure(mi) {
-    const el = measureEls[mi];
-    if (!el) return;
-    pinSystemToViewportTop(mi, 20);
-    const vRect = viewport.getBoundingClientRect();
-    const eRect = el.getBoundingClientRect();
-    const hPad = 12;
-    if (eRect.left < vRect.left + hPad) {
-      followGuard.noteOwnScroll();
-      viewport.scrollLeft += eRect.left - vRect.left - hPad;
-    } else if (eRect.right > vRect.right - hPad) {
-      followGuard.noteOwnScroll();
-      viewport.scrollLeft += eRect.right - vRect.right + hPad;
-    }
+    pinSystemToViewportTop(mi, 20, 0);
   }
 
   function update({
@@ -1468,7 +1537,7 @@ export function mountParchmentView(host, {
 
     if (playing && follow && !followGuard.isPaused()) {
       cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => scrollActiveIntoView(mi));
+      rafId = requestAnimationFrame(() => scrollActiveIntoView(mi, beat));
     }
   }
 
