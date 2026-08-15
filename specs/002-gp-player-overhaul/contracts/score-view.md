@@ -105,9 +105,25 @@ toGlyph: { lane, x, y }
 
 ```text
 bars: BarLayout[]
-systems: { barIndices: number[], widthPx: number }[]
+systems: {
+  barIndices: number[]
+  widthPx: number
+  parts: SystemPart[]
+}[]
 fontPx: number                  // computed fret font size after reflow
 warnings: string[]
+```
+
+`SystemPart`:
+
+```text
+barIndex: number
+colStart: number                // inclusive column index into bars[barIndex].columns
+colEnd: number                  // exclusive
+isContinuation: boolean         // true when this is not the first fragment of the measure
+isLastFragment: boolean
+widthUnits: number               // fragment width after pack and stretch
+layout: BarLayout                // sliced or aliased fragment ready to draw
 ```
 
 ### Part 2 — `js/gpPlayer/parchmentView.js` (DOM mount)
@@ -172,7 +188,9 @@ Render rules:
 2. The view draws rests in the rhythm or rest lane. (FR-019)
 3. Horizontal spacing follows the written length of each note or rest. (FR-020)
    A bar must keep a clear gap between fret numbers on the same string. When a dense
-   bar needs more room than the row, the bar may be wider than the viewport.
+   bar needs more room than the row, the bar wraps onto the next system at a column
+   boundary. A system's parts must not exceed `system.widthPx` (except the one-column
+   last-resort case).
 4. The view draws all 13 techniques in the FR-021 list. The layout draws at least 95
    percent of the techniques that the file holds. (FR-021, SC-004)
 5. The view shows the bend amount for each bend. (FR-022)
