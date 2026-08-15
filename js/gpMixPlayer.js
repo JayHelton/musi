@@ -1194,6 +1194,7 @@ export function createGpMixPlayer(opts = {}) {
   function setRate(factor) {
     const r = clampRate(factor);
     const pos = getPosition();
+    const oldRate = state.rate;
     state.rate = r;
     applyRateTimeline();
     rebuildEvents();
@@ -1204,6 +1205,27 @@ export function createGpMixPlayer(opts = {}) {
     );
     state.events = filtered;
     state.allGuitarNotes = guitarNotesFromEvents(filtered, state.rate);
+    state.loopEventIdx = null;
+    if (state.loop) {
+      const restSec = state.lastLoopRestSec;
+      if (state.lastLoopMeasures && state.referenceModel?.measures?.length) {
+        state.loop = loopFromMeasures(
+          state.referenceModel,
+          state.lastLoopMeasures,
+          state.timeline,
+          state.allGuitarNotes,
+          restSec,
+          state.rate,
+        );
+      } else {
+        const ratio = oldRate / state.rate;
+        state.loop = {
+          startSec: state.loop.startSec * ratio,
+          endSec: state.loop.endSec * ratio,
+          restSec: state.loop.restSec,
+        };
+      }
+    }
     const newSec = state.timeline
       ? state.timeline.secondsAtPosition({
         barIndex: pos.barIndex,
@@ -1292,11 +1314,13 @@ export function createGpMixPlayer(opts = {}) {
     if (!loop) {
       state.loop = null;
       state.inLoopRest = false;
+      state.lastLoopMeasures = null;
       return;
     }
     if (loop.enabled === false) {
       state.loop = null;
       state.inLoopRest = false;
+      state.lastLoopMeasures = null;
       return;
     }
     if (Number.isFinite(loop.startBarIndex) && Number.isFinite(loop.endBarIndex) && state.timeline) {
@@ -1310,6 +1334,7 @@ export function createGpMixPlayer(opts = {}) {
         restSec: Math.max(0, Number(loop.restSec) || 0),
       };
       state.lastLoopRestSec = state.loop.restSec;
+      state.lastLoopMeasures = [loop.startBarIndex, loop.endBarIndex];
       return;
     }
     state.loop = {
