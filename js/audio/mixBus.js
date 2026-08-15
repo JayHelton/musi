@@ -33,9 +33,9 @@ function makeEqNode(ctx) {
   if (typeof ctx.createBiquadFilter !== 'function') return null;
   const eq = ctx.createBiquadFilter();
   eq.type = 'peaking';
-  eq.frequency.value = 1000;
-  eq.Q.value = 1;
-  eq.gain.value = 0;
+  if (eq.frequency) eq.frequency.value = 1000;
+  if (eq.Q) eq.Q.value = 1;
+  if (eq.gain) eq.gain.value = 0;
   return eq;
 }
 
