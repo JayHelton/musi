@@ -1,5 +1,13 @@
 const ROUTINE_KEY_ORDER = ['routine', 'session', 'workbook', 'exercise', 'companion'];
 
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch (_) {
+    return value;
+  }
+}
+
 /**
  * @param {string} hash
  * @returns {{ id: string, params: Record<string, string> }}
@@ -33,8 +41,8 @@ export function parseAppRoute(hash) {
     for (const pair of query.split('&')) {
       const eqIdx = pair.indexOf('=');
       if (eqIdx === -1) continue;
-      const key = decodeURIComponent(pair.slice(0, eqIdx));
-      const value = decodeURIComponent(pair.slice(eqIdx + 1));
+      const key = safeDecodeURIComponent(pair.slice(0, eqIdx));
+      const value = safeDecodeURIComponent(pair.slice(eqIdx + 1));
       if (!key || !value) continue;
       params[key] = value;
     }

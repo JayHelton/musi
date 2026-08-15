@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v220-gp-drums-next-exercise";
+const CACHE_VERSION = "v221-app-toast-nav-guard";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -51,6 +51,7 @@ const PRECACHE_URLS = [
   "css/landscape.css",
   "css/boot-splash.css",
   "css/route-notice.css",
+  "css/app-toast.css",
   "css/shell.css",
   "css/tools-home.css",
   "chord-cards/",
@@ -61,6 +62,7 @@ const PRECACHE_URLS = [
   "chord-cards/src/validate.js",
   "chord-cards/data/shapes.js",
   "js/movableChordCards.js",
+  "js/appToast.js",
   "js/main.js",
   "js/bootSplash.js",
   "js/tools.js",
@@ -92,6 +94,7 @@ const PRECACHE_URLS = [
   "js/fretboard/renderer.js",
   "js/audioOwner.js",
   "js/appRoute.js",
+  "js/routeSection.js",
   "js/routeMap.js",
   "js/routineRoute.js",
   "js/routineDashboardModel.js",

@@ -47,6 +47,7 @@ import {
   validMoveTargets,
   nextParentAfterDelete,
 } from './folderTree.js';
+import { showAppToast } from './appToast.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -2029,6 +2030,7 @@ async function mountGpExercise(item, mountHost, blob) {
       }),
     });
   } catch (err) {
+    showAppToast(err?.message);
     mountHost.appendChild(el('div', {
       class: 'ex-player-missing',
       text: err?.message || 'Could not open this Guitar Pro file.',
@@ -2118,6 +2120,8 @@ function teardownPlayer() {
 export async function openExerciseViewer(id) {
   const item = getExercise(id);
   if (!item || !ensurePlayerElements()) return;
+
+  try {
   wirePlayerControls();
 
   const gen = ++openGeneration;
@@ -2149,6 +2153,9 @@ export async function openExerciseViewer(id) {
   }
 
   playerPaneEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    showAppToast(err?.message);
+  }
 }
 
 export function closeExerciseViewer() {

@@ -220,6 +220,7 @@ export function createGpMixPlayer(opts = {}) {
     destroyed: false,
     endedFired: false,
     voiceFactory: null,
+    playGeneration: 0,
   };
 
   function wallSecFromEvent(ev) {
@@ -598,6 +599,7 @@ export function createGpMixPlayer(opts = {}) {
   }
 
   function scheduleEvent(ev, when, now) {
+    if (state.destroyed || !state.voiceFactory) return;
     // A late note must still sound. The engine used to drop any note whose
     // time had passed, so one slow frame deleted notes from the score and the
     // learner heard a skip. Play a late note now instead. Only a note that is
@@ -1003,7 +1005,14 @@ export function createGpMixPlayer(opts = {}) {
     );
   }
 
+  function playStale(token) {
+    return state.destroyed || state.playGeneration !== token;
+  }
+
   async function play({ fromSec = null } = {}) {
+    if (state.destroyed) return;
+    const token = ++state.playGeneration;
+
     ensureAudio();
     if (!state.events.length) rebuildEvents();
 
@@ -1023,6 +1032,7 @@ export function createGpMixPlayer(opts = {}) {
         }
         return;
       }
+      if (playStale(token)) return;
       if (audioCtx.state === 'suspended') {
         if (state.onAudioBlocked) {
           state.onAudioBlocked({
@@ -1033,6 +1043,8 @@ export function createGpMixPlayer(opts = {}) {
         return;
       }
     }
+
+    if (playStale(token)) return;
 
     const handle = claimAudio({
       id: 'gp-player',
@@ -1136,6 +1148,7 @@ export function createGpMixPlayer(opts = {}) {
 
   /** Jump to a song position without starting playback. */
   function seek(sec) {
+    if (state.destroyed) return;
     const maxSec = state.timeline?.totalSec ?? Infinity;
     const s = Math.max(0, Math.min(maxSec, Number(sec) || 0));
     const was = state.playing;
@@ -1160,6 +1173,7 @@ export function createGpMixPlayer(opts = {}) {
   }
 
   function seekToBar({ barIndex, beatInBar = 0 } = {}) {
+    if (state.destroyed) return;
     if (!state.timeline) {
       const measures = state.referenceModel?.measures || [];
       const m = measures[barIndex];
@@ -1312,7 +1326,9 @@ export function createGpMixPlayer(opts = {}) {
   }
 
   function destroy() {
+    if (state.destroyed) return;
     state.destroyed = true;
+    state.playGeneration += 1;
     const wasPlaying = state.playing;
     stopInternal({ releaseOwner: true });
     fadeVoices();

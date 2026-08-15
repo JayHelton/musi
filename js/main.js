@@ -45,6 +45,7 @@ import {
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
 import { parseAppRoute, routeUrl } from './appRoute.js';
+import { sectionIdForRoute } from './routeSection.js';
 import { resolveRoute, shouldShowNotice, isKnownRoute, LEGACY_ROUTES } from './routeMap.js';
 import { initAudioDock } from './audioDock.js';
 import { mountToolPage } from './shell/toolPage.js';
@@ -66,6 +67,7 @@ import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
 import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
 import { getRoutine } from './routineModel.js';
 import { getWorkbook } from './workbookModel.js';
+import { showAppToast } from './appToast.js';
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 
@@ -162,32 +164,18 @@ function sectionUrl(id, params = {}) {
   return routeUrl({ id: id || 'tools', params });
 }
 
-const LIVE_SECTION_BY_ROUTE = {
-  tools: 'tools',
-  home: 'tools',
-  scalelab: 'scaleref',
-  fretmap: 'intervalorbit',
-  chordlab: 'chords',
-  pitchear: 'tuner',
-  metronome: 'metronome',
-  audiostudio: 'recorder',
-  songstudio: 'songwriter',
-  library: 'exercises',
-  routines: 'routines',
-  scoreplayer: 'gpplayer',
-  settings: 'musicprefs',
-};
+const VALID_NAV_ORIGINS = new Set([
+  'tools',
+  'library',
+  'workbook',
+  'routine',
+  'search',
+  'recent',
+  'direct',
+]);
 
-function resolveSectionAlias(id) {
-  if (id === 'intervalmap') return 'intervalorbit';
-  if (id === 'tabanalyzer') return 'gpplayer';
-  return id;
-}
-
-function liveSectionId(routeId) {
-  if (!routeId) return 'tools';
-  if (LIVE_SECTION_BY_ROUTE[routeId]) return LIVE_SECTION_BY_ROUTE[routeId];
-  return resolveSectionAlias(routeId);
+function coerceNavOrigin(origin) {
+  return VALID_NAV_ORIGINS.has(origin) ? origin : 'direct';
 }
 
 function routeResolveCtx() {
@@ -207,7 +195,7 @@ function resolveIncomingRoute(id, params = {}) {
   const resolved = resolveRoute({ id: id || '', params }, routeResolveCtx());
   return {
     routeId: resolved.id,
-    sectionId: liveSectionId(resolved.id),
+    sectionId: sectionIdForRoute(resolved.id, resolved.params || {}),
     params: resolved.params || {},
     notice: resolved.notice,
   };
@@ -216,7 +204,7 @@ function resolveIncomingRoute(id, params = {}) {
 function isValidSection(id) {
   if (id === '' || id === 'home') return true;
   if (isKnownRoute(id) || LEGACY_ROUTES[id]) return true;
-  const sectionId = liveSectionId(id);
+  const sectionId = sectionIdForRoute(id);
   if (sectionId === ROUTINE_ROUTE_ID) return true;
   return sectionId === 'tools' || getTabs().some(t => t.id === sectionId);
 }
@@ -378,12 +366,12 @@ function applySection(id, { keep = [] } = {}) {
     document.body.classList.remove('split-mode');
   }
 
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
-
   const sectionId = id === 'home' ? 'tools' : id;
   const sec = document.getElementById('sec-' + sectionId);
   if (!sec) return;
+
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
 
   sec.classList.add('active');
   currentNavId = sectionId;
@@ -643,36 +631,65 @@ async function applyRoute({
   notice = null,
   origin = null,
 }) {
-  const inboundId = id;
-  const incoming = resolveIncomingRoute(inboundId, params);
-  let routeId = incoming.routeId;
-  let sectionId = gatedSectionId(incoming.sectionId);
-  const routeParams = incoming.params;
-  if (notice == null) notice = incoming.notice;
-  if (typeof notice === 'string' && notice !== '') {
-    writePendingNotice(notice, incoming.routeId);
-  }
+  try {
+    const inboundId = id;
+    const incoming = resolveIncomingRoute(inboundId, params);
+    let routeId = incoming.routeId;
+    let sectionId = gatedSectionId(incoming.sectionId);
+    const routeParams = incoming.params;
+    if (notice == null) notice = incoming.notice;
+    if (typeof notice === 'string' && notice !== '') {
+      writePendingNotice(notice, incoming.routeId);
+    }
 
-  if (!isValidSection(inboundId)) {
-    routeId = 'tools';
-    sectionId = 'tools';
-  }
+    if (!isValidSection(inboundId)) {
+      routeId = 'tools';
+      sectionId = 'tools';
+    }
 
-  const prevSectionId = currentNavId;
-  if (sectionId !== prevSectionId) {
-    const canLeave = await guardLeave({ fromPopstate: source === 'popstate' });
-    if (!canLeave) return;
-    saveLeaveViewState(prevSectionId);
-  }
+    const prevSectionId = currentNavId;
+    if (sectionId !== prevSectionId) {
+      const canLeave = await guardLeave({ fromPopstate: source === 'popstate' });
+      if (!canLeave) return;
+      saveLeaveViewState(prevSectionId);
+    }
 
-  currentRouteId = routeId;
-  currentRouteParams = { ...routeParams };
+    currentRouteId = routeId;
+    currentRouteParams = { ...routeParams };
 
-  if (routeId === ROUTINE_ROUTE_ID) {
-    const routineOrigin = origin || (currentOrigin() === 'direct' ? 'routine' : currentOrigin()) || 'routine';
+    if (routeId === ROUTINE_ROUTE_ID) {
+      const routineOrigin = coerceNavOrigin(
+        origin || (currentOrigin() === 'direct' ? 'routine' : currentOrigin()) || 'routine',
+      );
+      if (!applyingHistory && mode !== 'none') {
+        const url = sectionUrl(ROUTINE_ROUTE_ID, routeParams);
+        const histState = { musiNav: ROUTINE_ROUTE_ID, params: routeParams };
+        if (mode === 'replace') {
+          suppressHashChange = true;
+          history.replaceState(histState, '', url);
+        } else if (mode === 'push') {
+          suppressHashChange = true;
+          history.pushState(histState, '', url);
+          navPushCount += 1;
+        }
+      }
+      if (mode === 'push' || currentOrigin() === 'direct') {
+        pushRoute({ id: routeId, params: routeParams }, routineOrigin);
+      }
+      const navigator = getRoutineNavigator();
+      if (navigator) {
+        navigator.applyRoute(routeParams, { source });
+      } else {
+        applySection(ROUTINE_ROUTE_ID);
+      }
+      updateRouteNotice(notice, routeId);
+      focusHeading(document.getElementById('sec-' + ROUTINE_ROUTE_ID));
+      return;
+    }
+
     if (!applyingHistory && mode !== 'none') {
-      const url = sectionUrl(ROUTINE_ROUTE_ID, routeParams);
-      const histState = { musiNav: ROUTINE_ROUTE_ID, params: routeParams };
+      const url = sectionUrl(routeId, routeParams);
+      const histState = { musiNav: routeId, params: routeParams };
       if (mode === 'replace') {
         suppressHashChange = true;
         history.replaceState(histState, '', url);
@@ -680,40 +697,21 @@ async function applyRoute({
         suppressHashChange = true;
         history.pushState(histState, '', url);
         navPushCount += 1;
+        pushRoute(
+          { id: routeId, params: routeParams },
+          coerceNavOrigin(origin || currentOrigin() || 'direct'),
+        );
       }
     }
-    if (mode === 'push' || currentOrigin() === 'direct') {
-      pushRoute({ id: routeId, params: routeParams }, routineOrigin);
-    }
-    const navigator = getRoutineNavigator();
-    if (navigator) {
-      navigator.applyRoute(routeParams, { source });
-    } else {
-      applySection(ROUTINE_ROUTE_ID);
-    }
+
+    applySection(sectionId);
     updateRouteNotice(notice, routeId);
-    focusHeading(document.getElementById('sec-' + ROUTINE_ROUTE_ID));
-    return;
+    restoreArriveViewState(sectionId);
+    focusHeading(document.getElementById('sec-' + sectionId));
+  } catch (err) {
+    console.error('applyRoute failed:', err);
+    showAppToast(err?.message);
   }
-
-  if (!applyingHistory && mode !== 'none') {
-    const url = sectionUrl(routeId, routeParams);
-    const histState = { musiNav: routeId, params: routeParams };
-    if (mode === 'replace') {
-      suppressHashChange = true;
-      history.replaceState(histState, '', url);
-    } else if (mode === 'push') {
-      suppressHashChange = true;
-      history.pushState(histState, '', url);
-      navPushCount += 1;
-      pushRoute({ id: routeId, params: routeParams }, origin || currentOrigin() || 'direct');
-    }
-  }
-
-  applySection(sectionId);
-  updateRouteNotice(notice, routeId);
-  restoreArriveViewState(sectionId);
-  focusHeading(document.getElementById('sec-' + sectionId));
 }
 
 function initRouteNoticeBanner() {
@@ -883,6 +881,21 @@ async function init() {
   initNav();
   initRouteNoticeBanner();
 
+  window.addEventListener('error', (event) => {
+    // Resource load errors have no `error` object. Skip those.
+    if (!event?.error) return;
+    const msg = event.error.message || event.message || '';
+    if (!msg) return;
+    showAppToast(msg);
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    const msg = reason?.message || (typeof reason === 'string' ? reason : '');
+    if (msg) showAppToast(msg);
+    event.preventDefault();
+  });
+
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -1029,6 +1042,8 @@ async function init() {
       } else {
         await applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'popstate' });
       }
+    } catch (err) {
+      console.error('popstate handler failed:', err);
     } finally {
       applyingHistory = false;
     }
@@ -1040,10 +1055,10 @@ async function init() {
       return;
     }
     if (applyingHistory) return;
-    const parsed = parseAppRoute(location.hash);
-    const incoming = resolveIncomingRoute(parsed.id, parsed.params);
     applyingHistory = true;
     try {
+      const parsed = parseAppRoute(location.hash);
+      const incoming = resolveIncomingRoute(parsed.id, parsed.params);
       if (parsed.id && isValidSection(parsed.id)) {
         if (incoming.sectionId !== currentNavId) navPushCount += 1;
         await applyRoute({
@@ -1056,6 +1071,8 @@ async function init() {
         if (currentNavId !== 'tools') navPushCount += 1;
         await applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'hashchange' });
       }
+    } catch (err) {
+      console.error('hashchange handler failed:', err);
     } finally {
       applyingHistory = false;
     }

@@ -1049,54 +1049,69 @@ export function mountGpPlayer(host, {
   }
 
   function seekToBar(barIndex, { autoplay = false } = {}) {
-    const measures = state.viewModel?.measures || [];
-    if (!measures.length) return;
-    const scope = stateController.getScope();
-    const i = Math.max(scope.start, Math.min(scope.end, barIndex));
-    state.navBar = i;
-    const beats = beatsFromMeasureRange(measures, i, i);
-    const startSec = quartersToSeconds(beats.startBeat, state.bpm);
-    if (autoplay || player.playing) {
-      clearCountIn();
-      ensureAudio();
-      player.play({ fromSec: startSec });
+    if (!isAlive()) return;
+    try {
+      const measures = state.viewModel?.measures || [];
+      if (!measures.length) return;
+      const scope = stateController.getScope();
+      const i = Math.max(scope.start, Math.min(scope.end, barIndex));
+      state.navBar = i;
+      const beats = beatsFromMeasureRange(measures, i, i);
+      const startSec = quartersToSeconds(beats.startBeat, state.bpm);
+      if (autoplay || player.playing) {
+        clearCountIn();
+        ensureAudio();
+        player.play({ fromSec: startSec });
+      }
+      else player.seek(startSec);
+      syncPlaybackUi({
+        playing: player.playing,
+        currentSec: startSec,
+        durationSec: player.durationSec,
+        measureIndex: i,
+      });
+    } catch (err) {
+      if (typeof showAlert === 'function') {
+        showAlert(err?.message || 'Playback failed.');
+      }
+      console.error(err);
     }
-    else player.seek(startSec);
-    syncPlaybackUi({
-      playing: player.playing,
-      currentSec: startSec,
-      durationSec: player.durationSec,
-      measureIndex: i,
-    });
   }
 
   function seekToBeat(beat, { autoplay = false } = {}) {
     if (!isAlive()) return;
-    const measures = state.viewModel?.measures || [];
-    const quarterBeat = Number(beat);
-    if (!Number.isFinite(quarterBeat)) return;
-    const timeline = activePlaybackTimeline();
-    const fromSec = timeline?.secondsAtQuarter
-      ? timeline.secondsAtQuarter(quarterBeat)
-      : quartersToSeconds(quarterBeat, state.bpm);
-    let measureIndex = 0;
-    if (measures.length) {
-      const scope = stateController.getScope();
-      const idx = measureIndexAtBeat(measures, quarterBeat);
-      measureIndex = Math.max(scope.start, Math.min(scope.end, idx));
-      state.navBar = measureIndex;
+    try {
+      const measures = state.viewModel?.measures || [];
+      const quarterBeat = Number(beat);
+      if (!Number.isFinite(quarterBeat)) return;
+      const timeline = activePlaybackTimeline();
+      const fromSec = timeline?.secondsAtQuarter
+        ? timeline.secondsAtQuarter(quarterBeat)
+        : quartersToSeconds(quarterBeat, state.bpm);
+      let measureIndex = 0;
+      if (measures.length) {
+        const scope = stateController.getScope();
+        const idx = measureIndexAtBeat(measures, quarterBeat);
+        measureIndex = Math.max(scope.start, Math.min(scope.end, idx));
+        state.navBar = measureIndex;
+      }
+      if (autoplay || player.playing) {
+        clearCountIn();
+        ensureAudio();
+        player.play({ fromSec });
+      } else player.seek(fromSec);
+      syncPlaybackUi({
+        playing: player.playing,
+        currentSec: fromSec,
+        durationSec: player.durationSec,
+        measureIndex,
+      });
+    } catch (err) {
+      if (typeof showAlert === 'function') {
+        showAlert(err?.message || 'Playback failed.');
+      }
+      console.error(err);
     }
-    if (autoplay || player.playing) {
-      clearCountIn();
-      ensureAudio();
-      player.play({ fromSec });
-    } else player.seek(fromSec);
-    syncPlaybackUi({
-      playing: player.playing,
-      currentSec: fromSec,
-      durationSec: player.durationSec,
-      measureIndex,
-    });
   }
 
   function onSettingsChange(patch = {}) {
@@ -1626,7 +1641,14 @@ export function mountGpPlayer(host, {
     ensureAudio();
     bindPlayheadClockListeners();
     syncMetroToPlayer();
-    player.play({ fromSec: startSec });
+    try {
+      player.play({ fromSec: startSec });
+    } catch (err) {
+      if (typeof showAlert === 'function') {
+        showAlert(err?.message || 'Playback failed.');
+      }
+      console.error(err);
+    }
   }
 
   function countInBeats() {
@@ -1678,7 +1700,14 @@ export function mountGpPlayer(host, {
     ensureAudio();
     bindPlayheadClockListeners();
     beginPlaybackSession();
-    startPlayFromNav();
+    try {
+      startPlayFromNav();
+    } catch (err) {
+      if (typeof showAlert === 'function') {
+        showAlert(err?.message || 'Playback failed.');
+      }
+      console.error(err);
+    }
   }
 
   function startPlayback() {
@@ -1700,7 +1729,14 @@ export function mountGpPlayer(host, {
       clearCountIn();
       tempoRamp.pauseSession();
       stopPlayheadFrameLoop();
-      player.pause();
+      try {
+        player.pause();
+      } catch (err) {
+        if (typeof showAlert === 'function') {
+          showAlert(err?.message || 'Playback failed.');
+        }
+        console.error(err);
+      }
       transport?.sync();
     practiceRail?.sync();
     trackTabs?.sync();
@@ -1710,7 +1746,14 @@ export function mountGpPlayer(host, {
       ensureAudio();
       bindPlayheadClockListeners();
       tempoRamp.resumeSession();
-      player.play();
+      try {
+        player.play();
+      } catch (err) {
+        if (typeof showAlert === 'function') {
+          showAlert(err?.message || 'Playback failed.');
+        }
+        console.error(err);
+      }
       transport?.sync();
     practiceRail?.sync();
     trackTabs?.sync();
