@@ -689,6 +689,35 @@ export function parseCustomTuningText(text) {
   return out;
 }
 
+/** Standard 6-string guitar labels (low E through high e). */
+export const STANDARD_SIX_STRING_LABELS = ['E', 'A', 'D', 'G', 'B', 'e'];
+
+let _standardSixOpenCache = null;
+
+/** Open-string MIDI and pitch-class for each standard 6-string label. */
+export function standardSixStringOpenByLabel() {
+  if (!_standardSixOpenCache) {
+    const pitches = resolveTuningPitches('Standard');
+    const midis = pitchesToMidi(pitches);
+    _standardSixOpenCache = {};
+    STANDARD_SIX_STRING_LABELS.forEach((label, i) => {
+      _standardSixOpenCache[label] = {
+        midi: midis[i],
+        pc: ((midis[i] % 12) + 12) % 12,
+      };
+    });
+  }
+  return _standardSixOpenCache;
+}
+
+export function standardSixStringOpenMidi(label) {
+  return standardSixStringOpenByLabel()[label]?.midi ?? null;
+}
+
+export function standardSixStringOpenPc(label) {
+  return standardSixStringOpenByLabel()[label]?.pc ?? null;
+}
+
 export function createCustomTuningDraft(stringCount = 6, templateName = 'Standard') {
   const base = resolveTuningPitches(templateName);
   const pitches = [];

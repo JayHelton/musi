@@ -176,3 +176,164 @@ export function getChordNotes(rootStr, chordName) {
   if (!r || !def) return null;
   return def.tones.map(([lo, so]) => spellNote(r.li, r.semi, lo, so % 12));
 }
+
+/** Sorted unique semitone classes above the root for a catalog chord name. */
+export function chordSemitoneFormula(chordName) {
+  const def = CHORDS[chordName];
+  if (!def) return null;
+  const semis = def.tones.map(([, so]) => ((so % 12) + 12) % 12);
+  return [...new Set(semis)].sort((a, b) => a - b);
+}
+
+function triadQualityDisplayName(catalogName) {
+  if (catalogName === 'Sus 2' || catalogName === 'Sus 4') return catalogName;
+  return catalogName.replace(/ Triad$/, '');
+}
+
+const TRIAD_QUALITY_SPECS = [
+  { id: 'major', catalog: 'Major Triad', sym: '', displaySym: '', colorVar: '--triad-major' },
+  { id: 'minor', catalog: 'Minor Triad', sym: 'm', displaySym: 'm', colorVar: '--triad-minor' },
+  { id: 'diminished', catalog: 'Diminished Triad', sym: '°', displaySym: '°', colorVar: '--triad-diminished' },
+  { id: 'augmented', catalog: 'Augmented Triad', sym: '+', displaySym: '+', colorVar: '--triad-augmented' },
+  { id: 'sus2', catalog: 'Sus 2', sym: 'sus2', displaySym: 'sus2', colorVar: '--triad-sus2', optional: true },
+  { id: 'sus4', catalog: 'Sus 4', sym: 'sus4', displaySym: '4', colorVar: '--triad-sus4', optional: true },
+];
+
+/** Triad and sus rows for triad reference UI, derived from CHORDS tones. */
+export function triadQualities() {
+  return TRIAD_QUALITY_SPECS.map((spec) => {
+    const def = CHORDS[spec.catalog];
+    return {
+      id: spec.id,
+      name: triadQualityDisplayName(spec.catalog),
+      sym: spec.sym,
+      displaySym: spec.displaySym,
+      tones: def ? def.tones : [],
+      colorVar: spec.colorVar,
+      optional: !!spec.optional,
+    };
+  });
+}
+
+const DIATONIC_TRIAD_SUFFIX = {
+  major: '',
+  minor: 'm',
+  diminished: 'dim',
+  augmented: 'aug',
+};
+
+/** Diatonic triad quality from stacked third and fifth intervals above the root. */
+export function diatonicTriadQuality(thirdIv, fifthIv) {
+  for (const spec of TRIAD_QUALITY_SPECS) {
+    if (spec.optional) continue;
+    const def = CHORDS[spec.catalog];
+    if (!def || def.tones.length < 3) continue;
+    const third = def.tones[1][1] % 12;
+    const fifth = def.tones[2][1] % 12;
+    if (third === thirdIv && fifth === fifthIv) {
+      return {
+        name: triadQualityDisplayName(spec.catalog),
+        suffix: DIATONIC_TRIAD_SUFFIX[spec.id] ?? '',
+      };
+    }
+  }
+  return null;
+}
+
+// Chord-identification order (first match wins). Catalog names derive semitones from CHORDS.
+const CHORD_DETECT_SPECS = [
+  { catalog: 'Major', detectName: 'Major', sym: '' },
+  { catalog: 'Minor', detectName: 'Minor', sym: 'm' },
+  { catalog: 'Diminished Triad', detectName: 'Dim', sym: 'dim' },
+  { catalog: 'Augmented', detectName: 'Aug', sym: 'aug' },
+  { catalog: 'Sus 4', detectName: 'Sus4', sym: 'sus4' },
+  { catalog: 'Sus 2', detectName: 'Sus2', sym: 'sus2' },
+  { catalog: 'Power Chord (5)', detectName: 'Power', sym: '5' },
+  { catalog: 'Major 7', detectName: 'Maj7', sym: 'maj7' },
+  { catalog: 'Minor 7', detectName: 'Min7', sym: 'm7' },
+  { catalog: 'Dominant 7', detectName: 'Dom7', sym: '7' },
+  { catalog: 'Diminished 7', detectName: 'Dim7', sym: 'dim7' },
+  { catalog: 'Half Diminished (m7b5)', detectName: 'Half-dim7', sym: 'm7b5' },
+  // Not in CHORDS catalog — keep fixed semitones for detection output.
+  { semis: [0, 4, 8, 11], detectName: 'AugMaj7', sym: 'augMaj7' },
+  { catalog: 'Minor Major 7', detectName: 'MinMaj7', sym: 'mMaj7' },
+  { catalog: 'Dominant 9', detectName: 'Dom9', sym: '9' },
+  { catalog: 'Major 9', detectName: 'Maj9', sym: 'maj9' },
+  { catalog: 'Minor 9', detectName: 'Min9', sym: 'min9' },
+  // Not in CHORDS catalog — keep fixed semitones for detection output.
+  { semis: [0, 2, 4, 7], detectName: 'Add2', sym: 'add2' },
+  { semis: [0, 4, 5, 7], detectName: 'Add4', sym: 'add4' },
+  { catalog: 'Major 6', detectName: '6', sym: '6' },
+  { catalog: 'Minor 6', detectName: 'Min6', sym: 'm6' },
+  // Dyad not in CHORDS catalog — keep fixed semitones for detection output.
+  { semis: [0, 5], detectName: 'Fourth', sym: '(4)' },
+  { catalog: 'Root + b5', detectName: 'Tritone', sym: '(b5)' },
+  { catalog: 'Dominant 11', detectName: 'Dom11', sym: '11' },
+  // Legacy detection omitted the 11th — not the full CHORDS Dominant 13 set.
+  { semis: [0, 2, 4, 7, 9, 10], detectName: 'Dom13', sym: '13' },
+];
+
+/** Chord-type rows for pitch-class identification (order-sensitive). */
+export function chordTypesForDetection() {
+  return CHORD_DETECT_SPECS.map((spec) => {
+    if (spec.catalog) {
+      const semis = chordSemitoneFormula(spec.catalog);
+      return {
+        semis,
+        name: spec.detectName,
+        sym: spec.sym ?? CHORDS[spec.catalog]?.sym ?? '',
+      };
+    }
+    return { semis: spec.semis, name: spec.detectName, sym: spec.sym };
+  });
+}
+
+const CHORD_FORMULA_CATALOG = {
+  'Minor triad': 'Minor Triad',
+  'Major triad': 'Major Triad',
+  'Sus2': 'Sus 2',
+  'Sus4': 'Sus 4',
+  'Diminished': 'Diminished Triad',
+  'Augmented': 'Augmented',
+  'Power chord': 'Power Chord (5)',
+  'Minor add9': 'Minor Add 9',
+  'Add9': 'Add 9',
+  'Minor 7': 'Minor 7',
+  'Major 7': 'Major 7',
+  'Dominant 7': 'Dominant 7',
+};
+
+/** Named chord formulas for interval-orbit drills, keyed by display label. */
+export function chordFormulasByLabel() {
+  const out = {};
+  for (const [label, catalogName] of Object.entries(CHORD_FORMULA_CATALOG)) {
+    const semis = chordSemitoneFormula(catalogName);
+    if (semis) out[label] = semis;
+  }
+  return out;
+}
+
+const QUALITY_FORMULA_CATALOG = {
+  major: 'Major',
+  minor: 'Minor',
+  power: 'Power Chord (5)',
+  dim: 'Diminished Triad',
+  aug: 'Augmented',
+  sus2: 'Sus 2',
+  sus4: 'Sus 4',
+  maj7: 'Major 7',
+  min7: 'Minor 7',
+  dom7: 'Dominant 7',
+  add9: 'Add 9',
+  madd9: 'Minor Add 9',
+};
+
+/** Progression quality keys mapped to semitone formulas from CHORDS. */
+export function qualityFormulas() {
+  const out = {};
+  for (const [key, catalogName] of Object.entries(QUALITY_FORMULA_CATALOG)) {
+    const semis = chordSemitoneFormula(catalogName);
+    if (semis) out[key] = semis;
+  }
+  return out;
+}

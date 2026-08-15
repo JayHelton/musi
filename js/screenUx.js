@@ -1,7 +1,14 @@
 // Screen-level UX restructuring: setup summaries, subviews, focus mode,
 // and picker wiring. Preserves existing element IDs so domain modules keep working.
 import { getSetting, saveSetting } from './persistence.js';
-import { getContext, subscribeContext, setContext } from './musicalContext.js';
+import {
+  getContext,
+  subscribeContext,
+  openScope,
+  getEffective,
+  setAsDefault,
+  subscribeScope,
+} from './musicalContext.js';
 import { shortScaleName } from './scales.js';
 import { TUNINGS } from './theory.js';
 import { CHORDS } from './chords.js';
@@ -27,6 +34,13 @@ import {
 import { MAX_FOLDER_DEPTH, FOLDER_PATH_SEPARATOR } from './folderTree.js';
 
 let showSectionFn = null;
+let scalerefScopeId = null;
+
+const SCALEREF_TUNING_CAPS = {
+  tuning: {
+    compatible: (v) => !String(v).startsWith('7-String') && !String(v).startsWith('8-String'),
+  },
+};
 
 const MOBILE_UX_MQ = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 const LANDSCAPE_PHONE_MQ = '(orientation: landscape) and (max-height: 500px)';
@@ -47,7 +61,10 @@ const SETUP_SHEET_LANDSCAPE = `
 `;
 
 function ensureBackButton(section) {
-  if (!section || section.querySelector('.tool-back')) return;
+  if (!section) return;
+  if (section.dataset.toolPage === '1' || section.querySelector('.tool-page')) return;
+  if (section.id === 'sec-scaleref' || section.id === 'sec-metronome') return;
+  if (section.querySelector('.tool-back')) return;
   const head = section.querySelector('.section-head');
   if (!head) return;
   const btn = document.createElement('button');
@@ -80,7 +97,8 @@ export function syncSetupToolbars() {
   document.querySelectorAll('.setup-toolbar').forEach((host) => {
     const section = host.closest('.section');
     if (!section) return;
-    const back = section.querySelector('.tool-back');
+    if (section.dataset.toolPage === '1' || section.querySelector('.tool-page')) return;
+    const back = section.querySelector('.tool-back:not(.tool-page-back)');
     const inner = host.querySelector('.setup-summary-inner');
     const head = section.querySelector('.section-head');
     if (!back || !inner) return;
@@ -148,25 +166,62 @@ function setupScaleRef() {
     if (fbCard) fbCard.insertBefore(details, fbCard.querySelector('.ref-fb-scroll'));
   }
 
-  refreshScaleRefSetup();
+  if (!scalerefScopeId) {
+    scalerefScopeId = openScope({ toolId: 'scaleref', origin: 'tools' });
+    subscribeScope(scalerefScopeId, () => refreshScaleRefSetup());
+  }
   subscribeContext(() => refreshScaleRefSetup());
+  refreshScaleRefSetup();
 }
 
 function refreshScaleRefSetup() {
   const el = getSetupSummaryTarget('scaleref-setup');
   if (!el) return;
-  const c = getContext();
-  const tuning = getSetting('ref.tuning', getSetting('picker.lastTuning', 'Standard'));
+  const scopeId = scalerefScopeId;
+  const effective = scopeId
+    ? getEffective(scopeId, SCALEREF_TUNING_CAPS)
+    : getEffective('', SCALEREF_TUNING_CAPS);
+  const tuningFallback = effective.fallbacks?.tuning;
+  const tuningHint = tuningFallback
+    ? `was ${tuningFallback.fallbackFrom}`
+    : 'Tuning';
+
   renderSetupSummary(el, [
-    { key: 'root', label: 'Root', value: c.root, hint: 'Root', onClick: () => openRootPicker({ value: c.root, source: 'scaleref' }) },
-    { key: 'scale', label: 'Scale', value: shortScaleName(c.scale), hint: 'Scale', onClick: () => openScalePicker({ value: c.scale, source: 'scaleref' }) },
     {
-      key: 'tuning', label: 'Tuning', value: tuning, hint: 'Tuning',
+      key: 'root',
+      label: 'Root',
+      value: effective.root,
+      hint: 'Root',
+      onClick: () => openRootPicker({
+        value: effective.root,
+        source: 'scaleref',
+        scopeId,
+      }),
+    },
+    {
+      key: 'scale',
+      label: 'Scale',
+      value: shortScaleName(effective.scale),
+      hint: 'Scale',
+      onClick: () => openScalePicker({
+        value: effective.scale,
+        source: 'scaleref',
+        scopeId,
+      }),
+    },
+    {
+      key: 'tuning',
+      label: 'Tuning',
+      value: effective.tuning,
+      hint: tuningHint,
       onClick: async () => {
-        const next = await openTuningPicker({ value: tuning });
+        const next = await openTuningPicker({
+          value: effective.tuning,
+          scopeId,
+          source: 'scaleref',
+        });
         if (next && next !== 'Custom') {
           saveSetting('ref.tuning', next);
-          // Click matching sidebar item if present
           const item = document.querySelector(`#sl-ref-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
           if (item) item.click();
           refreshScaleRefSetup();
@@ -174,6 +229,23 @@ function refreshScaleRefSetup() {
       },
     },
   ]);
+
+  const host = el.closest('.setup-toolbar') || el.parentElement;
+  if (!host) return;
+  let defaultBtn = host.querySelector('.scaleref-set-default');
+  if (!defaultBtn) {
+    defaultBtn = document.createElement('button');
+    defaultBtn.type = 'button';
+    defaultBtn.className = 'setup-chip scaleref-set-default';
+    defaultBtn.textContent = 'Set as default';
+    defaultBtn.setAttribute('aria-label', 'Set root, scale, and tuning as default');
+    host.querySelector('.setup-summary')?.appendChild(defaultBtn);
+  }
+  defaultBtn.onclick = () => {
+    if (!scopeId) return;
+    setAsDefault(scopeId, ['root', 'scale', 'tuning']);
+    refreshScaleRefSetup();
+  };
 }
 
 function wireTriadSweepNav() {

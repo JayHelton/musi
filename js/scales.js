@@ -126,3 +126,10 @@ export function shortScaleName(name) {
     .replace(/\s*\(.*?\)\s*/g, ' ')
     .trim();
 }
+
+/** Semitone classes (0–11) for a named scale. */
+export function scaleIntervalClasses(scaleName) {
+  const def = SCALES[scaleName];
+  if (!def) return [];
+  return def.map(([, semi]) => semi);
+}

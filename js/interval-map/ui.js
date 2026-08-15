@@ -27,8 +27,9 @@ import {
   describeInterval, describeVector, noteLabel, pitchClassName, intervalClass,
   enabledIntervalsForLevel, randomRootPosition, rootsMatchingPitchClass,
   openMidisFromTuning, compareTuningShapes, getIntervalExplanation,
-  guitarTuningNames, getNearestPositionsByDirection, CHORD_TONE_INTERVALS, SCALE_MAJOR_INTERVALS,
+  guitarTuningNames, getNearestPositionsByDirection, CHORD_TONE_INTERVALS,
 } from './model.js';
+import { scaleIntervalClasses } from '../scales.js';
 import { generateValidQuestion, QUIZ_EXERCISES, PLAY_EXERCISES } from './questions.js';
 import {
   createRevealState, applyReveal, buildAttemptMeta, pickHint,
@@ -577,7 +578,7 @@ function mapFilterIntervals() {
   const levInts = new Set(enabledIntervalsForLevel(st.level));
   switch (st.mapFilter) {
     case 'chord': return CHORD_TONE_INTERVALS.filter(i => levInts.has(i) || i === 0);
-    case 'scale': return SCALE_MAJOR_INTERVALS.filter(i => levInts.has(i) || i === 0);
+    case 'scale': return scaleIntervalClasses('Major (Ionian)').filter(i => levInts.has(i) || i === 0);
     case 'one':   return st.mapInterval != null ? [st.mapInterval] : [...levInts];
     default:      return [...levInts];
   }

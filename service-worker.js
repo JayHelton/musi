@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v206-session-metronome-removed";
+const CACHE_VERSION = "v215-tool-first-phone-chrome";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -50,6 +50,9 @@ const PRECACHE_URLS = [
   "css/theme-gbc.css",
   "css/landscape.css",
   "css/boot-splash.css",
+  "css/route-notice.css",
+  "css/shell.css",
+  "css/tools-home.css",
   "chord-cards/",
   "chord-cards/index.html",
   "chord-cards/css/cards.css",
@@ -70,7 +73,20 @@ const PRECACHE_URLS = [
   "js/audio.js",
   "js/musicalContext.js",
   "js/home.js",
+  "js/tools/homeModel.js",
+  "js/tools/home.js",
+  "js/shell/nav.js",
+  "js/shell/navStack.js",
+  "js/shell/unsavedGuard.js",
+  "js/shell/toolPage.js",
+  "js/audioDock.js",
+  "css/tool-page.css",
+  "css/audio-dock.css",
+  "css/fretboard.css",
+  "js/fretboard/renderer.js",
+  "js/audioOwner.js",
   "js/appRoute.js",
+  "js/routeMap.js",
   "js/routineRoute.js",
   "js/routineDashboardModel.js",
   "js/routineNav.js",
@@ -129,6 +145,10 @@ const PRECACHE_URLS = [
   "js/notes.js",
   "js/nowPlaying.js",
   "js/persistence.js",
+  "js/migrations/index.js",
+  "js/migrations/notesUnfiled.js",
+  "js/migrations/exerciseMetadata.js",
+  "js/migrations/drumsToExercises.js",
   "js/practiceTimer.js",
   "js/pitch.js",
   "js/pitchMetrics.js",

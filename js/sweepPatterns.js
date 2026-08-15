@@ -3,13 +3,12 @@
 // transposed by semitone so any tonal center can be practised.
 
 import { parseNote, spellNote, NOTE_NAMES_SHARP } from './theory.js';
+import { standardSixStringOpenPc } from './tunings.js';
 import { SWEEP_LIBRARY, SWEEP_LIBRARY_COUNT } from './data/sweepLibrary.js';
 
 export { SWEEP_LIBRARY, SWEEP_LIBRARY_COUNT };
 
 const A_SEMI = 9;
-
-const OPEN_PC = { A: 9, D: 2, G: 7, B: 11, e: 4, E: 4 };
 
 export const SWEEP_STRING_SETS = {
   3: { id: 3, label: '3-string', strings: ['G', 'B', 'e'], used: 'G-B-e' },
@@ -213,7 +212,7 @@ export function buildSweepLayout(rootStr, pattern) {
 
   const byString = Object.fromEntries(set.strings.map((s) => [s, []]));
   tp.events.forEach((ev, order) => {
-    const pc = ((OPEN_PC[ev.s] + ev.f) % 12 + 12) % 12;
+    const pc = ((standardSixStringOpenPc(ev.s) + ev.f) % 12 + 12) % 12;
     const interval = (pc - root.semi + 12) % 12;
     const existing = byString[ev.s].find((f) => f.fret === ev.f);
     if (existing) {

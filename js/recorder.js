@@ -8,6 +8,9 @@ import { decodeAudioFile, transcribeBuffer } from './trackToSheet/transcribe.js'
 import { transcriptionToGpResult } from './trackToSheet/toTabModel.js';
 import { createAnalysisPanel } from './trackToSheet/analysisPanel.js';
 import { loadGpPlayerResult } from './gpPlayer.js';
+import { registerUnsaved, clearUnsaved } from './shell/unsavedGuard.js';
+import { claimAudio, releaseAudio } from './audioOwner.js';
+import { openSelectionSheet } from './selectionSheet.js';
 
 const recorder = {
   recording: false,
@@ -60,6 +63,16 @@ const recorder = {
 };
 
 let riffAnalysisPanel = null;
+let recorderAudioHandle = null;
+
+async function promptRecorderAudio({ title, choices }) {
+  const choiceId = await openSelectionSheet({
+    title,
+    items: choices.map((label) => ({ id: label, label })),
+    search: false,
+  });
+  return choiceId;
+}
 
 // Confidence-gated pitch detection shared with the vocal trainer. The
 // `clarity` score rejects breath/room noise so spurious notes don't enter the
@@ -398,6 +411,22 @@ async function startRecording(trigger = 'panel') {
 
   buildCaptureGraph();
 
+  const handle = await claimAudio({
+    id: 'recorder',
+    label: 'Audio Studio',
+    kind: 'recording',
+    unsaved: !!recorder.blob,
+    onStop: () => stopRecorder(),
+    handlers: { save: saveRecording, discard: clearRecording },
+  }, promptRecorderAudio);
+  if (!handle) {
+    releaseMicStream(recorder.stream);
+    recorder.stream = null;
+    syncHoldRecordUi(false);
+    return;
+  }
+  recorderAudioHandle = handle;
+
   const useWav = recorder.format === 'wav';
   if (useWav) {
     try {
@@ -514,6 +543,12 @@ function finalizeRecording() {
 
   showRiffCard();
   recognizeRiff();
+
+  registerUnsaved('recorder', {
+    describe: () => 'Unsaved recording',
+    save: () => saveRecording(),
+    discard: () => clearRecording(),
+  });
 }
 
 function renderKey() {
@@ -901,8 +936,10 @@ async function saveRecording() {
     source: 'recording',
   });
   if (btn) {
-    if (meta) { btn.textContent = 'Saved \u2713'; }
-    else { btn.disabled = false; btn.textContent = 'Save failed — retry'; }
+    if (meta) {
+      btn.textContent = 'Saved \u2713';
+      clearUnsaved('recorder');
+    } else { btn.disabled = false; btn.textContent = 'Save failed — retry'; }
   }
 }
 
@@ -929,6 +966,7 @@ function clearRecording(skipUi) {
   stopPlayback();
   if (recorder.blobUrl) { URL.revokeObjectURL(recorder.blobUrl); recorder.blobUrl = null; }
   recorder.blob = null;
+  clearUnsaved('recorder');
   recorder.chunks = [];
   recorder.pcmChunks = [];
   teardownCaptureGraph();

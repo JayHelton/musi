@@ -75,7 +75,7 @@ export function routeUrl({ id, params }, location) {
       : { pathname: '/', search: '' }
   );
   const base = loc.pathname + loc.search;
-  if (!id || id === 'home') return base;
+  if (!id || id === 'home' || id === 'tools') return base;
   return `${base}#${buildAppRoute({ id, params })}`;
 }
 

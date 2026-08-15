@@ -32,23 +32,41 @@ import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { initProgressHeaders } from './progressHeader.js';
-import { initHome, refreshHome, renderHub } from './home.js';
+import { renderHub } from './home.js';
+import { initShellNav, setActiveNav } from './shell/nav.js';
+import { initToolsHome, refreshToolsHome, recordToolVisit } from './tools/home.js';
 import { initStats } from './stats.js';
 import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
 import { initStudyLab, stopStudyLab } from './studyLab.js';
 import {
-  TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS,
+  CATEGORIES,
   getTabs, getTool, isHoldRecordRelevant, isFeatureEnabled,
 } from './tools.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
 import { parseAppRoute, routeUrl } from './appRoute.js';
+import { resolveRoute, shouldShowNotice, isKnownRoute, LEGACY_ROUTES } from './routeMap.js';
+import { initAudioDock } from './audioDock.js';
+import { mountToolPage } from './shell/toolPage.js';
+import {
+  pushRoute,
+  popRoute,
+  currentOrigin,
+  parentAddress,
+  saveViewState,
+  readViewState,
+  restoreScroll,
+  focusHeading,
+} from './shell/navStack.js';
+import { hasUnsaved, confirmLeave } from './shell/unsavedGuard.js';
+import { openSelectionSheet } from './selectionSheet.js';
+import { getExercises } from './exercises.js';
+import { runMigrations, createLiveContext } from './migrations/index.js';
 import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
 import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
 import { getRoutine } from './routineModel.js';
 import { getWorkbook } from './workbookModel.js';
 
-const ICONS = TOOL_ICONS;
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 
 const TOOL_STOPPERS = {
@@ -113,11 +131,15 @@ function initTool(id) {
 }
 
 let splitSecondaryId = null;
-let currentNavId = 'home';
+let currentNavId = 'tools';
+let currentRouteId = 'tools';
+let currentRouteParams = {};
 /** How many in-app pushState entries sit above the boot entry (phone Back pops these). */
 let navPushCount = 0;
 /** True while applying a popstate/hashchange so we don't push another history entry. */
 let applyingHistory = false;
+/** True for one hashchange that a replaceState already handled. */
+let suppressHashChange = false;
 
 function clearSplitPane() {
   if (!splitSecondaryId) return;
@@ -137,8 +159,24 @@ function hubCategory(id) {
 }
 
 function sectionUrl(id, params = {}) {
-  return routeUrl({ id: id || 'home', params });
+  return routeUrl({ id: id || 'tools', params });
 }
+
+const LIVE_SECTION_BY_ROUTE = {
+  tools: 'tools',
+  home: 'tools',
+  scalelab: 'scaleref',
+  fretmap: 'intervalorbit',
+  chordlab: 'chords',
+  pitchear: 'tuner',
+  metronome: 'metronome',
+  audiostudio: 'recorder',
+  songstudio: 'songwriter',
+  library: 'exercises',
+  routines: 'routines',
+  scoreplayer: 'gpplayer',
+  settings: 'musicprefs',
+};
 
 function resolveSectionAlias(id) {
   if (id === 'intervalmap') return 'intervalorbit';
@@ -146,11 +184,115 @@ function resolveSectionAlias(id) {
   return id;
 }
 
+function liveSectionId(routeId) {
+  if (!routeId) return 'tools';
+  if (LIVE_SECTION_BY_ROUTE[routeId]) return LIVE_SECTION_BY_ROUTE[routeId];
+  return resolveSectionAlias(routeId);
+}
+
+function routeResolveCtx() {
+  return {
+    hasDrumExercises() {
+      try {
+        return getExercises().some(item => item && item.instrument === 'drums');
+      } catch (e) {
+        return false;
+      }
+    },
+    noticesSeen: getSetting('route.noticesSeen', []),
+  };
+}
+
+function resolveIncomingRoute(id, params = {}) {
+  const resolved = resolveRoute({ id: id || '', params }, routeResolveCtx());
+  return {
+    routeId: resolved.id,
+    sectionId: liveSectionId(resolved.id),
+    params: resolved.params || {},
+    notice: resolved.notice,
+  };
+}
+
 function isValidSection(id) {
-  const resolved = resolveSectionAlias(id);
-  return resolved === 'home' ||
-    isHubId(resolved) && CATEGORIES.some(c => c.id === hubCategory(resolved)) ||
-    getTabs().some(t => t.id === resolved);
+  if (id === '' || id === 'home') return true;
+  if (isKnownRoute(id) || LEGACY_ROUTES[id]) return true;
+  const sectionId = liveSectionId(id);
+  if (sectionId === ROUTINE_ROUTE_ID) return true;
+  return sectionId === 'tools' || getTabs().some(t => t.id === sectionId);
+}
+
+async function promptUnsaved({ title, choices }) {
+  const choiceId = await openSelectionSheet({
+    title,
+    items: choices.map((label) => ({ id: label, label })),
+    search: false,
+  });
+  return choiceId;
+}
+
+async function guardLeave({ fromPopstate = false } = {}) {
+  if (!hasUnsaved()) return true;
+  const choice = await confirmLeave(promptUnsaved);
+  if (choice === 'keep') {
+    if (fromPopstate) history.forward();
+    return false;
+  }
+  return true;
+}
+
+function saveLeaveViewState(sectionId) {
+  if (sectionId === 'tools') {
+    const state = readViewState('tools') || {};
+    saveViewState('tools', {
+      ...state,
+      scrollY: window.scrollY,
+      purpose: getSetting('tools.purpose', 'train'),
+    });
+  }
+  if (sectionId === 'exercises') {
+    const state = readViewState('library:exercises') || {};
+    saveViewState('library:exercises', { ...state, scrollY: window.scrollY });
+  }
+}
+
+function restoreArriveViewState(sectionId) {
+  if (sectionId === 'tools') {
+    const state = readViewState('tools');
+    const purpose = state?.purpose;
+    if (purpose === 'train' || purpose === 'study' || purpose === 'create') {
+      saveSetting('tools.purpose', purpose);
+    }
+    restoreScroll('tools');
+  }
+  if (sectionId === 'exercises') {
+    restoreScroll('library:exercises');
+  }
+}
+
+function mountToolPageIfNeeded(sectionId, sec) {
+  if (sectionId !== 'scaleref' && sectionId !== 'metronome') return;
+  if (sec.dataset.toolPage === '1') return;
+  const tool = getTool(sectionId);
+  if (!tool) return;
+  mountToolPage(sec, {
+    id: sectionId,
+    title: tool.title || tool.label,
+    modes: tool.modes || [],
+    defaultMode: tool.defaultMode || '',
+    contextFields: sectionId === 'scaleref' ? ['root', 'scale', 'tuning'] : ['tempo'],
+    moreItems: [],
+    isFavorite: (getSetting('home.favorites', []) || []).includes(sectionId),
+    onBack: () => goBack(() => applyRoute({ id: 'tools', params: {}, mode: 'replace', source: 'internal' })),
+    onFavorite: (next) => {
+      const favs = getSetting('home.favorites', []) || [];
+      const list = Array.isArray(favs) ? [...favs] : [];
+      const index = list.indexOf(sectionId);
+      if (next && index < 0) list.push(sectionId);
+      else if (!next && index >= 0) list.splice(index, 1);
+      saveSetting('home.favorites', list);
+      refreshToolsHome();
+    },
+  });
 }
 
 function getRoutineSession(routine, sessionId) {
@@ -185,37 +327,46 @@ function updateHoldRecordVisibility(id) {
 }
 
 function updateHeaderChrome(id) {
-  const isTool = id && id !== 'home' && !isHubId(id);
+  const isRoot = id === 'home' || id === 'tools';
+  const isTool = id && !isRoot && !isHubId(id) && !!getTool(id);
   document.body.classList.toggle('tool-screen', !!isTool);
-  const tool = getTool(id);
-  document.querySelectorAll('.dock-cat-btn').forEach(btn => {
-    const cat = btn.dataset.cat;
-    let active = false;
-    if (id === 'home') active = cat === 'home';
-    else if (isHubId(id)) active = cat === hubCategory(id);
-    else if (tool) active = cat === tool.category;
-    btn.classList.toggle('active', active);
-  });
+  setActiveNav(id);
 }
 
-function showHub(categoryId, skipHash) {
-  showSection('hub-' + categoryId, skipHash);
+function showHub(_categoryId, skipHash) {
+  showSection('tools', skipHash);
 }
 
 /**
  * Navigate back through in-app screen history (same as the phone Back button).
  * Falls back to category hub / home when there is nothing left to pop.
  */
-function goBack(fallback) {
+async function goBack(fallback) {
+  const canLeave = await guardLeave();
+  if (!canLeave) return false;
+
   if (navPushCount > 0) {
     history.back();
     return true;
   }
+
   if (typeof fallback === 'function') {
     fallback();
     return false;
   }
-  if (currentNavId !== 'home') showSection('home');
+
+  const origin = (currentRouteId === ROUTINE_ROUTE_ID || currentNavId === 'workbooks')
+    ? 'routine'
+    : currentOrigin();
+  const parent = parentAddress(origin, { id: currentRouteId, params: currentRouteParams });
+  popRoute();
+  await applyRoute({
+    id: parent.id,
+    params: parent.params,
+    mode: 'replace',
+    source: 'internal',
+    origin,
+  });
   return false;
 }
 
@@ -230,30 +381,31 @@ function applySection(id, { keep = [] } = {}) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
 
-  const sec = document.getElementById('sec-' + id);
+  const sectionId = id === 'home' ? 'tools' : id;
+  const sec = document.getElementById('sec-' + sectionId);
   if (!sec) return;
 
   sec.classList.add('active');
-  currentNavId = id;
+  currentNavId = sectionId;
 
   document.querySelectorAll(`.dock-item[data-s="${id}"]`).forEach(el => el.classList.add('active'));
+
+  if (sectionId === 'tools') {
+    refreshToolsHome();
+    stopOtherTools([]);
+    updateHoldRecordVisibility(null);
+    updateHeaderChrome(sectionId);
+    updateSplitUI();
+    return;
+  }
 
   if (isHubId(id)) {
     const cat = hubCategory(id);
     saveSetting('nav.lastCategory', cat);
     renderHub(cat, sec, {
       showSection,
-      onFavorite: () => { refreshHome(); renderHub(cat, sec, { showSection, onFavorite: refreshHome }); },
+      onFavorite: () => { refreshToolsHome(); renderHub(cat, sec, { showSection, onFavorite: refreshToolsHome }); },
     });
-    stopOtherTools([]);
-    updateHoldRecordVisibility(null);
-    updateHeaderChrome(id);
-    updateSplitUI();
-    return;
-  }
-
-  if (id === 'home') {
-    refreshHome();
     stopOtherTools([]);
     updateHoldRecordVisibility(null);
     updateHeaderChrome(id);
@@ -265,12 +417,15 @@ function applySection(id, { keep = [] } = {}) {
   if (tool) {
     saveSetting('nav.lastTool', id);
     saveSetting('nav.lastCategory', tool.category);
+    recordToolVisit(id);
   }
 
-  const back = sec.querySelector('.tool-back');
-  if (back && tool) {
+  mountToolPageIfNeeded(sectionId, sec);
+
+  const back = sec.querySelector('.tool-back:not(.tool-page-back)');
+  if (back && tool && sec.dataset.toolPage !== '1') {
     const hubLabel = CATEGORIES.find(c => c.id === tool.category)?.label || 'Back';
-    back.onclick = () => goBack(() => showHub(tool.category));
+    back.onclick = () => goBack(() => applyRoute({ id: 'tools', params: {}, mode: 'replace', source: 'internal' }));
     back.textContent = `← ${hubLabel}`;
   }
 
@@ -279,31 +434,23 @@ function applySection(id, { keep = [] } = {}) {
   updateHoldRecordVisibility(id);
   updateHeaderChrome(id);
   updateSplitUI();
-  refreshHome();
   syncSetupToolbars();
 }
 
 function showSection(id, skipHash, params = {}) {
-  const toolForGate = getTool(id);
-  if (toolForGate && !isFeatureEnabled(id)) {
-    showSection('home', skipHash);
+  const incoming = resolveIncomingRoute(id, params);
+  const toolForGate = getTool(incoming.sectionId);
+  if (toolForGate && !isFeatureEnabled(incoming.sectionId)) {
+    showSection('tools', skipHash);
     return;
   }
-
-  const prevId = currentNavId;
-
-  if (!applyingHistory) {
-    const url = sectionUrl(id, params);
-    const histState = { musiNav: id, params };
-    if (skipHash || prevId === id) {
-      history.replaceState(histState, '', url);
-    } else {
-      history.pushState(histState, '', url);
-      navPushCount += 1;
-    }
-  }
-
-  applySection(id);
+  const mode = (skipHash || currentNavId === incoming.sectionId) ? 'replace' : 'push';
+  void applyRoute({
+    id: incoming.routeId,
+    params: incoming.params,
+    mode,
+    source: 'internal',
+  });
 }
 
 let routineNavigator = null;
@@ -334,8 +481,8 @@ const routineShell = {
     if (nav) nav.applyRoute(buildRoutineParams(parentRoute), { source: 'internal' });
   },
   goHome() {
-    applySection('home');
-    history.replaceState({ musiNav: 'home', params: {} }, '', sectionUrl('home'));
+    applySection('tools');
+    history.replaceState({ musiNav: 'tools', params: {} }, '', sectionUrl('tools'));
   },
   hasInAppHistory() {
     return navPushCount > 0;
@@ -378,49 +525,206 @@ function getRoutineNavigator() {
 
 function gatedSectionId(id) {
   const toolForGate = getTool(id);
-  if (toolForGate && !isFeatureEnabled(id)) return 'home';
+  if (toolForGate && !isFeatureEnabled(id)) return 'tools';
   return id;
 }
 
-function applyRoute({ id, params = {}, mode = 'push', source = 'internal' }) {
-  const resolved = resolveSectionAlias(id);
+const ROUTE_NOTICE_MESSAGES = {
+  'notice.scales-removed': 'The Scales screen moved to Scale Lab.',
+  'notice.intervals-removed': 'The Intervals quiz moved to Fretboard & Interval Map at Learn.',
+  'notice.fretboard-removed': 'The Fretboard trainer moved to Fretboard & Interval Map.',
+  'notice.chordlab-removed': 'This link now opens Chord Lab Reference.',
+  'notice.timing-removed': 'The Timing drill moved to Metronome.',
+  'notice.sightreading-removed': 'The Sight Reading quiz moved to Train.',
+  'notice.notes-removed': 'Your notes moved to Song Studio under Unfiled Notes.',
+  'notice.pitch-reference': 'The keyboard is now a pitch reference in Study.',
+  'notice.drums-removed': 'Drum patterns moved to exercises in Library.',
+};
 
-  if (resolved === ROUTINE_ROUTE_ID) {
+let activeRouteNoticeId = null;
+const PENDING_NOTICE_KEY = 'musi:routeNotice';
+
+function readPendingNotice() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_NOTICE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.id !== 'string') return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writePendingNotice(noticeId, routeId) {
+  if (typeof noticeId !== 'string' || noticeId === '') return;
+  try {
+    sessionStorage.setItem(PENDING_NOTICE_KEY, JSON.stringify({
+      id: noticeId,
+      routeId: routeId || '',
+    }));
+  } catch (e) {
+    // sessionStorage can be blocked; the live notice still shows on this pass
+  }
+}
+
+function clearPendingNotice() {
+  try {
+    sessionStorage.removeItem(PENDING_NOTICE_KEY);
+  } catch (e) {
+    // ignore
+  }
+}
+
+function syncRouteNoticeLayout() {
+  const el = document.getElementById('route-notice');
+  const visible = el && !el.hidden;
+  document.body.classList.toggle('route-notice-on', visible);
+  if (visible) {
+    document.body.style.setProperty('--route-notice-h', `${el.offsetHeight}px`);
+  } else {
+    document.body.classList.remove('route-notice-on');
+    document.body.style.removeProperty('--route-notice-h');
+  }
+}
+
+function hideRouteNotice() {
+  const el = document.getElementById('route-notice');
+  if (el) el.hidden = true;
+  syncRouteNoticeLayout();
+}
+
+function showRouteNotice(noticeId) {
+  const el = document.getElementById('route-notice');
+  const textEl = document.getElementById('route-notice-text');
+  if (!el || !textEl) return;
+  const message = ROUTE_NOTICE_MESSAGES[noticeId];
+  if (!message) return;
+  activeRouteNoticeId = noticeId;
+  textEl.textContent = message;
+  el.hidden = false;
+  syncRouteNoticeLayout();
+  requestAnimationFrame(() => syncRouteNoticeLayout());
+}
+
+function dismissRouteNotice(noticeId) {
+  const seen = getSetting('route.noticesSeen', []);
+  const next = Array.isArray(seen) ? [...seen] : [];
+  if (!next.includes(noticeId)) next.push(noticeId);
+  saveSetting('route.noticesSeen', next);
+  activeRouteNoticeId = null;
+  clearPendingNotice();
+  hideRouteNotice();
+}
+
+function updateRouteNotice(notice, routeId) {
+  if (typeof notice === 'string' && notice !== '') {
+    writePendingNotice(notice, routeId);
+  }
+  const pending = readPendingNotice();
+  const noticeId = (typeof notice === 'string' && notice !== '')
+    ? notice
+    : (pending && pending.routeId && pending.routeId === routeId ? pending.id : null);
+  if (noticeId) {
+    const seen = getSetting('route.noticesSeen', []);
+    if (shouldShowNotice(noticeId, seen)) {
+      showRouteNotice(noticeId);
+      return;
+    }
+  }
+  hideRouteNotice();
+}
+
+async function applyRoute({
+  id,
+  params = {},
+  mode = 'push',
+  source = 'internal',
+  notice = null,
+  origin = null,
+}) {
+  const inboundId = id;
+  const incoming = resolveIncomingRoute(inboundId, params);
+  let routeId = incoming.routeId;
+  let sectionId = gatedSectionId(incoming.sectionId);
+  const routeParams = incoming.params;
+  if (notice == null) notice = incoming.notice;
+  if (typeof notice === 'string' && notice !== '') {
+    writePendingNotice(notice, incoming.routeId);
+  }
+
+  if (!isValidSection(inboundId)) {
+    routeId = 'tools';
+    sectionId = 'tools';
+  }
+
+  const prevSectionId = currentNavId;
+  if (sectionId !== prevSectionId) {
+    const canLeave = await guardLeave({ fromPopstate: source === 'popstate' });
+    if (!canLeave) return;
+    saveLeaveViewState(prevSectionId);
+  }
+
+  currentRouteId = routeId;
+  currentRouteParams = { ...routeParams };
+
+  if (routeId === ROUTINE_ROUTE_ID) {
+    const routineOrigin = origin || (currentOrigin() === 'direct' ? 'routine' : currentOrigin()) || 'routine';
     if (!applyingHistory && mode !== 'none') {
-      const url = sectionUrl(ROUTINE_ROUTE_ID, params);
-      const histState = { musiNav: ROUTINE_ROUTE_ID, params };
+      const url = sectionUrl(ROUTINE_ROUTE_ID, routeParams);
+      const histState = { musiNav: ROUTINE_ROUTE_ID, params: routeParams };
       if (mode === 'replace') {
+        suppressHashChange = true;
         history.replaceState(histState, '', url);
       } else if (mode === 'push') {
+        suppressHashChange = true;
         history.pushState(histState, '', url);
         navPushCount += 1;
       }
     }
+    if (mode === 'push' || currentOrigin() === 'direct') {
+      pushRoute({ id: routeId, params: routeParams }, routineOrigin);
+    }
     const navigator = getRoutineNavigator();
     if (navigator) {
-      navigator.applyRoute(params, { source });
+      navigator.applyRoute(routeParams, { source });
     } else {
       applySection(ROUTINE_ROUTE_ID);
     }
+    updateRouteNotice(notice, routeId);
+    focusHeading(document.getElementById('sec-' + ROUTINE_ROUTE_ID));
     return;
   }
 
-  const targetId = resolved && isValidSection(resolved) ? gatedSectionId(resolved) : 'home';
-  const routeParams = targetId === resolved ? params : {};
-
-  if (mode === 'push') {
-    showSection(targetId, false, routeParams);
-    return;
-  }
-  if (mode === 'replace') {
-    if (!applyingHistory) {
-      history.replaceState({ musiNav: targetId, params: routeParams }, '', sectionUrl(targetId, routeParams));
+  if (!applyingHistory && mode !== 'none') {
+    const url = sectionUrl(routeId, routeParams);
+    const histState = { musiNav: routeId, params: routeParams };
+    if (mode === 'replace') {
+      suppressHashChange = true;
+      history.replaceState(histState, '', url);
+    } else if (mode === 'push') {
+      suppressHashChange = true;
+      history.pushState(histState, '', url);
+      navPushCount += 1;
+      pushRoute({ id: routeId, params: routeParams }, origin || currentOrigin() || 'direct');
     }
-    applySection(targetId);
-    return;
   }
-  applySection(targetId);
+
+  applySection(sectionId);
+  updateRouteNotice(notice, routeId);
+  restoreArriveViewState(sectionId);
+  focusHeading(document.getElementById('sec-' + sectionId));
 }
+
+function initRouteNoticeBanner() {
+  const closeBtn = document.getElementById('route-notice-close');
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      if (activeRouteNoticeId) dismissRouteNotice(activeRouteNoticeId);
+    };
+  }
+}
+
 window.showSection = showSection;
 window.showHub = showHub;
 window.goBack = goBack;
@@ -428,7 +732,7 @@ window.goBack = goBack;
 function enterSplit(secondaryId) {
   const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
   if (isMobileSwipeNav()) return;
-  if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || secondaryId === 'home') return;
+  if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || primaryId === 'tools' || secondaryId === 'home' || secondaryId === 'tools') return;
   if (isHubId(primaryId) || isHubId(secondaryId)) return;
   if (!getTabs().some(t => t.id === secondaryId)) return;
   splitSecondaryId = secondaryId;
@@ -502,7 +806,7 @@ function updateSplitUI() {
       if (sec) sec.classList.remove('active', 'split-secondary');
       splitSecondaryId = null;
       document.body.classList.remove('split-mode');
-      stopOtherTools(primaryId && !isHubId(primaryId) && primaryId !== 'home' ? [primaryId] : []);
+      stopOtherTools(primaryId && !isHubId(primaryId) && primaryId !== 'home' && primaryId !== 'tools' ? [primaryId] : []);
     }
     closeSplitMenu();
     trigger.style.display = 'none';
@@ -510,7 +814,7 @@ function updateSplitUI() {
     return;
   }
   const primary = currentPrimaryId();
-  trigger.style.display = (primary === 'home' || isHubId(primary)) ? 'none' : '';
+  trigger.style.display = (primary === 'home' || primary === 'tools' || isHubId(primary)) ? 'none' : '';
   trigger.classList.toggle('active', !!splitSecondaryId);
 }
 
@@ -542,65 +846,11 @@ function isMobileSwipeNav() {
 }
 
 function initNav() {
-  const nav = document.getElementById('nav');
-  if (!nav) return;
-
-  rebuildDesktopDock(nav);
-
-  // Mobile: 5 persistent destinations
-  const mobileCats = document.createElement('div');
-  mobileCats.className = 'dock-mobile-cats';
-  const destinations = [
-    { id: 'home', label: 'Home', icon: CATEGORY_ICONS.home, action: () => showSection('home') },
-    ...CATEGORIES.map(cat => ({
-      id: cat.id,
-      label: cat.short,
-      icon: CATEGORY_ICONS[cat.id],
-      action: () => {
-        // If already on a tool in this category, go to hub; else hub
-        const tool = getTool(currentNavId);
-        if (currentNavId === 'hub-' + cat.id) return;
-        if (tool && tool.category === cat.id && currentNavId === tool.id) {
-          showHub(cat.id);
-        } else {
-          showHub(cat.id);
-        }
-      },
-    })),
-  ];
-  destinations.forEach(dest => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'dock-cat-btn';
-    btn.dataset.cat = dest.id;
-    btn.innerHTML = `<span class="dock-icon">${dest.icon}</span><span class="dock-label">${dest.label}</span>`;
-    btn.onclick = dest.action;
-    mobileCats.appendChild(btn);
-  });
-  nav.appendChild(mobileCats);
-}
-
-function rebuildDesktopDock(navEl) {
-  const nav = navEl || document.getElementById('nav');
-  if (!nav) return;
-  nav.querySelectorAll('.dock-item.dock-desktop').forEach(el => el.remove());
-  const mobileCats = nav.querySelector('.dock-mobile-cats');
-  getTabs().forEach(t => {
-    const item = document.createElement('button');
-    item.className = 'dock-item dock-desktop';
-    item.dataset.s = t.id;
-    item.innerHTML = `<span class="dock-icon">${ICONS[t.id]}</span><span class="dock-label">${t.label}</span>`;
-    item.onclick = () => showSection(t.id);
-    if (mobileCats) nav.insertBefore(item, mobileCats);
-    else nav.appendChild(item);
-  });
-  if (currentNavId) {
-    document.querySelectorAll(`.dock-item[data-s="${currentNavId}"]`).forEach(el => el.classList.add('active'));
-  }
+  initShellNav({ showSection, currentId: currentNavId });
 }
 
 function rebuildNav() {
-  rebuildDesktopDock();
+  setActiveNav(currentNavId);
   closeSplitMenu();
   if (splitSecondaryId && !isFeatureEnabled(splitSecondaryId)) {
     exitSplit();
@@ -609,12 +859,29 @@ function rebuildNav() {
   }
 }
 
-function init() {
+async function init() {
+  const bootHash = location.hash;
+  const earlyBoot = parseAppRoute(bootHash);
+  const earlyResolved = resolveRoute({ id: earlyBoot.id, params: earlyBoot.params || {} });
+  if (earlyResolved.notice) writePendingNotice(earlyResolved.notice, earlyResolved.id);
   if ('scrollRestoration' in history) {
     history.scrollRestoration = 'manual';
   }
   initBootSplash();
+
+  try {
+    const report = await runMigrations(createLiveContext());
+    if (report.failed?.length) {
+      for (const failure of report.failed) {
+        console.warn(`Migration ${failure.id} failed at ${failure.stage}: ${failure.error}`);
+      }
+    }
+  } catch (err) {
+    console.warn('Migration runner failed:', err);
+  }
+
   initNav();
+  initRouteNoticeBanner();
 
   function buildList(containerId, items, defaultVal) {
     const container = document.getElementById(containerId);
@@ -694,12 +961,18 @@ function init() {
   initMetronome();
   initVisualizer();
   initNowPlaying();
+  initAudioDock(document.getElementById('audio-dock'));
   initHoldRecordButton();
   initProgressHeaders();
-  initHome({
+  initToolsHome({
     showSection,
-    showHub,
-    openRoute: (id, params) => applyRoute({ id, params, mode: 'push', source: 'internal' }),
+    openRoute: (routeId, routeParams, { origin } = {}) => applyRoute({
+      id: routeId,
+      params: routeParams || {},
+      mode: 'push',
+      source: 'internal',
+      origin: origin || 'tools',
+    }),
   });
   initStats();
   initMusicPreferences({ showSection });
@@ -708,60 +981,80 @@ function init() {
 
   window.addEventListener('musi:features-changed', () => {
     rebuildNav();
-    refreshHome();
+    refreshToolsHome();
     if (currentNavId && getTool(currentNavId) && !isFeatureEnabled(currentNavId)) {
-      showSection('home');
+      showSection('tools');
     }
   });
 
   const wordmark = document.getElementById('wordmark-home');
   if (wordmark) {
-    wordmark.onclick = () => showSection('home');
-    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('home'); } };
+    wordmark.onclick = () => showSection('tools');
+    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('tools'); } };
   }
 
-  const bootRoute = parseAppRoute(location.hash);
-  const bootId = resolveSectionAlias(bootRoute.id);
-  if (bootId && isValidSection(bootId)) {
-    applyRoute({ id: bootId, params: bootRoute.params, mode: 'replace', source: 'boot' });
+  const bootRoute = parseAppRoute(bootHash);
+  if (isValidSection(bootRoute.id)) {
+    await applyRoute({
+      id: bootRoute.id,
+      params: bootRoute.params,
+      mode: 'replace',
+      source: 'boot',
+    });
   } else {
-    history.replaceState({ musiNav: 'home', params: {} }, '', sectionUrl('home'));
-    updateHeaderChrome('home');
-    updateHoldRecordVisibility(null);
+    history.replaceState({ musiNav: 'tools', params: {} }, '', sectionUrl('tools'));
+    applySection('tools');
   }
 
   // Phone / browser Back: walk the screen stack instead of leaving the PWA.
-  window.addEventListener('popstate', (e) => {
+  window.addEventListener('popstate', async (e) => {
     applyingHistory = true;
     navPushCount = Math.max(0, navPushCount - 1);
+    popRoute();
     try {
-      let id = e.state?.musiNav;
-      let params = e.state?.params || {};
-      if (!id) {
+      let routeId = e.state?.musiNav;
+      let routeParams = e.state?.params || {};
+      if (!routeId) {
         const parsed = parseAppRoute(location.hash);
-        id = parsed.id;
-        params = parsed.params;
+        routeId = parsed.id;
+        routeParams = parsed.params;
       }
-      id = resolveSectionAlias(id);
-      if (isValidSection(id)) applyRoute({ id, params, mode: 'none', source: 'popstate' });
-      else applyRoute({ id: 'home', params: {}, mode: 'none', source: 'popstate' });
+      if (isValidSection(routeId)) {
+        await applyRoute({
+          id: routeId,
+          params: routeParams,
+          mode: 'none',
+          source: 'popstate',
+        });
+      } else {
+        await applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'popstate' });
+      }
     } finally {
       applyingHistory = false;
     }
   });
 
-  window.addEventListener('hashchange', () => {
+  window.addEventListener('hashchange', async () => {
+    if (suppressHashChange) {
+      suppressHashChange = false;
+      return;
+    }
     if (applyingHistory) return;
     const parsed = parseAppRoute(location.hash);
-    const id = resolveSectionAlias(parsed.id);
+    const incoming = resolveIncomingRoute(parsed.id, parsed.params);
     applyingHistory = true;
     try {
-      if (id && isValidSection(id)) {
-        if (id !== currentNavId) navPushCount += 1;
-        applyRoute({ id, params: parsed.params, mode: 'none', source: 'hashchange' });
-      } else if (!id) {
-        if (currentNavId !== 'home') navPushCount += 1;
-        applyRoute({ id: 'home', params: {}, mode: 'none', source: 'hashchange' });
+      if (parsed.id && isValidSection(parsed.id)) {
+        if (incoming.sectionId !== currentNavId) navPushCount += 1;
+        await applyRoute({
+          id: parsed.id,
+          params: parsed.params,
+          mode: 'none',
+          source: 'hashchange',
+        });
+      } else if (!parsed.id) {
+        if (currentNavId !== 'tools') navPushCount += 1;
+        await applyRoute({ id: 'tools', params: {}, mode: 'none', source: 'hashchange' });
       }
     } finally {
       applyingHistory = false;

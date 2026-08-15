@@ -37,9 +37,9 @@ records each confirmation in the table below. Name the quickstart steps that pas
 
 | Package | Story | Quickstart section | Status | Confirmed by |
 | --- | --- | --- | --- | --- |
-| WP-01 | US1 | WP-01 | pending | — |
-| WP-02 | US2 | WP-02 | pending | — |
-| WP-03 | US3 | WP-03 | pending | — |
+| WP-01 | US1 | WP-01 | done | Cloud agent. All 10 WP-01 steps pass |
+| WP-02 | US2 | WP-02 | done | Cloud agent. All 9 WP-02 steps pass |
+| WP-03 | US3 | WP-03 | done | Cloud agent. Steps 1, 4–7, 11–12, and notice/dismiss pass in the browser. Steps 2–3 wait for the Library package. Context and unsaved prompts pass in Node suites. |
 | WP-04 | US4 | WP-04 | pending | — |
 | WP-05 | US5 | WP-05 | pending | — |
 | WP-06 | US6 | WP-06 | pending | — |
@@ -54,9 +54,9 @@ this record. Fill the table in T001 and T003.
 
 | Item | Baseline value |
 | --- | --- |
-| Node runners that pass | pending |
-| `CACHE_VERSION` in `service-worker.js` | pending |
-| CLI activity list prints | pending |
+| Node runners that pass | All 32 suites in the quickstart baseline list pass. The list holds `tests/workbooks/run.mjs`, the six `tests/track-to-sheet/` suites, the four `tests/sync/` suites, `tests/study-lab/run.mjs`, `tests/routines/run.mjs`, `tests/routine-nav/run.mjs`, `tests/qr/run.mjs`, `tests/interval-map/run.mjs`, `tests/genre-removal/run.mjs`, `tests/exercises/run.mjs`, `tests/companions/run.mjs`, `tests/cloud/run.mjs`, `tests/folder-tree/run.mjs`, `tests/pitch/run.mjs`, and the twelve `tests/gp-player/` suites. The four new suites `tests/routes/run.mjs`, `tests/migrations/run.mjs`, `tests/shell/run.mjs`, `tests/library/run.mjs`, `tests/fretboard/run.mjs`, and `tests/removal-guard/run.mjs` did not exist at baseline. |
+| `CACHE_VERSION` in `service-worker.js` | `v205-nested-folder-tree` |
+| CLI activity list prints | Yes. `node cli/bin/musi.js --help` lists scale, interval, sight, fretboard, orbit, ear, pitch, reference, and tab |
 
 ---
 
@@ -64,10 +64,10 @@ this record. Fill the table in T001 and T003.
 
 **Purpose**: WP-00 records the baseline and changes no behavior.
 
-- [ ] T001 Run every Node runner under `tests/` and record the pass list in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
-- [ ] T002 [P] Run `node cli/bin/musi.js --help` and confirm the activity list prints for SC-029.
-- [ ] T003 Read `CACHE_VERSION` in `service-worker.js` and record the value in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
-- [ ] T004 [P] Compare `specs/005-tool-first-simplification/research-inventory.md` against each code path it names.
+- [X] T001 Run every Node runner under `tests/` and record the pass list in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
+- [X] T002 [P] Run `node cli/bin/musi.js --help` and confirm the activity list prints for SC-029.
+- [X] T003 Read `CACHE_VERSION` in `service-worker.js` and record the value in the Regression baseline table of `specs/005-tool-first-simplification/tasks.md`.
+- [X] T004 [P] Compare `specs/005-tool-first-simplification/research-inventory.md` against each code path it names.
 
 ---
 
@@ -77,12 +77,12 @@ this record. Fill the table in T001 and T003.
 
 **⚠️ CRITICAL**: No WP-01 task can start until this phase finishes.
 
-- [ ] T005 Extend `tests/exercises/idbShim.mjs` to shim the `musi-drums` IndexedDB database.
-- [ ] T006 Extend `tests/exercises/idbShim.mjs` to shim the `musi-attachments` object store.
-- [ ] T007 [P] Add empty-data fixtures in `tests/migrations/fixtures/emptyData.mjs` per decision D27.
-- [ ] T008 [P] Add normal-data fixtures in `tests/migrations/fixtures/normalData.mjs` per decision D27.
-- [ ] T009 [P] Add large-data fixtures in `tests/migrations/fixtures/largeData.mjs` per decision D27.
-- [ ] T010 [P] Add shared assertion helpers in `tests/migrations/assertHelpers.mjs` for the new suites.
+- [X] T005 Extend `tests/exercises/idbShim.mjs` to shim the `musi-drums` IndexedDB database.
+- [X] T006 Extend `tests/exercises/idbShim.mjs` to shim the `musi-attachments` object store.
+- [X] T007 [P] Add empty-data fixtures in `tests/migrations/fixtures/emptyData.mjs` per decision D27.
+- [X] T008 [P] Add normal-data fixtures in `tests/migrations/fixtures/normalData.mjs` per decision D27.
+- [X] T009 [P] Add large-data fixtures in `tests/migrations/fixtures/largeData.mjs` per decision D27.
+- [X] T010 [P] Add shared assertion helpers in `tests/migrations/assertHelpers.mjs` for the new suites.
 
 **Checkpoint**: `tests/exercises/idbShim.mjs` covers both databases, fixture sets exist, and assertion helpers are ready for WP-01 suites.
 
@@ -101,23 +101,39 @@ duplicate record, and that an old bookmark opens the correct destination.
 
 This phase is WP-01.
 
-- [ ] T011 [US1] Create `tests/migrations/run.mjs` with fixture rows from the three migration tables in `data-model.md`.
-- [ ] T012 [US1] Create `tests/routes/run.mjs` with the full legacy hash table from `contracts/route-map.md`.
-- [ ] T013 [P] [US1] Implement `resolveRoute`, `isKnownRoute`, `ROUTE_IDS`, and `LEGACY_ROUTES` in `js/routeMap.js`.
-- [ ] T014 [US1] Implement the registry and `runMigrations` in `js/migrations/index.js`.
-- [ ] T015 [P] [US1] Implement migration `notes-unfiled.v1` in `js/migrations/notesUnfiled.js`.
-- [ ] T016 [P] [US1] Implement migration `exercise-metadata.v1` in `js/migrations/exerciseMetadata.js`.
-- [ ] T017 [P] [US1] Implement migration `drums-to-exercises.v1` in `js/migrations/drumsToExercises.js`.
-- [ ] T018 [P] [US1] Add `linkedType` and `linkedId` defaults in `normalizeNote` in `js/notes.js`.
-- [ ] T019 [P] [US1] Add exercise metadata fields in `normalizeItem` in `js/exercises.js`.
-- [ ] T020 [US1] Await `runMigrations` in `init()` in `js/main.js` before the first render.
-- [ ] T021 [US1] Read `route.noticesSeen` when `applyRoute` runs in `js/main.js`.
-- [ ] T022 [US1] Read the `drumPatterns` sync inbox in `js/cloud/recordMap.js` for drums migration.
-- [ ] T023 [US1] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T024 [US1] Run `node tests/migrations/run.mjs` and fix every failure it reports.
-- [ ] T025 [US1] Run `node tests/routes/run.mjs` and fix every failure it reports.
-- [ ] T026 [US1] Walk through every numbered step in the WP-01 section of `specs/005-tool-first-simplification/quickstart.md`.
-- [ ] T027 [US1] Record WP-01 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
+- [X] T011 [US1] Create `tests/migrations/run.mjs` with fixture rows from the three migration tables in `data-model.md`.
+- [X] T012 [US1] Create `tests/routes/run.mjs` with the full legacy hash table from `contracts/route-map.md`.
+- [X] T013 [P] [US1] Implement `resolveRoute`, `isKnownRoute`, `ROUTE_IDS`, and `LEGACY_ROUTES` in `js/routeMap.js`.
+- [X] T014 [US1] Implement the registry and `runMigrations` in `js/migrations/index.js`.
+- [X] T015 [P] [US1] Implement migration `notes-unfiled.v1` in `js/migrations/notesUnfiled.js`.
+- [X] T016 [P] [US1] Implement migration `exercise-metadata.v1` in `js/migrations/exerciseMetadata.js`.
+- [X] T017 [P] [US1] Implement migration `drums-to-exercises.v1` in `js/migrations/drumsToExercises.js`.
+- [X] T018 [P] [US1] Add `linkedType` and `linkedId` defaults in `normalizeNote` in `js/notes.js`.
+- [X] T019 [P] [US1] Add exercise metadata fields in `normalizeItem` in `js/exercises.js`.
+- [X] T020 [US1] Await `runMigrations` in `init()` in `js/main.js` before the first render.
+- [X] T021 [US1] Read `route.noticesSeen` when `applyRoute` runs in `js/main.js`.
+- [X] T022 [US1] Read the `drumPatterns` sync inbox in `js/cloud/recordMap.js` for drums migration.
+- [X] T023 [US1] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
+- [X] T024 [US1] Run `node tests/migrations/run.mjs` and fix every failure it reports.
+- [X] T025 [US1] Run `node tests/routes/run.mjs` and fix every failure it reports.
+- [X] T026 [US1] Walk through every numbered step in the WP-01 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [X] T027 [US1] Record WP-01 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
+
+**WP-01 quickstart evidence.** The team runs the walk-through with the headless harness
+`tests/appcheck/run.mjs`. The harness seeds data on a page that loads no app module. It
+then boots the app and reports console errors.
+
+| Quickstart step | Evidence |
+| --- | --- |
+| 1. Boot with no error block | `appcheck: PASS (no console error and no exception)` on an empty profile |
+| 2. `migrations.applied` lists three ids | `["notes-unfiled.v1","exercise-metadata.v1","drums-to-exercises.v1"]` |
+| 3. Second reload adds no duplicate | `--reload 2` keeps three ids and two drum exercises |
+| 4. Notes keep `title`, `body`, `createdAt`, `updatedAt` | Five seeded notes keep every field. `normalizeNote` returns `linkedType` `""` and `linkedId` `""` |
+| 5. Two migrated drum exercises with `instrument` `drums` | `Seed groove` and `Seed fill`, each with `instrument` `drums` |
+| 6. Step data and `tab` text stay playable | The migration writes a `musi-drum-pattern` attachment for each pattern |
+| 7. `musi-drums` still exists until WP-09 | `indexedDbNames` lists `musi-attachments` and `musi-drums` |
+| 8, 9. Broken references stay non-blocking | The runner deletes no source record. `tests/migrations/run.mjs` asserts this rule |
+| 10. Legacy hashes open the listed destination | `tests/routes/run.mjs` asserts all 31 rows. WP-03 wires `resolveRoute` into `js/main.js` |
 
 **Checkpoint**: The app boots, migrations run idempotently, and every legacy bookmark in `contracts/route-map.md` resolves.
 
@@ -134,19 +150,33 @@ Metronome opens in two interactions or fewer.
 
 This phase is WP-02.
 
-- [ ] T028 [US2] Create `tests/shell/run.mjs` with pure `js/tools/homeModel.js` cases for FR-008 order, FR-009 empty sections, FR-008a Search scope, and FR-012a Recents cap.
-- [ ] T029 [P] [US2] Implement pure section order and five-entry Recents cap in `js/tools/homeModel.js`.
-- [ ] T030 [US2] Implement the Tools home renderer in `js/tools/home.js`.
-- [ ] T031 [P] [US2] Implement the app bar, rail, and bottom nav in `js/shell/nav.js`.
-- [ ] T032 [P] [US2] Add `purpose`, `modes`, and `defaultMode` to each tool in `js/tools.js`.
-- [ ] T033 [P] [US2] Create `css/shell.css` for the app bar and navigation chrome.
-- [ ] T034 [P] [US2] Create `css/tools-home.css` for Tools home sections and cards.
-- [ ] T035 [US2] Add shell markup and stylesheet links in `index.html`.
-- [ ] T036 [US2] Remove `rebuildDesktopDock` and the `hub-<categoryId>` routes from `js/main.js`.
-- [ ] T037 [US2] Flip the root route to `tools` with no hash in `js/main.js` and `js/appRoute.js`.
-- [ ] T038 [US2] Run `node tests/shell/run.mjs` and fix every failure it reports.
-- [ ] T039 [US2] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T040 [US2] Walk through every numbered step in the WP-02 section of `specs/005-tool-first-simplification/quickstart.md` and record WP-02 sign-off in `specs/005-tool-first-simplification/tasks.md`.
+- [X] T028 [US2] Create `tests/shell/run.mjs` with pure `js/tools/homeModel.js` cases for FR-008 order, FR-009 empty sections, FR-008a Search scope, and FR-012a Recents cap.
+- [X] T029 [P] [US2] Implement pure section order and five-entry Recents cap in `js/tools/homeModel.js`.
+- [X] T030 [US2] Implement the Tools home renderer in `js/tools/home.js`.
+- [X] T031 [P] [US2] Implement the app bar, rail, and bottom nav in `js/shell/nav.js`.
+- [X] T032 [P] [US2] Add `purpose`, `modes`, and `defaultMode` to each tool in `js/tools.js`.
+- [X] T033 [P] [US2] Create `css/shell.css` for the app bar and navigation chrome.
+- [X] T034 [P] [US2] Create `css/tools-home.css` for Tools home sections and cards.
+- [X] T035 [US2] Add shell markup and stylesheet links in `index.html`.
+- [X] T036 [US2] Remove `rebuildDesktopDock` and the `hub-<categoryId>` routes from `js/main.js`.
+- [X] T037 [US2] Flip the root route to `tools` with no hash in `js/main.js` and `js/appRoute.js`.
+- [X] T038 [US2] Run `node tests/shell/run.mjs` and fix every failure it reports.
+- [X] T039 [US2] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
+- [X] T040 [US2] Walk through every numbered step in the WP-02 section of `specs/005-tool-first-simplification/quickstart.md` and record WP-02 sign-off in `specs/005-tool-first-simplification/tasks.md`.
+
+**WP-02 quickstart evidence.** The team runs the walk-through with `tests/appcheck/run.mjs`.
+
+| Quickstart step | Evidence |
+| --- | --- |
+| 1. Empty hash opens Tools with Train selected | `activeSection` is `sec-tools`. Hash is empty. Train is active |
+| 2. Section order | Purpose switch, then Search, then Browse. Empty Favorites, Recents, and Continue stay hidden |
+| 3. Empty lists hide optional sections | No Favorites, Recents, or Continue on a fresh profile |
+| 4. No `No routines yet` text | `hasNoRoutinesYet` is false |
+| 5. Desktop rail lists four items | Tools, Library, Routines, Settings |
+| 6. Phone bar lists four items | Tools, Library, Routines, More |
+| 7. Metronome opens with no routine prompt | Click opens `sec-metronome`. `hasRoutinePrompt` is false |
+| 8. Tuner opens in two interactions or fewer | One click on Pitch & Ear Lab opens `sec-tuner` |
+| 9. Favorite add and remove | Favorites section appears with Metronome, then hides after remove |
 
 **Checkpoint**: The root opens Tools home, primary navigation lists no individual tool, and the Metronome opens without a routine prompt.
 
@@ -164,23 +194,23 @@ results, context precedence, dock visibility, and the unsaved-recording prompt.
 
 This phase is WP-03.
 
-- [ ] T041 [US3] Extend `tests/shell/run.mjs` with `navStack`, `toolPage`, and `unsavedGuard` cases from `contracts/tool-shell.md`.
-- [ ] T042 [P] [US3] Implement route origin and scroll restore in `js/shell/navStack.js`.
-- [ ] T043 [P] [US3] Implement `mountToolPage` with the standard header order in `js/shell/toolPage.js`.
-- [ ] T044 [P] [US3] Implement `registerUnsaved` with Save, Discard, and Keep editing in `js/shell/unsavedGuard.js`.
-- [ ] T045 [P] [US3] Add the scope API with `openScope` and `getEffective` in `js/musicalContext.js`.
-- [ ] T046 [US3] Implement `claimAudio` and `releaseAudio` in `js/audioOwner.js`.
-- [ ] T047 [US3] Show Save, Discard, and Cancel on the audio-claim prompt in `js/audioOwner.js`.
-- [ ] T048 [P] [US3] Implement the conditional Audio Dock in `js/audioDock.js`.
-- [ ] T049 [US3] Wire `resolveRoute` on boot and hashchange in `js/main.js`.
-- [ ] T050 [US3] Show dismissible route notices using `route.noticesSeen` in `js/main.js`.
-- [ ] T051 [P] [US3] Delegate scroll restore and focus to `navStack` from `js/routineNav.js`.
-- [ ] T052 [P] [US3] Add searchable option sets for the context row in `js/pickers.js`.
-- [ ] T053 [US3] Wire the context row to the scope API in `js/screenUx.js`.
-- [ ] T054 [US3] Run `node tests/shell/run.mjs` and fix every failure it reports.
-- [ ] T055 [US3] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
-- [ ] T056 [US3] Walk through every numbered step in the WP-03 section of `specs/005-tool-first-simplification/quickstart.md`.
-- [ ] T057 [US3] Record WP-03 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
+- [X] T041 [US3] Extend `tests/shell/run.mjs` with `navStack`, `toolPage`, and `unsavedGuard` cases from `contracts/tool-shell.md`.
+- [X] T042 [P] [US3] Implement route origin and scroll restore in `js/shell/navStack.js`.
+- [X] T043 [P] [US3] Implement `mountToolPage` with the standard header order in `js/shell/toolPage.js`.
+- [X] T044 [P] [US3] Implement `registerUnsaved` with Save, Discard, and Keep editing in `js/shell/unsavedGuard.js`.
+- [X] T045 [P] [US3] Add the scope API with `openScope` and `getEffective` in `js/musicalContext.js`.
+- [X] T046 [US3] Implement `claimAudio` and `releaseAudio` in `js/audioOwner.js`.
+- [X] T047 [US3] Show Save, Discard, and Cancel on the audio-claim prompt in `js/audioOwner.js`.
+- [X] T048 [P] [US3] Implement the conditional Audio Dock in `js/audioDock.js`.
+- [X] T049 [US3] Wire `resolveRoute` on boot and hashchange in `js/main.js`.
+- [X] T050 [US3] Show dismissible route notices using `route.noticesSeen` in `js/main.js`.
+- [X] T051 [P] [US3] Delegate scroll restore and focus to `navStack` from `js/routineNav.js`.
+- [X] T052 [P] [US3] Add searchable option sets for the context row in `js/pickers.js`.
+- [X] T053 [US3] Wire the context row to the scope API in `js/screenUx.js`.
+- [X] T054 [US3] Run `node tests/shell/run.mjs` and fix every failure it reports.
+- [X] T055 [US3] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.
+- [X] T056 [US3] Walk through every numbered step in the WP-03 section of `specs/005-tool-first-simplification/quickstart.md`.
+- [X] T057 [US3] Record WP-03 sign-off and quickstart evidence in `specs/005-tool-first-simplification/tasks.md`.
 
 **Checkpoint**: Back restores origin state, one audio owner holds playback, and unsaved prompts use the correct labels.
 
@@ -200,15 +230,15 @@ notice.
 
 This phase is WP-04.
 
-- [ ] T058 [US4] Create `tests/fretboard/run.mjs` for pure `fretPositions` output across tunings.
-- [ ] T059 [US4] Implement `fretPositions`, `renderFretboard`, and `FRET_MARKERS` in `js/fretboard/renderer.js`.
-- [ ] T060 [P] [US4] Create `css/fretboard.css` with theme tokens from `css/base.css`.
-- [ ] T061 [P] [US4] Remove `SCALE_MAJOR_INTERVALS` from `js/interval-map/model.js` and read `js/scales.js`.
-- [ ] T062 [P] [US4] Derive `TRIAD_QUALITIES` from `js/chords.js` in `js/triadReference.js`.
-- [ ] T063 [P] [US4] Remove `CHORD_TYPES` from `js/analysis/chordDetect.js` and read `js/chords.js`.
-- [ ] T064 [P] [US4] Remove `CHORD_FORMULAS` and `QUALITY_FORMULAS` from `js/intervalOrbitModel.js`.
-- [ ] T065 [P] [US4] Remove local `TRIAD_QUALITIES` from `js/scaleReference.js`.
-- [ ] T066 [P] [US4] Remove `SWEEP_OPEN_MIDI` from `js/sweepReference.js` and `OPEN_PC` from `js/sweepPatterns.js`.
+- [X] T058 [US4] Create `tests/fretboard/run.mjs` for pure `fretPositions` output across tunings.
+- [X] T059 [US4] Implement `fretPositions`, `renderFretboard`, and `FRET_MARKERS` in `js/fretboard/renderer.js`.
+- [X] T060 [P] [US4] Create `css/fretboard.css` with theme tokens from `css/base.css`.
+- [X] T061 [P] [US4] Remove `SCALE_MAJOR_INTERVALS` from `js/interval-map/model.js` and read `js/scales.js`.
+- [X] T062 [P] [US4] Derive `TRIAD_QUALITIES` from `js/chords.js` in `js/triadReference.js`.
+- [X] T063 [P] [US4] Remove `CHORD_TYPES` from `js/analysis/chordDetect.js` and read `js/chords.js`.
+- [X] T064 [P] [US4] Remove `CHORD_FORMULAS` and `QUALITY_FORMULAS` from `js/intervalOrbitModel.js`.
+- [X] T065 [P] [US4] Remove local `TRIAD_QUALITIES` from `js/scaleReference.js`.
+- [X] T066 [P] [US4] Remove `SWEEP_OPEN_MIDI` from `js/sweepReference.js` and `OPEN_PC` from `js/sweepPatterns.js`.
 - [ ] T067 [P] [US4] Replace private tuning in `js/movableChordCards.js` with the scope API in `js/musicalContext.js`.
 - [ ] T068 [US4] Replace private root and tuning in `js/sweepReference.js` with `js/musicalContext.js`.
 - [ ] T069 [US4] Mount Scale Lab modes and convert `js/scaleReference.js` to `renderFretboard` from `js/fretboard/renderer.js`.
@@ -216,7 +246,7 @@ This phase is WP-04.
 - [ ] T071 [US4] Mount Chord Lab modes and convert `js/chordReference.js`, `js/triadReference.js`, and `js/sweepReference.js` to `renderFretboard`.
 - [ ] T072 [P] [US4] Convert `js/exerciseCompanions/diagram.js` and `js/exerciseCompanions/triadRef.js` to `renderFretboard`.
 - [ ] T073 [US4] Retarget `tests/study-lab/run.mjs` at the Scale Lab Guide model and extend `tests/companions/run.mjs`.
-- [ ] T074 [US4] Run `node tests/fretboard/run.mjs` and fix every failure it reports.
+- [X] T074 [US4] Run `node tests/fretboard/run.mjs` and fix every failure it reports.
 - [ ] T075 [US4] Delete `js/scaleQuiz.js`, `js/intervalQuiz.js`, `js/fretboardTrainer.js`, `js/chordWorkout.js`, `js/studyLab.js`, and `js/studyLabMic.js` after redirects and tests pass per FR-105.
 - [ ] T076 [US4] Delete `css/quiz.css`, `css/chordworkout.css`, and `css/study-lab.css` after redirects and tests pass per FR-105.
 - [ ] T077 [US4] Bump `CACHE_VERSION` and update `PRECACHE_URLS` in `service-worker.js`.

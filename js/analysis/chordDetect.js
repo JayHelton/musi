@@ -9,36 +9,9 @@
 
 import { parseNote, NOTE_NAMES_SHARP, ROOTS_RAND } from '../theory.js';
 import { SCALES } from '../scales.js';
+import { chordTypesForDetection } from '../chords.js';
 
-export const CHORD_TYPES = [
-  // --- original chordBuilder set (order-sensitive, do not reorder) ---
-  {semis:[0,4,7],      name:'Major',   sym:''},
-  {semis:[0,3,7],      name:'Minor',   sym:'m'},
-  {semis:[0,3,6],      name:'Dim',     sym:'dim'},
-  {semis:[0,4,8],      name:'Aug',     sym:'aug'},
-  {semis:[0,5,7],      name:'Sus4',    sym:'sus4'},
-  {semis:[0,2,7],      name:'Sus2',    sym:'sus2'},
-  {semis:[0,7],        name:'Power',   sym:'5'},
-  {semis:[0,4,7,11],   name:'Maj7',    sym:'maj7'},
-  {semis:[0,3,7,10],   name:'Min7',    sym:'m7'},
-  {semis:[0,4,7,10],   name:'Dom7',    sym:'7'},
-  {semis:[0,3,6,9],    name:'Dim7',    sym:'dim7'},
-  {semis:[0,3,6,10],   name:'Half-dim7',sym:'m7b5'},
-  {semis:[0,4,8,11],   name:'AugMaj7', sym:'augMaj7'},
-  {semis:[0,3,7,11],   name:'MinMaj7', sym:'mMaj7'},
-  {semis:[0,4,7,10,14],name:'Dom9',    sym:'9'},
-  {semis:[0,4,7,11,14],name:'Maj9',    sym:'maj9'},
-  {semis:[0,3,7,10,14],name:'Min9',    sym:'min9'},
-  {semis:[0,2,4,7],    name:'Add2',    sym:'add2'},
-  {semis:[0,4,5,7],    name:'Add4',    sym:'add4'},
-  {semis:[0,4,7,9],    name:'6',       sym:'6'},
-  {semis:[0,3,7,9],    name:'Min6',    sym:'m6'},
-  // --- analyzer additions (only match note-sets the original set could not) ---
-  {semis:[0,5],        name:'Fourth',  sym:'(4)'},
-  {semis:[0,6],        name:'Tritone',  sym:'(b5)'},
-  {semis:[0,4,7,10,14,17], name:'Dom11', sym:'11'},
-  {semis:[0,4,7,10,14,21], name:'Dom13', sym:'13'},
-];
+export const CHORD_TYPES = chordTypesForDetection();
 
 /**
  * Identify the best chord for a set of pitch classes.

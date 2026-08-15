@@ -459,6 +459,27 @@ body.split-mode #ref-modes{display:none}
   .modal-chord-table th,.modal-chord-table td{padding:6px 8px;font-size:.74rem}
 }
 
+@media (max-width: 768px) {
+  #sec-scaleref,
+  .tool-page,
+  .tool-page-workspace,
+  .quiz-layout,
+  .quiz-main,
+  .ref-fb-card {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .ref-fb-sub {
+    overflow-wrap: anywhere;
+    text-overflow: unset;
+    overflow: visible;
+    white-space: normal;
+  }
+  .ref-fb-head {
+    min-width: 0;
+  }
+}
+
 @media (orientation: landscape) and (max-height: 380px) {
   #sec-scaleref .ref-fb-card{--ref-card-top-est:106px}
   #sec-triads .ref-fb-card{--ref-card-top-est:148px}
