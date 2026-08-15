@@ -46,7 +46,7 @@ import {
   viewModeNeedsAnalysis,
   applyViewModeClasses,
 } from './gpPlayer/viewModes.js';
-import { installGppLayoutMetrics } from './gpPlayer/layoutMetrics.js';
+import { installGppLayoutMetrics, releaseGpPlayerShell } from './gpPlayer/layoutMetrics.js';
 import {
   countInBeatCount,
   createTempoRampController,
@@ -784,37 +784,42 @@ export function mountGpPlayer(host, {
 
   function reloadModel() {
     if (!isAlive()) return;
-    stateController.applyTransforms();
-    if (!state.bpmUserOverride) state.bpm = state.scoreBpm;
-    const model = state.viewModel;
-    if (!model) return;
+    try {
+      stateController.applyTransforms();
+      if (!state.bpmUserOverride) state.bpm = state.scoreBpm;
+      const model = state.viewModel;
+      if (!model) return;
 
-    const beatLoop = hasBeatLoop();
-    const loadOpts = mixLoadBase();
-    if (state.loopEnabled && !beatLoop) {
-      loadOpts.loopMeasures = [state.loopStart, state.loopEnd];
+      const beatLoop = hasBeatLoop();
+      const loadOpts = mixLoadBase();
+      if (state.loopEnabled && !beatLoop) {
+        loadOpts.loopMeasures = [state.loopStart, state.loopEnd];
+      }
+      if (beatLoop) {
+        loadOpts.loopBeats = { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
+      }
+
+      const was = player.playing;
+      const at = player.currentSec;
+      const beat = (at / 60) * state.bpm;
+      player.load(loadOpts);
+      applyTrackVolumesToPlayer();
+      applyTrackPansToPlayer();
+      applyLoopToPlayer();
+      buildPlaybackTimeline();
+      const newSec = quartersToSeconds(beat, state.bpm);
+      if (was) player.play({ fromSec: newSec });
+      // A fresh mount has no position to keep, and seeking to zero would override
+      // the loop start load() just picked.
+      else if (at > 0) player.seek(newSec);
+
+      refreshScoreSurface();
+      syncMetroToPlayer();
+      emitPracticeSettings();
+    } catch (err) {
+      showAlert(err?.message || 'Could not load the score view.');
+      console.error(err);
     }
-    if (beatLoop) {
-      loadOpts.loopBeats = { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
-    }
-
-    const was = player.playing;
-    const at = player.currentSec;
-    const beat = (at / 60) * state.bpm;
-    player.load(loadOpts);
-    applyTrackVolumesToPlayer();
-    applyTrackPansToPlayer();
-    applyLoopToPlayer();
-    buildPlaybackTimeline();
-    const newSec = quartersToSeconds(beat, state.bpm);
-    if (was) player.play({ fromSec: newSec });
-    // A fresh mount has no position to keep, and seeking to zero would override
-    // the loop start load() just picked.
-    else if (at > 0) player.seek(newSec);
-
-    refreshScoreSurface();
-    syncMetroToPlayer();
-    emitPracticeSettings();
   }
 
   function refreshScoreSurface() {
@@ -1176,43 +1181,49 @@ export function mountGpPlayer(host, {
 
   // ---- mount UI modules ----
   const { guitar, perc } = parchmentModels();
-  parchment = mountParchmentView(parchmentHost, {
-    guitarModel: guitar,
-    percModel: perc,
-    zoom: state.parchmentZoom,
-    autoFollow: state.autoFollow,
-    loopSelectMode: false,
-    selection: state.loopEnabled
-      ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
-      : null,
-    onMeasureClick: (mi) => seekToBar(mi, { autoplay: player.playing }),
-    onAnnotationClick: (anno) => openNoteEditorForAnno(anno),
-    onNoteSelectionChange: (sel) => {
-      if (!scoreKey || !sel) return;
-      const measures = state.viewModel?.measures || [];
-      const { startIdx, endIdx } = measureIndicesForBeats(measures, sel.startBeat, sel.endBeat);
-      noteDraftSelection = {
-        startBeat: sel.startBeat,
-        endBeat: sel.endBeat,
-        measureStart: startIdx,
-        measureEnd: endIdx,
-      };
-      annoDrawer?.showEditor({ ...noteDraftSelection });
-    },
-    onSelectionChange: (sel) => {
-      loopController?.handleSelectionChange(sel);
-    },
-    onZoomLimit: (limit) => {
-      if (limit === parchmentZoomLimit) return;
-      parchmentZoomLimit = limit;
-      settingsDrawer?.sync?.();
-    },
-  });
-  if (typeof parchment?.getZoomLimit === 'function') {
-    const seeded = parchment.getZoomLimit();
-    if (typeof seeded === 'number' && Number.isFinite(seeded)) {
-      parchmentZoomLimit = seeded;
+  try {
+    parchment = mountParchmentView(parchmentHost, {
+      guitarModel: guitar,
+      percModel: perc,
+      zoom: state.parchmentZoom,
+      autoFollow: state.autoFollow,
+      loopSelectMode: false,
+      selection: state.loopEnabled
+        ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
+        : null,
+      onMeasureClick: (mi) => seekToBar(mi, { autoplay: player.playing }),
+      onAnnotationClick: (anno) => openNoteEditorForAnno(anno),
+      onNoteSelectionChange: (sel) => {
+        if (!scoreKey || !sel) return;
+        const measures = state.viewModel?.measures || [];
+        const { startIdx, endIdx } = measureIndicesForBeats(measures, sel.startBeat, sel.endBeat);
+        noteDraftSelection = {
+          startBeat: sel.startBeat,
+          endBeat: sel.endBeat,
+          measureStart: startIdx,
+          measureEnd: endIdx,
+        };
+        annoDrawer?.showEditor({ ...noteDraftSelection });
+      },
+      onSelectionChange: (sel) => {
+        loopController?.handleSelectionChange(sel);
+      },
+      onZoomLimit: (limit) => {
+        if (limit === parchmentZoomLimit) return;
+        parchmentZoomLimit = limit;
+        settingsDrawer?.sync?.();
+      },
+    });
+    if (typeof parchment?.getZoomLimit === 'function') {
+      const seeded = parchment.getZoomLimit();
+      if (typeof seeded === 'number' && Number.isFinite(seeded)) {
+        parchmentZoomLimit = seeded;
+      }
     }
+  } catch (err) {
+    parchment = null;
+    showAlert('Could not draw this score.');
+    console.error(err);
   }
 
   loopController = createLoopSelectionController({
@@ -1798,17 +1809,22 @@ export function mountGpPlayer(host, {
   parchment?.setShowStandardNotation?.(showStandardNotation);
 
   // Initial load
-  host.classList.remove('is-loading');
-  reloadModel();
-  scoreTrack.textContent = currentTrackLabel();
-  syncHeaderVisibility();
-  loopController.syncFromState();
-  if (viewModeNeedsAnalysis(viewMode)) maybeRunAnalysis({ force: true });
-  if (standaloneSection) {
-    layoutMetrics = installGppLayoutMetrics({ host, chrome, section: standaloneSection });
+  try {
+    host.classList.remove('is-loading');
+    reloadModel();
+    scoreTrack.textContent = currentTrackLabel();
+    syncHeaderVisibility();
+    loopController.syncFromState();
+    if (viewModeNeedsAnalysis(viewMode)) maybeRunAnalysis({ force: true });
+    if (standaloneSection) {
+      layoutMetrics = installGppLayoutMetrics({ host, chrome, section: standaloneSection });
+    }
+    layoutMetrics?.refresh();
+    transport?.publishPad?.();
+  } catch (err) {
+    showAlert(err?.message || 'Could not load the score view.');
+    console.error(err);
   }
-  layoutMetrics?.refresh();
-  transport?.publishPad?.();
 
   if (autoPlay) {
     autoPlayTimer = setTimeout(() => {
@@ -1864,45 +1880,54 @@ export function mountGpPlayer(host, {
     destroy() {
       if (!alive) return;
       alive = false;
-      cancelLoad(packScoreId);
-      stopPlayheadFrameLoop();
-      unbindPlayheadClockListeners();
-      playbackTimeline = null;
-      if (autoPlayTimer != null) {
-        clearTimeout(autoPlayTimer);
-        autoPlayTimer = null;
+      try {
+        try { cancelLoad(packScoreId); } catch (e) { console.error(e); }
+        try { stopPlayheadFrameLoop(); } catch (e) { console.error(e); }
+        try { unbindPlayheadClockListeners(); } catch (e) { console.error(e); }
+        playbackTimeline = null;
+        if (autoPlayTimer != null) {
+          clearTimeout(autoPlayTimer);
+          autoPlayTimer = null;
+        }
+        try { clearCountIn(); } catch (e) { console.error(e); }
+        try { stateController.destroy(); } catch (e) { console.error(e); }
+        try { player.destroy(); } catch (e) { console.error(e); }
+        try { parchment?.destroy(); } catch (e) { console.error(e); }
+        parchmentZoomLimit = Infinity;
+        try { measureNav?.destroy(); } catch (e) { console.error(e); }
+        try { transport?.destroy(); } catch (e) { console.error(e); }
+        try { practiceRail?.destroy(); } catch (e) { console.error(e); }
+        try { trackTabs?.destroy(); } catch (e) { console.error(e); }
+        try { trackMixer?.destroy(); } catch (e) { console.error(e); }
+        try { panelManager?.destroy(); } catch (e) { console.error(e); }
+        try { shortcutHelp?.destroy(); } catch (e) { console.error(e); }
+        try { settingsDrawer?.destroy(); } catch (e) { console.error(e); }
+        try { metronomePanel?.destroy(); } catch (e) { console.error(e); }
+        try { playerMenu?.destroy(); } catch (e) { console.error(e); }
+        try { annoDrawer?.destroy(); } catch (e) { console.error(e); }
+        try { importPanel?.destroy(); } catch (e) { console.error(e); }
+        try {
+          if (exerciseImportRoot?.parentElement) {
+            exerciseImportRoot.parentElement.removeChild(exerciseImportRoot);
+          }
+        } catch (e) { console.error(e); }
+        try { tracksDrawer?.destroy(); } catch (e) { console.error(e); }
+        try { layoutMetrics?.destroy(); } catch (e) { console.error(e); }
+        layoutMetrics = null;
+        try {
+          if (keyHandler) host.removeEventListener('keydown', keyHandler);
+        } catch (e) { console.error(e); }
+        try {
+          if (reducedMotionMq && reducedMotionHandler) {
+            reducedMotionMq.removeEventListener?.('change', reducedMotionHandler);
+          }
+        } catch (e) { console.error(e); }
+      } finally {
+        releaseGpPlayerShell({ host, section: standaloneSection });
+        host.classList.remove('gpp-reduced-motion');
+        host.innerHTML = '';
+        host.classList.remove('gpp-root', 'is-loading');
       }
-      clearCountIn();
-      stateController.destroy();
-      player.destroy();
-      parchment?.destroy();
-      parchmentZoomLimit = Infinity;
-      measureNav?.destroy();
-      transport?.destroy();
-      practiceRail?.destroy();
-      trackTabs?.destroy();
-      trackMixer?.destroy();
-      panelManager?.destroy();
-      shortcutHelp?.destroy();
-      settingsDrawer?.destroy();
-      metronomePanel?.destroy();
-      playerMenu?.destroy();
-      annoDrawer?.destroy();
-      importPanel?.destroy();
-      if (exerciseImportRoot?.parentElement) {
-        exerciseImportRoot.parentElement.removeChild(exerciseImportRoot);
-      }
-      tracksDrawer?.destroy();
-      layoutMetrics?.destroy();
-      layoutMetrics = null;
-      if (keyHandler) host.removeEventListener('keydown', keyHandler);
-      if (reducedMotionMq && reducedMotionHandler) {
-        reducedMotionMq.removeEventListener?.('change', reducedMotionHandler);
-      }
-      host.classList.remove('gpp-reduced-motion');
-      if (standaloneSection) standaloneSection.classList.remove('gpp-score-loaded');
-      host.innerHTML = '';
-      host.classList.remove('gpp-root', 'is-loading');
     },
   };
 }

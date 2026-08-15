@@ -132,6 +132,19 @@ function setLoading(loading) {
   drop?.querySelectorAll('button').forEach((btn) => { btn.disabled = state.loading; });
 }
 
+function resetStandaloneShell() {
+  const section = $('sec-gpplayer');
+  const stage = $('gpp-stage');
+  section?.classList.remove('gpp-score-loaded');
+  if (typeof document !== 'undefined') {
+    document.documentElement?.classList?.remove('gpp-player-locked');
+  }
+  if (stage) {
+    stage.classList.remove('gpp-root', 'is-loading', 'gpp-has-layout-metrics');
+    if (!state.mount) stage.innerHTML = '';
+  }
+}
+
 function destroyMount() {
   if (state.parseAbort) {
     try { state.parseAbort.abort(); } catch (e) { /* ignore */ }
@@ -141,6 +154,7 @@ function destroyMount() {
     try { state.mount.destroy(); } catch (e) { /* ignore */ }
     state.mount = null;
   }
+  resetStandaloneShell();
 }
 
 function fmtSize(bytes) {
@@ -750,6 +764,7 @@ export function unloadCurrentScore() {
   loadGeneration += 1;
   setLoading(false);
   destroyMount();
+  resetStandaloneShell();
   state.gp = null;
   state.bytes = null;
   state.title = '';
@@ -772,6 +787,7 @@ export function initGpPlayer() {
 
 export function stopGpPlayer() {
   destroyMount();
+  resetStandaloneShell();
   setReadProgress(null);
   setLoading(false);
 }

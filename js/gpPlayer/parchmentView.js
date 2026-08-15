@@ -630,151 +630,160 @@ export function mountParchmentView(host, {
 
   function rebuild() {
     if (destroyed) return;
-    sheet.innerHTML = '';
-    if (legendEl) {
-      legendEl.remove();
-      legendEl = null;
-    }
-    measureEls = [];
-    systemEls = [];
-    measureSystemIndex = [];
-    measureGeom = [];
-    playheadEl = null;
-    selOverlayEl = null;
-    handleStart = null;
-    handleEnd = null;
-    lastActiveBeatKey = '';
-
-    const ms = measures();
-    const hostW = host.clientWidth || 600;
-    const layoutWidthRawPx = measureLayoutWidthPx();
-    const layoutWidthPx = layoutWidthRawPx - ROW_EDGE_INSET_PX;
-    lastBuildHostW = hostW;
-    lastBuildLayoutWidthPx = layoutWidthRawPx;
-
-    if (!ms.length) {
-      reportZoomLimitIfChanged(Infinity);
-      return;
-    }
-
-    const desired = effectiveScale(hostW, currentZoom);
-
-    // The one measure per row rule follows the real screen, not the measured
-    // host and not the zoom. A container can report a width that does not
-    // match the device, and the learner still holds a phone.
-    const viewportW = (typeof window !== 'undefined' && window.innerWidth)
-      ? window.innerWidth
-      : hostW;
-    const onePerRow = Math.min(viewportW, hostW) <= ONE_BAR_MAX_WIDTH_PX;
-
-    // The layout works in units. One unit becomes `scale` pixels on screen.
-    // Pass the width in units, so the layout can fill the row exactly, and
-    // draw the text at the same scale as the glyph boxes. When the two used
-    // different scales, the fret numbers grew past their boxes and ran into
-    // each other and into the rhythm ticks.
-    function buildLayoutAtScale(scale) {
-      return layoutScore(model, {
-        widthPx: layoutWidthPx / scale,
-        zoom: 1,
-        showNotationStaff: showNotation,
-        showRhythm,
-        drumMode: isDrum,
-        drumLanes: isDrum ? activeDrumLanes().map((lane) => lane.key) : [],
-        minFretFontPx: LAYOUT_BASE_PX,
-        maxMeasuresPerSystem: onePerRow ? 1 : undefined,
-      });
-    }
-
-    let scale = desired;
-    scoreLayout = buildLayoutAtScale(scale);
-
-    let widestMinUnits = 0;
-    for (const bar of scoreLayout.bars) {
-      const minUnits = bar.minWidthUnits ?? bar.widthUnits;
-      if (minUnits > widestMinUnits) widestMinUnits = minUnits;
-    }
-
-    const fittedScale = scaleThatFits({
-      availablePx: layoutWidthPx,
-      barUnits: widestMinUnits,
-      desiredScale: desired,
-      minScale: MIN_FIT_SCALE,
-    });
-    if (fittedScale !== scale) {
-      scale = fittedScale;
-      scoreLayout = buildLayoutAtScale(scale);
-    }
-
-    const fit = widestMinUnits > 0
-      ? fitScaleForBar({ availablePx: layoutWidthPx, barUnits: widestMinUnits })
-      : null;
-    const limit = fit == null
-      ? Infinity
-      : Math.max(MIN_FIT_SCALE, fit) / autoScaleForHostWidth(hostW);
-    reportZoomLimitIfChanged(limit);
-
-    sheet.style.setProperty('--gpp-scale', String(scale));
-    const layoutFontPx = Math.max(12, Math.round(LAYOUT_BASE_PX * scale));
-    sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * scale))}px`);
-    sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * scale))}px`);
-
-    unitPx = scale;
-    sheet.style.fontSize = `${Math.max(12, Math.round(scoreLayout.fontPx * scale))}px`;
-    void layoutFontPx;
-
-    const captionText = tuningCaptionText();
-    if (captionText) {
-      const caption = document.createElement('div');
-      caption.className = 'gpp-parch-tuning-caption';
-      caption.textContent = captionText;
-      sheet.appendChild(caption);
-    }
-
-    scoreLayout.systems.forEach((sys) => {
-      const system = document.createElement('div');
-      system.className = 'gpp-parch-system';
-      system.appendChild(renderGutter());
-      sys.barIndices.forEach((bi) => {
-        const el = renderMeasure(bi, scoreLayout.bars[bi]);
-        system.appendChild(el);
-        measureEls[bi] = el;
-        measureSystemIndex[bi] = systemEls.length;
-      });
-      sheet.appendChild(system);
-      systemEls.push(system);
-    });
-
-    playheadEl = document.createElement('div');
-    playheadEl.className = 'gpp-parch-playhead';
-    playheadEl.hidden = true;
-    sheet.appendChild(playheadEl);
-
-    if (isDrum && activeDrumLanes().length) {
-      const legendRows = drumTabLegendFor(drumGlyphsUsed(model));
-      if (legendRows.length) {
-        legendEl = document.createElement('div');
-        legendEl.className = 'gpp-parch-drum-legend';
-        for (const row of legendRows) {
-          const item = document.createElement('span');
-          item.className = 'gpp-parch-legend-item';
-          const glyphSpan = document.createElement('span');
-          glyphSpan.className = 'gpp-parch-legend-glyph';
-          glyphSpan.textContent = row.glyph;
-          const textSpan = document.createElement('span');
-          textSpan.className = 'gpp-parch-legend-text';
-          textSpan.textContent = row.text;
-          item.append(glyphSpan, textSpan);
-          legendEl.appendChild(item);
-        }
-        viewport.appendChild(legendEl);
+    try {
+      sheet.innerHTML = '';
+      if (legendEl) {
+        legendEl.remove();
+        legendEl = null;
       }
-    }
+      measureEls = [];
+      systemEls = [];
+      measureSystemIndex = [];
+      measureGeom = [];
+      playheadEl = null;
+      selOverlayEl = null;
+      handleStart = null;
+      handleEnd = null;
+      lastActiveBeatKey = '';
 
-    paintSelection(sel);
-    paintNoteDraft(noteSel);
-    paintAnnotations(annotations, highlightedAnnoId);
-    paintActive(lastActive);
-    paintActiveBeat(activePosition);
+      const ms = measures();
+      const hostW = host.clientWidth || 600;
+      const layoutWidthRawPx = measureLayoutWidthPx();
+      const layoutWidthPx = layoutWidthRawPx - ROW_EDGE_INSET_PX;
+      lastBuildHostW = hostW;
+      lastBuildLayoutWidthPx = layoutWidthRawPx;
+
+      if (!ms.length) {
+        reportZoomLimitIfChanged(Infinity);
+        return;
+      }
+
+      const desired = effectiveScale(hostW, currentZoom);
+
+      // The one measure per row rule follows the real screen, not the measured
+      // host and not the zoom. A container can report a width that does not
+      // match the device, and the learner still holds a phone.
+      const viewportW = (typeof window !== 'undefined' && window.innerWidth)
+        ? window.innerWidth
+        : hostW;
+      const onePerRow = Math.min(viewportW, hostW) <= ONE_BAR_MAX_WIDTH_PX;
+
+      // The layout works in units. One unit becomes `scale` pixels on screen.
+      // Pass the width in units, so the layout can fill the row exactly, and
+      // draw the text at the same scale as the glyph boxes. When the two used
+      // different scales, the fret numbers grew past their boxes and ran into
+      // each other and into the rhythm ticks.
+      function buildLayoutAtScale(scale) {
+        return layoutScore(model, {
+          widthPx: layoutWidthPx / scale,
+          zoom: 1,
+          showNotationStaff: showNotation,
+          showRhythm,
+          drumMode: isDrum,
+          drumLanes: isDrum ? activeDrumLanes().map((lane) => lane.key) : [],
+          minFretFontPx: LAYOUT_BASE_PX,
+          maxMeasuresPerSystem: onePerRow ? 1 : undefined,
+        });
+      }
+
+      let scale = desired;
+      scoreLayout = buildLayoutAtScale(scale);
+
+      let widestMinUnits = 0;
+      for (const bar of scoreLayout.bars) {
+        const minUnits = bar.minWidthUnits ?? bar.widthUnits;
+        if (minUnits > widestMinUnits) widestMinUnits = minUnits;
+      }
+
+      const fittedScale = scaleThatFits({
+        availablePx: layoutWidthPx,
+        barUnits: widestMinUnits,
+        desiredScale: desired,
+        minScale: MIN_FIT_SCALE,
+      });
+      if (fittedScale !== scale) {
+        scale = fittedScale;
+        scoreLayout = buildLayoutAtScale(scale);
+      }
+
+      const fit = widestMinUnits > 0
+        ? fitScaleForBar({ availablePx: layoutWidthPx, barUnits: widestMinUnits })
+        : null;
+      const limit = fit == null
+        ? Infinity
+        : Math.max(MIN_FIT_SCALE, fit) / autoScaleForHostWidth(hostW);
+      reportZoomLimitIfChanged(limit);
+
+      sheet.style.setProperty('--gpp-scale', String(scale));
+      const layoutFontPx = Math.max(12, Math.round(LAYOUT_BASE_PX * scale));
+      sheet.style.setProperty('--gpp-note-pad-start', `${Math.max(6, Math.round(NOTE_PAD_START * scale))}px`);
+      sheet.style.setProperty('--gpp-note-pad-end', `${Math.max(5, Math.round(NOTE_PAD_END * scale))}px`);
+
+      unitPx = scale;
+      sheet.style.fontSize = `${Math.max(12, Math.round(scoreLayout.fontPx * scale))}px`;
+      void layoutFontPx;
+
+      const captionText = tuningCaptionText();
+      if (captionText) {
+        const caption = document.createElement('div');
+        caption.className = 'gpp-parch-tuning-caption';
+        caption.textContent = captionText;
+        sheet.appendChild(caption);
+      }
+
+      scoreLayout.systems.forEach((sys) => {
+        const system = document.createElement('div');
+        system.className = 'gpp-parch-system';
+        system.appendChild(renderGutter());
+        sys.barIndices.forEach((bi) => {
+          const el = renderMeasure(bi, scoreLayout.bars[bi]);
+          system.appendChild(el);
+          measureEls[bi] = el;
+          measureSystemIndex[bi] = systemEls.length;
+        });
+        sheet.appendChild(system);
+        systemEls.push(system);
+      });
+
+      playheadEl = document.createElement('div');
+      playheadEl.className = 'gpp-parch-playhead';
+      playheadEl.hidden = true;
+      sheet.appendChild(playheadEl);
+
+      if (isDrum && activeDrumLanes().length) {
+        const legendRows = drumTabLegendFor(drumGlyphsUsed(model));
+        if (legendRows.length) {
+          legendEl = document.createElement('div');
+          legendEl.className = 'gpp-parch-drum-legend';
+          for (const row of legendRows) {
+            const item = document.createElement('span');
+            item.className = 'gpp-parch-legend-item';
+            const glyphSpan = document.createElement('span');
+            glyphSpan.className = 'gpp-parch-legend-glyph';
+            glyphSpan.textContent = row.glyph;
+            const textSpan = document.createElement('span');
+            textSpan.className = 'gpp-parch-legend-text';
+            textSpan.textContent = row.text;
+            item.append(glyphSpan, textSpan);
+            legendEl.appendChild(item);
+          }
+          viewport.appendChild(legendEl);
+        }
+      }
+
+      paintSelection(sel);
+      paintNoteDraft(noteSel);
+      paintAnnotations(annotations, highlightedAnnoId);
+      paintActive(lastActive);
+      paintActiveBeat(activePosition);
+    } catch (err) {
+      sheet.innerHTML = '';
+      const errEl = document.createElement('div');
+      errEl.className = 'gpp-parch-error';
+      errEl.textContent = 'Could not draw this score.';
+      sheet.appendChild(errEl);
+      console.error(err);
+    }
   }
 
   function measureIndexAtBeatLocal(beat) {
