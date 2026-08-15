@@ -196,9 +196,10 @@ export function mountGpPlayer(host, {
   }
 
   function beginPackLoad() {
-    const programs = (gpResult.tracks || [])
-      .map((t) => t.model?.trackInfo?.program)
-      .filter((p) => p != null);
+    const programs = (gpResult.tracks || []).map((t) => {
+      const p = t.model?.trackInfo?.program;
+      return p != null ? p : 27;
+    });
     const drumNotes = [];
     for (const t of gpResult.drumTracks || []) {
       for (const e of t.model?.events || []) {

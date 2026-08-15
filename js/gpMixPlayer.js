@@ -9,7 +9,7 @@ import {
   setTrackBusPan,
   setTrackMuteSolo,
 } from './audio/mixBus.js';
-import { canUsePackOnNextStart, getLoadState } from './audio/sampleLoader.js';
+import { canUsePackOnNextStart, getLoadState, packBufferKey } from './audio/sampleLoader.js';
 import { getPack, packsForPrograms } from './audio/samplePackRegistry.js';
 import { pickPitchedSample, playDrumSample, pickDrumSample } from './audio/sampleVoice.js';
 import { createVoiceFactory } from './gpPlayer/instrumentVoices.js';
@@ -257,7 +257,7 @@ export function createGpMixPlayer(opts = {}) {
         const manifest = getPack(packIds[0]);
         const sample = pickPitchedSample(manifest, ev.midi, ev.velocity);
         if (sample) {
-          const buffer = session.buffers[sample.file];
+          const buffer = session.buffers[packBufferKey(manifest.id, sample.file)];
           if (buffer) {
             pack = {
               buffer,
@@ -284,26 +284,24 @@ export function createGpMixPlayer(opts = {}) {
     });
   }
 
-  function scheduleDrumVoice(ev, when, velocity) {
+  function scheduleDrumVoice(ev, when, velocity, destination) {
     const session = packSessionReady();
-    if (!session) return false;
+    if (!session) return null;
     const manifest = getPack('core-drums');
-    if (!manifest) return false;
+    if (!manifest) return null;
     const midiOrArt = ev.midi != null ? ev.midi : drumInstrument(ev);
     const sample = pickDrumSample(manifest, midiOrArt);
-    if (!sample) return false;
-    const buffer = session.buffers[sample.file];
-    if (!buffer) return false;
-    const dest = getMixDestination();
-    playDrumSample({
+    if (!sample) return null;
+    const buffer = session.buffers[packBufferKey(manifest.id, sample.file)];
+    if (!buffer) return null;
+    return playDrumSample({
       audioCtx,
       buffer,
       when,
       velocity,
-      destination: dest,
+      destination: destination || getMixDestination(),
       gainTrim: sample.gainTrim ?? 1,
     });
-    return true;
   }
 
   function registerVoice(voice) {
@@ -620,10 +618,12 @@ export function createGpMixPlayer(opts = {}) {
         chordSize,
       ));
     } else if (ev.kind === 'drum') {
+      ensureTrackGains();
       const vel = ev.velocity ?? 0.78;
-      if (!scheduleDrumVoice(ev, at, vel)) {
-        scheduleHit(drumInstrument(ev), at, vel);
-      }
+      const dest = state.trackGains.drum[ev.trackIndex] || getMixDestination();
+      const voice = scheduleDrumVoice(ev, at, vel, dest);
+      if (voice) registerVoice(voice);
+      else scheduleHit(drumInstrument(ev), at, vel);
     }
   }
 

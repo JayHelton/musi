@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { pickPitchedSample, pickDrumSample } from '../../js/audio/sampleVoice.js';
 import { registerCorePacks } from '../../js/audio/packCatalog.js';
 import { __resetPackRegistryForTests } from '../../js/audio/samplePackRegistry.js';
+import { packBufferKey } from '../../js/audio/sampleLoader.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -40,6 +41,8 @@ const DRUM_MANIFEST = {
     { file: 'hihatClosed.mp3', rootMidi: 42, articulation: 'hihatClosed' },
   ],
 };
+
+assert.equal(packBufferKey('core-guitar', 'n40.mp3'), 'core-guitar/n40.mp3');
 
 // pickPitchedSample: nearest rootMidi
 const near = pickPitchedSample(PITCH_MANIFEST, 43, 0.8);

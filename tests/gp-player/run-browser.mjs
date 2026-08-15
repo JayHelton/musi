@@ -24,6 +24,7 @@ const PAGES = [
   'render-cost.html',
   'peak-headroom.html',
   'pack-fallback.html',
+  'core-pack-load.html',
   'instrument-spectral.html',
   'realtime-dropouts.html',
   'realtime-ui-jank.html',

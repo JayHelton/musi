@@ -50,6 +50,11 @@ function resolveSampleUrl(pack, file) {
   return `${packBaseUrl(pack)}${file}`;
 }
 
+/** Unique buffer key so two packs can share a file name. */
+export function packBufferKey(packId, file) {
+  return `${packId}/${file}`;
+}
+
 function cacheNameForPack(pack) {
   return `musi-pack-${pack.id}-${pack.version}`;
 }
@@ -163,14 +168,15 @@ export async function loadPacksForScore({ scoreId, programs, drumNotes, audioCtx
       }
 
       try {
-        let buffer = bufferMap.get(file);
+        const key = packBufferKey(pack.id, file);
+        let buffer = bufferMap.get(key);
         if (!buffer) {
           const response = await fetchSample(pack, file);
           const arrayBuffer = await response.arrayBuffer();
           buffer = await audioCtx.decodeAudioData(arrayBuffer);
-          bufferMap.set(file, buffer);
+          bufferMap.set(key, buffer);
         }
-        buffers[file] = buffer;
+        buffers[key] = buffer;
         loaded += 1;
         report('Loading guitar sounds');
       } catch (e) {

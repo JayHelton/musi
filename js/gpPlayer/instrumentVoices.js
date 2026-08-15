@@ -232,7 +232,8 @@ export function createVoiceFactory(audioCtx) {
     pack = null,
   }) {
     if (pack?.buffer) {
-      return playSampleNote({
+      while (active.length >= MAX_ACTIVE_VOICES) stealOldest();
+      const handle = playSampleNote({
         audioCtx,
         buffer: pack.buffer,
         rootMidi: pack.rootMidi,
@@ -247,6 +248,13 @@ export function createVoiceFactory(audioCtx) {
         destination,
         gainTrim: pack.gainTrim ?? 1,
       });
+      if (typeof handle.source?.addEventListener === 'function') {
+        handle.source.addEventListener('ended', () => dropVoice(handle), { once: true });
+      } else if (handle.source) {
+        handle.source.onended = () => dropVoice(handle);
+      }
+      active.push(handle);
+      return handle;
     }
 
     const familyDef = FAMILIES[family] || FAMILIES.cleanGuitar;

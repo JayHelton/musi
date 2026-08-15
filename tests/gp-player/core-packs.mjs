@@ -49,6 +49,14 @@ for (const packId of CORE_PACK_IDS) {
       parsed.manifest.samples.length > 0,
       `${packId} has mp3 files but samples array is empty`,
     );
+    for (const sample of parsed.manifest.samples) {
+      if (!sample.file) continue;
+      assert.equal(
+        existsSync(join(packDir, sample.file)),
+        true,
+        `${packId} missing sample file ${sample.file}`,
+      );
+    }
   }
 }
 
