@@ -1,9 +1,10 @@
 import { getSetting, saveSetting } from './persistence.js';
 import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory, isFeatureEnabled } from './tools.js';
-import { buildRoutineCardModels } from './routineDashboardModel.js';
-import { listRoutines, getRoutineStats, getActiveRoutineSession } from './routineModel.js';
-import { createRoutineFromPrompt, importRoutineFromFile } from './routines.js';
-import { onDataChanged } from './dataEvents.js';
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+// import { buildRoutineCardModels } from './routineDashboardModel.js';
+// import { listRoutines, getRoutineStats, getActiveRoutineSession } from './routineModel.js';
+// import { createRoutineFromPrompt, importRoutineFromFile } from './routines.js';
+// import { onDataChanged } from './dataEvents.js';
 
 let showSectionFn = null;
 let showHubFn = null;
@@ -45,6 +46,8 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+/*
 function routineCardHtml(card) {
   const pct = Math.round((card.progress || 0) * 100);
   const desc = card.description
@@ -130,6 +133,7 @@ function renderRoutines(host) {
   wireRoutineActions(host);
   wireRoutineCards(host);
 }
+*/
 
 function renderAllTools(panel) {
   if (!panel) return;
@@ -293,12 +297,15 @@ export function initHome(config) {
       refreshHome();
     });
   }
+  // SIMPLIFY: Routines hidden. Keep this code to restore later.
+  /*
   if (!window.__musiRoutinesListener) {
     window.__musiRoutinesListener = true;
     onDataChanged((detail) => {
       if (detail.domain === 'routines') refreshHome();
     });
   }
+  */
 }
 
 export function refreshHome() {

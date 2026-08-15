@@ -1,8 +1,9 @@
 import { getSetting, saveSetting } from '../persistence.js';
 import { TOOLS, TOOL_ICONS, getTool, isFeatureEnabled } from '../tools.js';
 import { buildHomeSections, normalizeRecents, pushRecent } from './homeModel.js';
-import { listRoutines, getRoutineStats } from '../routineModel.js';
-import { onDataChanged } from '../dataEvents.js';
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+// import { listRoutines, getRoutineStats } from '../routineModel.js';
+// import { onDataChanged } from '../dataEvents.js';
 
 let showSectionFn = null;
 let openRouteFn = null;
@@ -38,11 +39,14 @@ function storedRecents() {
   return normalizeRecents(Array.isArray(v) ? v.filter(entry => entry && catalogIds.has(entry.id)) : []);
 }
 
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+/*
 function activeRoutines() {
   return listRoutines()
     .filter(r => getRoutineStats(r).pendingSessionCount > 0)
     .map(r => ({ id: r.id, name: r.name }));
 }
+*/
 
 function modeLabel(tool, modeId) {
   if (!tool || !modeId || !Array.isArray(tool.modes)) return '';
@@ -249,12 +253,15 @@ export function initToolsHome({ showSection, openRoute } = {}) {
     window.__musiToolsHomeFeaturesListener = true;
     window.addEventListener('musi:features-changed', () => refreshToolsHome());
   }
+  // SIMPLIFY: Routines hidden. Keep this code to restore later.
+  /*
   if (!window.__musiToolsHomeRoutinesListener) {
     window.__musiToolsHomeRoutinesListener = true;
     onDataChanged((detail) => {
       if (detail.domain === 'routines') refreshToolsHome();
     });
   }
+  */
 }
 
 export function refreshToolsHome() {

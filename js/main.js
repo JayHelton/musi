@@ -68,10 +68,11 @@ import { hasUnsaved, confirmLeave } from './shell/unsavedGuard.js';
 import { openSelectionSheet } from './selectionSheet.js';
 import { getExercises } from './exercises.js';
 import { runMigrations, createLiveContext } from './migrations/index.js';
-import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
-import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
-import { getRoutine } from './routineModel.js';
-import { getWorkbook } from './workbookModel.js';
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+// import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
+// import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
+// import { getRoutine } from './routineModel.js';
+// import { getWorkbook } from './workbookModel.js';
 import { initLibraryTabs, syncLibraryTabs } from './library/libraryTabs.js';
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
@@ -279,7 +280,8 @@ function isValidSection(id) {
     || id === 'hub-create'
     || id === 'circle'
     || id === 'triads'
-    || id === 'studylab'
+    // SIMPLIFY: Study Lab hidden.
+    // || id === 'studylab'
     || id === 'notes'
     || id === 'exercises'
     || id === 'workbooks'
@@ -288,7 +290,8 @@ function isValidSection(id) {
   }
   if (isKnownRoute(id) || LEGACY_ROUTES[id]) return true;
   const sectionId = liveSectionId(id, paramsForSectionProbe(id));
-  if (sectionId === ROUTINE_ROUTE_ID) return true;
+  // SIMPLIFY: Routines hidden. Keep this code to restore later.
+  // if (sectionId === ROUTINE_ROUTE_ID) return true;
   return ROOT_SECTION_IDS.has(sectionId) || getTabs().some(t => t.id === sectionId);
 }
 
@@ -378,6 +381,8 @@ function mountToolPageIfNeeded(sectionId, sec) {
   });
 }
 
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+/*
 function getRoutineSession(routine, sessionId) {
   if (!routine || !sessionId) return null;
   const sessions = Array.isArray(routine.sessions) ? routine.sessions : [];
@@ -403,6 +408,7 @@ function findRoutineCompanion(session, companionId) {
   }
   return null;
 }
+*/
 
 function updateHoldRecordVisibility(id) {
   const relevant = isHoldRecordRelevant(id);
@@ -442,9 +448,11 @@ async function goBack(fallback) {
     return false;
   }
 
-  const origin = (currentRouteId === ROUTINE_ROUTE_ID || currentNavId === 'workbooks')
-    ? 'routine'
-    : currentOrigin();
+  // SIMPLIFY: Routines hidden. Keep this code to restore later.
+  // const origin = (currentRouteId === ROUTINE_ROUTE_ID || currentNavId === 'workbooks')
+  //   ? 'routine'
+  //   : currentOrigin();
+  const origin = currentOrigin();
   const parent = parentAddress(origin, { id: currentRouteId, params: currentRouteParams });
   popRoute();
   await applyRoute({
@@ -571,6 +579,8 @@ function showSection(id, skipHash, params = {}) {
   });
 }
 
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+/*
 let routineNavigator = null;
 
 const routineShell = {
@@ -613,8 +623,6 @@ function onEntryReplace(route) {
 
 function getRoutineNavigator() {
   if (routineNavigator) return routineNavigator;
-  // SIMPLIFY: Routines navigator setup hidden. Routines UI is not live.
-  /*
   try {
     const root = document.getElementById('sec-routines');
     if (!root) return null;
@@ -641,9 +649,8 @@ function getRoutineNavigator() {
   } catch (_) {
     return null;
   }
-  */
-  return null;
 }
+*/
 
 function gatedSectionId(id) {
   const toolForGate = getTool(id);
@@ -793,6 +800,9 @@ async function applyRoute({
   currentRouteId = routeId;
   currentRouteParams = { ...routeParams };
 
+  // SIMPLIFY: Routines hidden. Keep this code to restore later.
+  // Routine routes fall through to the normal tools or reference path.
+  /*
   if (routeId === ROUTINE_ROUTE_ID) {
     const routineOrigin = origin || (currentOrigin() === 'direct' ? 'routine' : currentOrigin()) || 'routine';
     if (!applyingHistory && mode !== 'none') {
@@ -820,6 +830,7 @@ async function applyRoute({
     focusHeading(document.getElementById('sec-' + ROUTINE_ROUTE_ID));
     return;
   }
+  */
 
   if (!applyingHistory && mode !== 'none') {
     const url = sectionUrl(routeId, routeParams);

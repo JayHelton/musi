@@ -22,8 +22,9 @@ import { openRootPicker, openScalePicker } from './pickers.js';
 import { getMasterVolume, setMasterVolume } from './audio.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { loadCloudConfig, isCloudEnabled } from './cloud/cloudConfig.js';
-import { collectAttachedWorkbookIds } from './routineModel.js';
-import { listWorkbooks, deleteWorkbooksNotAttached, pruneMissingExercisesAll } from './workbookModel.js';
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+// import { collectAttachedWorkbookIds } from './routineModel.js';
+import { pruneMissingExercisesAll } from './workbookModel.js';
 import { getExercises, getExercisesWithoutFolder, deleteExercisesWithoutFolder } from './exercises.js';
 
 const CONTEXT_SOURCE = 'music-prefs';
@@ -535,10 +536,13 @@ function openConfirm(title, body, confirmLabel, onConfirm, { danger = false } = 
   dialogRoot.appendChild(overlay);
 }
 
+// SIMPLIFY: Routines hidden. Keep this code to restore later.
+/*
 function getUnattachedWorkbookCount() {
   const attached = collectAttachedWorkbookIds();
   return listWorkbooks().filter((wb) => !attached.has(wb.id)).length;
 }
+*/
 
 function paintLibraryCleanup() {
   const root = host?.querySelector('#mp-cleanup-root');
@@ -546,36 +550,23 @@ function paintLibraryCleanup() {
 
   root.innerHTML = `
     <div class="mp-cleanup-row">
-      <p class="mp-cleanup-count" id="mp-cleanup-wb-count"></p>
-      <button type="button" class="btn sm" id="mp-cleanup-wb-btn">Delete unattached workbooks</button>
-    </div>
-    <div class="mp-cleanup-row">
       <p class="mp-cleanup-count" id="mp-cleanup-ex-count"></p>
       <button type="button" class="btn sm" id="mp-cleanup-ex-btn">Delete unfiled exercises</button>
     </div>
     <div id="mp-cleanup-status" class="mp-cleanup-status" aria-live="polite"></div>
   `;
 
-  const wbCountEl = root.querySelector('#mp-cleanup-wb-count');
   const exCountEl = root.querySelector('#mp-cleanup-ex-count');
-  const wbBtn = root.querySelector('#mp-cleanup-wb-btn');
   const exBtn = root.querySelector('#mp-cleanup-ex-btn');
   const statusEl = root.querySelector('#mp-cleanup-status');
 
   function refreshCounts() {
-    const unattached = getUnattachedWorkbookCount();
     const unfiled = getExercisesWithoutFolder().length;
-    if (wbCountEl) {
-      wbCountEl.textContent = unattached === 1
-        ? '1 workbook is not attached to any routine session.'
-        : `${unattached} workbooks are not attached to any routine session.`;
-    }
     if (exCountEl) {
       exCountEl.textContent = unfiled === 1
         ? '1 exercise is in No folder.'
         : `${unfiled} exercises are in No folder.`;
     }
-    if (wbBtn) wbBtn.disabled = unattached === 0;
     if (exBtn) exBtn.disabled = unfiled === 0;
   }
 
@@ -584,24 +575,6 @@ function paintLibraryCleanup() {
   }
 
   refreshCounts();
-
-  if (wbBtn) {
-    wbBtn.onclick = () => {
-      const n = getUnattachedWorkbookCount();
-      if (!n) return;
-      openConfirm(
-        'Delete unattached workbooks?',
-        'These workbooks are not used by any routine session. Workbooks attached to a session are kept.',
-        `Delete ${n} workbook${n === 1 ? '' : 's'}`,
-        () => {
-          const deleted = deleteWorkbooksNotAttached(collectAttachedWorkbookIds());
-          setStatus(deleted === 1 ? 'Deleted 1 workbook.' : `Deleted ${deleted} workbooks.`);
-          refreshCounts();
-        },
-        { danger: true },
-      );
-    };
-  }
 
   if (exBtn) {
     exBtn.onclick = () => {
