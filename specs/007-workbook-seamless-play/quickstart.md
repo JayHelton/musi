@@ -11,10 +11,11 @@ node cli/bin/musi.js --help
 ## Browser check
 
 1. Serve the repo root over HTTP.
-2. Open Workbooks.
-3. Open a workbook with two Guitar Pro exercises.
-4. Turn Loop off.
-5. Press Play.
-6. Confirm the second exercise starts with no gap and no score reload.
-7. Press Next. Confirm the playhead jumps and playback continues.
-8. Turn Loop on. Confirm the current exercise repeats.
+2. Optional seed: open `tests/workbooks/seed-playthrough.html`.
+3. Open Workbooks.
+4. Open a workbook with two Guitar Pro exercises.
+5. Turn Loop off.
+6. Press Play.
+7. Confirm the second exercise starts with no gap and no score reload.
+8. Press Next. Confirm the playhead jumps and playback continues.
+9. Turn Loop on. Confirm the current exercise repeats.
