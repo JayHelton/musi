@@ -670,6 +670,7 @@ export function mountParchmentView(host, {
         lastBuildHostW = hostW;
         lastBuildLayoutWidthPx = layoutWidthRawPx;
         scheduleResizeQuiet();
+        rebuilding = false;
         return;
       }
 
@@ -744,12 +745,10 @@ export function mountParchmentView(host, {
         sheet.appendChild(errEl);
       }
       console.error(err);
-      return;
-    } finally {
       rebuilding = false;
+      return;
     }
 
-    rebuilding = true;
     try {
       if (legendEl) {
         legendEl.remove();
