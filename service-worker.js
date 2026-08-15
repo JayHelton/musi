@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v217-audio-engine-foundation";
+const CACHE_VERSION = "v218-core-sample-packs";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -75,6 +75,8 @@ const PRECACHE_URLS = [
   "js/audio/mixBus.js",
   "js/audio/samplePackRegistry.js",
   "js/audio/sampleLoader.js",
+  "js/audio/packCatalog.js",
+  "js/audio/sampleVoice.js",
   "js/musicalContext.js",
   "js/home.js",
   "js/tools/homeModel.js",

@@ -3,6 +3,7 @@
 // Drum hits stay in js/drums/drumEngine.js.
 
 import { midiFreq } from '../audio.js';
+import { playSampleNote } from '../audio/sampleVoice.js';
 
 const VOICE_FADE_SEC = 0.008;
 const MAX_ACTIVE_VOICES = 48;
@@ -228,7 +229,26 @@ export function createVoiceFactory(audioCtx) {
     slideKind = null,
     chordSize = 1,
     destination,
+    pack = null,
   }) {
+    if (pack?.buffer) {
+      return playSampleNote({
+        audioCtx,
+        buffer: pack.buffer,
+        rootMidi: pack.rootMidi,
+        midi,
+        when,
+        durSec,
+        velocity,
+        techniques,
+        bend,
+        slideKind,
+        chordSize,
+        destination,
+        gainTrim: pack.gainTrim ?? 1,
+      });
+    }
+
     const familyDef = FAMILIES[family] || FAMILIES.cleanGuitar;
     const tech = techniques || [];
     const muted = tech.includes('palmMute') || tech.includes('dead');

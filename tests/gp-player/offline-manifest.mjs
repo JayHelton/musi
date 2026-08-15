@@ -50,6 +50,8 @@ function collectRequiredModules() {
   files.add('js/audio/mixBus.js');
   files.add('js/audio/samplePackRegistry.js');
   files.add('js/audio/sampleLoader.js');
+  files.add('js/audio/packCatalog.js');
+  files.add('js/audio/sampleVoice.js');
   files.add('js/drums/drumEngine.js');
 
   // Inventory files that were missing from an earlier precache list.

@@ -11,6 +11,7 @@ import { analyzeModel } from './tab/tabAnalyzer.js';
 import { renderAnalysisReport } from './tab/tabAnalysisView.js';
 import { audioCtx, ensureAudio } from './audio.js';
 import { loadPacksForScore, cancelLoad, getPlaybackSourceState } from './audio/sampleLoader.js';
+import { registerCorePacks } from './audio/packCatalog.js';
 import { scheduleMetronomeClick } from './tab/metroClick.js';
 
 import { el, uid, fmtTime } from './gpPlayer/dom.js';
@@ -204,28 +205,33 @@ export function mountGpPlayer(host, {
         if (e?.midi != null) drumNotes.push(e.midi);
       }
     }
-    try {
-      const Ctx = typeof window !== 'undefined'
-        && (window.AudioContext || window.webkitAudioContext);
-      if (!Ctx || typeof Ctx !== 'function') {
+    (async () => {
+      try {
+        const Ctx = typeof window !== 'undefined'
+          && (window.AudioContext || window.webkitAudioContext);
+        if (!Ctx || typeof Ctx !== 'function') {
+          updateSourceLabel();
+          return;
+        }
+        ensureAudio();
+        if (!audioCtx) {
+          updateSourceLabel();
+          return;
+        }
+        await registerCorePacks();
+        await loadPacksForScore({
+          scoreId: packScoreId,
+          programs,
+          drumNotes,
+          audioCtx,
+          onProgress: () => updateSourceLabel(),
+        });
+      } catch (e) {
+        // Pack load must not block the score view.
+      } finally {
         updateSourceLabel();
-        return;
       }
-      ensureAudio();
-      if (!audioCtx) {
-        updateSourceLabel();
-        return;
-      }
-      loadPacksForScore({
-        scoreId: packScoreId,
-        programs,
-        drumNotes,
-        audioCtx,
-        onProgress: () => updateSourceLabel(),
-      }).then(() => updateSourceLabel());
-    } catch (e) {
-      updateSourceLabel();
-    }
+    })();
   }
   beginPackLoad();
 

@@ -9,7 +9,9 @@ import {
   setTrackBusPan,
   setTrackMuteSolo,
 } from './audio/mixBus.js';
-import { canUsePackOnNextStart } from './audio/sampleLoader.js';
+import { canUsePackOnNextStart, getLoadState } from './audio/sampleLoader.js';
+import { getPack, packsForPrograms } from './audio/samplePackRegistry.js';
+import { pickPitchedSample, playDrumSample, pickDrumSample } from './audio/sampleVoice.js';
 import { createVoiceFactory } from './gpPlayer/instrumentVoices.js';
 import { quartersToSeconds, modelHasRhythm } from './tab/tabModel.js';
 import { buildPlayOrder } from './tab/playOrder.js';
@@ -235,10 +237,38 @@ export function createGpMixPlayer(opts = {}) {
    * note, the audio thread walks more nodes on each render block, and the
    * sound starts to break up during a long session.
    */
+  function packSessionReady() {
+    if (state.playbackSource !== 'pack' || !state.scoreId) return null;
+    const session = getLoadState(state.scoreId);
+    if (session.status !== 'ready' || !session.buffers) return null;
+    return session;
+  }
+
   function scheduleGuitarVoice(factory, ev, when, dur, destination, chordSize = 1) {
     const model = state.guitarModels[ev.trackIndex];
-    const program = model?.trackInfo?.program;
-    const family = factory.familyForProgram(program != null ? program : 27);
+    const program = model?.trackInfo?.program != null ? model.trackInfo.program : 27;
+    const family = factory.familyForProgram(program);
+
+    let pack = null;
+    const session = packSessionReady();
+    if (session) {
+      const packIds = packsForPrograms([program]);
+      if (packIds.length) {
+        const manifest = getPack(packIds[0]);
+        const sample = pickPitchedSample(manifest, ev.midi, ev.velocity);
+        if (sample) {
+          const buffer = session.buffers[sample.file];
+          if (buffer) {
+            pack = {
+              buffer,
+              rootMidi: sample.rootMidi,
+              gainTrim: sample.gainTrim ?? 1,
+            };
+          }
+        }
+      }
+    }
+
     return factory.playNote({
       family,
       midi: ev.midi,
@@ -249,8 +279,31 @@ export function createGpMixPlayer(opts = {}) {
       bend: ev.bend ?? null,
       slideKind: ev.slideKind ?? null,
       chordSize,
+      pack,
       destination: destination || getMixDestination(),
     });
+  }
+
+  function scheduleDrumVoice(ev, when, velocity) {
+    const session = packSessionReady();
+    if (!session) return false;
+    const manifest = getPack('core-drums');
+    if (!manifest) return false;
+    const midiOrArt = ev.midi != null ? ev.midi : drumInstrument(ev);
+    const sample = pickDrumSample(manifest, midiOrArt);
+    if (!sample) return false;
+    const buffer = session.buffers[sample.file];
+    if (!buffer) return false;
+    const dest = getMixDestination();
+    playDrumSample({
+      audioCtx,
+      buffer,
+      when,
+      velocity,
+      destination: dest,
+      gainTrim: sample.gainTrim ?? 1,
+    });
+    return true;
   }
 
   function registerVoice(voice) {
@@ -567,7 +620,10 @@ export function createGpMixPlayer(opts = {}) {
         chordSize,
       ));
     } else if (ev.kind === 'drum') {
-      scheduleHit(drumInstrument(ev), at, ev.velocity ?? 0.78);
+      const vel = ev.velocity ?? 0.78;
+      if (!scheduleDrumVoice(ev, at, vel)) {
+        scheduleHit(drumInstrument(ev), at, vel);
+      }
     }
   }
 
