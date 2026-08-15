@@ -796,11 +796,13 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120,
         const beatIndex = rhythm.beatIndex;
 
         if (!beat.empty) {
+          const noteIndices = [];
           for (const n of beat.notes) {
             if (n.dead || n.tie || n.midi == null) continue;
             const velocity = dynamicsToVelocity(n.dynamics);
             const instrument = midiToDrumInstrument(n.midi, { velocity, ghost: n.ghost });
             if (!instrument) continue;
+            noteIndices.push(events.length);
             events.push({
               start: voiceCursor,
               duration,
@@ -811,6 +813,9 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120,
               voiceIndex,
               beatIndex,
             });
+          }
+          if (beats[beatIndex] && !beats[beatIndex].rest) {
+            beats[beatIndex].noteIndices = noteIndices;
           }
         }
 

@@ -1008,8 +1008,6 @@ export function createGpMixPlayer(opts = {}) {
     if (!state.events.length) rebuildEvents();
 
     if (!state.timeline?.events?.length && !state.metronomeEnabled) {
-      state.endedFired = true;
-      if (state.onEnded) state.onEnded();
       return;
     }
 

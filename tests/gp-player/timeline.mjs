@@ -276,4 +276,40 @@ const legacyTimeline = buildTimeline({
 assert.equal(legacyTimeline.events.length, 1);
 assert.equal(legacyTimeline.warnings.filter((w) => w.includes('beats')).length, 0);
 
+// Beats without noteIndices fall back to model.events.
+const beatFallbackModel = {
+  percussion: true,
+  beats: [{
+    measureIndex: 0,
+    voiceIndex: 0,
+    start: 0,
+    duration: 1,
+    rest: false,
+    noteIndices: [],
+    techniques: [],
+  }],
+  events: [{
+    start: 0,
+    duration: 1,
+    midi: 36,
+    velocity: 0.8,
+    instrument: 'kick',
+    dead: false,
+  }],
+  measures: [{ startSlot: 0, endSlot: 1, startBeat: 0, endBeat: 4 }],
+  tempo: 120,
+  totalBeats: 4,
+  slots: 1,
+  warnings: [],
+};
+const beatFallbackTimeline = buildTimeline({
+  playOrder: buildPlayOrder(beatFallbackModel.measures),
+  tempoMap: [],
+  baseBpm: 120,
+  rate: 1,
+  tracks: { guitarModels: [], drumModels: [beatFallbackModel] },
+});
+assert.equal(beatFallbackTimeline.events.length, 1);
+assert.equal(beatFallbackTimeline.events[0].instrument, 'kick');
+
 console.log('gp-player timeline: ok');

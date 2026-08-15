@@ -2,7 +2,12 @@
 // Run: node tests/gp-player/drum-parsing.mjs
 
 import assert from 'node:assert/strict';
-import { gpifToTracks } from '../../js/tab/guitarPro.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { gpifToTracks, parseGuitarPro } from '../../js/tab/guitarPro.js';
+import { buildPlayOrder } from '../../js/tab/playOrder.js';
+import { buildTimeline } from '../../js/tab/scoreTimeline.js';
 import {
   normalizePercussionMidi,
   midiToDrumInstrument,
@@ -14,6 +19,71 @@ import {
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
 import { createPlayerState } from '../../js/gpPlayer/playerState.js';
 import { installDomShim } from './domShim.mjs';
+import { makeFixtures } from './fixtures/makeFixtures.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURE_DIR = join(__dirname, 'fixtures');
+
+function fixtureBytes(name) {
+  return readFileSync(join(FIXTURE_DIR, name));
+}
+
+function ensureFixtures() {
+  if (!existsSync(join(FIXTURE_DIR, 'drums-only.gp5'))) {
+    makeFixtures();
+  }
+}
+
+function makeAudioParam(value = 0) {
+  return {
+    value,
+    setValueAtTime() {},
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+    cancelScheduledValues() {},
+  };
+}
+
+function makeAudioNode() {
+  return {
+    connect() {},
+    disconnect() {},
+    start() {},
+    stop() {},
+    frequency: makeAudioParam(440),
+    gain: makeAudioParam(1),
+    threshold: makeAudioParam(-24),
+    knee: makeAudioParam(30),
+    ratio: makeAudioParam(12),
+    attack: makeAudioParam(0.003),
+    release: makeAudioParam(0.25),
+    fftSize: 2048,
+  };
+}
+
+function installAudioStub() {
+  class FakeAudioContext {
+    constructor() {
+      this._time = 0;
+      this.state = 'running';
+      this.destination = makeAudioNode();
+    }
+    get currentTime() { return this._time; }
+    resume() { return Promise.resolve(); }
+    createGain() { return makeAudioNode(); }
+    createOscillator() { return makeAudioNode(); }
+    createDynamicsCompressor() { return makeAudioNode(); }
+    createAnalyser() { return makeAudioNode(); }
+    createStereoPanner() { return { ...makeAudioNode(), pan: makeAudioParam(0) }; }
+    createWaveShaper() { return makeAudioNode(); }
+    createBiquadFilter() {
+      return { ...makeAudioNode(), type: 'lowpass', Q: makeAudioParam(1) };
+    }
+    createPeriodicWave() { return {}; }
+  }
+  globalThis.AudioContext = FakeAudioContext;
+  globalThis.webkitAudioContext = FakeAudioContext;
+}
 
 const DRUM_ARTICULATION_SET = `
       <InstrumentSet>
@@ -508,5 +578,38 @@ assert.ok(psDrum.state.viewModel);
 assert.equal(psDrum.state.viewModel.percussion, true);
 assert.equal(psDrum.state.viewModel.events.length, drumModel.events.length);
 psDrum.destroy();
+
+// ---- GP5: drums-only.gp5 beat indices and mix timeline ----
+ensureFixtures();
+const drumsOnlyGp5 = await parseGuitarPro(fixtureBytes('drums-only.gp5'));
+assert.equal(drumsOnlyGp5.drumTracks.length, 1, 'drums-only.gp5 has one drum track');
+const gp5DrumModel = drumsOnlyGp5.drumTracks[0].model;
+assert.ok(gp5DrumModel.events.length > 0, 'GP5 drum model has playable events');
+assert.ok(
+  (gp5DrumModel.beats || []).some((b) => (b.noteIndices || []).length > 0),
+  'GP5 drum beats carry noteIndices',
+);
+const gp5DrumPlayOrder = buildPlayOrder(gp5DrumModel.measures);
+const gp5DrumTimeline = buildTimeline({
+  playOrder: gp5DrumPlayOrder,
+  tempoMap: gp5DrumModel.tempoMap || [],
+  baseBpm: drumsOnlyGp5.tempo,
+  rate: 1,
+  tracks: { guitarModels: [], drumModels: [gp5DrumModel] },
+});
+assert.ok(gp5DrumTimeline.events.length > 0, 'GP5 drum timeline schedules events');
+const gp5DrumPlayer = createGpMixPlayer();
+gp5DrumPlayer.load({ drumModels: [gp5DrumModel], bpm: 120 });
+assert.ok(gp5DrumPlayer.events.length > 0, 'GP5 drum mix player loads events');
+assert.ok(gp5DrumPlayer.events.every((e) => e.kind === 'drum'));
+
+// ---- mix player: empty timeline must not fire onEnded ----
+installAudioStub();
+let emptyEnded = false;
+const emptyPlayer = createGpMixPlayer({ onEnded: () => { emptyEnded = true; } });
+emptyPlayer.load({ drumModels: [], guitarModels: [], bpm: 120 });
+await emptyPlayer.play();
+assert.equal(emptyEnded, false, 'play() on empty score must not call onEnded');
+assert.equal(emptyPlayer.playing, false, 'play() on empty score must not start playback');
 
 console.log('gp-player drum parsing: ok');

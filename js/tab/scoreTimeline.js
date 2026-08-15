@@ -235,7 +235,13 @@ function collectTrackEvents(model, kind, trackIndex, passes, measures, segments)
   if (!model) return [];
   const beats = model.beats;
   if (beats && beats.length > 0) {
-    return collectBeatEvents(model, kind, trackIndex, passes, measures, segments);
+    const beatEvents = collectBeatEvents(model, kind, trackIndex, passes, measures, segments);
+    if (beatEvents.length > 0) return beatEvents;
+    const tabEvents = model.events || [];
+    if (tabEvents.some((e) => e.midi != null && !e.dead)) {
+      return collectLegacyEvents(model, kind, trackIndex, passes, measures, segments);
+    }
+    return beatEvents;
   }
   return collectLegacyEvents(model, kind, trackIndex, passes, measures, segments);
 }
@@ -430,6 +436,7 @@ function makeTimedEvent({
     durSec,
     midi: tabEvent.midi,
     velocity: clampVelocity(tabEvent.velocity),
+    instrument: tabEvent.instrument ?? null,
     techniques: techniques || [],
     bend: tabEvent.bend ?? null,
     slideKind: tabEvent.slideKind ?? null,
