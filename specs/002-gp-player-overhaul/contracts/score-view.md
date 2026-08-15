@@ -171,6 +171,8 @@ Render rules:
 1. Every beat carries a rhythm mark when `showRhythm` is true. (FR-018)
 2. The view draws rests in the rhythm or rest lane. (FR-019)
 3. Horizontal spacing follows the written length of each note or rest. (FR-020)
+   A bar must keep a clear gap between fret numbers on the same string. When a dense
+   bar needs more room than the row, the bar may be wider than the viewport.
 4. The view draws all 13 techniques in the FR-021 list. The layout draws at least 95
    percent of the techniques that the file holds. (FR-021, SC-004)
 5. The view shows the bend amount for each bend. (FR-022)
