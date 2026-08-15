@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v218-gp-player-lockout";
+const CACHE_VERSION = "v219-workbook-seamless-play";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -259,6 +259,7 @@ const PRECACHE_URLS = [
   "js/sessionRecorder.js",
   "js/exerciseTakePanel.js",
   "js/workbookModel.js",
+  "js/workbookPlaythrough.js",
   "js/workbookKeyboard.js",
   "js/workbookCompanionPanel.js",
   "js/workbooks.js",

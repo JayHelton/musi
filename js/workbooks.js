@@ -43,8 +43,6 @@ import {
   reorderWorkbookEntries,
   setActiveWorkbookEntry,
   getActiveWorkbookEntry,
-  nextWorkbookEntry,
-  prevWorkbookEntry,
   pruneMissingExercises,
   addCompanionToWorkbook,
   updateWorkbookCompanion,
@@ -65,6 +63,13 @@ import { mountWorkbookCompanionPanel } from './workbookCompanionPanel.js';
 import { initSubviewTabs } from './uxPrimitives.js';
 import { resolveWorkbookShortcutAction, WB_KEY_ACTIONS } from './workbookKeyboard.js';
 import { GPP_TRANSPORT_BPM_STEP } from './gpPlayer/transportDock.js';
+import {
+  findConsecutiveGpRun,
+  buildPlaythroughScore,
+  entryIdAtBeat,
+  entryIdAtMeasure,
+  boundaryForEntry,
+} from './workbookPlaythrough.js';
 
 const NAME_LIMIT = 120;
 const FOLDER_LIMIT = 40;
@@ -104,6 +109,7 @@ const collapsedFolders = new Set();
 let detailRenderedWorkbookId = null;
 let detailLoadToken = 0;
 let detailMountHandle = null;
+let detailPlaythrough = null;
 let detailObjectURL = null;
 let detailMediaEl = null;
 let detailDragEntryId = null;
@@ -374,6 +380,7 @@ function teardownDetailPlayer() {
     try { detailMountHandle.destroy(); } catch (e) { /* ignore */ }
     detailMountHandle = null;
   }
+  detailPlaythrough = null;
   if (detailObjectURL) {
     try { URL.revokeObjectURL(detailObjectURL); } catch (e) { /* ignore */ }
     detailObjectURL = null;
@@ -1204,6 +1211,157 @@ function mountInlineArtifact(item, host, objectUrl) {
   }
 }
 
+async function parseGpFromBlob(item, blob, loadToken, workbookId) {
+  if (!blob) return { missing: true };
+  try {
+    let gp;
+    if (isTabModelItem(item)) {
+      const raw = JSON.parse(await blob.text());
+      if (isDetailLoadStale(loadToken, workbookId)) return { stale: true };
+      gp = gpResultFromTabModelJson(raw, { fallbackName: item.name || 'Exercise' });
+    } else {
+      const buf = await blob.arrayBuffer();
+      if (isDetailLoadStale(loadToken, workbookId)) return { stale: true };
+      gp = await parseGuitarPro(buf);
+      if (isDetailLoadStale(loadToken, workbookId)) return { stale: true };
+    }
+    return { gp };
+  } catch (err) {
+    return { error: err };
+  }
+}
+
+function onDetailGpPracticeSettingsChange(wb, item, sliced, settings) {
+  const patch = filterPracticeSettingsPatch(settings, { sliced });
+  updateExercisePracticeSettings(item.id, patch);
+  if (patch.loopEnabled != null) {
+    const enabled = !!patch.loopEnabled;
+    setWorkbookLoop(wb.id, enabled);
+    if (detailLoopInput) detailLoopInput.checked = enabled;
+    loadCurrentExercise({ autoPlay: getDetailPlayingState() });
+  }
+}
+
+function mountDetailGpPlayer(host, wb, item, {
+  gpResult,
+  sliced = false,
+  onPlaybackEnd,
+  onPlaybackTick = null,
+  autoPlay = false,
+  initialLoopEnabled = null,
+  loopRange = {},
+  loopRestSec = 0,
+  initialBpm = undefined,
+  scoreKey = undefined,
+  exerciseScope = false,
+  onPracticeSettingsChange = null,
+}) {
+  const transportExtra = buildGpTransportExtra();
+  const headerExtra = buildGpHeaderExtra(wb);
+  syncGpWorkbookChrome(wb);
+  const resolvedScoreKey = scoreKey !== undefined
+    ? scoreKey
+    : (sliced ? undefined : resolveScoreKey({
+      attachmentId: item.attachmentId,
+      fileName: item.fileName || item.name,
+    }));
+  return mountGpPlayer(host, {
+    gpResult,
+    title: item.name,
+    fileName: item.fileName || item.name,
+    hideTitle: true,
+    preferredTrackIndex: Number.isFinite(item.preferredTrackIndex) ? item.preferredTrackIndex : 0,
+    initialLoopEnabled: initialLoopEnabled ?? wb.loopEnabled,
+    ...loopRange,
+    loopRestSec,
+    initialBpm,
+    initialTranspose: item.transpose,
+    initialTuning: item.tuning,
+    initialRetuneMode: item.retuneMode,
+    exerciseScope,
+    headerExtra,
+    transportExtra,
+    onPracticeSettingsChange: onPracticeSettingsChange || ((settings) => {
+      onDetailGpPracticeSettingsChange(wb, item, sliced, settings);
+    }),
+    scoreKey: resolvedScoreKey,
+    onPlaybackEnd,
+    onPlaybackTick,
+    autoPlay,
+    enableHostKeyboard: false,
+  });
+}
+
+function syncPlaythroughPosition(info) {
+  if (!detailPlaythrough?.boundaries) return;
+  const beat = Number(info?.beat);
+  const entryId = Number.isFinite(beat)
+    ? entryIdAtBeat(detailPlaythrough.boundaries, beat)
+    : entryIdAtMeasure(detailPlaythrough.boundaries, info?.measureIndex);
+  if (!entryId) return;
+  const wb = getWorkbook(openWorkbookId);
+  if (!wb || wb.activeEntryId === entryId) return;
+  setActiveWorkbookEntry(wb.id, entryId);
+  const fresh = getWorkbook(wb.id);
+  syncEntryHighlights(fresh);
+  syncPositionReadout(fresh);
+  syncPlayerHead(fresh);
+  notifyWorkbookEntryChange();
+}
+
+function onPlaythroughEnd() {
+  const wb = getWorkbook(openWorkbookId);
+  if (!wb || !wb.entries.length) return;
+  const boundaries = detailPlaythrough?.boundaries;
+  let nextIndex = 0;
+  if (boundaries?.length) {
+    const lastBoundary = boundaries[boundaries.length - 1];
+    const lastIdx = wb.entries.findIndex((entry) => entry.id === lastBoundary.entryId);
+    if (lastIdx >= 0) {
+      nextIndex = (lastIdx + 1) % wb.entries.length;
+    } else {
+      const active = getActiveWorkbookEntry(wb.id);
+      nextIndex = active ? (active.index + 1) % wb.entries.length : 0;
+    }
+  } else {
+    const active = getActiveWorkbookEntry(wb.id);
+    nextIndex = active ? (active.index + 1) % wb.entries.length : 0;
+  }
+  moveToWorkbookEntry(wb.entries[nextIndex].id, { autoPlay: true });
+}
+
+function moveToWorkbookEntry(entryId, { autoPlay } = {}) {
+  const wb = getWorkbook(openWorkbookId);
+  if (!wb) return;
+  const wasPlaying = autoPlay === undefined ? getDetailPlayingState() : !!autoPlay;
+
+  if (detailPlaythrough?.boundaries) {
+    const boundary = boundaryForEntry(detailPlaythrough.boundaries, entryId);
+    if (boundary) {
+      setActiveWorkbookEntry(wb.id, entryId);
+      const fresh = getWorkbook(wb.id);
+      syncEntryHighlights(fresh);
+      syncPositionReadout(fresh);
+      syncPlayerHead(fresh);
+      notifyWorkbookEntryChange();
+      if (detailMountHandle?.seekToBeat) {
+        detailMountHandle.seekToBeat(boundary.startBeat, { autoplay: wasPlaying });
+      } else if (detailMountHandle?.seekToBar) {
+        detailMountHandle.seekToBar(boundary.startMeasure, { autoplay: wasPlaying });
+      }
+      return;
+    }
+  }
+
+  setActiveWorkbookEntry(wb.id, entryId);
+  const fresh = getWorkbook(wb.id);
+  syncEntryHighlights(fresh);
+  syncPositionReadout(fresh);
+  syncPlayerHead(fresh);
+  notifyWorkbookEntryChange();
+  loadCurrentExercise({ autoPlay: wasPlaying });
+}
+
 async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, loadToken }) {
   if (!blob) {
     host.appendChild(el('div', {
@@ -1213,19 +1371,19 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
     return null;
   }
   try {
-    let gp;
-    if (isTabModelItem(item)) {
-      const raw = JSON.parse(await blob.text());
-      if (isDetailLoadStale(loadToken, wb.id)) return null;
-      gp = gpResultFromTabModelJson(raw, { fallbackName: item.name || 'Exercise' });
-    } else {
-      const buf = await blob.arrayBuffer();
-      if (isDetailLoadStale(loadToken, wb.id)) return null;
-      gp = await parseGuitarPro(buf);
-      if (isDetailLoadStale(loadToken, wb.id)) return null;
+    const parsed = await parseGpFromBlob(item, blob, loadToken, wb.id);
+    if (parsed.stale) return null;
+    if (parsed.missing || parsed.error || !parsed.gp) {
+      if (!isDetailLoadStale(loadToken, wb.id)) {
+        host.appendChild(el('div', {
+          class: 'wb-player-missing',
+          text: parsed.error?.message || 'Could not open this Guitar Pro file.',
+        }));
+      }
+      return null;
     }
     if (isDetailLoadStale(loadToken, wb.id)) return null;
-    const { gp: exerciseGp, sliced } = buildExerciseGpResult(gp, item);
+    const { gp: exerciseGp, sliced } = buildExerciseGpResult(parsed.gp, item);
     const segment = isSegmentExercise(item);
     const loopRange = segment && !sliced ? {
       initialLoopStart: item.measureStart,
@@ -1233,41 +1391,15 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
       initialLoopStartBeat: item.startBeat,
       initialLoopEndBeat: item.endBeat,
     } : {};
-    const transportExtra = buildGpTransportExtra();
-    const headerExtra = buildGpHeaderExtra(wb);
-    syncGpWorkbookChrome(wb);
-    return mountGpPlayer(host, {
+    return mountDetailGpPlayer(host, wb, item, {
       gpResult: exerciseGp,
-      title: item.name,
-      fileName: item.fileName || item.name,
-      hideTitle: true,
-      preferredTrackIndex: Number.isFinite(item.preferredTrackIndex) ? item.preferredTrackIndex : 0,
-      initialLoopEnabled: wb.loopEnabled,
-      ...loopRange,
-      loopRestSec: item.loopRestSec || 0,
-      initialBpm: item.bpm,
-      initialTranspose: item.transpose,
-      initialTuning: item.tuning,
-      initialRetuneMode: item.retuneMode,
-      exerciseScope: segment && !sliced,
-      headerExtra,
-      transportExtra,
-      onPracticeSettingsChange: (settings) => {
-        const patch = filterPracticeSettingsPatch(settings, { sliced });
-        updateExercisePracticeSettings(item.id, patch);
-        if (patch.loopEnabled != null) {
-          const enabled = !!patch.loopEnabled;
-          setWorkbookLoop(wb.id, enabled);
-          if (detailLoopInput) detailLoopInput.checked = enabled;
-        }
-      },
-      scoreKey: sliced ? undefined : resolveScoreKey({
-        attachmentId: item.attachmentId,
-        fileName: item.fileName || item.name,
-      }),
+      sliced,
       onPlaybackEnd,
       autoPlay,
-      enableHostKeyboard: false,
+      loopRange,
+      loopRestSec: item.loopRestSec || 0,
+      initialBpm: item.bpm,
+      exerciseScope: segment && !sliced,
     });
   } catch (err) {
     if (!isDetailLoadStale(loadToken, wb.id)) {
@@ -1280,19 +1412,138 @@ async function mountWorkbookGp(item, host, blob, wb, { onPlaybackEnd, autoPlay, 
   }
 }
 
+async function mountWorkbookGpPlaythrough(wb, active, host, loadToken, autoPlay) {
+  const classified = wb.entries.map((entry) => {
+    const exercise = getExercise(entry.exerciseId);
+    return { id: entry.id, isGp: exercise ? mediaKind(exercise) === 'gp' : false };
+  });
+
+  const run = findConsecutiveGpRun(classified, active.index);
+  if (!run) return false;
+
+  const parts = [];
+  const slicedByEntry = new Map();
+
+  for (let i = run.startIndex; i <= run.endIndex; i += 1) {
+    const entry = wb.entries[i];
+    const item = getExercise(entry.exerciseId);
+    if (!item || mediaKind(item) !== 'gp') continue;
+
+    const blob = item.attachmentId ? await getFileBlob(item.attachmentId) : null;
+    if (isDetailLoadStale(loadToken, wb.id)) return true;
+
+    if (!blob) {
+      if (entry.id === active.entry.id) {
+        host.appendChild(el('div', {
+          class: 'wb-player-missing',
+          text: 'This file is missing from storage. It may have been cleared by the browser.',
+        }));
+        return true;
+      }
+      continue;
+    }
+
+    const parsed = await parseGpFromBlob(item, blob, loadToken, wb.id);
+    if (parsed.stale) return true;
+    if (parsed.missing || parsed.error || !parsed.gp) {
+      if (entry.id === active.entry.id) {
+        host.appendChild(el('div', {
+          class: 'wb-player-missing',
+          text: parsed.error?.message || 'Could not open this Guitar Pro file.',
+        }));
+        return true;
+      }
+      continue;
+    }
+
+    const { gp: exerciseGp, sliced } = buildExerciseGpResult(parsed.gp, item);
+    slicedByEntry.set(entry.id, sliced);
+    parts.push({
+      entryId: entry.id,
+      gp: exerciseGp,
+      name: item.name,
+      tempo: Number(item.bpm) > 0 ? Number(item.bpm) : undefined,
+      item,
+    });
+  }
+
+  if (isDetailLoadStale(loadToken, wb.id)) return true;
+
+  if (!parts.some((part) => part.entryId === active.entry.id)) {
+    if (!host.querySelector('.wb-player-missing')) {
+      host.appendChild(el('div', {
+        class: 'wb-player-missing',
+        text: 'This file is missing from storage. It may have been cleared by the browser.',
+      }));
+    }
+    return true;
+  }
+
+  const built = buildPlaythroughScore(parts);
+  if (!built) return false;
+
+  const activePart = parts.find((part) => part.entryId === active.entry.id);
+  const activeItem = activePart?.item || getExercise(active.entry.exerciseId);
+  if (!activeItem) return false;
+
+  const singlePart = parts.length === 1;
+  const activeSliced = slicedByEntry.get(active.entry.id) || false;
+
+  const handle = mountDetailGpPlayer(host, wb, activeItem, {
+    gpResult: built.gp,
+    sliced: activeSliced,
+    onPlaybackEnd: onPlaythroughEnd,
+    onPlaybackTick: syncPlaythroughPosition,
+    autoPlay: false,
+    initialLoopEnabled: false,
+    loopRestSec: 0,
+    initialBpm: singlePart ? activeItem.bpm : undefined,
+    scoreKey: singlePart && !activeSliced
+      ? resolveScoreKey({
+        attachmentId: activeItem.attachmentId,
+        fileName: activeItem.fileName || activeItem.name,
+      })
+      : undefined,
+    exerciseScope: false,
+    onPracticeSettingsChange: (settings) => {
+      const freshWb = getWorkbook(wb.id);
+      const activeNow = freshWb ? getActiveWorkbookEntry(freshWb.id) : null;
+      const practiceItem = activeNow ? getExercise(activeNow.entry.exerciseId) : null;
+      if (!practiceItem) return;
+      onDetailGpPracticeSettingsChange(freshWb, practiceItem, false, settings);
+    },
+  });
+
+  if (isDetailLoadStale(loadToken, wb.id)) {
+    if (handle) try { handle.destroy(); } catch (e) { /* ignore */ }
+    return true;
+  }
+
+  detailMountHandle = handle;
+  detailPlaythrough = { boundaries: built.boundaries };
+  setDetailGpChrome(true);
+
+  const boundary = boundaryForEntry(built.boundaries, active.entry.id);
+  if (boundary && handle) {
+    if (handle.seekToBeat) {
+      handle.seekToBeat(boundary.startBeat, { autoplay: autoPlay });
+    } else if (handle.seekToBar) {
+      handle.seekToBar(boundary.startMeasure, { autoplay: autoPlay });
+    }
+  }
+
+  return true;
+}
+
 // `autoPlay` is explicit for auto-advance: playback has already stopped by the
 // time the end-of-score callback runs, so the playing state cannot be inferred.
 function advance({ autoPlay } = {}) {
   const wb = getWorkbook(openWorkbookId);
   if (!wb || !wb.entries.length) return;
-  const wasPlaying = autoPlay === undefined ? getDetailPlayingState() : !!autoPlay;
-  nextWorkbookEntry(wb.id, { wrap: true });
-  const fresh = getWorkbook(wb.id);
-  syncEntryHighlights(fresh);
-  syncPositionReadout(fresh);
-  syncPlayerHead(fresh);
-  notifyWorkbookEntryChange();
-  loadCurrentExercise({ autoPlay: wasPlaying });
+  const active = getActiveWorkbookEntry(wb.id);
+  if (!active) return;
+  const nextIndex = (active.index + 1) % wb.entries.length;
+  moveToWorkbookEntry(wb.entries[nextIndex].id, { autoPlay });
 }
 
 async function loadCurrentExercise({ autoPlay = false } = {}) {
@@ -1341,9 +1592,16 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
 
   try {
     if (kind === 'gp') {
+      detailGpMountEl.innerHTML = '';
+      if (!wb.loopEnabled) {
+        const playthroughMounted = await mountWorkbookGpPlaythrough(
+          wb, active, detailGpMountEl, loadToken, autoPlay,
+        );
+        if (isDetailLoadStale(loadToken, workbookId)) return;
+        if (playthroughMounted) return;
+      }
       const blob = exercise.attachmentId ? await getFileBlob(exercise.attachmentId) : null;
       if (isDetailLoadStale(loadToken, workbookId)) return;
-      detailGpMountEl.innerHTML = '';
       const handle = await mountWorkbookGp(exercise, detailGpMountEl, blob, wb, {
         onPlaybackEnd,
         autoPlay,
@@ -1427,24 +1685,20 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
 function goPrev() {
   const wb = getWorkbook(openWorkbookId);
   if (!wb || !wb.entries.length) return;
-  const wasPlaying = getDetailPlayingState();
-  prevWorkbookEntry(wb.id, { wrap: true });
-  const fresh = getWorkbook(wb.id);
-  syncEntryHighlights(fresh);
-  syncPositionReadout(fresh);
-  syncPlayerHead(fresh);
-  notifyWorkbookEntryChange();
-  loadCurrentExercise({ autoPlay: wasPlaying });
+  const active = getActiveWorkbookEntry(wb.id);
+  if (!active) return;
+  const prevIndex = (active.index - 1 + wb.entries.length) % wb.entries.length;
+  moveToWorkbookEntry(wb.entries[prevIndex].id);
 }
 
 function onLoopToggleChange(enabled) {
   const wb = getWorkbook(openWorkbookId);
   if (!wb) return;
   setWorkbookLoop(wb.id, enabled);
-  if (detailMountHandle) {
-    try { detailMountHandle.setLoopEnabled(enabled); } catch (e) { /* ignore */ }
-  }
   if (detailMediaEl) detailMediaEl.loop = enabled;
+  if (detailMountHandle) {
+    loadCurrentExercise({ autoPlay: getDetailPlayingState() });
+  }
 }
 
 function buildEntryRow(wb, entry, index) {
@@ -1515,14 +1769,8 @@ function buildEntryRow(wb, entry, index) {
   row.appendChild(actions);
 
   row.addEventListener('click', () => {
-    setActiveWorkbookEntry(wb.id, entry.id);
-    const fresh = getWorkbook(wb.id);
-    syncEntryHighlights(fresh);
-    syncPositionReadout(fresh);
-    syncPlayerHead(fresh);
-    notifyWorkbookEntryChange();
     closePlaylistDrawer();
-    loadCurrentExercise({ autoPlay: false });
+    moveToWorkbookEntry(entry.id, { autoPlay: false });
   });
 
   row.addEventListener('dragstart', (e) => {
