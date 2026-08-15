@@ -173,4 +173,24 @@ input[type=range]{accent-color:var(--accent)}
   .bi-sub.beat .bi-dot{width:10px;height:10px}
   .bi-sub .bi-count{font-size:.6rem}
   .bi-sub.beat .bi-count{font-size:.7rem}
+  .metronome-simple{gap:10px}
+  .metro-simple-card,.metro-settings-card{padding:14px 12px}
+  .metro-bpm-input#m-bpm{font-size:3rem;letter-spacing:-2px}
+  .metro-simple-card #m-bpm-slider{margin:12px 0 10px}
+  .metro-step-row{gap:12px;margin-bottom:12px}
+  .metro-simple-actions{margin-bottom:10px}
+  .metro-timer{margin-bottom:10px}
+  .metro-beat-dots{gap:6px;margin-top:6px}
+  .metro-simple-controls{margin-bottom:12px;gap:8px}
+}
+@media(max-height:720px){
+  .metronome-simple{gap:10px}
+  .metro-simple-card,.metro-settings-card{padding:14px 12px}
+  .metro-bpm-input#m-bpm{font-size:2.8rem;letter-spacing:-2px}
+  .metro-simple-card #m-bpm-slider{margin:10px 0 8px}
+  .metro-step-row{gap:10px;margin-bottom:10px}
+  .metro-simple-actions{margin-bottom:8px}
+  .metro-timer{margin-bottom:8px}
+  .metro-beat-dots{gap:5px;margin-top:4px}
+  .metro-simple-controls{margin-bottom:10px;gap:8px}
 }

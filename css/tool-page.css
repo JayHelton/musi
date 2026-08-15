@@ -4,6 +4,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .tool-page-header {
@@ -33,6 +36,10 @@
 }
 
 .tool-page .section-head {
+  display: none;
+}
+
+.section[data-tool-page="1"] > .section-head {
   display: none;
 }
 
@@ -176,6 +183,13 @@
 
 .tool-page-modes.subview-tabs {
   margin-bottom: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tool-page-modes.subview-tabs .subview-tab.active {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .tool-page-workspace {
@@ -247,4 +261,16 @@
 
 .tool-page-advanced > *:not(summary) {
   padding: 0 16px 16px;
+}
+
+@media (max-width: 768px) {
+  .tool-page-modes.subview-tabs .subview-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }

@@ -634,6 +634,42 @@ testAsync('toolPage: destroy restores children to the section', async () => {
   assert.equal(section.firstChild.textContent, 'Restored');
 });
 
+testAsync('toolPage: section-head stays hidden; leftover back removed; destroy restores workspace only', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const head = document.createElement('div');
+  head.className = 'section-head';
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'tool-back';
+  back.textContent = '← Back';
+  head.appendChild(back);
+  const legacy = document.createElement('div');
+  legacy.className = 'legacy-body';
+  legacy.textContent = 'Body';
+  section.append(head, legacy);
+
+  const { workspace, destroy } = mountToolPage(section, makeDescriptor());
+  assert.equal(section.querySelector('.tool-page') !== null, true);
+  const leftoverHead = [...section.children].find((child) => child.classList?.contains('section-head'));
+  assert.equal(leftoverHead !== null, true);
+  assert.equal(leftoverHead.hidden, true);
+  assert.equal(section.querySelector('.tool-back:not(.tool-page-back)'), null);
+  assert.equal(workspace.children.length, 1);
+  assert.equal(workspace.firstChild.className, 'legacy-body');
+
+  destroy();
+  assert.equal(section.querySelector('.tool-page'), null);
+  assert.equal([...section.children].some((child) => child.classList?.contains('section-head')), true);
+  assert.equal(section.querySelector('.legacy-body') !== null, true);
+  assert.equal(section.querySelector('.legacy-body').parentElement, section);
+});
+
 for (const { name, fn } of pendingAsync) {
   try {
     await fn();

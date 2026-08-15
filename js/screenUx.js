@@ -63,6 +63,7 @@ const SETUP_SHEET_LANDSCAPE = `
 function ensureBackButton(section) {
   if (!section) return;
   if (section.dataset.toolPage === '1' || section.querySelector('.tool-page')) return;
+  if (section.id === 'sec-scaleref' || section.id === 'sec-metronome') return;
   if (section.querySelector('.tool-back')) return;
   const head = section.querySelector('.section-head');
   if (!head) return;

@@ -112,6 +112,11 @@ export function mountToolPage(sectionEl, descriptor = {}) {
   }
 
   const existingChildren = [...sectionEl.children];
+  const sectionHead = existingChildren.find((child) => child.classList?.contains('section-head')) || null;
+  if (sectionHead) {
+    sectionHead.querySelectorAll('.tool-back:not(.tool-page-back)').forEach((btn) => btn.remove());
+    sectionHead.hidden = true;
+  }
 
   const page = document.createElement('div');
   page.className = 'tool-page';
@@ -137,6 +142,7 @@ export function mountToolPage(sectionEl, descriptor = {}) {
   const workspace = document.createElement('div');
   workspace.className = 'tool-page-workspace';
   existingChildren.forEach((child) => {
+    if (child === sectionHead) return;
     if (child.parentElement === sectionEl) sectionEl.removeChild(child);
     workspace.appendChild(child);
   });
