@@ -36,7 +36,6 @@ function navHighlightId(sectionId) {
 
   if (
     sectionId === 'tools'
-    || sectionId === 'routines'
     || sectionId === 'musicprefs'
   ) {
     return 'more';
@@ -51,14 +50,16 @@ function openMoreSheet() {
     title: 'More',
     items: [
       { id: 'tools', label: 'Practice tools' },
-      { id: 'routines', label: 'Routines' },
+      // SIMPLIFY: Routines hidden. Keep this row to restore later.
+      // { id: 'routines', label: 'Routines' },
       { id: 'settings', label: 'Settings' },
     ],
     search: false,
     onSelect: (id) => {
       if (!showSectionFn) return;
       if (id === 'tools') showSectionFn('tools');
-      else if (id === 'routines') showSectionFn('routines');
+      // SIMPLIFY: Routines hidden. Keep this branch to restore later.
+      // else if (id === 'routines') showSectionFn('routines');
       else if (id === 'settings') showSectionFn('musicprefs');
     },
   });

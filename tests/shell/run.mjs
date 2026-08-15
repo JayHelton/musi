@@ -126,15 +126,13 @@ test('section order with favorites, recents, and active routines', () => {
   assert.deepEqual(sectionIds(sections), [
     'favorites',
     'recents',
-    'continue',
     'search',
     'browse',
   ]);
   assert.equal(sections[0].items.length, 1);
   assert.equal(sections[0].items[0].id, 'alpha');
   assert.equal(sections[1].items[0].source, 'recent');
-  assert.equal(sections[2].label, 'Continue a routine');
-  assert.equal(sections[2].items[0].label, 'Morning routine');
+  assert.equal(sectionIds(sections).includes('continue'), false);
 });
 
 test('empty favorites, recents, and routines omit those sections', () => {
@@ -463,9 +461,15 @@ test('reference, create, and practice tools use expected categories', () => {
   for (const id of ['recorder', 'songwriter', 'notes', 'tracktosheet']) {
     assert.equal(createIds.includes(id), true, `create missing ${id}`);
   }
-  for (const id of ['metronome', 'tuner', 'intervalorbit', 'chordlab', 'studylab', 'drums']) {
+  for (const id of ['metronome', 'tuner', 'chordlab']) {
     assert.equal(practiceIds.includes(id), true, `practice missing ${id}`);
   }
+  assert.equal(practiceIds.includes('intervalorbit'), false, 'intervalorbit should be hidden');
+  assert.equal(practiceIds.includes('studylab'), false, 'studylab should be hidden');
+  assert.equal(practiceIds.includes('drums'), false, 'drums should be hidden');
+
+  assert.equal(TOOLS.some(t => t.id === 'scales'), false, 'scales should be hidden');
+  assert.equal(TOOLS.some(t => t.id === 'drums'), false, 'drums should be hidden');
 });
 
 function installLocalStorageShim() {

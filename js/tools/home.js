@@ -88,7 +88,8 @@ function renderSearchSection(section) {
 
 function renderToolSection(section, { favorites = new Set(), showMode = false } = {}) {
   const cards = (section.items || []).map(item => {
-    if (item.source === 'routine') return continueCardHtml(item);
+    // SIMPLIFY: Continue a routine cards hidden.
+    // if (item.source === 'routine') return continueCardHtml(item);
     const fav = favorites.has(item.id);
     return toolCardHtml(item, { favorite: fav, showMode });
   }).join('');
@@ -109,7 +110,8 @@ function render() {
     tools: catalogTools(),
     favorites,
     recents: storedRecents(),
-    activeRoutines: activeRoutines(),
+    // SIMPLIFY: Continue a routine section hidden.
+    // activeRoutines: activeRoutines(),
     query: searchQuery,
   });
 
@@ -172,6 +174,8 @@ function wireHost() {
       return;
     }
 
+    // SIMPLIFY: Routines open handler hidden.
+    /*
     const routineBtn = e.target.closest('[data-routine-id]');
     if (routineBtn) {
       const id = routineBtn.dataset.routineId;
@@ -183,6 +187,7 @@ function wireHost() {
       if (showSectionFn) showSectionFn('routines');
       return;
     }
+    */
 
     const toolBtn = e.target.closest('[data-tool-id]');
     if (toolBtn) {

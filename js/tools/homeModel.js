@@ -155,6 +155,8 @@ export function buildHomeSections(input) {
     });
   }
 
+  // SIMPLIFY: Continue a routine section hidden.
+  /*
   const continueItems = activeRoutines
     .filter(routine => routine && typeof routine.id === 'string' && typeof routine.name === 'string')
     .map(routine => ({
@@ -169,6 +171,7 @@ export function buildHomeSections(input) {
       items: continueItems,
     });
   }
+  */
 
   sections.push({
     id: 'search',

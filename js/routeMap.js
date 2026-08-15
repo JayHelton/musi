@@ -3,18 +3,21 @@ export const ROUTE_IDS = [
   'create',
   'tools',
   'scalelab',
-  'fretmap',
+  // SIMPLIFY: fretmap hidden. Keep this id to restore later.
+  // 'fretmap',
   'chordlab',
   'circle',
   'triads',
-  'studylab',
+  // SIMPLIFY: studylab hidden. Keep this id to restore later.
+  // 'studylab',
   'pitchear',
   'metronome',
   'audiostudio',
   'songstudio',
   'notes',
   'library',
-  'routines',
+  // SIMPLIFY: routines hidden. Keep this id to restore later.
+  // 'routines',
   'scoreplayer',
   'settings',
 ];
@@ -35,11 +38,13 @@ export const LEGACY_ROUTES = {
   scales: { id: 'scalelab', params: { mode: 'overview' }, notice: 'notice.scales-removed' },
   scaleref: { id: 'scalelab', params: {}, notice: null },
   circle: { id: 'circle', params: {}, notice: null },
-  studylab: { id: 'studylab', params: {}, notice: null },
-  intervals: { id: 'fretmap', params: { mode: 'learn' }, notice: 'notice.intervals-removed' },
-  fretboard: { id: 'fretmap', params: { mode: 'map' }, notice: 'notice.fretboard-removed' },
-  intervalorbit: { id: 'fretmap', params: { mode: 'map' }, notice: null },
-  intervalmap: { id: 'fretmap', params: { mode: 'map' }, notice: null },
+  studylab: { id: 'scalelab', params: {}, notice: 'notice.studylab-removed' },
+  intervals: { id: 'tools', params: { mode: 'train' }, notice: 'notice.intervals-removed' },
+  fretboard: { id: 'tools', params: { mode: 'train' }, notice: 'notice.fretboard-removed' },
+  intervalorbit: { id: 'tools', params: { mode: 'study' }, notice: 'notice.fretmap-removed' },
+  intervalmap: { id: 'tools', params: { mode: 'study' }, notice: 'notice.fretmap-removed' },
+  // SIMPLIFY: fretmap live route hidden. Keep this row to restore later.
+  fretmap: { id: 'tools', params: { mode: 'study' }, notice: 'notice.fretmap-removed' },
   chordlab: { id: 'chordlab', params: { mode: 'reference' }, notice: 'notice.chordlab-removed' },
   chords: { id: 'chordlab', params: {}, notice: null },
   triads: { id: 'triads', params: {}, notice: null },
@@ -57,7 +62,7 @@ export const LEGACY_ROUTES = {
   drums: { id: 'library', params: { mode: 'exercises' }, notice: 'notice.drums-removed' },
   exercises: { id: 'library', params: { mode: 'exercises' }, notice: null },
   workbooks: { id: 'library', params: { mode: 'workbooks' }, notice: null },
-  routines: { id: 'routines', params: {}, notice: null },
+  routines: { id: 'tools', params: { mode: 'train' }, notice: 'notice.routines-removed' },
   gpplayer: { id: 'scoreplayer', params: {}, notice: null },
   tabanalyzer: { id: 'scoreplayer', params: {}, notice: null },
   musicprefs: { id: 'settings', params: { mode: 'preferences' }, notice: null },
@@ -114,9 +119,12 @@ function passRoutineParams(params) {
  * @returns {Record<string, string>}
  */
 function mergeLegacyParams(base, input, routeId) {
+  // SIMPLIFY: routines route hidden. Keep this branch to restore later.
+  /*
   if (routeId === 'routines') {
     return { ...base, ...passRoutineParams(input) };
   }
+  */
   return { ...base };
 }
 
