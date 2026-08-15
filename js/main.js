@@ -18,8 +18,8 @@ import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initMovableChordCards } from './movableChordCards.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
-import { initExercises, stopExercises } from './exercises.js';
-import { initWorkbooks, stopWorkbooks } from './workbooks.js';
+import { initExercises, stopExercises, closeExerciseViewer } from './exercises.js';
+import { initWorkbooks, stopWorkbooks, closeWorkbookDetail } from './workbooks.js';
 import { initRoutines, stopRoutines, createRoutineLayerDescriptors, setRoutineNavigator } from './routines.js';
 import { initNotes, stopNotes } from './notes.js';
 import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
@@ -428,6 +428,11 @@ function showSection(id, skipHash, params = {}) {
   if (toolForGate && !isFeatureEnabled(incoming.sectionId)) {
     showSection('tools', skipHash);
     return;
+  }
+  // Library nav and Library tabs reopen the list. They do not keep an open player.
+  if (incoming.routeId === 'library') {
+    closeExerciseViewer();
+    if (incoming.sectionId === 'workbooks') closeWorkbookDetail();
   }
   const mode = (skipHash || currentNavId === incoming.sectionId) ? 'replace' : 'push';
   void applyRoute({

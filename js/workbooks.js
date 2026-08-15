@@ -816,7 +816,7 @@ function syncTransportDisabled(wb) {
   if (detailLoopInput) detailLoopInput.disabled = disabled;
 }
 
-function closeWorkbookDetail() {
+export function closeWorkbookDetail() {
   teardownDetailPlayer();
   teardownDetailCompanions();
   detailLoadToken += 1;
