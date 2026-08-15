@@ -13,7 +13,8 @@ function ensureTabBar(sectionId) {
   const sec = document.getElementById(`sec-${sectionId}`);
   if (!sec) return null;
 
-  let container = sec.querySelector('.library-tabs');
+  const barId = `library-tabs-${sectionId}`;
+  let container = document.getElementById(barId) || sec.querySelector('.library-tabs');
   if (!container) {
     const head = sec.querySelector('.section-head');
     if (!head) return null;
@@ -27,6 +28,7 @@ function ensureTabBar(sectionId) {
     const api = initSubviewTabs(container, LIBRARY_TABS, {
       settingsKey: 'library.tab',
       defaultId: 'exercises',
+      className: 'library-tabs subview-tabs',
       onChange: (mode) => {
         saveSetting('library.tab', mode);
         if (openRouteFn) {
