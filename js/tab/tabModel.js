@@ -249,6 +249,32 @@ function cloneMeasure(m) {
   return out;
 }
 
+function getModelLength(model) {
+  const tb = Number(model.totalBeats);
+  if (Number.isFinite(tb) && tb >= 0) return tb;
+  const measures = model.measures || [];
+  if (measures.length) {
+    const last = measures[measures.length - 1];
+    const end = Number(last.endBeat);
+    if (Number.isFinite(end)) return end;
+  }
+  return 0;
+}
+
+function modelPartTempo(model) {
+  if (Number.isFinite(model.tempo)) return model.tempo;
+  const tm = model.tempoMap;
+  if (tm && tm.length) {
+    const bpm = Number(tm[0].bpm);
+    if (Number.isFinite(bpm)) return bpm;
+  }
+  return null;
+}
+
+function hasTempoMapEntryAtBar(tempoMap, barIndex) {
+  return (tempoMap || []).some((t) => t.barIndex === barIndex && t.beat === 0);
+}
+
 /** Deep-ish clone of a TabModel (events/measures/strings copied). */
 export function cloneModel(model) {
   if (!model) return null;
@@ -275,6 +301,109 @@ export function cloneModel(model) {
   if (model.voiceCount != null) {
     out.voiceCount = model.voiceCount;
   }
+  return out;
+}
+
+/**
+ * Join TabModel values in order. Returns a new model; inputs are not mutated.
+ */
+export function concatModels(models) {
+  if (!models || !models.length) return null;
+  const parts = models.filter(Boolean);
+  if (!parts.length) return null;
+
+  const out = cloneModel(parts[0]);
+  let totalLength = getModelLength(parts[0]);
+
+  for (let pi = 1; pi < parts.length; pi++) {
+    const model = parts[pi];
+    const beatOffset = totalLength;
+    const measureOffset = out.measures.length;
+    const eventOffset = out.events.length;
+    const beatsOffset = out.beats ? out.beats.length : 0;
+
+    const prevPartTempo = modelPartTempo(parts[pi - 1]);
+    const nextPartTempo = modelPartTempo(model);
+    if (
+      prevPartTempo != null
+      && nextPartTempo != null
+      && prevPartTempo !== nextPartTempo
+    ) {
+      if (!out.tempoMap) out.tempoMap = [];
+      if (!hasTempoMapEntryAtBar(out.tempoMap, measureOffset)) {
+        out.tempoMap.push({
+          barIndex: measureOffset,
+          beat: 0,
+          bpm: nextPartTempo,
+          linear: false,
+        });
+      }
+    }
+
+    for (const m of model.measures || []) {
+      const measure = cloneMeasure(m);
+      const idx = out.measures.length;
+      measure.startSlot = idx;
+      measure.endSlot = idx + 1;
+      if (Number.isFinite(m.startBeat)) measure.startBeat = m.startBeat + beatOffset;
+      if (Number.isFinite(m.endBeat)) measure.endBeat = m.endBeat + beatOffset;
+      out.measures.push(measure);
+    }
+
+    for (const e of model.events || []) {
+      const ev = cloneEvent(e);
+      if (Number.isFinite(e.start)) ev.start = e.start + beatOffset;
+      if (typeof e.beatIndex === 'number') ev.beatIndex = e.beatIndex + beatsOffset;
+      out.events.push(ev);
+    }
+
+    if (model.beats != null || out.beats != null) {
+      if (!out.beats) out.beats = [];
+      for (const b of model.beats || []) {
+        const beat = cloneBeat(b);
+        beat.measureIndex = beat.measureIndex + measureOffset;
+        if (Number.isFinite(b.start)) beat.start = b.start + beatOffset;
+        if (b.noteIndices != null) {
+          beat.noteIndices = b.noteIndices.map((ni) => ni + eventOffset);
+        }
+        out.beats.push(beat);
+      }
+    }
+
+    if (model.rests != null || out.rests != null) {
+      if (!out.rests) out.rests = [];
+      for (const r of model.rests || []) {
+        const rest = cloneRest(r);
+        rest.measureIndex = rest.measureIndex + measureOffset;
+        if (Number.isFinite(r.start)) rest.start = r.start + beatOffset;
+        out.rests.push(rest);
+      }
+    }
+
+    if (model.tempoMap != null) {
+      if (!out.tempoMap) out.tempoMap = [];
+      for (const t of model.tempoMap) {
+        out.tempoMap.push({ ...t, barIndex: t.barIndex + measureOffset });
+      }
+    }
+
+    const tc = model.techniqueCounts || {};
+    for (const [k, v] of Object.entries(tc)) {
+      out.techniqueCounts[k] = (out.techniqueCounts[k] || 0) + (Number(v) || 0);
+    }
+
+    if (model.warnings?.length) {
+      out.warnings = out.warnings.concat(model.warnings);
+    }
+
+    totalLength += getModelLength(model);
+    out.totalBeats = totalLength;
+  }
+
+  out.slots = out.events.length
+    ? Math.max(...out.events.map((ev) => ev.slot)) + 1
+    : out.measures.length;
+
   return out;
 }
 
