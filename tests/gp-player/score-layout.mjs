@@ -573,7 +573,7 @@ let techniqueReport = null;
   }
 }
 
-// A dense bar may be wider than a narrow row. minWidthUnits must stay stable.
+// A dense bar wraps at column boundaries on a narrow row. minWidthUnits must stay stable.
 {
   const model = denseTwoDigitSixteenthModel();
   const narrowWidthPx = 340;
@@ -592,8 +592,46 @@ let techniqueReport = null;
 
   assert.ok(
     narrow.bars[0].widthUnits > rowWidth + 0.01,
-    `a dense bar (${narrow.bars[0].widthUnits}) may be wider than the row (${rowWidth})`,
+    `full bar (${narrow.bars[0].widthUnits}) is still wider than the row (${rowWidth})`,
   );
+
+  assert.ok(
+    narrow.systems.length >= 2,
+    `dense 16th bar must wrap onto at least 2 systems (got ${narrow.systems.length})`,
+  );
+
+  for (const sys of narrow.systems) {
+    for (const part of sys.parts) {
+      assert.ok(
+        part.layout.widthUnits <= sys.widthPx + 0.5,
+        `part width (${part.layout.widthUnits}) must not exceed system width (${sys.widthPx})`,
+      );
+    }
+  }
+
+  const fullFretCount = narrow.bars[0].glyphs.filter((g) => g.kind === 'fret').length;
+  let partFretCount = 0;
+  for (const sys of narrow.systems) {
+    for (const part of sys.parts) {
+      partFretCount += part.layout.glyphs.filter((g) => g.kind === 'fret').length;
+    }
+  }
+  assert.equal(partFretCount, fullFretCount, 'every fret glyph of the full bar appears in some part');
+
+  const firstPart = narrow.systems[0].parts[0];
+  assert.ok(
+    firstPart.layout.glyphs.some((g) => g.kind === 'barNumber'),
+    'first part must have a barNumber glyph',
+  );
+
+  for (let si = 1; si < narrow.systems.length; si += 1) {
+    const part = narrow.systems[si].parts[0];
+    assert.equal(part.isContinuation, true, `system ${si} must be a continuation`);
+    assert.ok(
+      !part.layout.glyphs.some((g) => g.kind === 'barNumber'),
+      `continuation part ${si} must not have a barNumber glyph`,
+    );
+  }
 
   assert.equal(
     narrow.bars[0].minWidthUnits,
@@ -605,6 +643,43 @@ let techniqueReport = null;
   assert.ok(
     Math.abs(sparse.bars[0].widthUnits - rowWidth) <= 1,
     `a sparse bar (${sparse.bars[0].widthUnits}) must fill the row (${rowWidth})`,
+  );
+}
+
+// Focused wrap test: dense two-digit 16ths at 340px.
+{
+  const model = denseTwoDigitSixteenthModel();
+  const layout = layoutForModel(model, { widthPx: 340 });
+  assert.ok(layout.systems.length > 1, 'dense bar wraps to more than one system');
+  for (const sys of layout.systems) {
+    assert.deepEqual(sys.barIndices, [0], 'each wrap system holds bar 0 only');
+    assert.equal(sys.parts.length, 1, 'each wrap system has one part');
+  }
+
+  const colRanges = layout.systems.map((s) => {
+    const p = s.parts[0];
+    return { start: p.colStart, end: p.colEnd };
+  });
+  colRanges.sort((a, b) => a.start - b.start);
+  assert.equal(colRanges[0].start, 0, 'first fragment starts at column 0');
+  assert.equal(
+    colRanges[colRanges.length - 1].end,
+    layout.bars[0].columns.length,
+    'last fragment ends at column count',
+  );
+  for (let i = 1; i < colRanges.length; i += 1) {
+    assert.equal(
+      colRanges[i].start,
+      colRanges[i - 1].end,
+      `column ranges must be contiguous at index ${i}`,
+    );
+  }
+
+  const contPart = layout.systems[1].parts[0];
+  const firstColX = contPart.layout.columns[0].x;
+  assert.ok(
+    firstColX < 30,
+    `continuation first column x (${firstColX}) must be near the start pad, not the original large x`,
   );
 }
 
@@ -885,14 +960,19 @@ let techniqueReport = null;
   let checked = 0;
   for (const sys of layout.systems) {
     if (sys.barIndices.length <= 1) continue;
-    const sum = sys.barIndices.reduce((s, i) => s + layout.bars[i].widthUnits, 0);
+    if (!isCompleteBarSystem(sys)) continue;
+    const sum = sys.parts.reduce((s, p) => s + p.widthUnits, 0);
     assert.ok(
       Math.abs(sum - sys.widthPx) <= 0.5,
-      `system bar widths (${sum}) must equal system width (${sys.widthPx})`,
+      `system part widths (${sum}) must equal system width (${sys.widthPx})`,
     );
     checked += 1;
   }
   assert.ok(checked >= 1, 'at least one multi-bar system was checked');
+}
+
+function isCompleteBarSystem(sys) {
+  return sys.parts.every((p) => !p.isContinuation && p.isLastFragment);
 }
 
 // Drum mode with drumLanes must place each kit lane on its own row.

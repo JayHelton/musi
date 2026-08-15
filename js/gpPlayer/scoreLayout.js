@@ -47,6 +47,10 @@ const TECHNIQUE_BELOW = new Set(['slide', 'hammer', 'pull', 'palmMute', 'slap', 
 // the time signature must start after it, or the text runs together.
 const BAR_PAD_START = 42;
 const BAR_PAD_END = 10;
+// A continuation row starts after a split measure. It uses a smaller pad than a
+// full bar start, because the measure chrome already appeared on the first row.
+const CONTINUATION_PAD_START = 12;
+const CONTINUATION_PAD_END = 8;
 const MIN_BAR_UNITS = 96;
 const UNITS_PER_QUARTER = 20;
 const MAX_MEASURES_PER_SYSTEM = 8;
@@ -507,6 +511,8 @@ function placeSpringColumns(bar, cols, measureLen, geoPx, opts) {
     columns.push({
       beat: col.beat.start,
       x: col.x,
+      xLeft: col.xLeft,
+      advance,
       relStart: col.relStart,
     });
     x += advance;
@@ -1332,28 +1338,260 @@ function availableWidthPx(widthPx) {
   return Math.max(100, widthPx - VIEWPORT_PAD - GUTTER_UNITS);
 }
 
+const FIRST_FRAGMENT_ONLY_KINDS = new Set([
+  'barNumber', 'marker', 'timeSig', 'repeatOpen', 'volta', 'tuning',
+]);
+const LAST_FRAGMENT_ONLY_KINDS = new Set(['repeatClose']);
+
+/**
+ * Width of a column-range fragment before stretch.
+ */
+function fragmentWidthUnits(bar, colStart, colEnd, isContinuation, isLastFragment) {
+  const cols = bar.columns || [];
+  if (!cols.length) return bar.widthUnits;
+
+  const startPad = isContinuation ? CONTINUATION_PAD_START : BAR_PAD_START;
+  const endPad = isLastFragment ? BAR_PAD_END : CONTINUATION_PAD_END;
+  const firstCol = cols[colStart];
+  const lastCol = cols[colEnd - 1];
+  const contentW = (lastCol.xLeft + lastCol.advance) - firstCol.xLeft;
+  return startPad + contentW + endPad;
+}
+
+/**
+ * Slice a full bar layout to a column-range fragment ready to draw.
+ */
+function sliceBarLayout(bar, { colStart, colEnd, isContinuation, isLastFragment }) {
+  const cols = bar.columns || [];
+  const sliceCols = cols.slice(colStart, colEnd);
+
+  const startPad = isContinuation ? CONTINUATION_PAD_START : BAR_PAD_START;
+  const endPad = isLastFragment ? BAR_PAD_END : CONTINUATION_PAD_END;
+
+  if (!sliceCols.length) {
+    return {
+      ...bar,
+      widthUnits: bar.widthUnits,
+      contentWidthUnits: bar.contentWidthUnits,
+      noteOriginUnits: bar.noteOriginUnits,
+      columns: [],
+      glyphs: [...bar.glyphs],
+      overlays: [...bar.overlays],
+      lanes: bar.lanes.map((l) => ({ ...l, w: bar.widthUnits })),
+      isContinuation,
+      fragmentColStart: colStart,
+      fragmentColEnd: colEnd,
+      firstColumnBeat: bar.firstColumnBeat,
+      lastColumnBeat: bar.lastColumnBeat,
+    };
+  }
+
+  const firstCol = sliceCols[0];
+  const lastCol = sliceCols[sliceCols.length - 1];
+  const xShift = firstCol.xLeft - startPad;
+  const contentW = (lastCol.xLeft + lastCol.advance) - firstCol.xLeft;
+  const widthUnits = startPad + contentW + endPad;
+  const noteOriginUnits = startPad + (firstCol.x - firstCol.xLeft);
+
+  const firstBeat = firstCol.beat;
+  const lastBeat = lastCol.beat;
+
+  const shiftX = (x) => x - xShift;
+
+  const newColumns = sliceCols.map((c) => ({
+    beat: c.beat,
+    x: shiftX(c.x),
+    xLeft: shiftX(c.xLeft),
+    advance: c.advance,
+    relStart: c.relStart,
+  }));
+
+  const newGlyphs = [];
+  const oldToNew = new Map();
+
+  for (let i = 0; i < bar.glyphs.length; i += 1) {
+    const g = bar.glyphs[i];
+    const beatStart = g.beatStart;
+
+    if (FIRST_FRAGMENT_ONLY_KINDS.has(g.kind)) {
+      if (!isContinuation) {
+        oldToNew.set(i, newGlyphs.length);
+        newGlyphs.push({ ...g, x: shiftX(g.x) });
+      }
+      continue;
+    }
+    if (LAST_FRAGMENT_ONLY_KINDS.has(g.kind)) {
+      if (isLastFragment) {
+        oldToNew.set(i, newGlyphs.length);
+        newGlyphs.push({ ...g, x: shiftX(g.x) });
+      }
+      continue;
+    }
+
+    if (beatStart != null) {
+      if (FIRST_FRAGMENT_ONLY_KINDS.has(g.kind) || LAST_FRAGMENT_ONLY_KINDS.has(g.kind)) {
+        // Handled above.
+      } else if (beatStart < firstBeat - 1e-4 || beatStart > lastBeat + 1e-4) {
+        continue;
+      }
+    }
+
+    oldToNew.set(i, newGlyphs.length);
+    newGlyphs.push({ ...g, x: shiftX(g.x) });
+  }
+
+  const overlayRecords = (bar._overlayRecords || [])
+    .map((rec) => {
+      const fromIndex = oldToNew.get(rec.fromIndex);
+      const toIndex = oldToNew.get(rec.toIndex);
+      if (fromIndex == null || toIndex == null) return null;
+      return { ...rec, fromIndex, toIndex };
+    })
+    .filter(Boolean);
+
+  const overlays = buildOverlayPaths(newGlyphs, overlayRecords);
+  const lanes = bar.lanes.map((l) => ({ ...l, w: widthUnits }));
+
+  return {
+    barIndex: bar.barIndex,
+    widthUnits,
+    minWidthUnits: bar.minWidthUnits,
+    fontPx: bar.fontPx,
+    lanes,
+    glyphs: newGlyphs,
+    overlays,
+    warnings: bar.warnings,
+    beatStart: bar.beatStart,
+    beatSpan: bar.beatSpan,
+    noteOriginUnits,
+    contentWidthUnits: contentW,
+    columns: newColumns,
+    totalHeightUnits: bar.totalHeightUnits,
+    firstColumnBeat: firstBeat,
+    lastColumnBeat: lastBeat,
+    isContinuation,
+    fragmentColStart: colStart,
+    fragmentColEnd: colEnd,
+  };
+}
+
+/**
+ * Split a bar that is wider than one row into column-range parts.
+ * @returns {object[]} part descriptors (no layout yet)
+ */
+function splitBarIntoParts(barIndex, bar, available) {
+  const cols = bar.columns || [];
+  if (!cols.length) {
+    return [{
+      barIndex,
+      colStart: 0,
+      colEnd: 0,
+      isContinuation: false,
+      isLastFragment: true,
+      widthUnits: bar.widthUnits,
+    }];
+  }
+
+  const parts = [];
+  let colStart = 0;
+  let isContinuation = false;
+
+  while (colStart < cols.length) {
+    let colEnd = colStart + 1;
+    const isLastPossible = () => colEnd >= cols.length;
+
+    while (!isLastPossible()) {
+      const nextEnd = colEnd + 1;
+      const isLast = nextEnd >= cols.length;
+      const w = fragmentWidthUnits(bar, colStart, nextEnd, isContinuation, isLast);
+      if (w > available + 1e-6) break;
+      colEnd = nextEnd;
+    }
+
+    const isLastFragment = colEnd >= cols.length;
+    const widthUnits = fragmentWidthUnits(bar, colStart, colEnd, isContinuation, isLastFragment);
+    parts.push({
+      barIndex,
+      colStart,
+      colEnd,
+      isContinuation,
+      isLastFragment,
+      widthUnits,
+    });
+    colStart = colEnd;
+    isContinuation = true;
+  }
+
+  return parts;
+}
+
+function makeWholeBarPart(barIndex, bar) {
+  const colCount = bar.columns?.length || 0;
+  return {
+    barIndex,
+    colStart: 0,
+    colEnd: colCount,
+    isContinuation: false,
+    isLastFragment: true,
+    widthUnits: bar.widthUnits,
+  };
+}
+
 function packSystems(bars, widthPx, maxPerSystem) {
-  const unitScale = 1;
   const available = availableWidthPx(widthPx);
   const systems = [];
   let i = 0;
+
   while (i < bars.length) {
     const row = [];
     let sum = 0;
+
     while (i < bars.length && row.length < maxPerSystem) {
-      const w = bars[i].widthUnits * unitScale;
-      if (row.length > 0 && sum + w > available) break;
+      const bar = bars[i];
+      if (row.length > 0 && sum + bar.widthUnits > available + 1e-6) break;
+      if (row.length === 0 && bar.widthUnits > available + 1e-6) break;
       row.push(i);
-      sum += w;
+      sum += bar.widthUnits;
       i += 1;
     }
-    if (!row.length) {
-      row.push(i);
-      i += 1;
+
+    if (row.length > 0) {
+      const parts = row.map((idx) => makeWholeBarPart(idx, bars[idx]));
+      systems.push({
+        barIndices: [...row],
+        widthPx: available,
+        parts,
+      });
+      continue;
     }
-    systems.push({ barIndices: row, widthPx: available });
+
+    // One measure is wider than the row. Split it across systems.
+    const barIndex = i;
+    const bar = bars[barIndex];
+    const barParts = splitBarIntoParts(barIndex, bar, available);
+    for (const part of barParts) {
+      systems.push({
+        barIndices: [barIndex],
+        widthPx: available,
+        parts: [part],
+      });
+    }
+    i += 1;
   }
+
   return systems;
+}
+
+function isCompleteBarPart(part, bar) {
+  const colCount = bar.columns?.length || 0;
+  return !part.isContinuation
+    && part.isLastFragment
+    && part.colStart === 0
+    && part.colEnd === colCount;
+}
+
+function isCompleteBarSystem(system, bars) {
+  return system.parts.every((p) => isCompleteBarPart(p, bars[p.barIndex]));
 }
 
 // The view draws a bar at the width the layout reports, and it draws every
@@ -1362,6 +1600,8 @@ function packSystems(bars, widthPx, maxPerSystem) {
 // moved but the notes stayed, and the playhead could not match either one.
 function stretchSystemsToWidth(model, bars, systems, opts, barMeta) {
   for (const system of systems) {
+    if (!isCompleteBarSystem(system, bars)) continue;
+
     const indices = system.barIndices;
     const sumWidth = indices.reduce((s, i) => s + bars[i].widthUnits, 0);
     const leftover = system.widthPx - sumWidth;
@@ -1388,6 +1628,55 @@ function stretchSystemsToWidth(model, bars, systems, opts, barMeta) {
         retainOverlayRecords: true,
       });
       bars[idx] = newBar;
+    }
+
+    for (const part of system.parts) {
+      const bar = bars[part.barIndex];
+      part.widthUnits = bar.widthUnits;
+    }
+  }
+}
+
+/**
+ * Grow split-fragment systems so each row fills its width. Notes do not move.
+ */
+function stretchFragmentSystems(systems, bars) {
+  for (const system of systems) {
+    if (isCompleteBarSystem(system, bars)) continue;
+
+    const sumWidth = system.parts.reduce((s, p) => s + p.widthUnits, 0);
+    const leftover = system.widthPx - sumWidth;
+    if (leftover <= 1e-6) continue;
+
+    for (const part of system.parts) {
+      const share = sumWidth > 0 ? part.widthUnits / sumWidth : 1 / system.parts.length;
+      const extra = leftover * share;
+      part.widthUnits += extra;
+      if (part.layout) {
+        part.layout.widthUnits += extra;
+        part.layout.contentWidthUnits += extra;
+        for (const lane of part.layout.lanes) {
+          lane.w = part.layout.widthUnits;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Build part.layout from full bars (slice or alias).
+ */
+function buildPartLayouts(systems, bars) {
+  for (const system of systems) {
+    for (const part of system.parts) {
+      const bar = bars[part.barIndex];
+      if (isCompleteBarPart(part, bar)) {
+        part.layout = bar;
+        part.widthUnits = bar.widthUnits;
+      } else {
+        part.layout = sliceBarLayout(bar, part);
+        part.widthUnits = part.layout.widthUnits;
+      }
     }
   }
 }
@@ -1439,13 +1728,17 @@ export function layoutScore(model, options = {}) {
   }
 
   const systems = packSystems(bars, opts.widthPx, opts.maxMeasuresPerSystem);
+
+  const { laneStack, totalHeightUnits } = applySharedLaneStack(bars);
+
   stretchSystemsToWidth(model, bars, systems, {
     ...opts,
     minContentUnits: 0,
     maxContentUnits: 0,
   }, barMeta);
 
-  const { laneStack, totalHeightUnits } = applySharedLaneStack(bars);
+  buildPartLayouts(systems, bars);
+  stretchFragmentSystems(systems, bars);
 
   for (const bar of bars) {
     delete bar._overlayRecords;
