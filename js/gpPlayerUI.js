@@ -549,6 +549,7 @@ export function mountGpPlayer(host, {
   let prevPlaybackTick = null;
   let playbackEndFired = false;
   let lastUserStopAt = 0;
+  let suppressPlaybackEnd = false;
   const PLAYBACK_END_EPSILON = 0.4;
   const USER_STOP_SUPPRESS_MS = 300;
 
@@ -767,16 +768,28 @@ export function mountGpPlayer(host, {
     },
   });
 
+  function preservedBeatFromPlayer() {
+    const pos = player.getPosition?.();
+    if (pos && Number.isFinite(pos.beatInScore)) return pos.beatInScore;
+    const engineBpm = player.bpm ?? state.bpm;
+    return (player.currentSec / 60) * engineBpm;
+  }
+
+  function secFromPreservedBeat(beat) {
+    const timeline = activePlaybackTimeline();
+    if (timeline?.secondsAtQuarter) return timeline.secondsAtQuarter(beat);
+    return quartersToSeconds(beat, state.bpm);
+  }
+
   function withPreservedPosition(fn) {
     const was = player.playing;
-    const at = player.currentSec;
-    const beat = (at / 60) * state.bpm;
+    const beat = preservedBeatFromPlayer();
     fn();
-    const newSec = quartersToSeconds(beat, state.bpm);
+    const newSec = secFromPreservedBeat(beat);
     if (was) player.play({ fromSec: newSec });
     // A fresh mount has no position to keep, and seeking to zero would override
     // the loop start the player just picked for itself.
-    else if (at > 0) player.seek(newSec);
+    else if (beat > 0) player.seek(newSec);
   }
 
   function applyLoopToPlayer() {
@@ -789,14 +802,40 @@ export function mountGpPlayer(host, {
       if (endSec > startSec) {
         player.setLoop({ startSec, endSec, restSec: state.loopRestSec });
       }
-    } else if (!state.loopEnabled) {
+    } else if (state.loopEnabled) {
+      player.setLoop({
+        startBarIndex: state.loopStart,
+        endBarIndex: state.loopEnd,
+        restSec: state.loopRestSec,
+      });
+    } else {
       player.setLoop(null);
     }
     syncMetroToPlayer();
   }
 
+  function applyBpmChange() {
+    if (!isAlive()) return;
+    player.setBpm(state.bpm);
+    applyLoopToPlayer();
+    syncPlaybackUi({
+      playing: player.playing,
+      currentSec: player.currentSec,
+      durationSec: player.durationSec,
+      measureIndex: player.measureIndex,
+    });
+    settingsDrawer?.sync();
+    trackMixer?.sync();
+    metronomePanel?.sync();
+    transport?.sync();
+    practiceRail?.sync();
+    trackTabs?.sync();
+    emitPracticeSettings();
+  }
+
   function reloadModel() {
     if (!isAlive()) return;
+    suppressPlaybackEnd = true;
     try {
       stateController.applyTransforms();
       if (!state.bpmUserOverride) state.bpm = state.scoreBpm;
@@ -813,18 +852,17 @@ export function mountGpPlayer(host, {
       }
 
       const was = player.playing;
-      const at = player.currentSec;
-      const beat = (at / 60) * state.bpm;
+      const beat = preservedBeatFromPlayer();
       player.load(loadOpts);
       applyTrackVolumesToPlayer();
       applyTrackPansToPlayer();
       applyLoopToPlayer();
       buildPlaybackTimeline();
-      const newSec = quartersToSeconds(beat, state.bpm);
+      const newSec = secFromPreservedBeat(beat);
       if (was) player.play({ fromSec: newSec });
       // A fresh mount has no position to keep, and seeking to zero would override
       // the loop start load() just picked.
-      else if (at > 0) player.seek(newSec);
+      else if (beat > 0) player.seek(newSec);
 
       refreshScoreSurface();
       syncMetroToPlayer();
@@ -832,6 +870,8 @@ export function mountGpPlayer(host, {
     } catch (err) {
       showAlert(err?.message || 'Could not load the score view.');
       console.error(err);
+    } finally {
+      suppressPlaybackEnd = false;
     }
   }
 
@@ -1020,14 +1060,21 @@ export function mountGpPlayer(host, {
       return;
     }
     if (cur.playing && !prevPlaybackTick.playing) playbackEndFired = false;
+    if (suppressPlaybackEnd) {
+      prevPlaybackTick = { playing: cur.playing, currentSec: cur.currentSec, durationSec: cur.durationSec };
+      return;
+    }
     const prevDur = prevPlaybackTick.durationSec || cur.durationSec;
-    const nearEnd = prevDur > 0 && prevPlaybackTick.currentSec >= prevDur - PLAYBACK_END_EPSILON;
+    const curDur = cur.durationSec || prevDur;
+    const prevNearEnd = prevDur > 0 && prevPlaybackTick.currentSec >= prevDur - PLAYBACK_END_EPSILON;
+    const curNearEnd = curDur > 0 && cur.currentSec >= curDur - PLAYBACK_END_EPSILON;
     // Ignore stop edges shortly after user pause/stop — same tick signature as natural end.
     const naturalEnd = prevPlaybackTick.playing
       && !cur.playing
       && !cur.resting
       && !state.loopEnabled
-      && nearEnd
+      && prevNearEnd
+      && curNearEnd
       && !playbackEndFired
       && Date.now() - lastUserStopAt > USER_STOP_SUPPRESS_MS;
     if (naturalEnd && typeof onPlaybackEnd === 'function') {
@@ -1331,26 +1378,26 @@ export function mountGpPlayer(host, {
       tempoRamp.stopSession();
       state.bpmUserOverride = true;
       state.bpm = clampBpm(Math.round(state.scoreBpm * (next / 100)));
-      onSettingsChange({ reload: true });
+      applyBpmChange();
     },
     onSpeedInput: (value) => {
       tempoRamp.stopSession();
       state.bpmUserOverride = true;
       const pct = clampTempoPct(Number(value) || 100);
       state.bpm = clampBpm(Math.round(state.scoreBpm * (pct / 100)));
-      onSettingsChange({ reload: true });
+      applyBpmChange();
     },
     onBpmStep: (delta) => stepBpm(delta),
     onBpmInput: (value) => {
       tempoRamp.stopSession();
       state.bpmUserOverride = true;
       state.bpm = clampBpm(Number(value) || state.scoreBpm);
-      onSettingsChange({ reload: true });
+      applyBpmChange();
     },
     onBpmReset: () => {
       tempoRamp.stopSession();
       stateController.resetBpm();
-      onSettingsChange({ reload: true });
+      applyBpmChange();
     },
     onLoopToggle: () => setLoopEnabled(!state.loopEnabled),
     onClearLoop: () => {
@@ -1721,7 +1768,7 @@ export function mountGpPlayer(host, {
     tempoRamp.stopSession();
     state.bpmUserOverride = true;
     state.bpm = clampBpm(state.bpm + delta);
-    onSettingsChange({ reload: true });
+    applyBpmChange();
   }
 
   function togglePlayPause() {
@@ -1850,14 +1897,14 @@ export function mountGpPlayer(host, {
         tempoRamp.stopSession();
         state.bpmUserOverride = true;
         state.bpm = clampBpm(Math.round(state.scoreBpm * (clampTempoPct(pct - 5) / 100)));
-        onSettingsChange({ reload: true });
+        applyBpmChange();
       } else if (e.key === ']') {
         e.preventDefault();
         const pct = state.scoreBpm ? Math.round((state.bpm / state.scoreBpm) * 100) : 100;
         tempoRamp.stopSession();
         state.bpmUserOverride = true;
         state.bpm = clampBpm(Math.round(state.scoreBpm * (clampTempoPct(pct + 5) / 100)));
-        onSettingsChange({ reload: true });
+        applyBpmChange();
       } else if (e.key === 'l' || e.key === 'L') {
         if (e.shiftKey) {
           e.preventDefault();
