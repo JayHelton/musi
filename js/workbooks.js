@@ -134,6 +134,7 @@ let detailEntryListEl = null;
 
 let workbookBackTarget = null;
 const workbookEntryChangeHandlers = new Set();
+const workbookDetailChangeHandlers = new Set();
 const workbookCompanionChangeHandlers = new Set();
 let routeDrivenCompanionChange = false;
 
@@ -683,6 +684,26 @@ function resolveWorkbookEntry(wb, routeExerciseId) {
   return entry || null;
 }
 
+function notifyWorkbookDetailChange(payload) {
+  workbookDetailChangeHandlers.forEach((handler) => {
+    try { handler(payload); } catch (e) { /* ignore */ }
+  });
+}
+
+function notifyWorkbookDetailOpen() {
+  const workbookId = openWorkbookId;
+  if (!workbookId) {
+    notifyWorkbookDetailChange({ open: false, workbookId: null, exerciseId: null });
+    return;
+  }
+  const active = getActiveWorkbookEntry(workbookId);
+  notifyWorkbookDetailChange({
+    open: true,
+    workbookId,
+    exerciseId: active ? active.entry.id : null,
+  });
+}
+
 function notifyWorkbookEntryChange() {
   const workbookId = openWorkbookId;
   if (!workbookId) return;
@@ -692,6 +713,7 @@ function notifyWorkbookEntryChange() {
   workbookEntryChangeHandlers.forEach((handler) => {
     try { handler(payload); } catch (e) { /* ignore */ }
   });
+  notifyWorkbookDetailOpen();
 }
 
 function activateCompanionSubview(workbookId, companionId) {
@@ -825,6 +847,7 @@ export function closeWorkbookDetail() {
   if (workspaceEl) workspaceEl.classList.remove('is-open');
   if (detailPaneEl) detailPaneEl.hidden = true;
   syncPracticeMode();
+  notifyWorkbookDetailChange({ open: false, workbookId: null, exerciseId: null });
 }
 
 export function requestWorkbookOpen(id) {
@@ -915,6 +938,10 @@ export function onWorkbookEntryChange(handler) {
   if (typeof handler === 'function') workbookEntryChangeHandlers.add(handler);
 }
 
+export function onWorkbookDetailChange(handler) {
+  if (typeof handler === 'function') workbookDetailChangeHandlers.add(handler);
+}
+
 export function onWorkbookCompanionChange(handler) {
   if (typeof handler === 'function') workbookCompanionChangeHandlers.add(handler);
 }
@@ -925,6 +952,7 @@ function openWorkbookDetail(id) {
   if (detailPaneEl) detailPaneEl.hidden = false;
   syncPracticeMode();
   render();
+  notifyWorkbookDetailOpen();
 }
 
 // --- modals (shared modal-* styles) ----------------------------------------

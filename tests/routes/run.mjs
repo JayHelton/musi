@@ -12,6 +12,8 @@ import {
   LEGACY_ROUTES,
 } from '../../js/routeMap.js';
 import { sectionIdForRoute } from '../../js/routeSection.js';
+import { shouldKeepLibraryPlayer } from '../../js/library/libraryPlayerRoute.js';
+import { parseAppRoute, buildAppRoute } from '../../js/appRoute.js';
 
 let passed = 0;
 let failed = 0;
@@ -220,6 +222,42 @@ test('sectionIdForRoute maps library without mode to exercises', () => {
 test('sectionIdForRoute keeps intervalmap and tabanalyzer aliases', () => {
   assert.equal(sectionIdForRoute('intervalmap'), 'intervalorbit');
   assert.equal(sectionIdForRoute('tabanalyzer'), 'gpplayer');
+});
+
+console.log('Library player route');
+test('shouldKeepLibraryPlayer keeps workbooks player when workbook param is set', () => {
+  assert.equal(shouldKeepLibraryPlayer('workbooks', { workbook: 'wb-1' }), true);
+});
+
+test('shouldKeepLibraryPlayer drops workbooks player when workbook param is missing', () => {
+  assert.equal(shouldKeepLibraryPlayer('workbooks', { mode: 'workbooks' }), false);
+});
+
+test('shouldKeepLibraryPlayer keeps exercises player when exercise param is set', () => {
+  assert.equal(shouldKeepLibraryPlayer('exercises', { exercise: 'ex-1' }), true);
+});
+
+test('shouldKeepLibraryPlayer drops exercises player when exercise param is missing', () => {
+  assert.equal(shouldKeepLibraryPlayer('exercises', {}), false);
+});
+
+test('parseAppRoute and buildAppRoute round-trip library player hash', () => {
+  const params = { mode: 'workbooks', workbook: 'wb-1', exercise: 'wbe-1' };
+  const parsed = parseAppRoute('#library?mode=workbooks&workbook=wb-1&exercise=wbe-1');
+  assert.equal(parsed.id, 'library');
+  assert.deepEqual(parsed.params, params);
+  const built = buildAppRoute({ id: 'library', params });
+  const roundTrip = parseAppRoute(`#${built}`);
+  assert.equal(roundTrip.id, 'library');
+  assert.deepEqual(roundTrip.params, params);
+});
+
+test('resolveRoute library with workbook keeps workbook param', () => {
+  const result = resolveRoute({ id: 'library', params: { mode: 'workbooks', workbook: 'wb-1' } });
+  assert.equal(result.id, 'library');
+  assert.equal(result.params.mode, 'workbooks');
+  assert.equal(result.params.workbook, 'wb-1');
+  assert.equal(result.notice, null);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

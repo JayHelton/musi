@@ -846,6 +846,7 @@ let viewerGpMount = null;
 let viewerTakePanel = null;
 let escapeWired = false;
 let openGeneration = 0;
+const exerciseViewerChangeHandlers = new Set();
 
 // --- rendering -------------------------------------------------------------
 
@@ -2140,6 +2141,9 @@ export async function openExerciseViewer(id) {
   const gpMount = mountPlayerBody(item, kind, blob);
   mountTakePanel(item);
   applyActiveRowHighlight();
+  exerciseViewerChangeHandlers.forEach((handler) => {
+    try { handler({ open: true, exerciseId: id }); } catch (e) { /* ignore */ }
+  });
 
   if (gpMount) {
     const mounted = await mountGpExercise(item, gpMount, blob);
@@ -2161,6 +2165,13 @@ export async function openExerciseViewer(id) {
 export function closeExerciseViewer() {
   openGeneration += 1;
   teardownPlayer();
+  exerciseViewerChangeHandlers.forEach((handler) => {
+    try { handler({ open: false, exerciseId: null }); } catch (e) { /* ignore */ }
+  });
+}
+
+export function onExerciseViewerChange(handler) {
+  if (typeof handler === 'function') exerciseViewerChangeHandlers.add(handler);
 }
 
 // --- confirm / prompt modals (reuse shared modal styles) -------------------
