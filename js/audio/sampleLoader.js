@@ -43,7 +43,7 @@ function isSameOriginUrl(url) {
 }
 
 function packBaseUrl(pack) {
-  return `assets/audio/packs/${pack.id}/`;
+  return new URL(`../../assets/audio/packs/${pack.id}/`, import.meta.url).href;
 }
 
 function resolveSampleUrl(pack, file) {

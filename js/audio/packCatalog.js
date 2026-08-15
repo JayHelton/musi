@@ -14,7 +14,7 @@ export const CORE_PACK_IDS = [
 ];
 
 function manifestUrl(packId) {
-  return `assets/audio/packs/${packId}/manifest.json`;
+  return new URL(`../../assets/audio/packs/${packId}/manifest.json`, import.meta.url).href;
 }
 
 /**
