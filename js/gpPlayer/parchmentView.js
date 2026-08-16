@@ -35,6 +35,7 @@ const GUTTER_BASIS = 20;
 const AUTO_SCALE_WIDTH_900 = 900;
 const AUTO_SCALE_WIDTH_1200 = 1200;
 const AUTO_SCALE_WIDTH_1600 = 1600;
+const AUTO_SCALE_AT_PHONE = 1.28;
 const AUTO_SCALE_AT_900 = 1.2;
 const AUTO_SCALE_AT_1200 = 1.35;
 const AUTO_SCALE_AT_1600 = 1.5;
@@ -76,7 +77,7 @@ function autoScaleForHostWidth(hostWidth) {
   if (hostWidth >= AUTO_SCALE_WIDTH_1600) return AUTO_SCALE_AT_1600;
   if (hostWidth >= AUTO_SCALE_WIDTH_1200) return AUTO_SCALE_AT_1200;
   if (hostWidth >= AUTO_SCALE_WIDTH_900) return AUTO_SCALE_AT_900;
-  return 1;
+  return AUTO_SCALE_AT_PHONE;
 }
 
 function effectiveScale(hostWidth, userZoom) {
