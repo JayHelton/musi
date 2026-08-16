@@ -31,6 +31,7 @@ const PAGES = [
   'follow-scroll.html',
   'zoom-overflow.html',
   'score-wrap.html',
+  'score-tuplets.html',
   'score-alignment.html',
   'score-spacing.html',
   'score-follow.html',

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player score tuplets</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    body { margin: 0; padding: 12px; background: #1a1420; color: #f7efd8; }
+    h2 {
+      font-family: var(--font-ui, "VT323", monospace);
+      font-size: 16px;
+      margin: 0 0 8px;
+      color: var(--accent, #ffd83d);
+    }
+    #host {
+      width: 360px;
+      height: 280px;
+      border: 2px solid #6b4c9a;
+    }
+    #out { margin-top: 10px; white-space: pre; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h2>Phone width — one triplet mark below the stems</h2>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    import { writeln, reportResult, runMain } from './harness.js';
+
+    function tripletMuteModel() {
+      const strings = [
+        { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+        { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+        { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+        { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+        { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+        { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+      ];
+      const events = [];
+      const beats = [];
+      for (let n = 0; n < 3; n += 1) {
+        const start = n * (2 / 3);
+        events.push({
+          start,
+          duration: 2 / 3,
+          stringIndex: 5,
+          fret: 5 + n,
+          midi: 45,
+          dead: false,
+          techniques: ['palmMute'],
+        });
+        beats.push({
+          measureIndex: 0,
+          voiceIndex: 0,
+          start,
+          duration: 2 / 3,
+          noteValue: 8,
+          dots: 0,
+          tuplet: { num: 3, den: 2 },
+          rest: false,
+          noteIndices: [n],
+        });
+      }
+      return {
+        tuning: 'Standard',
+        strings,
+        events,
+        beats,
+        measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+        tempo: 120,
+        totalBeats: 4,
+      };
+    }
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function boxesOverlap(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    runMain(async () => {
+      const { mountParchmentView } = await import('/js/gpPlayer/parchmentView.js');
+      const host = document.getElementById('host');
+      mountParchmentView(host, { guitarModel: tripletMuteModel(), autoFollow: false, zoom: 1 });
+      await sleep(400);
+
+      const tups = [...host.querySelectorAll('.gpp-glyph--tupletBracket')];
+      const techs = [...host.querySelectorAll('.gpp-glyph-lane--techniqueBelow')];
+      const stems = [...host.querySelectorAll('.gpp-glyph--stem, .gpp-glyph--flag, .gpp-glyph--beam')];
+      function box(el) {
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height };
+      }
+      let overlap = 0;
+      for (const t of tups) {
+        for (const o of [...techs, ...stems]) {
+          if (boxesOverlap(box(t), box(o))) overlap += 1;
+        }
+      }
+      writeln(`tuplet marks: ${tups.length}`);
+      writeln(`technique-below marks: ${techs.length}`);
+      writeln(`overlaps with stems or PM: ${overlap}`);
+      reportResult(tups.length === 1 && overlap === 0);
+    });
+  </script>
+</body>
+</html>
