@@ -532,7 +532,7 @@ function syncDetailTabs(wb) {
 
   if (!hasCompanions) {
     if (detailTabsApi?.active === 'tools') {
-      detailCompanionsHandle?.stop?.();
+      detailCompanionsHandle?.stop?.('pane-hidden');
     }
     detailGpMountEl.hidden = false;
     detailGpMountEl.classList.add('active');
@@ -555,7 +555,7 @@ function syncDetailTabs(wb) {
       className: 'subview-tabs wb-detail-tabs',
       onChange: (id) => {
         if (id === 'exercise') {
-          detailCompanionsHandle?.stop?.();
+          detailCompanionsHandle?.stop?.('pane-hidden');
         } else {
           detailCompanionsHandle?.refresh?.();
         }

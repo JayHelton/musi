@@ -6,5 +6,7 @@
 await import('./types.mjs');
 await import('./mount.mjs');
 await import('./interval-orbit.mjs');
+await import('./metronome-plan.mjs');
+await import('./metronome-mount.mjs');
 
 console.log('companions tests: ok');

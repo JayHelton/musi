@@ -473,6 +473,45 @@ test('workbook companions round-trip, invalid dropped, and cap enforced', () => 
   assert.equal(reloaded.companions.length, stored.companions.length);
 });
 
+test('metronome companion keeps its BPM progression across a reload', () => {
+  withWorkbooksStorage(null, () => {
+    const wb = createWorkbook({ name: 'Tempo plan' });
+    addCompanionToWorkbook(wb.id, 'metronome');
+    const metroId = getWorkbook(wb.id).companions[0].id;
+
+    updateWorkbookCompanion(wb.id, metroId, {
+      progression: 'custom',
+      beatsPerBar: 3,
+      countIn: true,
+      planLoop: true,
+      steps: [
+        { seconds: 60, bpm: 70, subdiv: 'quarter' },
+        { seconds: 90, bpm: 85, subdiv: 'triplet' },
+      ],
+    });
+
+    // Drop the in-memory cache so the next read parses stored JSON, the way a
+    // fresh practice session does.
+    invalidateWorkbooksCache();
+    const reloaded = getWorkbook(wb.id).companions.find((c) => c.id === metroId);
+    assert.equal(reloaded.progression, 'custom');
+    assert.equal(reloaded.beatsPerBar, 3);
+    assert.equal(reloaded.countIn, true);
+    assert.equal(reloaded.planLoop, true);
+    assert.deepEqual(reloaded.steps, [
+      { seconds: 60, bpm: 70, subdiv: 'quarter' },
+      { seconds: 90, bpm: 85, subdiv: 'triplet' },
+    ]);
+
+    // The returned copy must not share the stored step objects.
+    reloaded.steps[0].bpm = 999;
+    reloaded.steps.push({ seconds: 30, bpm: 60, subdiv: 'quarter' });
+    const again = getWorkbook(wb.id).companions.find((c) => c.id === metroId);
+    assert.equal(again.steps.length, 2);
+    assert.equal(again.steps[0].bpm, 70);
+  });
+});
+
 test('getWorkbook returns deep copy of companions', () => {
   const wb = createWorkbook({ name: 'Copy safety' });
   addCompanionToWorkbook(wb.id, 'scale-ref');

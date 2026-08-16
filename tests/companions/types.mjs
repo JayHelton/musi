@@ -9,9 +9,9 @@ import {
   describeCompanion,
 } from '../../js/exerciseCompanions/types.js';
 
-assert.equal(COMPANION_TYPES.length, 6);
+assert.equal(COMPANION_TYPES.length, 7);
 assert.deepEqual(COMPANION_TYPES.map((t) => t.id), [
-  'scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train',
+  'scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train', 'metronome',
 ]);
 
 const scaleDef = defaultCompanion('scale-ref');
@@ -190,5 +190,82 @@ const earDesc = describeCompanion({
   earAnswer: 'note',
 });
 assert.match(earDesc, /Ear · C Major · root first · note/);
+
+// --- metronome -------------------------------------------------------------
+
+const metroDef = defaultCompanion('metronome');
+assert.equal(metroDef.type, 'metronome');
+assert.equal(metroDef.progression, 'ramp');
+assert.equal(metroDef.startBpm, 80);
+assert.equal(metroDef.targetBpm, 120);
+assert.equal(metroDef.stepBpm, 5);
+assert.equal(metroDef.stepSeconds, 60);
+assert.equal(metroDef.beatsPerBar, 4);
+assert.equal(metroDef.subdiv, 'quarter');
+assert.equal(metroDef.countIn, false);
+assert.equal(metroDef.planLoop, false);
+assert.deepEqual(metroDef.steps, []);
+assert.equal(metroDef.fretStart, undefined);
+
+// The metronome has no key, so it survives normalization without a root.
+const metroNoRoot = normalizeCompanion({
+  type: 'metronome',
+  progression: 'ladder',
+  startBpm: 72,
+  stepSeconds: 45,
+});
+assert.ok(metroNoRoot, 'metronome normalizes without a root');
+assert.equal(metroNoRoot.progression, 'ladder');
+assert.equal(metroNoRoot.startBpm, 72);
+assert.equal(metroNoRoot.stepSeconds, 45);
+assert.equal(metroNoRoot.stringSet, undefined);
+
+// Out-of-range plan values clamp instead of dropping the companion.
+const metroClamp = normalizeCompanion({
+  type: 'metronome',
+  progression: 'nonsense',
+  startBpm: 5000,
+  targetBpm: 1,
+  stepBpm: 900,
+  stepSeconds: 0,
+  rounds: 99,
+  beatsPerBar: 40,
+  subdiv: 'half',
+  steps: [{ seconds: 30, bpm: 88, subdiv: 'triplet' }, 'junk'],
+});
+assert.ok(metroClamp);
+assert.equal(metroClamp.progression, 'steady');
+assert.equal(metroClamp.startBpm, 300);
+assert.equal(metroClamp.targetBpm, 30);
+assert.equal(metroClamp.stepBpm, 60);
+assert.equal(metroClamp.stepSeconds, 5);
+assert.equal(metroClamp.rounds, 16);
+assert.equal(metroClamp.beatsPerBar, 12);
+assert.equal(metroClamp.subdiv, 'quarter');
+assert.equal(metroClamp.steps.length, 1);
+
+// A saved plan round-trips through normalization unchanged.
+const metroRound = normalizeCompanion(normalizeCompanion({
+  type: 'metronome',
+  progression: 'custom',
+  steps: [
+    { seconds: 60, bpm: 70, subdiv: 'quarter' },
+    { seconds: 30, bpm: 100, subdiv: 'sixteenth' },
+  ],
+}));
+assert.deepEqual(metroRound.steps, [
+  { seconds: 60, bpm: 70, subdiv: 'quarter' },
+  { seconds: 30, bpm: 100, subdiv: 'sixteenth' },
+]);
+
+const metroDesc = describeCompanion({
+  type: 'metronome',
+  progression: 'ramp',
+  startBpm: 80,
+  targetBpm: 100,
+  stepBpm: 5,
+  stepSeconds: 60,
+});
+assert.match(metroDesc, /Metronome · Step up · 80–100 BPM · 5 steps · 5:00/);
 
 console.log('companions types: ok');

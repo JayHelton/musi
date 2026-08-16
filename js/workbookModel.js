@@ -175,7 +175,10 @@ function copyEntry(entry) {
 }
 
 function copyCompanion(companion) {
-  return { ...companion };
+  const copy = { ...companion };
+  // Metronome plan steps are the one nested field, so copy them by value.
+  if (Array.isArray(companion.steps)) copy.steps = companion.steps.map(s => ({ ...s }));
+  return copy;
 }
 
 function copyWorkbook(wb) {

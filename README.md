@@ -84,6 +84,11 @@ Musi is built around five practice modes:
 - **Routines** - routine content behaves as a stack of layers: the routines list,
   the routine overview, the session detail, the workbook detail, and then an
   exercise or a study companion. One Back press moves up exactly one layer.
+- **Workbook companion tools** - a workbook pins reference and drill tools next to
+  its exercises: scale, triad, sweep, pitch trainer, ear trainer, interval orbit,
+  and metronome. The workbook stores each tool's settings. The metronome stores a
+  BPM progression, so the player presses Start instead of building a tempo plan
+  again in each session.
 - **Settings** - default musical context, audio volume, device sync, cloud
   account, library cleanup, and feature visibility. Settings holds no genre control.
 - **Study Lab** - opens a default study. It uses no genre profile.

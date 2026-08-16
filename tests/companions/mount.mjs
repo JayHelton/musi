@@ -21,7 +21,7 @@ globalThis.navigator.mediaDevices.getUserMedia = async () => {
   throw new Error('Mic denied (test)');
 };
 
-const types = ['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train'];
+const types = ['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train', 'metronome'];
 const handles = [];
 
 for (const type of types) {
@@ -42,7 +42,12 @@ for (const type of types) {
   assert.equal(toggle.getAttribute('aria-expanded'), 'true');
   const lock = sub.querySelector('.ec-lock');
   assert.ok(lock, `${type} heading`);
-  assert.match(lock.textContent, /G|A/, `${type} locked key in heading`);
+  if (type === 'metronome') {
+    // The metronome keeps time, so its heading carries the plan, not a key.
+    assert.match(lock.textContent, /Metronome/, 'metronome plan in heading');
+  } else {
+    assert.match(lock.textContent, /G|A/, `${type} locked key in heading`);
+  }
 
   const body = sub.querySelector('.ec-body');
   assert.ok(body, `${type} body`);
@@ -60,6 +65,11 @@ for (const type of types) {
   } else if (type === 'interval-orbit') {
     assert.ok(sub.querySelector('.ec-orbit-board'), 'orbit board');
     assert.ok(sub.querySelector('.ec-orbit-prompt') || sub.querySelector('.ec-orbit-chips'), 'orbit controls');
+  } else if (type === 'metronome') {
+    assert.ok(sub.querySelector('.ec-metro-readout'), 'metronome readout');
+    assert.ok(sub.querySelector('.ec-metro-beats'), 'metronome beat dots');
+    assert.ok(sub.querySelector('.ec-btn-start'), 'metronome start button');
+    assert.equal(sub.querySelector('.ec-btn-stop').disabled, true, 'metronome stop starts disabled');
   } else if (type === 'ear-train') {
     const earControls = sub.querySelector('.ec-ear-controls');
     assert.ok(earControls, 'ear controls');

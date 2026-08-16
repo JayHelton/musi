@@ -5,6 +5,7 @@ import { mountSweepRef } from './sweepRef.js';
 import { mountPitchTrain } from './pitchTrain.js';
 import { mountIntervalOrbit } from './intervalOrbit.js';
 import { mountEarTrain } from './earTrain.js';
+import { mountMetronome } from './metronome.js';
 
 export {
   COMPANION_TYPES,
@@ -18,6 +19,31 @@ export {
   describeCompanion,
 } from './types.js';
 
+export {
+  METRO_PROGRESSIONS,
+  METRO_SUBDIVISIONS,
+  METRO_SUBDIV_IDS,
+  METRO_MAX_STEPS,
+  METRO_MIN_BPM,
+  METRO_MAX_BPM,
+  METRO_MIN_STEP_SECONDS,
+  METRO_MAX_STEP_SECONDS,
+  METRO_MIN_BEATS,
+  METRO_MAX_BEATS,
+  METRO_MIN_STEP_BPM,
+  METRO_MAX_STEP_BPM,
+  METRO_MIN_ROUNDS,
+  METRO_MAX_ROUNDS,
+  describeMetronomePlan,
+  formatMetroDuration,
+  metroProgressionInfo,
+  metroSubdivInfo,
+  metronomePlanSteps,
+  metronomePlanTotalSeconds,
+  metronomeStepAt,
+  normalizeMetroSteps,
+} from './metronomePlan.js';
+
 const MOUNTERS = {
   'scale-ref': mountScaleRef,
   'triad-ref': mountTriadRef,
@@ -25,6 +51,7 @@ const MOUNTERS = {
   'pitch-train': mountPitchTrain,
   'interval-orbit': mountIntervalOrbit,
   'ear-train': mountEarTrain,
+  metronome: mountMetronome,
 };
 
 /**
@@ -57,7 +84,10 @@ export function mountCompanions(host, companions, options = {}) {
 
   return {
     refresh() { handles.forEach((h) => h.refresh()); },
-    stop() { handles.forEach((h) => h.stop()); },
+    // `reason` tells a companion why it is being stopped. Pass 'pane-hidden'
+    // when the tools pane goes off screen but the workbook stays open; a
+    // companion that is safe to leave running (the metronome) can keep going.
+    stop(reason) { handles.forEach((h) => h.stop(reason)); },
     destroy() {
       handles.forEach((h) => h.destroy());
       stack.remove();

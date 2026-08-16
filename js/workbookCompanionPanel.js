@@ -5,7 +5,26 @@ import {
   MAX_COMPANIONS,
   MAX_FRET,
   MAX_LABEL_LEN,
+  METRO_PROGRESSIONS,
+  METRO_SUBDIV_IDS,
+  METRO_SUBDIVISIONS,
+  METRO_MAX_STEPS,
+  METRO_MIN_BPM,
+  METRO_MAX_BPM,
+  METRO_MIN_BEATS,
+  METRO_MAX_BEATS,
+  METRO_MIN_STEP_BPM,
+  METRO_MAX_STEP_BPM,
+  METRO_MIN_ROUNDS,
+  METRO_MAX_ROUNDS,
+  METRO_MIN_STEP_SECONDS,
+  METRO_MAX_STEP_SECONDS,
   describeCompanion,
+  formatMetroDuration,
+  metroProgressionInfo,
+  metroSubdivInfo,
+  metronomePlanSteps,
+  metronomePlanTotalSeconds,
 } from './exerciseCompanions/index.js';
 import { ROOTS } from './theory.js';
 import { orderedScaleNames } from './scales.js';
@@ -144,6 +163,254 @@ function inversionSelect(id, patternId, stringSet, root, value) {
   return sel;
 }
 
+function numberInput(id, value, min, max, ariaLabel) {
+  return el('input', {
+    type: 'number',
+    class: 'wb-cmp-input',
+    id,
+    min: String(min),
+    max: String(max),
+    step: '1',
+    'aria-label': ariaLabel,
+    value: String(value),
+  });
+}
+
+function optionSelect(id, ariaLabel, entries, value) {
+  const sel = el('select', { class: 'wb-cmp-select', id, 'aria-label': ariaLabel });
+  for (const entry of entries) {
+    const opt = el('option', { value: String(entry.value), text: entry.label });
+    if (String(entry.value) === String(value)) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  return sel;
+}
+
+function checkboxRow(id, labelText, checked) {
+  const box = el('input', { type: 'checkbox', class: 'wb-cmp-check', id });
+  box.checked = !!checked;
+  const row = el('div', { class: 'wb-cmp-field wb-cmp-field-check' }, [
+    box,
+    el('label', { class: 'wb-cmp-field-label', for: id, text: labelText }),
+  ]);
+  return { row, box };
+}
+
+const SUBDIV_ENTRIES = METRO_SUBDIV_IDS.map((id) => ({
+  value: id,
+  label: METRO_SUBDIVISIONS[id].label,
+}));
+
+/**
+ * Builds the metronome plan editor. The plan lives on the companion, so the
+ * player configures a BPM progression once and the workbook keeps it.
+ *
+ * @returns {{ collect: () => object, controls: HTMLElement[] }}
+ */
+function buildMetronomeFields(fields, companion, prefix, api) {
+  const progression = metroProgressionInfo(companion.progression).id;
+  const needs = new Set(metroProgressionInfo(progression).needs);
+
+  const progId = `${prefix}-metro-progression`;
+  const progSel = optionSelect(
+    progId,
+    'Tempo progression',
+    METRO_PROGRESSIONS.map((p) => ({ value: p.id, label: p.label })),
+    progression,
+  );
+  fields.appendChild(fieldWrap('Progression', progSel, progId));
+  fields.appendChild(el('p', {
+    class: 'wb-cmp-hint',
+    text: metroProgressionInfo(progression).description,
+  }));
+
+  const controls = [progSel];
+  const custom = progression === 'custom';
+
+  let startInput = null;
+  if (!custom) {
+    const startId = `${prefix}-metro-start`;
+    startInput = numberInput(startId, companion.startBpm ?? 80, METRO_MIN_BPM, METRO_MAX_BPM, 'Start tempo');
+    fields.appendChild(fieldWrap(
+      progression === 'steady' ? 'Tempo (BPM)' : 'Start tempo (BPM)',
+      startInput,
+      startId,
+    ));
+    controls.push(startInput);
+  }
+
+  let targetInput = null;
+  if (needs.has('targetBpm')) {
+    const targetId = `${prefix}-metro-target`;
+    targetInput = numberInput(targetId, companion.targetBpm ?? 120, METRO_MIN_BPM, METRO_MAX_BPM, 'Target tempo');
+    fields.appendChild(fieldWrap('Target tempo (BPM)', targetInput, targetId));
+    controls.push(targetInput);
+  }
+
+  let stepBpmInput = null;
+  if (needs.has('stepBpm')) {
+    const stepId = `${prefix}-metro-step-bpm`;
+    stepBpmInput = numberInput(stepId, companion.stepBpm ?? 5, METRO_MIN_STEP_BPM, METRO_MAX_STEP_BPM, 'Tempo increase per step');
+    fields.appendChild(fieldWrap('Tempo increase (BPM)', stepBpmInput, stepId));
+    controls.push(stepBpmInput);
+  }
+
+  let stepSecInput = null;
+  if (needs.has('stepSeconds')) {
+    const secId = `${prefix}-metro-step-seconds`;
+    stepSecInput = numberInput(
+      secId,
+      companion.stepSeconds ?? 60,
+      METRO_MIN_STEP_SECONDS,
+      METRO_MAX_STEP_SECONDS,
+      'Step length in seconds',
+    );
+    fields.appendChild(fieldWrap('Step length (seconds)', stepSecInput, secId));
+    controls.push(stepSecInput);
+  }
+
+  let roundsInput = null;
+  if (needs.has('rounds')) {
+    const roundsId = `${prefix}-metro-rounds`;
+    roundsInput = numberInput(roundsId, companion.rounds ?? 4, METRO_MIN_ROUNDS, METRO_MAX_ROUNDS, 'Rounds');
+    fields.appendChild(fieldWrap('Rounds', roundsInput, roundsId));
+    controls.push(roundsInput);
+  }
+
+  const beatsId = `${prefix}-metro-beats`;
+  const beatsSel = optionSelect(
+    beatsId,
+    'Beats per bar',
+    Array.from({ length: METRO_MAX_BEATS - METRO_MIN_BEATS + 1 }, (_, i) => {
+      const value = METRO_MIN_BEATS + i;
+      return { value, label: String(value) };
+    }),
+    companion.beatsPerBar ?? 4,
+  );
+  fields.appendChild(fieldWrap('Beats per bar', beatsSel, beatsId));
+  controls.push(beatsSel);
+
+  let subdivSel = null;
+  if (progression !== 'ladder' && !custom) {
+    const subdivId = `${prefix}-metro-subdiv`;
+    subdivSel = optionSelect(subdivId, 'Subdivision', SUBDIV_ENTRIES, companion.subdiv || 'quarter');
+    fields.appendChild(fieldWrap('Subdivision', subdivSel, subdivId));
+    controls.push(subdivSel);
+  }
+
+  const countIn = checkboxRow(`${prefix}-metro-countin`, 'Count-in bar', companion.countIn);
+  fields.appendChild(countIn.row);
+  controls.push(countIn.box);
+
+  const planLoop = checkboxRow(`${prefix}-metro-loop`, 'Repeat the plan', companion.planLoop);
+  fields.appendChild(planLoop.row);
+  controls.push(planLoop.box);
+
+  if (custom) {
+    fields.appendChild(buildCustomStepEditor(companion, prefix, api));
+  }
+
+  const steps = metronomePlanSteps(companion);
+  const preview = el('p', { class: 'wb-cmp-hint wb-cmp-metro-preview' });
+  if (steps.length) {
+    const bpms = steps.map((s) => s.bpm);
+    const low = Math.min(...bpms);
+    const high = Math.max(...bpms);
+    const range = low === high ? `${low} BPM` : `${low}–${high} BPM`;
+    preview.textContent = `${steps.length} step${steps.length === 1 ? '' : 's'} · ${range} · ${formatMetroDuration(metronomePlanTotalSeconds(steps))} total`;
+  } else {
+    preview.textContent = 'No plan steps — the click track holds one tempo.';
+  }
+  fields.appendChild(preview);
+
+  return {
+    controls,
+    collect() {
+      const patch = { progression: progSel.value };
+      if (startInput) patch.startBpm = Number(startInput.value);
+      if (targetInput) patch.targetBpm = Number(targetInput.value);
+      if (stepBpmInput) patch.stepBpm = Number(stepBpmInput.value);
+      if (stepSecInput) patch.stepSeconds = Number(stepSecInput.value);
+      if (roundsInput) patch.rounds = Number(roundsInput.value);
+      patch.beatsPerBar = Number(beatsSel.value);
+      if (subdivSel) patch.subdiv = subdivSel.value;
+      patch.countIn = countIn.box.checked;
+      patch.planLoop = planLoop.box.checked;
+      return patch;
+    },
+  };
+}
+
+function buildCustomStepEditor(companion, prefix, api) {
+  const wrap = el('section', { class: 'wb-cmp-metro-steps' });
+  const stored = Array.isArray(companion.steps) ? companion.steps : [];
+
+  wrap.appendChild(el('h5', { class: 'wb-cmp-section-title', text: 'Plan steps' }));
+
+  function writeSteps(next) {
+    api.onUpdate?.(companion.id, { steps: next });
+    api.onChanged?.();
+  }
+
+  if (!stored.length) {
+    wrap.appendChild(el('p', { class: 'wb-cmp-hint', text: 'No steps yet. Add the first tempo below.' }));
+  } else {
+    const list = el('ol', { class: 'wb-cmp-metro-step-list' });
+    stored.forEach((step, index) => {
+      const row = el('li', { class: 'wb-cmp-metro-step-row' }, [
+        el('span', { class: 'wb-cmp-metro-step-dur', text: formatMetroDuration(step.seconds) }),
+        el('span', {
+          class: 'wb-cmp-metro-step-meta',
+          text: `${step.bpm} BPM · ${metroSubdivInfo(step.subdiv).label}`,
+        }),
+        el('button', {
+          class: 'btn sm wb-cmp-metro-step-del',
+          type: 'button',
+          text: '✕',
+          'aria-label': `Remove step ${index + 1}`,
+          onClick: () => writeSteps(stored.filter((_, i) => i !== index)),
+        }),
+      ]);
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+  }
+
+  if (stored.length >= METRO_MAX_STEPS) {
+    wrap.appendChild(el('p', {
+      class: 'wb-cmp-hint',
+      text: `Maximum of ${METRO_MAX_STEPS} steps reached.`,
+    }));
+    return wrap;
+  }
+
+  const secId = `${prefix}-metro-new-seconds`;
+  const bpmId = `${prefix}-metro-new-bpm`;
+  const subId = `${prefix}-metro-new-subdiv`;
+  const last = stored[stored.length - 1];
+  const secInput = numberInput(secId, last?.seconds ?? 60, METRO_MIN_STEP_SECONDS, METRO_MAX_STEP_SECONDS, 'New step length in seconds');
+  const bpmInput = numberInput(bpmId, last?.bpm ?? companion.startBpm ?? 90, METRO_MIN_BPM, METRO_MAX_BPM, 'New step tempo');
+  const subSel = optionSelect(subId, 'New step subdivision', SUBDIV_ENTRIES, last?.subdiv || companion.subdiv || 'quarter');
+
+  const adder = el('div', { class: 'wb-cmp-metro-add' }, [
+    fieldWrap('Length (seconds)', secInput, secId),
+    fieldWrap('Tempo (BPM)', bpmInput, bpmId),
+    fieldWrap('Subdivision', subSel, subId),
+    el('button', {
+      class: 'btn sm wb-cmp-metro-step-add',
+      type: 'button',
+      text: 'Add step',
+      onClick: () => writeSteps(stored.concat([{
+        seconds: Number(secInput.value),
+        bpm: Number(bpmInput.value),
+        subdiv: subSel.value,
+      }])),
+    }),
+  ]);
+  wrap.appendChild(adder);
+  return wrap;
+}
+
 /**
  * @param {HTMLElement} host
  * @param {object} api
@@ -214,7 +481,7 @@ export function mountWorkbookCompanionPanel(host, api) {
   const listHost = el('div', { class: 'wb-cmp-list' });
   const emptyNote = el('p', {
     class: 'wb-cmp-empty',
-    text: 'No companion tools yet. Add a scale, triad, sweep, pitch trainer, ear trainer, or interval orbit below.',
+    text: 'No companion tools yet. Add a scale, triad, sweep, pitch trainer, ear trainer, interval orbit, or metronome below.',
   });
   const addSection = el('section', { class: 'wb-cmp-add-section' });
   const addTitle = el('h4', { class: 'wb-cmp-section-title', text: 'Add tool' });
@@ -283,6 +550,11 @@ export function mountWorkbookCompanionPanel(host, api) {
     let earContextSel;
     let earPoolSel;
     let earAnswerSel;
+    let metroFields;
+
+    if (needs.has('metroPlan')) {
+      metroFields = buildMetronomeFields(fields, companion, prefix, api);
+    }
 
     if (needs.has('root')) {
       const rootId = `${prefix}-root`;
@@ -449,6 +721,7 @@ export function mountWorkbookCompanionPanel(host, api) {
       if (earContextSel) patch.earContext = earContextSel.value;
       if (earPoolSel) patch.earPool = earPoolSel.value;
       if (earAnswerSel) patch.earAnswer = earAnswerSel.value;
+      if (metroFields) Object.assign(patch, metroFields.collect());
       return patch;
     }
 
@@ -459,6 +732,7 @@ export function mountWorkbookCompanionPanel(host, api) {
 
     labelInput.addEventListener('change', applyPatch);
     [rootSel, scaleSel, qualitySel, tuningSel, triadSetSel, sweepSetSel, patternSel, inversionSel, fretStartInput, fretEndInput, mapRangeSel, levelSel, modeSel, earContextSel, earPoolSel, earAnswerSel]
+      .concat(metroFields?.controls || [])
       .filter(Boolean)
       .forEach((ctrl) => ctrl.addEventListener('change', applyPatch));
 

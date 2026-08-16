@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Metronome companion timing</title>
+  <link rel="stylesheet" href="../../css/base.css">
+  <link rel="stylesheet" href="../../css/theme-gbc.css">
+  <link rel="stylesheet" href="../../css/companions.css">
+  <style>
+    body { padding: 16px; background: var(--bg); color: var(--text); }
+    #mount { max-width: 420px; margin: 0 0 16px; }
+    #out { white-space: pre; font-family: var(--font-ui, monospace); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<!--
+  Real-audio check for the metronome workbook companion. Serve the repository
+  root over HTTP and open this page, or drive it and read the RESULT line.
+  The page runs a two-step plan and measures the clicks the companion schedules
+  on the live audio clock.
+-->
+<div id="mount"></div>
+<div id="out">running</div>
+<script type="module">
+import { writeln, printTable, reportResult, runMain } from '../gp-player/audio/harness.js';
+import { mountCompanion, normalizeCompanion } from '../../js/exerciseCompanions/index.js';
+import { ensureAudio, audioCtx } from '../../js/audio.js';
+import { getAudioOwner } from '../../js/audio/audioOwner.js';
+
+const STEP_SECONDS = 5;
+const FIRST_BPM = 120;
+const SECOND_BPM = 60;
+const TOLERANCE_MS = 25;
+
+function assertOk(cond, msg) {
+  if (!cond) throw new Error(msg);
+}
+
+await runMain(async () => {
+  // Record every click the companion schedules, on the real audio clock.
+  ensureAudio();
+  const ctx = audioCtx;
+  const realCreate = ctx.createOscillator.bind(ctx);
+  const clicks = [];
+  ctx.createOscillator = () => {
+    const osc = realCreate();
+    const realStart = osc.start.bind(osc);
+    osc.start = (when) => {
+      clicks.push(when);
+      return realStart(when);
+    };
+    return osc;
+  };
+
+  const companion = normalizeCompanion({
+    type: 'metronome',
+    label: 'Timing check',
+    progression: 'custom',
+    beatsPerBar: 4,
+    subdiv: 'quarter',
+    steps: [
+      { seconds: STEP_SECONDS, bpm: FIRST_BPM, subdiv: 'quarter' },
+      { seconds: STEP_SECONDS, bpm: SECOND_BPM, subdiv: 'quarter' },
+    ],
+  });
+  assertOk(companion, 'metronome companion must normalize');
+
+  const mount = document.getElementById('mount');
+  const handle = mountCompanion(mount, companion);
+
+  const panel = mount.querySelector('.ec-panel[data-companion-type="metronome"]');
+  assertOk(panel, 'metronome panel renders');
+  assertOk(panel.querySelectorAll('.ec-metro-beat').length === 4, 'four beat dots');
+  assertOk(panel.querySelectorAll('.ec-metro-step').length === 2, 'both plan steps listed');
+  writeln(`plan: ${panel.querySelector('.ec-metro-plan').textContent}`);
+
+  const startBtn = panel.querySelector('.ec-btn-start');
+  const stopBtn = panel.querySelector('.ec-btn-stop');
+  assertOk(stopBtn.disabled, 'stop starts disabled');
+
+  startBtn.click();
+  assertOk(!stopBtn.disabled, 'stop enables on start');
+  assertOk(getAudioOwner()?.kind === 'metronome', 'metronome claims the audio owner');
+  writeln('started');
+
+  const startedAt = ctx.currentTime;
+  await new Promise((resolve) => setTimeout(resolve, (STEP_SECONDS * 2 + 1.5) * 1000));
+
+  ctx.createOscillator = realCreate;
+
+  assertOk(clicks.length > 0, 'the plan scheduled clicks');
+  const rel = clicks.map((t) => t - startedAt).sort((a, b) => a - b);
+
+  // Step one is 5s of quarter notes at 120 BPM (0.5s apart), step two is 5s at
+  // 60 BPM (1.0s apart). Each step opens a fresh bar.
+  const firstStep = rel.filter((t) => t < STEP_SECONDS - 0.05);
+  const secondStep = rel.filter((t) => t >= STEP_SECONDS - 0.05);
+  assertOk(firstStep.length >= 8, `step one should click ~10 times, got ${firstStep.length}`);
+  assertOk(secondStep.length >= 4, `step two should click ~5 times, got ${secondStep.length}`);
+
+  function gapStats(times, expectedSec) {
+    const gaps = times.slice(1).map((t, i) => (t - times[i]) * 1000);
+    const worst = gaps.reduce((m, g) => Math.max(m, Math.abs(g - expectedSec * 1000)), 0);
+    return { count: times.length, expected: `${(expectedSec * 1000).toFixed(0)}ms`, worst: `${worst.toFixed(1)}ms` };
+  }
+
+  const firstStats = gapStats(firstStep, 60 / FIRST_BPM);
+  const secondStats = gapStats(secondStep, 60 / SECOND_BPM);
+  printTable(
+    [
+      { step: `1 (${FIRST_BPM} BPM)`, ...firstStats },
+      { step: `2 (${SECOND_BPM} BPM)`, ...secondStats },
+    ],
+    [
+      { key: 'step', label: 'step' },
+      { key: 'count', label: 'clicks' },
+      { key: 'expected', label: 'gap' },
+      { key: 'worst', label: 'worst error' },
+    ],
+  );
+
+  assertOk(parseFloat(firstStats.worst) <= TOLERANCE_MS, `step one drifts ${firstStats.worst}`);
+  assertOk(parseFloat(secondStats.worst) <= TOLERANCE_MS, `step two drifts ${secondStats.worst}`);
+
+  const last = rel[rel.length - 1];
+  assertOk(last <= STEP_SECONDS * 2 + 0.05, `the plan clicked past its end at ${last.toFixed(3)}s`);
+
+  assertOk(!startBtn.disabled, 'start re-enables when the plan ends');
+  assertOk(stopBtn.disabled, 'stop disables when the plan ends');
+  assertOk(getAudioOwner() === null, 'the audio owner is released when the plan ends');
+  assertOk(/complete/i.test(panel.querySelector('.ec-metro-status').textContent), 'status reports completion');
+  writeln('plan finished and released audio');
+
+  handle.destroy();
+  assertOk(!mount.querySelector('.ec-panel'), 'destroy removes the panel');
+
+  reportResult(true);
+});
+</script>
+</body>
+</html>

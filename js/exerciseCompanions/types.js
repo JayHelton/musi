@@ -4,13 +4,28 @@ import { TRIAD_QUALITIES } from '../triadReference.js';
 import { SWEEP_STRING_SETS, sweepQualities } from '../sweepPatterns.js';
 import { TUNINGS, findPresetByName } from '../tunings.js';
 import { MAP_RANGE_DEFS, LEVEL_DEFS } from '../interval-map/model.js';
+import {
+  describeMetronomePlan,
+  normalizeMetroBeats,
+  normalizeMetroBpm,
+  normalizeMetroProgression,
+  normalizeMetroRounds,
+  normalizeMetroStepBpm,
+  normalizeMetroStepSeconds,
+  normalizeMetroSteps,
+  normalizeMetroSubdiv,
+} from './metronomePlan.js';
 
 export const MAX_COMPANIONS = 8;
 export const MAX_LABEL_LEN = 80;
 export const MAX_FRET = 24;
 export const DEFAULT_TUNING = 'Standard';
 
-const TYPE_IDS = new Set(['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train']);
+const TYPE_IDS = new Set(['scale-ref', 'triad-ref', 'sweep-ref', 'pitch-train', 'interval-orbit', 'ear-train', 'metronome']);
+
+// The metronome keeps time; it has no key. Root stays on the record because
+// every companion shares one shape, but nothing reads it.
+const ROOTLESS_TYPES = new Set(['metronome']);
 
 const EAR_CONTEXTS = new Set(['root', 'single', 'melodic']);
 const EAR_POOLS = new Set(['diatonic', 'chromatic']);
@@ -52,6 +67,12 @@ export const COMPANION_TYPES = [
     label: 'Ear trainer',
     description: 'Listen and name a note, degree, or interval locked to a root and scale.',
     needs: ['root', 'scale', 'earContext', 'earPool', 'earAnswer'],
+  },
+  {
+    id: 'metronome',
+    label: 'Metronome',
+    description: 'Click track with a saved BPM progression, ready to play.',
+    needs: ['metroPlan'],
   },
 ];
 
@@ -205,6 +226,22 @@ export function defaultCompanion(type) {
     base.earPool = 'diatonic';
     base.earAnswer = 'note';
   }
+  if (type === 'metronome') {
+    base.fretStart = undefined;
+    base.fretEnd = undefined;
+    // A step-up plan is the common practice request, so it is the default.
+    base.progression = 'ramp';
+    base.startBpm = 80;
+    base.targetBpm = 120;
+    base.stepBpm = 5;
+    base.stepSeconds = 60;
+    base.rounds = 4;
+    base.beatsPerBar = 4;
+    base.subdiv = 'quarter';
+    base.countIn = false;
+    base.planLoop = false;
+    base.steps = [];
+  }
   return base;
 }
 
@@ -213,7 +250,7 @@ export function normalizeCompanion(raw) {
   const type = typeof raw.type === 'string' ? raw.type.trim() : '';
   if (!TYPE_IDS.has(type)) return null;
 
-  const root = normalizeRoot(raw.root);
+  const root = normalizeRoot(raw.root) || (ROOTLESS_TYPES.has(type) ? 'C' : null);
   if (!root) return null;
 
   const tuning = normalizeTuning(raw.tuning);
@@ -249,7 +286,7 @@ export function normalizeCompanion(raw) {
     const frets = normalizeFretRange(raw.fretStart, raw.fretEnd, { start: 0, end: 12 });
     fretStart = frets.fretStart;
     fretEnd = frets.fretEnd;
-  } else if (type === 'ear-train' || type === 'pitch-train') {
+  } else if (type === 'ear-train' || type === 'pitch-train' || type === 'metronome') {
     stringSet = undefined;
     fretStart = undefined;
     fretEnd = undefined;
@@ -281,6 +318,20 @@ export function normalizeCompanion(raw) {
     base.earContext = normalizeEarContext(raw.earContext);
     base.earPool = normalizeEarPool(raw.earPool);
     base.earAnswer = normalizeEarAnswer(raw.earAnswer);
+  }
+
+  if (type === 'metronome') {
+    base.progression = normalizeMetroProgression(raw.progression);
+    base.startBpm = normalizeMetroBpm(raw.startBpm);
+    base.targetBpm = normalizeMetroBpm(raw.targetBpm, 120);
+    base.stepBpm = normalizeMetroStepBpm(raw.stepBpm);
+    base.stepSeconds = normalizeMetroStepSeconds(raw.stepSeconds);
+    base.rounds = normalizeMetroRounds(raw.rounds);
+    base.beatsPerBar = normalizeMetroBeats(raw.beatsPerBar);
+    base.subdiv = normalizeMetroSubdiv(raw.subdiv);
+    base.countIn = !!raw.countIn;
+    base.planLoop = !!raw.planLoop;
+    base.steps = normalizeMetroSteps(raw.steps);
   }
 
   return base;
@@ -342,6 +393,9 @@ export function describeCompanion(companion) {
       : companion.earAnswer === 'interval' ? 'interval'
         : 'note';
     return `Ear · ${root} ${scaleShort} · ${ctxLabel} · ${ansLabel}`;
+  }
+  if (companion.type === 'metronome') {
+    return `Metronome · ${describeMetronomePlan(companion)}`;
   }
   return TYPE_BY_ID[companion.type].label;
 }
