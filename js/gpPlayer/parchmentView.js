@@ -949,7 +949,7 @@ export function mountParchmentView(host, {
       const beat = beatFromPointer(startEvent.clientX, startEvent.clientY);
       if (beat == null) return;
       drag = { anchorBeat: beat, pointerId: startEvent.pointerId, moved: false };
-      startEvent.currentTarget.setPointerCapture?.(startEvent.pointerId);
+      longPressTarget?.setPointerCapture?.(startEvent.pointerId);
     }, LONG_PRESS_MS);
   }
 
