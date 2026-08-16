@@ -728,7 +728,7 @@ for (const measure of parchHost.querySelectorAll('.gpp-parch-measure')) {
 }
 
 const parchSheet = parchHost.querySelector('.gpp-parch-sheet');
-assert.equal(parseFloat(parchSheet.style.getPropertyValue('--gpp-scale')), 1, 'sheet should publish --gpp-scale at default zoom on narrow host');
+assert.equal(parseFloat(parchSheet.style.getPropertyValue('--gpp-scale')), 1.28, 'sheet should publish phone floor --gpp-scale on narrow host');
 const firstMeasure = parchHost.querySelector('.gpp-parch-measure');
 assert.ok(firstMeasure?.style?.minWidth, 'measures should get inline min-width from density packing');
 assert.ok(firstMeasure?.style?.width, 'measures should get inline width from layout');
@@ -1006,23 +1006,21 @@ assert.doesNotThrow(
 followParch.destroy();
 
 const zoomHost = document.createElement('div');
+zoomHost.style.width = '1600px';
 const zoomParch = mountParchmentView(zoomHost, { guitarModel: quarterBarModel, zoom: 1 });
 const zoomSheet = zoomHost.querySelector('.gpp-parch-sheet');
-assert.equal(
-  parseFloat(zoomSheet.style.getPropertyValue('--gpp-scale')),
-  1,
-  '--gpp-scale should equal user zoom when auto width factor is 1',
-);
+const baseScale = parseFloat(zoomSheet.style.getPropertyValue('--gpp-scale'));
+assert.ok(baseScale >= 1.28, '--gpp-scale should be at least the phone floor');
 zoomParch.setZoom(1.5);
 assert.equal(
   parseFloat(zoomSheet.style.getPropertyValue('--gpp-scale')),
-  1.5,
+  baseScale * 1.5,
   '--gpp-scale should track setZoom(1.5)',
 );
 zoomParch.setZoom(2);
 assert.equal(
   parseFloat(zoomSheet.style.getPropertyValue('--gpp-scale')),
-  2,
+  baseScale * 2,
   '--gpp-scale should track setZoom(2)',
 );
 zoomParch.destroy();

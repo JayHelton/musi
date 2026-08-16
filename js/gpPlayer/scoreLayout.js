@@ -270,7 +270,7 @@ function laneLayout({
   const rowCount = drumMode && drumLanes.length ? drumLanes.length : stringCount;
   const stringH = drumMode && drumLanes.length
     ? Math.max(DRUM_ROW_MIN_UNITS, fontPx * 1.1)
-    : Math.max(10, fontPx * 1.1);
+    : Math.max(10, fontPx * 1.35);
   const notationH = showNotationStaff ? Math.max(28, fontPx * 3.2) : 0;
   const techAboveH = Math.max(12, fontPx * 1.1);
   const tabH = Math.max(stringH, rowCount * stringH);
@@ -568,7 +568,9 @@ function addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, fontPx, showRh
   const rhythmLane = laneByName(lanes, 'rhythm');
   const stemW = Math.max(2, fontPx * 0.12);
   const stemH = Math.max(10, rhythmLane.h * 0.7);
+  const stemY = rhythmLane.y + rhythmLane.h * 0.15;
   let beamGroup = [];
+  let tupletGroup = null;
 
   function flushBeam() {
     if (beamGroup.length < 2) {
@@ -594,12 +596,36 @@ function addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, fontPx, showRh
     beamGroup = [];
   }
 
+  function flushTupletGroup() {
+    if (!tupletGroup || tupletGroup.entries.length < 1) {
+      tupletGroup = null;
+      return;
+    }
+    const first = tupletGroup.entries[0];
+    const last = tupletGroup.entries[tupletGroup.entries.length - 1];
+    const x = first.stemX;
+    const w = (last.stemX + last.stemW) - x;
+    pushGlyph(glyphs, {
+      kind: 'tupletBracket',
+      lane: 'rhythm',
+      x,
+      y: stemY + stemH + 2,
+      w: Math.max(stemW, w),
+      h: Math.max(6, fontPx * 0.35),
+      text: String(tupletGroup.num),
+      aria: `Tuplet ${tupletGroup.num}`,
+      beatStart: first.beatStart,
+    });
+    tupletGroup = null;
+  }
+
   for (const col of cols) {
     const beat = col.beat;
     const x = col.xLeft;
     const beatStart = beat.start;
 
     if (beat.rest) {
+      flushTupletGroup();
       pushGlyph(glyphs, {
         kind: 'rest',
         lane: 'rhythm',
@@ -616,7 +642,6 @@ function addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, fontPx, showRh
     }
 
     const stemX = x + Math.max(4, fontPx * 0.35);
-    const stemY = rhythmLane.y + rhythmLane.h * 0.15;
     const stemIdx = pushGlyph(glyphs, {
       kind: 'stem',
       lane: 'rhythm',
@@ -666,22 +691,20 @@ function addRhythmGlyphs(glyphs, overlays, lanes, cols, contentW, fontPx, showRh
     }
 
     if (beat.tuplet) {
-      pushGlyph(glyphs, {
-        kind: 'tupletBracket',
-        lane: 'rhythm',
-        x: x,
-        y: rhythmLane.y + 1,
-        w: Math.max(10, col.width * UNITS_PER_QUARTER),
-        h: Math.max(6, fontPx * 0.35),
-        text: String(beat.tuplet.num),
-        aria: `Tuplet ${beat.tuplet.num}`,
-        beatStart,
-      });
+      const num = beat.tuplet.num;
+      if (!tupletGroup || tupletGroup.num !== num) {
+        flushTupletGroup();
+        tupletGroup = { num, entries: [] };
+      }
+      tupletGroup.entries.push({ stemX, stemW, beatStart });
+    } else {
+      flushTupletGroup();
     }
 
     void stemIdx;
   }
   flushBeam();
+  flushTupletGroup();
 }
 
 function xForBeat(cols, beatStart, fontPx) {

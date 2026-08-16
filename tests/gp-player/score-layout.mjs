@@ -326,6 +326,55 @@ function layoutForModel(model, extraOptions = {}) {
   });
 }
 
+function boxesOverlap(a, b) {
+  return a.x < b.x + b.w - 1e-6
+    && b.x < a.x + a.w - 1e-6
+    && a.y < b.y + b.h - 1e-6
+    && b.y < a.y + a.h - 1e-6;
+}
+
+function firstBarWithTuplets(layout) {
+  for (const bar of layout.bars) {
+    const count = bar.glyphs.filter((g) => g.kind === 'tupletBracket').length;
+    if (count > 0) return bar;
+  }
+  return null;
+}
+
+function eighthTripletPalmMuteModel() {
+  const events = [0, 0.333, 0.667].map((start, i) => ({
+    start,
+    stringIndex: 0,
+    fret: 5 + i,
+    duration: 0.333,
+    techniques: ['palmMute'],
+  }));
+  const beats = events.map((ev, i) => ({
+    measureIndex: 0,
+    voiceIndex: 0,
+    start: ev.start,
+    duration: 0.333,
+    noteValue: 8,
+    dots: 0,
+    tuplet: { num: 3, den: 2 },
+    rest: false,
+    noteIndices: [i],
+  }));
+  return {
+    tuning: 'Standard',
+    strings: [
+      { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+      { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+      { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+      { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+      { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+      { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+    ],
+    events,
+    beats,
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+}
 
 function hammerOnChainModel() {
   const events = [0, 1, 2, 3].map((beat, i) => ({
@@ -400,6 +449,69 @@ ensureFixtures();
   assert.ok(restCount >= expectedRests, `rest glyphs (${restCount}) >= expected (${expectedRests})`);
   assert.ok(countGlyphs(layout, 'dot') >= 1, 'dotted note dot glyph');
   assert.ok(countGlyphs(layout, 'tupletBracket') >= 1, 'tuplet bracket glyph');
+}
+
+// ties-rhythm.gp5 — one tuplet bracket per group, below stems, no overlap
+{
+  const { layout } = await layoutForFixture('ties-rhythm.gp5', { widthPx: 360 });
+  const bar = firstBarWithTuplets(layout);
+  assert.ok(bar, 'a bar with tuplets exists');
+  const tuplets = bar.glyphs.filter((g) => g.kind === 'tupletBracket');
+  assert.equal(tuplets.length, 1, 'one tuplet bracket per triplet group, not one per beat');
+
+  const rhythm = bar.lanes.find((l) => l.name === 'rhythm');
+  assert.ok(rhythm, 'rhythm lane exists');
+  const conflictKinds = new Set(['stem', 'flag', 'beam', 'dot', 'technique']);
+  const conflicts = bar.glyphs.filter((g) => conflictKinds.has(g.kind));
+
+  for (const tuplet of tuplets) {
+    assert.ok(
+      tuplet.y + tuplet.h <= rhythm.y + rhythm.h + 0.01,
+      `tuplet bottom (${tuplet.y + tuplet.h}) must stay inside rhythm lane (${rhythm.y + rhythm.h})`,
+    );
+    for (const other of conflicts) {
+      assert.ok(
+        !boxesOverlap(tuplet, other),
+        `tuplet overlaps ${other.kind} at beat ${other.beatStart}`,
+      );
+    }
+  }
+
+  const stems = bar.glyphs.filter((g) => g.kind === 'stem');
+  const beams = bar.glyphs.filter((g) => g.kind === 'beam');
+  const rhythmBottoms = [...stems, ...beams].map((g) => g.y + g.h);
+  if (rhythmBottoms.length) {
+    const lowest = Math.max(...rhythmBottoms);
+    for (const tuplet of tuplets) {
+      assert.ok(
+        tuplet.y >= lowest - 0.01,
+        `tuplet y (${tuplet.y}) must sit below stems and beams (bottom ${lowest})`,
+      );
+    }
+  }
+}
+
+// Inline triplet model with palm mute — one bracket, clear of technique lane
+{
+  const layout = layoutForModel(eighthTripletPalmMuteModel(), { widthPx: 360 });
+  const bar = layout.bars[0];
+  const tuplets = bar.glyphs.filter((g) => g.kind === 'tupletBracket');
+  assert.equal(tuplets.length, 1, 'one tuplet bracket for three triplet eighths');
+
+  const rhythm = bar.lanes.find((l) => l.name === 'rhythm');
+  const techBelow = bar.lanes.find((l) => l.name === 'techniqueBelow');
+  assert.ok(rhythm && techBelow, 'rhythm and techniqueBelow lanes exist');
+  assert.ok(
+    techBelow.y >= rhythm.y + rhythm.h - 0.01,
+    'techniqueBelow starts below the rhythm lane',
+  );
+
+  const techGlyphs = bar.glyphs.filter((g) => g.kind === 'technique');
+  for (const tuplet of tuplets) {
+    for (const tech of techGlyphs) {
+      assert.ok(!boxesOverlap(tuplet, tech), 'tuplet must not overlap technique glyph');
+    }
+  }
 }
 
 // meter-change.gp5 — time signatures at first bar and at change
