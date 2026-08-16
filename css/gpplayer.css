@@ -124,24 +124,33 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
-  padding: 6px 8px;
+  gap: 4px 8px;
+  padding: 3px 8px;
   border-bottom: 1px solid var(--border);
   background: rgba(11, 16, 32, 0.72);
   min-width: 0;
 }
+/* A zero basis keeps the title from pushing the track selector or the close
+   button onto a second header row. The title takes whatever width is left
+   and truncates. */
 .gpp-score-header-titles {
-  flex: 1 1 140px;
+  flex: 1 1 0;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
 }
 .gpp-close-score {
   flex-shrink: 0;
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-ui, "VT323", monospace);
-  min-height: var(--tap-min, 44px);
+  min-height: 36px;
+  padding: 0 10px;
   border-radius: var(--radius-screen, 18px);
   border-color: var(--border);
   background: var(--bg2);
@@ -155,14 +164,14 @@
   white-space: nowrap;
 }
 .gpp-score-title {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 650;
   color: var(--text);
+  line-height: 1.2;
 }
+/* The track tab strip in the same row already names the track. */
 .gpp-score-track {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.88rem;
-  color: var(--muted);
+  display: none;
 }
 .gpp-icon-btn {
   display: inline-flex;
@@ -228,7 +237,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-bottom: 1px solid var(--border);
   background: rgba(11, 16, 32, 0.55);
   overflow-x: auto;
@@ -257,8 +266,8 @@
 .gpp-measure-nav-btn {
   flex: 0 0 auto;
   min-width: 36px;
-  min-height: 32px;
-  padding: 2px 6px;
+  min-height: 28px;
+  padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
@@ -289,8 +298,8 @@
 }
 .gpp-measure-nav-btn.has-marker {
   white-space: pre-line;
-  line-height: 1.15;
-  min-height: 36px;
+  line-height: 1.1;
+  min-height: 32px;
   font-size: 0.76rem;
 }
 
@@ -565,6 +574,10 @@
   color: #1a1420;
   font-family: var(--font-body, "Pixelify Sans", ui-monospace, monospace);
   --gpp-scale: 1;
+  /* The gutter and the measures both align their staff to the bottom of the
+     row, so they must share one bottom pad. When the two drifted apart, the
+     string names sat off the staff rows they name. */
+  --gpp-staff-pad-bottom: 3px;
 }
 
 .gpp-parch-system {
@@ -575,7 +588,7 @@
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
 }
 
 .gpp-parch-tuning-caption {
@@ -583,7 +596,7 @@
   font-size: calc(11px * min(var(--gpp-scale, 1), 1.6));
   line-height: 1.2;
   color: rgba(58, 42, 24, 0.7);
-  margin: 0 0 6px;
+  margin: 0 0 2px;
   padding: 0 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -596,7 +609,7 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding-bottom: 8px;
+  padding-bottom: var(--gpp-staff-pad-bottom, 3px);
 }
 .gpp-parch-gutter-staff {
   position: relative;
@@ -631,7 +644,7 @@
   flex-direction: column;
   justify-content: flex-end;
   flex: 0 0 auto;
-  padding: 4px 0 8px;
+  padding: 2px 0 var(--gpp-staff-pad-bottom, 3px);
   border-left: 2px solid #1a1420;
   transition: background 0.12s ease, outline 0.12s ease;
 }
@@ -663,24 +676,33 @@
   outline-offset: -1px;
 }
 
-.gpp-parch-bar-num {
+/* The bar number and the section marker sit in the band that the layout
+   already keeps above the staff. A block row for them cost every system a
+   second band, and the staff lost that height. */
+.gpp-parch-bar-num,
+.gpp-parch-marker {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  line-height: 1.1;
+  pointer-events: none;
   font-family: var(--font-ui, "VT323", monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gpp-parch-bar-num {
+  left: calc(6px * var(--gpp-scale, 1));
   font-size: calc(10px * var(--gpp-scale, 1));
   font-weight: 700;
-  margin-bottom: 2px;
-  padding-left: calc(6px * var(--gpp-scale, 1));
   opacity: 0.75;
   color: rgba(58, 42, 24, 0.85);
 }
 .gpp-parch-marker {
-  font-family: var(--font-ui, "VT323", monospace);
+  left: calc(24px * var(--gpp-scale, 1));
+  max-width: calc(100% - 26px * var(--gpp-scale, 1));
   font-size: calc(9px * var(--gpp-scale, 1));
   opacity: 0.65;
-  margin-bottom: 2px;
-  padding-left: calc(6px * var(--gpp-scale, 1));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   color: rgba(58, 42, 24, 0.75);
 }
 
@@ -1101,7 +1123,6 @@
   .gpp-parch-gutter {
     flex-basis: calc(16px * var(--gpp-scale, 1));
     min-width: calc(14px * var(--gpp-scale, 1));
-    padding-bottom: 6px;
   }
   .gpp-parch-gutter-label {
     font-size: calc(9px * var(--gpp-scale, 1));
@@ -1161,7 +1182,7 @@
   align-items: center;
   gap: 4px;
   max-width: min(100%, 520px);
-  padding: 6px 10px 7px;
+  padding: 4px 10px 5px;
   border-radius: 16px;
   border: 1px solid rgba(58, 42, 24, 0.38);
   background: rgba(255, 252, 240, 0.9);
@@ -2310,6 +2331,18 @@ html.gpp-player-locked body {
   overscroll-behavior: none;
 }
 
+/* A loaded score owns the screen. The app bar hides while the player holds
+   the view, and the staff gets that height. The bottom dock still carries
+   navigation, and "Close score" returns to the library. A route notice keeps
+   the bar, because the learner must read the notice. */
+html.gpp-player-locked body.app-shell:not(.route-notice-on) .app-bar {
+  display: none;
+}
+html.gpp-player-locked body.app-shell:not(.route-notice-on) .app-main,
+html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
+  padding-top: 0;
+}
+
 .gpp-analysis-toolbar {
   flex-shrink: 0;
   display: flex;
@@ -2654,19 +2687,27 @@ html.gpp-player-locked body {
   display: none;
 }
 
+/* The strip rides in the score header row, so it must not claim a row of its
+   own and it must not push the title out of the header. */
 .gpp-track-tabs-host {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 62%;
 }
 
 .gpp-track-tabs {
-  padding: 4px 6px 0;
+  padding: 0;
 }
 
 .gpp-track-tabs-strip {
   display: flex;
   gap: 6px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  scrollbar-width: none;
+  padding-bottom: 0;
+}
+.gpp-track-tabs-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .gpp-track-tab {
@@ -2674,8 +2715,8 @@ html.gpp-player-locked body {
   align-items: center;
   justify-content: center;
   min-width: var(--tap-min, 44px);
-  min-height: var(--tap-min, 44px);
-  padding: 6px 12px;
+  min-height: 36px;
+  padding: 4px 10px;
   border: 1px solid var(--border, rgba(107, 76, 154, 0.45));
   border-radius: var(--radius-pill, 999px);
   background: var(--card, rgba(30, 24, 48, 0.72));
@@ -2827,6 +2868,37 @@ html.gpp-player-locked body {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* The header row also holds the title and the track selector, so this
+     button keeps its text small. */
+  .gpp-close-score {
+    padding: 0 8px;
+    font-size: 0.82rem;
+  }
+  /* Share the narrow row: the track strip scrolls inside its share, and the
+     title keeps enough width to read the first word of the score name. */
+  .gpp-track-tabs-host {
+    max-width: 46%;
+  }
+  .gpp-score-header-titles {
+    min-width: 3rem;
+  }
+
+  /* The dock floats over the score, so every pixel of dock height hides a
+     pixel of tablature. Row one keeps the full 44 pixel tap size for the
+     transport. Row two holds the practice steppers at a smaller size. */
+  .gpp-practice-btn,
+  .gpp-practice-bpm-step,
+  .gpp-practice-bpm-reset,
+  .gpp-practice-pct-input,
+  .gpp-practice-bpm-input,
+  .gpp-practice-overlay {
+    min-height: 36px;
+  }
+  .gpp-practice-pct-input,
+  .gpp-practice-bpm-input {
+    width: 2.8rem;
+  }
+
   /* The dock must fit the screen. Row one held nine controls at a fixed
      44 CSS pixel size, which needed more width than a phone has, so the row
      ran off both edges. The row now scrolls sideways instead. */
@@ -2872,12 +2944,72 @@ html.gpp-player-locked body {
   }
 }
 
+/* A landscape phone has very little height, so the two dock rows sit side by
+   side instead of stacked. Stacked rows covered nearly the whole score. */
 @media (orientation: landscape) and (max-height: 500px) {
   .gpp-transport-dock {
-    max-width: min(100%, 640px);
+    max-width: min(100%, 760px);
+  }
+  .gpp-transport-row-primary {
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  .gpp-transport-row-practice {
+    flex: 1 1 auto;
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    padding-top: 0;
+    padding-left: 6px;
+    border-top: none;
+    border-left: 1px solid rgba(58, 42, 24, 0.2);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .gpp-transport-row-practice::-webkit-scrollbar {
+    display: none;
+  }
+  .gpp-practice-rail {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
   }
   .gpp-practice-speed {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
     justify-content: center;
+  }
+  .gpp-practice-btn,
+  .gpp-practice-bpm-step,
+  .gpp-practice-bpm-reset,
+  .gpp-practice-pct-input,
+  .gpp-practice-bpm-input,
+  .gpp-practice-overlay {
+    min-height: 36px;
+  }
+}
+
+/* A wide screen has room for the practice rail on one line. A 520 pixel dock
+   wrapped that rail onto three lines, and the dock then covered a third of
+   the score. */
+@media (min-width: 769px) and (min-height: 501px) {
+  .gpp-transport-dock {
+    max-width: min(100%, 900px);
+  }
+  .gpp-transport-row-practice {
+    flex-wrap: nowrap;
+    justify-content: center;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .gpp-transport-row-practice::-webkit-scrollbar {
+    display: none;
+  }
+  .gpp-practice-rail {
+    flex-wrap: nowrap;
+  }
+  .gpp-practice-speed {
+    flex-wrap: nowrap;
   }
 }

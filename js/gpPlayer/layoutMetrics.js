@@ -70,12 +70,16 @@ export function installGppLayoutMetrics({ host, chrome, section = null }) {
     document.documentElement.classList.remove('gpp-player-locked');
   }
 
+  // The scroll lock hides the app bar, so it must run before the first
+  // measurement. A measurement now also covers the case where the animation
+  // frame never arrives: without it the chrome falls back to a fixed height
+  // that leaves a band of dead space below the score.
+  if (section) lockScroll();
+  measure();
   schedule();
   window.addEventListener('resize', schedule);
   window.addEventListener('orientationchange', schedule);
   window.visualViewport?.addEventListener('resize', schedule);
-
-  if (section) lockScroll();
 
   return {
     refresh: schedule,

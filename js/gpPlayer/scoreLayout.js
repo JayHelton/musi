@@ -267,15 +267,21 @@ function laneLayout({
   drumMode,
   drumLanes,
 }) {
+  // Every lane sits as close to the staff as its own glyphs allow. A tall lane
+  // costs a row of screen height on every system, and the learner reads more
+  // music when the staff itself holds most of the screen. fitLanesToGlyphs()
+  // grows a lane again when its glyphs need more room.
   const rowCount = drumMode && drumLanes.length ? drumLanes.length : stringCount;
   const stringH = drumMode && drumLanes.length
-    ? Math.max(DRUM_ROW_MIN_UNITS, fontPx * 1.1)
-    : Math.max(10, fontPx * 1.35);
-  const notationH = showNotationStaff ? Math.max(28, fontPx * 3.2) : 0;
-  const techAboveH = Math.max(12, fontPx * 1.1);
+    ? Math.max(DRUM_ROW_MIN_UNITS, fontPx * 1.05)
+    : Math.max(10, fontPx * 1.2);
+  const notationH = showNotationStaff ? Math.max(24, fontPx * 2.8) : 0;
+  // This lane also holds the bar number and the section marker that the view
+  // draws over it, so it must stay tall enough to hold that text.
+  const techAboveH = Math.max(11, fontPx * 0.95);
   const tabH = Math.max(stringH, rowCount * stringH);
-  const rhythmH = showRhythm ? Math.max(18, fontPx * 1.6) : 0;
-  const techBelowH = Math.max(10, fontPx * 0.95);
+  const rhythmH = showRhythm ? Math.max(15, fontPx * 1.3) : 0;
+  const techBelowH = Math.max(8, fontPx * 0.8);
   let y = 0;
   const lanes = [];
   if (showNotationStaff) {

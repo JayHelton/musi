@@ -183,15 +183,17 @@ export function mountGpPlayer(host, {
   // A visible message for a problem that stops playback.
   const alertBar = el('div', { class: 'gpp-alert-bar', role: 'alert', hidden: true });
   scoreHeader.append(titles, liveRegion, alertBar);
+  let closeScoreBtn = null;
   if (typeof onCloseScore === 'function') {
-    scoreHeader.append(el('button', {
+    closeScoreBtn = el('button', {
       class: 'btn sm gpp-close-score',
       type: 'button',
       text: 'Close score',
       'aria-label': 'Close score',
       title: 'Close score',
       onClick: () => onCloseScore(),
-    }));
+    });
+    scoreHeader.append(closeScoreBtn);
   }
 
   let lastAnnouncedText = '';
@@ -270,7 +272,11 @@ export function mountGpPlayer(host, {
   const trackTabsHost = el('div', { class: 'gpp-track-tabs-host' });
   const measureNavHost = el('div', { class: 'gpp-measure-nav-host' });
   const parchmentHost = el('div', { class: 'gpp-parchment-host' });
-  scoreBody.append(trackTabsHost, measureNavHost, parchmentHost);
+  scoreBody.append(measureNavHost, parchmentHost);
+  // The track selector shares the header row. A separate strip cost a full row
+  // of screen height, and the score needs that height. FR-033 still holds:
+  // the selector stays on screen at all times.
+  scoreHeader.insertBefore(trackTabsHost, closeScoreBtn);
 
   const scorePane = el('div', { class: 'gpp-score-pane' });
   const drawerRoot = el('div', { class: 'gpp-drawer-root' });
@@ -351,9 +357,11 @@ export function mountGpPlayer(host, {
   }
 
   function syncHeaderVisibility() {
+    // The header carries the track selector, so it stays on screen. It only
+    // hides when the embed asks for no title and the score has no track name.
     const hasTitle = !hideTitle && !!(scoreTitle.textContent?.trim());
     const hasTrack = !!(scoreTrack.textContent?.trim());
-    scoreHeader.hidden = !hasTitle && !hasTrack;
+    scoreHeader.hidden = !hasTitle && !hasTrack && !trackTabsHost.isConnected;
   }
 
   function closeOtherOverlays(except = null) {
