@@ -1081,7 +1081,17 @@ export function createDriveBrowser(config) {
       'aria-hidden': 'true',
       html: entry.kind === 'folder' ? ICONS.folder : (entry.iconHtml || ICONS.folder),
     }));
-    head.appendChild(el('span', { class: 'drv-tile-name', text: entry.name, title: entry.name }));
+    // The name and the count stack, so the name gets the full width of the
+    // tile instead of competing with the count for one row.
+    const text = el('div', { class: 'drv-tile-text' });
+    text.appendChild(el('span', { class: 'drv-tile-name', text: entry.name, title: entry.name }));
+    if (entry.kind === 'folder') {
+      text.appendChild(el('span', {
+        class: 'drv-tile-sub',
+        text: formatCount(entry.count) || 'Empty',
+      }));
+    }
+    head.appendChild(text);
     head.appendChild(buildKebab(entry));
     tile.appendChild(head);
 
@@ -1091,15 +1101,16 @@ export function createDriveBrowser(config) {
         'aria-hidden': 'true',
         html: entry.iconHtml || ICONS.folder,
       }));
+      const metaParts = [
+        entry.typeLabel,
+        entry.sizeText || formatSize(entry.size),
+        formatModified(entry.modifiedAt),
+      ];
+      tile.appendChild(el('div', {
+        class: 'drv-tile-meta',
+        text: metaParts.filter((part) => part && part !== '—').join(' · '),
+      }));
     }
-
-    const metaParts = entry.kind === 'folder'
-      ? [formatCount(entry.count) || 'Empty']
-      : [entry.typeLabel, entry.sizeText || formatSize(entry.size), formatModified(entry.modifiedAt)];
-    tile.appendChild(el('div', {
-      class: 'drv-tile-meta',
-      text: metaParts.filter((part) => part && part !== '—').join(' · '),
-    }));
 
     wireRowInteraction(tile, entry);
     return tile;

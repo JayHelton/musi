@@ -315,17 +315,27 @@
 .drv-tile.is-open{box-shadow:inset 0 0 0 1px var(--accent)}
 .drv-tile.is-dragging{opacity:.45}
 .drv-tile.drv-droptarget{border-color:var(--accent);border-style:dashed;background:var(--accent-dim)}
-.drv-tile.is-folder{flex-direction:row;align-items:center;gap:10px;padding:12px 10px}
-.drv-tile.is-folder .drv-tile-head{flex:1;min-width:0}
-.drv-tile.is-folder .drv-tile-meta{flex:0 0 auto}
+.drv-tile.is-folder{gap:0;padding:12px 10px}
 
-.drv-tile-head{display:flex;align-items:center;gap:8px;min-width:0}
-.drv-tile-icon{width:18px;height:18px;flex:0 0 18px;color:var(--accent2)}
+/* Icon, then a stacked name and count, then the row menu. The name owns the
+   whole middle column, so it is not squeezed into a few characters the way it
+   was when the count sat beside it. */
+.drv-tile-head{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.drv-tile-icon{width:18px;height:18px;flex:0 0 18px;margin-top:1px;color:var(--accent2)}
 .drv-tile-icon svg{width:100%;height:100%;display:block}
 .drv-tile.is-folder .drv-tile-icon{color:var(--accent)}
+.drv-tile-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .drv-tile-name{
-  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-size:.9rem;color:var(--text);
+  min-width:0;font-size:.9rem;line-height:1.3;color:var(--text);
+  /* Two lines, then an ellipsis. A long folder name stays readable instead of
+     being cut after a few characters. */
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  line-clamp:2;overflow:hidden;
+  overflow-wrap:anywhere;
+}
+.drv-tile-sub{
+  font-family:var(--font-ui,inherit);font-size:.74rem;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .drv-tile-thumb{
   display:grid;place-items:center;
