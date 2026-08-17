@@ -2387,12 +2387,15 @@
   max-height: var(--avail-h, calc(100dvh - var(--dock-h)));
   overflow: hidden;
 }
-#sec-exercises.gpp-score-loaded .section-head,
-#sec-exercises.gpp-score-loaded .ex-sidebar,
-#sec-exercises.gpp-score-loaded .ex-toolbar,
-#sec-exercises.gpp-score-loaded .ex-bulk-bar,
-#sec-exercises.gpp-score-loaded .ex-status,
-#sec-exercises.gpp-score-loaded .ex-list-pane {
+/* Only the score and its way back stay on screen. This walks the path down
+   to the player pane and hides every sibling on the way, so the section head,
+   the Exercises/Workbooks tab bar, the folder bar, the toolbar and the list
+   all go. A named list missed the tab bar, because a script inserts that bar
+   after the section head. */
+#sec-exercises.gpp-score-loaded > *:not(.ex-layout),
+#sec-exercises.gpp-score-loaded .ex-layout > *:not(.ex-main),
+#sec-exercises.gpp-score-loaded .ex-main > *:not(.ex-workspace),
+#sec-exercises.gpp-score-loaded .ex-workspace > *:not(.ex-player-pane) {
   display: none !important;
 }
 #sec-exercises.gpp-score-loaded .ex-layout,
@@ -2458,6 +2461,11 @@
    costs a line of the header. */
 #sec-exercises.gpp-score-loaded .gpp-source-status {
   display: none;
+}
+/* The row above already carries the score name, so the title box here is
+   empty. Let it collapse instead of pushing the track selector to the edge. */
+#sec-exercises.gpp-score-loaded .gpp-score-header-titles {
+  flex: 0 0 auto;
 }
 
 html.gpp-player-locked,
