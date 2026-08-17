@@ -16,7 +16,6 @@ import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
 // SIMPLIFY: Timing drill hidden.
 // import { initTimingDrill, stopTimingDrill, timingDrill } from './timingDrill.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
-import { initChordBuilder, stopChord, chordBuilder } from './chordBuilder.js';
 import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initMovableChordCards } from './movableChordCards.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
@@ -85,7 +84,7 @@ const TOOL_STOPPERS = {
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
   scaleref: () => stopScaleRef(),
   triads: () => stopTriadRef(),
-  chords: () => { if (chordBuilder.oscillators.length) stopChord(); if (chOscillators.length) stopChordRef(); },
+  chords: () => { if (chOscillators.length) stopChordRef(); },
   tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); if (runner.running) stopPitchRunner(); },
   ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
   // SIMPLIFY: Timing drill hidden.
@@ -115,7 +114,7 @@ const TOOL_INITS = {
   metronome: initMetronome,
   scaleref: initScaleRef,
   triads: initTriadRef,
-  chords: () => { initMovableChordCards(); initChordRef(); initChordBuilder(); },
+  chords: () => { initMovableChordCards(); initChordRef(); },
   // SIMPLIFY: Fretboard trainer hidden.
   // fretboard: initFretboard,
   // SIMPLIFY: Fretboard Interval Map hidden.

@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v240-grid-folder-names";
+const CACHE_VERSION = "v241-scaleref-pills";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -135,7 +135,6 @@ const PRECACHE_URLS = [
   "js/qr/qrDecode.js",
   "js/progressHeader.js",
   "js/backingTrack.js",
-  "js/chordBuilder.js",
   "js/chordReference.js",
   "js/chordWorkout.js",
   "js/chords.js",

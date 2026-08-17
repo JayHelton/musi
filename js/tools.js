@@ -178,7 +178,7 @@ export const TOOLS = [
     label: 'Chord Reference',
     short: 'Chords',
     category: 'reference',
-    description: 'Map voicings, movable cards, builder, and CAGED.',
+    description: 'Map voicings, movable cards, and CAGED.',
     title: 'Chord Reference',
     purpose: 'study',
     holdRecord: false,

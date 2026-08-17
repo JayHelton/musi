@@ -128,7 +128,29 @@ function setupScaleRef() {
   const { host: setup } = createSetupToolbar('scaleref-setup');
   insertBefore(layout, setup, main);
 
+  const tabs = document.createElement('div');
+  tabs.id = 'scaleref-tabs';
+  insertBefore(main, tabs, main.firstChild);
+
   const fbCard = document.getElementById('ref-fb-card');
+  const infoCard = document.getElementById('ref-card');
+  const modes = document.getElementById('ref-modes');
+
+  // Neck view and the interval/chord breakdown are long enough on their own, so
+  // each gets the full column behind a pill instead of stacking in one scroll.
+  // The 3-NPS mode shapes live outside .quiz-main but belong to the fretboard
+  // pill, so they get their own panel under the same tab id.
+  if (fbCard) wrapAsSubview([fbCard], { id: 'fretboard', forTabs: 'scaleref-tabs', active: true });
+  if (modes) wrapAsSubview([modes], { id: 'fretboard', forTabs: 'scaleref-tabs', active: true });
+  if (infoCard) wrapAsSubview([infoCard], { id: 'intervals', forTabs: 'scaleref-tabs', active: false });
+
+  initSubviewTabs(tabs, [
+    { id: 'fretboard', label: 'Fretboard' },
+    { id: 'intervals', label: 'Intervals' },
+  ], {
+    settingsKey: 'subview.scalerefview',
+    defaultId: 'fretboard',
+  });
 
   // Move fret opts into details
   const opts = fbCard?.querySelector('.ref-fb-opts');
@@ -251,12 +273,10 @@ function setupChords() {
 
   const mapEls = [layout];
   const mcc = document.getElementById('mcc-block');
-  const builder = sec.querySelector('.chord-builder-block');
   const caged = document.getElementById('caged-block');
 
   wrapAsSubview(mapEls.filter(Boolean), { id: 'map', forTabs: 'chords-tabs', active: true });
   if (mcc) wrapAsSubview([mcc], { id: 'cards', forTabs: 'chords-tabs', active: false });
-  if (builder) wrapAsSubview([builder], { id: 'build', forTabs: 'chords-tabs', active: false });
   if (caged) {
     const intro = caged.querySelector('.caged-head p');
     if (intro && !caged.querySelector('.caged-learn-more')) {
@@ -276,15 +296,11 @@ function setupChords() {
   initSubviewTabs(tabs, [
     { id: 'map', label: 'Map' },
     { id: 'cards', label: 'Cards' },
-    { id: 'build', label: 'Build' },
     { id: 'caged', label: 'CAGED' },
   ], {
     settingsKey: 'subview.chords',
     defaultId: 'map',
-    onChange: (id) => {
-      setup.hidden = id === 'build';
-      refreshChordsSetup();
-    },
+    onChange: () => refreshChordsSetup(),
   });
 
   // Move fret opts into Options for map

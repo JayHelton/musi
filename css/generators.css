@@ -213,10 +213,6 @@ body.split-mode #ref-modes{display:none}
 .cps-tone{font-size:.66rem;color:var(--muted);white-space:nowrap}
 .ref-note.suggested{outline:2px solid var(--text);outline-offset:2px;transform:scale(1.06)}
 .chord-finger{position:absolute;right:-6px;top:-7px;display:flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--text);color:var(--on-accent);font-size:.55rem;font-weight:900;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.5)}
-.chord-builder-block{margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
-.chord-builder-head{margin-bottom:14px}
-.chord-builder-head h3{margin:0 0 4px;color:var(--accent);font-size:1.05rem}
-.chord-builder-head p{margin:0;color:var(--muted);font-size:.85rem}
 
 /* CAGED system reference */
 .caged-block{margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
@@ -284,25 +280,6 @@ body.split-mode #ref-modes{display:none}
   .chord-position-strings{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
 }
 
-/* Chord Builder */
-.chord-picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
-.chord-chips{display:flex;gap:6px;flex-wrap:wrap;min-height:44px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:16px;margin-bottom:12px;align-items:center;transition:box-shadow 0.2s ease}
-.chord-chips:focus-within{box-shadow:0 0 0 2px var(--accent-dim)}
-.chord-chips:empty::after{content:'Add notes to build a chord...';color:var(--muted);font-size:.9rem}
-.chord-chip{padding:5px 14px;background:var(--accent-dim);border:none;border-radius:20px;font-family:var(--font-ui,"VT323",monospace);font-size:1rem;color:var(--accent);cursor:pointer;transition:all 0.15s ease;font-weight:600}
-.chord-chip:hover{background:var(--err);color:#fff;transform:scale(0.98)}
-.chord-chip:hover::after{content:' ×'}
-.chord-actions{display:flex;gap:8px;margin-bottom:20px}
-.chord-analysis{background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;padding:24px;transition:all 0.2s ease}
-.chord-analysis:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,0,0,0.6)}
-.chord-name{font-size:1.6rem;font-weight:700;color:var(--accent);margin-bottom:8px}
-.chord-intervals{font-size:.9rem;color:var(--muted);margin-bottom:8px;font-family:var(--font-ui,"VT323",monospace)}
-.chord-keys{font-size:.9rem;color:var(--text);line-height:1.6}
-.chord-keys strong{color:var(--muted);display:block;margin-bottom:4px}
-.key-tag{display:inline-block;padding:4px 12px;border-radius:20px;font-size:.8rem;margin:2px;background:var(--bg2);border:none}
-.key-tag.major{color:var(--accent);background:var(--accent-dim)}
-.key-tag.minor{color:var(--accent2);background:rgba(124,91,245,0.1)}
-
 /* Backing Track */
 .backing-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .backing-controls label{color:var(--muted);font-size:.85rem;display:flex;align-items:center;gap:6px}
@@ -355,10 +332,6 @@ body.split-mode #ref-modes{display:none}
   .modal-chord-table th,.modal-chord-table td{padding:8px 10px;font-size:.78rem}
   .guitar-tab-wrap{padding:12px;-webkit-overflow-scrolling:touch}
   .guitar-tab-wrap pre{font-size:.75rem;line-height:1.6}
-  .chord-picker{gap:6px}
-  .chord-actions{flex-wrap:wrap}
-  .chord-actions .btn.primary{flex:1 0 100%;padding:12px 16px;border-radius:16px}
-  .chord-actions .btn:not(.primary){flex:1}
   .backing-controls{flex-direction:column;align-items:stretch;gap:8px}
   .backing-controls label{justify-content:space-between}
   .backing-progression{gap:6px;padding:10px}
@@ -374,10 +347,6 @@ body.split-mode #ref-modes{display:none}
 @media(max-width:480px){
   .ref-table th,.ref-table td{padding:6px 8px;font-size:.75rem}
   .guitar-tab-wrap pre{font-size:.65rem;line-height:1.5;letter-spacing:0}
-  .chord-name{font-size:1.2rem}
-  .chord-intervals{font-size:.8rem}
-  .chord-keys{font-size:.82rem}
-  .key-tag{padding:3px 8px;font-size:.7rem}
   .backing-chord{padding:8px 10px;font-size:.82rem;min-width:44px}
   .backing-badges{gap:4px}
   .backing-chord .bpc-badge{font-size:.6rem;padding:1px 4px}
@@ -394,7 +363,8 @@ body.split-mode #ref-modes{display:none}
     min-height:0;overflow:hidden;
     max-height:calc(100dvh - var(--dock-h) - var(--ref-card-top-est, 140px) - var(--ref-landscape-gutter));
   }
-  #sec-scaleref .ref-fb-card{--ref-card-top-est:110px}
+  /* Includes the Fretboard/Intervals pill row above the card. */
+  #sec-scaleref .ref-fb-card{--ref-card-top-est:150px}
   #sec-triads .ref-fb-card{--ref-card-top-est:152px}
   .ref-fb-card{padding:6px 10px 8px}
   .ref-fb-head{margin-bottom:0;align-items:center;flex-wrap:nowrap;gap:6px}
@@ -481,7 +451,7 @@ body.split-mode #ref-modes{display:none}
 }
 
 @media (orientation: landscape) and (max-height: 380px) {
-  #sec-scaleref .ref-fb-card{--ref-card-top-est:106px}
+  #sec-scaleref .ref-fb-card{--ref-card-top-est:146px}
   #sec-triads .ref-fb-card{--ref-card-top-est:148px}
   .ref-fb-card{padding:8px 10px}
   .ref-fb-head{margin-bottom:4px;gap:6px}

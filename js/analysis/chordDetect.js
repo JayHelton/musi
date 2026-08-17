@@ -1,8 +1,8 @@
 // Chord identification + diatonic key-fit + roman-numeral analysis.
 //
 // `CHORD_TYPES`, `identifyChord` and `findKeys` were originally embedded in
-// js/chordBuilder.js. They now live here so the chord builder, the CLI and the
-// tab analyzer share one implementation. The original entries are kept first
+// the removed chord builder. They now live here so the CLI and the tab
+// analyzer share one implementation. The original entries are kept first
 // and in their original order (identifyChord prefers the earliest match of the
 // largest size), so existing behaviour is preserved; later entries only add
 // recognition for chords that were previously reported as "unknown".

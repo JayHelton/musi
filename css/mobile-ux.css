@@ -64,7 +64,7 @@ header{justify-content:space-between}
 
 /* ---- Sticky bottom action bar ---- */
 .action-dock{position:sticky;bottom:calc(var(--dock-h) + 6px);z-index:45;margin-top:14px;padding:10px 12px;border-radius:18px;background:rgba(11,16,32,0.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border);box-shadow:0 6px 28px rgba(0,0,0,0.5)}
-.action-dock .note-action-row,.action-dock .ear-transport,.action-dock .chord-actions{margin:0}
+.action-dock .note-action-row,.action-dock .ear-transport{margin:0}
 .action-dock .btn{min-height:48px}
 
 /* ---- Collapsible advanced options ---- */
