@@ -29,7 +29,6 @@ import {
 } from './gpExerciseScore.js';
 import { BULK_ACCEPT_ATTR, UPLOAD_ACCEPT_ATTR, classifyUploadFile } from './exercisesBulk.js';
 import { openBulkUploadDialog, closeBulkUploadDialog } from './exercisesBulkUI.js';
-import { mountExerciseTakePanel } from './exerciseTakePanel.js';
 import { emitDataChanged } from './dataEvents.js';
 import {
   MAX_FOLDER_DEPTH,
@@ -204,26 +203,17 @@ function normalizeCategory(raw) {
   return { id, name, parentId };
 }
 
-const MAX_TAKES = 50;
+// The practice-take recorder is removed. Exercises saved by an older build can
+// still carry a `takes` array. Drop the field and remember the audio blobs it
+// referenced, so getStore() can free them once.
+const legacyTakeAttachmentIds = new Set();
 
-function normalizeTake(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const id = typeof raw.id === 'string' && raw.id ? raw.id : '';
-  const attachmentId = typeof raw.attachmentId === 'string' && raw.attachmentId ? raw.attachmentId : '';
-  if (!id || !attachmentId) return null;
-  return {
-    id,
-    attachmentId,
-    name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Take', NAME_LIMIT),
-    type: typeof raw.type === 'string' ? raw.type : '',
-    durationMs: Number.isFinite(Number(raw.durationMs)) ? Math.max(0, Math.floor(Number(raw.durationMs))) : 0,
-    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : nowISO(),
-  };
-}
-
-function normalizeTakes(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw.map(normalizeTake).filter(Boolean).slice(0, MAX_TAKES);
+function collectLegacyTakes(raw) {
+  if (!Array.isArray(raw)) return;
+  raw.forEach((take) => {
+    const id = typeof take?.attachmentId === 'string' ? take.attachmentId : '';
+    if (id) legacyTakeAttachmentIds.add(id);
+  });
 }
 
 function normalizeItem(raw) {
@@ -270,7 +260,6 @@ function normalizeItem(raw) {
     transpose: Number.isFinite(Number(raw.transpose)) ? Math.round(Number(raw.transpose)) : 0,
     tuning: typeof raw.tuning === 'string' && raw.tuning ? raw.tuning : null,
     retuneMode: raw.retuneMode === 'pitches' ? 'pitches' : 'fingerings',
-    takes: normalizeTakes(raw.takes),
     instrument: instrumentRaw || deriveInstrument(type, fileName),
     materialType: materialTypeRaw || deriveMaterialType(type, fileName, url),
     technique: typeof raw.technique === 'string' ? raw.technique : '',
@@ -283,6 +272,8 @@ function normalizeItem(raw) {
   };
   const out = { ...raw };
   Object.assign(out, core);
+  collectLegacyTakes(raw.takes);
+  delete out.takes;
   return out;
 }
 
@@ -328,7 +319,23 @@ function getStore() {
   } catch (e) {
     storeCache = { categories: [], items: [] };
   }
+  purgeLegacyTakes();
   return storeCache;
+}
+
+// Free the audio blobs of practice takes that an older build recorded. The
+// takes are already out of storeCache, so the write below also removes the
+// `takes` field from storage.
+function purgeLegacyTakes() {
+  if (!legacyTakeAttachmentIds.size) return;
+  const ids = [...legacyTakeAttachmentIds];
+  legacyTakeAttachmentIds.clear();
+  persist();
+  (async () => {
+    for (const attachmentId of ids) {
+      try { await releaseAttachment(attachmentId); } catch (e) { /* keep releasing */ }
+    }
+  })();
 }
 
 function persist() {
@@ -563,20 +570,12 @@ function moveExercise(id, categoryId) {
 
 function attachmentStillReferenced(attachmentId) {
   if (!attachmentId) return false;
-  return getStore().items.some((it) => {
-    if (it.attachmentId === attachmentId) return true;
-    return (it.takes || []).some((t) => t.attachmentId === attachmentId);
-  });
+  return getStore().items.some((it) => it.attachmentId === attachmentId);
 }
 
 async function releaseAttachmentsForItem(item) {
-  if (!item) return;
-  const ids = new Set();
-  if (item.attachmentId) ids.add(item.attachmentId);
-  (item.takes || []).forEach((t) => { if (t.attachmentId) ids.add(t.attachmentId); });
-  for (const attachmentId of ids) {
-    try { await releaseAttachment(attachmentId); } catch (e) { /* keep releasing */ }
-  }
+  if (!item?.attachmentId) return;
+  try { await releaseAttachment(item.attachmentId); } catch (e) { /* ignore */ }
 }
 
 async function releaseAttachment(attachmentId) {
@@ -615,7 +614,6 @@ async function deleteExercises(ids) {
   const attachmentIds = new Set();
   removed.forEach((it) => {
     if (it.attachmentId) attachmentIds.add(it.attachmentId);
-    (it.takes || []).forEach((t) => { if (t.attachmentId) attachmentIds.add(t.attachmentId); });
   });
   for (const attachmentId of attachmentIds) {
     try {
@@ -825,7 +823,6 @@ let sectionEl, workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerAct
 let activeExerciseId = null;
 let viewerURL = null;
 let viewerGpMount = null;
-let viewerTakePanel = null;
 let escapeWired = false;
 let openGeneration = 0;
 const exerciseViewerChangeHandlers = new Set();
@@ -1036,7 +1033,6 @@ async function uploadFiles(files, folderId) {
       type: fileType,
       size: file.size,
       addedAt: nowISO(),
-      takes: [],
     });
     persist();
     added++;
@@ -1247,8 +1243,6 @@ function setViewerLayoutActive(on) {
 // Overlays that own Escape themselves; closing the whole viewer underneath them
 // would throw away the user's place in the exercise.
 const VIEWER_OVERLAY_SELECTOR = [
-  '.ex-take-drawer.is-open',
-  '.ex-take-sheet.is-open',
   '.gpp-drawer.is-open',
   '.gpp-sheet.is-open',
   '.gpi-mount.is-open',
@@ -1448,63 +1442,7 @@ async function mountGpExercise(item, mountHost, blob) {
   }
 }
 
-function persistExerciseTakes(exerciseId, takes) {
-  const item = getExercise(exerciseId);
-  if (!item) return false;
-  item.takes = normalizeTakes(takes);
-  persist();
-  return true;
-}
-
-async function addExerciseTake(exerciseId, take) {
-  const item = getExercise(exerciseId);
-  if (!item || !take) return false;
-  const next = normalizeTakes([...(item.takes || []), take]);
-  return persistExerciseTakes(exerciseId, next);
-}
-
-async function deleteExerciseTake(exerciseId, takeId) {
-  const item = getExercise(exerciseId);
-  if (!item) return false;
-  const removed = (item.takes || []).find((t) => t.id === takeId);
-  const next = (item.takes || []).filter((t) => t.id !== takeId);
-  if (!persistExerciseTakes(exerciseId, next)) return false;
-  if (removed?.attachmentId) await releaseAttachment(removed.attachmentId);
-  return true;
-}
-
-async function renameExerciseTake(exerciseId, takeId, name) {
-  const item = getExercise(exerciseId);
-  if (!item) return false;
-  const clean = clampText((name || '').trim(), NAME_LIMIT) || 'Take';
-  const next = (item.takes || []).map((t) => (t.id === takeId ? { ...t, name: clean } : t));
-  if (!persistExerciseTakes(exerciseId, next)) return false;
-  const take = next.find((t) => t.id === takeId);
-  if (take?.attachmentId) renameFile(take.attachmentId, clean).catch(() => {});
-  return true;
-}
-
-function teardownTakePanel() {
-  if (viewerTakePanel) {
-    try { viewerTakePanel.destroy(); } catch (e) { /* ignore */ }
-    viewerTakePanel = null;
-  }
-}
-
-function mountTakePanel(item) {
-  teardownTakePanel();
-  if (!playerPaneEl || !item) return;
-  viewerTakePanel = mountExerciseTakePanel(playerPaneEl, {
-    exerciseId: item.id,
-    getTakes: () => getExercise(item.id)?.takes || [],
-    onSaveTake: (take) => addExerciseTake(item.id, take),
-    onDeleteTake: (takeId) => deleteExerciseTake(item.id, takeId),
-    onRenameTake: (takeId, name) => renameExerciseTake(item.id, takeId, name),
-  });
-}
-
 function teardownPlayer() {
-  teardownTakePanel();
   if (viewerGpMount) {
     try { viewerGpMount.destroy(); } catch (e) { /* ignore */ }
     viewerGpMount = null;
@@ -1547,7 +1485,6 @@ export async function openExerciseViewer(id) {
   playerPaneEl.hidden = false;
   fillPlayerHead(item, kind, blob);
   const gpMount = mountPlayerBody(item, kind, blob);
-  mountTakePanel(item);
   applyActiveRowHighlight();
   exerciseViewerChangeHandlers.forEach((handler) => {
     try { handler({ open: true, exerciseId: id }); } catch (e) { /* ignore */ }

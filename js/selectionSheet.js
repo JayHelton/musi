@@ -77,7 +77,8 @@ function closeActive(reason = 'dismiss') {
  * Open a selection sheet.
  *
  * @param {object} opts
- * @param {string} opts.title
+ * @param {string} opts.title - an empty string hides the heading row text
+ * @param {string} [opts.ariaLabel] - dialog label when the heading is hidden
  * @param {Array} opts.items - { id, label, sub?, meta?, category?, keywords?, disabled?, actions? }
  *   actions: [{ id, label, className?, icon? }] — trailing row buttons (e.g. delete)
  * @param {string|string[]} [opts.value] - current selection
@@ -115,12 +116,15 @@ export function openSelectionSheet(opts = {}) {
     (opts.items || []).forEach(it => itemsById.set(it.id, it));
 
     panel.className = 'sel-sheet' + (isMobile() ? ' sheet-mobile' : ' sheet-desktop') + (opts.grid ? ' sel-sheet-grid-mode' : '');
-    panel.setAttribute('aria-label', opts.title || 'Select');
+    // A caller can pass an empty title to drop the heading. Screen readers then
+    // read the ariaLabel instead.
+    const hasTitle = typeof opts.title === 'string' ? !!opts.title : true;
+    panel.setAttribute('aria-label', opts.title || opts.ariaLabel || 'Select');
 
     panel.innerHTML = `
       <div class="sel-sheet-handle" aria-hidden="true"></div>
-      <div class="sel-sheet-header">
-        <h2 class="sel-sheet-title" id="sel-sheet-title">${escapeHtml(opts.title || 'Select')}</h2>
+      <div class="sel-sheet-header${hasTitle ? '' : ' no-title'}">
+        ${hasTitle ? `<h2 class="sel-sheet-title" id="sel-sheet-title">${escapeHtml(opts.title || 'Select')}</h2>` : ''}
         <button type="button" class="sel-sheet-close" aria-label="Close">&times;</button>
       </div>
       ${showSearch ? `<div class="sel-sheet-search-wrap">

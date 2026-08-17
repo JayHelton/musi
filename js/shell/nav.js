@@ -47,7 +47,8 @@ function navHighlightId(sectionId) {
 
 function openMoreSheet() {
   openSelectionSheet({
-    title: 'More',
+    title: '',
+    ariaLabel: 'More',
     items: [
       { id: 'tools', label: 'Practice tools' },
       // SIMPLIFY: Routines hidden. Keep this row to restore later.

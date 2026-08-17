@@ -440,14 +440,13 @@ await test('duplicate fileName exercises: both items remain', async () => {
   assert.equal(normalizedExerciseItems(ctx).length, 2);
 });
 
-await test('partial legacy exercise: takes default to empty array', async () => {
+await test('partial legacy exercise: metadata fields fill in', async () => {
   const ctx = createFakeCtx({
     exerciseStore: buildPartialLegacyExercise(),
     settings: {},
   });
   await runMigrations(ctx);
   const item = normalizedExerciseItems(ctx)[0];
-  assert.deepEqual(item.takes, []);
   assert.equal(item.instrument, '');
   assert.equal(item.materialType, 'pdf');
 });

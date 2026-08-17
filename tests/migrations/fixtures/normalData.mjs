@@ -147,7 +147,7 @@ export function buildPartialLegacyExercise() {
     categories: [],
     items: [
       exercise('ex-partial', {
-        name: 'No takes field',
+        name: 'No metadata fields',
         attachmentId: 'att-partial',
         fileName: 'partial.pdf',
         type: 'application/pdf',
