@@ -16,23 +16,12 @@ import { openSelectionSheet, closeSelectionSheet } from './selectionSheet.js';
 import {
   renderSetupSummary, initSubviewTabs, renderCompactProgress,
   openOverflowMenu, renderFilterSummary, setEditorNavState, setDrillFocus,
-  escapeHtml,
 } from './uxPrimitives.js';
-import {
-  getExerciseFolderOptions,
-  getSelectedExerciseFolder,
-  getSelectedExerciseFolderLabel,
-  selectExerciseFolder,
-  createExerciseFolder,
-  requestExerciseFolderDelete,
-} from './exercises.js';
-import { MAX_FOLDER_DEPTH, FOLDER_PATH_SEPARATOR } from './folderTree.js';
 
 let showSectionFn = null;
 
 const MOBILE_UX_MQ = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 const LANDSCAPE_PHONE_MQ = '(orientation: landscape) and (max-height: 500px)';
-const NOT_LANDSCAPE_PHONE_MQ = '(not ((orientation: landscape) and (max-height: 500px)))';
 
 const SETUP_SHEET_BASE = `
   display:none;position:fixed;z-index:480;overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -1167,198 +1156,9 @@ function setupExercises() {
   const sec = document.getElementById('sec-exercises');
   if (!sec) return;
   ensureBackButton(sec);
-  if (document.getElementById('ex-folder-pick')) return;
-
-  const bar = document.createElement('div');
-  bar.id = 'ex-folder-bar';
-  bar.className = 'setup-summary ex-folder-bar';
-  bar.innerHTML = `
-    <button type="button" class="setup-chip" id="ex-folder-pick">
-      <span class="setup-chip-value" id="ex-folder-label">${escapeHtml(getSelectedExerciseFolderLabel())}</span>
-      <span class="setup-chip-hint">Folder</span>
-    </button>
-    <button type="button" class="btn sm" id="ex-new-folder-btn">+ Folder</button>
-    <button type="button" class="btn sm ex-folder-del" id="ex-del-folder-btn" hidden>Delete folder</button>
-  `;
-  const head = sec.querySelector('.section-head');
-  if (head) head.after(bar);
-
-  // Mobile: folder list on the main page for select/rename/delete; bar keeps Add/upload on phones.
-  if (!document.getElementById('ex-folder-style')) {
-    const style = document.createElement('style');
-    style.id = 'ex-folder-style';
-    style.textContent = `
-      @media ${MOBILE_UX_MQ}{
-        #sec-exercises .ex-layout{display:flex;flex-direction:column}
-        #sec-exercises .ex-sidebar{display:flex;flex-direction:column;gap:8px;width:100%}
-        #sec-exercises .ex-sidebar .sidebar-list{display:block}
-        #sec-exercises .ex-sidebar .sl-scroll,
-        #sec-exercises #ex-category-list{
-          display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;
-          gap:2px!important;overflow-x:hidden!important;overflow-y:auto!important;
-          max-height:min(42vh,320px);scroll-snap-type:none!important;padding:6px;-webkit-overflow-scrolling:touch
-        }
-        #sec-exercises .ex-cat-item{
-          flex:0 0 auto!important;width:100%!important;min-height:44px;
-          border-radius:10px;white-space:normal
-        }
-        #sec-exercises .ex-cat-tools{opacity:1;pointer-events:auto}
-        #sec-exercises .ex-add-cat{display:flex}
-        #sec-exercises .ex-folder-bar{
-          display:flex!important;flex-wrap:wrap;align-items:center;gap:8px
-        }
-        #sec-exercises #ex-folder-pick,
-        #sec-exercises #ex-new-folder-btn,
-        #sec-exercises #ex-del-folder-btn{display:none!important}
-        #sec-exercises #ex-add-primary{flex:1;min-width:8rem}
-      }
-      @media (min-width:769px) and ${NOT_LANDSCAPE_PHONE_MQ}{
-        #sec-exercises .ex-folder-bar{display:none}
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  const syncFolderBar = () => {
-    const label = document.getElementById('ex-folder-label');
-    if (label) label.textContent = getSelectedExerciseFolderLabel();
-    const delBtn = document.getElementById('ex-del-folder-btn');
-    if (delBtn) {
-      const folder = getSelectedExerciseFolder();
-      const isReal = folder && folder !== 'all' && folder !== 'uncategorized';
-      delBtn.hidden = !isReal;
-      if (isReal) delBtn.setAttribute('aria-label', `Delete folder "${getSelectedExerciseFolderLabel()}"`);
-    }
-  };
-
-  const newFolderParentLabel = () => {
-    const selected = getSelectedExerciseFolder();
-    if (selected === 'all' || selected === 'uncategorized') return '';
-    return getSelectedExerciseFolderLabel();
-  };
-
-  const promptNewFolder = () => {
-    const parentLabel = newFolderParentLabel();
-    const promptText = parentLabel
-      ? `New folder in "${parentLabel}"`
-      : 'New folder name';
-    const name = window.prompt(promptText);
-    if (name == null) return;
-    const result = createExerciseFolder(name);
-    if (!result.ok && result.reason === 'empty') {
-      window.alert('Enter a folder name.');
-      return;
-    }
-    if (!result.ok && result.reason === 'depth') {
-      window.alert(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`);
-      return;
-    }
-    if (result.category?.id) {
-      selectExerciseFolder(result.category.id);
-    }
-    syncFolderBar();
-  };
-
-  document.getElementById('ex-new-folder-btn')?.addEventListener('click', promptNewFolder);
-  document.getElementById('ex-del-folder-btn')?.addEventListener('click', () => {
-    requestExerciseFolderDelete(getSelectedExerciseFolder());
-  });
-  document.addEventListener('musi:exercise-folders-change', () => syncFolderBar());
-
-  document.getElementById('ex-folder-pick').onclick = async () => {
-    const folders = getExerciseFolderOptions();
-    const folderIndent = (depth) => (depth > 1 ? '\u00A0\u00A0'.repeat(depth - 1) : '');
-    const folderMeta = (f) => (
-      f.totalCount > f.count ? `${f.count} here, ${f.totalCount} total` : String(f.count)
-    );
-    const folderParentSub = (f) => {
-      if (!f.path || f.depth <= 1) return undefined;
-      const parts = f.path.split(FOLDER_PATH_SEPARATOR);
-      return parts.length > 1 ? parts.slice(0, -1).join(' › ') : undefined;
-    };
-    const parentLabel = newFolderParentLabel();
-    const newFolderSub = parentLabel
-      ? `Create a folder inside "${parentLabel}"`
-      : 'Create a folder at the top level';
-    const items = [
-      ...folders.map(f => {
-        const row = {
-          id: f.id,
-          label: f.id === 'all' || f.id === 'uncategorized'
-            ? f.label
-            : `${folderIndent(f.depth)}${f.label}`,
-          meta: folderMeta(f),
-        };
-        if (f.id !== 'all' && f.id !== 'uncategorized') {
-          const sub = folderParentSub(f);
-          if (sub) row.sub = sub;
-          row.actions = [{
-            id: 'delete',
-            label: `Delete folder ${f.label}`,
-            className: 'sel-item-del',
-            icon: '×',
-          }];
-        }
-        return row;
-      }),
-      { id: '__new__', label: '+ New folder', sub: newFolderSub },
-    ];
-    const next = await openSelectionSheet({
-      title: 'Folder',
-      items,
-      value: getSelectedExerciseFolder(),
-      search: folders.length > 6,
-      onItemAction: (actionId, id) => {
-        if (actionId !== 'delete') return;
-        closeSelectionSheet();
-        requestAnimationFrame(() => {
-          requestExerciseFolderDelete(id);
-        });
-      },
-    });
-    if (next == null) return;
-    if (next === '__new__') {
-      promptNewFolder();
-      return;
-    }
-    selectExerciseFolder(next);
-    syncFolderBar();
-  };
-
-  syncFolderBar();
-
-  // Combine upload / add link into one primary on mobile folder bar
-  const upload = document.getElementById('ex-upload-btn')
-    || document.getElementById('ex-upload')
-    || [...sec.querySelectorAll('button,label')].find(b => /upload/i.test(b.textContent));
-  const bulkUpload = document.getElementById('ex-bulk-upload-btn');
-  const bulkFileInput = document.getElementById('ex-bulk-file-input');
-  const addLink = document.getElementById('ex-add-link-btn')
-    || document.getElementById('ex-add-link')
-    || [...sec.querySelectorAll('button')].find(b => /add link|link/i.test(b.textContent));
-  if ((upload || bulkUpload || addLink) && !document.getElementById('ex-add-primary')) {
-    const primary = document.createElement('button');
-    primary.type = 'button';
-    primary.id = 'ex-add-primary';
-    primary.className = 'btn primary';
-    primary.textContent = 'Add';
-    primary.onclick = () => {
-      openOverflowMenu(primary, [
-        upload ? {
-          label: 'Upload file',
-          onClick: () => (upload.tagName === 'LABEL'
-            ? document.getElementById(upload.htmlFor)?.click()
-            : upload.click()),
-        } : null,
-        bulkUpload ? {
-          label: 'Bulk upload',
-          onClick: () => (bulkFileInput ? bulkFileInput.click() : bulkUpload.click()),
-        } : null,
-        addLink ? { label: 'Add link', onClick: () => addLink.click() } : null,
-      ].filter(Boolean));
-    };
-    bar.appendChild(primary);
-  }
+  // The library browser carries its own navigation: a breadcrumb, folder rows,
+  // and a "+ New" menu. A phone hides the folder tree and uses those instead,
+  // so no extra mobile chrome goes here.
 }
 
 /* ── Keyboard / Recorder / Drums / Scales quiz ───────────────── */

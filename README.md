@@ -89,6 +89,11 @@ Musi is built around five practice modes:
   and metronome. The workbook stores each tool's settings. The metronome stores a
   BPM progression, so the player presses Start instead of building a tempo plan
   again in each session.
+- **Library** - Exercises and Workbooks stay separate, but both use the same
+  file browser. It works like Google Drive: a folder tree on the left, a
+  breadcrumb on top, one folder level at a time, folders above items, sortable
+  columns, a list view and a grid view, a row menu, and drag-and-drop to move
+  rows into a folder. Unfiled items sit at the root of the library.
 - **Settings** - default musical context, audio volume, device sync, cloud
   account, library cleanup, and feature visibility. Settings holds no genre control.
 - **Study Lab** - opens a default study. It uses no genre profile.
@@ -136,6 +141,7 @@ Musi bridges the gap between a theory worksheet and a creative instrument:
 +-- index.html              # App shell and feature sections
 +-- css/                    # Modular styles by feature area
 +-- js/                     # ES modules for theory, tools, trainers, and audio
++-- js/library/             # Shared file-browser for Exercises and Workbooks
 +-- js/cloud/               # Optional Supabase account and library sync
 +-- js/vendor/              # Vendored Supabase client (offline install)
 +-- icons/                  # PWA icons

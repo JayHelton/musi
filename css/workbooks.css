@@ -1,125 +1,18 @@
-/* Exercise Workbooks: folder sidebar + workbook library list, with a detail
-   pane for ordered practice (player + entry list). Reuses Musi GBC tokens. */
+/* Exercise Workbooks. The Drive-style browser chrome lives in
+   css/library-drive.css; this file styles the parts that belong to Workbooks
+   alone: the status line and the detail pane for ordered practice
+   (player + entry list). Reuses Musi GBC tokens. */
 
 .wb-layout{align-items:flex-start}
-.wb-sidebar{width:240px;display:flex;flex-direction:column;gap:12px}
-
-#sec-workbooks .wb-sidebar .sidebar-list{
-  background:var(--card);border-radius:var(--radius-screen,16px);overflow:hidden;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28);
-  border:1px solid var(--border)
-}
-#sec-workbooks .wb-sidebar .sl-head{
-  padding:10px 14px;font-size:.7rem;color:var(--muted);text-transform:uppercase;
-  letter-spacing:1.2px;font-weight:600;border-bottom:1px solid var(--border)
-}
-#sec-workbooks .wb-sidebar .sl-scroll,
-#sec-workbooks #wb-folder-list{
-  display:flex;flex-direction:column;gap:2px;
-  max-height:min(360px,50vh);overflow-x:hidden;overflow-y:auto;
-  padding:6px;scroll-snap-type:none
-}
-
-.wb-folder-item{
-  display:flex;align-items:center;gap:4px;width:100%;
-  padding:9px 10px 9px 8px;margin:0;border:none;border-radius:10px;
-  background:transparent;color:var(--text);cursor:pointer;font:inherit;text-align:left;
-  border-left:3px solid transparent;min-height:40px;position:relative
-}
-.wb-folder-item[data-depth="1"]{padding-left:8px}
-.wb-folder-item[data-depth="2"]{padding-left:16px}
-.wb-folder-item[data-depth="3"]{padding-left:22px}
-.wb-folder-item[data-depth="4"]{padding-left:26px}
-.wb-folder-item[data-depth="5"]{padding-left:28px}
-.wb-folder-twisty,.wb-folder-twisty-spacer{
-  flex-shrink:0;width:22px;min-width:22px;height:22px;display:inline-flex;
-  align-items:center;justify-content:center;padding:0;margin:0
-}
-.wb-folder-twisty{
-  border:none;border-radius:6px;background:transparent;color:var(--muted);
-  cursor:pointer;font-size:.72rem;line-height:1;font-family:inherit
-}
-.wb-folder-twisty:hover{color:var(--text);background:var(--hover)}
-.wb-folder-twisty.is-expanded{color:var(--accent2)}
-.wb-folder-twisty-spacer{pointer-events:none}
-.wb-folder-item:hover{background:var(--hover)}
-.wb-folder-item.is-active{
-  color:var(--accent);border-left-color:var(--accent);
-  background:linear-gradient(90deg,var(--accent-dim),transparent)
-}
-.wb-folder-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem}
-.wb-folder-count{
-  flex-shrink:0;font-size:.66rem;color:var(--muted);background:var(--bg2);
-  padding:2px 8px;border-radius:999px;font-weight:600;font-variant-numeric:tabular-nums
-}
-.wb-folder-item.is-active .wb-folder-count{color:var(--accent);background:var(--accent-dim)}
-/* Folder name keeps the full row width; tools float at the row end on hover. */
-.wb-folder-tools{
-  position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:1;
-  display:flex;gap:2px;flex-shrink:0;padding:2px 4px;border-radius:8px;
-  background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,0.35);
-  opacity:0;pointer-events:none;transition:opacity .15s ease
-}
-.wb-folder-item:hover .wb-folder-tools,
-.wb-folder-item:focus-within .wb-folder-tools,
-.wb-folder-item.is-active .wb-folder-tools{
-  opacity:1;pointer-events:auto
-}
-.wb-folder-tool{
-  border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;
-  line-height:1;padding:6px;border-radius:6px;font-family:inherit;min-width:28px;min-height:28px
-}
-.wb-folder-tool:hover{color:var(--text);background:var(--hover)}
-.wb-folder-tool.wb-folder-move:hover{color:var(--accent2);background:var(--accent-dim)}
-.wb-folder-tool.wb-folder-del:hover{color:var(--err);background:rgba(231,76,60,0.12)}
-.wb-folder-move-select{width:100%;min-height:var(--tap-min,44px)}
-
-.wb-add-folder{display:flex;gap:8px;align-items:stretch}
-.wb-add-folder input{
-  flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:12px;
-  background:var(--bg2);color:var(--text);font-size:.85rem;font-family:inherit
-}
-.wb-add-folder input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
-.wb-add-folder .btn{flex-shrink:0}
-
-.wb-main{flex:1;min-width:0}
-.wb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-.wb-toolbar-title{font-size:1.1rem;font-weight:650;color:var(--text)}
-.wb-toolbar-actions{display:flex;gap:8px}
+.wb-main{min-width:0}
 
 .wb-status{font-size:.82rem;color:var(--muted);margin-bottom:12px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2)}
 .wb-status.error{color:var(--warn);border-color:rgba(243,156,18,0.4)}
-
-.wb-empty{padding:30px 20px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted);font-size:.88rem;background:rgba(18,26,46,0.5)}
-
-.wb-list{display:flex;flex-direction:column;gap:10px}
-.wb-card{
-  display:flex;align-items:center;gap:14px;padding:14px;background:var(--card);
-  border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.4);
-  transition:border-color .15s ease
-}
-.wb-card:hover{border-color:var(--accent)}
-.wb-card.is-active{
-  border-color:var(--accent);
-  background:linear-gradient(90deg,var(--accent-dim),var(--card));
-  box-shadow:inset 0 0 0 1px var(--accent),0 2px 12px rgba(0,0,0,0.4)
-}
-.wb-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.wb-card-name{font-size:.98rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wb-card-meta{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wb-card-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
-.wb-card-folder-select{
-  padding:6px 10px;border:1px solid var(--border);border-radius:10px;
-  background:var(--bg2);color:var(--text);font-size:.8rem;font-family:inherit;max-width:130px
-}
-.wb-card-del{color:var(--err)}
-.wb-card-del:hover{background:rgba(231,76,60,0.12);color:var(--err)}
 
 /* ---- Workspace (list + detail) ---- */
 .wb-workspace{display:flex;flex-direction:column;gap:12px;min-width:0}
 .wb-list-pane{min-width:0}
 .wb-workspace.is-open .wb-list-pane{max-height:min(70vh,640px);overflow:auto}
-.wb-workspace.is-open .wb-card{padding:10px 12px}
 .wb-workspace.is-open{
   display:grid;grid-template-columns:minmax(240px,34%) minmax(0,1fr);
   align-items:stretch;gap:14px
@@ -376,8 +269,9 @@ body.wb-cmp-drawer-open{overflow:hidden}
 
 /* ---- Practice mode: hide library chrome ---- */
 #sec-workbooks.wb-practicing .section-head,
-#sec-workbooks.wb-practicing .wb-sidebar,
-#sec-workbooks.wb-practicing .wb-toolbar{display:none}
+#sec-workbooks.wb-practicing .library-tabs,
+#sec-workbooks.wb-practicing .drv-nav,
+#sec-workbooks.wb-practicing .drv-topbar{display:none}
 #sec-workbooks.wb-practicing .wb-status{display:none!important}
 #sec-workbooks.wb-practicing .wb-list-pane{display:none!important}
 
@@ -660,31 +554,9 @@ body.wb-cmp-drawer-open{overflow:hidden}
 
 @media(max-width:900px){
   #sec-workbooks:not(.wb-practicing){overflow-x:hidden}
-  #sec-workbooks:not(.wb-practicing) .wb-layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important;width:100%!important;max-width:100%!important;min-width:0!important}
-  #sec-workbooks:not(.wb-practicing) .wb-sidebar{width:100%!important;max-width:100%!important;min-width:0!important;order:1!important;grid-column:1!important;grid-row:1!important}
-  #sec-workbooks:not(.wb-practicing) .wb-main{width:100%!important;max-width:100%!important;min-width:0!important;order:2!important;grid-column:1!important;grid-row:2!important}
-  .wb-toolbar{width:100%!important;max-width:100%!important;min-width:0!important;align-items:stretch}
-  .wb-toolbar-title{width:100%}
-  .wb-toolbar-actions{width:100%!important;max-width:100%!important;min-width:0!important;display:flex;flex-direction:column}
-  .wb-toolbar-actions .btn{display:flex;align-items:center;justify-content:center;width:100%!important;max-width:100%!important;min-width:0!important;padding-left:12px;padding-right:12px;text-align:center;white-space:normal;overflow-wrap:anywhere;line-height:1.2;font-size:.85rem!important}
-  #wb-new-btn{color:var(--on-accent)}
-  .wb-card{flex-wrap:wrap}
-  .wb-card-actions{width:100%;justify-content:flex-start}
   #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open{grid-template-columns:minmax(0,1fr)}
   #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open .wb-list-pane{display:none}
   #sec-workbooks:not(.wb-practicing) .wb-detail-pane{min-height:min(72vh,680px)}
-}
-
-@media(max-width:768px){
-  #sec-workbooks:not(.wb-practicing) .wb-add-folder{
-    padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-screen,14px);
-    background:rgba(22,31,54,0.88)
-  }
-  .wb-folder-tools{
-    position:static;top:auto;right:auto;transform:none;z-index:auto;
-    padding:0;border-radius:0;background:none;box-shadow:none;
-    opacity:1;pointer-events:auto
-  }
 }
 
 @media (orientation:landscape) and (max-height:500px){
@@ -694,73 +566,34 @@ body.wb-cmp-drawer-open{overflow:hidden}
   #sec-workbooks:not(.wb-practicing) .section-head{margin-bottom:2px;flex-shrink:0}
   #sec-workbooks:not(.wb-practicing) .section-kicker{display:none}
 
-  #sec-workbooks:not(.wb-practicing) .quiz-layout.wb-layout{
-    display:flex!important;flex-direction:row!important;align-items:stretch!important;
-    flex:1;min-height:0;gap:8px!important;width:100%!important;max-width:100%!important;
-    min-width:0!important;grid-template-columns:none!important
+  /* Keep the folder tree beside the list; a phone in portrait hides it instead. */
+  #sec-workbooks:not(.wb-practicing) .wb-layout{
+    display:grid!important;grid-template-columns:168px minmax(0,1fr)!important;
+    align-items:stretch!important;
+    flex:1;min-height:0;gap:8px!important;width:100%!important;max-width:100%!important
   }
-  #sec-workbooks:not(.wb-practicing) .wb-sidebar{
-    order:0!important;width:168px!important;max-width:168px!important;min-width:140px!important;
-    flex-shrink:0!important;display:flex!important;flex-direction:column!important;gap:6px!important;
-    grid-column:unset!important;grid-row:unset!important
+  #sec-workbooks:not(.wb-practicing) .drv-nav{
+    display:flex!important;flex-direction:column!important;gap:6px!important;min-height:0
   }
-  #sec-workbooks:not(.wb-practicing) .wb-sidebar .sidebar-list{display:block!important;flex:1;min-height:0}
-  #sec-workbooks:not(.wb-practicing) .wb-sidebar .sl-head{padding:4px 8px;font-size:.58rem}
-  #sec-workbooks:not(.wb-practicing) .wb-sidebar .sl-scroll,
-  #sec-workbooks:not(.wb-practicing) #wb-folder-list{
-    display:flex!important;flex-direction:column!important;gap:2px!important;
-    max-height:min(116px,30vh)!important;overflow-x:hidden!important;overflow-y:auto!important;
-    scroll-snap-type:none!important;padding:4px!important;-webkit-overflow-scrolling:touch
-  }
-  #sec-workbooks:not(.wb-practicing) .wb-folder-item{min-height:36px;padding:6px 8px;border-radius:8px}
-  .wb-folder-tools{
-    position:static;top:auto;right:auto;transform:none;z-index:auto;
-    padding:0;border-radius:0;background:none;box-shadow:none;
-    opacity:1;pointer-events:auto
-  }
-  .wb-folder-item[data-depth="1"]{padding-left:6px}
-  .wb-folder-item[data-depth="2"]{padding-left:10px}
-  .wb-folder-item[data-depth="3"]{padding-left:14px}
-  .wb-folder-item[data-depth="4"]{padding-left:17px}
-  .wb-folder-item[data-depth="5"]{padding-left:20px}
-  #sec-workbooks:not(.wb-practicing) .wb-folder-name{font-size:.78rem}
-  #sec-workbooks:not(.wb-practicing) .wb-add-folder{padding:0;border:none;background:transparent;flex-shrink:0}
-  #sec-workbooks:not(.wb-practicing) .wb-add-folder input{font-size:.78rem;padding:6px 8px;min-height:36px}
-  #sec-workbooks:not(.wb-practicing) .wb-add-folder .btn{min-height:36px;padding:6px 10px;font-size:.78rem}
+  #sec-workbooks:not(.wb-practicing) .drv-tree{display:block!important;max-height:min(150px,34vh)!important}
+  #sec-workbooks:not(.wb-practicing) .drv-new{min-height:36px;padding:6px 14px;font-size:.8rem}
+  #sec-workbooks:not(.wb-practicing) .drv-tree-row{min-height:32px;font-size:.78rem}
 
   #sec-workbooks:not(.wb-practicing) .wb-main{
-    order:1!important;flex:1!important;min-width:0!important;min-height:0!important;
-    display:flex!important;flex-direction:column!important;
-    grid-column:unset!important;grid-row:unset!important
+    flex:1!important;min-width:0!important;min-height:0!important;
+    display:flex!important;flex-direction:column!important
   }
-  #sec-workbooks:not(.wb-practicing) .wb-toolbar{
-    width:auto!important;max-width:100%!important;align-items:center!important;
-    flex-wrap:nowrap!important;margin-bottom:6px!important;gap:8px!important;flex-shrink:0
-  }
-  #sec-workbooks:not(.wb-practicing) .wb-toolbar-title{
-    width:auto!important;flex:1;min-width:0;font-size:.92rem;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis
-  }
-  #sec-workbooks:not(.wb-practicing) .wb-toolbar-actions{
-    display:flex!important;flex-direction:row!important;width:auto!important;
-    max-width:none!important;min-width:0!important;flex-shrink:0;gap:6px!important
-  }
-  #sec-workbooks:not(.wb-practicing) .wb-toolbar-actions .btn{
-    display:inline-flex!important;width:auto!important;max-width:none!important;
-    min-width:0!important;min-height:36px!important;padding:6px 12px!important;
-    font-size:.78rem!important;white-space:nowrap!important;flex-shrink:0;line-height:1.2!important
-  }
-  #sec-workbooks:not(.wb-practicing) #wb-new-btn{color:var(--on-accent)}
+  #sec-workbooks:not(.wb-practicing) .drv-topbar{flex-shrink:0}
+  #sec-workbooks:not(.wb-practicing) .drv-crumb{font-size:.85rem;min-height:28px}
+  #sec-workbooks:not(.wb-practicing) .drv-search{height:32px}
+  #sec-workbooks:not(.wb-practicing) .drv-search-input{width:7rem;font-size:.78rem}
+  #sec-workbooks:not(.wb-practicing) .drv-tool-btn{width:32px;height:32px;flex-basis:32px}
   #sec-workbooks:not(.wb-practicing) .wb-status{margin-bottom:6px;padding:6px 10px;font-size:.75rem;flex-shrink:0}
-  #sec-workbooks:not(.wb-practicing) .wb-workspace{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  #sec-workbooks:not(.wb-practicing) .wb-workspace{
+    flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column
+  }
   #sec-workbooks:not(.wb-practicing) .wb-list-pane{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  #sec-workbooks:not(.wb-practicing) .wb-list{gap:6px}
-  #sec-workbooks:not(.wb-practicing) .wb-card{padding:8px 10px;gap:8px;flex-wrap:nowrap}
-  #sec-workbooks:not(.wb-practicing) .wb-card-name{font-size:.82rem}
-  #sec-workbooks:not(.wb-practicing) .wb-card-meta{font-size:.66rem}
-  #sec-workbooks:not(.wb-practicing) .wb-card-actions{width:auto!important;flex-wrap:nowrap;gap:4px}
-  #sec-workbooks:not(.wb-practicing) .wb-card-folder-select{font-size:.72rem;padding:4px 6px;max-width:88px}
-  #sec-workbooks:not(.wb-practicing) .wb-card-actions .btn{min-height:36px;padding:4px 8px;font-size:.72rem}
+  #sec-workbooks:not(.wb-practicing) .drv-row{min-height:38px}
 
   #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open{
     display:grid!important;grid-template-columns:minmax(0,36%) minmax(0,1fr)!important;
@@ -771,39 +604,17 @@ body.wb-cmp-drawer-open{overflow:hidden}
     display:block!important;max-height:none!important;overflow-y:auto;height:auto!important;
     min-height:0!important;align-self:stretch
   }
-  #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open .wb-card{padding:6px 8px}
-
   #sec-workbooks:not(.wb-practicing) .wb-detail-pane{
     min-height:0!important;height:auto!important;align-self:stretch!important;
     display:flex!important;flex-direction:column!important
   }
-  #sec-workbooks:not(.wb-practicing) .wb-workspace.is-open .wb-detail-pane{
-    min-height:min(280px,calc(100dvh - var(--dock-h) - 100px))!important
-  }
-  #sec-workbooks:not(.wb-practicing) .wb-detail-head{padding:6px 10px;gap:6px;flex-wrap:nowrap}
-  #sec-workbooks:not(.wb-practicing) .wb-detail-title{font-size:.85rem}
-  #sec-workbooks:not(.wb-practicing) .wb-detail-actions{flex-wrap:nowrap;gap:6px}
-  #sec-workbooks:not(.wb-practicing) .wb-detail-actions .btn{min-height:36px;padding:4px 8px;font-size:.72rem}
-  #sec-workbooks:not(.wb-practicing) .wb-detail-body{min-height:0;padding:10px}
 }
 
 @media (orientation:landscape) and (max-height:380px){
   #sec-workbooks:not(.wb-practicing).active{max-height:calc(100dvh - var(--dock-h) - 46px)}
-  #sec-workbooks:not(.wb-practicing) .wb-sidebar{width:148px!important;max-width:148px!important;min-width:128px!important}
-  #sec-workbooks:not(.wb-practicing) .wb-sidebar .sl-scroll,
-  #sec-workbooks:not(.wb-practicing) #wb-folder-list{max-height:min(96px,28vh)!important}
-  #sec-workbooks:not(.wb-practicing) .wb-folder-item{min-height:32px;padding:5px 6px}
-  .wb-folder-item[data-depth="1"]{padding-left:4px}
-  .wb-folder-item[data-depth="2"]{padding-left:7px}
-  .wb-folder-item[data-depth="3"]{padding-left:10px}
-  .wb-folder-item[data-depth="4"]{padding-left:12px}
-  .wb-folder-item[data-depth="5"]{padding-left:14px}
-  #sec-workbooks:not(.wb-practicing) .wb-add-folder input,
-  #sec-workbooks:not(.wb-practicing) .wb-add-folder .btn,
-  #sec-workbooks:not(.wb-practicing) .wb-toolbar-actions .btn,
-  #sec-workbooks:not(.wb-practicing) .wb-card-actions .btn{min-height:32px}
-  #sec-workbooks:not(.wb-practicing) .wb-toolbar{margin-bottom:4px}
-  #sec-workbooks:not(.wb-practicing) .wb-card{padding:6px 8px}
+  #sec-workbooks:not(.wb-practicing) .wb-layout{grid-template-columns:148px minmax(0,1fr)!important}
+  #sec-workbooks:not(.wb-practicing) .drv-tree{max-height:min(120px,30vh)!important}
+  #sec-workbooks:not(.wb-practicing) .drv-row{min-height:34px}
 }
 
 @media (orientation:landscape) and (max-height:500px){

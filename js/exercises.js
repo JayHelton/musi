@@ -44,9 +44,9 @@ import {
   flattenFolderTree,
   canMoveFolder,
   findSiblingByName,
-  validMoveTargets,
   nextParentAfterDelete,
 } from './folderTree.js';
+import { createDriveBrowser, closeDriveMenu } from './library/driveBrowser.js';
 import { showAppToast } from './appToast.js';
 
 const STORAGE_KEY = 'musi.exercises';
@@ -431,26 +431,25 @@ export function getSelectedExerciseFolderLabel() {
   return currentTitleText();
 }
 
+/** Opens a folder in the browser. Legacy ids map to the library root. */
 export function selectExerciseFolder(id) {
-  let next = 'all';
-  if (id === 'all' || id === 'uncategorized'
-      || getStore().categories.some(c => c.id === id)) {
-    next = id;
+  const next = (id === 'all' || id === 'uncategorized') ? '' : id;
+  if (browser) {
+    browser.navigateTo(next);
+    return browser.getFolderId();
   }
   setSelectedCategory(next);
-  if (wired) render();
   return selectedCategory;
 }
 
-/** Create a folder/tag and refresh the UI. Selects the folder so mobile Delete is available. */
+/**
+ * Creates a folder. The browser stays where it is, the same as Google Drive:
+ * the new folder appears in the list instead of taking over the view.
+ */
 export function createExerciseFolder(name, parentId) {
   const clean = clampText((name || '').trim(), CAT_LIMIT);
   if (!clean) return { ok: false, reason: 'empty' };
-  let resolvedParent = parentId;
-  if (resolvedParent === undefined) {
-    resolvedParent = (selectedCategory !== 'all' && selectedCategory !== 'uncategorized')
-      ? selectedCategory : '';
-  }
+  let resolvedParent = parentId === undefined ? selectedCategory : parentId;
   resolvedParent = normalizeParentId(resolvedParent);
   if (resolvedParent && !folderById(getStore().categories, resolvedParent)) {
     resolvedParent = '';
@@ -458,27 +457,15 @@ export function createExerciseFolder(name, parentId) {
   const store = getStore();
   const exists = findSiblingByName(store.categories, resolvedParent, clean);
   if (exists) {
-    setSelectedCategory(exists.id);
-    if (wired) {
-      setStatus(`Folder “${exists.name}” already exists.`);
-      render();
-    }
+    if (wired) setStatus(`Folder “${exists.name}” already exists here.`);
     return { ok: true, created: false, category: exists };
   }
   const cat = addCategory(clean, resolvedParent);
   if (!cat) {
-    if (wired) {
-      setStatus(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`, true);
-    }
+    if (wired) setStatus(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`, true);
     return { ok: false, reason: 'depth' };
   }
-  setSelectedCategory(cat.id);
-  // New folders stay collapsed until the user expands them.
-  expandedFolders.delete(cat.id);
-  if (wired) {
-    setStatus(`Created folder “${cat.name}”. Assign exercises with the folder menu on each row.`);
-    render();
-  }
+  if (wired) setStatus(`Created folder “${cat.name}”.`);
   return { ok: true, created: true, category: cat };
 }
 
@@ -491,10 +478,7 @@ export function moveExerciseFolder(id, parentId) {
   if (!folder) return { ok: false, reason: 'missing' };
   folder.parentId = nextParent;
   persist();
-  if (wired) {
-    setStatus(`Moved folder “${folder.name}”.`);
-    render();
-  }
+  if (wired) setStatus(`Moved folder “${folder.name}”.`);
   return { ok: true, reason: '' };
 }
 
@@ -830,15 +814,13 @@ function el(tag, props = {}, children = []) {
 // --- module state ----------------------------------------------------------
 
 let wired = false;
-let selectedCategory = 'all'; // 'all', 'uncategorized', or a category id.
-// Folder sections open in the "All" grouped view. Default closed.
-const expandedFolders = new Set();
-// Sidebar tree rows default expanded; ids here are collapsed.
-const collapsedSidebarFolders = new Set();
-let selectionMode = false;
-const selectedIds = new Set();
+// The open folder. An empty string is the root of the library, the same place
+// Google Drive calls "My Drive". Unfiled exercises live there.
+let selectedCategory = '';
+// The shared Drive-style browser. Workbooks builds an identical one.
+let browser = null;
 
-let listEl, catListEl, titleEl, statusEl, bulkBarEl, fileInput, bulkFileInput, uploadBtn, bulkUploadBtn, addLinkBtn, addCatForm, addCatInput;
+let listEl, catListEl, crumbsEl, toolsEl, statusEl, bulkBarEl, fileInput, bulkFileInput;
 let sectionEl, workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
 let activeExerciseId = null;
 let viewerURL = null;
@@ -849,6 +831,10 @@ let openGeneration = 0;
 const exerciseViewerChangeHandlers = new Set();
 
 // --- rendering -------------------------------------------------------------
+//
+// The library browser itself lives in js/library/driveBrowser.js. This section
+// only adapts the exercise store to the browser: it describes a row, and it
+// answers the browser when the user creates, renames, moves, or deletes.
 
 function setStatus(text, isError) {
   if (!statusEl) return;
@@ -857,214 +843,15 @@ function setStatus(text, isError) {
   statusEl.classList.toggle('error', !!isError);
 }
 
-function visibleItems() {
-  const items = getExercises();
-  if (selectedCategory === 'all') return items;
-  if (selectedCategory === 'uncategorized') return items.filter(it => !it.categoryId);
-  const subtreeIds = folderSubtreeIds(getStore().categories, selectedCategory);
-  return items.filter(it => subtreeIds.has(it.categoryId));
-}
-
-function scopedItems() {
-  return visibleItems();
-}
-
 function setSelectedCategory(next) {
-  if (selectedCategory === next) return false;
-  selectedCategory = next;
-  selectedIds.clear();
+  const target = next && folderById(getStore().categories, next) ? next : '';
+  if (selectedCategory === target) return false;
+  selectedCategory = target;
   return true;
-}
-
-function pruneSelectedIds() {
-  const valid = new Set(getExercises().map(it => it.id));
-  selectedIds.forEach((id) => {
-    if (!valid.has(id)) selectedIds.delete(id);
-  });
-}
-
-function exitSelectionMode() {
-  selectionMode = false;
-  selectedIds.clear();
-  if (wired) render();
-  else renderBulkBar();
-}
-
-function enterSelectionMode() {
-  selectionMode = true;
-  if (wired) render();
-  else renderBulkBar();
 }
 
 function pluralExercises(count) {
   return `${count} exercise${count === 1 ? '' : 's'}`;
-}
-
-function folderKeyForItem(item) {
-  if (!item.categoryId) return 'uncategorized';
-  if (getStore().categories.some(c => c.id === item.categoryId)) return item.categoryId;
-  return 'uncategorized';
-}
-
-function syncFolderCheckbox(groupKey) {
-  if (!listEl || !selectionMode) return;
-  const folder = listEl.querySelector(`.ex-folder[data-folder="${CSS.escape(groupKey)}"]`);
-  if (!folder) return;
-  const check = folder.querySelector('.ex-folder-check');
-  if (!check) return;
-  const group = groupItemsByCategory(getExercises()).find(g => g.key === groupKey);
-  if (!group || !group.items.length) {
-    check.checked = false;
-    check.indeterminate = false;
-    return;
-  }
-  const selected = group.items.filter(it => selectedIds.has(it.id)).length;
-  check.checked = selected === group.items.length;
-  check.indeterminate = selected > 0 && selected < group.items.length;
-}
-
-function syncFolderCheckboxForItem(item) {
-  syncFolderCheckbox(folderKeyForItem(item));
-}
-
-function renderBulkBar() {
-  if (!bulkBarEl) return;
-  const scope = scopedItems();
-  if (!scope.length) {
-    selectionMode = false;
-    selectedIds.clear();
-    bulkBarEl.hidden = true;
-    bulkBarEl.innerHTML = '';
-    return;
-  }
-  bulkBarEl.hidden = false;
-  bulkBarEl.innerHTML = '';
-
-  if (!selectionMode) {
-    const actions = el('div', { class: 'ex-bulk-bar-actions' });
-    actions.appendChild(el('button', {
-      class: 'btn sm', type: 'button', text: 'Select',
-      onClick: () => enterSelectionMode(),
-    }));
-    actions.appendChild(el('button', {
-      class: 'btn sm ex-bulk-del', type: 'button', text: 'Delete All',
-      onClick: () => onDeleteAll(),
-    }));
-    bulkBarEl.appendChild(actions);
-    return;
-  }
-
-  const selectedCount = selectedIds.size;
-  bulkBarEl.appendChild(el('span', {
-    class: 'ex-bulk-count',
-    text: selectedCount ? `${selectedCount} selected` : 'No exercises selected',
-  }));
-
-  const actions = el('div', { class: 'ex-bulk-bar-actions' });
-  actions.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: 'Select all',
-    onClick: () => {
-      scope.forEach(it => selectedIds.add(it.id));
-      if (listEl) {
-        listEl.querySelectorAll('.ex-item').forEach((row) => {
-          const on = selectedIds.has(row.dataset.id);
-          row.classList.toggle('is-selected', on);
-          const check = row.querySelector('.ex-item-check');
-          if (check) check.checked = on;
-        });
-      }
-      groupItemsByCategory(getExercises()).forEach(g => syncFolderCheckbox(g.key));
-      renderBulkBar();
-    },
-  }));
-  actions.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: 'Clear',
-    onClick: () => {
-      selectedIds.clear();
-      if (listEl) {
-        listEl.querySelectorAll('.ex-item').forEach((row) => {
-          row.classList.remove('is-selected');
-          const check = row.querySelector('.ex-item-check');
-          if (check) check.checked = false;
-        });
-      }
-      groupItemsByCategory(getExercises()).forEach(g => syncFolderCheckbox(g.key));
-      renderBulkBar();
-    },
-  }));
-  const deleteLabel = selectedCount
-    ? `Delete Selected (${selectedCount})`
-    : 'Delete Selected';
-  actions.appendChild(el('button', {
-    class: 'btn sm ex-bulk-del',
-    type: 'button',
-    text: deleteLabel,
-    disabled: selectedCount ? undefined : true,
-    onClick: () => onDeleteSelected(),
-  }));
-  actions.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: 'Done',
-    onClick: () => exitSelectionMode(),
-  }));
-  bulkBarEl.appendChild(actions);
-}
-
-function onDeleteAll() {
-  const scope = scopedItems();
-  const count = scope.length;
-  if (!count) {
-    setStatus('No exercises to delete in this view.');
-    return;
-  }
-  let title;
-  let body;
-  if (selectedCategory === 'all') {
-    title = `Delete all ${pluralExercises(count)}?`;
-    body = 'This permanently removes every exercise file and link in your library from this device. This cannot be undone.';
-  } else {
-    const folderName = currentTitleText();
-    title = `Delete all ${pluralExercises(count)} in "${folderName}"?`;
-    body = 'This removes exercises in this folder and in its subfolders. The folders stay. This cannot be undone.';
-  }
-  openConfirm(title, body, 'Delete All', async () => {
-    selectionMode = false;
-    selectedIds.clear();
-    const removed = await deleteExercises(scope.map(it => it.id));
-    if (!removed || !wired) {
-      if (wired) render();
-      else renderBulkBar();
-    }
-    setStatus(`Deleted ${pluralExercises(removed)}.`);
-  });
-}
-
-function onDeleteSelected() {
-  const count = selectedIds.size;
-  if (!count) {
-    setStatus('Select one or more exercises to delete.');
-    return;
-  }
-  const ids = [...selectedIds];
-  openConfirm(
-    `Delete ${count} selected exercise${count === 1 ? '' : 's'}?`,
-    'This permanently removes the selected exercise files and links from this device. This cannot be undone.',
-    'Delete',
-    async () => {
-      selectionMode = false;
-      selectedIds.clear();
-      const removed = await deleteExercises(ids);
-      if (!removed || !wired) {
-        if (wired) render();
-        else renderBulkBar();
-      }
-      setStatus(`Deleted ${pluralExercises(removed)}.`);
-    },
-  );
-}
-
-function syncFolderChipLabel() {
-  const label = document.getElementById('ex-folder-label');
-  if (label) label.textContent = currentTitleText();
 }
 
 // The Node test shim implements only part of the DOM, so check before dispatch.
@@ -1073,504 +860,123 @@ function emitFoldersChanged() {
   document.dispatchEvent(new CustomEvent('musi:exercise-folders-change'));
 }
 
-function folderOptionIndent(depth) {
-  if (!depth || depth < 1) return '';
-  return '\u2003'.repeat(Math.min(depth - 1, 4));
-}
-
-function categoryHasChildFolders(categoryId) {
-  return folderChildren(getStore().categories, categoryId).length > 0;
-}
-
-function isSidebarFolderVisible(opt) {
-  if (opt.id === 'all' || opt.id === 'uncategorized') return true;
-  let parentId = normalizeParentId(opt.parentId);
-  while (parentId) {
-    if (collapsedSidebarFolders.has(parentId)) return false;
-    const parent = folderById(getStore().categories, parentId);
-    parentId = parent ? normalizeParentId(parent.parentId) : '';
-  }
-  return true;
-}
-
-function selectedFolderParentLabel() {
-  if (selectedCategory === 'all' || selectedCategory === 'uncategorized') return '';
-  const cat = folderById(getStore().categories, selectedCategory);
-  return cat ? cat.name : '';
-}
-
-function moveBlockMessage(reason) {
-  const messages = {
-    self: 'A folder cannot move into itself.',
-    descendant: 'A folder cannot move into its own descendant.',
-    depth: `This move would exceed the depth limit of ${MAX_FOLDER_DEPTH} levels.`,
-    'parent-missing': 'The chosen parent folder no longer exists.',
-    missing: 'This folder no longer exists.',
-  };
-  return messages[reason] || 'This move is not allowed.';
-}
-
-function renderCategories() {
-  if (!catListEl) return;
-  catListEl.innerHTML = '';
-
-  const makeRow = (key, name, count, opts = {}) => {
-    const depth = opts.depth || 0;
-    // Use a div, not a button, so tool buttons are not nested inside a button.
-    const row = el('div', {
-      class: 'ex-cat-item' + (selectedCategory === key ? ' active' : ''),
-      'data-cat': key,
-      'data-depth': depth ? String(depth) : undefined,
-      role: 'button',
-      tabindex: '0',
-      'aria-pressed': selectedCategory === key ? 'true' : 'false',
-    });
-    if (opts.hasChildren) {
-      const expanded = !collapsedSidebarFolders.has(key);
-      const twisty = el('button', {
-        class: 'ex-cat-twisty' + (expanded ? ' is-expanded' : ' is-collapsed'),
-        type: 'button',
-        title: expanded ? 'Collapse folder' : 'Expand folder',
-        'aria-label': expanded ? `Collapse ${name}` : `Expand ${name}`,
-        'aria-expanded': expanded ? 'true' : 'false',
-        html: expanded ? '&#9662;' : '&#9656;',
-        onClick: (e) => {
-          e.stopPropagation();
-          if (collapsedSidebarFolders.has(key)) collapsedSidebarFolders.delete(key);
-          else collapsedSidebarFolders.add(key);
-          renderCategories();
-        },
-      });
-      row.appendChild(twisty);
-    } else if (opts.editable) {
-      row.appendChild(el('span', { class: 'ex-cat-twisty-spacer', 'aria-hidden': 'true' }));
-    }
-    // A deep row can clip the name, so the tooltip carries the full path.
-    row.appendChild(el('span', { class: 'ex-cat-name', text: name, title: opts.path || name }));
-    row.appendChild(el('span', { class: 'ex-cat-count', text: String(count) }));
-    const select = () => {
-      setSelectedCategory(key);
-      render();
-    };
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('.ex-cat-tool') || e.target.closest('.ex-cat-twisty')) return;
-      select();
-    });
-    row.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        select();
-      }
-    });
-    if (opts.editable) {
-      const tools = el('div', { class: 'ex-cat-tools' });
-      tools.appendChild(el('button', {
-        class: 'ex-cat-tool', type: 'button', title: 'Rename folder', 'aria-label': `Rename ${name}`,
-        html: '&#9998;', onClick: (e) => { e.stopPropagation(); onRenameCategory(opts.id, name); },
-      }));
-      tools.appendChild(el('button', {
-        class: 'ex-cat-tool', type: 'button', title: 'Move folder', 'aria-label': `Move ${name}`,
-        html: '&#8644;', onClick: (e) => { e.stopPropagation(); onMoveCategory(opts.id, name); },
-      }));
-      tools.appendChild(el('button', {
-        class: 'ex-cat-tool ex-cat-del', type: 'button', title: 'Delete folder', 'aria-label': `Delete ${name}`,
-        html: '&#10005;', onClick: (e) => { e.stopPropagation(); onDeleteCategory(opts.id, name); },
-      }));
-      row.appendChild(tools);
-    }
-    catListEl.appendChild(row);
-  };
-
-  getExerciseFolderOptions().forEach((opt) => {
-    if (!isSidebarFolderVisible(opt)) return;
-    const editable = opt.id !== 'all' && opt.id !== 'uncategorized';
-    makeRow(opt.id, opt.label, opt.count, editable ? {
-      editable: true,
-      id: opt.id,
-      depth: opt.depth,
-      path: opt.path,
-      hasChildren: categoryHasChildFolders(opt.id),
-    } : { depth: opt.depth });
-  });
-
-  if (addCatInput) {
-    const parentName = selectedFolderParentLabel();
-    addCatInput.placeholder = parentName ? `New folder in ${parentName}` : 'New folder';
-  }
-  syncFolderChipLabel();
-  emitFoldersChanged();
-}
-
 function currentTitleText() {
-  if (selectedCategory === 'all') return 'All Exercises';
-  if (selectedCategory === 'uncategorized') return 'No folder';
-  return folderPathLabel(getStore().categories, selectedCategory, FOLDER_PATH_SEPARATOR) || categoryName(selectedCategory);
+  if (!selectedCategory) return 'My Exercises';
+  return folderPathLabel(getStore().categories, selectedCategory, FOLDER_PATH_SEPARATOR)
+    || categoryName(selectedCategory);
 }
 
-function buildCategorySelect(item) {
-  const select = el('select', { class: 'ex-item-cat-select', 'aria-label': 'Folder' });
-  select.appendChild(el('option', { value: '', text: 'No folder' }));
-  getExerciseFolderOptions().forEach((opt) => {
-    if (opt.id === 'all' || opt.id === 'uncategorized') return;
-    const optEl = el('option', {
-      value: opt.id,
-      text: `${folderOptionIndent(opt.depth)}${opt.label}`,
-    });
-    if (opt.id === item.categoryId) optEl.selected = true;
-    select.appendChild(optEl);
+/** Wraps the modal prompt so the browser can await a name. */
+function promptForName({ title, value, confirmLabel }) {
+  return new Promise((resolve) => {
+    openPrompt(title, value, confirmLabel, (name) => resolve(name), { onCancel: () => resolve(null) });
   });
-  if (!item.categoryId) select.value = '';
-  select.addEventListener('change', () => {
-    moveExercise(item.id, select.value);
-    // Re-render updates counts and drops the row out of a filtered view.
-    render();
-  });
-  return select;
 }
 
-function folderIconSvg(open) {
-  if (open) {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H3z"/><path d="M3 10h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
-  }
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+function describeExerciseRow(item) {
+  return {
+    id: item.id,
+    name: item.name,
+    typeLabel: mediaKindLabel(item),
+    size: item.url ? null : (Number(item.size) || null),
+    modifiedAt: item.addedAt,
+    iconHtml: exerciseIconSvg(item),
+  };
 }
 
-function openActionLabel(item) {
-  const kind = mediaKind(item);
-  if (kind === 'gp' || kind === 'audio' || kind === 'video' || kind === 'youtube') return 'Play';
-  return 'Open';
-}
-
-function buildExerciseRow(item, opts = {}) {
-  const isSelected = selectedIds.has(item.id);
-  const row = el('div', {
-    class: 'ex-item'
-      + (item.id === activeExerciseId ? ' is-active is-playing' : '')
-      + (selectionMode && isSelected ? ' is-selected' : ''),
-    'data-id': item.id,
-  });
-
-  if (selectionMode) {
-    const check = el('input', {
-      type: 'checkbox',
-      class: 'ex-item-check',
-      'aria-label': `Select ${item.name}`,
-      checked: isSelected ? true : undefined,
-    });
-    check.addEventListener('change', () => {
-      if (check.checked) selectedIds.add(item.id);
-      else selectedIds.delete(item.id);
-      row.classList.toggle('is-selected', check.checked);
-      syncFolderCheckboxForItem(item);
-      renderBulkBar();
-    });
-    row.appendChild(check);
-    row.addEventListener('click', (e) => {
-      if (!selectionMode) return;
-      if (e.target.closest('input.ex-item-name, select, button, a, input.ex-item-check')) return;
-      check.checked = !check.checked;
-      check.dispatchEvent(new Event('change'));
-    });
-  }
-
-  const icon = el('div', { class: 'ex-item-icon', html: exerciseIconSvg(item), 'aria-hidden': 'true' });
-  row.appendChild(icon);
-
-  const body = el('div', { class: 'ex-item-body' });
-  const nameInput = el('input', {
-    type: 'text', class: 'ex-item-name', value: item.name, maxlength: String(NAME_LIMIT),
-    'aria-label': 'Exercise name',
-  });
-  nameInput.addEventListener('change', () => {
-    const clean = renameExercise(item.id, nameInput.value);
-    if (clean) nameInput.value = clean;
-  });
-  body.appendChild(nameInput);
-
-  const sizeOrSource = item.url ? titleFromUrl(item.url) : fmtSize(item.size);
-  const catPart = opts.hideCategory ? '' : `${categoryName(item.categoryId)} · `;
-  const meta = `${catPart}${mediaKindLabel(item)} · ${sizeOrSource} · ${fmtRelativeDate(item.addedAt)}`;
-  body.appendChild(el('div', { class: 'ex-item-meta', text: meta }));
-  row.appendChild(body);
-
-  const actions = el('div', { class: 'ex-item-actions' });
-  actions.appendChild(buildCategorySelect(item));
-  actions.appendChild(el('button', {
-    class: 'btn sm primary ex-item-open', type: 'button', text: openActionLabel(item),
+function exerciseRowMenuExtras(item) {
+  if (!item || !item.url) return [];
+  return [{
+    label: 'Open link in a new tab',
     onClick: () => {
+      try {
+        window.open(item.url, '_blank', 'noopener');
+      } catch (e) {
+        /* popup blocked */
+      }
+    },
+  }];
+}
+
+function newMenuExtrasForExercises() {
+  const entries = [];
+  if (fileInput && attachmentsSupported()) {
+    entries.push({ label: 'Upload file', onClick: () => fileInput.click() });
+    entries.push({ label: 'Bulk upload', onClick: () => (bulkFileInput || fileInput).click() });
+  }
+  entries.push({ label: 'Add link', onClick: () => openLinkDialog() });
+  return entries;
+}
+
+function buildBrowser() {
+  if (!listEl) return null;
+  return createDriveBrowser({
+    ns: 'exercises',
+    rootLabel: 'My Exercises',
+    itemNoun: { one: 'exercise', many: 'exercises' },
+    els: {
+      nav: catListEl,
+      crumbs: crumbsEl,
+      tools: toolsEl,
+      selectionBar: bulkBarEl,
+      content: listEl,
+    },
+    listFolders: () => getStore().categories,
+    listItems: () => getExercises(),
+    itemFolderId: (item) => item.categoryId,
+    describeItem: describeExerciseRow,
+    isItemOpen: (item) => item.id === activeExerciseId,
+    openItem: (item) => {
       if (item.id === activeExerciseId) closeExerciseViewer();
       else openExerciseViewer(item.id);
     },
-  }));
-  actions.appendChild(el('button', {
-    class: 'btn sm ex-item-del', type: 'button', text: 'Delete',
-    'aria-label': `Delete ${item.name}`,
-    onClick: () => onDeleteExercise(item),
-  }));
-  row.appendChild(actions);
-  return row;
-}
-
-// Group items into folder sections by category tag. Empty/missing tags stay
-// ungrouped at the end (or under an Uncategorized folder when mixed in).
-function groupItemsByCategory(items) {
-  const store = getStore();
-  const byId = new Map();
-  store.categories.forEach(cat => byId.set(cat.id, []));
-  const uncategorized = [];
-
-  items.forEach(item => {
-    if (item.categoryId && byId.has(item.categoryId)) {
-      byId.get(item.categoryId).push(item);
-    } else if (item.categoryId) {
-      // Orphaned category id — treat as uncategorized for display.
-      uncategorized.push(item);
-    } else {
-      uncategorized.push(item);
-    }
-  });
-
-  const groups = [];
-  // Include empty folders so newly created tags are visible in All.
-  store.categories.forEach(cat => {
-    const list = byId.get(cat.id) || [];
-    groups.push({ key: cat.id, name: cat.name, items: list });
-  });
-  if (uncategorized.length) {
-    groups.push({ key: 'uncategorized', name: 'Uncategorized', items: uncategorized });
-  }
-  return groups;
-}
-
-function folderCountLabel(directCount, totalCount) {
-  const direct = `${directCount} exercise${directCount === 1 ? '' : 's'}`;
-  if (totalCount > directCount) return `${direct} · ${totalCount} total`;
-  return direct;
-}
-
-function buildFolder(group, opts = {}) {
-  const depth = opts.depth || 1;
-  const nestedChildren = opts.nestedChildren || [];
-  const totalCount = opts.totalCount != null ? opts.totalCount : group.items.length;
-  const open = expandedFolders.has(group.key);
-  const folder = el('div', {
-    class: 'ex-folder' + (open ? ' is-open' : ''),
-    'data-folder': group.key,
-    'data-depth': String(depth),
-  });
-
-  const head = el('button', {
-    class: 'ex-folder-head',
-    type: 'button',
-    'aria-expanded': open ? 'true' : 'false',
-    'aria-controls': `ex-folder-body-${group.key}`,
-  });
-  head.appendChild(el('span', {
-    class: 'ex-folder-chevron', 'aria-hidden': 'true', html: open ? '&#9662;' : '&#9656;',
-  }));
-  head.appendChild(el('span', {
-    class: 'ex-folder-icon', 'aria-hidden': 'true', html: folderIconSvg(open),
-  }));
-  head.appendChild(el('span', { class: 'ex-folder-name', text: group.name }));
-  head.appendChild(el('span', {
-    class: 'ex-folder-count',
-    text: folderCountLabel(group.items.length, totalCount),
-  }));
-  head.addEventListener('click', () => {
-    if (expandedFolders.has(group.key)) expandedFolders.delete(group.key);
-    else expandedFolders.add(group.key);
-    renderList();
-  });
-
-  if (selectionMode && group.items.length) {
-    const selected = group.items.filter(it => selectedIds.has(it.id)).length;
-    const folderCheck = el('input', {
-      type: 'checkbox',
-      class: 'ex-folder-check',
-      'aria-label': `Select all in ${group.name}`,
-      checked: selected === group.items.length ? true : undefined,
-    });
-    folderCheck.indeterminate = selected > 0 && selected < group.items.length;
-    folderCheck.addEventListener('change', () => {
-      group.items.forEach((it) => {
-        if (folderCheck.checked) selectedIds.add(it.id);
-        else selectedIds.delete(it.id);
-      });
-      group.items.forEach((it) => {
-        const row = listEl && listEl.querySelector(`.ex-item[data-id="${CSS.escape(it.id)}"]`);
-        if (!row) return;
-        const on = selectedIds.has(it.id);
-        row.classList.toggle('is-selected', on);
-        const itemCheck = row.querySelector('.ex-item-check');
-        if (itemCheck) itemCheck.checked = on;
-      });
-      folderCheck.indeterminate = false;
-      renderBulkBar();
-    });
-    folderCheck.addEventListener('click', (e) => e.stopPropagation());
-    const headRow = el('div', { class: 'ex-folder-headrow' }, [folderCheck, head]);
-    folder.appendChild(headRow);
-  } else {
-    folder.appendChild(head);
-  }
-
-  const body = el('div', {
-    class: 'ex-folder-body',
-    id: `ex-folder-body-${group.key}`,
-    hidden: open ? undefined : true,
-  });
-  if (open) {
-    const appendChildren = () => {
-      nestedChildren.forEach((child) => body.appendChild(child));
-    };
-    const appendItems = () => {
-      if (group.items.length) {
-        group.items.forEach(item => body.appendChild(buildExerciseRow(item, { hideCategory: true })));
-      }
-    };
-    appendChildren();
-    appendItems();
-    if (!group.items.length && !nestedChildren.length) {
-      body.appendChild(el('div', {
-        class: 'ex-folder-empty',
-        text: 'Empty folder — move exercises here with the folder menu on each row.',
-      }));
-    }
-  }
-  folder.appendChild(body);
-  return folder;
-}
-
-function buildNestedFolderSection(folderId, depth) {
-  const store = getStore();
-  const folder = folderById(store.categories, folderId);
-  if (!folder) return null;
-  const directItems = getExercises().filter(it => it.categoryId === folderId);
-  const childSections = folderChildren(store.categories, folderId)
-    .map(child => buildNestedFolderSection(child.id, depth + 1))
-    .filter(Boolean);
-  const subtreeIds = folderSubtreeIds(store.categories, folderId);
-  const totalCount = getExercises().filter(it => subtreeIds.has(it.categoryId)).length;
-  return buildFolder({
-    key: folderId,
-    name: folder.name,
-    items: directItems,
-  }, {
-    depth,
-    nestedChildren: childSections,
-    totalCount,
+    itemMenuExtras: exerciseRowMenuExtras,
+    renameItem: (id, name) => !!renameExercise(id, name),
+    deleteItems: (ids) => deleteExercises(ids),
+    moveItems: (ids, folderId) => {
+      ids.forEach((id) => moveExercise(id, folderId));
+    },
+    createFolder: (name, parentId) => {
+      const result = createExerciseFolder(name, parentId || '');
+      return { ok: !!result.ok, id: result.category?.id || '', reason: result.reason || '' };
+    },
+    renameFolder: (id, name) => renameCategory(id, name),
+    moveFolder: (id, parentId) => moveExerciseFolder(id, parentId),
+    requestDeleteFolder: (id, name) => onDeleteCategory(id, name),
+    newMenuExtras: newMenuExtrasForExercises,
+    onExternalFiles: (files, folderId) => uploadFiles(files, folderId),
+    emptyRootTitle: 'No exercises yet',
+    emptyHint: 'Use + New to upload a file or add a lesson link. You can also drop files straight onto this pane.',
+    prompt: promptForName,
+    toast: setStatus,
+    onNavigate: (folderId) => {
+      selectedCategory = folderId;
+      emitFoldersChanged();
+    },
   });
 }
 
-function renderList() {
-  if (!listEl) return;
-  listEl.innerHTML = '';
-
-  const allItems = getExercises();
-  if (!attachmentsSupported()) {
-    if (uploadBtn) uploadBtn.disabled = true;
-    if (allItems.length === 0) {
-      listEl.appendChild(el('div', {
-        class: 'ex-empty',
-        text: 'File uploads need browser storage (IndexedDB), which is unavailable here. You can still add exercise links.',
-      }));
-      return;
-    }
-  } else if (uploadBtn) {
-    uploadBtn.disabled = false;
-  }
-
-  if (selectedCategory === 'all') {
-    // Top-level folder sections nest their children; unfiled items stay in a flat block at the end.
-    const groups = groupItemsByCategory(allItems);
-    const untagged = groups.find(g => g.key === 'uncategorized');
-    const topLevel = folderChildren(getStore().categories, '');
-
-    if (topLevel.length === 0 && !untagged) {
-      listEl.appendChild(el('div', {
-        class: 'ex-empty',
-        text: 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.',
-      }));
-      return;
-    }
-
-    if (topLevel.length === 0 && untagged) {
-      untagged.items.forEach(item => listEl.appendChild(buildExerciseRow(item)));
-      return;
-    }
-
-    topLevel.forEach((folder) => {
-      const section = buildNestedFolderSection(folder.id, 1);
-      if (section) listEl.appendChild(section);
-    });
-    if (untagged) {
-      const loose = el('div', { class: 'ex-ungrouped' });
-      loose.appendChild(el('div', { class: 'ex-ungrouped-label', text: 'No folder' }));
-      untagged.items.forEach(item => loose.appendChild(buildExerciseRow(item)));
-      listEl.appendChild(loose);
-    }
-    return;
-  }
-
-  if (selectedCategory === 'uncategorized') {
-    const items = visibleItems();
-    if (!items.length) {
-      listEl.appendChild(el('div', {
-        class: 'ex-empty',
-        text: allItems.length === 0
-          ? 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.'
-          : 'No exercises without a folder.',
-      }));
-      return;
-    }
-    items.forEach(item => listEl.appendChild(buildExerciseRow(item)));
-    return;
-  }
-
-  const directItems = getExercises().filter(it => it.categoryId === selectedCategory);
-  const childFolders = folderChildren(getStore().categories, selectedCategory);
-  if (!directItems.length && !childFolders.length) {
-    listEl.appendChild(el('div', {
-      class: 'ex-empty',
-      text: allItems.length === 0
-        ? 'No exercises yet. Upload PDFs, images, audio, video, or add lesson links to practice from.'
-        : 'No exercises in this folder yet. Open All Exercises and move items here, or upload while this folder is selected.',
-    }));
-    return;
-  }
-
-  directItems.forEach(item => listEl.appendChild(buildExerciseRow(item)));
-  const parentDepth = folderDepth(getStore().categories, selectedCategory) || 1;
-  childFolders.forEach((child) => {
-    const section = buildNestedFolderSection(child.id, parentDepth + 1);
-    if (section) listEl.appendChild(section);
-  });
-}
-
+/** Repaints the list so the open exercise carries its badge. */
 function applyActiveRowHighlight() {
-  if (!listEl || !activeExerciseId) return;
-  listEl.querySelectorAll('.ex-item').forEach((row) => {
-    const on = row.dataset.id === activeExerciseId;
-    row.classList.toggle('is-active', on);
-    row.classList.toggle('is-playing', on);
-  });
+  if (browser) browser.render();
 }
 
 function render() {
-  // Selected category may have been deleted; fall back to 'all'.
-  if (selectedCategory !== 'all' && selectedCategory !== 'uncategorized'
-      && !getStore().categories.some(c => c.id === selectedCategory)) {
-    setSelectedCategory('all');
+  if (selectedCategory && !folderById(getStore().categories, selectedCategory)) {
+    selectedCategory = '';
   }
-  pruneSelectedIds();
-  if (titleEl) titleEl.textContent = currentTitleText();
-  renderCategories();
   if (activeExerciseId && !getExercise(activeExerciseId)) {
     closeExerciseViewer();
+    return;
   }
-  renderBulkBar();
-  renderList();
-  applyActiveRowHighlight();
+  if (!attachmentsSupported() && listEl && !getExercises().length) {
+    setStatus('File uploads need browser storage (IndexedDB), which is unavailable here. You can still add exercise links.', true);
+  }
+  if (browser) {
+    browser.render();
+    selectedCategory = browser.getFolderId();
+  }
+  emitFoldersChanged();
 }
 
 export function exerciseIconSvg(item) {
@@ -1589,15 +995,19 @@ export function exerciseIconSvg(item) {
 async function onUploadFiles() {
   const files = Array.from(fileInput.files || []);
   fileInput.value = '';
-  if (!files.length) return;
+  await uploadFiles(files, selectedCategory);
+}
+
+/** Saves files into a folder. The file picker and a drag-and-drop both use this. */
+async function uploadFiles(files, folderId) {
+  if (!files || !files.length) return;
 
   if (!attachmentsSupported()) {
     setStatus('Uploading needs browser storage, which is unavailable here.', true);
     return;
   }
 
-  const targetCategory = (selectedCategory !== 'all' && selectedCategory !== 'uncategorized')
-    ? selectedCategory : '';
+  const targetCategory = folderId && folderById(getStore().categories, folderId) ? folderId : '';
 
   let added = 0;
   let rejected = 0;
@@ -1648,8 +1058,7 @@ async function onBulkUploadFiles() {
     return;
   }
 
-  const defaultCategoryId = (selectedCategory !== 'all' && selectedCategory !== 'uncategorized')
-    ? selectedCategory : '';
+  const defaultCategoryId = selectedCategory || '';
 
   openBulkUploadDialog({
     files,
@@ -1799,8 +1208,7 @@ function addLinkExercise(name, url) {
     setStatus('Enter a valid http(s) link.', true);
     return false;
   }
-  const targetCategory = (selectedCategory !== 'all' && selectedCategory !== 'uncategorized')
-    ? selectedCategory : '';
+  const targetCategory = selectedCategory || '';
   const store = getStore();
   store.items.unshift({
     id: uid('ex'),
@@ -2266,90 +1674,44 @@ function openFolderDeleteDialog({
   dialogRoot.appendChild(overlay);
 }
 
-function openFolderMoveDialog(id, name) {
-  const store = getStore();
-  const folder = folderById(store.categories, id);
-  if (!folder) return;
-  const targets = validMoveTargets(store.categories, id);
-  const currentParent = normalizeParentId(folder.parentId);
-
-  ensureDialogRoot();
-  dialogRoot.innerHTML = '';
-  const overlay = el('div', { class: 'modal-overlay' });
-  const dialog = el('div', { class: 'modal-dialog ex-move-folder-dialog' });
-  dialog.appendChild(el('h3', { class: 'modal-title', text: `Move folder "${name}"` }));
-  dialog.appendChild(el('p', {
-    class: 'modal-body',
-    text: 'Choose a new parent folder. The folder and everything inside it move together.',
-  }));
-
-  const select = el('select', { class: 'modal-input ex-move-folder-select', 'aria-label': 'New parent folder' });
-  const topOpt = el('option', { value: '', text: 'Top level (no parent)' });
-  if (!currentParent) topOpt.selected = true;
-  select.appendChild(topOpt);
-  targets.forEach((row) => {
-    const opt = el('option', {
-      value: row.id,
-      text: `${folderOptionIndent(row.depth)}${row.name}`,
-    });
-    if (row.id === currentParent) opt.selected = true;
-    select.appendChild(opt);
-  });
-  dialog.appendChild(select);
-
-  const error = el('div', { class: 'modal-errors' });
-  dialog.appendChild(error);
-
-  const actions = el('div', { class: 'modal-actions' });
-  let escapeHandler = null;
-  const finish = () => {
-    if (escapeHandler) document.removeEventListener('keydown', escapeHandler);
-    closeDialog();
-  };
-  actions.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: 'Cancel', onClick: finish,
-  }));
-  actions.appendChild(el('button', {
-    class: 'btn primary', type: 'button', text: 'Move',
-    onClick: () => {
-      const result = moveExerciseFolder(id, select.value);
-      if (result.ok) {
-        finish();
-        return;
-      }
-      error.textContent = moveBlockMessage(result.reason);
-      setStatus(moveBlockMessage(result.reason), true);
-    },
-  }));
-  dialog.appendChild(actions);
-  overlay.appendChild(dialog);
-  overlay.addEventListener('click', e => { if (e.target === overlay) finish(); });
-  escapeHandler = (e) => { if (e.key === 'Escape') finish(); };
-  document.addEventListener('keydown', escapeHandler);
-  dialogRoot.appendChild(overlay);
-}
-
-function openPrompt(title, initialValue, confirmLabel, onConfirm) {
+function openPrompt(title, initialValue, confirmLabel, onConfirm, { onCancel, maxlength = NAME_LIMIT } = {}) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
   const overlay = el('div', { class: 'modal-overlay' });
   const dialog = el('div', { class: 'modal-dialog' });
   dialog.appendChild(el('h3', { class: 'modal-title', text: title }));
   const input = el('input', {
-    type: 'text', class: 'modal-input', value: initialValue || '', maxlength: String(CAT_LIMIT),
+    type: 'text', class: 'modal-input', value: initialValue || '', maxlength: String(maxlength),
   });
   dialog.appendChild(input);
+
+  let settled = false;
+  const cancel = () => {
+    closeDialog();
+    if (settled) return;
+    settled = true;
+    if (typeof onCancel === 'function') onCancel();
+  };
+  const submit = () => {
+    const value = input.value;
+    closeDialog();
+    if (settled) return;
+    settled = true;
+    onConfirm(value);
+  };
+
   const actions = el('div', { class: 'modal-actions' });
-  actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: closeDialog }));
-  const confirm = el('button', {
-    class: 'btn primary', type: 'button', text: confirmLabel,
-    onClick: () => { const v = input.value; closeDialog(); onConfirm(v); },
-  });
-  actions.appendChild(confirm);
+  actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: cancel }));
+  actions.appendChild(el('button', {
+    class: 'btn primary', type: 'button', text: confirmLabel, onClick: submit,
+  }));
   dialog.appendChild(actions);
   overlay.appendChild(dialog);
-  overlay.addEventListener('click', e => { if (e.target === overlay) closeDialog(); });
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') { const v = input.value; closeDialog(); onConfirm(v); } });
+  overlay.addEventListener('click', e => { if (e.target === overlay) cancel(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submit();
+    else if (e.key === 'Escape') cancel();
+  });
   dialogRoot.appendChild(overlay);
   setTimeout(() => { input.focus(); input.select(); }, 40);
 }
@@ -2411,17 +1773,21 @@ function onRenameCategory(id, current) {
   });
 }
 
-function onMoveCategory(id, name) {
-  openFolderMoveDialog(id, name);
-}
-
 function onDeleteCategory(id, name) {
   const directCount = countExercisesInCategory(id);
   const childFolderCount = folderChildren(getStore().categories, id).length;
   const subtreeExerciseCount = countExercisesInCategorySubtree(id);
   const subtreeFolderCount = folderSubtreeIds(getStore().categories, id).size;
+  // Read the parent before the delete, while the folder still exists.
+  const parentId = nextParentAfterDelete(getStore().categories, id);
+  const insideDeleted = selectedCategory === id
+    || folderSubtreeIds(getStore().categories, id).has(selectedCategory);
   const afterDelete = () => {
-    if (selectedCategory === id) setSelectedCategory('all');
+    // Deleting the open folder sends the browser back to the parent folder.
+    if (insideDeleted) {
+      selectExerciseFolder(parentId);
+      return;
+    }
     render();
   };
   if (directCount === 0 && childFolderCount === 0) {
@@ -2461,36 +1827,17 @@ function onDeleteCategory(id, name) {
   });
 }
 
-function onDeleteExercise(item) {
-  openConfirm(
-    `Delete "${item.name}"?`,
-    item.url
-      ? 'This removes the exercise link from this device.'
-      : 'This permanently removes the exercise file from this device.',
-    'Delete',
-    async () => {
-      await deleteExercise(item.id);
-      render();
-    },
-    { danger: true },
-  );
-}
-
 // --- init / teardown -------------------------------------------------------
 
 export function initExercises() {
   listEl = document.getElementById('ex-list');
   catListEl = document.getElementById('ex-category-list');
-  titleEl = document.getElementById('ex-current-title');
+  crumbsEl = document.getElementById('ex-crumbs');
+  toolsEl = document.getElementById('ex-tools');
   statusEl = document.getElementById('ex-status');
   bulkBarEl = document.getElementById('ex-bulk-bar');
   fileInput = document.getElementById('ex-file-input');
   bulkFileInput = document.getElementById('ex-bulk-file-input');
-  uploadBtn = document.getElementById('ex-upload-btn');
-  bulkUploadBtn = document.getElementById('ex-bulk-upload-btn');
-  addLinkBtn = document.getElementById('ex-add-link-btn');
-  addCatForm = document.getElementById('ex-add-cat-form');
-  addCatInput = document.getElementById('ex-add-cat-input');
   sectionEl = document.getElementById('sec-exercises');
   workspaceEl = document.getElementById('ex-workspace');
   playerPaneEl = document.getElementById('ex-player-pane');
@@ -2503,35 +1850,18 @@ export function initExercises() {
 
   if (!wired) {
     wired = true;
-    if (uploadBtn && fileInput) uploadBtn.onclick = () => fileInput.click();
-    if (bulkUploadBtn && bulkFileInput) {
-      bulkFileInput.setAttribute('accept', BULK_ACCEPT_ATTR);
-      bulkUploadBtn.onclick = () => bulkFileInput.click();
-      bulkFileInput.addEventListener('change', onBulkUploadFiles);
-    }
-    if (addLinkBtn) addLinkBtn.onclick = openLinkDialog;
     if (fileInput) {
       fileInput.setAttribute('accept', UPLOAD_ACCEPT_ATTR);
       fileInput.addEventListener('change', onUploadFiles);
     }
-    if (addCatForm) {
-      addCatForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const name = addCatInput?.value || '';
-        const result = createExerciseFolder(name);
-        if (result.ok) {
-          if (addCatInput) addCatInput.value = '';
-        } else if (result.reason === 'empty') {
-          setStatus('Enter a folder name.', true);
-          addCatInput?.focus();
-        } else if (result.reason === 'depth') {
-          setStatus(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`, true);
-          addCatInput?.focus();
-        }
-      });
+    if (bulkFileInput) {
+      bulkFileInput.setAttribute('accept', BULK_ACCEPT_ATTR);
+      bulkFileInput.addEventListener('change', onBulkUploadFiles);
     }
     if (attachmentsSupported()) ensurePersistentStorage();
     wirePlayerControls();
+    browser = buildBrowser();
+    selectedCategory = browser ? browser.getFolderId() : '';
   }
 
   setStatus('');
@@ -2542,5 +1872,6 @@ export function initExercises() {
 export function stopExercises() {
   closeBulkUploadDialog();
   closeExerciseViewer();
-  exitSelectionMode();
+  closeDriveMenu();
+  if (browser) browser.clearSelection();
 }

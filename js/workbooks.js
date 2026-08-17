@@ -29,7 +29,6 @@ import {
   deleteWorkbookFolder,
   deleteWorkbookFolderWithContents,
   getWorkbookFolderOptions,
-  getWorkbookFolderPath,
   listWorkbookFolders,
   listWorkbooks,
   getWorkbook,
@@ -57,8 +56,9 @@ import {
   findSiblingByName,
   folderDepth,
   folderSubtreeIds,
-  validMoveTargets,
+  nextParentAfterDelete,
 } from './folderTree.js';
+import { createDriveBrowser, closeDriveMenu } from './library/driveBrowser.js';
 import { mountCompanions } from './exerciseCompanions/index.js';
 import { mountWorkbookCompanionPanel } from './workbookCompanionPanel.js';
 import { initSubviewTabs } from './uxPrimitives.js';
@@ -75,6 +75,9 @@ import { showAppToast } from './appToast.js';
 
 const NAME_LIMIT = 120;
 const FOLDER_LIMIT = 40;
+
+// A stack of ordered pages: the row icon for a workbook in the library.
+const WORKBOOK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10l1.5 1.5H19a1 1 0 0 1 1 1V8"/><rect x="4" y="8" width="16" height="12" rx="1.5"/><path d="M8 12h8M8 16h5"/></svg>';
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -94,18 +97,19 @@ function el(tag, props = {}, children = []) {
 
 let bound = false;
 let pendingWorkbookOpenId = null;
-let selectedFolder = 'all';
+// The open folder. An empty string is the library root, where unfiled
+// workbooks live. Google Drive calls the same place "My Drive".
+let selectedFolder = '';
 let openWorkbookId = null;
 let escapeWired = false;
 let shortcutWired = false;
 
-let folderListEl, titleEl, statusEl, listEl, workspaceEl, detailPaneEl, detailTitleEl;
-let detailActionsEl, detailBodyEl, detailBackBtn, newBtn, addFolderForm, addFolderInput;
+let folderListEl, crumbsEl, toolsEl, bulkBarEl, statusEl, listEl, workspaceEl, detailPaneEl, detailTitleEl;
+let detailActionsEl, detailBodyEl, detailBackBtn;
+// The shared Drive-style browser. Exercises builds an identical one.
+let browser = null;
 
 let dialogRoot = null;
-
-// Collapsed folder ids. Folders start expanded when absent from this set.
-const collapsedFolders = new Set();
 
 // Detail view / player state
 let detailRenderedWorkbookId = null;
@@ -143,25 +147,6 @@ function setStatus(text, isError) {
   statusEl.textContent = text || '';
   statusEl.style.display = text ? '' : 'none';
   statusEl.classList.toggle('error', !!isError);
-}
-
-function folderLabel(folderId) {
-  if (!folderId) return 'No folder';
-  const path = getWorkbookFolderPath(folderId);
-  return path || 'No folder';
-}
-
-function currentTitleText() {
-  if (selectedFolder === 'all') return 'All Workbooks';
-  if (selectedFolder === 'uncategorized') return 'No folder';
-  const opt = getWorkbookFolderOptions().find(o => o.id === selectedFolder);
-  if (!opt) return 'All Workbooks';
-  return opt.path || opt.label;
-}
-
-function createFolderIdForSelection() {
-  if (selectedFolder === 'all' || selectedFolder === 'uncategorized') return '';
-  return selectedFolder;
 }
 
 function pluralExercises(count) {
@@ -1046,93 +1031,7 @@ function openFolderDeleteDialog({
   dialogRoot.appendChild(overlay);
 }
 
-function moveFolderBlockMessage(reason) {
-  switch (reason) {
-    case 'self':
-      return 'A folder cannot move into itself.';
-    case 'descendant':
-      return 'A folder cannot move into one of its own subfolders.';
-    case 'depth':
-      return 'That move would exceed the folder depth limit.';
-    case 'parent-missing':
-      return 'The chosen parent folder no longer exists.';
-    case 'missing':
-      return 'That folder no longer exists.';
-    default:
-      return 'That move is not allowed.';
-  }
-}
-
-function folderSelectIndent(depth) {
-  return '\u2003'.repeat(Math.max(0, Number(depth) - 1));
-}
-
-function openFolderMoveDialog(folderId, folderName) {
-  const folders = listWorkbookFolders();
-  const folder = folders.find(f => f.id === folderId);
-  if (!folder) return;
-  const currentParent = folder.parentId || '';
-  const targets = validMoveTargets(folders, folderId);
-
-  ensureDialogRoot();
-  dialogRoot.innerHTML = '';
-  const overlay = el('div', { class: 'modal-overlay' });
-  const dialog = el('div', { class: 'modal-dialog' });
-  dialog.appendChild(el('h3', { class: 'modal-title', text: `Move folder "${folderName}"` }));
-  dialog.appendChild(el('p', {
-    class: 'modal-body',
-    text: 'Pick a new parent. The folder and everything inside it move together.',
-  }));
-
-  const select = el('select', { class: 'modal-input wb-folder-move-select', 'aria-label': 'Parent folder' });
-  const topOpt = el('option', { value: '', text: 'Top level (no parent)' });
-  if (!currentParent) topOpt.selected = true;
-  select.appendChild(topOpt);
-  for (const row of targets) {
-    const opt = el('option', {
-      value: row.id,
-      text: `${folderSelectIndent(row.depth)}${row.name}`,
-    });
-    if (row.id === currentParent) opt.selected = true;
-    select.appendChild(opt);
-  }
-  dialog.appendChild(select);
-
-  const errorEl = el('div', { class: 'modal-errors' });
-  dialog.appendChild(errorEl);
-
-  const actions = el('div', { class: 'modal-actions' });
-  let escapeHandler = null;
-  const finish = () => {
-    if (escapeHandler) document.removeEventListener('keydown', escapeHandler);
-    closeDialog();
-  };
-  actions.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: 'Cancel', onClick: finish,
-  }));
-  actions.appendChild(el('button', {
-    class: 'btn primary', type: 'button', text: 'Save',
-    onClick: () => {
-      const result = moveWorkbookFolder(folderId, select.value);
-      if (!result.ok) {
-        errorEl.textContent = moveFolderBlockMessage(result.reason);
-        return;
-      }
-      finish();
-      render();
-      setStatus(`Moved folder "${folderName}".`);
-    },
-  }));
-  dialog.appendChild(actions);
-  overlay.appendChild(dialog);
-  overlay.addEventListener('click', e => { if (e.target === overlay) finish(); });
-  escapeHandler = (e) => { if (e.key === 'Escape') finish(); };
-  document.addEventListener('keydown', escapeHandler);
-  dialogRoot.appendChild(overlay);
-  setTimeout(() => select.focus(), 40);
-}
-
-function openPrompt(title, initialValue, confirmLabel, onConfirm, { maxlength = NAME_LIMIT } = {}) {
+function openPrompt(title, initialValue, confirmLabel, onConfirm, { maxlength = NAME_LIMIT, onCancel } = {}) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
   const overlay = el('div', { class: 'modal-overlay' });
@@ -1142,18 +1041,33 @@ function openPrompt(title, initialValue, confirmLabel, onConfirm, { maxlength = 
     type: 'text', class: 'modal-input', value: initialValue || '', maxlength: String(maxlength),
   });
   dialog.appendChild(input);
+
+  let settled = false;
+  const cancel = () => {
+    closeDialog();
+    if (settled) return;
+    settled = true;
+    if (typeof onCancel === 'function') onCancel();
+  };
+  const submit = () => {
+    const value = input.value;
+    closeDialog();
+    if (settled) return;
+    settled = true;
+    onConfirm(value);
+  };
+
   const actions = el('div', { class: 'modal-actions' });
-  actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: closeDialog }));
+  actions.appendChild(el('button', { class: 'btn sm', type: 'button', text: 'Cancel', onClick: cancel }));
   actions.appendChild(el('button', {
-    class: 'btn primary', type: 'button', text: confirmLabel,
-    onClick: () => { const v = input.value; closeDialog(); onConfirm(v); },
+    class: 'btn primary', type: 'button', text: confirmLabel, onClick: submit,
   }));
   dialog.appendChild(actions);
   overlay.appendChild(dialog);
-  overlay.addEventListener('click', e => { if (e.target === overlay) closeDialog(); });
+  overlay.addEventListener('click', e => { if (e.target === overlay) cancel(); });
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { const v = input.value; closeDialog(); onConfirm(v); }
-    if (e.key === 'Escape') closeDialog();
+    if (e.key === 'Enter') submit();
+    else if (e.key === 'Escape') cancel();
   });
   dialogRoot.appendChild(overlay);
   setTimeout(() => { input.focus(); input.select(); }, 40);
@@ -2154,195 +2068,124 @@ function openAddExercisesPicker(wb) {
 
 // --- library rendering -------------------------------------------------------
 
-function folderHasChildFolders(folderId, opts) {
-  return opts.some(o => o.parentId === folderId);
+// --- library browser ---------------------------------------------------------
+//
+// The browser itself lives in js/library/driveBrowser.js. Exercises builds the
+// same browser with its own data, so both libraries navigate the same way.
+
+/** Wraps the modal prompt so the browser can await a name. */
+function promptForName({ title, value, confirmLabel }) {
+  return new Promise((resolve) => {
+    openPrompt(title, value, confirmLabel, (name) => resolve(name), {
+      maxlength: FOLDER_LIMIT,
+      onCancel: () => resolve(null),
+    });
+  });
 }
 
-function isFolderRowVisible(opt, opts) {
-  if (opt.id === 'all' || opt.id === 'uncategorized') return true;
-  let parentId = opt.parentId;
-  while (parentId) {
-    if (collapsedFolders.has(parentId)) return false;
-    const parent = opts.find(o => o.id === parentId);
-    parentId = parent?.parentId || '';
-  }
-  return true;
-}
-
-function newFolderPlaceholder() {
-  if (selectedFolder === 'all' || selectedFolder === 'uncategorized') return 'New folder';
-  const opt = getWorkbookFolderOptions().find(o => o.id === selectedFolder);
-  const label = opt?.label || 'folder';
-  return `New folder in ${label}`;
-}
-
-function renderFolders() {
-  if (!folderListEl) return;
-  folderListEl.innerHTML = '';
-  if (addFolderInput) addFolderInput.placeholder = newFolderPlaceholder();
-
-  const opts = getWorkbookFolderOptions();
-
-  const makeRow = (key, name, count, rowOpts = {}) => {
-    const depth = rowOpts.depth || 0;
-    const row = el('div', {
-      class: 'wb-folder-item' + (selectedFolder === key ? ' is-active' : ''),
-      'data-folder': key,
-      'data-depth': String(depth),
-      role: 'button',
-      tabindex: '0',
-      'aria-pressed': selectedFolder === key ? 'true' : 'false',
-    });
-    if (rowOpts.hasChildren) {
-      const expanded = !collapsedFolders.has(key);
-      const twisty = el('button', {
-        class: 'wb-folder-twisty' + (expanded ? ' is-expanded' : ''),
-        type: 'button',
-        title: expanded ? 'Collapse folder' : 'Expand folder',
-        'aria-label': expanded ? `Collapse ${name}` : `Expand ${name}`,
-        'aria-expanded': expanded ? 'true' : 'false',
-        html: expanded ? '&#9662;' : '&#9656;',
-        onClick: (e) => {
-          e.stopPropagation();
-          if (collapsedFolders.has(key)) collapsedFolders.delete(key);
-          else collapsedFolders.add(key);
-          renderFolders();
-        },
-      });
-      row.appendChild(twisty);
-    } else if (rowOpts.editable) {
-      row.appendChild(el('span', { class: 'wb-folder-twisty-spacer', 'aria-hidden': 'true' }));
-    }
-    // A deep row can clip the name, so the tooltip carries the full path.
-    row.appendChild(el('span', { class: 'wb-folder-name', text: name, title: rowOpts.path || name }));
-    row.appendChild(el('span', { class: 'wb-folder-count', text: String(count) }));
-    const select = () => {
-      selectedFolder = key;
-      render();
-    };
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('.wb-folder-tool, .wb-folder-twisty')) return;
-      select();
-    });
-    row.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        select();
-      }
-    });
-    if (rowOpts.editable) {
-      const tools = el('div', { class: 'wb-folder-tools' });
-      tools.appendChild(el('button', {
-        class: 'wb-folder-tool', type: 'button', title: 'Rename folder', 'aria-label': `Rename ${name}`,
-        html: '&#9998;', onClick: (e) => { e.stopPropagation(); onRenameFolder(rowOpts.id, name); },
-      }));
-      tools.appendChild(el('button', {
-        class: 'wb-folder-tool wb-folder-move', type: 'button', title: 'Move folder', 'aria-label': `Move ${name}`,
-        html: '&#8644;', onClick: (e) => { e.stopPropagation(); openFolderMoveDialog(rowOpts.id, name); },
-      }));
-      tools.appendChild(el('button', {
-        class: 'wb-folder-tool wb-folder-del', type: 'button', title: 'Delete folder', 'aria-label': `Delete ${name}`,
-        html: '&#10005;', onClick: (e) => { e.stopPropagation(); onDeleteFolder(rowOpts.id, name); },
-      }));
-      row.appendChild(tools);
-    }
-    folderListEl.appendChild(row);
+function describeWorkbookRow(wb) {
+  const entryCount = wb.entries.length;
+  return {
+    id: wb.id,
+    name: wb.name,
+    typeLabel: 'Workbook',
+    // The third column counts exercises here, so a sort on it is useful.
+    size: entryCount,
+    sizeText: pluralExercises(entryCount),
+    modifiedAt: wb.updatedAt || wb.createdAt || '',
+    iconHtml: WORKBOOK_ICON,
   };
-
-  opts.forEach(opt => {
-    if (!isFolderRowVisible(opt, opts)) return;
-    const editable = opt.id !== 'all' && opt.id !== 'uncategorized';
-    makeRow(opt.id, opt.label, opt.count, editable ? {
-      editable: true,
-      id: opt.id,
-      depth: opt.depth,
-      path: opt.path,
-      hasChildren: folderHasChildFolders(opt.id, opts),
-    } : { depth: opt.depth });
-  });
 }
 
-function buildFolderSelect(wb) {
-  const select = el('select', { class: 'wb-card-folder-select', 'aria-label': 'Folder' });
-  select.appendChild(el('option', { value: '', text: 'No folder' }));
-  getWorkbookFolderOptions().forEach(opt => {
-    if (opt.id === 'all' || opt.id === 'uncategorized') return;
-    const optEl = el('option', {
-      value: opt.id,
-      text: `${folderSelectIndent(opt.depth)}${opt.label}`,
-    });
-    if (opt.id === wb.folderId) optEl.selected = true;
-    select.appendChild(optEl);
-  });
-  if (!wb.folderId) select.value = '';
-  select.addEventListener('change', () => {
-    setWorkbookFolder(wb.id, select.value);
-    render();
-  });
-  return select;
-}
-
-function buildWorkbookCard(wb) {
-  const card = el('div', {
-    class: 'wb-card' + (wb.id === openWorkbookId ? ' is-active' : ''),
-    'data-id': wb.id,
-  });
-
-  const body = el('div', { class: 'wb-card-body' });
-  body.appendChild(el('div', { class: 'wb-card-name', text: wb.name }));
-  const loopLabel = wb.loopEnabled ? 'Loop on' : 'Loop off';
-  const meta = `${pluralExercises(wb.entries.length)} · ${folderLabel(wb.folderId)} · ${loopLabel}`;
-  body.appendChild(el('div', { class: 'wb-card-meta', text: meta }));
-  card.appendChild(body);
-
-  const actions = el('div', { class: 'wb-card-actions' });
-  actions.appendChild(buildFolderSelect(wb));
-  actions.appendChild(el('button', {
-    class: 'btn sm primary', type: 'button', text: 'Open',
-    onClick: () => openWorkbookDetail(wb.id),
-  }));
-  actions.appendChild(el('button', {
-    class: 'btn sm', type: 'button', text: 'Rename',
+function workbookRowMenuExtras(wb) {
+  return [{
+    label: wb.loopEnabled ? 'Turn loop off' : 'Turn loop on',
     onClick: () => {
-      openPrompt('Rename workbook', wb.name, 'Save', (name) => {
-        if (renameWorkbook(wb.id, name)) render();
+      setWorkbookLoop(wb.id, !wb.loopEnabled);
+      render();
+    },
+  }];
+}
+
+function buildBrowser() {
+  if (!listEl) return null;
+  return createDriveBrowser({
+    ns: 'workbooks',
+    rootLabel: 'My Workbooks',
+    itemNoun: { one: 'workbook', many: 'workbooks' },
+    sizeLabel: 'Exercises',
+    els: {
+      nav: folderListEl,
+      crumbs: crumbsEl,
+      tools: toolsEl,
+      selectionBar: bulkBarEl,
+      content: listEl,
+    },
+    listFolders: () => listWorkbookFolders(),
+    listItems: () => listWorkbooks({}),
+    itemFolderId: (wb) => wb.folderId,
+    describeItem: describeWorkbookRow,
+    isItemOpen: (wb) => wb.id === openWorkbookId,
+    openItem: (wb) => openWorkbookDetail(wb.id),
+    itemMenuExtras: workbookRowMenuExtras,
+    renameItem: (id, name) => renameWorkbook(id, name),
+    deleteItems: (ids) => {
+      let removed = 0;
+      ids.forEach((id) => {
+        if (openWorkbookId === id) closeWorkbookDetail();
+        if (deleteWorkbook(id)) removed += 1;
       });
+      return removed;
     },
-  }));
-  actions.appendChild(el('button', {
-    class: 'btn sm wb-card-del', type: 'button', text: 'Delete',
-    'aria-label': `Delete ${wb.name}`,
-    onClick: () => {
-      openConfirm(
-        `Delete "${wb.name}"?`,
-        'This removes the workbook and its exercise order from this device.',
-        'Delete',
-        () => {
-          if (openWorkbookId === wb.id) closeWorkbookDetail();
-          deleteWorkbook(wb.id);
-          render();
-        },
-      );
+    moveItems: (ids, folderId) => {
+      ids.forEach((id) => setWorkbookFolder(id, folderId));
     },
-  }));
-  card.appendChild(actions);
-  return card;
+    createFolder: (name, parentId) => onCreateFolder(name, parentId),
+    renameFolder: (id, name) => renameWorkbookFolder(id, name),
+    moveFolder: (id, parentId) => moveWorkbookFolder(id, parentId),
+    requestDeleteFolder: (id, name) => onDeleteFolder(id, name),
+    newMenuExtras: (folderId) => ([{
+      label: 'New workbook',
+      onClick: () => onNewWorkbook(folderId),
+    }]),
+    emptyRootTitle: 'No workbooks yet',
+    emptyHint: 'Use + New to make a workbook, then add exercises to it from your library.',
+    prompt: promptForName,
+    toast: setStatus,
+    onNavigate: (folderId) => {
+      selectedFolder = folderId;
+    },
+  });
+}
+
+/** Creates a folder next to its siblings and reports the outcome to the browser. */
+function onCreateFolder(name, parentId) {
+  const clean = (name || '').trim();
+  if (!clean) return { ok: false, reason: 'empty' };
+
+  const folders = listWorkbookFolders();
+  const parent = parentId && folders.some(f => f.id === parentId) ? parentId : '';
+  if (parent && folderDepth(folders, parent) + 1 > MAX_FOLDER_DEPTH) {
+    return { ok: false, reason: 'depth' };
+  }
+
+  const existing = findSiblingByName(folders, parent, clean);
+  if (existing) {
+    setStatus(`Folder "${existing.name}" already exists here.`);
+    return { ok: true, id: existing.id, reason: '' };
+  }
+
+  const folder = createWorkbookFolder(clean, parent);
+  if (!folder) return { ok: false, reason: 'depth' };
+  setStatus(`Created folder "${folder.name}".`);
+  return { ok: true, id: folder.id, reason: '' };
 }
 
 function renderList() {
-  if (!listEl) return;
-  listEl.innerHTML = '';
-
-  const items = listWorkbooks({ folderId: selectedFolder, includeDescendants: true });
-  if (items.length === 0) {
-    listEl.appendChild(el('div', {
-      class: 'wb-empty',
-      text: 'No workbooks yet. Tap + New Workbook above to create one and add exercises from your library.',
-    }));
-    return;
+  if (browser) {
+    browser.render();
+    selectedFolder = browser.getFolderId();
   }
-
-  items.forEach(wb => listEl.appendChild(buildWorkbookCard(wb)));
 }
 
 function renderDetail() {
@@ -2393,15 +2236,12 @@ function renderDetail() {
 }
 
 function render() {
-  if (selectedFolder !== 'all' && selectedFolder !== 'uncategorized'
-      && !listWorkbookFolders().some(f => f.id === selectedFolder)) {
-    selectedFolder = 'all';
+  if (selectedFolder && !listWorkbookFolders().some(f => f.id === selectedFolder)) {
+    selectedFolder = '';
   }
   if (openWorkbookId && !getWorkbook(openWorkbookId)) {
     closeWorkbookDetail();
   }
-  if (titleEl) titleEl.textContent = currentTitleText();
-  renderFolders();
   renderList();
   renderDetail();
 }
@@ -2420,6 +2260,17 @@ function onDeleteFolder(id, name) {
   const directCount = listWorkbooks({ folderId: id }).length;
   const subtreeWorkbookCount = listWorkbooks({ folderId: id, includeDescendants: true }).length;
   const subtreeFolderTotal = subtreeIds.size;
+  // Read the parent before the delete, while the folder still exists.
+  const parentId = nextParentAfterDelete(folders, id);
+  const insideDeleted = subtreeIds.has(selectedFolder);
+  const leaveDeletedFolder = () => {
+    if (!insideDeleted) {
+      render();
+      return;
+    }
+    if (browser) browser.navigateTo(parentId);
+    else { selectedFolder = parentId; render(); }
+  };
 
   if (directCount === 0 && childFolderCount === 0) {
     openConfirm(
@@ -2428,9 +2279,7 @@ function onDeleteFolder(id, name) {
       'Delete',
       () => {
         deleteWorkbookFolder(id);
-        collapsedFolders.delete(id);
-        if (selectedFolder === id) selectedFolder = 'all';
-        render();
+        leaveDeletedFolder();
       },
       { danger: true },
     );
@@ -2444,9 +2293,7 @@ function onDeleteFolder(id, name) {
     subtreeFolderCount: subtreeFolderTotal,
     onDeleteFolderOnly: () => {
       deleteWorkbookFolder(id);
-      collapsedFolders.delete(id);
-      if (selectedFolder === id) selectedFolder = 'all';
-      render();
+      leaveDeletedFolder();
       const word = directCount === 1 ? 'workbook' : 'workbooks';
       setStatus(`Deleted folder "${name}". ${directCount} ${word} ${directCount === 1 ? 'is' : 'are'} now uncategorized. Subfolders moved up one level.`);
     },
@@ -2454,9 +2301,7 @@ function onDeleteFolder(id, name) {
       const openWb = openWorkbookId ? getWorkbook(openWorkbookId) : null;
       if (openWb && subtreeIds.has(openWb.folderId)) closeWorkbookDetail();
       const { deleted } = deleteWorkbookFolderWithContents(id);
-      collapsedFolders.delete(id);
-      if (selectedFolder === id || subtreeIds.has(selectedFolder)) selectedFolder = 'all';
-      render();
+      leaveDeletedFolder();
       const wbWord = deleted === 1 ? 'workbook' : 'workbooks';
       const fWord = subtreeFolderTotal === 1 ? 'folder' : 'folders';
       setStatus(`Deleted folder "${name}" and ${subtreeFolderTotal} ${fWord} with ${deleted} ${wbWord}.`);
@@ -2464,17 +2309,18 @@ function onDeleteFolder(id, name) {
   });
 }
 
-function onNewWorkbook() {
+function onNewWorkbook(folderId) {
+  const target = folderId === undefined ? selectedFolder : folderId;
   openPrompt('New workbook', '', 'Create', (name) => {
     const clean = (name || '').trim();
     if (!clean) {
       setStatus('Enter a workbook name.', true);
       return;
     }
-    const wb = createWorkbook({ name: clean, folderId: createFolderIdForSelection() });
+    const wb = createWorkbook({ name: clean, folderId: target || '' });
     openWorkbookDetail(wb.id);
     setStatus('Workbook created.');
-  });
+  }, { maxlength: NAME_LIMIT });
 }
 
 function wireEscape() {
@@ -2506,7 +2352,9 @@ function wireEscape() {
 
 export function initWorkbooks() {
   folderListEl = document.getElementById('wb-folder-list');
-  titleEl = document.getElementById('wb-current-title');
+  crumbsEl = document.getElementById('wb-crumbs');
+  toolsEl = document.getElementById('wb-tools');
+  bulkBarEl = document.getElementById('wb-bulk-bar');
   statusEl = document.getElementById('wb-status');
   listEl = document.getElementById('wb-list');
   workspaceEl = document.getElementById('wb-workspace');
@@ -2515,56 +2363,18 @@ export function initWorkbooks() {
   detailActionsEl = document.getElementById('wb-detail-actions');
   detailBodyEl = document.getElementById('wb-detail-body');
   detailBackBtn = document.getElementById('wb-detail-back');
-  newBtn = document.getElementById('wb-new-btn');
-  addFolderForm = document.getElementById('wb-add-folder-form');
-  addFolderInput = document.getElementById('wb-add-folder-input');
 
   if (!listEl) return;
 
   if (!bound) {
     bound = true;
-    if (newBtn) newBtn.addEventListener('click', onNewWorkbook);
     if (detailBackBtn) {
       detailBackBtn.addEventListener('click', onWorkbookBackClick);
     }
-    if (addFolderForm) {
-      addFolderForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const name = addFolderInput?.value || '';
-        const clean = name.trim();
-        if (!clean) {
-          setStatus('Enter a folder name.', true);
-          addFolderInput?.focus();
-          return;
-        }
-        const parentId = createFolderIdForSelection();
-        if (parentId) {
-          const depth = folderDepth(listWorkbookFolders(), parentId);
-          if (depth + 1 > MAX_FOLDER_DEPTH) {
-            setStatus(`Folders can nest at most ${MAX_FOLDER_DEPTH} levels deep.`, true);
-            addFolderInput?.focus();
-            return;
-          }
-        }
-        const existing = findSiblingByName(listWorkbookFolders(), parentId, clean);
-        if (existing) {
-          selectedFolder = existing.id;
-          if (addFolderInput) addFolderInput.value = '';
-          setStatus(`Folder "${existing.name}" already exists.`);
-          render();
-          return;
-        }
-        const folder = createWorkbookFolder(name, parentId);
-        if (folder) {
-          selectedFolder = folder.id;
-          if (addFolderInput) addFolderInput.value = '';
-          setStatus(`Created folder "${folder.name}". New workbooks land here.`);
-          render();
-        }
-      });
-    }
     wireEscape();
     wireWorkbookShortcuts();
+    browser = buildBrowser();
+    selectedFolder = browser ? browser.getFolderId() : '';
   }
 
   setStatus('');
@@ -2581,5 +2391,7 @@ export function initWorkbooks() {
 
 export function stopWorkbooks() {
   closeDialog();
+  closeDriveMenu();
   closeWorkbookDetail();
+  if (browser) browser.clearSelection();
 }

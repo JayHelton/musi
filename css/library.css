@@ -1,7 +1,9 @@
-/* Library tab bar on Exercises and Workbooks sections */
+/* Library tab bar on Exercises and Workbooks sections.
+   The two libraries stay separate, so the bar is the only place that switches
+   between them. It sits above the Drive-style browser and stays compact. */
 .library-tabs {
-  margin: 0 0 12px;
-  max-width: 100%;
+  margin: 0 0 14px;
+  max-width: 26rem;
 }
 
 #sec-exercises .library-tabs,
@@ -9,4 +11,38 @@
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+#sec-exercises .library-tabs .subview-tab,
+#sec-workbooks .library-tabs .subview-tab {
+  min-height: 34px;
+  padding: 4px 18px;
+  font-size: 0.85rem;
+}
+
+/* Landscape phone: the header and the tab bar shrink so the browser gets the
+   screen. The tab bar stops sticking, which is what made it overlap the title. */
+@media (orientation: landscape) and (max-height: 500px) {
+  #sec-exercises .section-head p,
+  #sec-workbooks .section-head p {
+    display: none;
+  }
+  #sec-exercises .section-head h2,
+  #sec-workbooks .section-head h2 {
+    font-size: 1rem;
+    margin-bottom: 2px;
+  }
+  #sec-exercises .library-tabs,
+  #sec-workbooks .library-tabs {
+    position: static;
+    margin: 0 0 6px;
+    max-width: 20rem;
+    flex-shrink: 0;
+  }
+  #sec-exercises .library-tabs .subview-tab,
+  #sec-workbooks .library-tabs .subview-tab {
+    min-height: 28px;
+    padding: 2px 14px;
+    font-size: 0.78rem;
+  }
 }

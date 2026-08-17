@@ -146,28 +146,45 @@ await test('folder-only delete unfiles exercises in that folder', async () => {
   assert.ok(items.find(it => it.id === 'ex-loose' && it.categoryId === ''));
 });
 
-await test('createExerciseFolder selects the new folder', async () => {
+// Google Drive keeps the user in the open folder after a create. Musi does the
+// same: the new folder appears in the list, it does not take over the view.
+await test('createExerciseFolder keeps the open folder', async () => {
   seedStore({ categories: [], items: [] });
-  const { createExerciseFolder, getSelectedExerciseFolder } = await loadExercises();
+  const { createExerciseFolder, getCategories, getSelectedExerciseFolder } = await loadExercises();
 
   const result = createExerciseFolder('Fresh Folder');
   assert.equal(result.ok, true);
   assert.equal(result.created, true);
   assert.ok(result.category?.id);
-  assert.equal(getSelectedExerciseFolder(), result.category.id);
+  assert.equal(result.category.parentId, '');
+  assert.equal(getCategories().length, 1);
+  assert.equal(getSelectedExerciseFolder(), '');
 });
 
-await test('createExerciseFolder selects an existing folder with the same name', async () => {
+await test('createExerciseFolder reuses an existing folder with the same name', async () => {
   seedStore({
     categories: [{ id: 'cat-dup', name: 'Dup' }],
     items: [],
   });
-  const { createExerciseFolder, getSelectedExerciseFolder } = await loadExercises();
+  const { createExerciseFolder, getCategories } = await loadExercises();
 
   const result = createExerciseFolder('dup');
   assert.equal(result.ok, true);
   assert.equal(result.created, false);
-  assert.equal(getSelectedExerciseFolder(), 'cat-dup');
+  assert.equal(result.category.id, 'cat-dup');
+  assert.equal(getCategories().length, 1);
+});
+
+await test('createExerciseFolder puts a new folder under the parent it is given', async () => {
+  seedStore({
+    categories: [{ id: 'cat-parent', name: 'Parent' }],
+    items: [],
+  });
+  const { createExerciseFolder } = await loadExercises();
+
+  const result = createExerciseFolder('Child', 'cat-parent');
+  assert.equal(result.ok, true);
+  assert.equal(result.category.parentId, 'cat-parent');
 });
 
 await test('requestExerciseFolderDelete guard inputs open no dialog', async () => {

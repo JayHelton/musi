@@ -75,6 +75,7 @@
 <link rel="stylesheet" href="css/songwriter.css">
 <link rel="stylesheet" href="css/exercises.css">
 <link rel="stylesheet" href="css/library.css">
+<link rel="stylesheet" href="css/library-drive.css">
 <link rel="stylesheet" href="css/companions.css">
 <link rel="stylesheet" href="css/workbooks.css">
 <!-- SIMPLIFY: Routines styles hidden. Link kept. -->
@@ -1677,35 +1678,24 @@
     <div class="section-head">
       <div class="section-kicker">Library</div>
       <h2>Exercises</h2>
-      <p>Upload PDFs, images, audio, video, and Guitar Pro <code>.gp</code>/<code>.gp5</code> files, or add lesson links — use Bulk Upload to add many files at once (Guitar Pro scores are split into one exercise per section). Open any item to practice right here in the library.</p>
+      <p>Your practice files and lesson links. Drag files in from your desktop, double-click to open, drag rows onto a folder to file them.</p>
     </div>
-    <div class="quiz-layout ex-layout">
-      <aside class="sidebar ex-sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Folders / tags</div>
-          <div class="sl-scroll" id="ex-category-list"></div>
-        </div>
-        <form class="ex-add-cat" id="ex-add-cat-form">
-          <input type="text" id="ex-add-cat-input" placeholder="New folder name" maxlength="40" aria-label="New folder name" autocomplete="off">
-          <button class="btn sm primary" type="submit">Add</button>
-        </form>
-      </aside>
-      <div class="quiz-main ex-main">
-        <div class="ex-toolbar">
-          <div class="ex-toolbar-title" id="ex-current-title">All Exercises</div>
-          <div class="ex-toolbar-actions">
-            <input type="file" id="ex-file-input" multiple hidden>
-            <input type="file" id="ex-bulk-file-input" multiple hidden>
-            <button class="btn primary" id="ex-upload-btn" type="button">+ Upload File</button>
-            <button class="btn" id="ex-bulk-upload-btn" type="button">+ Bulk Upload</button>
-            <button class="btn" id="ex-add-link-btn" type="button">+ Add Link</button>
+    <div class="drv-shell ex-layout">
+      <aside class="drv-nav" id="ex-category-list"></aside>
+      <div class="drv-main ex-main">
+        <div class="drv-topbar" id="ex-topbar">
+          <div class="drv-head">
+            <nav class="drv-crumbs" id="ex-crumbs" aria-label="Exercise folders"></nav>
+            <div class="drv-tools" id="ex-tools"></div>
           </div>
+          <div class="drv-selbar" id="ex-bulk-bar" hidden></div>
         </div>
-        <div class="ex-bulk-bar" id="ex-bulk-bar" hidden></div>
+        <input type="file" id="ex-file-input" multiple hidden>
+        <input type="file" id="ex-bulk-file-input" multiple hidden>
         <div class="ex-status" id="ex-status" style="display:none"></div>
         <div class="ex-workspace" id="ex-workspace">
           <div class="ex-list-pane">
-            <div class="ex-list" id="ex-list"></div>
+            <div class="drv-content is-list" id="ex-list" role="grid" tabindex="0" aria-label="Exercises"></div>
           </div>
           <div class="ex-player-pane" id="ex-player-pane" hidden>
             <div class="ex-player-head">
@@ -1725,30 +1715,22 @@
     <div class="section-head">
       <div class="section-kicker">Library</div>
       <h2>Workbooks</h2>
-      <p>Build an ordered workbook from your exercises, play one at a time, loop it or let it advance automatically, and group workbooks into folders.</p>
+      <p>Ordered runs of exercises. Double-click to open one, drag rows onto a folder to file them.</p>
     </div>
-    <div class="quiz-layout wb-layout">
-      <aside class="sidebar wb-sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Folders</div>
-          <div class="sl-scroll" id="wb-folder-list"></div>
-        </div>
-        <form class="wb-add-folder" id="wb-add-folder-form">
-          <input type="text" id="wb-add-folder-input" placeholder="New folder name" maxlength="40" aria-label="New folder name" autocomplete="off">
-          <button class="btn sm primary" type="submit">Add</button>
-        </form>
-      </aside>
-      <div class="quiz-main wb-main">
-        <div class="wb-toolbar">
-          <div class="wb-toolbar-title" id="wb-current-title">All Workbooks</div>
-          <div class="wb-toolbar-actions">
-            <button class="btn primary" id="wb-new-btn" type="button">+ New Workbook</button>
+    <div class="drv-shell wb-layout">
+      <aside class="drv-nav" id="wb-folder-list"></aside>
+      <div class="drv-main wb-main">
+        <div class="drv-topbar" id="wb-topbar">
+          <div class="drv-head">
+            <nav class="drv-crumbs" id="wb-crumbs" aria-label="Workbook folders"></nav>
+            <div class="drv-tools" id="wb-tools"></div>
           </div>
+          <div class="drv-selbar" id="wb-bulk-bar" hidden></div>
         </div>
         <div class="wb-status" id="wb-status" style="display:none"></div>
         <div class="wb-workspace" id="wb-workspace">
           <div class="wb-list-pane">
-            <div class="wb-list" id="wb-list"></div>
+            <div class="drv-content is-list" id="wb-list" role="grid" tabindex="0" aria-label="Workbooks"></div>
           </div>
           <div class="wb-detail-pane" id="wb-detail-pane" hidden>
             <div class="wb-detail-head">

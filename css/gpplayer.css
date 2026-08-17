@@ -2389,9 +2389,9 @@
 }
 /* Only the score and its way back stay on screen. This walks the path down
    to the player pane and hides every sibling on the way, so the section head,
-   the Exercises/Workbooks tab bar, the folder bar, the toolbar and the list
-   all go. A named list missed the tab bar, because a script inserts that bar
-   after the section head. */
+   the Exercises/Workbooks tab bar, the folder tree, the breadcrumb row and the
+   list all go. A named list missed the tab bar, because a script inserts that
+   bar after the section head. */
 #sec-exercises.gpp-score-loaded > *:not(.ex-layout),
 #sec-exercises.gpp-score-loaded .ex-layout > *:not(.ex-main),
 #sec-exercises.gpp-score-loaded .ex-main > *:not(.ex-workspace),

@@ -1,179 +1,19 @@
-/* Exercises library: folder sidebar + file list (grouped by category tag
-   when viewing All), plus an inline player pane for PDFs, images, audio,
+/* Exercises library. The Drive-style browser chrome lives in
+   css/library-drive.css; this file styles the parts that belong to Exercises
+   alone: the status line and the inline player pane for PDFs, images, audio,
    video and links. Reuses Musi's design tokens for a consistent look. */
 
 .ex-layout{align-items:flex-start}
-.ex-sidebar{width:240px;display:flex;flex-direction:column;gap:12px}
-
-/* ---- Folder / tag filter list (own chrome — don't inherit quiz pill strip) ---- */
-#sec-exercises .ex-sidebar .sidebar-list{
-  background:var(--card);border-radius:var(--radius-screen,16px);overflow:hidden;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 8px 24px rgba(0,0,0,0.28);
-  border:1px solid var(--border)
-}
-#sec-exercises .ex-sidebar .sl-head{
-  padding:10px 14px;font-size:.7rem;color:var(--muted);text-transform:uppercase;
-  letter-spacing:1.2px;font-weight:600;border-bottom:1px solid var(--border)
-}
-#sec-exercises .ex-sidebar .sl-scroll,
-#sec-exercises #ex-category-list{
-  display:flex;flex-direction:column;gap:2px;
-  max-height:min(360px,50vh);overflow-x:hidden;overflow-y:auto;
-  padding:6px;scroll-snap-type:none
-}
-
-.ex-cat-item{
-  display:flex;align-items:center;gap:8px;width:100%;
-  padding:9px 10px 9px 12px;margin:0;border:none;border-radius:10px;
-  background:transparent;color:var(--text);cursor:pointer;font:inherit;text-align:left;
-  border-left:3px solid transparent;min-height:40px;position:relative
-}
-.ex-cat-item:hover{background:var(--hover)}
-.ex-cat-item.active{
-  color:var(--accent);border-left-color:var(--accent);
-  background:linear-gradient(90deg,var(--accent-dim),transparent)
-}
-.ex-cat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem}
-.ex-cat-count{
-  flex-shrink:0;font-size:.66rem;color:var(--muted);background:var(--bg2);
-  padding:2px 8px;border-radius:999px;font-weight:600;font-variant-numeric:tabular-nums
-}
-.ex-cat-item.active .ex-cat-count{color:var(--accent);background:var(--accent-dim)}
-/* Folder name keeps the full row width; tools float at the row end on hover. */
-.ex-cat-tools{
-  position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:1;
-  display:flex;gap:2px;flex-shrink:0;padding:2px 4px;border-radius:8px;
-  background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,0.35);
-  opacity:0;pointer-events:none;transition:opacity .15s ease
-}
-.ex-cat-item:hover .ex-cat-tools,
-.ex-cat-item:focus-within .ex-cat-tools,
-.ex-cat-item.active .ex-cat-tools{
-  opacity:1;pointer-events:auto
-}
-.ex-cat-tool{
-  border:none;background:none;color:var(--muted);cursor:pointer;font-size:.85rem;
-  line-height:1;padding:6px;border-radius:6px;font-family:inherit;min-width:28px;min-height:28px
-}
-.ex-cat-tool:hover{color:var(--text);background:var(--hover)}
-.ex-cat-del:hover{color:var(--err);background:rgba(231,76,60,0.12)}
-
-.ex-add-cat{display:flex;gap:8px;align-items:stretch}
-.ex-add-cat input{
-  flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:12px;
-  background:var(--bg2);color:var(--text);font-size:.85rem;font-family:inherit
-}
-.ex-add-cat input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
-.ex-add-cat .btn{flex-shrink:0}
-
-.ex-cat-item[data-depth="1"]{padding-left:12px}
-.ex-cat-item[data-depth="2"]{padding-left:24px}
-.ex-cat-item[data-depth="3"]{padding-left:34px}
-.ex-cat-item[data-depth="4"]{padding-left:42px}
-.ex-cat-item[data-depth="5"]{padding-left:48px}
-.ex-cat-twisty,.ex-cat-twisty-spacer{
-  flex-shrink:0;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;
-  font-size:.72rem;line-height:1;color:var(--muted)
-}
-.ex-cat-twisty{
-  border:none;background:transparent;cursor:pointer;border-radius:6px;padding:0;font-family:inherit
-}
-.ex-cat-twisty:hover{color:var(--text);background:var(--hover)}
-.ex-cat-twisty.is-expanded,.ex-cat-twisty.is-collapsed{color:var(--accent2)}
-.ex-move-folder-select{font-family:var(--font-body,inherit);font-size:.88rem}
-
-.ex-folder[data-depth="2"]{margin-left:10px}
-.ex-folder[data-depth="3"]{margin-left:18px}
-.ex-folder[data-depth="4"]{margin-left:24px}
-.ex-folder[data-depth="5"]{margin-left:28px}
-
-.ex-folder-bar{margin-bottom:12px}
-
-/* ---- Main column ---- */
-.ex-main{flex:1;min-width:0}
-.ex-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-.ex-toolbar-title{font-size:1.1rem;font-weight:650;color:var(--text)}
-.ex-toolbar-actions{display:flex;gap:8px}
+.ex-main{min-width:0}
 .ex-link-name-input{margin-top:10px}
-
-.ex-bulk-bar{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-  margin-bottom:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-screen,14px);
-  background:var(--bg2)
-}
-.ex-bulk-bar[hidden]{display:none!important}
-.ex-bulk-bar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ex-bulk-count{font-size:.82rem;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
-.ex-bulk-del{color:var(--err)}
-.ex-bulk-del:hover:not(:disabled){background:rgba(231,76,60,0.12);color:var(--err)}
-.ex-bulk-del:disabled{opacity:.45;cursor:not-allowed}
 
 .ex-status{font-size:.82rem;color:var(--muted);margin-bottom:12px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2)}
 .ex-status.error{color:var(--warn);border-color:rgba(243,156,18,0.4)}
-
-.ex-empty{padding:30px 20px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted);font-size:.88rem;background:rgba(18,26,46,0.5)}
-.ex-folder-empty{padding:12px 10px;font-size:.8rem;color:var(--muted);line-height:1.35}
-
-/* ---- Folder groups (by category tag) ---- */
-.ex-folder{border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.35)}
-.ex-folder-headrow{display:flex;align-items:center;gap:8px;padding-left:10px}
-.ex-folder-headrow .ex-folder-head{flex:1;min-width:0}
-.ex-folder-check{flex-shrink:0;width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
-.ex-folder-head{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border:none;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s ease}
-.ex-folder-head:hover{background:var(--hover)}
-.ex-folder-chevron{flex-shrink:0;width:1em;color:var(--muted);font-size:.85rem;line-height:1}
-.ex-folder-icon{flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--accent)}
-.ex-folder-icon svg{width:20px;height:20px}
-.ex-folder-name{flex:1;min-width:0;font-size:.98rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ex-folder-count{flex-shrink:0;font-size:.66rem;color:var(--muted);background:var(--bg2);padding:2px 8px;border-radius:999px;font-weight:600}
-.ex-folder.is-open .ex-folder-count{color:var(--accent);background:var(--accent-dim)}
-.ex-folder-body{display:flex;flex-direction:column;gap:8px;padding:0 10px 10px;border-top:1px solid var(--border);background:rgba(0,0,0,0.15)}
-.ex-folder-body[hidden]{display:none}
-.ex-folder-body .ex-item{box-shadow:none}
-.ex-ungrouped{display:flex;flex-direction:column;gap:10px;margin-top:4px}
-.ex-ungrouped-label{padding:4px 4px 0;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700}
-
-/* ---- Exercise rows ---- */
-.ex-list{display:flex;flex-direction:column;gap:10px}
-.ex-item{display:flex;align-items:center;gap:14px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.4);transition:border-color .15s ease}
-.ex-item:hover{border-color:var(--accent)}
-.ex-item-icon{flex-shrink:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--accent)}
-.ex-item-icon svg{width:30px;height:30px}
-.ex-item-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.ex-item-name{width:100%;padding:6px 10px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text);font-size:.98rem;font-weight:600;font-family:inherit}
-.ex-item-name:hover{border-color:var(--border);background:var(--bg2)}
-.ex-item-name:focus{outline:none;border-color:var(--accent);background:var(--bg2);box-shadow:0 0 0 2px var(--accent-dim)}
-.ex-item-meta{font-size:.74rem;color:var(--muted);padding-left:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ex-item-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
-.ex-item-cat-select{padding:6px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text);font-size:.8rem;font-family:inherit;max-width:130px}
-.ex-item-del{color:var(--err)}
-.ex-item-del:hover{background:rgba(231,76,60,0.12);color:var(--err)}
-.ex-item-check{
-  flex-shrink:0;width:16px;height:16px;accent-color:var(--accent);cursor:pointer
-}
-.ex-item.is-selected{
-  border-color:var(--accent2);
-  background:linear-gradient(90deg,rgba(180,94,255,0.16),var(--card));
-  box-shadow:inset 0 0 0 1px var(--accent2),0 2px 12px rgba(0,0,0,0.35)
-}
-.ex-item.is-active,
-.ex-item.is-playing{
-  border-color:var(--accent);
-  background:linear-gradient(90deg,var(--accent-dim),var(--card));
-  box-shadow:inset 0 0 0 1px var(--accent),0 2px 12px rgba(0,0,0,0.4)
-}
-.ex-item.is-selected.is-active,
-.ex-item.is-selected.is-playing{
-  border-color:var(--accent);
-  background:linear-gradient(90deg,var(--accent-dim),rgba(180,94,255,0.12),var(--card));
-  box-shadow:inset 0 0 0 1px var(--accent),inset 3px 0 0 var(--accent2),0 2px 12px rgba(0,0,0,0.4)
-}
 
 /* ---- Inline workspace (list + player) ---- */
 .ex-workspace{display:flex;flex-direction:column;gap:12px;min-width:0}
 .ex-list-pane{min-width:0}
 .ex-workspace.is-open .ex-list-pane{max-height:min(70vh,640px);overflow:auto}
-.ex-workspace.is-open .ex-item{padding:10px 12px}
 .ex-workspace.is-open{
   display:grid;grid-template-columns:minmax(240px,34%) minmax(0,1fr);
   align-items:stretch;gap:14px
@@ -266,10 +106,9 @@
 /* Inline viewer: hide library chrome so the player pane spans full width
    (mirrors workbooks #sec-workbooks.wb-practicing). */
 #sec-exercises.ex-viewing .section-head,
-#sec-exercises.ex-viewing .ex-folder-bar,
-#sec-exercises.ex-viewing .ex-sidebar,
-#sec-exercises.ex-viewing .ex-toolbar,
-#sec-exercises.ex-viewing .ex-bulk-bar,
+#sec-exercises.ex-viewing .library-tabs,
+#sec-exercises.ex-viewing .drv-nav,
+#sec-exercises.ex-viewing .drv-topbar,
 #sec-exercises.ex-viewing .ex-status{display:none}
 #sec-exercises.ex-viewing .ex-list-pane{display:none!important}
 #sec-exercises.ex-viewing .ex-layout{
@@ -290,45 +129,9 @@
 
 @media(max-width:900px){
   #sec-exercises{overflow-x:hidden}
-  #sec-exercises .ex-layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important;width:100%!important;max-width:100%!important;min-width:0!important}
-  #sec-exercises .ex-sidebar{width:100%!important;max-width:100%!important;min-width:0!important;order:1!important;grid-column:1!important;grid-row:1!important}
-  #sec-exercises .ex-main{width:100%!important;max-width:100%!important;min-width:0!important;order:2!important;grid-column:1!important;grid-row:2!important}
-  .ex-toolbar{width:100%!important;max-width:100%!important;min-width:0!important;align-items:stretch}
-  .ex-toolbar-title{width:100%}
-  .ex-toolbar-actions{width:100%!important;max-width:100%!important;min-width:0!important;display:flex;flex-direction:column}
-  .ex-toolbar-actions .btn{display:flex;align-items:center;justify-content:center;width:100%!important;max-width:100%!important;min-width:0!important;padding-left:12px;padding-right:12px;text-align:center;white-space:normal;overflow-wrap:anywhere;color:var(--text);line-height:1.2;font-size:.85rem!important}
-  #ex-upload-btn{color:var(--on-accent)}
-  .ex-folder-head{padding:12px}
-  .ex-item{flex-wrap:wrap}
-  .ex-item-actions{width:100%;justify-content:flex-start}
   .ex-workspace.is-open{grid-template-columns:minmax(0,1fr)}
   .ex-workspace.is-open .ex-list-pane{display:none}
   .ex-player-pane{min-height:min(72vh,680px)}
-}
-
-@media(max-width:768px){
-  /* Toolbar actions stay hidden; Add lives on the folder bar */
-  #sec-exercises .ex-toolbar-actions{display:none}
-  .ex-bulk-bar-actions .btn{flex:1 1 auto;min-width:0}
-  #sec-exercises .ex-add-cat{
-    padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-screen,14px);
-    background:rgba(22,31,54,0.88)
-  }
-  #sec-exercises .ex-sidebar .sl-scroll,
-  #sec-exercises #ex-category-list{
-    display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;
-    gap:2px!important;overflow-x:hidden!important;overflow-y:auto!important;
-    max-height:min(42vh,320px);scroll-snap-type:none!important;padding:6px;-webkit-overflow-scrolling:touch
-  }
-  #sec-exercises .ex-cat-item{
-    flex:0 0 auto!important;width:100%!important;min-height:44px;border-radius:10px;white-space:normal
-  }
-  .ex-cat-tools{
-    position:static;top:auto;right:auto;transform:none;z-index:auto;
-    padding:0;border-radius:0;background:none;box-shadow:none;
-    opacity:1;pointer-events:auto
-  }
-  .ex-cat-tool,.ex-cat-del{min-width:36px;min-height:36px;padding:8px}
 }
 
 /* Landscape phone — exercises library + inline player */
@@ -338,88 +141,35 @@
   }
   #sec-exercises .section-head{margin-bottom:2px;flex-shrink:0}
   #sec-exercises .section-kicker{display:none}
-  #sec-exercises .ex-folder-bar{display:none!important}
 
-  /* Beat exercises.css max-width:900px stack + landscape.css quiz-layout column */
-  #sec-exercises .quiz-layout.ex-layout{
-    display:flex!important;flex-direction:row!important;align-items:stretch!important;
-    flex:1;min-height:0;gap:8px!important;width:100%!important;max-width:100%!important;
-    min-width:0!important;grid-template-columns:none!important
+  /* Keep the folder tree beside the list; a phone in portrait hides it instead. */
+  #sec-exercises .ex-layout{
+    display:grid!important;grid-template-columns:168px minmax(0,1fr)!important;
+    align-items:stretch!important;
+    flex:1;min-height:0;gap:8px!important;width:100%!important;max-width:100%!important
   }
-  #sec-exercises .ex-sidebar{
-    order:0!important;width:168px!important;max-width:168px!important;min-width:140px!important;
-    flex-shrink:0!important;display:flex!important;flex-direction:column!important;gap:6px!important;
-    grid-column:unset!important;grid-row:unset!important
+  #sec-exercises .drv-nav{
+    display:flex!important;flex-direction:column!important;gap:6px!important;min-height:0
   }
-  #sec-exercises .ex-sidebar .sidebar-list{
-    display:block!important;flex:1;min-height:0
-  }
-  #sec-exercises .ex-sidebar .sl-head{padding:4px 8px;font-size:.58rem}
-  #sec-exercises .ex-sidebar .sl-scroll,
-  #sec-exercises #ex-category-list{
-    display:flex!important;flex-direction:column!important;gap:2px!important;
-    max-height:min(116px,30vh)!important;overflow-x:hidden!important;overflow-y:auto!important;
-    scroll-snap-type:none!important;padding:4px!important;-webkit-overflow-scrolling:touch
-  }
-  #sec-exercises .ex-cat-item{min-height:36px;padding:6px 8px;border-radius:8px}
-  .ex-cat-tools{
-    position:static;top:auto;right:auto;transform:none;z-index:auto;
-    padding:0;border-radius:0;background:none;box-shadow:none;
-    opacity:1;pointer-events:auto
-  }
-  .ex-cat-item[data-depth="1"]{padding-left:8px}
-  .ex-cat-item[data-depth="2"]{padding-left:14px}
-  .ex-cat-item[data-depth="3"]{padding-left:20px}
-  .ex-cat-item[data-depth="4"]{padding-left:24px}
-  .ex-cat-item[data-depth="5"]{padding-left:28px}
-  #sec-exercises .ex-cat-name{font-size:.78rem}
-  #sec-exercises .ex-add-cat{
-    padding:0;border:none;background:transparent;flex-shrink:0
-  }
-  #sec-exercises .ex-add-cat input{font-size:.78rem;padding:6px 8px;min-height:36px}
-  #sec-exercises .ex-add-cat .btn{min-height:36px;padding:6px 10px;font-size:.78rem}
+  #sec-exercises .drv-tree{display:block!important;max-height:min(150px,34vh)!important}
+  #sec-exercises .drv-new{min-height:36px;padding:6px 14px;font-size:.8rem}
+  #sec-exercises .drv-tree-row{min-height:32px;font-size:.78rem}
 
   #sec-exercises .ex-main{
-    order:1!important;flex:1!important;min-width:0!important;min-height:0!important;
-    display:flex!important;flex-direction:column!important;
-    grid-column:unset!important;grid-row:unset!important
+    flex:1!important;min-width:0!important;min-height:0!important;
+    display:flex!important;flex-direction:column!important
   }
-  #sec-exercises .ex-toolbar{
-    width:auto!important;max-width:100%!important;align-items:center!important;
-    flex-wrap:nowrap!important;margin-bottom:6px!important;gap:8px!important;flex-shrink:0
-  }
-  #sec-exercises .ex-toolbar-title{
-    width:auto!important;flex:1;min-width:0;font-size:.92rem;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis
-  }
-  #sec-exercises .ex-toolbar-actions{
-    display:flex!important;flex-direction:row!important;width:auto!important;
-    max-width:none!important;min-width:0!important;flex-shrink:0;gap:6px!important
-  }
-  #sec-exercises .ex-toolbar-actions .btn{
-    display:inline-flex!important;width:auto!important;max-width:none!important;
-    min-width:0!important;min-height:36px!important;padding:6px 12px!important;
-    font-size:.78rem!important;white-space:nowrap!important;flex-shrink:0;line-height:1.2!important
-  }
-  #sec-exercises #ex-upload-btn{color:var(--on-accent)}
-  #sec-exercises .ex-bulk-bar{margin-bottom:6px;padding:6px 8px;flex-shrink:0}
+  #sec-exercises .drv-topbar{flex-shrink:0}
+  #sec-exercises .drv-crumb{font-size:.85rem;min-height:28px}
+  #sec-exercises .drv-search{height:32px}
+  #sec-exercises .drv-search-input{width:7rem;font-size:.78rem}
+  #sec-exercises .drv-tool-btn{width:32px;height:32px;flex-basis:32px}
   #sec-exercises .ex-status{margin-bottom:6px;padding:6px 10px;font-size:.75rem;flex-shrink:0}
   #sec-exercises .ex-workspace{
     flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column
   }
   #sec-exercises .ex-list-pane{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  #sec-exercises .ex-list{gap:6px}
-  #sec-exercises .ex-folder-head{padding:8px 10px}
-  #sec-exercises .ex-folder-body{padding:0 8px 8px;gap:6px}
-  #sec-exercises .ex-ungrouped{gap:6px;margin-top:2px}
-  #sec-exercises .ex-item{padding:8px 10px;gap:8px;flex-wrap:nowrap}
-  #sec-exercises .ex-item-icon{width:28px;height:28px}
-  #sec-exercises .ex-item-icon svg{width:22px;height:22px}
-  #sec-exercises .ex-item-name{font-size:.82rem;padding:4px 6px}
-  #sec-exercises .ex-item-meta{font-size:.66rem;padding-left:6px}
-  #sec-exercises .ex-item-actions{width:auto!important;flex-wrap:nowrap;gap:4px}
-  #sec-exercises .ex-item-cat-select{font-size:.72rem;padding:4px 6px;max-width:88px}
-  #sec-exercises .ex-item-actions .btn{min-height:36px;padding:4px 8px;font-size:.72rem}
+  #sec-exercises .drv-row{min-height:38px}
 
   #sec-exercises .ex-workspace.is-open{
     display:grid!important;grid-template-columns:minmax(0,36%) minmax(0,1fr)!important;
@@ -430,7 +180,6 @@
     display:block!important;max-height:none!important;overflow-y:auto;height:auto!important;
     min-height:0!important;align-self:stretch
   }
-  #sec-exercises .ex-workspace.is-open .ex-item{padding:6px 8px}
 
   #sec-exercises .ex-player-pane{
     min-height:0!important;height:auto!important;align-self:stretch!important;
@@ -458,31 +207,19 @@
 
 @media (orientation:landscape) and (max-height:380px){
   #sec-exercises.active{max-height:calc(100dvh - var(--dock-h) - 46px)}
-  #sec-exercises .ex-sidebar{width:148px!important;max-width:148px!important;min-width:128px!important}
-  #sec-exercises .ex-sidebar .sl-scroll,
-  #sec-exercises #ex-category-list{max-height:min(96px,28vh)!important}
-  #sec-exercises .ex-cat-item{min-height:32px;padding:5px 6px}
-  .ex-cat-item[data-depth="1"]{padding-left:6px}
-  .ex-cat-item[data-depth="2"]{padding-left:10px}
-  .ex-cat-item[data-depth="3"]{padding-left:14px}
-  .ex-cat-item[data-depth="4"]{padding-left:17px}
-  .ex-cat-item[data-depth="5"]{padding-left:20px}
-  #sec-exercises .ex-add-cat input,
-  #sec-exercises .ex-add-cat .btn,
-  #sec-exercises .ex-toolbar-actions .btn,
-  #sec-exercises .ex-item-actions .btn{min-height:32px}
-  #sec-exercises .ex-toolbar{margin-bottom:4px}
-  #sec-exercises .ex-item{padding:6px 8px}
+  #sec-exercises .ex-layout{grid-template-columns:148px minmax(0,1fr)!important}
+  #sec-exercises .drv-tree{max-height:min(120px,30vh)!important}
+  #sec-exercises .drv-row{min-height:34px}
 }
 
-/* ex-viewing wins over landscape split-list rules above */
+/* ex-viewing wins over the landscape split-list rules above */
 @media (orientation:landscape) and (max-height:500px){
   #sec-exercises.ex-viewing.active{
     display:flex;flex-direction:column;min-height:0;
     max-height:calc(100dvh - var(--dock-h) - 52px)
   }
-  #sec-exercises.ex-viewing .ex-sidebar{display:none!important}
-  #sec-exercises.ex-viewing .quiz-layout.ex-layout{
+  #sec-exercises.ex-viewing .drv-nav{display:none!important}
+  #sec-exercises.ex-viewing .ex-layout{
     display:flex!important;flex-direction:column!important;flex:1;min-height:0
   }
   #sec-exercises.ex-viewing .ex-workspace.is-open{
@@ -494,7 +231,6 @@
     flex:1;min-height:0!important;height:auto!important
   }
 }
-
 /* ── Bulk upload dialog (Exercises library) ─────────────────────────────── */
 
 .exbulk-root {
