@@ -104,13 +104,14 @@
 .ex-player-doc-actions a.btn{text-decoration:none;display:inline-flex;align-items:center;min-height:var(--tap-min,40px)}
 
 /* Inline viewer: hide library chrome so the player pane spans full width
-   (mirrors workbooks #sec-workbooks.wb-practicing). */
-#sec-exercises.ex-viewing .section-head,
-#sec-exercises.ex-viewing .library-tabs,
-#sec-exercises.ex-viewing .drv-nav,
-#sec-exercises.ex-viewing .drv-topbar,
-#sec-exercises.ex-viewing .ex-status{display:none}
-#sec-exercises.ex-viewing .ex-list-pane{display:none!important}
+   (mirrors workbooks #sec-workbooks.wb-practicing). Like the score rule in
+   css/gpplayer.css, this walks the path down to the player pane and hides
+   every sibling on the way, so a bar a script inserts later cannot slip
+   through the way the Exercises/Workbooks tab bar once did. */
+#sec-exercises.ex-viewing > *:not(.ex-layout),
+#sec-exercises.ex-viewing .ex-layout > *:not(.ex-main),
+#sec-exercises.ex-viewing .ex-main > *:not(.ex-workspace),
+#sec-exercises.ex-viewing .ex-workspace > *:not(.ex-player-pane){display:none!important}
 #sec-exercises.ex-viewing .ex-layout{
   flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;width:100%
 }
@@ -218,7 +219,6 @@
     display:flex;flex-direction:column;min-height:0;
     max-height:calc(100dvh - var(--dock-h) - 52px)
   }
-  #sec-exercises.ex-viewing .drv-nav{display:none!important}
   #sec-exercises.ex-viewing .ex-layout{
     display:flex!important;flex-direction:column!important;flex:1;min-height:0
   }
@@ -226,7 +226,6 @@
     display:flex!important;flex-direction:column!important;grid-template-columns:none!important;
     flex:1;min-height:0
   }
-  #sec-exercises.ex-viewing .ex-workspace.is-open .ex-list-pane{display:none!important}
   #sec-exercises.ex-viewing .ex-player-pane{
     flex:1;min-height:0!important;height:auto!important
   }
