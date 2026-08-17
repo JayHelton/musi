@@ -4,17 +4,12 @@
    collapsible options, home grid, favorites and split-screen.
    ============================================================ */
 
-/* ---- Header: wordmark + optional split view (desktop) ---- */
-header{justify-content:space-between}
-.header-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
-.header-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:var(--tap-min);height:var(--tap-min);border-radius:50%;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;transition:all .18s ease;flex-shrink:0}
-.header-icon-btn svg{width:20px;height:20px}
-.header-icon-btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 14px var(--accent-dim)}
-.header-icon-btn:active{transform:scale(.95)}
-.header-icon-btn.active{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
-@media(max-width:768px){
-  .header-actions{display:none}
-}
+/* ---- Rail icon button: split view (desktop) ---- */
+.rail-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:var(--tap-min);height:var(--tap-min);border-radius:50%;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;transition:all .18s ease;flex-shrink:0}
+.rail-icon-btn svg{width:20px;height:20px}
+.rail-icon-btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 14px var(--accent-dim)}
+.rail-icon-btn:active{transform:scale(.95)}
+.rail-icon-btn.active{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 
 /* ---- Musical context fields (preferences) ---- */
 .context-field{margin-bottom:18px}
@@ -111,6 +106,7 @@ body.split-mode .section.split-secondary{border-left:1px solid var(--border);pad
 .split-mode .progress-header{position:static}
 .split-mode .quiz-layout{flex-direction:column}
 .split-mode .sidebar{width:100%}
+.split-menu{max-height:calc(100vh - 16px);overflow-y:auto}
 .split-menu .split-menu-title{font-size:.62rem;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;color:var(--muted);padding:8px 12px 4px}
 .split-menu .tc-menu-item.active{color:var(--accent);background:var(--accent-dim)}
 .split-menu .split-exit{color:var(--err)}
@@ -122,7 +118,6 @@ body.split-mode .section.split-secondary{border-left:1px solid var(--border);pad
 }
 
 /* ---- Home: tool cards + favorites ---- */
-.wordmark[role="button"]{cursor:pointer}
 .home-section{margin-bottom:22px}
 .home-section-label{font-size:.7rem;text-transform:uppercase;letter-spacing:1.4px;font-weight:700;color:var(--muted);margin-bottom:12px}
 .home-all-panel{border:1px solid var(--border);border-radius:18px;background:rgba(18,26,46,0.68);overflow:hidden}

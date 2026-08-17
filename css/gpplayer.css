@@ -2475,13 +2475,10 @@ html.gpp-player-locked body {
   overscroll-behavior: none;
 }
 
-/* A loaded score owns the screen. The app bar hides while the player holds
+/* A loaded score owns the screen. The top inset drops while the player holds
    the view, and the staff gets that height. The bottom dock still carries
    navigation, and "Close score" returns to the library. A route notice keeps
-   the bar, because the learner must read the notice. */
-html.gpp-player-locked body.app-shell:not(.route-notice-on) .app-bar {
-  display: none;
-}
+   the inset, because the learner must read the notice. */
 html.gpp-player-locked body.app-shell:not(.route-notice-on) .app-main,
 html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   padding-top: 0;

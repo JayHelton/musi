@@ -8,8 +8,6 @@
   /* ---- Chrome ---- */
   :root{--dock-h:calc(46px + env(safe-area-inset-bottom,0px));--tap-min:40px;--content-max:100%}
   html,body{overflow-x:clip;max-width:100%}
-  header{padding:4px max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
-  .wordmark{font-size:.85rem;letter-spacing:2px}
   main{max-width:100%;overflow-x:clip;padding:4px max(12px,env(safe-area-inset-right,0px)) calc(var(--dock-h) + 8px) max(12px,env(safe-area-inset-left,0px))}
   .section{max-width:100%;min-width:0}
   .section-head{margin-bottom:0}
@@ -93,9 +91,6 @@
   .dock-cat-btn{min-height:40px;padding:4px 2px;font-size:.55rem;gap:1px}
   .dock-cat-btn .dock-icon,.dock-cat-btn .dock-icon svg{width:18px;height:18px}
 
-  /* ---- Header (split view only on desktop) ---- */
-  .header-actions{display:none}
-
   /* ---- Layout (mirror mobile column + pill sidebar) ---- */
   .quiz-layout{display:flex;flex-direction:column;max-width:100%;min-width:0;gap:4px}
   .quiz-layout>.setup-summary,.quiz-layout>.subview-tabs,.quiz-layout>.mobile-setup-first{order:-1}
@@ -149,8 +144,6 @@
 /* Extra-short landscape (iPhone SE class) */
 @media (orientation: landscape) and (max-height: 380px) {
   :root{--dock-h:calc(42px + env(safe-area-inset-bottom,0px))}
-  header{padding-top:2px;padding-bottom:2px}
-  .wordmark{font-size:.78rem;letter-spacing:1px}
   main{padding:6px max(12px,env(safe-area-inset-right,0px)) calc(var(--dock-h) + 8px) max(12px,env(safe-area-inset-left,0px))}
   .section-head h2{font-size:1rem}
   .dock-cat-btn{min-height:36px;padding:3px 1px;font-size:.5rem}

@@ -986,10 +986,14 @@ function openSplitMenu() {
   }
   buildSplitMenu();
   const trigger = document.getElementById('split-trigger');
-  const r = trigger.getBoundingClientRect();
-  splitMenuEl.style.top = (r.bottom + 6) + 'px';
-  splitMenuEl.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  if (!trigger) return;
+  // The trigger sits at the foot of the left rail, so the menu opens beside it.
   splitMenuEl.classList.add('open');
+  const r = trigger.getBoundingClientRect();
+  splitMenuEl.style.right = 'auto';
+  splitMenuEl.style.left = (r.right + 8) + 'px';
+  const maxTop = window.innerHeight - splitMenuEl.offsetHeight - 8;
+  splitMenuEl.style.top = Math.max(8, Math.min(r.top - 8, maxTop)) + 'px';
 }
 function closeSplitMenu() { if (splitMenuEl) splitMenuEl.classList.remove('open'); }
 
@@ -1227,13 +1231,6 @@ async function init() {
       showSection('reference');
     }
   });
-
-  const wordmark = document.getElementById('wordmark-home');
-  if (wordmark) {
-    wordmark.title = 'Reference';
-    wordmark.onclick = () => showSection('reference');
-    wordmark.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showSection('reference'); } };
-  }
 
   const bootRoute = parseAppRoute(bootHash);
   if (isValidSection(bootRoute.id)) {

@@ -1,5 +1,5 @@
 .route-notice{
-  position:fixed;top:var(--shell-bar-h);left:50%;transform:translateX(-50%);
+  position:fixed;top:var(--shell-top-inset);left:50%;transform:translateX(-50%);
   z-index:195;width:min(var(--content-max,1100px),calc(100vw - 24px));
   display:flex;align-items:flex-start;gap:12px;padding:12px 14px;
   background:var(--card);color:var(--text);border:1px solid var(--border);

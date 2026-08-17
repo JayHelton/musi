@@ -389,17 +389,6 @@
 }
 
 @media (max-width: 768px) {
-  header .wordmark {
-    font-size: 1rem;
-    opacity: 0.55;
-  }
-  body.tool-screen header .wordmark {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
   body.tool-screen .section-head h2 {
     font-size: 1.15rem;
   }

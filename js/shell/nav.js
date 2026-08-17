@@ -4,6 +4,8 @@ import { CATEGORY_ICONS, TOOL_ICONS, getTool } from '../tools.js';
 
 const MORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>';
 
+const SPLIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>';
+
 const RAIL_ITEMS = [
   { id: 'reference', label: 'Reference', icon: CATEGORY_ICONS.reference, section: 'reference' },
   { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'library' },
@@ -99,6 +101,17 @@ function buildRail() {
     btn.onclick = wireNavAction(item);
     rail.appendChild(btn);
   });
+
+  // The split-view control lives at the foot of the rail. js/main.js wires the
+  // click and controls the visibility.
+  const split = document.createElement('button');
+  split.type = 'button';
+  split.id = 'split-trigger';
+  split.className = 'rail-icon-btn split-trigger';
+  split.setAttribute('aria-label', 'Split view');
+  split.title = 'Split view';
+  split.innerHTML = SPLIT_ICON;
+  rail.appendChild(split);
 
   return rail;
 }

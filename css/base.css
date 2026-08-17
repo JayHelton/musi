@@ -20,11 +20,6 @@ body{font-family:'Pixelify Sans','VT323',monospace;background:var(--bg);color:va
 ::-webkit-scrollbar-thumb{background:var(--accent);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:var(--accent-glow)}
 
-/* Slim top bar (branding only) */
-header{background:transparent;padding:10px 20px;display:flex;align-items:center;gap:12px;position:relative;z-index:140}
-.wordmark{font-size:1.3rem;white-space:nowrap;font-weight:400;letter-spacing:4px;text-transform:lowercase;color:var(--accent);transition:text-shadow 0.3s ease}
-.wordmark:hover{text-shadow:0 0 20px var(--accent-glow)}
-
 /* Legacy tab class hidden (nav is now dock) */
 .tab{display:none}
 
@@ -138,7 +133,6 @@ select:focus,input[type=text]:focus,input[type=number]:focus{outline:none;border
   main{max-width:100%;overflow-x:clip}
   .section{max-width:100%;min-width:0}
   .quiz-layout{flex-direction:column;max-width:100%;min-width:0}
-  header{padding:8px 14px}
   .quiz-main{order:1;max-width:100%;min-width:0}
   .sidebar{order:2}
   .section-head{margin-bottom:8px}
@@ -167,8 +161,6 @@ select:focus,input[type=text]:focus,input[type=number]:focus{outline:none;border
 }
 @media(max-width:480px){
   :root{--content-pad:10px}
-  header{padding:8px 12px}
-  .wordmark{font-size:1rem;letter-spacing:3px}
   main{padding:10px 10px calc(var(--dock-h) + 14px)}
   .section-head{padding:0 2px}
   .section-kicker{font-size:.62rem}

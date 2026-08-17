@@ -1,7 +1,7 @@
 /* Navigation chrome for js/shell/nav.js. Does not replace ux-shell.css primitives. */
 
 body.app-shell {
-  --shell-bar-h: calc(52px + env(safe-area-inset-top, 0px));
+  --shell-top-inset: calc(16px + env(safe-area-inset-top, 0px));
   --shell-rail-w: 88px;
 }
 
@@ -9,37 +9,9 @@ body.app-shell #nav.dock {
   display: none !important;
 }
 
-.app-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: var(--shell-bar-h);
-  padding: max(8px, env(safe-area-inset-top, 0px)) 16px 8px;
-  background: linear-gradient(180deg, rgba(26, 10, 46, 0.82), rgba(11, 16, 32, 0.92));
-  border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
-}
-
-.app-bar .wordmark {
-  font-family: var(--font-pixel);
-  font-size: 0.82rem;
-  letter-spacing: 2px;
-  text-transform: lowercase;
-  color: var(--accent);
-  text-shadow: 0 0 16px var(--accent-glow);
-}
-
 .app-rail {
   position: fixed;
-  top: var(--shell-bar-h);
+  top: var(--shell-top-inset);
   left: 0;
   bottom: 0;
   z-index: 180;
@@ -53,6 +25,11 @@ body.app-shell #nav.dock {
   border-right: 1px solid var(--border);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+.app-rail .split-trigger {
+  margin-top: auto;
+  align-self: center;
 }
 
 .app-rail-item {
@@ -179,12 +156,12 @@ body.app-shell #nav.dock {
 }
 
 body.app-shell .app-main {
-  padding-top: var(--shell-bar-h);
+  padding-top: var(--shell-top-inset);
 }
 
 body.app-shell.route-notice-on .app-main,
 body.app-shell.route-notice-on main.app-main {
-  padding-top: calc(var(--shell-bar-h) + var(--route-notice-h, 64px) + 10px);
+  padding-top: calc(var(--shell-top-inset) + var(--route-notice-h, 64px) + 10px);
 }
 
 body.app-shell main.app-main,
@@ -219,18 +196,6 @@ body.app-shell .app-main {
   body.app-shell .app-main,
   body.app-shell main.app-main {
     padding-bottom: calc(var(--dock-h) + 18px);
-  }
-}
-
-@media (max-width: 480px) {
-  .app-bar {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-
-  .app-bar .wordmark {
-    font-size: 0.72rem;
-    letter-spacing: 1px;
   }
 }
 
