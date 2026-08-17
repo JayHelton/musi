@@ -267,6 +267,25 @@ body.wb-cmp-drawer-open{overflow:hidden}
 .wb-picker-count{font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .wb-picker-foot .btn.primary:disabled{opacity:.5;pointer-events:none}
 
+/* ---- Notes sheet: description text for one workbook ---- */
+.wb-notes-editor{display:flex;flex-direction:column;gap:10px;min-height:0}
+.wb-notes-help{margin:0;font-size:.78rem;color:var(--muted);line-height:1.45}
+.wb-notes-input{
+  min-height:180px;max-height:min(48vh,420px);resize:vertical;
+  font-size:.92rem;line-height:1.5;font-family:var(--font-body,inherit)
+}
+.wb-notes-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap
+}
+.wb-notes-count{font-size:.76rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.wb-notes-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* A workbook with notes marks its Notes button with a dot. */
+.wb-detail-notes-btn.has-notes::after{
+  content:"";display:inline-block;width:6px;height:6px;margin-left:6px;
+  border-radius:50%;background:var(--accent);vertical-align:middle
+}
+
 /* ---- Practice mode: hide library chrome ---- */
 #sec-workbooks.wb-practicing .section-head,
 #sec-workbooks.wb-practicing .library-tabs,

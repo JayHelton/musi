@@ -689,7 +689,8 @@ function normalizeExportWorkbook(raw) {
         })
         .filter(Boolean)
     : [];
-  return { id, name, entries, companions: normalizeCompanions(raw.companions) };
+  const notes = clampText(typeof raw.notes === 'string' ? raw.notes : '', NOTES_LIMIT);
+  return { id, name, notes, entries, companions: normalizeCompanions(raw.companions) };
 }
 
 export function buildRoutineExport({ routineIds, resolveWorkbook } = {}) {
@@ -823,6 +824,7 @@ export function applyRoutineImport(raw, { existingWorkbooks = [], createWorkbook
       const exerciseIds = wb.entries.map(e => e.exerciseId);
       const newId = createWorkbook({
         name: wb.name,
+        notes: wb.notes,
         exerciseIds,
         companions: wb.companions,
       });

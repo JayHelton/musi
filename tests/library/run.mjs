@@ -130,6 +130,16 @@ test('filterEntries matches part of a name and ignores case', () => {
   assert.deepEqual(filterEntries(rows, '  ').map(r => r.id), ['a', 'b', 'c']);
 });
 
+test('filterEntries also matches the note line', () => {
+  const rows = [
+    item('a', 'Monday', { note: 'Blues in A' }),
+    item('b', 'Tuesday', { note: 'Sweep picking' }),
+    item('c', 'Wednesday'),
+  ];
+  assert.deepEqual(filterEntries(rows, 'blues').map(r => r.id), ['a']);
+  assert.deepEqual(filterEntries(rows, 'day').map(r => r.id), ['a', 'b', 'c']);
+});
+
 // --- breadcrumbs ------------------------------------------------------------
 
 test('buildCrumbs starts at the root and ends at the open folder', () => {

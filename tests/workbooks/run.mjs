@@ -25,6 +25,9 @@ import {
   deleteWorkbooksNotAttached,
   setWorkbookFolder,
   setWorkbookLoop,
+  setWorkbookNotes,
+  workbookNotesPreview,
+  WORKBOOK_NOTES_LIMIT,
   addExercisesToWorkbook,
   removeWorkbookEntry,
   moveWorkbookEntry,
@@ -260,6 +263,87 @@ test('setWorkbookLoop round-trip', () => {
   assert.equal(getWorkbook(wb.id).loopEnabled, false);
   assert.ok(setWorkbookLoop(wb.id, true));
   assert.equal(getWorkbook(wb.id).loopEnabled, true);
+});
+
+test('workbook notes default to an empty string', () => {
+  const wb = createWorkbook({ name: 'No Notes' });
+  assert.equal(wb.notes, '');
+  assert.equal(getWorkbook(wb.id).notes, '');
+});
+
+test('createWorkbook keeps the notes it gets', () => {
+  const wb = createWorkbook({ name: 'With Notes', notes: 'Warm-up before the gig.' });
+  assert.equal(getWorkbook(wb.id).notes, 'Warm-up before the gig.');
+});
+
+test('setWorkbookNotes stores, trims, and clears the text', () => {
+  const wb = createWorkbook({ name: 'Notes Edit' });
+  assert.ok(setWorkbookNotes(wb.id, '  Play at 60 BPM.\nAdd 5 BPM each day.  '));
+  assert.equal(getWorkbook(wb.id).notes, 'Play at 60 BPM.\nAdd 5 BPM each day.');
+  assert.ok(setWorkbookNotes(wb.id, '   '));
+  assert.equal(getWorkbook(wb.id).notes, '');
+  assert.equal(setWorkbookNotes('wb-missing', 'text'), false);
+});
+
+test('setWorkbookNotes clamps text at the limit', () => {
+  const wb = createWorkbook({ name: 'Long Notes' });
+  setWorkbookNotes(wb.id, 'x'.repeat(WORKBOOK_NOTES_LIMIT + 500));
+  assert.equal(getWorkbook(wb.id).notes.length, WORKBOOK_NOTES_LIMIT);
+});
+
+test('setWorkbookNotes bumps updatedAt only on a real change', () => {
+  withWorkbooksStorage(null, () => {
+    const wb = createWorkbook({ name: 'Touch Notes' });
+    const before = getWorkbook(wb.id).updatedAt;
+    setWorkbookNotes(wb.id, 'Same text');
+    const afterChange = getWorkbook(wb.id).updatedAt;
+    assert.ok(afterChange >= before);
+    setWorkbookNotes(wb.id, 'Same text');
+    assert.equal(getWorkbook(wb.id).updatedAt, afterChange);
+  });
+});
+
+test('normalizeWorkbook keeps notes and drops a value that is not a string', () => {
+  const kept = normalizeWorkbook({
+    id: 'wb-notes',
+    name: 'Notes',
+    folderId: '',
+    notes: 'Two bars, then stop.',
+    entries: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+  assert.equal(kept.notes, 'Two bars, then stop.');
+
+  const legacy = normalizeWorkbook({
+    id: 'wb-legacy-notes',
+    name: 'Legacy',
+    folderId: '',
+    notes: { text: 'nope' },
+    entries: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+  assert.equal(legacy.notes, '');
+});
+
+test('workbook notes survive a save and a reload', () => {
+  withWorkbooksStorage(null, () => {
+    const wb = createWorkbook({ name: 'Reload Notes' });
+    setWorkbookNotes(wb.id, 'Keep this text.');
+    invalidateWorkbooksCache();
+    assert.equal(getWorkbook(wb.id).notes, 'Keep this text.');
+  });
+});
+
+test('workbookNotesPreview uses the first line with text', () => {
+  assert.equal(workbookNotesPreview('\n\n  Blues in A  \nSecond line'), 'Blues in A');
+  assert.equal(workbookNotesPreview('Two   spaces\there'), 'Two spaces here');
+  assert.equal(workbookNotesPreview(''), '');
+  assert.equal(workbookNotesPreview(null), '');
+  const long = workbookNotesPreview('y'.repeat(200), 20);
+  assert.equal(long.length, 20);
+  assert.ok(long.endsWith('…'));
 });
 
 test('pruneMissingExercises drops absent exercises only', () => {

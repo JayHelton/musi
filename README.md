@@ -89,6 +89,10 @@ Musi is built around five practice modes:
   and metronome. The workbook stores each tool's settings. The metronome stores a
   BPM progression, so the player presses Start instead of building a tempo plan
   again in each session.
+- **Workbook notes** - a workbook keeps free text that describes it. Open the
+  workbook and press `Notes`, or use `Add notes` in the row menu of the library.
+  The first line of the notes shows under the workbook name in the library, and
+  the library search finds a workbook by its notes.
 - **Library** - Exercises and Workbooks stay separate, but both use the same
   file browser. It works like Google Drive: a folder tree on the left, a
   breadcrumb on top, one folder level at a time, folders above items, sortable

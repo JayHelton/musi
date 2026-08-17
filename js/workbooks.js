@@ -37,6 +37,9 @@ import {
   deleteWorkbook,
   setWorkbookFolder,
   setWorkbookLoop,
+  setWorkbookNotes,
+  workbookNotesPreview,
+  WORKBOOK_NOTES_LIMIT,
   addExercisesToWorkbook,
   removeWorkbookEntry,
   moveWorkbookEntry,
@@ -1096,6 +1099,74 @@ function openSheet(title, contentNode, { onClose } = {}) {
   return { close: finish };
 }
 
+// --- workbook notes ----------------------------------------------------------
+
+/**
+ * Opens the notes sheet for one workbook. The user reads and edits the notes
+ * here. Save keeps the text; Cancel discards the edit.
+ */
+function openWorkbookNotesEditor(workbookId, { onSaved } = {}) {
+  const wb = getWorkbook(workbookId);
+  if (!wb) return;
+
+  const editor = el('div', { class: 'wb-notes-editor' });
+  editor.appendChild(el('p', {
+    class: 'wb-notes-help',
+    text: 'Describe this workbook. The first line shows under the name in your library.',
+  }));
+
+  const textarea = el('textarea', {
+    class: 'modal-input wb-notes-input',
+    rows: '8',
+    maxlength: String(WORKBOOK_NOTES_LIMIT),
+    placeholder: 'What is this workbook for?…',
+    'aria-label': 'Workbook notes',
+  });
+  textarea.value = wb.notes || '';
+  editor.appendChild(textarea);
+
+  const foot = el('div', { class: 'wb-notes-foot' });
+  const count = el('span', { class: 'wb-notes-count', 'aria-live': 'polite' });
+  const actions = el('div', { class: 'wb-notes-actions' });
+  foot.appendChild(count);
+  foot.appendChild(actions);
+  editor.appendChild(foot);
+
+  function syncCount() {
+    const used = textarea.value.length;
+    count.textContent = `${used} / ${WORKBOOK_NOTES_LIMIT} characters`;
+  }
+
+  function save() {
+    const text = textarea.value;
+    setWorkbookNotes(wb.id, text);
+    sheet.close();
+    render();
+    setStatus(text.trim() ? 'Notes saved.' : 'Notes cleared.');
+    if (typeof onSaved === 'function') onSaved();
+  }
+
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Cancel', onClick: () => sheet.close(),
+  }));
+  actions.appendChild(el('button', {
+    class: 'btn primary', type: 'button', text: 'Save', onClick: save,
+  }));
+
+  textarea.addEventListener('input', syncCount);
+  // Enter makes a new line, so Ctrl+Enter and Cmd+Enter save the notes.
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      save();
+    }
+  });
+  syncCount();
+
+  const sheet = openSheet(`Notes — ${wb.name}`, editor);
+  setTimeout(() => textarea.focus(), 40);
+}
+
 // --- detail player -----------------------------------------------------------
 
 function mountNonAdvanceCard(item, host) {
@@ -1902,6 +1973,18 @@ function renderDetailActions(wb) {
   addBtn.appendChild(document.createTextNode('+ Add'));
   addBtn.appendChild(el('span', { class: 'wb-label-tail', text: ' exercises' }));
   detailActionsEl.appendChild(addBtn);
+
+  const notesPreview = workbookNotesPreview(wb.notes, 200);
+  const notesBtn = el('button', {
+    class: 'btn sm wb-detail-notes-btn' + (notesPreview ? ' has-notes' : ''),
+    type: 'button',
+    title: notesPreview || 'Add notes to this workbook',
+    'aria-label': notesPreview ? 'Edit workbook notes' : 'Add workbook notes',
+    onClick: () => openWorkbookNotesEditor(wb.id),
+  });
+  notesBtn.appendChild(document.createTextNode('Notes'));
+  detailActionsEl.appendChild(notesBtn);
+
   detailActionsEl.appendChild(el('button', {
     class: 'btn sm wb-detail-rename-btn', type: 'button', text: 'Rename',
     title: 'Rename workbook',
@@ -2088,6 +2171,7 @@ function describeWorkbookRow(wb) {
   return {
     id: wb.id,
     name: wb.name,
+    note: workbookNotesPreview(wb.notes),
     typeLabel: 'Workbook',
     // The third column counts exercises here, so a sort on it is useful.
     size: entryCount,
@@ -2099,6 +2183,9 @@ function describeWorkbookRow(wb) {
 
 function workbookRowMenuExtras(wb) {
   return [{
+    label: (wb.notes || '').trim() ? 'Edit notes' : 'Add notes',
+    onClick: () => openWorkbookNotesEditor(wb.id),
+  }, {
     label: wb.loopEnabled ? 'Turn loop off' : 'Turn loop on',
     onClick: () => {
       setWorkbookLoop(wb.id, !wb.loopEnabled);
@@ -2212,7 +2299,11 @@ function renderDetail() {
 
   detailPaneEl.hidden = false;
   if (workspaceEl) workspaceEl.classList.add('is-open');
-  if (detailTitleEl) detailTitleEl.textContent = wb.name;
+  if (detailTitleEl) {
+    detailTitleEl.textContent = wb.name;
+    const notesPreview = workbookNotesPreview(wb.notes, 200);
+    detailTitleEl.title = notesPreview ? `${wb.name} — ${notesPreview}` : wb.name;
+  }
   renderDetailActions(wb);
 
   const needsShell = detailRenderedWorkbookId !== wb.id || !detailBodyEl.querySelector('.wb-player');

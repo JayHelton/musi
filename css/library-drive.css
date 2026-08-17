@@ -271,6 +271,12 @@
   min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:.95rem;
 }
+/* A row with a note stacks the name over one line of the note text. */
+.drv-row-text{min-width:0;display:flex;flex-direction:column;gap:1px}
+.drv-row-note{
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--font-ui,inherit);font-size:.76rem;color:var(--muted);
+}
 .drv-row-badge{
   flex:0 0 auto;padding:1px 8px;border-radius:8px;
   background:var(--accent);color:var(--on-accent);

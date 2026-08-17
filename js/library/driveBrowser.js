@@ -325,6 +325,8 @@ export function createDriveBrowser(config) {
           kind: 'item',
           id: view.id,
           name: view.name || '',
+          // One optional line of user text under the name. Workbook notes use it.
+          note: view.note || '',
           typeLabel: view.typeLabel || '',
           size: typeof view.size === 'number' ? view.size : null,
           sizeText: view.sizeText || '',
@@ -1041,7 +1043,15 @@ export function createDriveBrowser(config) {
       'aria-hidden': 'true',
       html: entry.kind === 'folder' ? ICONS.folder : (entry.iconHtml || ICONS.folder),
     }));
-    name.appendChild(el('span', { class: 'drv-row-name', text: entry.name, title: entry.name }));
+    if (entry.note) {
+      // The note goes under the name, so the name keeps its full width.
+      const text = el('div', { class: 'drv-row-text' });
+      text.appendChild(el('span', { class: 'drv-row-name', text: entry.name, title: entry.name }));
+      text.appendChild(el('span', { class: 'drv-row-note', text: entry.note, title: entry.note }));
+      name.appendChild(text);
+    } else {
+      name.appendChild(el('span', { class: 'drv-row-name', text: entry.name, title: entry.name }));
+    }
     if (entry.isOpen) name.appendChild(el('span', { class: 'drv-row-badge', text: 'Open' }));
     row.appendChild(name);
 
@@ -1089,6 +1099,12 @@ export function createDriveBrowser(config) {
       text.appendChild(el('span', {
         class: 'drv-tile-sub',
         text: formatCount(entry.count) || 'Empty',
+      }));
+    } else if (entry.note) {
+      text.appendChild(el('span', {
+        class: 'drv-tile-sub',
+        text: entry.note,
+        title: entry.note,
       }));
     }
     head.appendChild(text);

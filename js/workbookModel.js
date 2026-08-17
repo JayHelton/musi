@@ -29,6 +29,9 @@ export const WORKBOOKS_STORAGE_KEY = 'musi.workbooks';
 
 const NAME_LIMIT = 120;
 const FOLDER_LIMIT = 40;
+// Free text that tells the user what the workbook is for. The limit matches the
+// routine session notes limit.
+export const WORKBOOK_NOTES_LIMIT = 20000;
 
 // --- storage helpers (defensive) -------------------------------------------
 
@@ -114,6 +117,7 @@ export function normalizeWorkbook(raw) {
       NAME_LIMIT,
     ),
     folderId: typeof raw.folderId === 'string' ? raw.folderId : '',
+    notes: clampText(typeof raw.notes === 'string' ? raw.notes : '', WORKBOOK_NOTES_LIMIT),
     entries,
     companions: normalizeCompanions(raw.companions),
     loopEnabled: raw.loopEnabled == null ? true : !!raw.loopEnabled,
@@ -186,6 +190,7 @@ function copyWorkbook(wb) {
     id: wb.id,
     name: wb.name,
     folderId: wb.folderId,
+    notes: wb.notes || '',
     entries: wb.entries.map(copyEntry),
     companions: (wb.companions || []).map(copyCompanion),
     loopEnabled: wb.loopEnabled,
@@ -361,13 +366,14 @@ export function getWorkbook(id) {
   return wb ? copyWorkbook(wb) : null;
 }
 
-export function createWorkbook({ name, folderId, exerciseIds, companions } = {}) {
+export function createWorkbook({ name, folderId, notes, exerciseIds, companions } = {}) {
   const store = getStore();
   const t = nowISO();
   const wb = normalizeWorkbook({
     id: uid('wb'),
     name: (name || '').trim() || 'Workbook',
     folderId: resolveFolderId(folderId),
+    notes: typeof notes === 'string' ? notes : '',
     entries: [],
     companions: companions == null ? [] : companions,
     loopEnabled: true,
@@ -394,6 +400,37 @@ export function renameWorkbook(id, name) {
   touchUpdated(wb);
   persist();
   return true;
+}
+
+/**
+ * Replaces the workbook notes. An empty string clears the notes. The model
+ * keeps the line breaks the user typed, but it removes the blank space at the
+ * two ends of the text.
+ */
+export function setWorkbookNotes(id, notes) {
+  const wb = findWorkbook(id);
+  if (!wb) return false;
+  const clean = clampText(typeof notes === 'string' ? notes.trim() : '', WORKBOOK_NOTES_LIMIT);
+  if (clean === wb.notes) return true;
+  wb.notes = clean;
+  touchUpdated(wb);
+  persist();
+  return true;
+}
+
+/**
+ * One short line from the notes, for a list row. It uses the first line with
+ * text in it and cuts the line at the limit.
+ */
+export function workbookNotesPreview(notes, limit = 140) {
+  if (typeof notes !== 'string') return '';
+  const line = notes
+    .split('\n')
+    .map(part => part.trim())
+    .find(part => part.length > 0) || '';
+  const flat = line.replace(/\s+/g, ' ');
+  if (flat.length <= limit) return flat;
+  return `${flat.slice(0, Math.max(0, limit - 1)).trimEnd()}…`;
 }
 
 export function deleteWorkbook(id) {

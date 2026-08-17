@@ -88,12 +88,19 @@ export function sortEntries(entries, sort) {
   return list;
 }
 
-/** Case-insensitive name filter. An empty query keeps every entry. */
+/**
+ * Case-insensitive filter on the name and on the note line, if the entry has
+ * one. An empty query keeps every entry.
+ */
 export function filterEntries(entries, query) {
   const list = Array.isArray(entries) ? entries : [];
   const needle = typeof query === 'string' ? query.trim().toLowerCase() : '';
   if (!needle) return list.slice();
-  return list.filter((entry) => String(entry?.name || '').toLowerCase().includes(needle));
+  return list.filter((entry) => {
+    const name = String(entry?.name || '').toLowerCase();
+    if (name.includes(needle)) return true;
+    return String(entry?.note || '').toLowerCase().includes(needle);
+  });
 }
 
 /**

@@ -180,6 +180,11 @@
           "maxLength": 120,
           "description": "Workbook display name."
         },
+        "notes": {
+          "type": "string",
+          "maxLength": 20000,
+          "description": "Optional workbook notes. Files from older versions do not have this property."
+        },
         "entries": {
           "type": "array",
           "items": { "$ref": "#/$defs/exportWorkbookEntry" },
