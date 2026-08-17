@@ -1,28 +1,34 @@
-import { openSelectionSheet } from '../selectionSheet.js';
 import { getSetting } from '../persistence.js';
 import { CATEGORY_ICONS, TOOL_ICONS, getTool } from '../tools.js';
 
-const MORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>';
-
 const SPLIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>';
 
-const RAIL_ITEMS = [
+// A wrench. CATEGORY_ICONS.tools is a keyboard, so the bar uses its own icon.
+const TOOLS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3.5a5.5 5.5 0 0 0-5 7.7L3.7 18a2.1 2.1 0 0 0 3 3l6.8-6.8a5.5 5.5 0 0 0 6.6-7.6l-3 3-2.7-2.7 3-3a5.5 5.5 0 0 0-1.9-.4z"/></svg>';
+
+const NAV_ITEMS = [
   { id: 'reference', label: 'Reference', icon: CATEGORY_ICONS.reference, section: 'reference' },
   { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'library' },
   { id: 'create', label: 'Create', icon: CATEGORY_ICONS.create, section: 'create' },
-  { id: 'more', label: 'More', icon: MORE_ICON, section: 'more' },
+  { id: 'tools', label: 'Tools', icon: TOOLS_ICON, section: 'tools' },
 ];
 
-const BOTTOM_ITEMS = [
-  { id: 'reference', label: 'Reference', icon: CATEGORY_ICONS.reference, section: 'reference' },
-  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'library' },
-  { id: 'create', label: 'Create', icon: CATEGORY_ICONS.create, section: 'create' },
-  { id: 'more', label: 'More', icon: MORE_ICON, section: 'more' },
-];
+// The gear shows on the browse pages only. A tool page keeps its own header
+// controls in that corner.
+const SETTINGS_GEAR_SECTIONS = new Set([
+  'tools',
+  'hub-reference',
+  'hub-create',
+  'reference',
+  'create',
+  'exercises',
+  'workbooks',
+]);
 
 let showSectionFn = null;
 let railEl = null;
 let bottomEl = null;
+let settingsEl = null;
 
 function navHighlightId(sectionId) {
   if (!sectionId) return null;
@@ -36,36 +42,13 @@ function navHighlightId(sectionId) {
     if (tool.category === 'create') return 'create';
   }
 
-  if (
-    sectionId === 'tools'
-    || sectionId === 'musicprefs'
-  ) {
-    return 'more';
-  }
+  // Settings has its own gear in the page head. It highlights no bar item.
+  if (sectionId === 'musicprefs') return null;
 
-  if (tool) return 'more';
+  if (sectionId === 'tools') return 'tools';
+
+  if (tool) return 'tools';
   return null;
-}
-
-function openMoreSheet() {
-  openSelectionSheet({
-    title: '',
-    ariaLabel: 'More',
-    items: [
-      { id: 'tools', label: 'Practice tools' },
-      // SIMPLIFY: Routines hidden. Keep this row to restore later.
-      // { id: 'routines', label: 'Routines' },
-      { id: 'settings', label: 'Settings' },
-    ],
-    search: false,
-    onSelect: (id) => {
-      if (!showSectionFn) return;
-      if (id === 'tools') showSectionFn('tools');
-      // SIMPLIFY: Routines hidden. Keep this branch to restore later.
-      // else if (id === 'routines') showSectionFn('routines');
-      else if (id === 'settings') showSectionFn('musicprefs');
-    },
-  });
 }
 
 function openLibraryNav() {
@@ -76,9 +59,6 @@ function openLibraryNav() {
 }
 
 function wireNavAction(item) {
-  if (item.section === 'more') {
-    return () => openMoreSheet();
-  }
   if (item.section === 'library') {
     return () => openLibraryNav();
   }
@@ -92,7 +72,7 @@ function buildRail() {
   rail.className = 'app-rail';
   rail.setAttribute('aria-label', 'Primary');
 
-  RAIL_ITEMS.forEach(item => {
+  NAV_ITEMS.forEach(item => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'app-rail-item';
@@ -121,7 +101,7 @@ function buildBottom() {
   bar.className = 'app-bottom';
   bar.setAttribute('aria-label', 'Primary');
 
-  BOTTOM_ITEMS.forEach(item => {
+  NAV_ITEMS.forEach(item => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'app-bottom-item';
@@ -134,8 +114,33 @@ function buildBottom() {
   return bar;
 }
 
+// The gear sits at the top right of the content column, in line with the
+// category heading. A click opens Settings.
+function buildSettingsGear() {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'settings-trigger';
+  btn.className = 'shell-settings-btn';
+  btn.setAttribute('aria-label', 'Settings');
+  btn.title = 'Settings';
+  btn.innerHTML = TOOL_ICONS.musicprefs;
+  btn.onclick = () => {
+    if (showSectionFn) showSectionFn('musicprefs');
+  };
+  return btn;
+}
+
+function syncSettingsGear(sectionId) {
+  if (!settingsEl) return;
+  const show = SETTINGS_GEAR_SECTIONS.has(sectionId);
+  settingsEl.hidden = !show;
+  // The body class keeps the heading clear of the gear.
+  document.body.classList.toggle('shell-gear-on', show);
+}
+
 export function setActiveNav(sectionId) {
   const active = navHighlightId(sectionId);
+  syncSettingsGear(sectionId);
 
   if (railEl) {
     railEl.querySelectorAll('.app-rail-item').forEach(el => {
@@ -166,6 +171,14 @@ export function initShellNav({ showSection, currentId } = {}) {
   if (!bottomEl) {
     bottomEl = buildBottom();
     document.body.appendChild(bottomEl);
+  }
+
+  if (!settingsEl) {
+    settingsEl = buildSettingsGear();
+    settingsEl.hidden = true;
+    const main = document.querySelector('.app-main');
+    if (main) main.appendChild(settingsEl);
+    else document.body.appendChild(settingsEl);
   }
 
   if (currentId) setActiveNav(currentId);

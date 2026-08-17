@@ -155,6 +155,58 @@ body.app-shell #nav.dock {
   min-width: 0;
 }
 
+/* Settings gear. It sits at the top right of the content column, in line with
+   the category heading. js/shell/nav.js builds it and controls the visibility. */
+.shell-settings-btn {
+  position: absolute;
+  top: var(--shell-top-inset);
+  right: var(--content-pad);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.shell-settings-btn[hidden] {
+  display: none;
+}
+
+.shell-settings-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.shell-settings-btn:hover {
+  color: var(--accent);
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.shell-settings-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+body.app-shell.route-notice-on .shell-settings-btn {
+  top: calc(var(--shell-top-inset) + var(--route-notice-h, 64px) + 10px);
+}
+
+/* Keep the category heading clear of the gear. */
+body.shell-gear-on .section-head,
+body.shell-gear-on .tools-home-kicker,
+body.shell-gear-on .tools-home-title {
+  margin-right: 52px;
+}
+
 body.app-shell .app-main {
   padding-top: var(--shell-top-inset);
 }
