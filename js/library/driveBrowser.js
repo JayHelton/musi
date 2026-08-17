@@ -964,13 +964,16 @@ export function createDriveBrowser(config) {
     node.addEventListener('click', (e) => {
       if (closestIn(e.target, '.drv-kebab')) return;
       trackPointer(e);
-      const plain = !e.ctrlKey && !e.metaKey && !e.shiftKey;
-      applyClickSelection(key, e);
       focusKey = key;
+      // A finger has no modifier keys, so a plain tap opens the row. It must
+      // not select as well, or the selection bar appears with no way to build
+      // on it and no obvious way to dismiss it.
+      const plain = !e.ctrlKey && !e.metaKey && !e.shiftKey;
       if (openOnSingleTap && plain) {
         activateEntry(entry);
         return;
       }
+      applyClickSelection(key, e);
       paintSelection();
       renderSelectionBar();
     });

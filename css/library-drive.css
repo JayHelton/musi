@@ -101,9 +101,13 @@
 
 .drv-main{display:flex;flex-direction:column;gap:10px;min-width:0}
 
-/* The selection bar covers the breadcrumb row instead of pushing it down, so
-   the rows under the pointer never move while the user is clicking. */
-.drv-topbar{position:relative;min-height:44px}
+/* The breadcrumb row and the selection bar share one grid cell, so the
+   selection bar covers the breadcrumb instead of pushing it down: the rows
+   under the pointer never move while the user is clicking. The cell grows to
+   the taller of the two, so neither can spill out on a narrow screen. */
+.drv-topbar{display:grid;min-height:44px}
+.drv-topbar > .drv-head,
+.drv-topbar > .drv-selbar{grid-area:1 / 1}
 
 .drv-head{
   display:flex;
@@ -177,8 +181,7 @@
 /* ── selection bar ───────────────────────────────────────────────────────── */
 
 .drv-selbar{
-  position:absolute;inset:0;
-  display:flex;align-items:center;gap:12px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   padding:4px 12px;
   border:1px solid var(--accent);border-radius:var(--radius-pill,20px);
   background:linear-gradient(90deg,var(--accent-dim),var(--bg2));
@@ -191,7 +194,7 @@
 }
 .drv-sel-close:hover{background:var(--hover)}
 .drv-sel-count{font-size:.9rem;color:var(--text);font-weight:600}
-.drv-sel-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.drv-sel-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
 .drv-sel-del{color:var(--err)}
 
 /* ── content ─────────────────────────────────────────────────────────────── */
@@ -393,11 +396,31 @@
   .drv-nav{position:static;flex-direction:row;align-items:center;gap:10px}
   .drv-tree{display:none}
   .drv-cols{display:none}
-  .drv-row{grid-template-columns:minmax(0,1fr) 34px;min-height:52px}
+  .drv-row{grid-template-columns:minmax(0,1fr) var(--tap-min,44px);min-height:56px}
   .drv-cell-type,.drv-cell-size,.drv-cell-mod{display:none}
-  .drv-kebab{opacity:1}
   .drv-search-input{width:100%}
-  .drv-search{flex:1}
+  .drv-search{flex:1;height:var(--tap-min,44px)}
   .drv-tools{flex:1 1 100%}
   .drv-tiles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+}
+
+/* A finger needs the full tap target, and there is no hover to reveal a
+   control, so the row menu button always shows. */
+@media (pointer:coarse),(max-width:768px){
+  .drv-kebab{
+    width:var(--tap-min,44px);height:var(--tap-min,44px);
+    opacity:1;
+  }
+  .drv-tool-btn{
+    width:var(--tap-min,44px);height:var(--tap-min,44px);
+    flex-basis:var(--tap-min,44px);
+  }
+  .drv-up{
+    width:var(--tap-min,44px);height:var(--tap-min,44px);
+    flex-basis:var(--tap-min,44px);
+  }
+  .drv-crumb{min-height:40px}
+  .drv-tree-row{min-height:var(--tap-min,44px)}
+  .drv-menu-item{min-height:var(--tap-min,44px)}
+  .drv-sel-close{width:var(--tap-min,44px);height:var(--tap-min,44px);flex-basis:var(--tap-min,44px)}
 }
