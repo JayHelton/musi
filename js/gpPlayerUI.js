@@ -293,7 +293,7 @@ export function mountGpPlayer(host, {
   const metroDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-metro-drawer-root' });
   const helpDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-help-drawer-root' });
   const tracksMixerHost = el('div', { class: 'gpp-tracks-drawer-mount' });
-  scorePane.append(scoreBody, drawerRoot, menuDrawerRoot, tracksDrawerRoot, annoDrawerRoot, metroDrawerRoot, helpDrawerRoot);
+  scorePane.append(scoreBody);
 
   const analysisResultsEl = el('div', {
     class: 'gpp-analysis-results ta-results',
@@ -314,7 +314,17 @@ export function mountGpPlayer(host, {
   const stagePane = el('div', { class: 'gpp-stage-pane' });
   const transportHost = el('div', { class: 'gpp-transport-anchor' });
   const practiceRailHost = el('div', { class: 'gpp-practice-rail-host' });
-  scorePane.appendChild(transportHost);
+  // The drawer roots come after the transport anchor. A drawer must paint over
+  // the dock, so it wins on document order as well as on z-index.
+  scorePane.append(
+    transportHost,
+    drawerRoot,
+    menuDrawerRoot,
+    tracksDrawerRoot,
+    annoDrawerRoot,
+    metroDrawerRoot,
+    helpDrawerRoot,
+  );
   stagePane.append(stageContent);
 
   const chrome = el('div', { class: 'gpp-chrome' });
@@ -1465,12 +1475,6 @@ export function mountGpPlayer(host, {
     onStop: () => stopPlayback(),
     onRestart: () => restartPlayback(),
     getPlaying: () => player.playing,
-    getMeasureLabel: () => {
-      const total = state.viewModel?.measures?.length || 0;
-      const cur = player.measureIndex;
-      const m = Math.min(total, (cur || 0) + 1);
-      return total ? `Measure ${m} of ${total}` : '';
-    },
     getTimeLabel: () => `${fmtTime(player.currentSec)} / ${fmtTime(player.durationSec)}`,
     canPrev: () => canPrevMeasure(navMeasureIndex(), stateController.getScope()),
     canNext: () => canNextMeasure(navMeasureIndex(), stateController.getScope()),

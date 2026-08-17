@@ -332,6 +332,32 @@ assert.ok(rowPractice, 'transport dock row two should render');
 assert.ok(rowPractice.contains(practiceRail), 'practice rail should sit in row two');
 assert.ok(!rowPrimary.contains(practiceRail), 'practice rail should not sit in row one');
 
+// ---- the gear stays out of the scrolling part of row one ----
+const us3Scroll = us3Host.querySelector('.gpp-transport-scroll');
+const us3Gear = us3Host.querySelector('.gpp-transport-menu-btn');
+const us3Play = us3Host.querySelector('[aria-label="Play"]');
+assert.ok(us3Scroll, 'row one should hold a scroller for the transport buttons');
+assert.ok(us3Scroll.contains(us3Play), 'the play button scrolls with the transport buttons');
+assert.ok(!us3Scroll.contains(us3Gear), 'the gear stays out of the scroller');
+assert.ok(us3Gear.parentElement === rowPrimary, 'the gear is a direct child of row one');
+assert.ok(
+  [...rowPrimary.children].at(-1) === us3Gear,
+  'the gear sits at the end of row one',
+);
+assert.ok(
+  !us3Host.querySelector('.gpp-transport-measure'),
+  'row one shows no measure readout',
+);
+
+// ---- a drawer paints over the dock, so it comes after it in the score pane ----
+const us3Pane = us3Host.querySelector('.gpp-score-pane');
+const paneKids = [...us3Pane.children];
+const anchorIdx = paneKids.findIndex((c) => (c.className || '').includes('gpp-transport-anchor'));
+const firstDrawerIdx = paneKids.findIndex((c) => (c.className || '').includes('gpp-drawer-root'));
+assert.ok(anchorIdx >= 0, 'the score pane holds the transport anchor');
+assert.ok(firstDrawerIdx >= 0, 'the score pane holds the drawer roots');
+assert.ok(firstDrawerIdx > anchorIdx, 'every drawer root comes after the transport anchor');
+
 const openDrawer = us3Host.querySelector('.gpp-drawer.is-open, .gpp-sheet.is-open');
 assert.ok(!openDrawer, 'no panel should be open on mount');
 

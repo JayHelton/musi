@@ -1185,9 +1185,10 @@
   padding: 4px 10px 5px;
   border-radius: 16px;
   border: 1px solid rgba(58, 42, 24, 0.38);
-  background: rgba(255, 252, 240, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* An opaque dock, with no backdrop filter. A backdrop filter makes Safari
+     paint the dock over the drawers and sheets, which hides Practice
+     settings behind the transport buttons. */
+  background: rgb(253, 249, 236);
   box-shadow:
     0 4px 18px rgba(26, 20, 32, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.65);
@@ -1203,9 +1204,48 @@
   flex-wrap: nowrap;
 }
 
-.gpp-transport-dock.has-extra .gpp-transport-primary,
-.gpp-transport-dock.has-extra .gpp-transport-row-primary {
+.gpp-transport-dock.has-extra .gpp-transport-primary {
   flex-wrap: wrap;
+}
+
+/* The transport buttons and the readout scroll sideways when they do not fit.
+   The menu button sits outside this scroller, so the gear keeps one place and
+   the player never scrolls the row to find it. */
+.gpp-transport-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  padding-right: 6px;
+  border-right: 1px solid rgba(58, 42, 24, 0.28);
+}
+.gpp-transport-scroll::-webkit-scrollbar {
+  display: none;
+}
+.gpp-transport-scroll > * {
+  flex: 0 0 auto;
+}
+
+.gpp-transport-time {
+  padding: 0 4px;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.82rem;
+  color: rgba(30, 20, 8, 0.78);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.gpp-transport-menu-btn {
+  flex: 0 0 auto;
+  margin-left: 4px;
 }
 
 .gpp-transport-extra {
@@ -1315,6 +1355,10 @@
   font-family: var(--font-ui);
   font-size: 0.78rem;
   white-space: nowrap;
+}
+/* The chip keeps no width while it is hidden, so the dock row stays short. */
+.gpp-ramp-chip[hidden] {
+  display: none;
 }
 
 .gpp-transport-metro-btn {
@@ -1439,6 +1483,12 @@
 .gpp-drawer-root .gpp-drawer.is-open,
 .gpp-drawer-root .gpp-sheet.is-open {
   pointer-events: auto;
+}
+
+/* An open drawer or sheet owns the screen. The dock drops below it, so the
+   panel cannot appear behind the transport buttons. */
+.gpp-score-pane:has(.gpp-drawer.is-open, .gpp-sheet.is-open) .gpp-transport-anchor {
+  z-index: 1;
 }
 
 .gpp-drawer-backdrop {
@@ -2987,7 +3037,8 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
 
   /* The dock must fit the screen. Row one held nine controls at a fixed
      44 CSS pixel size, which needed more width than a phone has, so the row
-     ran off both edges. The row now scrolls sideways instead. */
+     ran off both edges. The transport buttons now scroll sideways, and the
+     menu button keeps its place at the end of the row. */
   .gpp-transport-dock {
     width: calc(100% - 8px);
     align-items: stretch;
@@ -2997,16 +3048,16 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
     flex-wrap: nowrap;
     justify-content: flex-start;
     max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
   }
-  .gpp-transport-row-primary::-webkit-scrollbar {
+  .gpp-transport-scroll {
+    justify-content: flex-start;
+    gap: 3px;
+  }
+  /* A phone row holds five 44 pixel buttons and the gear. There is no width
+     left for the clock, so row one drops it. The measure strip above the
+     score still shows the position in the score. */
+  .gpp-transport-time {
     display: none;
-  }
-  .gpp-transport-row-primary > * {
-    flex: 0 0 auto;
   }
   /* Row two keeps the practice controls on one line that scrolls, so the
      dock cannot grow tall enough to cover the score. */

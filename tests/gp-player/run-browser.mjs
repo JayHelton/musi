@@ -36,6 +36,7 @@ const PAGES = [
   'score-spacing.html',
   'score-follow.html',
   'score-fixtures-visual.html',
+  'dock-menu-layer.html',
   'audio-owner.html',
 ];
 

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gp-player dock and panel layering</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    /* The player fills the window, the way the app screen holds it. Every
+       probe below reads a point on the screen, so the dock must be in view. */
+    html, body { height: 100%; overflow: hidden; }
+    body { margin: 0; padding: 4px; }
+    #host { height: 100%; }
+    #host .gpp-chrome { height: 100%; max-height: 100%; min-height: 0; }
+    #out {
+      position: fixed;
+      left: -10000px;
+      white-space: pre;
+      font-family: monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Checks two things about the transport dock.
+    // 1. The menu button (the gear) stays out of the scrolling part of row
+    //    one, and it stays inside the dock. The player must not scroll the
+    //    row to find Practice settings.
+    // 2. An open drawer or sheet paints over the dock. Practice settings must
+    //    not appear behind the transport buttons.
+    //
+    // Take a screenshot of this page at a phone size to check row one by eye:
+    //   node tests/gp-player/shot.mjs dock-menu-layer.html /tmp/dock.png
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+
+    const SETTLE_MS = 400;
+
+    function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+    function makeGpResult(barCount) {
+      const strings = [
+        { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+        { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+        { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+        { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+        { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+        { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+      ];
+      const events = [];
+      const measures = [];
+      for (let bar = 0; bar < barCount; bar += 1) {
+        measures.push({
+          startSlot: bar * 4,
+          endSlot: bar * 4 + 4,
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          timeSig: [4, 4],
+        });
+        for (let n = 0; n < 4; n += 1) {
+          const fret = 3 + n;
+          events.push({
+            slot: bar * 4 + n,
+            stringIndex: 5,
+            fret,
+            midi: 40 + fret,
+            pc: (40 + fret) % 12,
+            dead: false,
+            start: bar * 4 + n,
+            duration: 1,
+            techniques: [],
+          });
+        }
+      }
+      return {
+        tempo: 120,
+        tracks: [{
+          index: 0,
+          name: 'Guitar',
+          tuning: 'Standard',
+          noteCount: events.length,
+          model: { tempo: 120, tuning: 'Standard', strings, measures, events, slotsPerBeat: 1 },
+        }],
+        drumTracks: [],
+      };
+    }
+
+    /** Which element paints where the panel and the dock cover the same point? */
+    function paintsOverDock(panelEl, dockRect) {
+      const p = panelEl.getBoundingClientRect();
+      const x1 = Math.max(p.left, dockRect.left);
+      const x2 = Math.min(p.right, dockRect.right);
+      const y1 = Math.max(p.top, dockRect.top);
+      const y2 = Math.min(p.bottom, dockRect.bottom);
+      if (x2 <= x1 || y2 <= y1) return { overlap: false, inPanel: true, hit: '(no overlap)' };
+      const hit = document.elementFromPoint(
+        Math.round((x1 + x2) / 2),
+        Math.round((y1 + y2) / 2),
+      );
+      return {
+        overlap: true,
+        inPanel: !!(hit && panelEl.contains(hit)),
+        hit: hit ? (hit.className || hit.tagName) : 'none',
+      };
+    }
+
+    runMain(async () => {
+      const { mountGpPlayer } = await import('/js/gpPlayerUI.js');
+      const host = document.getElementById('host');
+      const ui = mountGpPlayer(host, {
+        gpResult: makeGpResult(24),
+        title: 'Layer harness',
+        scoreKey: 'harness-dock-menu-layer',
+      });
+      await sleep(SETTLE_MS);
+
+      const rows = [];
+      let pass = true;
+
+      const dock = host.querySelector('.gpp-transport-dock');
+      const row = host.querySelector('.gpp-transport-row-primary');
+      const scroll = host.querySelector('.gpp-transport-scroll');
+      const gear = host.querySelector('.gpp-transport-menu-btn');
+
+      const gearOutOfScroller = !!scroll && !scroll.contains(gear);
+      const gearRect = gear.getBoundingClientRect();
+      const dockRect = dock.getBoundingClientRect();
+      const gearInsideDock = gearRect.right <= dockRect.right + 1
+        && gearRect.left >= dockRect.left - 1;
+      const noMeasureText = !host.querySelector('.gpp-transport-measure');
+
+      rows.push({
+        check: 'gear out of the scroller',
+        value: String(gearOutOfScroller),
+        want: 'true',
+      });
+      rows.push({
+        check: 'gear inside the dock',
+        value: `${Math.round(gearRect.right)} <= ${Math.round(dockRect.right)}`,
+        want: String(gearInsideDock),
+      });
+      rows.push({
+        check: 'row one has no measure text',
+        value: String(noMeasureText),
+        want: 'true',
+      });
+      rows.push({
+        check: 'row one scroll width',
+        value: `${Math.round(row.scrollWidth)} / ${Math.round(row.clientWidth)}`,
+        want: 'row one itself never scrolls',
+      });
+      if (!gearOutOfScroller || !gearInsideDock || !noMeasureText) pass = false;
+      if (row.scrollWidth > row.clientWidth + 1) pass = false;
+
+      // Open the menu from the gear, then Practice settings from the menu.
+      const steps = [
+        { name: 'player menu', open: async () => { gear.click(); } },
+        {
+          name: 'practice settings',
+          open: async () => {
+            const entry = [...host.querySelectorAll('.gpp-menu-row')]
+              .find((r) => r.textContent.includes('Practice settings'));
+            if (!entry) throw new Error('menu has no Practice settings row');
+            entry.click();
+          },
+        },
+      ];
+
+      for (const step of steps) {
+        await step.open();
+        await sleep(SETTLE_MS);
+        const panel = host.querySelector('.gpp-drawer.is-open, .gpp-sheet.is-open');
+        if (!panel) {
+          rows.push({ check: `${step.name} opens`, value: 'false', want: 'true' });
+          pass = false;
+          continue;
+        }
+        const paint = paintsOverDock(panel, dock.getBoundingClientRect());
+        rows.push({
+          check: `${step.name} paints over the dock`,
+          value: paint.hit,
+          want: paint.inPanel ? 'in the panel' : 'IN THE PANEL',
+        });
+        if (!paint.inPanel) pass = false;
+      }
+
+      printTable(rows, [
+        { key: 'check', label: 'check' },
+        { key: 'value', label: 'measured' },
+        { key: 'want', label: 'wanted' },
+      ]);
+      writeln(`viewport ${window.innerWidth}x${window.innerHeight}`);
+      ui.destroy?.();
+      reportResult(pass);
+    });
+  </script>
+</body>
+</html>

@@ -72,11 +72,15 @@ export function mountTransportDock(host, api = {}) {
     html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   });
 
-  const measureEl = el('span', { class: 'gpp-transport-measure', text: '' });
   const timeEl = el('span', { class: 'gpp-transport-time', text: '0:00 / 0:00' });
   const rampChip = el('span', { class: 'gpp-ramp-chip', text: '', hidden: true });
 
-  rowPrimary.append(prevBtn, playBtn, stopBtn, restartBtn, nextBtn, measureEl, timeEl, rampChip, menuBtn);
+  // The transport buttons scroll sideways on a narrow screen. The menu button
+  // stays out of that scroller, so the gear is always in the same place.
+  const controlScroll = el('div', { class: 'gpp-transport-scroll' });
+  controlScroll.append(prevBtn, playBtn, stopBtn, restartBtn, nextBtn, timeEl, rampChip);
+
+  rowPrimary.append(controlScroll, menuBtn);
 
   if (api.practiceRailNode) {
     rowPractice.appendChild(api.practiceRailNode);
@@ -107,7 +111,6 @@ export function mountTransportDock(host, api = {}) {
     playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
     playBtn.title = playing ? 'Pause' : 'Play';
 
-    measureEl.textContent = api.getMeasureLabel?.() || '';
     timeEl.textContent = api.getTimeLabel?.() || '0:00 / 0:00';
 
     const rampTxt = api.getRampStatusLabel?.();
