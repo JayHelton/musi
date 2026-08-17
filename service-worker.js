@@ -86,6 +86,8 @@ const PRECACHE_URLS = [
   "js/tools/home.js",
   "js/library/libraryTabs.js",
   "js/library/libraryPlayerRoute.js",
+  "js/library/driveModel.js",
+  "js/library/driveBrowser.js",
   "js/shell/nav.js",
   "js/shell/navStack.js",
   "js/shell/unsavedGuard.js",
