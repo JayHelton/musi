@@ -896,11 +896,11 @@ function setupMetronome() {
     beatCard.appendChild(details);
   }
 
-  // Reduce quick tempo buttons
+  // Reduce quick tempo buttons — keep the 20 BPM ladder from 80 up to 240
   const presets = sec.querySelector('.metro-preset-row');
   if (presets && !presets.dataset.uxTrimmed) {
     presets.dataset.uxTrimmed = '1';
-    const keep = new Set(['80', '100', '120', '140', '160']);
+    const keep = new Set(['80', '100', '120', '140', '160', '180', '200', '220', '240']);
     const recent = getSetting('metro.recentTempos', [120, 100, 80]);
     [...presets.querySelectorAll('.metro-bpm-preset')].forEach(btn => {
       if (!keep.has(btn.dataset.bpm)) btn.hidden = true;
@@ -921,7 +921,10 @@ function setupMetronome() {
   if (phasesCard && !phasesCard.dataset.uxWired) {
     phasesCard.dataset.uxWired = '1';
     const toggle = document.getElementById('m-phases-toggle');
-    const editorEls = () => [...phasesCard.children].filter(ch => !ch.classList.contains('phases-collapsed-row'));
+    // Starter plans stay visible while collapsed so one click loads a plan.
+    const editorEls = () => [...phasesCard.children].filter(ch => (
+      !ch.classList.contains('phases-collapsed-row') && !ch.classList.contains('m-phases-starters')
+    ));
 
     let row = phasesCard.querySelector('.phases-collapsed-row');
     if (!row) {

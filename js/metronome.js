@@ -508,6 +508,71 @@ function addSubdivisionLadder(secondsPer, bpm) {
   renderPhases();
 }
 
+// Ready-made tempo ramps. One click loads the plan and turns phases on, so a
+// speed-up session needs no manual phase entry.
+const PHASE_PRESETS = [
+  { id: 'ramp-80-180-10', from: 80, to: 180, step: 10, seconds: 30 },
+  { id: 'ramp-80-180-20', from: 80, to: 180, step: 20, seconds: 60 },
+  { id: 'ramp-80-140-10', from: 80, to: 140, step: 10, seconds: 120 },
+];
+
+function buildTempoRamp(from, to, step, seconds, subdiv = 'quarter') {
+  const out = [];
+  const sec = clampPhaseInt(seconds, 1, PHASE_MAX_SECONDS, null);
+  if (sec === null || !(step > 0)) return out;
+  for (let bpm = from; bpm <= to; bpm += step) {
+    const b = clampPhaseInt(bpm, PHASE_MIN_BPM, PHASE_MAX_BPM, null);
+    if (b === null) continue;
+    out.push({ seconds: sec, bpm: b, subdiv: normalizeSubdiv(subdiv) });
+  }
+  return out;
+}
+
+function phasePresetPhases(preset) {
+  return buildTempoRamp(preset.from, preset.to, preset.step, preset.seconds);
+}
+
+function phasePresetLabel(preset) {
+  return `${preset.from}–${preset.to} by ${preset.step}`;
+}
+
+function phasePresetDetail(preset) {
+  const phases = phasePresetPhases(preset);
+  const each = fmtPhaseDuration(preset.seconds);
+  return `${each} each · ${fmtPhaseDuration(preset.seconds * phases.length)} total`;
+}
+
+// True when the loaded phases are exactly this preset, so the button can show
+// which plan is active.
+function phasePresetLoaded(preset) {
+  const wanted = phasePresetPhases(preset);
+  if (wanted.length !== metro.phases.length) return false;
+  return wanted.every((p, i) => {
+    const cur = metro.phases[i];
+    return cur.seconds === p.seconds && cur.bpm === p.bpm && cur.subdiv === p.subdiv;
+  });
+}
+
+function applyPhasePreset(id) {
+  const preset = PHASE_PRESETS.find(p => p.id === id);
+  if (!preset) return;
+  const phases = phasePresetPhases(preset);
+  if (!phases.length) return;
+  metro.phases = phases;
+  metro.phasesEnabled = true;
+  savePhases();
+  saveSetting('metro.phasesEnabled', true);
+  if (metro.playing) {
+    // Re-baseline so the new plan starts from "now".
+    metro._phaseStartTime = 0;
+    metro._phaseIndex = -1;
+    startPhaseStatusTimer();
+  } else {
+    setBpm(phases[0].bpm);
+  }
+  renderPhases();
+}
+
 function removePhase(index) {
   if (index < 0 || index >= metro.phases.length) return;
   metro.phases.splice(index, 1);
@@ -558,6 +623,34 @@ function phaseNowPlayingLabel(bpm = metro.bpm, subdiv = metro.subdiv) {
   return `Metronome \u2014 ${bpm} BPM \u00B7 ${subdivInfo(subdiv).label}`;
 }
 
+function renderPhasePresets() {
+  const wrap = document.getElementById('m-phase-presets');
+  if (!wrap) return;
+  if (!wrap.dataset.built) {
+    wrap.dataset.built = '1';
+    PHASE_PRESETS.forEach(preset => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn sm m-phase-preset';
+      btn.dataset.preset = preset.id;
+      const label = document.createElement('span');
+      label.className = 'm-phase-preset-label';
+      label.textContent = phasePresetLabel(preset);
+      const detail = document.createElement('span');
+      detail.className = 'm-phase-preset-detail';
+      detail.textContent = phasePresetDetail(preset);
+      btn.appendChild(label);
+      btn.appendChild(detail);
+      btn.onclick = () => applyPhasePreset(preset.id);
+      wrap.appendChild(btn);
+    });
+  }
+  PHASE_PRESETS.forEach(preset => {
+    const btn = wrap.querySelector(`[data-preset="${preset.id}"]`);
+    if (btn) btn.classList.toggle('active', phasePresetLoaded(preset));
+  });
+}
+
 function renderPhases() {
   const toggle = document.getElementById('m-phases-toggle');
   if (toggle) toggle.checked = metro.phasesEnabled;
@@ -568,6 +661,7 @@ function renderPhases() {
   }
   const card = document.getElementById('m-phases-card');
   if (card) card.classList.toggle('enabled', metro.phasesEnabled);
+  renderPhasePresets();
 
   const list = document.getElementById('m-phases-list');
   if (list) {
