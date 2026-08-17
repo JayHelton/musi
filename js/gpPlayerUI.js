@@ -47,7 +47,11 @@ import {
   viewModeNeedsAnalysis,
   applyViewModeClasses,
 } from './gpPlayer/viewModes.js';
-import { installGppLayoutMetrics, releaseGpPlayerShell } from './gpPlayer/layoutMetrics.js';
+import {
+  installGppLayoutMetrics,
+  releaseGpPlayerShell,
+  GPP_IMMERSIVE_SELECTOR,
+} from './gpPlayer/layoutMetrics.js';
 import {
   countInBeatCount,
   createTempoRampController,
@@ -157,8 +161,11 @@ export function mountGpPlayer(host, {
 
   host.innerHTML = '';
   host.classList.add('gpp-root');
-  const standaloneSection = host.closest('#sec-gpplayer');
-  if (standaloneSection) standaloneSection.classList.add('gpp-score-loaded');
+  // The screen that owns this mount decides whether a loaded score may take
+  // the whole view. Both the GP Player screen and the Exercises viewer mark
+  // themselves, so a score reads the same on either one.
+  const immersiveSection = host.closest(GPP_IMMERSIVE_SELECTOR);
+  if (immersiveSection) immersiveSection.classList.add('gpp-score-loaded');
   if (disabled) host.classList.add('is-loading');
   host.tabIndex = -1;
 
@@ -1970,8 +1977,8 @@ export function mountGpPlayer(host, {
     syncHeaderVisibility();
     loopController.syncFromState();
     if (viewModeNeedsAnalysis(viewMode)) maybeRunAnalysis({ force: true });
-    if (standaloneSection) {
-      layoutMetrics = installGppLayoutMetrics({ host, chrome, section: standaloneSection });
+    if (immersiveSection) {
+      layoutMetrics = installGppLayoutMetrics({ host, chrome, section: immersiveSection });
     }
     layoutMetrics?.refresh();
     transport?.publishPad?.();
@@ -2080,7 +2087,7 @@ export function mountGpPlayer(host, {
           }
         } catch (e) { console.error(e); }
       } finally {
-        releaseGpPlayerShell({ host, section: standaloneSection });
+        releaseGpPlayerShell({ host, section: immersiveSection });
         host.classList.remove('gpp-reduced-motion');
         host.innerHTML = '';
         host.classList.remove('gpp-root', 'is-loading');

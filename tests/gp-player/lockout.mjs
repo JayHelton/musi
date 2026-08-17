@@ -49,6 +49,7 @@ if (!window.addEventListener) {
 // ---- A: releaseGpPlayerShell clears standalone lock classes ----
 const sectionA = document.createElement('section');
 sectionA.id = 'sec-gpplayer';
+sectionA.setAttribute('data-gpp-immersive', '');
 sectionA.classList.add('gpp-score-loaded');
 
 const hostA = document.createElement('div');
@@ -71,6 +72,7 @@ sectionA.remove();
 // ---- B: workbook host does not clear the standalone section ----
 const sectionB = document.createElement('section');
 sectionB.id = 'sec-gpplayer';
+sectionB.setAttribute('data-gpp-immersive', '');
 sectionB.classList.add('gpp-score-loaded');
 document.body.appendChild(sectionB);
 document.documentElement.classList.add('gpp-player-locked');
@@ -92,6 +94,7 @@ document.documentElement.classList.remove('gpp-player-locked');
 // ---- C: destroy() still releases the shell when player.destroy throws ----
 const sectionC = document.createElement('section');
 sectionC.id = 'sec-gpplayer';
+sectionC.setAttribute('data-gpp-immersive', '');
 
 const hostC = document.createElement('div');
 sectionC.appendChild(hostC);
@@ -113,6 +116,7 @@ sectionC.remove();
 // ---- D: unloadCurrentScore after a leftover lock (mount is null) ----
 const sectionD = document.createElement('section');
 sectionD.id = 'sec-gpplayer';
+sectionD.setAttribute('data-gpp-immersive', '');
 sectionD.classList.add('gpp-score-loaded');
 
 const drop = document.createElement('div');
@@ -148,6 +152,7 @@ sectionD.remove();
 // ---- E: reloadModel error does not kill the mount ----
 const sectionE = document.createElement('section');
 sectionE.id = 'sec-gpplayer';
+sectionE.setAttribute('data-gpp-immersive', '');
 
 const hostE = document.createElement('div');
 sectionE.appendChild(hostE);

@@ -17,6 +17,12 @@ export function installDomShim() {
       const label = sel.match(/^\[aria-label=\"([^\"]+)\"\]$/)?.[1];
       return label ? el.getAttribute?.('aria-label') === label : false;
     }
+    // Bare attribute test, e.g. [data-gpp-immersive]. Without this the name
+    // fell through to the tag comparison and never matched.
+    if (/^\[[a-zA-Z-]+\]$/.test(sel)) {
+      const name = sel.slice(1, -1);
+      return el.getAttribute?.(name) != null;
+    }
     return el.tagName?.toLowerCase() === sel.toLowerCase();
   }
 

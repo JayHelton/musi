@@ -1,8 +1,14 @@
 const GUTTER_PX = 4;
 
+/**
+ * A screen marks itself with data-gpp-immersive when a loaded score may take
+ * the whole view. The GP Player screen and the Exercises viewer both do.
+ */
+export const GPP_IMMERSIVE_SELECTOR = '[data-gpp-immersive]';
+
 export function releaseGpPlayerShell({ host = null, section = null } = {}) {
   const sec = section
-    || (host && typeof host.closest === 'function' ? host.closest('#sec-gpplayer') : null);
+    || (host && typeof host.closest === 'function' ? host.closest(GPP_IMMERSIVE_SELECTOR) : null);
   sec?.classList?.remove('gpp-score-loaded');
   if (sec) {
     const html = typeof document !== 'undefined' ? document.documentElement : null;

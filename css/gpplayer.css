@@ -2324,6 +2324,92 @@
   border-radius: var(--radius-screen, 14px);
 }
 
+/* ── Exercises viewer: a loaded score takes the screen too ───────────────
+   The viewer used to keep the library chrome above the staff, so the score
+   got about half the height it gets on the GP Player screen. These rules
+   give it the same view. They carry the section id, because the base rules
+   in exercises.css carry it too. */
+
+#sec-exercises.gpp-score-loaded {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: var(--avail-h, calc(100dvh - var(--dock-h)));
+  overflow: hidden;
+}
+#sec-exercises.gpp-score-loaded .section-head,
+#sec-exercises.gpp-score-loaded .ex-sidebar,
+#sec-exercises.gpp-score-loaded .ex-toolbar,
+#sec-exercises.gpp-score-loaded .ex-bulk-bar,
+#sec-exercises.gpp-score-loaded .ex-status,
+#sec-exercises.gpp-score-loaded .ex-list-pane {
+  display: none !important;
+}
+#sec-exercises.gpp-score-loaded .ex-layout,
+#sec-exercises.gpp-score-loaded .ex-main,
+#sec-exercises.gpp-score-loaded .ex-workspace {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  gap: 0;
+}
+#sec-exercises.gpp-score-loaded .ex-player-pane {
+  flex: 1;
+  min-height: 0 !important;
+  height: auto !important;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+/* The score carries its own title, so this row only needs the way back. */
+#sec-exercises.gpp-score-loaded .ex-player-head {
+  padding: 2px 6px;
+  gap: 6px;
+  flex-wrap: nowrap;
+  border-bottom: none;
+  background: transparent;
+}
+#sec-exercises.gpp-score-loaded .ex-player-head .btn {
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+#sec-exercises.gpp-score-loaded .ex-player-title {
+  font-size: 0.85rem;
+}
+#sec-exercises.gpp-score-loaded .ex-player-body {
+  overflow: hidden;
+  background: transparent;
+}
+#sec-exercises.gpp-score-loaded .ex-player-body-gp {
+  padding: 0 2px 2px;
+}
+#sec-exercises.gpp-score-loaded .ex-gp-mount,
+#sec-exercises.gpp-score-loaded .ex-player-body-gp .gpp-root {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  gap: 0;
+}
+/* The measured height drives this box. A flex basis would win over the
+   height in a column, and the chrome would shrink back to its content. */
+#sec-exercises.gpp-score-loaded .ex-player-body-gp .gpp-root.gpp-has-layout-metrics .gpp-chrome {
+  flex: 0 0 auto;
+  min-height: 0;
+  height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
+  max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
+}
+/* The playback source chip repeats what the track pill already says, and it
+   costs a line of the header. */
+#sec-exercises.gpp-score-loaded .gpp-source-status {
+  display: none;
+}
+
 html.gpp-player-locked,
 html.gpp-player-locked body {
   overflow: hidden;
