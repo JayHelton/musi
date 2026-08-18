@@ -10,7 +10,7 @@ import {
   pushRecent,
   searchTools,
 } from '../../js/tools/homeModel.js';
-import { TOOLS } from '../../js/tools.js';
+import { TOOLS, toolContextFields } from '../../js/tools.js';
 import {
   pushRoute,
   popRoute,
@@ -254,6 +254,49 @@ test('no section or item label equals "No routines yet"', () => {
 
   const labels = collectLabels(sections);
   assert.equal(labels.includes('No routines yet'), false);
+});
+
+console.log('Shared musical context');
+test('toolContextFields lists fields in root, scale, tempo order', () => {
+  assert.deepEqual(toolContextFields('tuner'), ['root', 'scale', 'tempo']);
+  assert.deepEqual(toolContextFields('scaleref'), ['root', 'scale']);
+  assert.deepEqual(toolContextFields('metronome'), ['tempo']);
+});
+
+test('toolContextFields returns no field for other tools and unknown ids', () => {
+  assert.deepEqual(toolContextFields('circle'), []);
+  assert.deepEqual(toolContextFields('notes'), []);
+  assert.deepEqual(toolContextFields('no-such-tool'), []);
+  assert.deepEqual(toolContextFields(''), []);
+});
+
+test('every context field is a known field name', () => {
+  for (const tool of TOOLS) {
+    if (!tool.context) continue;
+    for (const field of tool.context) {
+      assert.equal(['root', 'scale', 'tempo'].includes(field), true, `${tool.id} uses ${field}`);
+    }
+  }
+});
+
+testAsync('contextButtonText labels key, scale, and tempo', async () => {
+  const { contextButtonText } = await import('../../js/shell/contextQuick.js');
+  const ctx = { root: 'G', scale: 'Natural Minor (Aeolian)', tempo: 96 };
+
+  const full = contextButtonText(ctx, ['root', 'scale', 'tempo']);
+  assert.equal(full.key, 'G Minor');
+  assert.equal(full.tempo, '96');
+  assert.equal(full.label, 'Musical context: G Natural Minor (Aeolian), 96 BPM');
+
+  const tempoOnly = contextButtonText(ctx, ['tempo']);
+  assert.equal(tempoOnly.key, '');
+  assert.equal(tempoOnly.tempo, '96');
+  assert.equal(tempoOnly.label, 'Musical context: 96 BPM');
+
+  const rootOnly = contextButtonText(ctx, ['root']);
+  assert.equal(rootOnly.key, 'G');
+  assert.equal(rootOnly.tempo, '');
+  assert.equal(rootOnly.label, 'Musical context: Key G');
 });
 
 console.log('navStack origins');

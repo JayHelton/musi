@@ -1,5 +1,6 @@
 import { getSetting } from '../persistence.js';
 import { CATEGORY_ICONS, TOOL_ICONS, getTool } from '../tools.js';
+import { initContextQuick, syncContextQuick } from './contextQuick.js';
 
 const SPLIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>';
 
@@ -13,22 +14,15 @@ const NAV_ITEMS = [
   { id: 'tools', label: 'Tools', icon: TOOLS_ICON, section: 'tools' },
 ];
 
-// The gear shows on the browse pages only. A tool page keeps its own header
-// controls in that corner.
-const SETTINGS_GEAR_SECTIONS = new Set([
-  'tools',
-  'hub-reference',
-  'hub-create',
-  'reference',
-  'create',
-  'exercises',
-  'workbooks',
-]);
+// The gear shows on every screen except Settings itself, which is the screen
+// the gear opens.
+const SETTINGS_GEAR_HIDDEN_SECTIONS = new Set(['musicprefs']);
 
 let showSectionFn = null;
 let railEl = null;
 let bottomEl = null;
 let settingsEl = null;
+let actionsEl = null;
 
 function navHighlightId(sectionId) {
   if (!sectionId) return null;
@@ -114,8 +108,8 @@ function buildBottom() {
   return bar;
 }
 
-// The gear sits at the top right of the content column, in line with the
-// category heading. A click opens Settings.
+// The gear sits in the head action row, in line with the page heading. A
+// click opens Settings.
 function buildSettingsGear() {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -130,17 +124,39 @@ function buildSettingsGear() {
   return btn;
 }
 
-function syncSettingsGear(sectionId) {
-  if (!settingsEl) return;
-  const show = SETTINGS_GEAR_SECTIONS.has(sectionId);
-  settingsEl.hidden = !show;
-  // The body class keeps the heading clear of the gear.
+// The head actions hold the quick context button and the settings gear. The
+// row sits at the top right of the content column.
+function buildHeadActions() {
+  const row = document.createElement('div');
+  row.className = 'shell-head-actions';
+  return row;
+}
+
+// Publish the width of the action row. The heading uses it to keep clear of
+// the buttons.
+function syncActionsWidth() {
+  if (!actionsEl || typeof actionsEl.getBoundingClientRect !== 'function') return;
+  const rect = actionsEl.getBoundingClientRect();
+  const width = Math.ceil(rect.width || 0);
+  document.body.style.setProperty('--shell-actions-w', width ? `${width + 12}px` : '0px');
+}
+
+function syncHeadActions(sectionId) {
+  const showGear = !!sectionId && !SETTINGS_GEAR_HIDDEN_SECTIONS.has(sectionId);
+  if (settingsEl) settingsEl.hidden = !showGear;
+
+  const showContext = syncContextQuick(sectionId);
+  const show = showGear || showContext;
+  if (actionsEl) actionsEl.hidden = !show;
+  // The body class keeps the heading clear of the buttons.
   document.body.classList.toggle('shell-gear-on', show);
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(syncActionsWidth);
+  else syncActionsWidth();
 }
 
 export function setActiveNav(sectionId) {
   const active = navHighlightId(sectionId);
-  syncSettingsGear(sectionId);
+  syncHeadActions(sectionId);
 
   if (railEl) {
     railEl.querySelectorAll('.app-rail-item').forEach(el => {
@@ -173,12 +189,16 @@ export function initShellNav({ showSection, currentId } = {}) {
     document.body.appendChild(bottomEl);
   }
 
-  if (!settingsEl) {
+  if (!actionsEl) {
+    actionsEl = buildHeadActions();
+    actionsEl.hidden = true;
     settingsEl = buildSettingsGear();
     settingsEl.hidden = true;
+    actionsEl.append(initContextQuick({ showSection }), settingsEl);
     const main = document.querySelector('.app-main');
-    if (main) main.appendChild(settingsEl);
-    else document.body.appendChild(settingsEl);
+    if (main) main.appendChild(actionsEl);
+    else document.body.appendChild(actionsEl);
+    window.addEventListener('resize', syncActionsWidth);
   }
 
   if (currentId) setActiveNav(currentId);

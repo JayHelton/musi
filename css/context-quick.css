@@ -1,0 +1,160 @@
+/* Quick musical context control. js/shell/contextQuick.js builds the button in
+   the shell head actions and the panel that the button opens. */
+
+.shell-context-btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-ui, 'VT323', monospace);
+  font-size: 1rem;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.shell-context-btn[hidden] {
+  display: none;
+}
+
+.shell-context-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.shell-context-btn[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.shell-context-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.shell-context-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.shell-context-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.shell-context-key {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.shell-context-tempo {
+  flex: 0 0 auto;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.shell-context-tempo[hidden],
+.shell-context-key[hidden] {
+  display: none;
+}
+
+/* ---- Panel ---- */
+.shell-context-panel {
+  position: fixed;
+  z-index: 460;
+  width: min(300px, calc(100vw - 16px));
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-screen, 16px);
+  background: var(--card);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  display: none;
+}
+
+.shell-context-panel.open {
+  display: block;
+}
+
+.shell-context-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.shell-context-panel-title {
+  font-family: var(--font-pixel, 'Press Start 2P', monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.shell-context-panel-close {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg2);
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.shell-context-panel-close:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.shell-context-panel .setup-chip {
+  width: 100%;
+}
+
+.shell-context-panel .quick-scale-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  margin-bottom: 0;
+  overflow-x: auto;
+}
+
+.shell-context-panel-help {
+  margin: 12px 0 10px;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.shell-context-panel-more {
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .shell-context-btn {
+    padding: 0 10px;
+    font-size: 0.95rem;
+  }
+  .shell-context-key {
+    max-width: 84px;
+  }
+}

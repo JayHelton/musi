@@ -61,6 +61,7 @@ export const TOOLS = [
     description: 'Name intervals above any root.',
     title: 'Intervals',
     drill: true,
+    context: ['root'],
     holdRecord: false,
   },
   {
@@ -134,6 +135,7 @@ export const TOOLS = [
     ],
     defaultMode: 'tuner',
     drill: true,
+    context: ['root', 'scale', 'tempo'],
     holdRecord: true,
   },
   {
@@ -144,6 +146,7 @@ export const TOOLS = [
     description: 'Identify pitches by ear.',
     title: 'Ear Trainer',
     drill: true,
+    context: ['root', 'scale'],
     holdRecord: false,
   },
   // SIMPLIFY: Timing hidden. Keep this object to restore later.
@@ -167,6 +170,7 @@ export const TOOLS = [
     description: 'Find scales, modes, and diatonic chords on the neck.',
     title: 'Scale Reference',
     purpose: 'study',
+    context: ['root', 'scale'],
     holdRecord: false,
   },
   {
@@ -177,6 +181,7 @@ export const TOOLS = [
     description: 'Map voicings, movable cards, and CAGED.',
     title: 'Chord Reference',
     purpose: 'study',
+    context: ['root'],
     holdRecord: false,
   },
   {
@@ -186,6 +191,7 @@ export const TOOLS = [
     category: 'reference',
     description: 'Map closed triad voicings and sweep-picking shapes for any root.',
     title: 'Triads Reference',
+    context: ['root', 'tempo'],
     holdRecord: false,
   },
   {
@@ -270,6 +276,7 @@ export const TOOLS = [
       { id: 'plan', label: 'Practice Plan' },
     ],
     defaultMode: 'metronome',
+    context: ['tempo'],
     holdRecord: false,
   },
   {
@@ -284,6 +291,7 @@ export const TOOLS = [
       { id: 'plan', label: 'Practice Plan' },
     ],
     defaultMode: 'plan',
+    context: ['tempo'],
     holdRecord: false,
   },
   // SIMPLIFY: Drums hidden. Keep this object to restore later.
@@ -433,6 +441,20 @@ export function getCategory(id) {
 
 export function toolsInCategory(categoryId) {
   return TOOLS.filter(t => t.category === categoryId);
+}
+
+/** Fields of the shared musical context. The quick control shows them in this order. */
+export const CONTEXT_FIELDS = ['root', 'scale', 'tempo'];
+
+/**
+ * Fields of the shared musical context that a tool reads.
+ * @returns {string[]} the fields in CONTEXT_FIELDS order; empty when the tool
+ * does not use the shared context.
+ */
+export function toolContextFields(toolId) {
+  const tool = getTool(toolId);
+  if (!tool || !Array.isArray(tool.context)) return [];
+  return CONTEXT_FIELDS.filter(field => tool.context.includes(field));
 }
 
 export function isHoldRecordRelevant(toolId) {

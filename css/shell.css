@@ -155,13 +155,27 @@ body.app-shell #nav.dock {
   min-width: 0;
 }
 
-/* Settings gear. It sits at the top right of the content column, in line with
-   the category heading. js/shell/nav.js builds it and controls the visibility. */
-.shell-settings-btn {
+/* Head actions. The row sits at the top right of the content column, in line
+   with the page heading. js/shell/nav.js builds it and controls the
+   visibility. */
+.shell-head-actions {
   position: absolute;
   top: var(--shell-top-inset);
   right: var(--content-pad);
   z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - var(--content-pad) * 2);
+}
+
+.shell-head-actions[hidden] {
+  display: none;
+}
+
+/* Settings gear. A click opens the Settings screen. */
+.shell-settings-btn {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -196,15 +210,21 @@ body.app-shell #nav.dock {
   outline-offset: 2px;
 }
 
-body.app-shell.route-notice-on .shell-settings-btn {
+body.app-shell.route-notice-on .shell-head-actions {
   top: calc(var(--shell-top-inset) + var(--route-notice-h, 64px) + 10px);
 }
 
-/* Keep the category heading clear of the gear. */
+/* Keep the page heading clear of the head actions. js/shell/nav.js measures
+   the row and publishes --shell-actions-w. */
 body.shell-gear-on .section-head,
 body.shell-gear-on .tools-home-kicker,
 body.shell-gear-on .tools-home-title {
-  margin-right: 52px;
+  margin-right: var(--shell-actions-w, 52px);
+}
+
+/* The Score Player takes the whole view once a score loads. */
+body:has(.gpp-score-loaded) .shell-head-actions {
+  display: none;
 }
 
 body.app-shell .app-main {
