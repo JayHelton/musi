@@ -2,6 +2,7 @@ import { getSetting, saveSettings } from './persistence.js';
 import { ROOTS, pick } from './theory.js';
 import { SCALES, orderedScaleNames } from './scales.js';
 import { TUNING_CATALOG } from './tunings.js';
+import { MAX_MASTER_VOLUME, DEFAULT_MASTER_VOLUME } from './audio.js';
 
 const DEFAULTS = {
   root: 'C',
@@ -54,12 +55,12 @@ function clampTempo(value) {
 
 function clampVolume(value) {
   const num = Number(value);
-  if (!Number.isFinite(num)) return 1;
-  return Math.max(0, Math.min(1, num));
+  if (!Number.isFinite(num)) return DEFAULT_MASTER_VOLUME;
+  return Math.max(0, Math.min(MAX_MASTER_VOLUME, num));
 }
 
 function readVolume() {
-  return clampVolume(getSetting('global.volume', 1));
+  return clampVolume(getSetting('global.volume', DEFAULT_MASTER_VOLUME));
 }
 
 function fieldDefault(field) {

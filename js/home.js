@@ -1,5 +1,5 @@
 import { getSetting, saveSetting } from './persistence.js';
-import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory, isFeatureEnabled } from './tools.js';
+import { TOOLS, CATEGORIES, CATEGORY_ICONS, TOOL_ICONS, getTool, toolsInCategory } from './tools.js';
 // SIMPLIFY: Routines hidden. Keep this code to restore later.
 // import { buildRoutineCardModels } from './routineDashboardModel.js';
 // import { listRoutines, getRoutineStats, getActiveRoutineSession } from './routineModel.js';
@@ -11,7 +11,7 @@ let showHubFn = null;
 let openRouteFn = null;
 
 function visibleTool(id) {
-  return getTool(id) && isFeatureEnabled(id);
+  return !!getTool(id);
 }
 
 function storedFavorites() {
@@ -157,7 +157,7 @@ function renderAllTools(panel) {
   const paint = () => {
     const q = (search.value || '').toLowerCase().trim();
     rows.innerHTML = '';
-    TOOLS.filter(t => isFeatureEnabled(t.id)).filter(t => {
+    TOOLS.filter(t => {
       if (!q) return true;
       return (t.label + ' ' + t.description + ' ' + t.category).toLowerCase().includes(q);
     }).forEach(t => {
@@ -200,7 +200,7 @@ export function renderHub(categoryId, container, { showSection, onFavorite } = {
   if (!container) return;
   const cat = CATEGORIES.find(c => c.id === categoryId);
   if (!cat) return;
-  const tools = toolsInCategory(categoryId).filter(t => isFeatureEnabled(t.id));
+  const tools = toolsInCategory(categoryId);
   const fav = favorites().filter(id => tools.some(t => t.id === id));
   const recentId = lastTool();
   const recentTool = recentId && tools.some(t => t.id === recentId) ? getTool(recentId) : null;
@@ -288,12 +288,6 @@ export function initHome(config) {
   if (!window.__musiProfileListener) {
     window.__musiProfileListener = true;
     window.addEventListener('musi:profile-changed', () => {
-      refreshHome();
-    });
-  }
-  if (!window.__musiFeaturesListener) {
-    window.__musiFeaturesListener = true;
-    window.addEventListener('musi:features-changed', () => {
       refreshHome();
     });
   }

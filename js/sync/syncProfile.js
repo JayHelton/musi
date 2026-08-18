@@ -385,7 +385,6 @@ function dispatchAppEvents(scopeIds) {
     if (!win || typeof win.dispatchEvent !== 'function') return;
     if (scopeIds.includes('settings')) {
       win.dispatchEvent(new CustomEvent('musi:profile-changed'));
-      win.dispatchEvent(new CustomEvent('musi:features-changed'));
     }
   } catch (e) {
     /* ignore in Node */

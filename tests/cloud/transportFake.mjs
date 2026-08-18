@@ -126,6 +126,9 @@ function queryRows(store, filters, orderCol, orderAsc, limitN) {
     if (filter.op === 'gt') {
       rows = rows.filter((row) => Number(row[filter.col]) > Number(filter.val));
     }
+    if (filter.op === 'gte') {
+      rows = rows.filter((row) => Number(row[filter.col]) >= Number(filter.val));
+    }
     if (filter.op === 'eq') {
       rows = rows.filter((row) => row[filter.col] === filter.val);
     }
@@ -183,6 +186,10 @@ function makeTableBuilder(table, store) {
     },
     gt(col, val) {
       state.filters.push({ op: 'gt', col, val });
+      return builder;
+    },
+    gte(col, val) {
+      state.filters.push({ op: 'gte', col, val });
       return builder;
     },
     eq(col, val) {
@@ -268,8 +275,17 @@ function makeTableBuilder(table, store) {
       return Promise.resolve({ data, error: null });
     }
 
+    if (state.deleteMode) {
+      const targets = queryRows(store, state.filters, null, true, null);
+      targets.forEach((row) => {
+        store.records.delete(rowKey(row.domain, row.record_id));
+      });
+      return Promise.resolve({ data: targets, error: null });
+    }
+
     if (state.countHead) {
-      return Promise.resolve({ count: store.records.size, error: null, data: null });
+      const rows = queryRows(store, state.filters, null, true, null);
+      return Promise.resolve({ count: rows.length, error: null, data: null });
     }
 
     const data = queryRows(store, state.filters, state.orderCol, state.orderAsc, state.limitN);

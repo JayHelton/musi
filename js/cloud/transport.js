@@ -233,7 +233,7 @@ export async function fetchBounds(cursor = 0) {
   }
 }
 
-/** Head-only count of sync_records rows for the signed-in user. */
+/** Head-only count of the live sync_records rows for the signed-in user. */
 export async function countRemoteRows() {
   const client = await supabase();
   if (!client) {
@@ -243,12 +243,44 @@ export async function countRemoteRows() {
   try {
     const { count, error } = await client
       .from('sync_records')
-      .select('domain', { count: 'exact', head: true });
+      .select('domain', { count: 'exact', head: true })
+      .eq('deleted', false);
     if (error) return { count: 0, error };
     return { count: count || 0, error: null };
   } catch (error) {
     return { count: 0, error };
   }
+}
+
+/**
+ * Delete every sync_records row of the signed-in user. RLS limits the delete to
+ * that user. Musi calls this before it replaces the cloud copy with the device.
+ * @returns {{ ok: boolean, error: object|null }}
+ */
+export async function deleteAllRemoteRows() {
+  const client = await supabase();
+  if (!client) {
+    return { ok: false, error: { message: 'Cloud sync is not enabled.' } };
+  }
+
+  let attempt = 0;
+  while (attempt < 5) {
+    try {
+      const { error } = await client
+        .from('sync_records')
+        .delete()
+        .gte('rev', 0);
+      if (error) throw error;
+      return { ok: true, error: null };
+    } catch (error) {
+      attempt += 1;
+      if (attempt >= 5 || !isNetworkError(error)) {
+        return { ok: false, error };
+      }
+      await sleep(backoffMs(attempt) + jitter());
+    }
+  }
+  return { ok: false, error: { message: 'Could not clear the cloud copy.' } };
 }
 
 /** Map server errors to user-facing copy. */

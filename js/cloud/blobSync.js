@@ -17,8 +17,6 @@ import {
   getSyncMeta,
 } from './shadowStore.js';
 
-export const FILE_SYNC_SETTING_KEY = 'cloud.fileSync';
-
 /**
  * The upload limit of the Storage bucket, not the local limit of the app.
  * Musi keeps a file of up to 250 MB on the device, but the bucket in
@@ -31,32 +29,6 @@ export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const STORAGE_BUCKET = 'attachments';
 
 let fileSyncMutex = false;
-
-function getStorage() {
-  try {
-    if (typeof globalThis !== 'undefined' && globalThis.localStorage) {
-      return globalThis.localStorage;
-    }
-  } catch (_) {
-    /* ignore */
-  }
-  return null;
-}
-
-/** Default is on when the setting is missing. */
-export function isFileSyncEnabled() {
-  const storage = getStorage();
-  if (!storage) return true;
-  const raw = storage.getItem(FILE_SYNC_SETTING_KEY);
-  if (raw == null) return true;
-  return raw === 'true' || raw === '1';
-}
-
-export function setFileSyncEnabled(on) {
-  const storage = getStorage();
-  if (!storage) return;
-  storage.setItem(FILE_SYNC_SETTING_KEY, on ? 'true' : 'false');
-}
 
 function storagePath(userId, attachmentId) {
   return `${userId}/${attachmentId}`;
@@ -74,6 +46,8 @@ function emptyResult() {
   return {
     uploaded: 0,
     downloaded: 0,
+    cloudDeleted: 0,
+    localDeleted: 0,
     skipped: [],
     failed: 0,
     pendingUploads: 0,
@@ -293,12 +267,13 @@ async function drainBlobQueue(client, userId, localMetaById, cloudById, result, 
   }
 }
 
-async function runFilePass({ userId, downloadIds, uploadOnly, downloadOnly, onProgress } = {}) {
-  if (!isFileSyncEnabled()) {
-    const counts = await countPendingFiles({ userId });
-    return { ...emptyResult(), pendingUploads: counts.uploads, pendingDownloads: counts.downloads };
-  }
-
+async function runFilePass({
+  userId,
+  uploadOnly,
+  downloadOnly,
+  deleteCloudExtras,
+  onProgress,
+} = {}) {
   if (fileSyncMutex) {
     const counts = await countPendingFiles({ userId });
     return { ...emptyResult(), pendingUploads: counts.uploads, pendingDownloads: counts.downloads };
@@ -319,6 +294,27 @@ async function runFilePass({ userId, downloadIds, uploadOnly, downloadOnly, onPr
     const cloudById = await fetchLiveCloudBlobs(client);
 
     await drainBlobQueue(client, resolvedUserId, localMetaById, cloudById, result, onProgress);
+
+    if (deleteCloudExtras) {
+      const extras = [];
+      cloudById.forEach((_row, attachmentId) => {
+        if (!localMetaById.has(attachmentId)) extras.push(attachmentId);
+      });
+      for (const attachmentId of extras) {
+        try {
+          await removeCloudFile(client, resolvedUserId, attachmentId);
+          cloudById.delete(attachmentId);
+          result.cloudDeleted += 1;
+        } catch (error) {
+          result.failed += 1;
+          result.errors.push({
+            attachmentId,
+            phase: 'delete',
+            ...mapBlobError(error),
+          });
+        }
+      }
+    }
 
     if (!downloadOnly) {
       const uploadTargets = [];
@@ -385,12 +381,7 @@ async function runFilePass({ userId, downloadIds, uploadOnly, downloadOnly, onPr
     }
 
     if (!uploadOnly) {
-      const downloadSet = downloadIds ? new Set(downloadIds) : null;
-      const downloadTargets = [];
-      cloudById.forEach((row, attachmentId) => {
-        if (downloadSet && !downloadSet.has(attachmentId)) return;
-        downloadTargets.push(row);
-      });
+      const downloadTargets = [...cloudById.values()];
 
       for (let i = 0; i < downloadTargets.length; i += 1) {
         const row = downloadTargets[i];
@@ -448,32 +439,72 @@ export async function syncFiles({ userId, onProgress } = {}) {
   return runFilePass({ userId, onProgress });
 }
 
-export async function uploadPendingFiles({ userId, onProgress } = {}) {
-  return runFilePass({ userId, onProgress, downloadOnly: true });
+/**
+ * Make the cloud files equal to the files on this device. Musi removes each
+ * cloud file that this device does not hold, then uploads the local files.
+ */
+export async function replaceCloudFiles({ userId, onProgress } = {}) {
+  return runFilePass({ userId, onProgress, uploadOnly: true, deleteCloudExtras: true });
 }
 
-export async function downloadMissingFiles({ userId, ids, onProgress } = {}) {
-  return runFilePass({ userId, downloadIds: ids, uploadOnly: true, onProgress });
-}
+/**
+ * Make the files on this device equal to the cloud files. Musi removes each
+ * local file that the cloud does not hold, then downloads the cloud files.
+ */
+export async function replaceLocalFiles({ userId, onProgress } = {}) {
+  const result = emptyResult();
+  try {
+    const resolvedUserId = await resolveUserId(userId);
+    const client = await getClient();
+    if (!client || !resolvedUserId) return result;
 
-export async function fetchFileNow(attachmentId, { userId, onProgress } = {}) {
-  if (!attachmentId) {
-    return {
-      ...emptyResult(),
-      errors: [{
-        attachmentId: null,
-        phase: 'download',
-        code: 'invalid',
-        message: 'Missing attachment id.',
-      }],
-    };
+    const cloudById = await fetchLiveCloudBlobs(client);
+    const localList = await listFilesMeta();
+    for (const meta of localList) {
+      if (cloudById.has(meta.id)) continue;
+      try {
+        const removed = await deleteFile(meta.id);
+        if (removed) result.localDeleted += 1;
+      } catch (error) {
+        result.failed += 1;
+        result.errors.push({
+          attachmentId: meta.id,
+          phase: 'delete',
+          ...mapBlobError(error),
+        });
+      }
+    }
+  } catch (error) {
+    result.errors.push({ attachmentId: null, phase: 'sync', ...mapBlobError(error) });
+    return result;
   }
-  return runFilePass({
-    userId,
-    downloadIds: [attachmentId],
-    uploadOnly: true,
-    onProgress,
-  });
+
+  const pass = await runFilePass({ userId, onProgress, downloadOnly: true });
+  return {
+    ...pass,
+    localDeleted: result.localDeleted,
+    failed: pass.failed + result.failed,
+    errors: [...result.errors, ...pass.errors],
+  };
+}
+
+/** Mark one cloud file deleted and remove its storage object. */
+async function removeCloudFile(client, userId, attachmentId) {
+  const path = storagePath(userId, attachmentId);
+  const { error: updateError } = await client
+    .from('sync_blobs')
+    .update({ deleted: true })
+    .eq('attachment_id', attachmentId);
+  if (updateError) throw updateError;
+
+  const { error: removeError } = await client.storage
+    .from(STORAGE_BUCKET)
+    .remove([path]);
+  if (removeError && !String(removeError.message || '').toLowerCase().includes('not found')) {
+    throw removeError;
+  }
+
+  await dequeueBlob(attachmentId);
 }
 
 export async function markFileDeleted(attachmentId, { userId } = {}) {
@@ -485,21 +516,7 @@ export async function markFileDeleted(attachmentId, { userId } = {}) {
       return { ok: false, error: { message: 'Cloud sync is not ready.' } };
     }
 
-    const path = storagePath(resolvedUserId, attachmentId);
-    const { error: updateError } = await client
-      .from('sync_blobs')
-      .update({ deleted: true })
-      .eq('attachment_id', attachmentId);
-    if (updateError) throw updateError;
-
-    const { error: removeError } = await client.storage
-      .from(STORAGE_BUCKET)
-      .remove([path]);
-    if (removeError && !String(removeError.message || '').toLowerCase().includes('not found')) {
-      throw removeError;
-    }
-
-    await dequeueBlob(attachmentId);
+    await removeCloudFile(client, resolvedUserId, attachmentId);
     return { ok: true, error: null };
   } catch (error) {
     return { ok: false, error: mapBlobError(error) };
@@ -507,10 +524,6 @@ export async function markFileDeleted(attachmentId, { userId } = {}) {
 }
 
 export async function countPendingFiles({ userId } = {}) {
-  if (!isFileSyncEnabled()) {
-    return { uploads: 0, downloads: 0 };
-  }
-
   try {
     const resolvedUserId = await resolveUserId(userId);
     const client = await getClient();

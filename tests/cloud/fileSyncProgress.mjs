@@ -5,7 +5,6 @@
 import assert from 'node:assert/strict';
 import { putFileWithId } from '../../js/attachments.js';
 import { setSyncMeta } from '../../js/cloud/shadowStore.js';
-import { setFileSyncEnabled } from '../../js/cloud/blobSync.js';
 import { resetIdbShimData } from '../exercises/idbShim.mjs';
 import {
   installDocumentShim,
@@ -49,8 +48,7 @@ async function saveTestFile(id, byte) {
 async function signInForFileSync(client) {
   const cloudSync = await loadCloudSync();
   setFakeSession(client, TEST_SESSION);
-  await setSyncMeta({ userId: TEST_USER.id, firstSyncDone: true });
-  setFileSyncEnabled(true);
+  await setSyncMeta({ userId: TEST_USER.id });
   if (!globalThis.localStorage.getItem('musi:settings')) {
     globalThis.localStorage.setItem('musi:settings', JSON.stringify({}));
   }
@@ -86,7 +84,7 @@ export async function run(test) {
         }
       });
 
-      await cloudSync.syncFilesNow();
+      await cloudSync.mergeCopies();
       unsub();
 
       assert.ok(snapshots.length >= 2, 'expected multiple progress snapshots');
@@ -113,7 +111,7 @@ export async function run(test) {
     try {
       cloudSync = await signInForFileSync(client);
       await saveTestFile('att-reset-1', 9);
-      await cloudSync.syncFilesNow();
+      await cloudSync.mergeCopies();
 
       const status = cloudSync.getSyncStatus();
       assert.equal(status.files.busy, false);
@@ -150,7 +148,7 @@ export async function run(test) {
         }
       });
 
-      await cloudSync.syncFilesNow();
+      await cloudSync.mergeCopies();
       unsub();
 
       assert.ok(published.length > 0);
@@ -188,7 +186,7 @@ export async function run(test) {
         }
       });
 
-      await cloudSync.syncFilesNow();
+      await cloudSync.mergeCopies();
       unsub();
 
       assert.equal(sawActive, true);

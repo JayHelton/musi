@@ -4,6 +4,12 @@ Optional accounts and background sync across Musi installs — Supabase as the d
 
 Musi today is a fully local progressive web app: routines, exercises, workbooks, notes, songs, progress stats, and preferences all live on the device. Device sync (ZIP export/import and QR beam/receive) already moves most of that library between machines, but it is manual, one-shot, and cannot express deletes. This plan adds an **optional** cloud layer: sign in with a passwordless email OTP, and Musi keeps the same data in step across phones, tablets, and desktops. Supabase provides Auth, Postgres, Storage, and Realtime only; the PWA continues to ship as static files from its current host with no build step.
 
+> **Superseded in part.** The shipped client does not sync in the background.
+> Musi removed the reconcile loop, the Realtime channel, the interval pull, and
+> the first-login prompt. The user starts every pass, and each pass is one of
+> three whole-library operations: merge, get the cloud copy, or send this
+> device. See the "Optional cloud sync" section of `README.md`.
+
 **Musi stays static and zero-build.** Supabase never hosts, builds, or deploys the PWA. Auth and cloud sync are strictly opt-in: when `js/cloud/cloudConfig.js` has empty values, no Account UI is rendered, no Supabase client is constructed, and no network request is made. Signed-out users retain full local functionality; QR/ZIP device sync remains a peer alternative.
 
 ## Why this feature

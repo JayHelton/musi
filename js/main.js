@@ -45,7 +45,7 @@ import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
 // import { initStudyLab, stopStudyLab } from './studyLab.js';
 import {
   CATEGORIES,
-  getTabs, getTool, isHoldRecordRelevant, isFeatureEnabled,
+  getTabs, getTool, isHoldRecordRelevant,
 } from './tools.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
@@ -619,11 +619,6 @@ function applySection(id, { keep = [] } = {}) {
 
 function showSection(id, skipHash, params = {}) {
   const incoming = resolveIncomingRoute(id, params);
-  const toolForGate = getTool(incoming.sectionId);
-  if (incoming.routeId !== 'library' && toolForGate && !isFeatureEnabled(incoming.sectionId)) {
-    showSection('reference', skipHash);
-    return;
-  }
   const mode = (skipHash || currentNavId === incoming.sectionId) ? 'replace' : 'push';
   void applyRoute({
     id: incoming.routeId,
@@ -705,13 +700,6 @@ function getRoutineNavigator() {
   }
 }
 */
-
-function gatedSectionId(id) {
-  if (LIBRARY_SECTION_IDS.has(id)) return id;
-  const toolForGate = getTool(id);
-  if (toolForGate && !isFeatureEnabled(id)) return 'hub-reference';
-  return id;
-}
 
 const ROUTE_NOTICE_MESSAGES = {
   'notice.scales-removed': 'Scale Spelling is hidden.',
@@ -834,7 +822,7 @@ async function applyRoute({
   const inboundId = id;
   const incoming = resolveIncomingRoute(inboundId, params);
   let routeId = incoming.routeId;
-  let sectionId = gatedSectionId(incoming.sectionId);
+  let sectionId = incoming.sectionId;
   const routeParams = incoming.params;
   if (notice == null) notice = incoming.notice;
   if (typeof notice === 'string' && notice !== '') {
@@ -1053,11 +1041,7 @@ function initNav() {
 function rebuildNav() {
   setActiveNav(currentNavId);
   closeSplitMenu();
-  if (splitSecondaryId && !isFeatureEnabled(splitSecondaryId)) {
-    exitSplit();
-  } else {
-    updateSplitUI();
-  }
+  updateSplitUI();
 }
 
 async function init() {
@@ -1223,14 +1207,6 @@ async function init() {
   initMusicPreferences({ showSection });
   initSplitView();
   initScreenUx({ showSection, showHub });
-
-  window.addEventListener('musi:features-changed', () => {
-    rebuildNav();
-    refreshToolsHome();
-    if (currentNavId && getTool(currentNavId) && !isFeatureEnabled(currentNavId)) {
-      showSection('reference');
-    }
-  });
 
   const bootRoute = parseAppRoute(bootHash);
   if (isValidSection(bootRoute.id)) {

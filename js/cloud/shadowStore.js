@@ -184,11 +184,10 @@ export async function getSyncMeta() {
   const row = await readMetaRow('sync');
   return {
     rev: typeof row?.rev === 'number' ? row.rev : 0,
-    lastPushAt: row?.lastPushAt ?? null,
-    lastPullAt: row?.lastPullAt ?? null,
+    lastSyncAt: row?.lastSyncAt ?? null,
+    lastSyncMode: row?.lastSyncMode ?? null,
     schemaVersion: typeof row?.schemaVersion === 'number' ? row.schemaVersion : 0,
     userId: row?.userId ?? null,
-    firstSyncDone: row?.firstSyncDone === true,
   };
 }
 
@@ -203,11 +202,10 @@ export async function setSyncMeta(patch) {
   await writeMetaRow(merged);
   return {
     rev: typeof merged.rev === 'number' ? merged.rev : 0,
-    lastPushAt: merged.lastPushAt ?? null,
-    lastPullAt: merged.lastPullAt ?? null,
+    lastSyncAt: merged.lastSyncAt ?? null,
+    lastSyncMode: merged.lastSyncMode ?? null,
     schemaVersion: typeof merged.schemaVersion === 'number' ? merged.schemaVersion : 0,
     userId: merged.userId ?? null,
-    firstSyncDone: merged.firstSyncDone === true,
   };
 }
 
@@ -240,16 +238,6 @@ export async function getAllShadow() {
       resolve(new Map());
     }
   });
-}
-
-export async function countShadowByDomain() {
-  const all = await getAllShadow();
-  const counts = new Map();
-  for (const row of all.values()) {
-    const d = row.domain;
-    counts.set(d, (counts.get(d) || 0) + 1);
-  }
-  return counts;
 }
 
 export async function putShadow(domain, recordId, fields) {
@@ -289,20 +277,6 @@ export async function putShadowMany(rows) {
   return count;
 }
 
-export async function getShadow(domain, recordId) {
-  const db = await openDB();
-  if (!db || !domain || !recordId) return null;
-  return new Promise((resolve) => {
-    try {
-      const req = objectStore(db, SHADOW_STORE, 'readonly').get([domain, recordId]);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
-    } catch (e) {
-      resolve(null);
-    }
-  });
-}
-
 export async function deleteShadow(domain, recordId) {
   const db = await openDB();
   if (!db || !domain || !recordId) return false;
@@ -323,60 +297,6 @@ export async function clearShadow() {
   return new Promise((resolve) => {
     try {
       const req = objectStore(db, SHADOW_STORE, 'readwrite').clear();
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => resolve(false);
-    } catch (e) {
-      resolve(false);
-    }
-  });
-}
-
-export async function putTombstones(list) {
-  const db = await openDB();
-  if (!db || !Array.isArray(list)) return 0;
-  let count = 0;
-  for (const entry of list) {
-    if (!entry?.domain || !entry?.recordId) continue;
-    const row = {
-      domain: entry.domain,
-      recordId: entry.recordId,
-      deletedAt: entry.deletedAt || new Date().toISOString(),
-      pushed: false,
-    };
-    const ok = await new Promise((resolve) => {
-      try {
-        const req = objectStore(db, TOMBSTONE_STORE, 'readwrite').put(row);
-        req.onsuccess = () => resolve(true);
-        req.onerror = () => resolve(false);
-      } catch (e) {
-        resolve(false);
-      }
-    });
-    if (ok) count += 1;
-  }
-  return count;
-}
-
-export async function getTombstones() {
-  const db = await openDB();
-  if (!db) return [];
-  return new Promise((resolve) => {
-    try {
-      const req = objectStore(db, TOMBSTONE_STORE, 'readonly').getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
-    } catch (e) {
-      resolve([]);
-    }
-  });
-}
-
-export async function clearTombstone(domain, recordId) {
-  const db = await openDB();
-  if (!db || !domain || !recordId) return false;
-  return new Promise((resolve) => {
-    try {
-      const req = objectStore(db, TOMBSTONE_STORE, 'readwrite').delete([domain, recordId]);
       req.onsuccess = () => resolve(true);
       req.onerror = () => resolve(false);
     } catch (e) {

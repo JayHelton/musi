@@ -1,13 +1,5 @@
-// Settings screen — musical context, volume, device sync, and feature visibility.
+// Settings screen — musical context, volume, device sync, and cloud sync.
 
-import {
-  CATEGORIES,
-  TOOLS,
-  TOOL_ICONS,
-  toolsInCategory,
-  setFeatureEnabled,
-  getEnabledFeatureIdsRaw,
-} from './tools.js';
 import {
   getContext,
   setContext,
@@ -19,7 +11,12 @@ import {
 } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
 import { openRootPicker, openScalePicker } from './pickers.js';
-import { getMasterVolume, setMasterVolume } from './audio.js';
+import {
+  getMasterVolume,
+  setMasterVolume,
+  MAX_MASTER_VOLUME,
+  DEFAULT_MASTER_VOLUME,
+} from './audio.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { loadCloudConfig, isCloudEnabled } from './cloud/cloudConfig.js';
 // SIMPLIFY: Routines hidden. Keep this code to restore later.
@@ -45,7 +42,7 @@ function render() {
     <div class="section-head">
       <div class="section-kicker">Settings</div>
       <h2>Settings & Preferences</h2>
-      <p>Choose which tools appear in the app. Set musical context, volume, and sync.</p>
+      <p>Set the musical context, the volume, and how this device syncs.</p>
     </div>
 
     <section class="mp-block" id="mp-context-block">
@@ -87,9 +84,9 @@ function render() {
 
     <section class="mp-block" id="mp-volume-block">
       <h3 class="mp-block-title">Volume</h3>
-      <p class="mp-block-help">Global audio level for trainers, playback, and synth.</p>
+      <p class="mp-block-help">Global audio level for trainers, playback, and synth. Levels above 100% add loudness. A limiter keeps the output safe.</p>
       <div class="mp-volume-row">
-        <input id="mp-volume-slider" type="range" min="0" max="150" step="1" value="100" aria-label="Global volume">
+        <input id="mp-volume-slider" type="range" min="0" max="${Math.round(MAX_MASTER_VOLUME * 100)}" step="1" value="100" aria-label="Global volume">
         <span id="mp-volume-value" class="mp-volume-value">100%</span>
       </div>
     </section>
@@ -117,9 +114,6 @@ function render() {
       <div class="sync-method sync-method-settings sync-method-secondary">
         <p class="sync-hint sync-hint-compact">Settings and progress only — no exercise files.</p>
         <div class="sync-estimate sync-estimate-sub" id="mp-sync-payload-estimate" aria-live="polite">Calculating…</div>
-        <div class="sync-btn-row">
-          <button type="button" class="btn sm sync-btn-secondary" id="mp-sync-export">Export settings file</button>
-        </div>
         <div class="sync-section-label sync-section-label-inline">QR transfer</div>
         <div class="sync-qr-warning" id="mp-sync-qr-warning" hidden aria-live="polite"></div>
         <div class="sync-btn-row">
@@ -140,12 +134,6 @@ function render() {
       <p class="mp-block-help">Quickly remove workbooks and exercises you are not organizing.</p>
       <div id="mp-cleanup-root"></div>
     </section>
-
-    <section class="mp-block">
-      <h3 class="mp-block-title">Features</h3>
-      <p class="mp-block-help">Choose which tools appear in the toolbar and on Home. Settings stays available so you can turn them back on.</p>
-      <div class="mp-feature-groups" id="mp-features"></div>
-    </section>
   `;
 
   paintMusicalContext();
@@ -153,7 +141,6 @@ function render() {
   paintDeviceSync();
   paintCloudSync();
   paintLibraryCleanup();
-  paintFeatures();
 }
 
 function buildSegmented(container, items, activeVal, onPick) {
@@ -421,7 +408,6 @@ function paintDeviceSync() {
     const exportLibraryBtn = host.querySelector('#mp-sync-export-library');
     const importBtn = host.querySelector('#mp-sync-import');
     const importInput = host.querySelector('#mp-sync-import-input');
-    const exportBtn = host.querySelector('#mp-sync-export');
     const beamBtn = host.querySelector('#mp-sync-beam');
     const receiveBtn = host.querySelector('#mp-sync-receive');
 
@@ -442,25 +428,6 @@ function paintDeviceSync() {
           const { importFromFile } = await import('./sync/syncUI.js');
           await importFromFile(file, { trigger: importBtn });
         } catch (_) { /* ignore */ }
-      };
-    }
-
-    if (exportBtn) {
-      exportBtn.onclick = () => {
-        const scopes = scopesForEstimate();
-        import('./sync/syncProfile.js').then(({ buildSnapshot, serializeSnapshot, snapshotFilename }) => {
-          const snapshot = buildSnapshot({ scopes });
-          const text = serializeSnapshot(snapshot);
-          const blob = new Blob([text], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = snapshotFilename(snapshot);
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-        }).catch(() => { /* ignore */ });
       };
     }
 
@@ -604,6 +571,7 @@ function paintVolume() {
   const saved = Number(getSetting('global.volume', getMasterVolume()));
   const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
   setMasterVolume(initial);
+  slider.max = String(Math.round(MAX_MASTER_VOLUME * 100));
   slider.value = String(Math.round(getMasterVolume() * 100));
   if (valueLabel) valueLabel.textContent = Math.round(getMasterVolume() * 100) + '%';
 
@@ -615,60 +583,6 @@ function paintVolume() {
   };
 }
 
-function paintFeatures() {
-  const root = host.querySelector('#mp-features');
-  if (!root) return;
-  root.innerHTML = '';
-  const stored = getEnabledFeatureIdsRaw();
-  const enabledSet = stored === undefined
-    ? new Set(TOOLS.map(t => t.id))
-    : new Set(stored);
-
-  CATEGORIES.forEach(cat => {
-    const tools = toolsInCategory(cat.id);
-    if (!tools.length) return;
-    const block = document.createElement('div');
-    block.className = 'mp-feature-group';
-    block.innerHTML = `<div class="mp-block-title">${escapeHtml(cat.label)}</div>`;
-    const list = document.createElement('div');
-    list.className = 'mp-feature-list';
-    tools.forEach(tool => {
-      const locked = tool.id === 'musicprefs';
-      const on = locked || enabledSet.has(tool.id);
-      const row = document.createElement('label');
-      row.className = 'mp-feature-row' + (on ? ' on' : '') + (locked ? ' locked' : '');
-      row.innerHTML = `
-        <input type="checkbox" class="mp-feature-check" data-tool="${tool.id}"${on ? ' checked' : ''}${locked ? ' disabled' : ''}>
-        <span class="mp-feature-icon">${TOOL_ICONS[tool.id] || ''}</span>
-        <span class="mp-feature-meta">
-          <span class="mp-feature-name">${escapeHtml(tool.label)}</span>
-          <span class="mp-feature-desc">${escapeHtml(tool.description)}</span>
-        </span>
-        ${locked ? '<span class="mp-feature-lock" aria-hidden="true">Always on</span>' : ''}
-      `;
-      list.appendChild(row);
-    });
-    block.appendChild(list);
-    root.appendChild(block);
-  });
-
-  root.querySelectorAll('.mp-feature-check').forEach(input => {
-    if (input.disabled) return;
-    input.onchange = () => {
-      const id = input.dataset.tool;
-      setFeatureEnabled(id, input.checked);
-      notifyFeaturesChanged();
-      paintFeatures();
-    };
-  });
-}
-
-function notifyFeaturesChanged() {
-  try {
-    window.dispatchEvent(new CustomEvent('musi:features-changed'));
-  } catch (_) { /* ignore */ }
-}
-
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -677,9 +591,23 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+const LOUDNESS_BOOST_KEY = 'audio.loudnessBoost.v1';
+
+/**
+ * Read the saved level and apply it to the master bus.
+ * Musi was too quiet, so it raises a saved level below the new default one
+ * time. The flag stops the raise from undoing a later choice by the user.
+ */
 export function initGlobalVolume() {
-  const saved = Number(getSetting('global.volume', getMasterVolume()));
-  const initial = Number.isNaN(saved) ? getMasterVolume() : saved;
+  const saved = Number(getSetting('global.volume', DEFAULT_MASTER_VOLUME));
+  let initial = Number.isNaN(saved) ? DEFAULT_MASTER_VOLUME : saved;
+
+  if (getSetting(LOUDNESS_BOOST_KEY, false) !== true) {
+    if (initial < DEFAULT_MASTER_VOLUME) initial = DEFAULT_MASTER_VOLUME;
+    saveSetting(LOUDNESS_BOOST_KEY, true);
+    saveSetting('global.volume', initial);
+  }
+
   setMasterVolume(initial);
 }
 

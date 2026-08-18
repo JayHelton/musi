@@ -1,10 +1,6 @@
 // Centralized tool / category metadata shared by Home, mobile hubs,
 // desktop dock, command palette, and hold-to-record relevance.
 
-import { getSetting, saveSetting } from './persistence.js';
-
-export const FEATURES_ENABLED_KEY = 'features.enabled';
-const LOCKED_FEATURE_IDS = ['musicprefs'];
 
 export const PURPOSES = [
   { id: 'train', label: 'Train' },
@@ -444,48 +440,9 @@ export function isHoldRecordRelevant(toolId) {
   return !!(tool && tool.holdRecord);
 }
 
-function allToolIds() {
-  return TOOLS.map(t => t.id);
-}
-
-/** Raw enabled IDs from storage; undefined when unset (default-on). */
-export function getEnabledFeatureIdsRaw() {
-  const v = getSetting(FEATURES_ENABLED_KEY, undefined);
-  if (v === undefined) return undefined;
-  if (!Array.isArray(v)) return undefined;
-  return v.filter(id => TOOLS.some(t => t.id === id));
-}
-
-export function isFeatureEnabled(id) {
-  if (LOCKED_FEATURE_IDS.includes(id)) return true;
-  const stored = getEnabledFeatureIdsRaw();
-  if (stored === undefined) return true;
-  return stored.includes(id);
-}
-
-export function getEnabledTools() {
-  return TOOLS.filter(t => isFeatureEnabled(t.id));
-}
-
-export function saveEnabledFeatures(ids) {
-  const set = new Set(ids.filter(id => TOOLS.some(t => t.id === id)));
-  LOCKED_FEATURE_IDS.forEach(id => set.add(id));
-  saveSetting(FEATURES_ENABLED_KEY, [...set]);
-}
-
-export function setFeatureEnabled(id, on) {
-  if (LOCKED_FEATURE_IDS.includes(id)) return;
-  const stored = getEnabledFeatureIdsRaw();
-  const base = stored === undefined ? allToolIds() : [...stored];
-  const set = new Set(base);
-  if (on) set.add(id);
-  else set.delete(id);
-  saveEnabledFeatures([...set]);
-}
-
-/** Tabs shape used by dock, command palette, and split view — enabled tools only. */
+/** Tabs shape used by dock, command palette, and split view. */
 export function asTabs() {
-  return getEnabledTools().map(t => ({
+  return TOOLS.map(t => ({
     id: t.id,
     label: t.short,
     group: categoryLabel(t.category),

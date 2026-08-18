@@ -12,12 +12,15 @@ let masterGain = null;
 let micSessionDepth = 0;
 let previousAudioSessionType = null;
 
-// Global output level applied at the master bus. Defaults louder than the old
-// fixed 0.75 because users found the app too quiet; adjustable up to 1.5 for
-// extra headroom. The value lives here so it survives before the AudioContext
-// is created and is re-applied the moment the master gain node exists.
-const MAX_MASTER_VOLUME = 1.5;
-let masterVolume = 1.0;
+// Global output level applied at the master bus. Musi was too quiet, so the
+// default sits above unity and the slider reaches 300%. The master gain node
+// comes before the safety limiter, so a high level makes the mix louder and
+// the limiter still holds the peak at -1 dBFS. The value lives here so it
+// survives before the AudioContext exists, and Musi re-applies it the moment
+// the master gain node is ready.
+export const MAX_MASTER_VOLUME = 3.0;
+export const DEFAULT_MASTER_VOLUME = 1.8;
+let masterVolume = DEFAULT_MASTER_VOLUME;
 
 export function getMasterVolume() {
   return masterVolume;

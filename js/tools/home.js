@@ -1,5 +1,5 @@
 import { getSetting, saveSetting } from '../persistence.js';
-import { TOOLS, TOOL_ICONS, getTool, isFeatureEnabled } from '../tools.js';
+import { TOOLS, TOOL_ICONS, getTool } from '../tools.js';
 import { buildHomeSections, normalizeRecents, pushRecent } from './homeModel.js';
 // SIMPLIFY: Routines hidden. Keep this code to restore later.
 // import { listRoutines, getRoutineStats } from '../routineModel.js';
@@ -20,7 +20,6 @@ function escapeHtml(str) {
 
 function catalogTools() {
   return TOOLS.filter((t) => {
-    if (!isFeatureEnabled(t.id)) return false;
     if (t.category === 'reference' || t.category === 'create') return false;
     if (t.id === 'exercises' || t.id === 'workbooks' || t.id === 'musicprefs') return false;
     return true;
@@ -248,10 +247,6 @@ export function initToolsHome({ showSection, openRoute } = {}) {
   if (!window.__musiToolsHomeProfileListener) {
     window.__musiToolsHomeProfileListener = true;
     window.addEventListener('musi:profile-changed', () => refreshToolsHome());
-  }
-  if (!window.__musiToolsHomeFeaturesListener) {
-    window.__musiToolsHomeFeaturesListener = true;
-    window.addEventListener('musi:features-changed', () => refreshToolsHome());
   }
   // SIMPLIFY: Routines hidden. Keep this code to restore later.
   /*

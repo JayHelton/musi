@@ -12,6 +12,16 @@ docs — do not duplicate them here.
 behind `js/cloud/`. When `cloudConfig` has no URL/key (or `enabled: false`),
 none of that code loads and Musi behaves exactly as today.
 
+> **Superseded in part.** This document describes the original background-sync
+> design: a debounced reconcile loop, a Realtime channel, an interval pull, a
+> first-login prompt, and a mass-delete guard. The shipped client dropped all of
+> them. `js/cloud/cloudSync.js` now runs only when the user presses a button,
+> and it offers three whole-library operations: `mergeCopies()`,
+> `getCloudCopy()`, and `sendDeviceCopy()`. `js/cloud/realtimeLink.js` no longer
+> exists. Read the "Optional cloud sync" section of `README.md` for the shipped
+> behaviour. The parts below that cover record mapping, the shadow store, the
+> transport, and blob sync still match the code.
+
 ---
 
 ## Module layout

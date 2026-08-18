@@ -15,10 +15,9 @@ import {
   syncFiles,
   markFileDeleted,
   countPendingFiles,
-  setFileSyncEnabled,
-  isFileSyncEnabled,
+  replaceCloudFiles,
+  replaceLocalFiles,
   MAX_UPLOAD_BYTES,
-  FILE_SYNC_SETTING_KEY,
 } from '../../js/cloud/blobSync.js';
 import { resetIdbShimData } from '../exercises/idbShim.mjs';
 import { installNavigatorShim } from './harness.mjs';
@@ -33,8 +32,7 @@ const TEST_USER = { id: 'user-file-sync', email: 'files@test.example' };
 
 async function prepareBlobSync(client) {
   setFakeSession(client, { access_token: 'tok', user: TEST_USER });
-  await setSyncMeta({ userId: TEST_USER.id, firstSyncDone: true });
-  setFileSyncEnabled(true);
+  await setSyncMeta({ userId: TEST_USER.id });
 }
 
 async function saveTestFile(id, bytes, meta = {}) {
@@ -92,8 +90,7 @@ export async function run(test) {
       await syncFiles({ userId: TEST_USER.id });
 
       resetLocalDevice();
-      await setSyncMeta({ userId: TEST_USER.id, firstSyncDone: true });
-      setFileSyncEnabled(true);
+      await setSyncMeta({ userId: TEST_USER.id });
 
       const pending = await countPendingFiles({ userId: TEST_USER.id });
       assert.equal(pending.downloads, 1);
@@ -195,8 +192,7 @@ export async function run(test) {
       });
 
       resetLocalDevice();
-      await setSyncMeta({ userId: TEST_USER.id, firstSyncDone: true });
-      setFileSyncEnabled(true);
+      await setSyncMeta({ userId: TEST_USER.id });
 
       const result = await syncFiles({ userId: TEST_USER.id });
       assert.equal(result.downloaded, 0);
@@ -207,27 +203,42 @@ export async function run(test) {
     }
   });
 
-  await test('with file sync off no upload and no download happens', async () => {
+  await test('replaceCloudFiles removes the cloud files this device does not hold', async () => {
     resetLocalDevice();
     const store = resetSharedCloud();
     const { client } = installSharedFakeCloud({ store, fresh: false });
     try {
       await prepareBlobSync(client);
-      await saveTestFile('att-off-1', new Uint8Array([4, 4, 4]));
+      await saveTestFile('att-keep-1', new Uint8Array([1, 1, 1]));
+      await saveTestFile('att-drop-1', new Uint8Array([2, 2, 2]));
+      await syncFiles({ userId: TEST_USER.id });
+      assert.equal(store.syncBlobs.size, 2);
 
-      setFileSyncEnabled(false);
-      assert.equal(isFileSyncEnabled(), false);
-      assert.equal(globalThis.localStorage.getItem(FILE_SYNC_SETTING_KEY), 'false');
+      await deleteFile('att-drop-1');
+      const result = await replaceCloudFiles({ userId: TEST_USER.id });
+      assert.equal(result.cloudDeleted, 1);
+      assert.equal(store.syncBlobs.get('att-drop-1').deleted, true);
+      assert.equal(store.syncBlobs.get('att-keep-1').deleted, false);
+      assert.equal(store.storageObjects.has(`attachments:${TEST_USER.id}/att-drop-1`), false);
+    } finally {
+      restoreTransport();
+    }
+  });
 
-      const result = await syncFiles({ userId: TEST_USER.id });
-      assert.equal(result.uploaded, 0);
-      assert.equal(result.downloaded, 0);
-      assert.equal(store.syncBlobs.size, 0);
-      assert.equal(store.storageObjects.size, 0);
+  await test('replaceLocalFiles removes the local files the cloud does not hold', async () => {
+    resetLocalDevice();
+    const store = resetSharedCloud();
+    const { client } = installSharedFakeCloud({ store, fresh: false });
+    try {
+      await prepareBlobSync(client);
+      await saveTestFile('att-cloud-1', new Uint8Array([3, 3, 3]));
+      await syncFiles({ userId: TEST_USER.id });
 
-      const pending = await countPendingFiles({ userId: TEST_USER.id });
-      assert.equal(pending.uploads, 0);
-      assert.equal(pending.downloads, 0);
+      await saveTestFile('att-local-only', new Uint8Array([9, 9, 9]));
+      const result = await replaceLocalFiles({ userId: TEST_USER.id });
+      assert.equal(result.localDeleted, 1);
+      assert.equal(await hasFile('att-local-only'), false);
+      assert.equal(await hasFile('att-cloud-1'), true);
     } finally {
       restoreTransport();
     }

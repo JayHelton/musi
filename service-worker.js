@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v248-click-sound";
+const CACHE_VERSION = "v249-manual-cloud-sync";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -129,7 +129,6 @@ const PRECACHE_URLS = [
   "js/cloud/transport.js",
   "js/cloud/blobSync.js",
   "js/sync/crc32.js",
-  "js/cloud/realtimeLink.js",
   "js/cloud/cloudSync.js",
   "js/cloud/cloudUI.js",
   "js/vendor/supabase-js.esm.js",

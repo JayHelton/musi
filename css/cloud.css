@@ -156,6 +156,7 @@
   margin-bottom: 0;
 }
 
+/* The device list sits below the sync controls and stays closed by default. */
 #mp-cloud-block .cloud-device-section {
   margin-top: 16px;
 }
@@ -224,7 +225,12 @@
   line-height: 1.35;
 }
 
-#mp-cloud-block .cloud-file-section {
+#mp-cloud-block .cloud-counts {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+#mp-cloud-block .cloud-sync-section {
   margin-top: 16px;
   padding: 12px 14px;
   border-radius: var(--radius-screen, 18px);
@@ -234,8 +240,30 @@
     rgba(18, 26, 46, 0.55);
 }
 
+#mp-cloud-block .cloud-sync-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+#mp-cloud-block .cloud-sync-choice.armed .cloud-sync-hint {
+  color: var(--warn);
+}
+
+#mp-cloud-block .cloud-sync-btn {
+  width: 100%;
+}
+
+#mp-cloud-block .cloud-sync-hint {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 #mp-cloud-block .cloud-file-status {
-  margin-top: 0;
+  margin-top: 14px;
   margin-bottom: 10px;
 }
 
@@ -259,28 +287,6 @@
   transition: width 0.15s ease-out;
 }
 
-#mp-cloud-block .cloud-toggle-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.88rem;
-  line-height: 1.4;
-  color: var(--text);
-  cursor: pointer;
-}
-
-#mp-cloud-block .cloud-toggle-row input {
-  margin-top: 3px;
-  accent-color: var(--accent2, var(--shell-bright));
-}
-
-#mp-cloud-block .cloud-file-actions {
-  margin-top: 10px;
-  margin-bottom: 0;
-}
-
-#mp-cloud-block .cloud-action-row,
 #mp-cloud-block .cloud-signout-row {
   margin-top: 14px;
 }
@@ -296,45 +302,12 @@
   background: var(--err);
 }
 
-#mp-cloud-block .cloud-panel {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: var(--radius-screen, 18px);
-  border: 1px solid var(--warn);
-  background: rgba(255, 225, 74, 0.06);
-}
-
-#mp-cloud-block .cloud-panel-title {
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.52rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--warn);
-  margin-bottom: 8px;
-  line-height: 1.5;
-}
-
-#mp-cloud-block .cloud-backup-note {
-  color: var(--warn);
-}
-
-#mp-cloud-block .cloud-choice-row {
-  margin-top: 10px;
-}
-
 #mp-cloud-block .cloud-error-banner {
   margin-top: 14px;
 }
 
-#mp-cloud-block .cloud-error-actions {
-  margin-top: 10px;
-  margin-bottom: 0;
-}
-
 @media (max-width: 480px) {
-  #mp-cloud-block .cloud-action-row .btn,
-  #mp-cloud-block .cloud-signout-row .btn,
-  #mp-cloud-block .cloud-choice-row .btn {
+  #mp-cloud-block .cloud-signout-row .btn {
     flex: 1;
     min-width: 0;
   }

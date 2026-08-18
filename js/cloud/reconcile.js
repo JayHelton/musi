@@ -1,6 +1,11 @@
 // Local diff, apply, and counter-merge helpers for cloud sync. No network.
 
-import { buildSnapshot, applySnapshot, invalidateModuleCaches } from '../sync/syncProfile.js';
+import {
+  buildSnapshot,
+  applySnapshot,
+  invalidateModuleCaches,
+  SYNC_SCOPES,
+} from '../sync/syncProfile.js';
 import { listPatterns, deletePattern, putPatternRaw } from '../drums/drumPatternDb.js';
 import {
   deleteFile,
@@ -11,6 +16,7 @@ import {
   toRecords,
   fromRecords,
   contentHash,
+  isDeviceLocalSettingKey,
 } from './recordMap.js';
 import {
   getAllShadow,
@@ -557,6 +563,59 @@ export async function deleteLocalRecords(list) {
 
   await invalidateModuleCaches();
   return { deleted, errors };
+}
+
+/**
+ * Read the settings that stay on this device and never reach the cloud.
+ * A replace pass drops them, so the caller restores them after the write.
+ * @returns {Record<string, unknown>}
+ */
+export function captureDeviceLocalSettings() {
+  const settings = readSettingsObject();
+  const saved = {};
+  Object.entries(settings).forEach(([key, value]) => {
+    if (isDeviceLocalSettingKey(key)) saved[key] = value;
+  });
+  return saved;
+}
+
+/** Write back the settings that captureDeviceLocalSettings read. */
+export function restoreDeviceLocalSettings(saved) {
+  if (!isPlainObject(saved) || !Object.keys(saved).length) return;
+  const settings = readSettingsObject();
+  Object.entries(saved).forEach(([key, value]) => {
+    settings[key] = value;
+  });
+  writeSettingsObject(settings);
+}
+
+/**
+ * Remove every record that cloud sync owns on this device. Musi calls this
+ * before it writes the cloud copy, so the device keeps no extra record.
+ * Local files stay: `replaceLocalFiles` in blobSync.js handles the bytes.
+ * @returns {{ patterns: number }}
+ */
+export async function clearLocalRecords() {
+  const empty = {
+    app: 'musi',
+    kind: 'musi-profile-snapshot',
+    version: 1,
+    createdAt: new Date().toISOString(),
+    scopes: SYNC_SCOPES.map((scope) => scope.id),
+    data: {},
+  };
+  await applySnapshot(empty, { mode: 'replace' });
+
+  let patterns = 0;
+  const stored = await listPatterns();
+  for (const pattern of stored) {
+    if (pattern?.builtin) continue;
+    const ok = await deletePattern(pattern.id);
+    if (ok) patterns += 1;
+  }
+
+  await invalidateModuleCaches();
+  return { patterns };
 }
 
 export async function rebuildShadowFromLocal(revByKey = new Map()) {

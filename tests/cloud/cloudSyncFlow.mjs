@@ -1,5 +1,6 @@
 /**
  * End-to-end cloudSync.js tests with a shared in-memory Supabase double.
+ * Every pass is one of the three manual operations: merge, cloud, or device.
  */
 
 import assert from 'node:assert/strict';
@@ -23,12 +24,6 @@ const TEST_SESSION = { access_token: 'fake-access-token', user: TEST_USER };
 
 let cloudImportCounter = 0;
 const activeCloudInstances = new Set();
-
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 async function loadCloudSync(suffix = '') {
   cloudImportCounter += 1;
@@ -146,8 +141,12 @@ async function tearDownAllCloudInstances() {
   }
 }
 
+function readNotes() {
+  return JSON.parse(globalThis.localStorage.getItem('musi.notes') || '[]');
+}
+
 function assertLibraryPresent() {
-  const notes = JSON.parse(globalThis.localStorage.getItem('musi.notes') || '[]');
+  const notes = readNotes();
   assert.ok(notes.some((n) => n.id === 'note-sync-1'));
   const songs = JSON.parse(globalThis.localStorage.getItem('musi.songs') || '[]');
   assert.ok(songs.some((s) => s.id === 'song-sync-1'));
@@ -161,216 +160,214 @@ export async function run(test) {
   installDocumentShim();
   installNavigatorShim();
 
-  await test('first device is source of truth and pushes every local record', async () => {
+  await test('sign-in moves no data and reports both counts', async () => {
     const store = resetSharedCloud();
     const { client } = installSharedFakeCloud({ store, fresh: false });
     try {
+      resetDeviceLocal();
+      await seedFullLibrary();
+      const { records } = await collectLocalRecords();
+
+      const cloudSync = await signInFreshDevice(client, 'idle');
+      const status = cloudSync.getSyncStatus();
+      assert.equal(status.signedIn, true);
+      assert.equal(status.state, 'idle');
+      assert.equal(status.lastSyncAt, null);
+      assert.equal(status.localCount, records.length);
+      assert.equal(status.cloudCount, 0);
+      assert.equal(store.records.size, 0, 'sign-in must not push anything');
+    } finally {
+      await tearDownAllCloudInstances();
+      restoreTransport();
+    }
+  });
+
+  await test('send this device writes every local record to the cloud', async () => {
+    const store = resetSharedCloud();
+    const { client } = installSharedFakeCloud({ store, fresh: false });
+    try {
+      resetDeviceLocal();
       await seedFullLibrary();
       const { records } = await collectLocalRecords();
       assert.ok(records.length >= 5);
 
-      const cloudSync = await signInFreshDevice(client, 'first');
+      const cloudSync = await signInFreshDevice(client, 'send');
+      await cloudSync.sendDeviceCopy();
+
       const status = cloudSync.getSyncStatus();
-      assert.equal(status.firstSyncNeeded, false);
-      assert.equal(status.signedIn, true);
+      assert.equal(status.state, 'idle');
+      assert.equal(status.lastSyncMode, 'device');
+      assert.ok(status.lastSyncAt > 0);
+      assert.equal(store.records.size, records.length);
 
       const meta = await getSyncMeta();
-      assert.equal(meta.firstSyncDone, true);
-      assert.equal(store.records.size, records.length);
+      assert.equal(meta.lastSyncMode, 'device');
     } finally {
       await tearDownAllCloudInstances();
       restoreTransport();
     }
   });
 
-  await test('cloud is source after local reset on a second device', async () => {
+  await test('send this device deletes the cloud rows this device does not hold', async () => {
     const store = resetSharedCloud();
     const { client } = installSharedFakeCloud({ store, fresh: false });
-    let cloudSyncA;
-    let cloudSyncB;
     try {
+      resetDeviceLocal();
+      seedCloudNote(store, 'dev-other', 'note-cloud-only', 'Only in the cloud');
+      seedLocalOnlyNote('note-local', 'On this device');
+
+      const cloudSync = await signInFreshDevice(client, 'send-replace');
+      await cloudSync.sendDeviceCopy();
+
+      const rows = [...store.records.values()];
+      assert.equal(rows.some((r) => r.record_id === 'note-cloud-only'), false);
+      assert.ok(rows.some((r) => r.record_id === 'note-local'));
+    } finally {
+      await tearDownAllCloudInstances();
+      restoreTransport();
+    }
+  });
+
+  await test('get the cloud copy clears the device and writes the cloud library', async () => {
+    const store = resetSharedCloud();
+    const { client } = installSharedFakeCloud({ store, fresh: false });
+    try {
+      resetDeviceLocal();
       await seedFullLibrary();
+      const cloudSyncA = await signInFreshDevice(client, 'get-a');
+      await cloudSyncA.sendDeviceCopy();
       const { records } = await collectLocalRecords();
-      cloudSyncA = await signInFreshDevice(client, 'cloud-a');
 
       resetDeviceLocal();
-      cloudSyncB = await signInFreshDevice(client, 'cloud-b');
+      seedLocalOnlyNote('note-stale', 'Not in the cloud');
+      const cloudSyncB = await signInFreshDevice(client, 'get-b');
+      await cloudSyncB.getCloudCopy();
+
       const status = cloudSyncB.getSyncStatus();
-      assert.equal(status.firstSyncNeeded, false);
+      assert.equal(status.state, 'idle');
+      assert.equal(status.lastSyncMode, 'cloud');
 
       assertLibraryPresent();
+      assert.equal(readNotes().some((n) => n.id === 'note-stale'), false);
       const patterns = await listPatterns();
       assert.ok(patterns.some((p) => p.id === 'usr-sync-1'));
       assert.equal(store.records.size, records.length);
+
+      const rev = await getRev();
+      assert.ok(rev > 0);
     } finally {
       await tearDownAllCloudInstances();
       restoreTransport();
     }
   });
 
-  await test('pull on demand applies remote edits and advances shadow cursor', async () => {
+  await test('merge keeps the records of both sides and writes them back', async () => {
     const store = resetSharedCloud();
     const { client } = installSharedFakeCloud({ store, fresh: false });
     try {
+      resetDeviceLocal();
+      seedCloudNote(store, 'dev-cloud-only', 'note-cloud', 'From cloud');
+      seedLocalOnlyNote('note-local', 'From device');
+
+      const cloudSync = await signInFreshDevice(client, 'merge');
+      await cloudSync.mergeCopies();
+
+      const notes = readNotes();
+      assert.ok(notes.some((n) => n.id === 'note-local'));
+      assert.ok(notes.some((n) => n.id === 'note-cloud'));
+
+      const rows = [...store.records.values()].filter((r) => r.domain === 'notes' && !r.deleted);
+      assert.ok(rows.some((r) => r.record_id === 'note-local'));
+      assert.ok(rows.some((r) => r.record_id === 'note-cloud'));
+
+      const status = cloudSync.getSyncStatus();
+      assert.equal(status.lastSyncMode, 'merge');
+      assert.equal(status.state, 'idle');
+    } finally {
+      await tearDownAllCloudInstances();
+      restoreTransport();
+    }
+  });
+
+  await test('merge deletes nothing and keeps the newer copy of a shared record', async () => {
+    const store = resetSharedCloud();
+    const { client } = installSharedFakeCloud({ store, fresh: false });
+    try {
+      resetDeviceLocal();
       await seedFullLibrary();
-      const cloudSyncA = await signInFreshDevice(client, 'pull-a');
+      const cloudSyncA = await signInFreshDevice(client, 'merge-a');
+      await cloudSyncA.sendDeviceCopy();
+
+      // The device drops the note; a merge must bring it back, not delete it.
+      const notes = readNotes();
+      globalThis.localStorage.setItem('musi.notes', JSON.stringify([]));
+      await cloudSyncA.mergeCopies();
+      assert.ok(readNotes().some((n) => n.id === notes[0].id));
+
+      // A newer local edit wins over the cloud copy.
+      const edited = readNotes();
+      edited[0].title = 'Newer on this device';
+      edited[0].updatedAt = '2026-06-01T00:00:00.000Z';
+      globalThis.localStorage.setItem('musi.notes', JSON.stringify(edited));
+      await cloudSyncA.mergeCopies();
+      assert.equal(readNotes()[0].title, 'Newer on this device');
+
+      const cloudNote = [...store.records.values()].find((r) => r.record_id === notes[0].id);
+      assert.equal(cloudNote.payload.title, 'Newer on this device');
+    } finally {
+      await tearDownAllCloudInstances();
+      restoreTransport();
+    }
+  });
+
+  await test('merge carries an edit from one device to another', async () => {
+    const store = resetSharedCloud();
+    const { client } = installSharedFakeCloud({ store, fresh: false });
+    try {
+      resetDeviceLocal();
+      await seedFullLibrary();
+      const cloudSyncA = await signInFreshDevice(client, 'carry-a');
+      await cloudSyncA.sendDeviceCopy();
 
       resetDeviceLocal();
-      const cloudSyncB = await signInFreshDevice(client, 'pull-b');
-      const revBefore = await getRev();
+      const cloudSyncB = await signInFreshDevice(client, 'carry-b');
+      await cloudSyncB.getCloudCopy();
 
-      const notes = JSON.parse(globalThis.localStorage.getItem('musi.notes'));
-      notes[0].title = 'Edited on A';
+      const notes = readNotes();
+      notes[0].title = 'Edited on B';
       notes[0].updatedAt = '2026-01-05T00:00:00.000Z';
       globalThis.localStorage.setItem('musi.notes', JSON.stringify(notes));
-      await cloudSyncA.syncNow();
+      await cloudSyncB.mergeCopies();
 
-      await cloudSyncB.pullNow();
-      const onB = JSON.parse(globalThis.localStorage.getItem('musi.notes'));
-      assert.equal(onB[0].title, 'Edited on A');
-
-      const revAfter = await getRev();
-      assert.ok(revAfter >= revBefore);
+      const cloudNote = [...store.records.values()].find((r) => r.record_id === 'note-sync-1');
+      assert.equal(cloudNote.payload.title, 'Edited on B');
+      assert.equal(store.records.size > 0, true);
     } finally {
       await tearDownAllCloudInstances();
       restoreTransport();
     }
   });
 
-  await test('delete propagates through tombstone push and pull', async () => {
+  await test('offline stops every operation and reports the offline state', async () => {
     const store = resetSharedCloud();
     const { client } = installSharedFakeCloud({ store, fresh: false });
     try {
-      await seedFullLibrary();
-      const cloudSyncA = await signInFreshDevice(client, 'del-a');
-
       resetDeviceLocal();
-      const cloudSyncB = await signInFreshDevice(client, 'del-b');
-
-      globalThis.localStorage.setItem('musi.notes', JSON.stringify([]));
-      await cloudSyncA.syncNow();
-
-      await cloudSyncB.pullNow();
-      const notes = JSON.parse(globalThis.localStorage.getItem('musi.notes') || '[]');
-      assert.equal(notes.length, 0);
-
-      const tombstone = [...store.records.values()].find(
-        (row) => row.domain === 'notes' && row.record_id === 'note-sync-1' && row.deleted,
-      );
-      assert.ok(tombstone);
-    } finally {
-      await tearDownAllCloudInstances();
-      restoreTransport();
-    }
-  });
-
-  async function runFirstSyncConflictTest(client, store, choice, assertNotes) {
-    resetDeviceLocal();
-    resetSharedCloud();
-    seedCloudNote(store, 'dev-cloud-only', 'note-cloud', 'From cloud');
-    seedLocalOnlyNote('note-local', 'From device');
-    const cloudSync = await signInFreshDevice(client, `choice-${choice}`);
-    const status = cloudSync.getSyncStatus();
-    assert.equal(status.firstSyncNeeded, true);
-    assert.ok(status.firstSyncContext?.hasLocalData);
-    assert.ok(status.firstSyncContext?.hasCloudData);
-    await cloudSync.resolveFirstSync(choice);
-    const notes = JSON.parse(globalThis.localStorage.getItem('musi.notes') || '[]');
-    assertNotes(notes);
-    await cloudSync.handleSignedOut();
-  }
-
-  await test('first sync merge keeps records from cloud and device', async () => {
-    const store = resetSharedCloud();
-    const { client } = installSharedFakeCloud({ store, fresh: false });
-    try {
-      await runFirstSyncConflictTest(client, store, 'merge', (notes) => {
-        assert.ok(notes.some((n) => n.id === 'note-local'));
-        assert.ok(notes.some((n) => n.id === 'note-cloud'));
-      });
-    } finally {
-      await tearDownAllCloudInstances();
-      restoreTransport();
-    }
-  });
-
-  await test('first sync device keeps local records and drops cloud-only rows', async () => {
-    const store = resetSharedCloud();
-    const { client } = installSharedFakeCloud({ store, fresh: false });
-    try {
-      await runFirstSyncConflictTest(client, store, 'device', (notes) => {
-        assert.ok(notes.some((n) => n.id === 'note-local'));
-        assert.equal(notes.some((n) => n.id === 'note-cloud'), false);
-      });
-    } finally {
-      await tearDownAllCloudInstances();
-      restoreTransport();
-    }
-  });
-
-  await test('first sync cloud replaces local library with cloud copy', async () => {
-    const store = resetSharedCloud();
-    const { client } = installSharedFakeCloud({ store, fresh: false });
-    try {
-      await runFirstSyncConflictTest(client, store, 'cloud', (notes) => {
-        assert.equal(notes.some((n) => n.id === 'note-local'), false);
-        assert.ok(notes.some((n) => n.id === 'note-cloud'));
-      });
-    } finally {
-      await tearDownAllCloudInstances();
-      restoreTransport();
-    }
-  });
-
-  await test('echo suppression skips rows from the local device on pull', async () => {
-    const store = resetSharedCloud();
-    const { client } = installSharedFakeCloud({ store, fresh: false });
-    try {
-      await seedFullLibrary();
-      const cloudSync = await signInFreshDevice(client, 'echo');
-
-      const notes = JSON.parse(globalThis.localStorage.getItem('musi.notes'));
-      notes[0].title = 'Local edit kept';
-      notes[0].updatedAt = '2026-01-06T00:00:00.000Z';
-      globalThis.localStorage.setItem('musi.notes', JSON.stringify(notes));
-
-      await cloudSync.pullNow();
-      const after = JSON.parse(globalThis.localStorage.getItem('musi.notes'));
-      assert.equal(after[0].title, 'Local edit kept');
-    } finally {
-      await tearDownAllCloudInstances();
-      restoreTransport();
-    }
-  });
-
-  await test('offline reconcile queues work and online event pushes it', async () => {
-    const store = resetSharedCloud();
-    const { client } = installSharedFakeCloud({ store, fresh: false });
-    try {
       await seedFullLibrary();
       const cloudSync = await signInFreshDevice(client, 'offline');
-      const countBefore = store.records.size;
 
       globalThis.navigator.onLine = false;
-      const notes = JSON.parse(globalThis.localStorage.getItem('musi.notes'));
-      notes[0].title = 'Offline edit';
-      notes[0].updatedAt = '2026-01-07T00:00:00.000Z';
-      globalThis.localStorage.setItem('musi.notes', JSON.stringify(notes));
-
-      await cloudSync.syncNow();
-      let status = cloudSync.getSyncStatus();
-      assert.equal(status.state, 'offline');
+      await cloudSync.mergeCopies();
+      assert.equal(cloudSync.getSyncStatus().state, 'offline');
+      assert.equal(store.records.size, 0);
 
       globalThis.navigator.onLine = true;
       globalThis.dispatchEvent(new Event('online'));
-      await sleep(600);
-      await cloudSync.syncNow();
+      assert.equal(store.records.size, 0, 'the online event must not start a pass');
 
-      status = cloudSync.getSyncStatus();
-      assert.equal(status.state, 'idle');
-      assert.ok(store.records.size >= countBefore);
-      const cloudNote = [...store.records.values()].find((r) => r.record_id === 'note-sync-1');
-      assert.equal(cloudNote?.payload?.title, 'Offline edit');
+      await cloudSync.mergeCopies();
+      assert.equal(cloudSync.getSyncStatus().state, 'idle');
+      assert.ok(store.records.size > 0);
     } finally {
       globalThis.navigator.onLine = true;
       await tearDownAllCloudInstances();
@@ -378,49 +375,50 @@ export async function run(test) {
     }
   });
 
-  await test('mass-delete guard pauses and resolveMassDelete restores or pushes', async () => {
+  await test('a local edit alone never reaches the cloud', async () => {
     const store = resetSharedCloud();
     const { client } = installSharedFakeCloud({ store, fresh: false });
     try {
-      const notes = [];
-      for (let i = 0; i < 4; i += 1) {
-        notes.push({
-          id: `note-mass-${i}`,
-          title: `Note ${i}`,
-          body: '',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-02T00:00:00.000Z',
-        });
-      }
+      resetDeviceLocal();
+      await seedFullLibrary();
+      const cloudSync = await signInFreshDevice(client, 'no-auto');
+      await cloudSync.sendDeviceCopy();
+      const sizeAfterPush = store.records.size;
+
+      const notes = readNotes();
+      notes[0].title = 'Quiet edit';
+      notes[0].updatedAt = '2026-01-09T00:00:00.000Z';
       globalThis.localStorage.setItem('musi.notes', JSON.stringify(notes));
+      await new Promise((resolve) => { setTimeout(resolve, 800); });
 
-      const cloudSync = await signInFreshDevice(client, 'mass');
-      globalThis.localStorage.setItem('musi.notes', JSON.stringify([notes[0]]));
-      await cloudSync.syncNow();
+      const cloudNote = [...store.records.values()].find((r) => r.record_id === 'note-sync-1');
+      assert.equal(cloudNote.payload.title, 'Cloud note');
+      assert.equal(store.records.size, sizeAfterPush);
+    } finally {
+      await tearDownAllCloudInstances();
+      restoreTransport();
+    }
+  });
 
-      let status = cloudSync.getSyncStatus();
-      assert.equal(status.state, 'paused');
-      assert.ok(status.massDelete);
-      assert.equal(status.massDelete.domain, 'notes');
+  await test('runSync starts the operation the button names', async () => {
+    const store = resetSharedCloud();
+    const { client } = installSharedFakeCloud({ store, fresh: false });
+    try {
+      resetDeviceLocal();
+      await seedFullLibrary();
+      const cloudSync = await signInFreshDevice(client, 'run-sync');
 
-      await cloudSync.resolveMassDelete('cancel');
-      status = cloudSync.getSyncStatus();
-      assert.equal(status.state, 'idle');
-      assert.equal(status.massDelete, null);
+      await cloudSync.runSync('device');
+      assert.equal(cloudSync.getSyncStatus().lastSyncMode, 'device');
 
-      globalThis.localStorage.setItem('musi.notes', JSON.stringify([notes[0]]));
-      await cloudSync.syncNow();
-      status = cloudSync.getSyncStatus();
-      assert.equal(status.state, 'paused');
+      await cloudSync.runSync('merge');
+      assert.equal(cloudSync.getSyncStatus().lastSyncMode, 'merge');
 
-      await cloudSync.resolveMassDelete('push');
-      status = cloudSync.getSyncStatus();
-      assert.equal(status.state, 'idle');
+      await cloudSync.runSync('cloud');
+      assert.equal(cloudSync.getSyncStatus().lastSyncMode, 'cloud');
 
-      const deletedRows = [...store.records.values()].filter(
-        (row) => row.domain === 'notes' && row.deleted,
-      );
-      assert.ok(deletedRows.length >= 3);
+      await cloudSync.runSync('nonsense');
+      assert.equal(cloudSync.getSyncStatus().lastSyncMode, 'cloud');
     } finally {
       await tearDownAllCloudInstances();
       restoreTransport();

@@ -99,7 +99,8 @@ Musi is built around five practice modes:
   columns, a list view and a grid view, a row menu, and drag-and-drop to move
   rows into a folder. Unfiled items sit at the root of the library.
 - **Settings** - default musical context, audio volume, device sync, cloud
-  account, library cleanup, and feature visibility. Settings holds no genre control.
+  account, and library cleanup. Every tool is always available; Settings holds no
+  feature list and no genre control.
 - **Study Lab** - opens a default study. It uses no genre profile.
 
 ## Why it is useful
@@ -181,9 +182,23 @@ node bin/musi.js
 
 Musi works fully offline and needs no account. If you want the same library on
 a phone, a tablet, and a desktop, you can turn on an optional cloud account.
-Musi then keeps notes, songs, exercises, workbooks, routines, score
-annotations, drum patterns, practice progress, and shared settings in step.
+The account covers notes, songs, exercises, workbooks, routines, score
+annotations, drum patterns, practice progress, and shared settings.
 The QR and ZIP device sync stays available for people who prefer no account.
+
+Musi never syncs on its own. You start every pass from the Cloud account panel
+in Settings, and you pick one of three whole-library operations:
+
+- **Merge** - Musi adds to each side what the other side holds. It deletes
+  nothing. A record that both sides hold keeps the copy with the newer time.
+- **Get the cloud copy** - Musi clears this device, then writes the cloud
+  library onto it.
+- **Send this device** - Musi clears the cloud, then writes this library into
+  it.
+
+Each pass ends with the device and the cloud the same. A file above the upload
+limit of the storage bucket is the one exception: it stays on the device, and
+Musi reports it.
 
 The upstream build ships with cloud sync **off**. A checkout makes no request to
 Supabase, shows no account panel, and loads no cloud code.

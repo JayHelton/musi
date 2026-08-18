@@ -11,10 +11,28 @@ import {
   listDevices,
   revokeDevice,
 } from './auth.js';
-import {
-  isFileSyncEnabled,
-  setFileSyncEnabled,
-} from './blobSync.js';
+
+/** The three sync operations, in the order the panel shows them. */
+const SYNC_ACTIONS = [
+  {
+    mode: 'merge',
+    label: 'Merge',
+    hint: 'Add what each side is missing. Nothing is deleted.',
+    danger: false,
+  },
+  {
+    mode: 'cloud',
+    label: 'Get the cloud copy',
+    hint: 'Clear this device, then copy the cloud library onto it. Musi downloads a ZIP backup first.',
+    danger: true,
+  },
+  {
+    mode: 'device',
+    label: 'Send this device',
+    hint: 'Clear the cloud, then copy this library into it.',
+    danger: true,
+  },
+];
 
 let rootEl = null;
 let syncApi = null;
@@ -27,7 +45,9 @@ let statusUnsub = null;
 let authUnsub = null;
 let onlineUnsub = null;
 let eraseConfirmArmed = false;
-let localError = null;
+let armedMode = null;
+let devicesOpen = false;
+let cachedDevices = [];
 let lastStructuralSig = null;
 
 async function loadSyncApi() {
@@ -54,24 +74,41 @@ function formatTimeAgo(ts) {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
+function modeLabel(mode) {
+  const action = SYNC_ACTIONS.find((a) => a.mode === mode);
+  return action ? action.label : '';
+}
+
 function lastSyncedText(status) {
-  const ts = Math.max(status?.lastPullAt || 0, status?.lastPushAt || 0);
-  if (!ts) return 'Not synced yet';
-  return `Last synced ${formatTimeAgo(ts)}`;
+  if (!status?.lastSyncAt) return 'Not synced yet';
+  const when = formatTimeAgo(status.lastSyncAt);
+  const label = modeLabel(status.lastSyncMode);
+  return label ? `${label} · ${when}` : `Last synced ${when}`;
+}
+
+function countsText(status) {
+  if (!status?.signedIn) return '';
+  const local = status.localCount ?? 0;
+  const cloud = status.cloudCount ?? 0;
+  const files = status.files || {};
+  const parts = [`This device: ${local} items`, `Cloud: ${cloud} items`];
+  const changed = status.pendingChanges || 0;
+  if (changed > 0) parts.push(`${changed} changed since the last sync`);
+  const pendingFiles = (files.uploads || 0) + (files.downloads || 0);
+  if (pendingFiles > 0) parts.push(`${pendingFiles} files differ`);
+  return parts.join(' · ');
 }
 
 function statusDotClass(status) {
   if (!status?.online) return 'warn';
   if (status?.state === 'error') return 'error';
-  if (['reconciling', 'pushing', 'pulling'].includes(status?.state) || status?.files?.busy) return 'busy';
-  if (status?.state === 'paused') return 'warn';
+  if (['merging', 'pushing', 'pulling'].includes(status?.state) || status?.files?.busy) return 'busy';
   return 'ok';
 }
 
 function statusLabel(status) {
   if (!status?.signedIn) return '';
   if (!status.online || status.state === 'offline') return 'Offline — saved on this device';
-  if (status.state === 'paused') return 'Paused';
   if (status.state === 'error') return 'Could not sync';
   // The file pass runs after the record pass, so the record state still reads
   // "pulling" while a file moves. Name the real work instead.
@@ -80,10 +117,15 @@ function statusLabel(status) {
     if (status.files.phase === 'download') return 'Getting files…';
     return 'Checking files…';
   }
-  if (status.state === 'reconciling') return 'Checking for changes…';
-  if (status.state === 'pushing') return 'Sending changes…';
-  if (status.state === 'pulling') return 'Getting changes…';
-  return 'Up to date';
+  if (status.state === 'merging') return 'Merging…';
+  if (status.state === 'pushing') return 'Sending this device…';
+  if (status.state === 'pulling') return 'Getting the cloud copy…';
+  if (!status.lastSyncAt) return 'Ready to sync';
+  return 'Synced';
+}
+
+function isBusy(status) {
+  return ['merging', 'pushing', 'pulling'].includes(status?.state) || !!status?.files?.busy;
 }
 
 function clearTimers() {
@@ -167,29 +209,22 @@ function renderDeviceRow(device, currentDeviceId) {
   `;
 }
 
-function renderFirstSync(status) {
-  const ctx = status.firstSyncContext || {};
-  const local = ctx.localCount ?? 0;
-  const cloud = ctx.cloudCount ?? 0;
+function renderDeviceSection(status, devices) {
+  const rows = (devices || []).map((d) => renderDeviceRow(d, status.deviceId)).join('');
+  const count = (devices || []).length;
+  const summary = count === 1 ? 'Devices with access (1)' : `Devices with access (${count})`;
   return `
-    <div class="cloud-panel cloud-first-sync">
-      <div class="cloud-panel-title">Choose how to sync</div>
-      <p class="sync-hint">This device has local data. Pick how to combine it with your cloud library.</p>
-      <p class="sync-hint sync-hint-compact">Local items: ${local}. Cloud items: ${cloud}.</p>
-      <p class="sync-hint sync-hint-compact cloud-backup-note">Musi downloads a ZIP backup before it replaces anything.</p>
-      <div class="sync-btn-row cloud-choice-row">
-        <button type="button" class="btn sm primary" data-first-sync="merge">Merge both</button>
-        <button type="button" class="btn sm" data-first-sync="cloud">Keep the cloud copy</button>
-        <button type="button" class="btn sm" data-first-sync="device">Keep this device</button>
+    <details class="sync-advanced cloud-device-section" id="mp-cloud-devices"${devicesOpen ? ' open' : ''}>
+      <summary class="sync-advanced-summary">${escapeHtml(summary)}</summary>
+      <div class="cloud-device-list">
+        ${rows || '<p class="sync-hint">No devices registered yet.</p>'}
       </div>
-    </div>
+    </details>
   `;
 }
 
 function fileStatusText(status) {
   const files = status?.files || {};
-  const uploads = files.uploads || 0;
-  const downloads = files.downloads || 0;
   if (files.busy) {
     if (files.total > 0 && files.phase) {
       const verb = files.phase === 'upload' ? 'upload' : 'download';
@@ -197,6 +232,8 @@ function fileStatusText(status) {
     }
     return 'Files: the check is running';
   }
+  const uploads = files.uploads || 0;
+  const downloads = files.downloads || 0;
   if (uploads === 0 && downloads === 0) return 'Files are in step';
   const parts = [];
   if (uploads > 0) parts.push(`${uploads} to upload`);
@@ -215,39 +252,38 @@ function showFileProgress(status) {
   return files.busy && files.total > 0;
 }
 
-function renderFileSyncControls(status) {
-  const checked = isFileSyncEnabled() ? ' checked' : '';
+function renderSyncActions(status) {
+  const busy = isBusy(status);
+  const rows = SYNC_ACTIONS.map((action) => {
+    const armed = armedMode === action.mode;
+    const label = armed ? 'Click again to confirm' : action.label;
+    const classes = [
+      'btn',
+      'sm',
+      action.danger ? 'cloud-danger-btn' : 'primary',
+      'cloud-sync-btn',
+    ].join(' ');
+    return `
+      <div class="cloud-sync-choice${armed ? ' armed' : ''}">
+        <button type="button" class="${classes}" data-sync-mode="${action.mode}"${busy ? ' disabled' : ''}>
+          ${escapeHtml(label)}
+        </button>
+        <p class="cloud-sync-hint">${escapeHtml(action.hint)}</p>
+      </div>
+    `;
+  }).join('');
+
   const progressHidden = showFileProgress(status) ? '' : ' hidden';
   const progressWidth = fileProgressWidth(status);
+
   return `
-    <div class="cloud-file-section">
+    <div class="cloud-sync-section">
+      <div class="sync-scopes-label">Sync</div>
+      <p class="sync-hint sync-hint-compact">Musi syncs only when you press a button. Each pass leaves this device and the cloud the same.</p>
+      <div class="cloud-sync-choices">${rows}</div>
       <p class="sync-estimate cloud-file-status" id="mp-cloud-file-status">${escapeHtml(fileStatusText(status))}</p>
       <div class="cloud-progress" id="mp-cloud-progress"${progressHidden}>
         <div class="cloud-progress-bar"><span class="cloud-progress-fill" style="width: ${progressWidth}%"></span></div>
-      </div>
-      <label class="cloud-toggle-row">
-        <input type="checkbox" id="mp-cloud-file-sync"${checked}>
-        <span>Sync exercise files and recordings on this device</span>
-      </label>
-      <div class="sync-btn-row cloud-file-actions">
-        <button type="button" class="btn sm" id="mp-cloud-sync-files">Sync files now</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderMassDelete(status) {
-  const md = status.massDelete || {};
-  return `
-    <div class="cloud-panel cloud-mass-delete">
-      <div class="cloud-panel-title">Large delete detected</div>
-      <p class="sync-hint">
-        ${escapeHtml(String(md.count ?? 0))} of ${escapeHtml(String(md.total ?? 0))}
-        ${escapeHtml(md.domain || 'items')} will be removed on other devices.
-      </p>
-      <div class="sync-btn-row">
-        <button type="button" class="btn sm primary" data-mass-delete="push">Push deletes</button>
-        <button type="button" class="btn sm sync-btn-secondary" data-mass-delete="cancel">Cancel</button>
       </div>
     </div>
   `;
@@ -256,8 +292,7 @@ function renderMassDelete(status) {
 function renderSignedIn(status, devices) {
   const dotClass = statusDotClass(status);
   const label = statusLabel(status);
-  const errMsg = localError || status.error;
-  const deviceRows = (devices || []).map((d) => renderDeviceRow(d, status.deviceId)).join('');
+  const errMsg = status.error;
 
   return `
     <div class="cloud-signed-in-head">
@@ -267,34 +302,18 @@ function renderSignedIn(status, devices) {
         <span class="cloud-status-label" id="mp-cloud-status-label">${escapeHtml(label)}</span>
       </div>
       <p class="sync-estimate cloud-last-sync" id="mp-cloud-last-sync">${escapeHtml(lastSyncedText(status))}</p>
+      <p class="sync-estimate cloud-counts" id="mp-cloud-counts">${escapeHtml(countsText(status))}</p>
     </div>
-
-    ${status.firstSyncNeeded ? renderFirstSync(status) : ''}
-    ${status.massDelete ? renderMassDelete(status) : ''}
 
     ${errMsg ? `
       <div class="sync-qr-warning cloud-error-banner" role="alert">
         ${escapeHtml(typeof errMsg === 'string' ? errMsg : errMsg?.message || 'Could not sync')}
-        <div class="sync-btn-row cloud-error-actions">
-          <button type="button" class="btn sm primary" id="mp-cloud-retry">Try again</button>
-        </div>
       </div>
     ` : ''}
 
-    <div class="cloud-device-section">
-      <div class="sync-scopes-label">Devices</div>
-      <div class="cloud-device-list">
-        ${deviceRows || '<p class="sync-hint">No devices registered yet.</p>'}
-      </div>
-    </div>
+    ${renderSyncActions(status)}
 
-    ${renderFileSyncControls(status)}
-
-    <div class="sync-btn-row cloud-action-row">
-      <button type="button" class="btn sm primary" id="mp-cloud-sync-now">Sync now</button>
-      <button type="button" class="btn sm" id="mp-cloud-push">Send this device to the cloud</button>
-      <button type="button" class="btn sm" id="mp-cloud-pull">Get the cloud copy</button>
-    </div>
+    ${renderDeviceSection(status, devices)}
 
     <div class="sync-btn-row cloud-signout-row">
       <button type="button" class="btn sm sync-btn-secondary" id="mp-cloud-signout">Sign out</button>
@@ -330,6 +349,10 @@ async function getStatusSnapshot() {
       email: null,
       userId: null,
       deviceId: null,
+      lastSyncAt: null,
+      lastSyncMode: null,
+      localCount: 0,
+      cloudCount: 0,
       online: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
       files: {
         uploads: 0,
@@ -346,13 +369,12 @@ async function getStatusSnapshot() {
 }
 
 function computeStructuralSig(status, devices) {
-  const errMsg = localError || status.error;
   return JSON.stringify({
     uiState,
-    firstSyncNeeded: !!status.firstSyncNeeded,
-    massDelete: status.massDelete ? 'yes' : 'no',
-    hasError: !!errMsg,
+    hasError: !!status.error,
+    busy: isBusy(status),
     eraseConfirmArmed,
+    armedMode,
     devices: (devices || []).map((d) => d.device_id).sort().join('|'),
   });
 }
@@ -370,6 +392,9 @@ function updateLiveStatus(status) {
 
   const lastSync = rootEl.querySelector('#mp-cloud-last-sync');
   if (lastSync) lastSync.textContent = lastSyncedText(status);
+
+  const counts = rootEl.querySelector('#mp-cloud-counts');
+  if (counts) counts.textContent = countsText(status);
 
   const fileStatus = rootEl.querySelector('#mp-cloud-file-status');
   if (fileStatus) fileStatus.textContent = fileStatusText(status);
@@ -412,10 +437,10 @@ async function paint() {
 
   const status = await getStatusSnapshot();
   const { devices } = await listDevices();
-  const sig = computeStructuralSig(status, devices);
-  lastStructuralSig = sig;
-  rootEl.innerHTML = renderSignedIn(status, devices);
-  wireSignedIn(status);
+  cachedDevices = devices || [];
+  lastStructuralSig = computeStructuralSig(status, cachedDevices);
+  rootEl.innerHTML = renderSignedIn(status, cachedDevices);
+  wireSignedIn();
 }
 
 function wireSignedOut() {
@@ -489,7 +514,7 @@ function wireCodeSent() {
       if (api?.handleSignedIn) await api.handleSignedIn();
       uiState = 'signed-in';
       eraseConfirmArmed = false;
-      localError = null;
+      armedMode = null;
       await paint();
     };
   }
@@ -521,38 +546,35 @@ function wireCodeSent() {
   }
 }
 
-function wireSignedIn(status) {
+function wireSignedIn() {
   const api = syncApi;
 
-  rootEl.querySelector('#mp-cloud-sync-now')?.addEventListener('click', async () => {
-    if (api?.syncNow) await api.syncNow();
-  });
+  const details = rootEl.querySelector('#mp-cloud-devices');
+  if (details) {
+    details.addEventListener('toggle', () => {
+      devicesOpen = details.open;
+    });
+  }
 
-  rootEl.querySelector('#mp-cloud-push')?.addEventListener('click', async () => {
-    if (api?.pushNow) await api.pushNow();
-  });
-
-  rootEl.querySelector('#mp-cloud-pull')?.addEventListener('click', async () => {
-    if (api?.pullNow) await api.pullNow();
-  });
-
-  rootEl.querySelector('#mp-cloud-file-sync')?.addEventListener('change', (event) => {
-    setFileSyncEnabled(event.target.checked);
-    refreshCloudUI();
-  });
-
-  rootEl.querySelector('#mp-cloud-sync-files')?.addEventListener('click', async () => {
-    if (api?.syncFilesNow) await api.syncFilesNow();
-  });
-
-  rootEl.querySelector('#mp-cloud-retry')?.addEventListener('click', async () => {
-    localError = null;
-    if (api?.syncNow) await api.syncNow();
-    refreshCloudUI();
+  rootEl.querySelectorAll('[data-sync-mode]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const mode = btn.getAttribute('data-sync-mode');
+      const action = SYNC_ACTIONS.find((a) => a.mode === mode);
+      if (!action) return;
+      if (action.danger && armedMode !== mode) {
+        armedMode = mode;
+        refreshCloudUI();
+        return;
+      }
+      armedMode = null;
+      if (api?.runSync) await api.runSync(mode);
+      refreshCloudUI();
+    });
   });
 
   rootEl.querySelector('#mp-cloud-signout')?.addEventListener('click', async () => {
     eraseConfirmArmed = false;
+    armedMode = null;
     await signOut();
     if (api?.handleSignedOut) await api.handleSignedOut({ eraseLocal: false });
     uiState = 'signed-out';
@@ -567,25 +589,12 @@ function wireSignedIn(status) {
       return;
     }
     eraseConfirmArmed = false;
+    armedMode = null;
     await signOut();
     if (api?.handleSignedOut) await api.handleSignedOut({ eraseLocal: true });
     uiState = 'signed-out';
     pendingEmail = '';
     await paint();
-  });
-
-  rootEl.querySelectorAll('[data-first-sync]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const choice = btn.getAttribute('data-first-sync');
-      if (api?.resolveFirstSync) await api.resolveFirstSync(choice);
-    });
-  });
-
-  rootEl.querySelectorAll('[data-mass-delete]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const choice = btn.getAttribute('data-mass-delete');
-      if (api?.resolveMassDelete) await api.resolveMassDelete(choice);
-    });
   });
 
   rootEl.querySelectorAll('.cloud-revoke-btn').forEach((btn) => {
@@ -599,13 +608,20 @@ function wireSignedIn(status) {
   });
 }
 
+/** Tests read the signed-in markup through this hook. */
+export function __renderSignedInForTests(status, devices) {
+  return renderSignedIn(status, devices);
+}
+
 export async function mountCloudUI(root) {
   unmountCloudUI();
   rootEl = root;
   syncApi = null;
   syncUnavailable = false;
   eraseConfirmArmed = false;
-  localError = null;
+  armedMode = null;
+  devicesOpen = false;
+  cachedDevices = [];
 
   await exchangeCodeFromUrl();
   await loadSyncApi();
@@ -617,6 +633,7 @@ export async function mountCloudUI(root) {
     if (event === 'SIGNED_OUT') {
       uiState = 'signed-out';
       eraseConfirmArmed = false;
+      armedMode = null;
     } else if (event === 'SIGNED_IN') {
       uiState = 'signed-in';
     }
@@ -625,14 +642,14 @@ export async function mountCloudUI(root) {
 
   const api = syncApi;
   if (api?.onSyncStatus) {
-    statusUnsub = api.onSyncStatus(async () => {
+    // The device list changes only on sign-in or on a revoke, so the status
+    // stream reuses the cached list and never calls the network on a tick.
+    statusUnsub = api.onSyncStatus((status) => {
       if (!rootEl || uiState !== 'signed-in' || syncUnavailable) {
         refreshCloudUI();
         return;
       }
-      const status = await getStatusSnapshot();
-      const { devices } = await listDevices();
-      const sig = computeStructuralSig(status, devices);
+      const sig = computeStructuralSig(status, cachedDevices);
       if (
         lastStructuralSig !== null
         && sig === lastStructuralSig
@@ -642,8 +659,8 @@ export async function mountCloudUI(root) {
         return;
       }
       lastStructuralSig = sig;
-      rootEl.innerHTML = renderSignedIn(status, devices);
-      wireSignedIn(status);
+      rootEl.innerHTML = renderSignedIn(status, cachedDevices);
+      wireSignedIn();
     });
   }
 
@@ -658,6 +675,9 @@ export async function mountCloudUI(root) {
   }
 
   await paint();
+
+  // The counts drive the choice of direction, so read them once on mount.
+  if (api?.refreshCounts) api.refreshCounts().catch(() => { /* ignore */ });
 }
 
 export function unmountCloudUI() {
@@ -680,7 +700,9 @@ export function unmountCloudUI() {
   pendingEmail = '';
   uiState = 'signed-out';
   eraseConfirmArmed = false;
-  localError = null;
+  armedMode = null;
+  devicesOpen = false;
+  cachedDevices = [];
   lastStructuralSig = null;
 }
 
