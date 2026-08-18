@@ -84,15 +84,21 @@ Musi is built around five practice modes:
 - **Routines** - routine content behaves as a stack of layers: the routines list,
   the routine overview, the session detail, the workbook detail, and then an
   exercise or a study companion. One Back press moves up exactly one layer.
+- **Workbook page** - a workbook opens on its own page, not on the first
+  exercise. The page shows the name, a count of exercises and tools, a
+  `Start practice` button, the ordered exercise list, the notes, and the
+  companion tools. Select an exercise to practice it. `Back` returns from the
+  player to this page, and a second `Back` returns to the library.
 - **Workbook companion tools** - a workbook pins reference and drill tools next to
   its exercises: scale, triad, sweep, pitch trainer, ear trainer, interval orbit,
-  and metronome. The workbook stores each tool's settings. The metronome stores a
-  BPM progression, so the player presses Start instead of building a tempo plan
-  again in each session.
+  and metronome. Add and edit the tools on the workbook page, or with the `Tools`
+  control in the player. The workbook stores each tool's settings. The metronome
+  stores a BPM progression, so the player presses Start instead of building a
+  tempo plan again in each session.
 - **Workbook notes** - a workbook keeps free text that describes it. Open the
-  workbook and press `Notes`, or use `Add notes` in the row menu of the library.
-  The first line of the notes shows under the workbook name in the library, and
-  the library search finds a workbook by its notes.
+  workbook and press `Edit notes`, or use `Add notes` in the row menu of the
+  library. The first line of the notes shows under the workbook name in the
+  library, and the library search finds a workbook by its notes.
 - **Library** - Exercises and Workbooks stay separate, but both use the same
   file browser. It works like Google Drive: a folder tree on the left, a
   breadcrumb on top, one folder level at a time, folders above items, sortable

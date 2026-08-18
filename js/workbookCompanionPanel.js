@@ -423,8 +423,10 @@ function buildCustomStepEditor(companion, prefix, api) {
  * @param {(orderedIds: string[]) => void} [api.onReorder]
  * @param {() => void} api.onChanged
  * @param {(open: boolean) => void} [api.onOpenChange]
+ * @param {object} [opts]
+ * @param {boolean} [opts.inline] Render the body in place instead of a drawer.
  */
-export function mountWorkbookCompanionPanel(host, api) {
+export function mountWorkbookCompanionPanel(host, api, { inline = false } = {}) {
   const noop = {
     open() {},
     close() {},
@@ -440,7 +442,7 @@ export function mountWorkbookCompanionPanel(host, api) {
   let lastFocus = null;
   let escHandler = null;
 
-  const root = el('div', { class: 'wb-cmp-root' });
+  const root = el('div', { class: inline ? 'wb-cmp-root is-inline' : 'wb-cmp-root' });
   const backdrop = el('div', { class: 'wb-cmp-backdrop', 'aria-hidden': 'true' });
   const drawer = el('div', {
     class: 'wb-cmp-drawer',
@@ -473,9 +475,13 @@ export function mountWorkbookCompanionPanel(host, api) {
     ]);
   }
 
-  drawer.append(head('Workbook tools'), drawerBody);
-  sheet.append(head('Workbook tools'), sheetBody);
-  root.append(backdrop, drawer, sheet);
+  if (inline) {
+    root.appendChild(panelBody);
+  } else {
+    drawer.append(head('Workbook tools'), drawerBody);
+    sheet.append(head('Workbook tools'), sheetBody);
+    root.append(backdrop, drawer, sheet);
+  }
   host.appendChild(root);
 
   const listHost = el('div', { class: 'wb-cmp-list' });
@@ -498,7 +504,7 @@ export function mountWorkbookCompanionPanel(host, api) {
   addSection.append(addTitle, typePicker);
 
   function placeBody() {
-    const target = sheetMode ? sheetBody : drawerBody;
+    const target = inline ? root : (sheetMode ? sheetBody : drawerBody);
     if (panelBody.parentElement !== target) target.appendChild(panelBody);
   }
 
@@ -507,6 +513,10 @@ export function mountWorkbookCompanionPanel(host, api) {
   }
 
   function paintDrawer() {
+    if (inline) {
+      placeBody();
+      return;
+    }
     detectSheetMode();
     placeBody();
     backdrop.classList.toggle('is-open', drawerOpen);
@@ -893,7 +903,7 @@ export function mountWorkbookCompanionPanel(host, api) {
   }
 
   function open() {
-    if (drawerOpen) return;
+    if (inline || drawerOpen) return;
     lastFocus = document.activeElement;
     drawerOpen = true;
     sync();
@@ -908,7 +918,7 @@ export function mountWorkbookCompanionPanel(host, api) {
   }
 
   function close() {
-    if (!drawerOpen) return;
+    if (inline || !drawerOpen) return;
     drawerOpen = false;
     paintDrawer();
     if (escHandler) {
@@ -923,17 +933,18 @@ export function mountWorkbookCompanionPanel(host, api) {
   }
 
   function toggle() {
+    if (inline) return;
     if (drawerOpen) close();
     else open();
   }
 
-  backdrop.addEventListener('click', close);
+  if (!inline) backdrop.addEventListener('click', close);
 
-  const mq = window.matchMedia(SHEET_MQ);
+  const mq = inline ? null : window.matchMedia(SHEET_MQ);
   const onMq = () => {
     if (drawerOpen) paintDrawer();
   };
-  mq.addEventListener('change', onMq);
+  mq?.addEventListener('change', onMq);
 
   sync();
   paintDrawer();
@@ -946,7 +957,7 @@ export function mountWorkbookCompanionPanel(host, api) {
     sync,
     destroy() {
       close();
-      mq.removeEventListener('change', onMq);
+      mq?.removeEventListener('change', onMq);
       root.remove();
     },
   };

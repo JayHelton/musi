@@ -104,6 +104,9 @@ let pendingWorkbookOpenId = null;
 // workbooks live. Google Drive calls the same place "My Drive".
 let selectedFolder = '';
 let openWorkbookId = null;
+// The workbook detail pane has two views. 'overview' is the workbook landing
+// page. 'player' is the ordered practice run for one exercise.
+let detailView = 'overview';
 let escapeWired = false;
 let shortcutWired = false;
 
@@ -116,6 +119,7 @@ let dialogRoot = null;
 
 // Detail view / player state
 let detailRenderedWorkbookId = null;
+let detailRenderedView = null;
 let detailLoadToken = 0;
 let detailMountHandle = null;
 let detailPlaythrough = null;
@@ -138,6 +142,16 @@ let detailTabsApi = null;
 let detailHadCompanions = false;
 let companionPanel = null;
 let detailEntryListEl = null;
+
+// Landing page (overview) nodes.
+let overviewNameEl = null;
+let overviewMetaEl = null;
+let overviewCountEl = null;
+let overviewStartBtn = null;
+let overviewLoopInput = null;
+let overviewNotesEl = null;
+let overviewToolsMountEl = null;
+let overviewCompanionPanel = null;
 
 let workbookBackTarget = null;
 const workbookEntryChangeHandlers = new Set();
@@ -166,6 +180,7 @@ function syncPracticeMode() {
   if (!sec) return;
   const practicing = !!openWorkbookId;
   sec.classList.toggle('wb-practicing', practicing);
+  sec.classList.toggle('wb-overview-open', practicing && detailView === 'overview');
   if (practicing) {
     installWbPracticeMetrics(sec);
     practiceMetricsHandle?.refresh();
@@ -308,7 +323,7 @@ function stepDetailBpm(delta) {
 
 function onWorkbookShortcutKeydown(e) {
   const action = resolveWorkbookShortcutAction(e, {
-    openWorkbookId,
+    openWorkbookId: detailView === 'player' ? openWorkbookId : null,
     sectionActive: isWorkbooksSectionActive(),
     dialogOpen: isWorkbookShortcutDialogOpen(),
   });
@@ -637,13 +652,24 @@ function syncGpWorkbookChrome(wb) {
   syncPlaylistLabel(wb);
 }
 
+function workbookBackLabel() {
+  // The player sits one level below the landing page, so its back control
+  // returns to the landing page instead of the library.
+  if (detailView === 'player') return '← Workbook';
+  return workbookBackTarget?.label ?? '← Workbooks';
+}
+
 function workbookBackShortLabel() {
-  const label = workbookBackTarget?.label ?? '← Workbooks';
+  const label = workbookBackLabel();
   return label.replace(/^←\s*/, '') || 'Workbooks';
 }
 
 function onWorkbookBackClick(e) {
   e?.stopPropagation?.();
+  if (detailView === 'player') {
+    showWorkbookOverview();
+    return;
+  }
   if (workbookBackTarget) {
     workbookBackTarget.onBack();
     return;
@@ -653,7 +679,7 @@ function onWorkbookBackClick(e) {
 }
 
 function syncWorkbookBackControls() {
-  const label = workbookBackTarget?.label ?? '← Workbooks';
+  const label = workbookBackLabel();
   const shortLabel = workbookBackShortLabel();
   if (detailBackBtn) detailBackBtn.textContent = label;
   const gpBack = detailBodyEl?.querySelector('.wb-head-back');
@@ -684,7 +710,7 @@ function notifyWorkbookDetailOpen() {
     notifyWorkbookDetailChange({ open: false, workbookId: null, exerciseId: null });
     return;
   }
-  const active = getActiveWorkbookEntry(workbookId);
+  const active = detailView === 'player' ? getActiveWorkbookEntry(workbookId) : null;
   notifyWorkbookDetailChange({
     open: true,
     workbookId,
@@ -829,9 +855,12 @@ function syncTransportDisabled(wb) {
 export function closeWorkbookDetail() {
   teardownDetailPlayer();
   teardownDetailCompanions();
+  teardownOverview();
   detailLoadToken += 1;
   detailRenderedWorkbookId = null;
+  detailRenderedView = null;
   openWorkbookId = null;
+  detailView = 'overview';
   if (workspaceEl) workspaceEl.classList.remove('is-open');
   if (detailPaneEl) detailPaneEl.hidden = true;
   syncPracticeMode();
@@ -859,15 +888,24 @@ export function openWorkbookForRoute({ workbookId, exerciseId, companionId } = {
     if (!hasCompanion) return { ok: false, reason: 'companion-missing' };
   }
 
-  const sameWorkbook = openWorkbookId === workbookId;
+  // A route without an exercise and without a companion lands on the
+  // workbook page. An exercise or a companion opens the player.
+  const nextView = (exerciseId || companionId) ? 'player' : 'overview';
+  const activeBefore = getActiveWorkbookEntry(workbookId);
+  const entryChanged = !!targetEntry
+    && (!activeBefore || activeBefore.entry.id !== targetEntry.id);
+  if (entryChanged) setActiveWorkbookEntry(workbookId, targetEntry.id);
 
-  if (!sameWorkbook) {
-    openWorkbookDetail(workbookId);
+  const shellChanged = openWorkbookId !== workbookId || detailView !== nextView;
+  openWorkbookId = workbookId;
+  detailView = nextView;
+  if (workspaceEl) workspaceEl.classList.add('is-open');
+  if (detailPaneEl) detailPaneEl.hidden = false;
+  syncPracticeMode();
+
+  if (shellChanged) {
+    render();
   } else {
-    openWorkbookId = workbookId;
-    if (workspaceEl) workspaceEl.classList.add('is-open');
-    if (detailPaneEl) detailPaneEl.hidden = false;
-    syncPracticeMode();
     syncWorkbookBackControls();
   }
 
@@ -880,30 +918,25 @@ export function openWorkbookForRoute({ workbookId, exerciseId, companionId } = {
     } finally {
       routeDrivenCompanionChange = false;
     }
+    notifyWorkbookDetailOpen();
     return { ok: true };
   }
 
-  if (exerciseId && targetEntry) {
-    const active = getActiveWorkbookEntry(workbookId);
-    if (!active || active.entry.id !== targetEntry.id) {
-      setActiveWorkbookEntry(workbookId, targetEntry.id);
+  if (exerciseId) {
+    closePlaylistDrawer();
+    if (!shellChanged && entryChanged) {
       const fresh = getWorkbook(workbookId);
       syncEntryHighlights(fresh);
       syncPositionReadout(fresh);
       syncPlayerHead(fresh);
-      closePlaylistDrawer();
       loadCurrentExercise({ autoPlay: false });
-    } else {
-      closePlaylistDrawer();
     }
+    notifyWorkbookDetailOpen();
     return { ok: true };
   }
 
-  teardownDetailPlayer();
-  openPlaylistDrawer(wb);
-  syncEntryHighlights(wb);
-  syncPositionReadout(wb);
-  syncPlayerHead(wb);
+  if (!shellChanged) refreshOverview(wb);
+  notifyWorkbookDetailOpen();
   return { ok: true };
 }
 
@@ -936,8 +969,37 @@ export function onWorkbookCompanionChange(handler) {
 
 function openWorkbookDetail(id) {
   openWorkbookId = id;
+  // Opening a workbook shows its landing page, not the first exercise.
+  detailView = 'overview';
   if (workspaceEl) workspaceEl.classList.add('is-open');
   if (detailPaneEl) detailPaneEl.hidden = false;
+  syncPracticeMode();
+  render();
+  notifyWorkbookDetailOpen();
+}
+
+// Go back from the player to the workbook landing page.
+function showWorkbookOverview() {
+  if (!openWorkbookId) return;
+  closePlaylistDrawer();
+  closeCompanionPanel();
+  detailView = 'overview';
+  syncPracticeMode();
+  render();
+  notifyWorkbookDetailOpen();
+}
+
+// Leave the landing page and practice one exercise.
+function openWorkbookPlayer(entryId) {
+  const wb = getWorkbook(openWorkbookId);
+  if (!wb || !wb.entries.length) return;
+  let targetId = entryId;
+  if (!targetId) {
+    const active = getActiveWorkbookEntry(wb.id);
+    targetId = active ? active.entry.id : wb.entries[0].id;
+  }
+  setActiveWorkbookEntry(wb.id, targetId);
+  detailView = 'player';
   syncPracticeMode();
   render();
   notifyWorkbookDetailOpen();
@@ -1770,6 +1832,10 @@ function buildEntryRow(wb, entry, index) {
       e.stopPropagation();
       if (moveWorkbookEntry(wb.id, entry.id, -1)) {
         const fresh = getWorkbook(wb.id);
+        if (detailView === 'overview') {
+          refreshOverview(fresh);
+          return;
+        }
         renderEntryList(fresh);
         syncPositionReadout(fresh);
       }
@@ -1781,6 +1847,10 @@ function buildEntryRow(wb, entry, index) {
       e.stopPropagation();
       if (moveWorkbookEntry(wb.id, entry.id, 1)) {
         const fresh = getWorkbook(wb.id);
+        if (detailView === 'overview') {
+          refreshOverview(fresh);
+          return;
+        }
         renderEntryList(fresh);
         syncPositionReadout(fresh);
       }
@@ -1793,6 +1863,10 @@ function buildEntryRow(wb, entry, index) {
       const wasPlaying = getDetailPlayingState();
       removeWorkbookEntry(wb.id, entry.id);
       const fresh = getWorkbook(wb.id);
+      if (detailView === 'overview') {
+        refreshOverview(fresh);
+        return;
+      }
       renderEntryList(fresh);
       syncPositionReadout(fresh);
       syncTransportDisabled(fresh);
@@ -1802,6 +1876,10 @@ function buildEntryRow(wb, entry, index) {
   row.appendChild(actions);
 
   row.addEventListener('click', () => {
+    if (detailView === 'overview') {
+      openWorkbookPlayer(entry.id);
+      return;
+    }
     closePlaylistDrawer();
     moveToWorkbookEntry(entry.id, { autoPlay: false });
   });
@@ -1832,6 +1910,10 @@ function buildEntryRow(wb, entry, index) {
     ids.splice(toIdx, 0, fromId);
     reorderWorkbookEntries(wb.id, ids);
     const fresh = getWorkbook(wb.id);
+    if (detailView === 'overview') {
+      refreshOverview(fresh);
+      return;
+    }
     renderEntryList(fresh);
     syncPositionReadout(fresh);
   });
@@ -1854,13 +1936,204 @@ function renderEntryList(wb) {
   if (!wb.entries.length) {
     detailEntryListEl.appendChild(el('div', {
       class: 'wb-entry-empty',
-      text: 'No exercises in this workbook yet.',
+      text: detailView === 'overview'
+        ? 'No exercises yet. Use + Add exercises to pick from your library.'
+        : 'No exercises in this workbook yet.',
     }));
     return;
   }
   wb.entries.forEach((entry, index) => {
     detailEntryListEl.appendChild(buildEntryRow(wb, entry, index));
   });
+}
+
+// --- landing page (overview) ------------------------------------------------
+
+function pluralTools(count) {
+  return `${count} tool${count === 1 ? '' : 's'}`;
+}
+
+function overviewSummary(wb) {
+  const parts = [pluralExercises(wb.entries.length)];
+  parts.push(pluralTools((wb.companions || []).length));
+  parts.push(wb.loopEnabled ? 'Loop on' : 'Loop off');
+  return parts.join(' · ');
+}
+
+function overviewStartLabel(wb) {
+  if (!wb.entries.length) return 'Start practice';
+  const active = getActiveWorkbookEntry(wb.id);
+  if (active && active.index > 0) {
+    return `Resume at ${active.index + 1} / ${wb.entries.length}`;
+  }
+  return 'Start practice';
+}
+
+function teardownOverview() {
+  if (overviewCompanionPanel) {
+    try { overviewCompanionPanel.destroy(); } catch (e) { /* ignore */ }
+    overviewCompanionPanel = null;
+  }
+  overviewNameEl = null;
+  overviewMetaEl = null;
+  overviewCountEl = null;
+  overviewStartBtn = null;
+  overviewLoopInput = null;
+  overviewNotesEl = null;
+  overviewToolsMountEl = null;
+}
+
+// The player writes to these module nodes. Clear them when the landing page
+// replaces the player, so stale nodes do not take sync calls.
+function clearPlayerRefs() {
+  detailPlayerNameEl = null;
+  detailPlayerKindEl = null;
+  detailPositionEl = null;
+  detailPrevBtn = null;
+  detailNextBtn = null;
+  detailLoopInput = null;
+  detailGpMountEl = null;
+  detailCompanionsMountEl = null;
+  detailTabsEl = null;
+  detailPanesEl = null;
+  detailTabsApi = null;
+  detailPlaylistBtn = null;
+  detailAddBtnHeader = null;
+  playlistDrawerEl = null;
+  detailHadCompanions = false;
+}
+
+function overviewSectionHead(title, actionNode) {
+  const headRow = el('div', { class: 'wb-ov-section-head' });
+  headRow.appendChild(el('h4', { class: 'wb-ov-section-title', text: title }));
+  if (actionNode) headRow.appendChild(actionNode);
+  return headRow;
+}
+
+function renderOverviewNotes(wb) {
+  if (!overviewNotesEl) return;
+  const text = (wb.notes || '').trim();
+  overviewNotesEl.textContent = text || 'No notes yet. Write what this workbook is for.';
+  overviewNotesEl.classList.toggle('is-empty', !text);
+}
+
+function buildOverview(wb) {
+  const page = el('div', { class: 'wb-overview' });
+
+  const hero = el('header', { class: 'wb-ov-hero' });
+  hero.appendChild(el('div', { class: 'wb-ov-kicker', text: 'Workbook' }));
+  overviewNameEl = el('h3', { class: 'wb-ov-name', text: wb.name });
+  hero.appendChild(overviewNameEl);
+  overviewMetaEl = el('div', { class: 'wb-ov-meta', text: overviewSummary(wb) });
+  hero.appendChild(overviewMetaEl);
+
+  const heroActions = el('div', { class: 'wb-ov-hero-actions' });
+  overviewStartBtn = el('button', {
+    class: 'btn primary wb-ov-start', type: 'button', text: overviewStartLabel(wb),
+    title: 'Open the player for this workbook',
+    onClick: () => openWorkbookPlayer(null),
+  });
+  overviewStartBtn.disabled = !wb.entries.length;
+  heroActions.appendChild(overviewStartBtn);
+
+  const loopHint = 'Loop on repeats the current exercise; loop off advances to the next one automatically.';
+  const loopLabel = el('label', { class: 'wb-ov-loop', title: loopHint });
+  overviewLoopInput = el('input', { type: 'checkbox' });
+  overviewLoopInput.checked = !!wb.loopEnabled;
+  overviewLoopInput.addEventListener('change', () => {
+    setWorkbookLoop(wb.id, overviewLoopInput.checked);
+    refreshOverview(getWorkbook(wb.id));
+  });
+  loopLabel.appendChild(overviewLoopInput);
+  loopLabel.appendChild(document.createTextNode(' Loop exercise'));
+  heroActions.appendChild(loopLabel);
+
+  heroActions.appendChild(el('button', {
+    class: 'btn sm wb-ov-rename', type: 'button', text: 'Rename',
+    title: 'Rename workbook',
+    onClick: () => {
+      openPrompt('Rename workbook', wb.name, 'Save', (name) => {
+        if (renameWorkbook(wb.id, name)) render();
+      });
+    },
+  }));
+  hero.appendChild(heroActions);
+  page.appendChild(hero);
+
+  // Exercises
+  const exSection = el('section', { class: 'wb-ov-section wb-ov-exercises' });
+  overviewCountEl = el('span', { class: 'wb-ov-count', text: String(wb.entries.length) });
+  const addBtn = el('button', {
+    class: 'btn sm primary wb-ov-add', type: 'button', text: '+ Add exercises',
+    onClick: () => openAddExercisesPicker(wb),
+  });
+  const exHead = overviewSectionHead('Exercises', addBtn);
+  exHead.querySelector('.wb-ov-section-title').appendChild(overviewCountEl);
+  exSection.appendChild(exHead);
+  exSection.appendChild(el('p', {
+    class: 'wb-ov-hint',
+    text: 'Select an exercise to practice it. Drag a row, or use the arrows, to change the order.',
+  }));
+  detailEntryListEl = el('div', { class: 'wb-entry-list' });
+  exSection.appendChild(detailEntryListEl);
+  page.appendChild(exSection);
+
+  // Notes
+  const notesSection = el('section', { class: 'wb-ov-section wb-ov-notes-section' });
+  notesSection.appendChild(overviewSectionHead('Notes', el('button', {
+    class: 'btn sm wb-ov-notes-btn', type: 'button', text: 'Edit notes',
+    onClick: () => openWorkbookNotesEditor(wb.id),
+  })));
+  overviewNotesEl = el('p', { class: 'wb-ov-notes' });
+  notesSection.appendChild(overviewNotesEl);
+  page.appendChild(notesSection);
+
+  // Companion tools
+  const toolsSection = el('section', { class: 'wb-ov-section wb-ov-tools-section' });
+  toolsSection.appendChild(overviewSectionHead('Companion tools', null));
+  toolsSection.appendChild(el('p', {
+    class: 'wb-ov-hint',
+    text: 'Pin a scale, a triad set, a metronome, or another tool. Pinned tools open on the Tools tab while you practice.',
+  }));
+  overviewToolsMountEl = el('div', { class: 'wb-ov-tools-mount' });
+  toolsSection.appendChild(overviewToolsMountEl);
+  page.appendChild(toolsSection);
+
+  detailBodyEl.appendChild(page);
+
+  overviewCompanionPanel = mountWorkbookCompanionPanel(overviewToolsMountEl, {
+    workbookId: wb.id,
+    getWorkbook: () => getWorkbook(wb.id),
+    onAdd: (type) => { addCompanionToWorkbook(wb.id, type); },
+    onUpdate: (companionId, patch) => { updateWorkbookCompanion(wb.id, companionId, patch); },
+    onRemove: (companionId) => { removeWorkbookCompanion(wb.id, companionId); },
+    onMove: (companionId, delta) => { moveWorkbookCompanion(wb.id, companionId, delta); },
+    onReorder: (orderedIds) => { reorderWorkbookCompanions(wb.id, orderedIds); },
+    onChanged: () => {
+      const fresh = getWorkbook(wb.id);
+      overviewCompanionPanel?.sync();
+      if (overviewMetaEl && fresh) overviewMetaEl.textContent = overviewSummary(fresh);
+    },
+  }, { inline: true });
+
+  renderOverviewNotes(wb);
+  renderEntryList(wb);
+}
+
+function refreshOverview(wb) {
+  const fresh = wb || getWorkbook(openWorkbookId);
+  if (!fresh) return;
+  if (overviewNameEl) overviewNameEl.textContent = fresh.name;
+  if (overviewMetaEl) overviewMetaEl.textContent = overviewSummary(fresh);
+  if (overviewCountEl) overviewCountEl.textContent = String(fresh.entries.length);
+  if (overviewLoopInput) overviewLoopInput.checked = !!fresh.loopEnabled;
+  if (overviewStartBtn) {
+    overviewStartBtn.textContent = overviewStartLabel(fresh);
+    overviewStartBtn.disabled = !fresh.entries.length;
+  }
+  renderOverviewNotes(fresh);
+  renderEntryList(fresh);
+  overviewCompanionPanel?.sync();
 }
 
 function buildDetailShell(wb) {
@@ -1965,6 +2238,8 @@ function buildDetailShell(wb) {
 function renderDetailActions(wb) {
   if (!detailActionsEl) return;
   detailActionsEl.innerHTML = '';
+  // The landing page carries its own add, notes, and rename controls.
+  if (detailView === 'overview') return;
   const addBtn = el('button', {
     class: 'btn sm primary wb-detail-add-btn', type: 'button',
     title: 'Add exercises', 'aria-label': 'Add exercises',
@@ -2139,7 +2414,7 @@ function openAddExercisesPicker(wb) {
     const created = addExercisesToWorkbook(wb.id, selectedOrder);
     sheet.close();
     render();
-    if (prevCount === 0) {
+    if (prevCount === 0 && detailView === 'player') {
       loadCurrentExercise({ autoPlay: false });
     }
     setStatus(`Added ${created.length} exercise${created.length === 1 ? '' : 's'}.`);
@@ -2285,6 +2560,7 @@ function renderDetail() {
     if (detailActionsEl) detailActionsEl.innerHTML = '';
     detailBodyEl.innerHTML = '';
     detailRenderedWorkbookId = null;
+    detailRenderedView = null;
     return;
   }
 
@@ -2306,13 +2582,38 @@ function renderDetail() {
   }
   renderDetailActions(wb);
 
-  const needsShell = detailRenderedWorkbookId !== wb.id || !detailBodyEl.querySelector('.wb-player');
+  if (detailView === 'overview') {
+    const needsPage = detailRenderedWorkbookId !== wb.id
+      || detailRenderedView !== 'overview'
+      || !detailBodyEl.querySelector('.wb-overview');
+    if (needsPage) {
+      teardownDetailPlayer();
+      teardownDetailCompanions();
+      clearPlayerRefs();
+      teardownOverview();
+      detailBodyEl.innerHTML = '';
+      buildOverview(wb);
+      detailRenderedWorkbookId = wb.id;
+      detailRenderedView = 'overview';
+    } else {
+      refreshOverview(wb);
+    }
+    syncWorkbookBackControls();
+    refreshPracticeMetrics();
+    return;
+  }
+
+  const needsShell = detailRenderedWorkbookId !== wb.id
+    || detailRenderedView !== 'player'
+    || !detailBodyEl.querySelector('.wb-player');
   if (needsShell) {
+    teardownOverview();
     teardownDetailPlayer();
     teardownDetailCompanions();
     detailBodyEl.innerHTML = '';
     buildDetailShell(wb);
     detailRenderedWorkbookId = wb.id;
+    detailRenderedView = 'player';
     loadCurrentExercise({ autoPlay: false });
   } else {
     const fresh = getWorkbook(wb.id);
@@ -2434,6 +2735,11 @@ function wireEscape() {
     if (!openWorkbookId) return;
     const sec = document.getElementById('sec-workbooks');
     if (!sec || !sec.classList.contains('active')) return;
+    // Escape steps back one level: player to landing page, landing page to list.
+    if (detailView === 'player') {
+      showWorkbookOverview();
+      return;
+    }
     closeWorkbookDetail();
     render();
   });

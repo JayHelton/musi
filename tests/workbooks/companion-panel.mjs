@@ -251,6 +251,39 @@ function makeApi(wb) {
   panel.destroy();
 }
 
+// The workbook landing page mounts the same panel in place, with no drawer.
+{
+  const host = mountHost();
+  const wb = createWorkbook({ name: 'Panel inline' });
+  const api = makeApi(wb);
+  const panel = mountWorkbookCompanionPanel(host, api, { inline: true });
+
+  const root = host.querySelector('.wb-cmp-root');
+  assert.ok(root, 'expected an inline root');
+  assert.ok(root.classList.contains('is-inline'));
+  assert.equal(host.querySelector('.wb-cmp-drawer'), null, 'inline mode has no drawer');
+  assert.equal(host.querySelector('.wb-cmp-sheet'), null, 'inline mode has no sheet');
+  assert.equal(host.querySelector('.wb-cmp-backdrop'), null, 'inline mode has no backdrop');
+  assert.ok(host.querySelector('.wb-cmp-panel-body'), 'inline mode shows the body');
+
+  // The drawer controls stay inert in place.
+  panel.open();
+  assert.equal(panel.isOpen(), false);
+  panel.toggle();
+  assert.equal(panel.isOpen(), false);
+
+  // Adding a tool still works in place.
+  const addCard = host.querySelector('.wb-cmp-type-card');
+  assert.ok(addCard, 'expected an add type card');
+  addCard.click();
+  panel.sync();
+  assert.equal(getWorkbook(wb.id).companions.length, 1);
+  assert.equal(host.querySelectorAll('.wb-cmp-item').length, 1);
+
+  panel.destroy();
+  assert.equal(host.querySelector('.wb-cmp-root'), null, 'destroy removes the inline root');
+}
+
 // Exercise/Tools pane switching is covered by browser verification.
 
 console.log('workbook companion-panel: ok');
