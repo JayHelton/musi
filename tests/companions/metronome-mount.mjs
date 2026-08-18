@@ -104,10 +104,18 @@ class FakeAudioContext {
   createGain() { return node('gain'); }
   createOscillator() {
     const osc = node('osc');
-    // The click tone records its start time; that is the audible grid.
-    osc.start = (time) => { clicks.push(time); };
+    // One click builds more than one voice at the same time. Record each start
+    // time one time only; that is the audible grid.
+    osc.start = (time) => {
+      if (clicks[clicks.length - 1] !== time) clicks.push(time);
+    };
     return osc;
   }
+  createBuffer(channels, length, sampleRate) {
+    const data = new Float32Array(length);
+    return { length, sampleRate, numberOfChannels: channels, getChannelData: () => data };
+  }
+  createBufferSource() { return { ...node('bufferSource'), buffer: null }; }
   createDynamicsCompressor() { return node('compressor'); }
   createAnalyser() { return node('analyser'); }
   createStereoPanner() { return { ...node('panner'), pan: audioParam(0) }; }

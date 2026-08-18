@@ -1,4 +1,5 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
+import { CLICK_TONE, STANDALONE_CLICK_GAIN, scheduleClickSound } from './audio/clickSynth.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
@@ -87,26 +88,11 @@ function rememberTimer(id) {
 }
 
 function scheduleClick(time, accented) {
-  const osc = audioCtx.createOscillator();
-  const filter = audioCtx.createBiquadFilter();
-  const gain = audioCtx.createGain();
-
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(accented ? 1300 : 850, time);
-  osc.frequency.exponentialRampToValueAtTime(accented ? 620 : 420, time + 0.04);
-
-  filter.type = 'bandpass';
-  filter.frequency.value = accented ? 1100 : 760;
-  filter.Q.value = 2.2;
-
-  gain.gain.setValueAtTime(accented ? 0.34 : 0.2, time);
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.065);
-
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(getAnalyserDestination());
-  osc.start(time);
-  osc.stop(time + 0.08);
+  scheduleClickSound(audioCtx, getAnalyserDestination(), time, {
+    tone: accented ? CLICK_TONE.accent : CLICK_TONE.beat,
+    peak: accented ? STANDALONE_CLICK_GAIN.accent : STANDALONE_CLICK_GAIN.beat,
+    decay: accented ? 0.042 : 0.036,
+  });
 }
 
 function renderBeatDots() {

@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v247-string-synth";
+const CACHE_VERSION = "v248-click-sound";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -75,6 +75,7 @@ const PRECACHE_URLS = [
   "js/attachments.js",
   "js/audio.js",
   "js/audio/audioOwner.js",
+  "js/audio/clickSynth.js",
   "js/audio/mixBus.js",
   "js/audio/samplePackRegistry.js",
   "js/audio/sampleLoader.js",

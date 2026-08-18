@@ -3,11 +3,14 @@
 
 import assert from 'node:assert/strict';
 import { installDomShim } from './domShim.mjs';
+import { CLICK_TONE } from '../../js/audio/clickSynth.js';
 
 function makeAudioParam(value = 0) {
   return {
     value,
-    setValueAtTime() {},
+    // The click voice schedules its tone and its peak with setValueAtTime, so
+    // the stub keeps the last scheduled value readable.
+    setValueAtTime(v) { this.value = v; },
     linearRampToValueAtTime() {},
     exponentialRampToValueAtTime() {},
     cancelScheduledValues() {},
@@ -48,13 +51,21 @@ function installAudioStub() {
     resume() { return Promise.resolve(); }
     createGain() {
       const node = makeAudioNode();
-      const origLinear = node.gain.linearRampToValueAtTime.bind(node.gain);
-      node.gain.linearRampToValueAtTime = (v, t) => {
+      const recordPeak = (v) => {
         if (v > 0.001) {
           node.gain.peak = v;
           gainPeaks.push(v);
         }
+      };
+      const origLinear = node.gain.linearRampToValueAtTime.bind(node.gain);
+      node.gain.linearRampToValueAtTime = (v, t) => {
+        recordPeak(v);
         return origLinear(v, t);
+      };
+      const origSet = node.gain.setValueAtTime.bind(node.gain);
+      node.gain.setValueAtTime = (v, t) => {
+        recordPeak(v);
+        return origSet(v, t);
       };
       return node;
     }
@@ -69,6 +80,8 @@ function installAudioStub() {
       };
       return node;
     }
+    // No buffer nodes: this suite counts oscillator voices, so the guitar must
+    // stay on its oscillator path. The click drops its noise transient here.
     createBiquadFilter() { return makeAudioNode(); }
     createDynamicsCompressor() { return makeAudioNode(); }
     createAnalyser() { return makeAudioNode(); }
@@ -91,12 +104,21 @@ function clearMetroOscillators() {
   gainPeaks.length = 0;
 }
 
+// One click builds a body oscillator at the click tone plus an inharmonic
+// partial above it. Count the body voices as clicks, and keep both out of the
+// guitar voice count.
+const CLICK_BODY_FREQS = Object.values(CLICK_TONE);
+const CLICK_VOICE_FREQS = new Set([
+  ...CLICK_BODY_FREQS,
+  ...CLICK_BODY_FREQS.map((tone) => Math.min(tone * 2.76, 14000)),
+]);
+
 function metroClicks() {
-  return metroOscillators.filter((o) => [600, 800, 1200].includes(o.frequency.value));
+  return metroOscillators.filter((o) => CLICK_BODY_FREQS.includes(o.frequency.value));
 }
 
 function guitarOscillators() {
-  return metroOscillators.filter((o) => ![600, 800, 1200].includes(o.frequency.value));
+  return metroOscillators.filter((o) => !CLICK_VOICE_FREQS.has(o.frequency.value));
 }
 
 function waitScheduler(ms = 60) {
@@ -368,8 +390,12 @@ const simpleGuitarModel = {
   const clicks = metroClicks().sort((a, b) => a._startAt - b._startAt);
   assert.ok(clicks.length >= 3, `schedules metronome clicks (got ${clicks.length})`);
   const freqs = clicks.slice(0, 4).map((o) => o.frequency.value);
-  assert.deepEqual(freqs.slice(0, 3), [1200, 600, 800], 'accent then sub then beat');
-  if (freqs.length >= 4) assert.equal(freqs[3], 600, 'fourth click is sub');
+  assert.deepEqual(
+    freqs.slice(0, 3),
+    [CLICK_TONE.accent, CLICK_TONE.sub, CLICK_TONE.beat],
+    'accent then sub then beat',
+  );
+  if (freqs.length >= 4) assert.equal(freqs[3], CLICK_TONE.sub, 'fourth click is sub');
 
   // volume scales peak gain
   {

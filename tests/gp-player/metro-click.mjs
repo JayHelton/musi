@@ -3,11 +3,12 @@
 
 import assert from 'node:assert/strict';
 import { METRO_CLICK_GAIN } from '../../js/tab/metroClick.js';
+import { STANDALONE_CLICK_GAIN } from '../../js/audio/clickSynth.js';
 
-// Reference peaks elsewhere in the audio graph (not imported — document staging).
+// Reference peak elsewhere in the audio graph (not imported — document staging).
 const GP_GUITAR_NOTE_PEAK = 0.16;
-const STANDALONE_METRO_ACCENT = 0.35;
-const STANDALONE_METRO_NORMAL = 0.20;
+const STANDALONE_METRO_ACCENT = STANDALONE_CLICK_GAIN.accent;
+const STANDALONE_METRO_NORMAL = STANDALONE_CLICK_GAIN.beat;
 
 assert.equal(typeof METRO_CLICK_GAIN.accent, 'number');
 assert.equal(typeof METRO_CLICK_GAIN.beat, 'number');

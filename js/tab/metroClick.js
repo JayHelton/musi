@@ -1,16 +1,24 @@
 // Short Web Audio metronome click for score-synced playback.
 
 import { audioCtx, getAnalyserDestination } from '../audio.js';
+import { CLICK_TONE, scheduleClickSound } from '../audio/clickSynth.js';
 
 // Gain staging for score-synced clicks (GP mix player, tab player, count-in).
-// Kept below the standalone Metronome tool (0.35 / 0.20 in metronome.js) but
-// above guitar note peaks (~0.16 in gpMixPlayer) so clicks cut through a mix.
+// Kept below the standalone Metronome tool (STANDALONE_CLICK_GAIN in
+// audio/clickSynth.js) but above guitar note peaks (~0.16 in gpMixPlayer) so
+// clicks cut through a mix.
 export const METRO_CLICK_GAIN = {
-  accent: 0.24,
-  beat: 0.14,
-  sub: 0.08,
+  accent: 0.36,
+  beat: 0.24,
+  sub: 0.14,
   // Legacy alias — tests and older call sites use .normal for beat-level clicks.
-  normal: 0.14,
+  normal: 0.24,
+};
+
+const CLICK_DECAY = {
+  accent: 0.042,
+  beat: 0.036,
+  sub: 0.026,
 };
 
 function resolveLevel(level) {
@@ -30,26 +38,10 @@ export function scheduleMetronomeClick(when, level = 'beat', volume = 1) {
   const ctx = audioCtx;
   if (!ctx) return;
   const resolved = resolveLevel(level);
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  const bp = ctx.createBiquadFilter();
-  osc.type = 'triangle';
-  let freq;
-  if (resolved === 'accent') freq = 1200;
-  else if (resolved === 'beat') freq = 800;
-  else freq = 600;
-  osc.frequency.value = freq;
-  bp.type = 'bandpass';
-  bp.frequency.value = freq;
-  bp.Q.value = 8;
   const vol = Math.max(0, Math.min(1, Number(volume) || 0));
-  const peak = (METRO_CLICK_GAIN[resolved] ?? METRO_CLICK_GAIN.beat) * vol;
-  gain.gain.setValueAtTime(0.0001, when);
-  gain.gain.linearRampToValueAtTime(peak, when + 0.002);
-  gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.04);
-  osc.connect(bp);
-  bp.connect(gain);
-  gain.connect(getAnalyserDestination());
-  osc.start(when);
-  osc.stop(when + 0.05);
+  scheduleClickSound(ctx, getAnalyserDestination(), when, {
+    tone: CLICK_TONE[resolved] ?? CLICK_TONE.beat,
+    peak: (METRO_CLICK_GAIN[resolved] ?? METRO_CLICK_GAIN.beat) * vol,
+    decay: CLICK_DECAY[resolved] ?? CLICK_DECAY.beat,
+  });
 }

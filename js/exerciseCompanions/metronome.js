@@ -3,6 +3,7 @@
 
 import { audioCtx, ensureAudio, getAnalyserDestination } from '../audio.js';
 import { claimAudio, releaseAudio } from '../audio/audioOwner.js';
+import { CLICK_TONE, STANDALONE_CLICK_GAIN, scheduleClickSound } from '../audio/clickSynth.js';
 import { showNowPlaying, hideNowPlaying } from '../nowPlaying.js';
 import { createCompanionPanel } from './panel.js';
 import {
@@ -23,26 +24,11 @@ const SCHEDULE_TICK_MS = 25;
 const STATUS_TICK_MS = 250;
 
 function clickBuffer(time, accented) {
-  const osc = audioCtx.createOscillator();
-  const filter = audioCtx.createBiquadFilter();
-  const gain = audioCtx.createGain();
-
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(accented ? 1200 : 800, time);
-  osc.frequency.exponentialRampToValueAtTime(accented ? 600 : 400, time + 0.04);
-
-  filter.type = 'bandpass';
-  filter.frequency.value = accented ? 1000 : 700;
-  filter.Q.value = 2;
-
-  gain.gain.setValueAtTime(accented ? 0.35 : 0.2, time);
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.06);
-
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(getAnalyserDestination());
-  osc.start(time);
-  osc.stop(time + 0.08);
+  scheduleClickSound(audioCtx, getAnalyserDestination(), time, {
+    tone: accented ? CLICK_TONE.accent : CLICK_TONE.beat,
+    peak: accented ? STANDALONE_CLICK_GAIN.accent : STANDALONE_CLICK_GAIN.beat,
+    decay: accented ? 0.042 : 0.036,
+  });
 }
 
 export function mountMetronome(host, companion, options = {}) {
