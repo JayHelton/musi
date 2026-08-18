@@ -182,13 +182,25 @@ function makeFakeAudio(scheduled) {
       getChannelData: () => new Float32Array(len),
       sampleRate: sr,
     }),
-    createBufferSource: () => ({
-      connect() {},
-      start() {},
-      stop() {},
-      buffer: null,
-      playbackRate: { value: 1 },
-    }),
+    /* The synth pack plays one rendered buffer per note. The capture keeps
+       the note times. It uses one probe pitch, because the render carries
+       the pitch inside the buffer. */
+    createBufferSource() {
+      let note = null;
+      return {
+        connect() {},
+        disconnect() {},
+        buffer: null,
+        playbackRate: gainParam(),
+        start(when) {
+          note = { when, midi: 60, dur: 0.2 };
+          scheduled.push(note);
+        },
+        stop(when) {
+          if (note) note.dur = Math.max(0.05, when - note.when - 0.02);
+        },
+      };
+    },
     createBiquadFilter: () => stub(),
   };
   return ctx;

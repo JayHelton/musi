@@ -1,112 +1,38 @@
-// Per-family wavetable voices for Guitar Pro playback.
-// Each family uses a PeriodicWave table, an envelope, and a lowpass filter.
+// Voices for Guitar Pro playback.
+// Each note plays a rendered buffer from the synth pack in
+// js/gpPlayer/stringSynth.js, or a sample from an installed sound pack.
+// The buffer holds the body of the tone. The playback stage adds the
+// velocity tone filter, the envelope, and the pitch moves.
 // Drum hits stay in js/drums/drumEngine.js.
 
 import { midiFreq } from '../audio.js';
-import { playSampleNote } from '../audio/sampleVoice.js';
+import { playSampleNote, schedulePlaybackRate } from '../audio/sampleVoice.js';
+import {
+  createVoiceBufferCache,
+  presetForFamily,
+  VOICE_PRESETS,
+} from './stringSynth.js';
 
 const VOICE_FADE_SEC = 0.008;
 const MAX_ACTIVE_VOICES = 48;
 const HEADROOM_TARGET = 0.9;
-
-const FAMILIES = {
-  cleanGuitar: {
-    harmonics: [1, 0.55, 0.32, 0.2, 0.12, 0.07, 0.04],
-    fallbackType: 'triangle',
-    attack: 0.005,
-    decay: 0.2,
-    sustain: 0.55,
-    filterBase: 3200,
-    filterVel: 4200,
-    peak: 0.14,
-    distort: false,
-  },
-  distortedGuitar: {
-    harmonics: [1, 0.72, 0.48, 0.3, 0.18, 0.1],
-    fallbackType: 'sawtooth',
-    attack: 0.003,
-    decay: 0.24,
-    sustain: 0.62,
-    filterBase: 3000,
-    filterVel: 4600,
-    peak: 0.11,
-    distort: true,
-  },
-  acousticGuitar: {
-    harmonics: [1, 0.58, 0.32, 0.16, 0.08, 0.04],
-    fallbackType: 'triangle',
-    attack: 0.002,
-    decay: 0.28,
-    sustain: 0.42,
-    filterBase: 3400,
-    filterVel: 4800,
-    peak: 0.15,
-    distort: false,
-  },
-  bass: {
-    harmonics: [1, 0.12, 0.04, 0.01],
-    fallbackType: 'sine',
-    attack: 0.004,
-    decay: 0.3,
-    sustain: 0.5,
-    filterBase: 280,
-    filterVel: 220,
-    peak: 0.17,
-    distort: false,
-  },
-  keys: {
-    harmonics: [1, 0.28, 0.14, 0.08, 0.05, 0.03],
-    fallbackType: 'square',
-    attack: 0.001,
-    decay: 0.35,
-    sustain: 0.28,
-    filterBase: 4200,
-    filterVel: 6200,
-    peak: 0.13,
-    distort: false,
-  },
+const ATTACK_SEC = 0.004;
+const MUTED_ATTACK_SEC = 0.002;
+const PALM_MUTE_MAX_SEC = 0.26;
+const DEAD_MAX_SEC = 0.12;
+const FALLBACK_WAVES = {
+  cleanGuitar: 'triangle',
+  acousticGuitar: 'triangle',
+  distortedGuitar: 'sawtooth',
+  bass: 'sine',
+  keys: 'square',
 };
-
-const periodicCache = new WeakMap();
 
 function clampVelocity(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0.78;
+  if (n > 1) return Math.max(0.05, Math.min(1, n / 127));
   return Math.max(0.05, Math.min(1, n));
-}
-
-function makeDistortionCurve(amount = 0.35) {
-  const n = 256;
-  const curve = new Float32Array(n);
-  const k = amount * 100;
-  for (let i = 0; i < n; i += 1) {
-    const x = (i * 2) / (n - 1) - 1;
-    curve[i] = ((3 + k) * x * 20 * (Math.PI / 180)) / (Math.PI + k * Math.abs(x));
-  }
-  return curve;
-}
-
-function getPeriodicWave(ctx, familyDef) {
-  if (typeof ctx.createPeriodicWave !== 'function') return null;
-  let cache = periodicCache.get(ctx);
-  if (!cache) {
-    cache = new Map();
-    periodicCache.set(ctx, cache);
-  }
-  const key = familyDef.fallbackType;
-  if (cache.has(key)) return cache.get(key);
-  const imag = new Float32Array(familyDef.harmonics.length + 1);
-  const real = new Float32Array(familyDef.harmonics.length + 1);
-  familyDef.harmonics.forEach((mag, i) => {
-    imag[i + 1] = mag;
-  });
-  const wave = ctx.createPeriodicWave(real, imag, { disableNormalization: false });
-  cache.set(key, wave);
-  return wave;
-}
-
-function centsToRatio(cents) {
-  return 2 ** (cents / 1200);
 }
 
 function setParam(param, value, time) {
@@ -115,37 +41,6 @@ function setParam(param, value, time) {
   } else if (param) {
     param.value = value;
   }
-}
-
-function rampParam(param, value, time) {
-  if (typeof param?.linearRampToValueAtTime === 'function') {
-    param.linearRampToValueAtTime(value, time);
-  } else if (param) {
-    param.value = value;
-  }
-}
-
-function expRampParam(param, value, time) {
-  if (typeof param?.exponentialRampToValueAtTime === 'function') {
-    param.exponentialRampToValueAtTime(Math.max(0.0001, value), time);
-  } else if (param) {
-    param.value = value;
-  }
-}
-
-function slideStartCents(slideKind) {
-  switch (slideKind) {
-    case 'intoFromBelow': return -100;
-    case 'intoFromAbove': return 100;
-    case 'legato':
-    case 'shift':
-      return -35;
-    default: return 0;
-  }
-}
-
-function vibratoDepthHz(baseFreq) {
-  return Math.max(2, baseFreq * 0.012);
 }
 
 /**
@@ -162,12 +57,17 @@ export function familyForProgram(program) {
   return 'cleanGuitar';
 }
 
+function normalizeFamily(family) {
+  return VOICE_PRESETS[family] ? family : 'cleanGuitar';
+}
+
 /**
  * Build a voice factory for one AudioContext.
  * @param {AudioContext} audioCtx
  */
 export function createVoiceFactory(audioCtx) {
   const active = [];
+  const bufferCache = createVoiceBufferCache(audioCtx);
 
   function dropVoice(handle) {
     const idx = active.indexOf(handle);
@@ -180,158 +80,27 @@ export function createVoiceFactory(audioCtx) {
     try { oldest.stopNow(); } catch (e) { /* ignore */ }
   }
 
+  function trackVoice(handle, node) {
+    if (typeof node?.addEventListener === 'function') {
+      node.addEventListener('ended', () => dropVoice(handle), { once: true });
+    } else if (node) {
+      node.onended = () => dropVoice(handle);
+    }
+    active.push(handle);
+    return handle;
+  }
+
   function headroomGain(velocity, familyPeak, chordSize = 1) {
     const size = Math.max(1, Number(chordSize) || 1);
     return familyPeak * clampVelocity(velocity) * (HEADROOM_TARGET / Math.sqrt(size));
   }
 
-  function schedulePitch(osc, baseFreq, when, durSec, bend, slideKind, vibrato) {
-    const freq = osc.frequency;
-    const slideCents = slideStartCents(slideKind);
-    const startFreq = baseFreq * centsToRatio(slideCents);
-    if (slideCents !== 0) {
-      setParam(freq, startFreq, when);
-      expRampParam(freq, Math.max(20, baseFreq), when + Math.min(0.08, durSec * 0.25));
-    } else {
-      setParam(freq, baseFreq, when);
-    }
-
-    if (bend?.points?.length) {
-      for (const pt of bend.points) {
-        const off = Math.max(0, Math.min(1, Number(pt.offset) || 0));
-        const cents = Number(pt.cents) || 0;
-        const t = when + off * durSec;
-        setParam(freq, baseFreq * centsToRatio(cents), t);
-      }
-    }
-
-    if (vibrato && durSec > 0.12) {
-      const depth = vibratoDepthHz(baseFreq);
-      const rate = 5.5;
-      const cycles = Math.max(2, Math.floor(durSec * rate));
-      for (let i = 1; i <= cycles; i += 1) {
-        const t = when + (i / cycles) * durSec;
-        const phase = i % 2 === 0 ? -depth : depth;
-        rampParam(freq, baseFreq + phase, t);
-      }
-      setParam(freq, baseFreq, when + durSec);
-    }
-  }
-
-  function playNote({
-    family,
-    midi,
-    when,
-    durSec,
-    velocity,
-    techniques = [],
-    bend = null,
-    slideKind = null,
-    chordSize = 1,
-    destination,
-    pack = null,
-  }) {
-    if (pack?.buffer) {
-      while (active.length >= MAX_ACTIVE_VOICES) stealOldest();
-      const handle = playSampleNote({
-        audioCtx,
-        buffer: pack.buffer,
-        rootMidi: pack.rootMidi,
-        midi,
-        when,
-        durSec,
-        velocity,
-        techniques,
-        bend,
-        slideKind,
-        chordSize,
-        destination,
-        gainTrim: pack.gainTrim ?? 1,
-      });
-      if (typeof handle.source?.addEventListener === 'function') {
-        handle.source.addEventListener('ended', () => dropVoice(handle), { once: true });
-      } else if (handle.source) {
-        handle.source.onended = () => dropVoice(handle);
-      }
-      active.push(handle);
-      return handle;
-    }
-
-    const familyDef = FAMILIES[family] || FAMILIES.cleanGuitar;
-    const tech = techniques || [];
-    const muted = tech.includes('palmMute') || tech.includes('dead');
-    const vibrato = tech.includes('vibrato');
-
-    while (active.length >= MAX_ACTIVE_VOICES) stealOldest();
-
-    const osc = audioCtx.createOscillator();
-    const filter = typeof audioCtx.createBiquadFilter === 'function'
-      ? audioCtx.createBiquadFilter()
-      : null;
-    const shaper = familyDef.distort && typeof audioCtx.createWaveShaper === 'function'
-      ? audioCtx.createWaveShaper()
-      : null;
-    const gain = audioCtx.createGain();
-
-    const wave = getPeriodicWave(audioCtx, familyDef);
-    if (wave && typeof osc.setPeriodicWave === 'function') {
-      osc.setPeriodicWave(wave);
-    } else {
-      osc.type = familyDef.fallbackType || 'triangle';
-    }
-
-    if (shaper) {
-      shaper.curve = makeDistortionCurve(0.32);
-      shaper.oversample = '2x';
-    }
-
-    const baseFreq = midiFreq(midi);
-    const vel = clampVelocity(velocity);
-    let decay = familyDef.decay;
-    let sustain = familyDef.sustain;
-    let filterCut = familyDef.filterBase + vel * familyDef.filterVel;
-    if (muted) {
-      decay *= 0.35;
-      sustain *= 0.45;
-      filterCut *= 0.55;
-    }
-
-    if (filter) {
-      filter.type = 'lowpass';
-      setParam(filter.frequency, filterCut, when);
-      if (filter.Q) filter.Q.value = muted ? 0.6 : 0.9;
-    }
-
-    const peak = headroomGain(velocity, familyDef.peak, chordSize);
-    const attack = familyDef.attack;
-    const releaseTail = Math.min(decay, durSec * 0.45);
-    const end = when + Math.max(0.04, durSec);
-
-    gain.gain.setValueAtTime(0.0001, when);
-    gain.gain.linearRampToValueAtTime(peak, when + attack);
-    gain.gain.setValueAtTime(peak * sustain, Math.max(when + attack, end - releaseTail));
-    gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
-    schedulePitch(osc, baseFreq, when, durSec, bend, slideKind, vibrato);
-
-    let tail = osc;
-    if (filter) {
-      osc.connect(filter);
-      tail = filter;
-    }
-    if (shaper) {
-      tail.connect(shaper);
-      tail = shaper;
-    }
-    tail.connect(gain);
-    gain.connect(destination);
-
+  function makeHandle(node, gain, stopAt) {
     const handle = {
-      osc,
+      osc: node,
+      source: node,
       gain,
-      filter,
-      shaper,
-      stopAt: end + 0.03,
+      stopAt,
       stopped: false,
       release(atTime) {
         if (handle.stopped) return;
@@ -340,7 +109,7 @@ export function createVoiceFactory(audioCtx) {
           gain.gain.cancelScheduledValues(t);
           gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), t);
           gain.gain.linearRampToValueAtTime(0.0001, t + VOICE_FADE_SEC);
-          osc.stop(t + VOICE_FADE_SEC + 0.002);
+          node.stop(t + VOICE_FADE_SEC + 0.002);
         } catch (e) { /* ignore */ }
         handle.stopped = true;
         dropVoice(handle);
@@ -350,28 +119,192 @@ export function createVoiceFactory(audioCtx) {
         try {
           gain.gain.cancelScheduledValues(audioCtx.currentTime);
           gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-          osc.stop(audioCtx.currentTime + 0.001);
+          node.stop(audioCtx.currentTime + 0.001);
         } catch (e) { /* ignore */ }
         handle.stopped = true;
         dropVoice(handle);
       },
     };
-
-    osc.start(when);
-    osc.stop(end + 0.03);
-    if (typeof osc.addEventListener === 'function') {
-      osc.addEventListener('ended', () => dropVoice(handle), { once: true });
-    } else {
-      osc.onended = () => dropVoice(handle);
-    }
-
-    active.push(handle);
     return handle;
+  }
+
+  /* The note holds its level while the rendered buffer decays on its own.
+     A short release keeps the note off from clicking. */
+  function applyEnvelope(gain, { when, end, peak, muted }) {
+    const attack = muted ? MUTED_ATTACK_SEC : ATTACK_SEC;
+    const span = Math.max(0.01, end - when);
+    const release = muted
+      ? Math.min(0.05, span * 0.5)
+      : Math.min(0.12, span * 0.4);
+    const releaseAt = Math.max(when + attack, end - release);
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.linearRampToValueAtTime(peak, when + attack);
+    gain.gain.setValueAtTime(peak, releaseAt);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+  }
+
+  function noteEnd(when, durSec, tech) {
+    const span = Math.max(0.04, Number(durSec) || 0);
+    if (tech.dead) return when + Math.min(span, DEAD_MAX_SEC);
+    if (tech.palmMute) return when + Math.min(span, PALM_MUTE_MAX_SEC);
+    return when + span;
+  }
+
+  function toneCutoff(preset, velocity, tech) {
+    const cut = preset.toneBase + clampVelocity(velocity) * preset.toneVel;
+    if (tech.dead) return cut * 0.3;
+    if (tech.palmMute) return cut * 0.45;
+    return cut;
+  }
+
+  function playPackNote(opts, pack) {
+    const handle = playSampleNote({
+      audioCtx,
+      buffer: pack.buffer,
+      rootMidi: pack.rootMidi,
+      midi: opts.midi,
+      when: opts.when,
+      durSec: opts.durSec,
+      velocity: opts.velocity,
+      techniques: opts.techniques,
+      bend: opts.bend,
+      slideKind: opts.slideKind,
+      chordSize: opts.chordSize,
+      destination: opts.destination,
+      gainTrim: pack.gainTrim ?? 1,
+    });
+    return trackVoice(handle, handle.source);
+  }
+
+  function playSynthNote(opts, preset, buffer, tech) {
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    schedulePlaybackRate(
+      source,
+      1,
+      opts.when,
+      opts.durSec,
+      opts.bend,
+      opts.slideKind,
+      tech.vibrato,
+    );
+
+    const gain = audioCtx.createGain();
+    const filter = typeof audioCtx.createBiquadFilter === 'function'
+      ? audioCtx.createBiquadFilter()
+      : null;
+    if (filter) {
+      filter.type = 'lowpass';
+      setParam(filter.frequency, toneCutoff(preset, opts.velocity, tech), opts.when);
+      if (filter.Q) filter.Q.value = tech.muted ? 0.6 : 0.8;
+      source.connect(filter);
+      filter.connect(gain);
+    } else {
+      source.connect(gain);
+    }
+    gain.connect(opts.destination);
+
+    const end = noteEnd(opts.when, opts.durSec, tech);
+    applyEnvelope(gain, {
+      when: opts.when,
+      end,
+      peak: headroomGain(opts.velocity, preset.peak, opts.chordSize),
+      muted: tech.muted,
+    });
+
+    const stopAt = end + 0.03;
+    source.start(opts.when);
+    source.stop(stopAt);
+    const handle = makeHandle(source, gain, stopAt);
+    handle.filter = filter;
+    return trackVoice(handle, source);
+  }
+
+  /* A context without createBuffer gets a plain tone. Test stubs use it. */
+  function playFallbackNote(opts, preset, family, tech) {
+    const osc = audioCtx.createOscillator();
+    osc.type = FALLBACK_WAVES[family] || 'triangle';
+    const gain = audioCtx.createGain();
+    const filter = typeof audioCtx.createBiquadFilter === 'function'
+      ? audioCtx.createBiquadFilter()
+      : null;
+    setParam(osc.frequency, midiFreq(opts.midi), opts.when);
+    if (filter) {
+      filter.type = 'lowpass';
+      setParam(filter.frequency, toneCutoff(preset, opts.velocity, tech), opts.when);
+      osc.connect(filter);
+      filter.connect(gain);
+    } else {
+      osc.connect(gain);
+    }
+    gain.connect(opts.destination);
+
+    const end = noteEnd(opts.when, opts.durSec, tech);
+    applyEnvelope(gain, {
+      when: opts.when,
+      end,
+      peak: headroomGain(opts.velocity, preset.peak, opts.chordSize),
+      muted: tech.muted,
+    });
+
+    const stopAt = end + 0.03;
+    osc.start(opts.when);
+    osc.stop(stopAt);
+    const handle = makeHandle(osc, gain, stopAt);
+    handle.filter = filter;
+    return trackVoice(handle, osc);
+  }
+
+  /**
+   * Play one pitched note.
+   * The note uses a pack sample first, then the synth buffer.
+   */
+  function playNote(opts) {
+    const { family, midi, pack = null } = opts;
+    const techniques = Array.isArray(opts.techniques) ? opts.techniques : [];
+
+    while (active.length >= MAX_ACTIVE_VOICES) stealOldest();
+    if (pack?.buffer) return playPackNote(opts, pack);
+
+    const tech = {
+      palmMute: techniques.includes('palmMute'),
+      dead: techniques.includes('dead'),
+      vibrato: techniques.includes('vibrato'),
+    };
+    tech.muted = tech.palmMute || tech.dead;
+
+    const name = normalizeFamily(family);
+    const preset = presetForFamily(name);
+    const buffer = bufferCache.get(name, midiFreq(midi), midi);
+    if (buffer && typeof audioCtx.createBufferSource === 'function') {
+      return playSynthNote(opts, preset, buffer, tech);
+    }
+    return playFallbackNote(opts, preset, name, tech);
+  }
+
+  /**
+   * Render notes before playback so the first pass does not stall.
+   * @param {{ family: string, midi: number }[]} notes
+   * @param {number} [maxNotes]
+   * @returns {number} the count of rendered notes
+   */
+  function prewarm(notes, maxNotes = 8) {
+    if (!Array.isArray(notes)) return 0;
+    let built = 0;
+    for (const note of notes) {
+      if (built >= maxNotes) break;
+      const name = normalizeFamily(note?.family);
+      const midi = Number(note?.midi);
+      if (!Number.isFinite(midi)) continue;
+      if (bufferCache.get(name, midiFreq(midi), midi)) built += 1;
+    }
+    return built;
   }
 
   return {
     familyForProgram,
     playNote,
+    prewarm,
     get activeCount() { return active.length; },
     stopAll() {
       while (active.length) {

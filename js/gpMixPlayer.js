@@ -38,6 +38,9 @@ const SCHEDULE_AHEAD = 0.3;
 const MAX_LATE_SEC = 1;
 const VOICE_FADE_SEC = 0.008;
 const CHORD_ONSET_EPS = 1e-6;
+const PREWARM_CHUNK = 4;
+const PREWARM_MAX_NOTES = 64;
+const PREWARM_IDLE_TIMEOUT_MS = 300;
 const MIN_RATE = 0.25;
 const MAX_RATE = 3;
 
@@ -221,6 +224,7 @@ export function createGpMixPlayer(opts = {}) {
     destroyed: false,
     endedFired: false,
     voiceFactory: null,
+    prewarmDone: false,
     playGeneration: 0,
   };
 
@@ -843,6 +847,7 @@ export function createGpMixPlayer(opts = {}) {
 
     stop({ releaseOwner: true });
     state.endedFired = false;
+    state.prewarmDone = false;
     if (scoreId != null) state.scoreId = String(scoreId);
     state.guitarModels = guitarModels.filter(Boolean);
     state.drumModels = drumModels.filter(Boolean);
@@ -1099,8 +1104,64 @@ export function createGpMixPlayer(opts = {}) {
     state.paused = false;
     state.pauseAtSec = startSec;
     scheduler();
+    startPrewarm();
     startFrameLoop();
     emitTick();
+  }
+
+  /* The prewarm runs only in idle time. It must never take the timer that
+     the scheduler uses, because the scheduler keeps the notes on time. */
+  function scheduleIdle(fn) {
+    if (typeof globalThis.requestIdleCallback !== 'function') return false;
+    globalThis.requestIdleCallback(() => fn(), { timeout: PREWARM_IDLE_TIMEOUT_MS });
+    return true;
+  }
+
+  /**
+   * List the distinct synth notes of the loaded score.
+   * The list drives the prewarm of the voice buffers.
+   */
+  function collectPrewarmNotes(limit = PREWARM_MAX_NOTES) {
+    const factory = state.voiceFactory;
+    const out = [];
+    if (!factory) return out;
+    const seen = new Set();
+    for (const ev of state.events) {
+      if (ev.kind !== 'guitar') continue;
+      const midi = Number(ev.midi);
+      if (!Number.isFinite(midi)) continue;
+      const model = state.guitarModels[ev.trackIndex];
+      const program = model?.trackInfo?.program != null ? model.trackInfo.program : 27;
+      const family = factory.familyForProgram(program);
+      const key = `${family}:${midi}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ family, midi });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  /* The synth pack renders each new note one time. The render costs a few
+     milliseconds, so the player builds the notes of the score in idle time.
+     The first pass then plays from the buffer cache. */
+  function startPrewarm() {
+    if (state.prewarmDone || state.playbackSource !== 'synth') return;
+    if (typeof state.voiceFactory?.prewarm !== 'function') return;
+    if (typeof globalThis.requestIdleCallback !== 'function') return;
+    state.prewarmDone = true;
+    const notes = collectPrewarmNotes();
+    if (!notes.length) return;
+
+    let index = 0;
+    const step = () => {
+      if (state.destroyed || typeof state.voiceFactory?.prewarm !== 'function') return;
+      const slice = notes.slice(index, index + PREWARM_CHUNK);
+      index += slice.length;
+      state.voiceFactory.prewarm(slice, slice.length);
+      if (index < notes.length) scheduleIdle(step);
+    };
+    scheduleIdle(step);
   }
 
   function stopInternal({ releaseOwner = false } = {}) {

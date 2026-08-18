@@ -1267,9 +1267,10 @@ exPlayer.destroy();
 
 // ---- instrument voices: trackInfo.program routes through instrumentVoices ----
 await (async () => {
-  let periodicWaveUsed = false;
   let biquadUsed = false;
   let voiceNotes = 0;
+  let renderedBuffers = 0;
+  let supportsBuffers = true;
 
   function makeParam(value = 0) {
     return {
@@ -1313,11 +1314,36 @@ await (async () => {
       osc.type = 'sawtooth';
       osc.start = () => { voiceNotes += 1; };
       osc.stop = () => {};
-      osc.setPeriodicWave = () => { periodicWaveUsed = true; };
+      osc.setPeriodicWave = () => {};
       osc.addEventListener = (type, fn) => {
         if (type === 'ended') osc._onEnded = fn;
       };
       return osc;
+    }
+    createBuffer(channels, length, sampleRate) {
+      if (!supportsBuffers) throw new Error('createBuffer is not available');
+      renderedBuffers += 1;
+      const data = new Float32Array(length);
+      return {
+        numberOfChannels: channels,
+        length,
+        sampleRate,
+        duration: length / sampleRate,
+        getChannelData: () => data,
+        copyToChannel: (src) => data.set(src),
+      };
+    }
+    createBufferSource() {
+      if (!supportsBuffers) throw new Error('createBufferSource is not available');
+      const src = makeNode();
+      src.buffer = null;
+      src.playbackRate = makeParam(1);
+      src.start = () => { voiceNotes += 1; };
+      src.stop = () => {};
+      src.addEventListener = (type, fn) => {
+        if (type === 'ended') src._onEnded = fn;
+      };
+      return src;
     }
     createBiquadFilter() {
       biquadUsed = true;
@@ -1326,10 +1352,7 @@ await (async () => {
     createWaveShaper() { return makeNode(); }
     createDynamicsCompressor() { return makeNode(); }
     createAnalyser() { return makeNode(); }
-    createPeriodicWave() {
-      periodicWaveUsed = true;
-      return {};
-    }
+    createPeriodicWave() { return {}; }
   }
 
   const savedAC = globalThis.AudioContext;
@@ -1358,8 +1381,50 @@ await (async () => {
     slideKind: null,
     destination: dest,
   });
-  assert.ok(voiceNotes >= 1, 'instrumentVoices.playNote must start an oscillator');
-  assert.ok(periodicWaveUsed || biquadUsed, 'instrumentVoices must use wavetable or filter nodes');
+  assert.ok(voiceNotes >= 1, 'instrumentVoices.playNote must start one voice');
+  assert.equal(renderedBuffers, 1, 'the synth pack must render one buffer per new note');
+  assert.ok(biquadUsed, 'instrumentVoices must use the velocity tone filter');
+
+  factory.playNote({
+    family: 'bass',
+    midi: 36,
+    when: 0.5,
+    durSec: 0.5,
+    velocity: 0.8,
+    techniques: [],
+    bend: null,
+    slideKind: null,
+    destination: dest,
+  });
+  assert.equal(renderedBuffers, 1, 'the buffer cache must serve a repeated note');
+
+  assert.equal(
+    factory.prewarm([{ family: 'cleanGuitar', midi: 64 }]),
+    1,
+    'prewarm must build the buffer of a note before playback',
+  );
+  assert.equal(renderedBuffers, 2, 'prewarm must render one new buffer');
+
+  supportsBuffers = false;
+  const fallbackCtx = new VoiceStubCtx();
+  const fallbackFactory = createVoiceFactory(fallbackCtx);
+  const notesBeforeFallback = voiceNotes;
+  fallbackFactory.playNote({
+    family: 'cleanGuitar',
+    midi: 52,
+    when: 0,
+    durSec: 0.4,
+    velocity: 0.7,
+    techniques: [],
+    bend: null,
+    slideKind: null,
+    destination: dest,
+  });
+  assert.ok(
+    voiceNotes > notesBeforeFallback,
+    'a context without buffers must still start a voice',
+  );
+  supportsBuffers = true;
 
   const voicePlayer = createGpMixPlayer();
   const modelWithProgram = {
@@ -1385,7 +1450,6 @@ await (async () => {
   voicePlayer.load({ guitarModels: [modelWithProgram], drumModels: [], bpm: 120 });
 
   const notesBefore = voiceNotes;
-  periodicWaveUsed = false;
   biquadUsed = false;
   await voicePlayer.play({ fromSec: 0 });
 
@@ -1423,8 +1487,8 @@ await (async () => {
     'createGpMixPlayer must schedule guitar notes through instrumentVoices when trackInfo.program is set',
   );
   assert.ok(
-    periodicWaveUsed || biquadUsed,
-    'scheduled notes must use the instrument voice layer, not the legacy triangle tone',
+    biquadUsed,
+    'scheduled notes must use the instrument voice layer, not a raw oscillator',
   );
 
   globalThis.AudioContext = savedAC;

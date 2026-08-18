@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v246-workbook-notes";
+const CACHE_VERSION = "v247-string-synth";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -223,6 +223,7 @@ const PRECACHE_URLS = [
   "js/gpPlayer/exerciseSegments.js",
   "js/gpPlayer/index.js",
   "js/gpPlayer/instrumentVoices.js",
+  "js/gpPlayer/stringSynth.js",
   "js/gpPlayer/layoutMetrics.js",
   "js/gpPlayer/scoreLayout.js",
   "js/gpPlayer/viewModes.js",

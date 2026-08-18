@@ -86,7 +86,8 @@
       if (!ctx) throw new Error('no audio context');
       if (ctx.state === 'suspended') await ctx.resume();
 
-      // Count every oscillator the engine starts.
+      // Count every voice the engine starts.
+      // The synth pack plays a buffer. The metronome plays an oscillator.
       let startedCount = 0;
       const realCreateOscillator = ctx.createOscillator.bind(ctx);
       ctx.createOscillator = () => {
@@ -94,6 +95,13 @@
         const realStart = osc.start.bind(osc);
         osc.start = (when) => { startedCount += 1; return realStart(when); };
         return osc;
+      };
+      const realCreateBufferSource = ctx.createBufferSource.bind(ctx);
+      ctx.createBufferSource = () => {
+        const source = realCreateBufferSource();
+        const realStart = source.start.bind(source);
+        source.start = (when) => { startedCount += 1; return realStart(when); };
+        return source;
       };
 
       // Record how late the scheduler timer runs.

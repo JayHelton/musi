@@ -120,7 +120,18 @@ export function pickDrumSample(manifest, midiOrArticulation) {
   return null;
 }
 
-function schedulePlaybackRate(source, baseRate, when, durSec, bend, slideKind, vibrato) {
+/**
+ * Schedule the playback rate of one buffer voice.
+ * The rate carries the slide, the bend points, and the vibrato.
+ * @param {AudioBufferSourceNode} source
+ * @param {number} baseRate
+ * @param {number} when
+ * @param {number} durSec
+ * @param {object|null} bend
+ * @param {string|null} slideKind
+ * @param {boolean} vibrato
+ */
+export function schedulePlaybackRate(source, baseRate, when, durSec, bend, slideKind, vibrato) {
   const rate = source.playbackRate;
   const slideCents = slideStartCents(slideKind);
   const startRate = baseRate * centsToRatio(slideCents);
