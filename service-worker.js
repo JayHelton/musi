@@ -82,6 +82,8 @@ const PRECACHE_URLS = [
   "js/audio/sampleLoader.js",
   "js/audio/samplePackRegistry.js",
   "js/audio/sampleVoice.js",
+  "js/audio/soundPrefs.js",
+  "js/audio/userSounds.js",
   "js/audioDock.js",
   "js/audioOwner.js",
   "js/bootSplash.js",

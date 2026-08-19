@@ -12,6 +12,13 @@ import { renderAnalysisReport } from './tab/tabAnalysisView.js';
 import { audioCtx, ensureAudio } from './audio.js';
 import { loadPacksForScore, cancelLoad, getPlaybackSourceState } from './audio/sampleLoader.js';
 import { registerCorePacks } from './audio/packCatalog.js';
+import {
+  SCORE_VOICES,
+  getScoreVoice,
+  scoreVoiceUsesPacks,
+  voiceUserSoundId,
+} from './audio/soundPrefs.js';
+import { getUserSound, registerUserPacks, userPackManifestId } from './audio/userSounds.js';
 import { scheduleMetronomeClick } from './tab/metroClick.js';
 
 import { el, uid, fmtTime } from './gpPlayer/dom.js';
@@ -223,6 +230,22 @@ export function mountGpPlayer(host, {
 
   function updateSourceLabel() {
     if (!isAlive()) return;
+    const voice = getScoreVoice();
+    if (!scoreVoiceUsesPacks(voice)) {
+      const preset = SCORE_VOICES.find((v) => v.id === voice);
+      sourceStatus.textContent = preset ? preset.label : 'Modeled strings';
+      return;
+    }
+    const soundId = voiceUserSoundId(voice);
+    if (soundId) {
+      const sound = getUserSound(soundId);
+      if (sound) {
+        sourceStatus.textContent = getPlaybackSourceState(packScoreId) === 'Studio ready'
+          ? sound.name
+          : getPlaybackSourceState(packScoreId);
+        return;
+      }
+    }
     sourceStatus.textContent = getPlaybackSourceState(packScoreId);
   }
 
@@ -239,6 +262,12 @@ export function mountGpPlayer(host, {
     }
     (async () => {
       try {
+        // The user can play the modeled synth or a basic wave instead. Neither
+        // needs a download, so skip the pack load in that case.
+        if (!scoreVoiceUsesPacks()) {
+          updateSourceLabel();
+          return;
+        }
         const Ctx = typeof window !== 'undefined'
           && (window.AudioContext || window.webkitAudioContext);
         if (!Ctx || typeof Ctx !== 'function') {
@@ -251,12 +280,15 @@ export function mountGpPlayer(host, {
           return;
         }
         await registerCorePacks();
+        registerUserPacks();
         if (!isAlive()) return;
+        const chosenPackId = userPackManifestId(voiceUserSoundId(getScoreVoice()) || '');
         await loadPacksForScore({
           scoreId: packScoreId,
           programs,
           drumNotes,
           audioCtx,
+          extraPackIds: chosenPackId ? [chosenPackId] : [],
           onProgress: () => updateSourceLabel(),
         });
         if (!isAlive()) return;

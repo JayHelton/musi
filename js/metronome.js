@@ -1,6 +1,18 @@
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import { claimAudio, releaseAudio } from './audio/audioOwner.js';
-import { CLICK_TONE, STANDALONE_CLICK_GAIN, scheduleClickSound } from './audio/clickSynth.js';
+import {
+  CLICK_TONE,
+  STANDALONE_CLICK_GAIN,
+  scheduleClickSound,
+  prepareClickVoice,
+} from './audio/clickSynth.js';
+import {
+  METRO_VOICES,
+  getMetroVoice,
+  setMetroVoice,
+  userVoiceId,
+} from './audio/soundPrefs.js';
+import { listUserSounds } from './audio/userSounds.js';
 import { showNowPlaying, hideNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting, saveSettings } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
@@ -909,8 +921,75 @@ function syncTsSegments() {
   if (denSeg) denSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.val) === metro.tsDen));
 }
 
+/** Fill the click voice picker and keep it in step with the saved choice. */
+function initClickVoicePicker() {
+  const select = document.getElementById('m-click-voice');
+  if (!select) return;
+
+  const paint = () => {
+    const current = getMetroVoice();
+    select.innerHTML = '';
+    for (const voice of METRO_VOICES) {
+      const opt = document.createElement('option');
+      opt.value = voice.id;
+      opt.textContent = voice.label;
+      select.appendChild(opt);
+    }
+    const own = listUserSounds('metronome');
+    if (own.length) {
+      const group = document.createElement('optgroup');
+      group.label = 'Installed';
+      for (const sound of own) {
+        const opt = document.createElement('option');
+        opt.value = userVoiceId(sound.id);
+        opt.textContent = sound.name;
+        group.appendChild(opt);
+      }
+      select.appendChild(group);
+    }
+    select.value = current;
+  };
+
+  const preview = () => {
+    ensureAudio();
+    if (!audioCtx) return;
+    const dest = getAnalyserDestination();
+    const at = audioCtx.currentTime + 0.06;
+    scheduleClickSound(audioCtx, dest, at, {
+      tone: CLICK_TONE.accent,
+      peak: STANDALONE_CLICK_GAIN.accent,
+      decay: 0.042,
+    });
+    scheduleClickSound(audioCtx, dest, at + 0.28, {
+      tone: CLICK_TONE.beat,
+      peak: STANDALONE_CLICK_GAIN.beat,
+      decay: 0.036,
+    });
+  };
+
+  paint();
+  if (select.dataset.wired !== '1') {
+    select.dataset.wired = '1';
+    select.addEventListener('change', () => {
+      setMetroVoice(select.value);
+      ensureAudio();
+      if (audioCtx) void prepareClickVoice(audioCtx).then(preview);
+      else preview();
+    });
+    const test = document.getElementById('m-click-preview');
+    if (test) {
+      test.addEventListener('click', () => {
+        ensureAudio();
+        if (audioCtx) void prepareClickVoice(audioCtx).then(preview);
+        else preview();
+      });
+    }
+  }
+}
+
 function initMetronome() {
   restoreMetronomeSettings();
+  initClickVoicePicker();
   const bpmInput = document.getElementById('m-bpm');
   const bpmSlider = document.getElementById('m-bpm-slider');
   if (!bpmInput || !bpmSlider) return;

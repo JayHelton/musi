@@ -7,6 +7,32 @@ import { getPack, packsForDrumMap, packsForPrograms } from './samplePackRegistry
 const sessions = new Map();
 let activeLoadToken = 0;
 
+/**
+ * Where a pack keeps its files, when they do not sit under `assets/audio/packs`.
+ * A pack the user installed reads its files from the attachment store, so it
+ * registers a resolver here. `packId -> (file) => Promise<Blob|null>`
+ */
+const packFileSources = new Map();
+
+/**
+ * Point one pack at its own file source.
+ * @param {string} packId
+ * @param {(file: string) => Promise<Blob|null>} resolve
+ */
+export function registerPackFileSource(packId, resolve) {
+  if (typeof packId !== 'string' || !packId) return;
+  if (typeof resolve !== 'function') {
+    packFileSources.delete(packId);
+    return;
+  }
+  packFileSources.set(packId, resolve);
+}
+
+/** Forget a pack's file source, e.g. when the user removes the pack. */
+export function clearPackFileSource(packId) {
+  packFileSources.delete(packId);
+}
+
 /** Decoded buffers per AudioContext, keyed by pack-relative file path. */
 const contextBuffers = new WeakMap();
 
@@ -70,6 +96,15 @@ async function tryCachePut(pack, url, response) {
 }
 
 async function fetchSample(pack, file) {
+  // A pack the user installed holds its files locally, so there is no fetch
+  // and no cache entry: the attachment store is already the cache.
+  const localSource = packFileSources.get(pack.id);
+  if (localSource) {
+    const blob = await localSource(file);
+    if (!blob) throw new Error(`Missing sample ${file}.`);
+    return new Response(blob);
+  }
+
   const url = resolveSampleUrl(pack, file);
   if (!isSameOriginUrl(url)) {
     throw new Error('Foreign sample URL rejected.');
@@ -112,14 +147,23 @@ function cancelOtherSessions(scoreId) {
  * Load packs required by the score programs and drum notes.
  * Never throws to the caller.
  */
-export async function loadPacksForScore({ scoreId, programs, drumNotes, audioCtx, onProgress }) {
+export async function loadPacksForScore({
+  scoreId,
+  programs,
+  drumNotes,
+  audioCtx,
+  onProgress,
+  extraPackIds = [],
+}) {
   try {
     const token = ++activeLoadToken;
     cancelOtherSessions(scoreId);
 
     const programPacks = packsForPrograms(programs || []);
     const drumPacks = packsForDrumMap(drumNotes || []);
-    const packIds = [...new Set([...programPacks, ...drumPacks])];
+    // A pack the user chose comes along even when no track names its program.
+    const chosen = Array.isArray(extraPackIds) ? extraPackIds.filter((id) => getPack(id)) : [];
+    const packIds = [...new Set([...chosen, ...programPacks, ...drumPacks])];
 
     if (!packIds.length) {
       setSession(scoreId, { status: 'fallback', packIds: [], progress: 1, buffers: {}, error: 'No registered pack.' });

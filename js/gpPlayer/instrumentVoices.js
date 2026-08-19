@@ -64,8 +64,10 @@ function normalizeFamily(family) {
 /**
  * Build a voice factory for one AudioContext.
  * @param {AudioContext} audioCtx
+ * @param {{ getWave?: () => (string|null) }} [options] `getWave` returns the
+ * basic oscillator wave the user asked for, or null for the modeled voices.
  */
-export function createVoiceFactory(audioCtx) {
+export function createVoiceFactory(audioCtx, { getWave = () => null } = {}) {
   const active = [];
   const bufferCache = createVoiceBufferCache(audioCtx);
 
@@ -221,9 +223,9 @@ export function createVoiceFactory(audioCtx) {
   }
 
   /* A context without createBuffer gets a plain tone. Test stubs use it. */
-  function playFallbackNote(opts, preset, family, tech) {
+  function playFallbackNote(opts, preset, family, tech, wave = null) {
     const osc = audioCtx.createOscillator();
-    osc.type = FALLBACK_WAVES[family] || 'triangle';
+    osc.type = wave || FALLBACK_WAVES[family] || 'triangle';
     const gain = audioCtx.createGain();
     const filter = typeof audioCtx.createBiquadFilter === 'function'
       ? audioCtx.createBiquadFilter()
@@ -264,7 +266,15 @@ export function createVoiceFactory(audioCtx) {
     const techniques = Array.isArray(opts.techniques) ? opts.techniques : [];
 
     while (active.length >= MAX_ACTIVE_VOICES) stealOldest();
-    if (pack?.buffer) return playPackNote(opts, pack);
+
+    let wave = null;
+    try {
+      wave = getWave();
+    } catch (e) {
+      wave = null;
+    }
+
+    if (!wave && pack?.buffer) return playPackNote(opts, pack);
 
     const tech = {
       palmMute: techniques.includes('palmMute'),
@@ -275,6 +285,10 @@ export function createVoiceFactory(audioCtx) {
 
     const name = normalizeFamily(family);
     const preset = presetForFamily(name);
+    // A basic wave plays through the oscillator path, the same one the
+    // Keyboard tool uses.
+    if (wave) return playFallbackNote(opts, preset, name, tech, wave);
+
     const buffer = bufferCache.get(name, midiFreq(midi), midi);
     if (buffer && typeof audioCtx.createBufferSource === 'function') {
       return playSynthNote(opts, preset, buffer, tech);

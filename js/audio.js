@@ -65,6 +65,17 @@ export function ensureAudio() {
     }
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  warmClickVoice();
+}
+
+// The metronome click can be a file the user uploaded. Decoding it needs an
+// AudioContext, so warm it as soon as there is one. The call is cheap after
+// the first decode, and a failure leaves the built-in click in place.
+function warmClickVoice() {
+  if (!audioCtx) return;
+  import('./audio/clickSynth.js')
+    .then((mod) => mod.prepareClickVoice(audioCtx))
+    .catch(() => { /* the built-in click still plays */ });
 }
 
 function getAudioSession() {

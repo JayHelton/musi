@@ -18,6 +18,33 @@ import {
   DEFAULT_MASTER_VOLUME,
 } from './audio.js';
 import { getSetting, saveSetting } from './persistence.js';
+import {
+  SCORE_VOICES,
+  METRO_VOICES,
+  getScoreVoice,
+  setScoreVoice,
+  getMetroVoice,
+  setMetroVoice,
+  userVoiceId,
+  voiceUserSoundId,
+} from './audio/soundPrefs.js';
+import {
+  listUserSounds,
+  addMetronomeSound,
+  addInstrumentPack,
+  removeUserSound,
+  userSoundsSupported,
+  registerUserPacks,
+} from './audio/userSounds.js';
+import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
+import {
+  CLICK_TONE,
+  STANDALONE_CLICK_GAIN,
+  scheduleClickSound,
+  prepareClickVoice,
+  forgetClickVoice,
+} from './audio/clickSynth.js';
+import { showAppToast } from './appToast.js';
 import { loadCloudConfig, isCloudEnabled } from './cloud/cloudConfig.js';
 import { pruneMissingExercisesAll } from './workbookModel.js';
 import { getExercises, getExercisesWithoutFolder, deleteExercisesWithoutFolder } from './exercises.js';
@@ -89,6 +116,12 @@ function render() {
       </div>
     </section>
 
+    <section class="mp-block" id="mp-sound-block">
+      <h3 class="mp-block-title">Sounds</h3>
+      <p class="mp-block-help">Pick the voice the score player and the metronome use. You can also install your own sounds on this device.</p>
+      <div id="mp-sound-root"></div>
+    </section>
+
     <section class="mp-block" id="mp-sync-block">
       <h3 class="mp-block-title">Device sync</h3>
       <p class="mp-block-help">Move your library to another phone or PC. This works without an account.</p>
@@ -136,6 +169,7 @@ function render() {
 
   paintMusicalContext();
   paintVolume();
+  paintSounds();
   paintDeviceSync();
   paintCloudSync();
   paintLibraryCleanup();
@@ -570,6 +604,195 @@ function paintVolume() {
     setMasterVolume(vol);
     saveSetting('global.volume', getMasterVolume());
     if (valueLabel) valueLabel.textContent = Math.round(getMasterVolume() * 100) + '%';
+  };
+}
+
+/* ── Sounds ─────────────────────────────────────────────────── */
+
+/** Play two clicks so the user hears the metronome voice they picked. */
+function previewMetronomeVoice() {
+  try {
+    ensureAudio();
+    if (!audioCtx) return;
+    const dest = getAnalyserDestination();
+    const at = audioCtx.currentTime + 0.06;
+    scheduleClickSound(audioCtx, dest, at, {
+      tone: CLICK_TONE.accent,
+      peak: STANDALONE_CLICK_GAIN.accent,
+      decay: 0.042,
+    });
+    scheduleClickSound(audioCtx, dest, at + 0.28, {
+      tone: CLICK_TONE.beat,
+      peak: STANDALONE_CLICK_GAIN.beat,
+      decay: 0.036,
+    });
+  } catch (e) {
+    /* a preview is optional */
+  }
+}
+
+function voiceOptionsHtml(presets, sounds, current) {
+  const rows = presets.map((v) => (
+    `<option value="${escapeHtml(v.id)}"${v.id === current ? ' selected' : ''}>${escapeHtml(v.label)}</option>`
+  ));
+  if (sounds.length) {
+    const own = sounds.map((snd) => {
+      const id = userVoiceId(snd.id);
+      return `<option value="${escapeHtml(id)}"${id === current ? ' selected' : ''}>${escapeHtml(snd.name)}</option>`;
+    });
+    rows.push(`<optgroup label="Installed">${own.join('')}</optgroup>`);
+  }
+  return rows.join('');
+}
+
+function soundListHtml(sounds, emptyText) {
+  if (!sounds.length) return `<p class="mp-sound-empty">${escapeHtml(emptyText)}</p>`;
+  const rows = sounds.map((snd) => `
+    <li class="mp-sound-row">
+      <span class="mp-sound-name">${escapeHtml(snd.name)}</span>
+      <button type="button" class="btn sm mp-sound-remove" data-sound-id="${escapeHtml(snd.id)}">Remove</button>
+    </li>
+  `);
+  return `<ul class="mp-sound-list">${rows.join('')}</ul>`;
+}
+
+function paintSounds() {
+  const root = host?.querySelector('#mp-sound-root');
+  if (!root) return;
+
+  registerUserPacks();
+  const packs = listUserSounds('instrument');
+  const clicks = listUserSounds('metronome');
+  const scoreVoice = getScoreVoice();
+  const metroVoice = getMetroVoice();
+  const canInstall = userSoundsSupported();
+
+  root.innerHTML = `
+    <div class="mp-sound-field">
+      <label class="mp-sound-label" for="mp-score-voice">Score player</label>
+      <select id="mp-score-voice" class="mp-sound-select">
+        ${voiceOptionsHtml(SCORE_VOICES, packs, scoreVoice)}
+      </select>
+      <p class="mp-sound-help" id="mp-score-voice-help"></p>
+    </div>
+
+    <div class="mp-sound-field">
+      <label class="mp-sound-label" for="mp-metro-voice">Metronome</label>
+      <div class="mp-sound-row-inline">
+        <select id="mp-metro-voice" class="mp-sound-select">
+          ${voiceOptionsHtml(METRO_VOICES, clicks, metroVoice)}
+        </select>
+        <button type="button" class="btn sm" id="mp-metro-preview">Play</button>
+      </div>
+      <p class="mp-sound-help" id="mp-metro-voice-help"></p>
+    </div>
+
+    <details class="adv-options mp-sound-install">
+      <summary><span class="adv-gear">⚙</span> Your own sounds</summary>
+      <div class="mp-sound-install-body">
+        <div class="mp-sound-group">
+          <div class="mp-sound-group-title">Score player packs</div>
+          <p class="mp-sound-help">A pack is a ZIP with a <code>manifest.json</code> and the audio files it names. See <code>assets/audio/packs/README.md</code> for the format.</p>
+          ${soundListHtml(packs, 'No packs installed.')}
+          <button type="button" class="btn sm" id="mp-add-pack"${canInstall ? '' : ' disabled'}>Add a pack…</button>
+          <input type="file" id="mp-add-pack-input" accept=".zip,application/zip" hidden>
+        </div>
+        <div class="mp-sound-group">
+          <div class="mp-sound-group-title">Metronome sounds</div>
+          <p class="mp-sound-help">One audio file per sound. The accent plays the same file a little higher and louder.</p>
+          ${soundListHtml(clicks, 'No sounds installed.')}
+          <button type="button" class="btn sm" id="mp-add-click"${canInstall ? '' : ' disabled'}>Add a sound…</button>
+          <input type="file" id="mp-add-click-input" accept="audio/*,.wav,.mp3,.ogg,.m4a" hidden>
+        </div>
+        ${canInstall ? '' : '<p class="mp-sound-help">This browser has no file storage, so sounds cannot be installed here.</p>'}
+      </div>
+    </details>
+  `;
+
+  const scoreSelect = root.querySelector('#mp-score-voice');
+  const scoreHelp = root.querySelector('#mp-score-voice-help');
+  const syncScoreHelp = () => {
+    const preset = SCORE_VOICES.find((v) => v.id === getScoreVoice());
+    scoreHelp.textContent = preset?.help
+      || 'Plays the samples of the pack you installed. A new choice takes effect on the next score you open.';
+  };
+  scoreSelect.onchange = () => {
+    setScoreVoice(scoreSelect.value);
+    syncScoreHelp();
+    showAppToast('Score player sound saved. Reopen the score to hear it.');
+  };
+  syncScoreHelp();
+
+  const metroSelect = root.querySelector('#mp-metro-voice');
+  const metroHelp = root.querySelector('#mp-metro-voice-help');
+  const syncMetroHelp = () => {
+    const current = getMetroVoice();
+    const preset = METRO_VOICES.find((v) => v.id === current);
+    metroHelp.textContent = preset?.help || 'Plays the sound you installed.';
+  };
+  metroSelect.onchange = () => {
+    setMetroVoice(metroSelect.value);
+    syncMetroHelp();
+    if (audioCtx) void prepareClickVoice(audioCtx).then(() => previewMetronomeVoice());
+    else previewMetronomeVoice();
+  };
+  syncMetroHelp();
+  root.querySelector('#mp-metro-preview').onclick = () => {
+    if (audioCtx) void prepareClickVoice(audioCtx).then(() => previewMetronomeVoice());
+    else previewMetronomeVoice();
+  };
+
+  wireSoundInstall(root, {
+    buttonId: 'mp-add-pack',
+    inputId: 'mp-add-pack-input',
+    install: (file) => addInstrumentPack(file),
+    okText: 'Pack installed.',
+  });
+  wireSoundInstall(root, {
+    buttonId: 'mp-add-click',
+    inputId: 'mp-add-click-input',
+    install: (file) => addMetronomeSound(file),
+    okText: 'Sound installed.',
+  });
+
+  root.querySelectorAll('.mp-sound-remove').forEach((btn) => {
+    btn.onclick = async () => {
+      btn.disabled = true;
+      const id = btn.dataset.soundId;
+      const result = await removeUserSound(id);
+      forgetClickVoice(id);
+      // Fall back to the default when the chosen sound is the one that went.
+      if (voiceUserSoundId(getScoreVoice()) === id) setScoreVoice('packs');
+      if (voiceUserSoundId(getMetroVoice()) === id) setMetroVoice('woodblock');
+      if (!result.ok) showAppToast(result.error);
+      paintSounds();
+    };
+  });
+}
+
+function wireSoundInstall(root, { buttonId, inputId, install, okText }) {
+  const button = root.querySelector(`#${buttonId}`);
+  const input = root.querySelector(`#${inputId}`);
+  if (!button || !input) return;
+  button.onclick = () => input.click();
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    button.disabled = true;
+    try {
+      const result = await install(file);
+      if (!result.ok) {
+        showAppToast(result.error);
+        return;
+      }
+      showAppToast(okText);
+      paintSounds();
+    } catch (err) {
+      showAppToast(err?.message || 'That file could not be installed.');
+    } finally {
+      button.disabled = false;
+    }
   };
 }
 

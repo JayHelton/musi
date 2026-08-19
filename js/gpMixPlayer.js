@@ -12,6 +12,8 @@ import {
 } from './audio/mixBus.js';
 import { canUsePackOnNextStart, getLoadState, packBufferKey } from './audio/sampleLoader.js';
 import { getPack, packsForPrograms } from './audio/samplePackRegistry.js';
+import { getScoreVoice, scoreVoiceUsesPacks, voiceUserSoundId, voiceWave } from './audio/soundPrefs.js';
+import { userPackManifestId } from './audio/userSounds.js';
 import { pickPitchedSample, playDrumSample, pickDrumSample } from './audio/sampleVoice.js';
 import { createVoiceFactory } from './gpPlayer/instrumentVoices.js';
 import { quartersToSeconds, modelHasRhythm } from './tab/tabModel.js';
@@ -258,7 +260,10 @@ export function createGpMixPlayer(opts = {}) {
     let pack = null;
     const session = packSessionReady();
     if (session) {
-      const packIds = packsForPrograms([program]);
+      // A pack the user chose plays every pitched track. Otherwise the track
+      // program picks the pack.
+      const chosenPackId = userPackManifestId(voiceUserSoundId(getScoreVoice()) || '');
+      const packIds = chosenPackId ? [chosenPackId] : packsForPrograms([program]);
       if (packIds.length) {
         const manifest = getPack(packIds[0]);
         const sample = pickPitchedSample(manifest, ev.midi, ev.velocity);
@@ -523,7 +528,11 @@ export function createGpMixPlayer(opts = {}) {
 
   function ensureTrackGains() {
     ensureAudio();
-    if (!state.voiceFactory) state.voiceFactory = createVoiceFactory(audioCtx);
+    if (!state.voiceFactory) {
+      state.voiceFactory = createVoiceFactory(audioCtx, {
+        getWave: () => voiceWave(getScoreVoice()),
+      });
+    }
     while (state.trackGains.guitar.length < state.guitarModels.length) {
       const i = state.trackGains.guitar.length;
       const vol = state.trackVolumes.guitar[i] ?? 1;
@@ -1072,7 +1081,10 @@ export function createGpMixPlayer(opts = {}) {
     if (!handle) return;
 
     state.audioHandle = handle;
-    state.playbackSource = canUsePackOnNextStart(state.scoreId) ? 'pack' : 'synth';
+    // The user can ask for the modeled synth or a basic wave instead of samples.
+    state.playbackSource = (scoreVoiceUsesPacks() && canUsePackOnNextStart(state.scoreId))
+      ? 'pack'
+      : 'synth';
 
     initEngine();
     ensureTrackGains();

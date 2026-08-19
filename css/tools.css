@@ -206,3 +206,8 @@ input[type=range]{accent-color:var(--accent)}
   .metro-beat-dots{gap:5px;margin-top:4px}
   .metro-simple-controls{margin-bottom:10px;gap:8px}
 }
+
+/* Metronome click voice picker */
+.metro-sound-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.metro-sound-select{flex:1;min-width:150px;min-height:var(--tap-min);padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-pill,999px);background:var(--bg2);color:var(--text);font-family:inherit;font-size:.9rem}
+.metro-sound-hint{margin:8px 0 0;font-size:.78rem;color:var(--muted);line-height:1.4}

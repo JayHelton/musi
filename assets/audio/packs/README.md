@@ -30,6 +30,43 @@ The Guitar Pro player uses samples when the load session is ready. Otherwise it 
 
 To rebuild the committed MP3 files, run `python3 scripts/fetch-core-packs.py` from the repo root.
 
+## Packs the user installs
+
+The Settings screen has a Sounds block. It installs a pack from a ZIP file on
+this device. The ZIP holds one `manifest.json` and the audio files that the
+manifest names. The files sit next to the manifest, or inside one folder with
+the manifest.
+
+The manifest is the same format as a core pack. A minimal pitched pack looks
+like this:
+
+```json
+{
+  "id": "my-nylon-guitar",
+  "version": "1",
+  "license": "CC0-1.0",
+  "attribution": "Your name",
+  "sampleRate": 44100,
+  "instrument": "Nylon guitar",
+  "midiProgram": [24, 25],
+  "samples": [
+    { "file": "n40.wav", "rootMidi": 40 },
+    { "file": "n52.wav", "rootMidi": 52 }
+  ]
+}
+```
+
+Rules for an installed pack:
+
+- Give the pack an `id` that no core pack uses.
+- Keep every `file` value a plain relative name. An absolute path or a URL is
+  rejected.
+- The audio bytes go into the attachment store on this device. They do not sync
+  and they do not reach the network.
+
+The Sounds block also installs a single audio file as a metronome click. The
+accent plays the same file a little higher and a little louder.
+
 ## Synth pack
 
 The synth pack sounds when no sample pack is ready. It ships no audio files.
