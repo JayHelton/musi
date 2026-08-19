@@ -26,6 +26,7 @@ import {
   toolContextFields,
 } from '../../js/tools.js';
 import { PRIMARY_NAV_ITEMS, utilityNavItems, navHighlightId } from '../../js/shell/nav.js';
+import { isKnownRoute } from '../../js/routeMap.js';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -251,6 +252,18 @@ test('no source file references a removed section id', () => {
     for (const id of REMOVED_SECTION_IDS) {
       const hit = new RegExp(`\\b${id}\\b`).test(text);
       assert.equal(hit, false, `${path} references ${id}`);
+    }
+  }
+});
+
+test('every navigation call names a route that exists', () => {
+  // Catches a call left on an old id, which would silently land on the
+  // default screen instead of the tool the caller wanted.
+  const callPattern = /(?:showSection|showSectionFn|openSectionFn)\??\.?\(\s*'([a-z-]+)'/g;
+  for (const { path, text } of SOURCES) {
+    if (!path.endsWith('.js')) continue;
+    for (const match of text.matchAll(callPattern)) {
+      assert.equal(isKnownRoute(match[1]), true, `${path} navigates to ${match[1]}`);
     }
   }
 });

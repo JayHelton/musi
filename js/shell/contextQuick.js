@@ -232,7 +232,7 @@ function buildPanel(fields) {
   more.textContent = 'All settings';
   more.onclick = () => {
     closeContextPanel();
-    if (openSectionFn) openSectionFn('musicprefs');
+    if (openSectionFn) openSectionFn('settings');
   };
 
   panel.append(head, body, help, more);

@@ -821,7 +821,7 @@ export function loadGpPlayerResult(gpResult, {
     setStatus(
       `${title} · ${gpResult.tracks.length} track${gpResult.tracks.length === 1 ? '' : 's'} · ${Math.round(tempo)} BPM`
     );
-    window.showSection?.('gpplayer');
+    window.showSection?.('scoreplayer');
     return state.mount;
   } catch (err) {
     setStageVisible(false);
