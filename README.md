@@ -50,6 +50,8 @@ Look up scales, chords, triads, and key relationships.
 - **Chord Reference** — voicings on the neck, movable chord cards, and CAGED.
 - **Triads** — closed triad voicings and sweep-picking shapes on any string set.
 - **Circle of Fifths** — key relationships, drawn.
+- **Drum Tab** — what each line and each symbol in a drum tab means, with bars
+  you can play.
 
 ## Create
 

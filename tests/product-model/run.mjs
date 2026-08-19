@@ -100,9 +100,9 @@ test('Train holds the four drills', () => {
     ['intervals', 'sightreading', 'chordworkout', 'pitchear']);
 });
 
-test('Study holds the four references', () => {
+test('Study holds the references', () => {
   assert.deepEqual(ids(toolsInArea('study')),
-    ['scaleref', 'chordref', 'triads', 'circle']);
+    ['scaleref', 'chordref', 'triads', 'circle', 'drumtab']);
 });
 
 test('Create holds the three writing tools', () => {

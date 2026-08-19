@@ -1,0 +1,198 @@
+/* Drum Tab reference — lane list, symbol list, and worked bars. */
+
+.dtr-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+}
+
+.dtr-card {
+  padding: 16px;
+}
+
+.dtr-card-title {
+  margin: 0 0 8px;
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.58rem;
+  line-height: 1.6;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.dtr-subtitle {
+  margin-top: 18px;
+  color: var(--accent2, var(--accent));
+}
+
+.dtr-section-title {
+  margin: 4px 0 10px;
+  font-family: var(--font-pixel, "Press Start 2P", monospace);
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent2, var(--accent));
+}
+
+.dtr-help {
+  margin: 0 0 10px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.dtr-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.dtr-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dtr-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 110px;
+  align-items: center;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-screen, 14px);
+  background: var(--bg2);
+  color: var(--text);
+  text-align: left;
+  font-family: inherit;
+}
+
+.dtr-symbols .dtr-row {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.dtr-row-btn {
+  cursor: pointer;
+  min-height: var(--tap-min);
+}
+
+.dtr-row-btn:hover,
+.dtr-row-btn:focus-visible {
+  border-color: var(--accent2, var(--accent));
+  outline: none;
+}
+
+.dtr-head {
+  background: transparent;
+  border-color: transparent;
+  padding-bottom: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.dtr-cell {
+  min-width: 0;
+}
+
+.dtr-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  min-height: 30px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--card);
+  color: var(--accent);
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1.15rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.dtr-head .dtr-glyph {
+  background: transparent;
+}
+
+.dtr-name {
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.dtr-alias {
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.dtr-note {
+  grid-column: 2 / -1;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.dtr-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dtr-example-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dtr-example-head .dtr-card-title {
+  margin: 0;
+}
+
+.dtr-play.is-on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.dtr-tab {
+  margin: 10px 0 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-screen, 14px);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 1.05rem;
+  line-height: 1.55;
+  letter-spacing: 0.06em;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+@media (max-width: 560px) {
+  .dtr-row {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+  .dtr-alias {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+  /* Each row names its own columns, so the header only costs a line here. */
+  .dtr-head {
+    display: none;
+  }
+  .dtr-tab {
+    font-size: 0.95rem;
+  }
+}

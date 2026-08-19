@@ -39,6 +39,7 @@ import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
 import { initTriadRef, stopTriadRef } from './triadReference.js';
+import { initDrumTabReference, stopDrumTabReference } from './drumTabReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
@@ -105,6 +106,7 @@ const TOOL_STOPPERS = {
   workbooks: () => stopWorkbooks(),
   notes: () => stopNotes(),
   scoreplayer: () => stopGpPlayer(),
+  drumtab: () => stopDrumTabReference(),
 };
 
 const TOOL_INITS = {
@@ -122,6 +124,7 @@ const TOOL_INITS = {
   exercises: initExercises,
   workbooks: initWorkbooks,
   notes: initNotes,
+  drumtab: initDrumTabReference,
   scoreplayer: initGpPlayer,
   settings: () => initMusicPreferences({ showSection }),
 };

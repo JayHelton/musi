@@ -123,7 +123,7 @@ Musi has four areas and one set of supporting utilities. `js/tools.js` is the on
 place that classifies every screen:
 
 - **Train** — Intervals, Sight Reading, Chord Workout, Pitch & Ear.
-- **Study** — Scale Reference, Chord Reference, Triads, Circle of Fifths.
+- **Study** — Scale Reference, Chord Reference, Triads, Circle of Fifths, Drum Tab.
 - **Create** — Audio Studio, Song Studio, Notes.
 - **Library** — Exercises, Workbooks.
 - **Utilities** (`utility: true`) — Metronome, Keyboard, Score Player, Settings.
