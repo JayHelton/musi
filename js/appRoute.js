@@ -1,6 +1,18 @@
 // Params that name a place in the library hierarchy. They are written first
 // so a hash reads in the same order as the screens the user walked through.
-const HIERARCHY_KEY_ORDER = ['workbook', 'exercise', 'companion'];
+// The order is also the depth order: `folder` is one screen in, `exercise` is
+// one screen deeper, and so on.
+export const HIERARCHY_KEY_ORDER = ['folder', 'workbook', 'exercise', 'companion'];
+
+/**
+ * How many library screens a route stands below its landing page. Back walks
+ * one level for each of them.
+ * @param {Record<string, string>} params
+ * @returns {number}
+ */
+export function routeLayerDepth(params = {}) {
+  return HIERARCHY_KEY_ORDER.reduce((count, key) => (params?.[key] ? count + 1 : count), 0);
+}
 
 function safeDecodeURIComponent(value) {
   try {

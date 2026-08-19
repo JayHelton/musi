@@ -109,6 +109,9 @@ let openWorkbookId = null;
 let detailView = 'overview';
 let escapeWired = false;
 let shortcutWired = false;
+const workbookFolderChangeHandlers = new Set();
+// True while a route opens a folder, so the route does not hear its own move.
+let routeDrivenFolder = false;
 
 let folderListEl, crumbsEl, toolsEl, bulkBarEl, statusEl, listEl, workspaceEl, detailPaneEl, detailTitleEl;
 let detailActionsEl, detailBodyEl, detailBackBtn;
@@ -682,6 +685,7 @@ function syncWorkbookBackControls() {
   const label = workbookBackLabel();
   const shortLabel = workbookBackShortLabel();
   if (detailBackBtn) detailBackBtn.textContent = label;
+  detailMountHandle?.setBackLabel?.(shortLabel);
   const gpBack = detailBodyEl?.querySelector('.wb-head-back');
   if (gpBack) {
     gpBack.setAttribute('aria-label', `Back to ${shortLabel.toLowerCase()}`);
@@ -965,6 +969,31 @@ export function onWorkbookDetailChange(handler) {
 
 export function onWorkbookCompanionChange(handler) {
   if (typeof handler === 'function') workbookCompanionChangeHandlers.add(handler);
+}
+
+export function onWorkbookFolderChange(handler) {
+  if (typeof handler === 'function') workbookFolderChangeHandlers.add(handler);
+}
+
+/** The open folder, so a route can name the screen the user is on. */
+export function currentWorkbookFolderId() {
+  return browser ? browser.getFolderId() : selectedFolder;
+}
+
+/** Open the folder a route names. Silent: it never reports back as a move. */
+export function openWorkbookFolderForRoute(folderId) {
+  const target = typeof folderId === 'string' ? folderId : '';
+  if (!browser) {
+    selectedFolder = target;
+    return;
+  }
+  if (browser.getFolderId() === target) return;
+  routeDrivenFolder = true;
+  try {
+    browser.navigateTo(target);
+  } finally {
+    routeDrivenFolder = false;
+  }
 }
 
 function openWorkbookDetail(id) {
@@ -1366,6 +1395,10 @@ function mountDetailGpPlayer(host, wb, item, {
     exerciseScope,
     headerExtra,
     transportExtra,
+    // The score fills the screen, so the way back rides on the score header
+    // instead of only inside the player menu.
+    onBack: onWorkbookBackClick,
+    backLabel: workbookBackShortLabel(),
     onPracticeSettingsChange: onPracticeSettingsChange || ((settings) => {
       onDetailGpPracticeSettingsChange(wb, item, sliced, settings);
     }),
@@ -2516,6 +2549,10 @@ function buildBrowser() {
     toast: setStatus,
     onNavigate: (folderId) => {
       selectedFolder = folderId;
+      if (routeDrivenFolder) return;
+      workbookFolderChangeHandlers.forEach((handler) => {
+        try { handler({ folderId }); } catch (e) { /* ignore */ }
+      });
     },
   });
 }

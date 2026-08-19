@@ -142,6 +142,27 @@
   flex-wrap: wrap;
   gap: 2px 8px;
 }
+/* The way back off a loaded score. It leads the header row, so it sits where
+   a page back button sits on every other screen. */
+.gpp-back-btn {
+  flex-shrink: 0;
+  order: -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-ui, "VT323", monospace);
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: var(--radius-screen, 18px);
+  border-color: var(--border);
+  background: var(--bg2);
+  color: var(--text);
+}
+.gpp-back-btn:hover,
+.gpp-back-btn:focus-visible {
+  border-color: var(--accent2);
+  color: var(--accent);
+}
 .gpp-close-score {
   flex-shrink: 0;
   margin-left: auto;
@@ -3011,7 +3032,8 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
 
   /* The header row also holds the title and the track selector, so this
      button keeps its text small. */
-  .gpp-close-score {
+  .gpp-close-score,
+  .gpp-back-btn {
     padding: 0 8px;
     font-size: 0.82rem;
   }

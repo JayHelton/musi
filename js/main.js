@@ -14,8 +14,26 @@ import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initMovableChordCards } from './movableChordCards.js';
 import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './recorder.js';
 import { initSongwriter, stopSongwriter } from './songwriter.js';
-import { initExercises, stopExercises, closeExerciseViewer, openExerciseViewer, onExerciseViewerChange } from './exercises.js';
-import { initWorkbooks, stopWorkbooks, closeWorkbookDetail, openWorkbookForRoute, onWorkbookDetailChange } from './workbooks.js';
+import {
+  initExercises,
+  stopExercises,
+  closeExerciseViewer,
+  openExerciseViewer,
+  onExerciseViewerChange,
+  onExerciseFolderChange,
+  openExerciseFolderForRoute,
+  currentExerciseFolderId,
+} from './exercises.js';
+import {
+  initWorkbooks,
+  stopWorkbooks,
+  closeWorkbookDetail,
+  openWorkbookForRoute,
+  onWorkbookDetailChange,
+  onWorkbookFolderChange,
+  openWorkbookFolderForRoute,
+  currentWorkbookFolderId,
+} from './workbooks.js';
 import { initNotes, stopNotes } from './notes.js';
 import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
@@ -31,7 +49,7 @@ import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
 import { getTabs, getTool, isHoldRecordRelevant, isPrimaryArea, toolContextFields } from './tools.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
-import { parseAppRoute, routeUrl, sameRoute } from './appRoute.js';
+import { parseAppRoute, routeLayerDepth, routeUrl, sameRoute } from './appRoute.js';
 import { resolveRoute, isKnownRoute, DEFAULT_ROUTE_ID } from './routeMap.js';
 import { initAudioDock } from './audioDock.js';
 import { initSwReloadGuard } from './swReloadGuard.js';
@@ -128,6 +146,9 @@ let navPushCount = 0;
 let applyingHistory = false;
 /** True for one hashchange that a replaceState already handled. */
 let suppressHashChange = false;
+/** True while a route paints a section. The screens it opens are already in
+ * the address, so they must not write to history again. */
+let applyingSection = false;
 /** Tool-page handles by tool id, so a route can drive the mode tabs. */
 const toolPages = new Map();
 
@@ -144,22 +165,47 @@ function sectionUrl(id, params = {}) {
   return routeUrl({ id: id || DEFAULT_ROUTE_ID, params });
 }
 
-function replaceLibraryPlayerHash(routeId, params) {
+/**
+ * Record a library screen in browser history without repainting the section.
+ * The library pages open their own folders, workbooks and players, so this
+ * only keeps the address and the history stack in step with them.
+ *
+ * A screen one level deeper pushes a history entry, so the phone Back button
+ * walks back through the screens the user opened. A screen one level up asks
+ * the browser to go back, so the same entries come off the stack again.
+ */
+function syncLibraryPlayerRoute(routeId, params) {
   const nextParams = { ...params };
-  if (
-    currentRouteId === routeId
-    && sameRoute({ id: routeId, params: currentRouteParams }, { id: routeId, params: nextParams })
-  ) {
+  if (applyingSection) return;
+  if (currentRouteId !== routeId) return;
+  if (sameRoute({ id: routeId, params: currentRouteParams }, { id: routeId, params: nextParams })) {
     return;
   }
+
+  const prevDepth = routeLayerDepth(currentRouteParams);
+  const nextDepth = routeLayerDepth(nextParams);
+
+  // The user closed a layer. The history entry for it is still on the stack,
+  // so step back and let the popstate handler repaint the screen below.
+  if (nextDepth < prevDepth && !applyingHistory && navPushCount > 0) {
+    history.back();
+    return;
+  }
+
   currentRouteId = routeId;
   currentRouteParams = { ...nextParams };
   suppressHashChange = true;
-  history.replaceState(
-    { musiNav: routeId, params: nextParams },
-    '',
-    sectionUrl(routeId, nextParams),
-  );
+  const histState = { musiNav: routeId, params: nextParams };
+  const url = sectionUrl(routeId, nextParams);
+
+  if (nextDepth > prevDepth && !applyingHistory) {
+    history.pushState(histState, '', url);
+    navPushCount += 1;
+    pushRoute({ id: routeId, params: nextParams }, 'library');
+    return;
+  }
+
+  history.replaceState(histState, '', url);
 }
 
 function inferNavigationOrigin(screenId) {
@@ -272,22 +318,27 @@ function updateHeaderChrome(id) {
 }
 
 /**
- * Close one library layer if the route points inside one.
+ * Close one library layer when history holds no entry for it. This happens
+ * after a cold start on a deep link, e.g. `#workbooks?workbook=w1&exercise=e2`.
+ * Every layer the user opens in the app pushes its own entry, so Back pops
+ * that entry instead of coming here.
  * @returns {Promise<boolean>} true when a layer closed and Back is done.
  */
 async function stepBackInsideLibrary() {
-  if (currentRouteId === 'workbooks' && currentRouteParams.workbook) {
-    const params = currentRouteParams.exercise
-      ? { workbook: currentRouteParams.workbook }
-      : {};
-    await applyRoute({ id: 'workbooks', params, mode: 'replace', source: 'internal' });
-    return true;
+  if (navPushCount > 0) return false;
+  if (!LIBRARY_TOOL_IDS.has(currentRouteId)) return false;
+  if (routeLayerDepth(currentRouteParams) === 0) return false;
+
+  // Drop the deepest hierarchy key and stay on the screen below it.
+  const params = { ...currentRouteParams };
+  for (const key of ['companion', 'exercise', 'workbook', 'folder']) {
+    if (params[key]) {
+      delete params[key];
+      break;
+    }
   }
-  if (currentRouteId === 'exercises' && currentRouteParams.exercise) {
-    await applyRoute({ id: 'exercises', params: {}, mode: 'replace', source: 'internal' });
-    return true;
-  }
-  return false;
+  await applyRoute({ id: currentRouteId, params, mode: 'replace', source: 'internal' });
+  return true;
 }
 
 /**
@@ -298,8 +349,8 @@ async function goBack(fallback) {
   const canLeave = await guardLeave();
   if (!canLeave) return false;
 
-  // A library player sits on a replaced hash, so Back must step down the
-  // Library -> Workbooks -> workbook -> exercise chain before it pops history.
+  // A deep link opens a library layer with no history entry behind it. Step
+  // down the Library -> Workbooks -> workbook -> exercise chain in that case.
   if (await stepBackInsideLibrary()) return false;
 
   if (navPushCount > 0) {
@@ -386,6 +437,10 @@ function applyLibrarySection(sectionId) {
   stopOtherTools([sectionId]);
   initTool(sectionId);
   wireSelfChromedBack(document.getElementById('sec-' + sectionId), 'library');
+  // The open folder is part of the address, so Back walks out of a folder the
+  // same way it walks out of a workbook.
+  if (sectionId === 'workbooks') openWorkbookFolderForRoute(currentRouteParams.folder || '');
+  else openExerciseFolderForRoute(currentRouteParams.folder || '');
   if (keepWorkbookPlayer && sectionId === 'workbooks') {
     openWorkbookForRoute({
       workbookId: currentRouteParams.workbook,
@@ -492,7 +547,12 @@ async function applyRoute({
       }
     }
 
-    applySection(routeId);
+    applyingSection = true;
+    try {
+      applySection(routeId);
+    } finally {
+      applyingSection = false;
+    }
     restoreArriveViewState(routeId);
     focusHeading(document.getElementById('sec-' + routeId));
   } catch (err) {
@@ -752,22 +812,26 @@ async function init() {
   });
   onWorkbookDetailChange(({ open, workbookId, exerciseId }) => {
     if (currentRouteId !== 'workbooks') return;
-    if (open && workbookId) {
-      replaceLibraryPlayerHash('workbooks', libraryRouteParams({
-        workbook: workbookId,
-        exercise: exerciseId,
-      }));
-    } else {
-      replaceLibraryPlayerHash('workbooks', {});
-    }
+    syncLibraryPlayerRoute('workbooks', libraryRouteParams({
+      folder: currentWorkbookFolderId(),
+      workbook: open ? workbookId : '',
+      exercise: open ? exerciseId : '',
+    }));
+  });
+  onWorkbookFolderChange(({ folderId }) => {
+    if (currentRouteId !== 'workbooks') return;
+    syncLibraryPlayerRoute('workbooks', libraryRouteParams({ folder: folderId }));
   });
   onExerciseViewerChange(({ open, exerciseId }) => {
     if (currentRouteId !== 'exercises') return;
-    if (open && exerciseId) {
-      replaceLibraryPlayerHash('exercises', libraryRouteParams({ exercise: exerciseId }));
-    } else {
-      replaceLibraryPlayerHash('exercises', {});
-    }
+    syncLibraryPlayerRoute('exercises', libraryRouteParams({
+      folder: currentExerciseFolderId(),
+      exercise: open ? exerciseId : '',
+    }));
+  });
+  onExerciseFolderChange(({ folderId }) => {
+    if (currentRouteId !== 'exercises') return;
+    syncLibraryPlayerRoute('exercises', libraryRouteParams({ folder: folderId }));
   });
   initMusicPreferences({ showSection });
   initSplitView();

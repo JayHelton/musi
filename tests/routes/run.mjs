@@ -15,7 +15,7 @@ import {
 } from '../../js/routeMap.js';
 import { TOOLS, AREAS, getTool, sectionIdForTool } from '../../js/tools.js';
 import { shouldKeepLibraryPlayer, libraryRouteParams } from '../../js/library/libraryPlayerRoute.js';
-import { parseAppRoute, buildAppRoute, routeUrl, sameRoute } from '../../js/appRoute.js';
+import { parseAppRoute, buildAppRoute, routeUrl, sameRoute, routeLayerDepth } from '../../js/appRoute.js';
 
 let passed = 0;
 let failed = 0;
@@ -180,6 +180,25 @@ test('sameRoute ignores key order', () => {
     { id: 'workbooks', params: { exercise: 'e', workbook: 'w' } },
   ), true);
   assert.equal(sameRoute({ id: 'train', params: {} }, { id: 'study', params: {} }), false);
+});
+
+console.log('Library layer depth');
+test('routeLayerDepth counts the library screens below the landing page', () => {
+  assert.equal(routeLayerDepth({}), 0);
+  assert.equal(routeLayerDepth({ mode: 'plan' }), 0);
+  assert.equal(routeLayerDepth({ folder: 'cat1' }), 1);
+  assert.equal(routeLayerDepth({ folder: 'cat1', exercise: 'ex1' }), 2);
+  assert.equal(routeLayerDepth({ workbook: 'wb1', exercise: 'e1', companion: 'c1' }), 3);
+});
+
+test('a folder is part of a library address', () => {
+  assert.deepEqual(libraryRouteParams({ folder: 'cat1' }), { folder: 'cat1' });
+  assert.deepEqual(
+    libraryRouteParams({ folder: 'cat1', exercise: 'ex1' }),
+    { folder: 'cat1', exercise: 'ex1' },
+  );
+  assert.equal(buildAppRoute({ id: 'exercises', params: { exercise: 'ex1', folder: 'cat1' } }),
+    'exercises?folder=cat1&exercise=ex1');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -120,6 +120,8 @@ export function mountGpPlayer(host, {
   onReadProgress = null,
   initialTrackVolumes = null,
   showStandardNotation: initialShowStandardNotation = false,
+  onBack = null,
+  backLabel = 'Back',
 } = {}) {
   if (!host) throw new Error('mountGpPlayer: host required');
 
@@ -180,6 +182,20 @@ export function mountGpPlayer(host, {
     text: 'Synth fallback',
   });
   titles.append(scoreTitle, scoreTrack, sourceStatus);
+  // A loaded score fills the screen and hides the page chrome, so the way back
+  // has to sit on the score itself.
+  let backBtn = null;
+  if (typeof onBack === 'function') {
+    backBtn = el('button', {
+      class: 'btn sm gpp-back-btn',
+      type: 'button',
+      text: `← ${backLabel}`,
+      'aria-label': `Back to ${String(backLabel).toLowerCase()}`,
+      title: `Back to ${String(backLabel).toLowerCase()}`,
+      onClick: () => onBack(),
+    });
+    scoreHeader.appendChild(backBtn);
+  }
   // A screen reader reads this region when the text changes. FR-066 needs it
   // for the bar announcement, and FR-052 needs it for a blocked audio message.
   const liveRegion = el('div', {
@@ -378,7 +394,8 @@ export function mountGpPlayer(host, {
     // hides when the embed asks for no title and the score has no track name.
     const hasTitle = !hideTitle && !!(scoreTitle.textContent?.trim());
     const hasTrack = !!(scoreTrack.textContent?.trim());
-    scoreHeader.hidden = !hasTitle && !hasTrack && !trackTabsHost.isConnected;
+    // The back button lives in this row, so the row has to stay when it is there.
+    scoreHeader.hidden = !backBtn && !hasTitle && !hasTrack && !trackTabsHost.isConnected;
   }
 
   function closeOtherOverlays(except = null) {
@@ -2027,8 +2044,18 @@ export function mountGpPlayer(host, {
     loopController?.syncFromState();
   }
 
+  /** Rename the back button, e.g. when the workbook player changes level. */
+  function setBackLabel(label) {
+    if (!backBtn) return;
+    const text = String(label || 'Back');
+    backBtn.textContent = `← ${text}`;
+    backBtn.setAttribute('aria-label', `Back to ${text.toLowerCase()}`);
+    backBtn.title = `Back to ${text.toLowerCase()}`;
+  }
+
   return {
     player,
+    setBackLabel,
     isLoopEnabled: () => !!state.loopEnabled,
     setLoopEnabled,
     play: startPlayback,

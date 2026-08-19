@@ -218,6 +218,11 @@ function mountCurrent() {
       initialRetuneMode: exercise?.retuneMode,
       exerciseScope: !!hasRange,
       headerExtra: makeHeaderExtras(),
+      // A loaded score hides the page head, so the score carries the way back.
+      onBack: () => {
+        if (typeof window.goBack === 'function') window.goBack();
+      },
+      backLabel: 'Back',
       onOpenFile: () => {
         if (!state.loading) $('gpp-file')?.click();
       },

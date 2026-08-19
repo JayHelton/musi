@@ -826,6 +826,9 @@ let viewerGpMount = null;
 let escapeWired = false;
 let openGeneration = 0;
 const exerciseViewerChangeHandlers = new Set();
+const exerciseFolderChangeHandlers = new Set();
+// True while a route opens a folder, so the route does not hear its own move.
+let routeDrivenFolder = false;
 
 // --- rendering -------------------------------------------------------------
 //
@@ -949,6 +952,10 @@ function buildBrowser() {
     onNavigate: (folderId) => {
       selectedCategory = folderId;
       emitFoldersChanged();
+      if (routeDrivenFolder) return;
+      exerciseFolderChangeHandlers.forEach((handler) => {
+        try { handler({ folderId }); } catch (e) { /* ignore */ }
+      });
     },
   });
 }
@@ -1517,6 +1524,31 @@ export function closeExerciseViewer() {
 
 export function onExerciseViewerChange(handler) {
   if (typeof handler === 'function') exerciseViewerChangeHandlers.add(handler);
+}
+
+export function onExerciseFolderChange(handler) {
+  if (typeof handler === 'function') exerciseFolderChangeHandlers.add(handler);
+}
+
+/** The open folder, so a route can name the screen the user is on. */
+export function currentExerciseFolderId() {
+  return browser ? browser.getFolderId() : selectedCategory;
+}
+
+/** Open the folder a route names. Silent: it never reports back as a move. */
+export function openExerciseFolderForRoute(folderId) {
+  const target = typeof folderId === 'string' ? folderId : '';
+  if (!browser) {
+    setSelectedCategory(target);
+    return;
+  }
+  if (browser.getFolderId() === target) return;
+  routeDrivenFolder = true;
+  try {
+    browser.navigateTo(target);
+  } finally {
+    routeDrivenFolder = false;
+  }
 }
 
 // --- confirm / prompt modals (reuse shared modal styles) -------------------

@@ -6,8 +6,9 @@ export function shouldKeepLibraryPlayer(sectionId, params = {}) {
 }
 
 /** Build the route params for a library player screen. */
-export function libraryRouteParams({ workbook, exercise, companion } = {}) {
+export function libraryRouteParams({ folder, workbook, exercise, companion } = {}) {
   const params = {};
+  if (folder) params.folder = folder;
   if (workbook) params.workbook = workbook;
   if (exercise) params.exercise = exercise;
   if (companion) params.companion = companion;
