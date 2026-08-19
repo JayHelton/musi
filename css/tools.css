@@ -40,7 +40,11 @@ input[type=range]{accent-color:var(--accent)}
 
 /* Metronome */
 .metro-grid{display:flex;flex-direction:column;gap:16px;max-width:720px}
-.metronome-simple{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+/* The auto side margins center the column, but they also stop the flex parent
+   from stretching it. Without an explicit width the column follows its content,
+   so opening "Beat & presets" made the whole metronome grow. The width keeps
+   one size, open or closed. */
+.metronome-simple{width:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 .metro-simple-card{position:relative;text-align:center;overflow:hidden}
 .metro-bpm-label{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.4px;font-weight:700;margin-bottom:4px}
 .metro-bpm-input#m-bpm{width:min(230px,100%);padding:4px 8px;border:none;background:transparent;color:var(--text);font-size:4.6rem;line-height:1;font-weight:700;text-align:center;font-family:inherit;letter-spacing:-3px;appearance:textfield}

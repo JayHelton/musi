@@ -81,7 +81,6 @@ body.shell-gear-on .tool-page-header {
   outline: none;
 }
 
-.tool-page-favorite,
 .tool-page-more {
   display: inline-flex;
   align-items: center;
@@ -99,20 +98,12 @@ body.shell-gear-on .tool-page-header {
   cursor: pointer;
 }
 
-.tool-page-favorite[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: rgba(255, 225, 74, 0.12);
-  color: var(--accent);
-}
-
 .tool-page-more {
   color: var(--text);
   font-size: 1.25rem;
 }
 
-.tool-page-favorite:hover,
 .tool-page-more:hover,
-.tool-page-favorite:focus-visible,
 .tool-page-more:focus-visible {
   border-color: var(--accent2);
   outline: none;

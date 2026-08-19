@@ -36,7 +36,6 @@ function normalizeLibraryViewState(state) {
       difficulty: filters.difficulty ?? null,
       tags: Array.isArray(filters.tags) ? [...filters.tags] : [],
       source: filters.source ?? null,
-      favorite: filters.favorite ?? null,
     },
     sort: typeof state?.sort === 'string' ? state.sort : '',
     selectedId: state?.selectedId ?? null,

@@ -1,6 +1,6 @@
 // Reusable selection sheet / dialog for long lists.
 // Mobile: bottom sheet. Desktop: centered dialog.
-// Supports search, categories, recent/favorites, single & multi select,
+// Supports search, categories, recent, single & multi select,
 // keyboard nav, focus trap, Escape, and focus restoration.
 
 let activeSheet = null;
@@ -85,13 +85,11 @@ function closeActive(reason = 'dismiss') {
  * @param {boolean} [opts.multiple]
  * @param {Array} [opts.categories] - [{ id, label }]
  * @param {Array} [opts.recent] - ids
- * @param {Array} [opts.favorites] - ids
  * @param {boolean} [opts.search=true]
  * @param {string} [opts.searchPlaceholder]
  * @param {string} [opts.emptyText]
  * @param {Function} [opts.onSelect] - (id, item) => void  (single mode, immediate)
  * @param {Function} [opts.onConfirm] - (ids) => void (multi mode)
- * @param {Function} [opts.onToggleFavorite] - (id) => void
  * @param {Function} [opts.onItemAction] - (actionId, itemId, item) => void
  * @param {Function} [opts.renderItem] - optional custom renderer (item, el) => void
  * @param {boolean} [opts.grid] - render as grid instead of list
@@ -170,10 +168,7 @@ export function openSelectionSheet(opts = {}) {
         if (rows.length) sections.push({ label, items: rows });
       };
 
-      if (!query) {
-        if (opts.favorites?.length) pushGroup('Favorites', opts.favorites);
-        if (opts.recent?.length) pushGroup('Recent', opts.recent);
-      }
+      if (!query && opts.recent?.length) pushGroup('Recent', opts.recent);
 
       if (opts.categories?.length) {
         opts.categories.forEach(cat => {
@@ -237,7 +232,6 @@ export function openSelectionSheet(opts = {}) {
                 ${item.meta ? `<span class="sel-item-meta">${escapeHtml(item.meta)}</span>` : ''}
               </span>
               <span class="sel-item-trailing">
-                ${opts.onToggleFavorite ? `<span class="sel-item-fav${(opts.favorites || []).includes(item.id) ? ' on' : ''}" data-fav="${escapeHtml(item.id)}" aria-label="Favorite" role="button" tabindex="-1">${(opts.favorites || []).includes(item.id) ? '★' : '☆'}</span>` : ''}
                 ${Array.isArray(item.actions) && item.actions.length ? item.actions.map(action => `<span class="sel-item-action ${action.className || ''}" data-item-action="${escapeHtml(action.id)}" role="button" tabindex="-1" aria-label="${escapeHtml(action.label)}">${action.icon || escapeHtml(action.label)}</span>`).join('') : ''}
                 ${isSelected(item.id) ? '<span class="sel-item-check" aria-hidden="true">✓</span>' : ''}
               </span>
@@ -249,14 +243,6 @@ export function openSelectionSheet(opts = {}) {
             if (actionEl && typeof opts.onItemAction === 'function') {
               e.stopPropagation();
               opts.onItemAction(actionEl.getAttribute('data-item-action'), item.id, item);
-              return;
-            }
-            const fav = e.target.closest?.('[data-fav]');
-            if (fav && opts.onToggleFavorite) {
-              e.stopPropagation();
-              opts.onToggleFavorite(item.id);
-              opts.favorites = toggleLocal(opts.favorites || [], item.id);
-              render();
               return;
             }
             pick(item);
@@ -280,14 +266,6 @@ export function openSelectionSheet(opts = {}) {
         activeIndex = selIdx >= 0 ? selIdx : 0;
         highlightActive();
       }
-    }
-
-    function toggleLocal(list, id) {
-      const next = list.slice();
-      const i = next.indexOf(id);
-      if (i >= 0) next.splice(i, 1);
-      else next.push(id);
-      return next;
     }
 
     function pick(item) {

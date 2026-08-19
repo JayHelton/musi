@@ -852,56 +852,15 @@ function setupMetronome() {
     });
   }
 
-  // Tempo phases collapsed when off
+  // The tempo plan is the plan editor. It used to open on a summary row with a
+  // Configure button, which put one extra tap in front of every edit.
   const phasesCard = document.getElementById('m-phases-card');
   if (phasesCard && !phasesCard.dataset.uxWired) {
     phasesCard.dataset.uxWired = '1';
-    const toggle = document.getElementById('m-phases-toggle');
-    // Starter plans stay visible while collapsed so one click loads a plan.
-    const editorEls = () => [...phasesCard.children].filter(ch => (
-      !ch.classList.contains('phases-collapsed-row') && !ch.classList.contains('m-phases-starters')
-    ));
-
-    let row = phasesCard.querySelector('.phases-collapsed-row');
-    if (!row) {
-      row = document.createElement('div');
-      row.className = 'phases-collapsed-row';
-      row.innerHTML = `<div><div class="metro-card-title" style="margin:0">Tempo Phases</div><div class="phases-state">Off</div></div>
-        <button type="button" class="btn sm" id="m-phases-configure">Configure</button>`;
-      phasesCard.insertBefore(row, phasesCard.firstChild);
-      row.querySelector('#m-phases-configure').onclick = () => {
-        phasesCard.classList.add('phases-editing');
-        syncPhases();
-      };
-    }
-
-    const syncPhases = () => {
-      const on = !!toggle?.checked;
-      const editing = phasesCard.classList.contains('phases-editing') || on;
-      const state = row.querySelector('.phases-state');
-      if (state) state.textContent = on ? 'On' : 'Off';
-      if (!editing && !on) {
-        row.hidden = false;
-        editorEls().forEach(ch => { ch.hidden = true; });
-      } else if (on && !phasesCard.classList.contains('phases-editing')) {
-        // Enabled: show compact status + configure
-        row.hidden = false;
-        if (state) {
-          const status = document.getElementById('m-phases-status')?.textContent;
-          state.textContent = status?.trim() || 'On';
-        }
-        editorEls().forEach(ch => { ch.hidden = true; });
-      } else {
-        row.hidden = true;
-        editorEls().forEach(ch => { ch.hidden = false; });
-      }
-    };
-    toggle?.addEventListener('change', () => {
-      if (toggle.checked) phasesCard.classList.add('phases-editing');
-      else phasesCard.classList.remove('phases-editing');
-      syncPhases();
-    });
-    syncPhases();
+    phasesCard.classList.add('phases-editing');
+    // Older sessions could leave the summary row and hidden children behind.
+    phasesCard.querySelector('.phases-collapsed-row')?.remove();
+    [...phasesCard.children].forEach(ch => { ch.hidden = false; });
   }
 }
 

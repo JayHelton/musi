@@ -249,19 +249,6 @@
   gap: 8px;
   flex-shrink: 0;
 }
-.sel-item-fav {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  color: var(--muted);
-  font-size: 1.1rem;
-}
-.sel-item-fav.on {
-  color: var(--accent);
-}
 .sel-item-check {
   color: var(--accent);
   font-weight: 700;

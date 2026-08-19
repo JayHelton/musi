@@ -210,7 +210,6 @@ test('saveViewState and readViewState round-trip Library filter shape', () => {
       difficulty: 'easy',
       tags: ['warmup', 'scales'],
       source: 'local',
-      favorite: true,
     },
     sort: 'name-asc',
     selectedId: 'ex-42',
@@ -367,7 +366,6 @@ function makeDescriptor(overrides = {}) {
     defaultMode: 'plan',
     contextFields: [],
     moreItems: [],
-    isFavorite: false,
     ...overrides,
   };
 }
@@ -389,7 +387,7 @@ testAsync('toolPage: mountToolPage returns workspace, setContextRow, setModes, d
   handle.destroy();
 });
 
-testAsync('toolPage: header child order is Back, title, favorite, More', async () => {
+testAsync('toolPage: header shows Back and title, and hides More with no menu items', async () => {
   const { installDomShim } = await import('../gp-player/domShim.mjs');
   installDomShim();
   installLocalStorageShim();
@@ -403,11 +401,30 @@ testAsync('toolPage: header child order is Back, title, favorite, More', async (
   assert.deepEqual(classes, [
     'tool-page-back tool-back',
     '',
-    'tool-page-favorite',
-    'tool-page-more',
   ]);
   assert.equal(header.children[1].dataset.pageHeading, '');
   assert.equal(header.children[1].textContent, 'Tuner');
+  destroy();
+});
+
+testAsync('toolPage: header shows More when the menu has items', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const { destroy } = mountToolPage(section, makeDescriptor({
+    moreItems: [{ label: 'Reset', onSelect: () => {} }],
+  }));
+  const header = section.querySelector('.tool-page-header');
+  const classes = [...header.children].map((el) => el.className);
+  assert.deepEqual(classes, [
+    'tool-page-back tool-back',
+    '',
+    'tool-page-more',
+  ]);
   destroy();
 });
 

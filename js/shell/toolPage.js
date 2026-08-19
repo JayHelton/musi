@@ -26,33 +26,23 @@ function buildHeader(descriptor) {
   title.dataset.pageHeading = '';
   title.textContent = descriptor.title || '';
 
-  const favBtn = document.createElement('button');
-  favBtn.type = 'button';
-  favBtn.className = 'tool-page-favorite';
-  favBtn.setAttribute('aria-label', 'Favorite');
-  let isFavorite = !!descriptor.isFavorite;
+  header.append(backBtn, title);
 
-  function syncFavorite() {
-    favBtn.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');
-    favBtn.textContent = isFavorite ? '★' : '☆';
+  // The overflow button only earns its place when the menu has something in
+  // it. An empty menu opens on an empty list, which reads as a broken control.
+  const moreItems = mapOverflowItems(descriptor.moreItems);
+  if (moreItems.length) {
+    const moreBtn = document.createElement('button');
+    moreBtn.type = 'button';
+    moreBtn.className = 'tool-page-more';
+    moreBtn.setAttribute('aria-label', 'More');
+    moreBtn.textContent = '⋯';
+    moreBtn.onclick = () => {
+      openOverflowMenu(moreBtn, moreItems);
+    };
+    header.appendChild(moreBtn);
   }
-  syncFavorite();
-  favBtn.onclick = () => {
-    isFavorite = !isFavorite;
-    syncFavorite();
-    if (typeof descriptor.onFavorite === 'function') descriptor.onFavorite(isFavorite);
-  };
 
-  const moreBtn = document.createElement('button');
-  moreBtn.type = 'button';
-  moreBtn.className = 'tool-page-more';
-  moreBtn.setAttribute('aria-label', 'More');
-  moreBtn.textContent = '⋯';
-  moreBtn.onclick = () => {
-    openOverflowMenu(moreBtn, mapOverflowItems(descriptor.moreItems));
-  };
-
-  header.append(backBtn, title, favBtn, moreBtn);
   return header;
 }
 

@@ -142,6 +142,8 @@ function unbindOverflowDismiss() {
 }
 
 export function openOverflowMenu(anchorEl, items, { x, y } = {}) {
+  // An empty menu would open on nothing, so the caller gets no menu at all.
+  if (!Array.isArray(items) || !items.length) return;
   if (!overflowMenuEl) {
     overflowMenuEl = document.createElement('div');
     overflowMenuEl.className = 'overflow-menu';

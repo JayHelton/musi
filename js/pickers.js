@@ -1,6 +1,6 @@
 // Domain pickers built on the selection sheet: root, scale, chord, tuning.
 import { openSelectionSheet } from './selectionSheet.js';
-import { getList, pushRecent, toggleFavorite, isFavorite } from './recents.js';
+import { getList, pushRecent } from './recents.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { ROOTS, TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
 import { TUNING_CATALOG, findPresetByName, pitchSequenceString } from './tunings.js';
@@ -241,7 +241,6 @@ export function openRootPicker({
 } = {}) {
   const current = normalizeRootSelection(value || 'C');
   const recent = getList('picker.recentRoots', ROOTS);
-  const favorites = getList('picker.favoriteRoots', ROOTS);
   const pref = getEnharmonicPref();
 
   const items = ROOT_GRID.map(cell => {
@@ -267,11 +266,9 @@ export function openRootPicker({
     search: true,
     searchPlaceholder: 'C, F#, Bb…',
     recent,
-    favorites,
     grid: true,
     gridClass: 'root-grid',
     items,
-    onToggleFavorite: (id) => toggleFavorite('picker.favoriteRoots', id, { allowed: ROOTS }),
     renderItem: (item, el) => {
       el.classList.toggle('root-natural', !!item.natural);
       el.innerHTML = `<span class="sel-item-label">${item.label}</span>`;
@@ -290,7 +287,7 @@ export function openRootPicker({
 /** Open root picker with an enharmonic preference strip prepended via custom items category. */
 export async function pickRoot(opts = {}) {
   // Lightweight pref cycle before opening: long-press not required; we expose
-  // a sticky row by temporarily using categories for Recent/Favorites only.
+  // a sticky row by temporarily using categories for Recent only.
   const pref = getEnharmonicPref();
   // Cycle hint stored for UI consumers
   saveSetting('picker.enharmonic', pref);
@@ -316,7 +313,6 @@ export function openScalePicker({
 } = {}) {
   const current = value && SCALES[value] ? value : 'Major (Ionian)';
   const recent = getList('picker.recentScales', Object.keys(SCALES));
-  const favorites = getList('picker.favoriteScales', Object.keys(SCALES));
 
   const items = Object.keys(SCALES).map(name => ({
     id: name,
@@ -333,12 +329,8 @@ export function openScalePicker({
     value: current,
     searchPlaceholder: 'phrygian, b2, harmonic…',
     recent,
-    favorites,
     categories: SCALE_CATEGORIES,
     items,
-    onToggleFavorite: (id) => {
-      toggleFavorite('picker.favoriteScales', id, { allowed: Object.keys(SCALES) });
-    },
     onSelect: (id) => {
       pushRecent('picker.recentScales', id, { allowed: Object.keys(SCALES) });
       saveSetting('picker.lastScale', id);
@@ -349,7 +341,6 @@ export function openScalePicker({
 
 export function getQuickScales(cap = 5) {
   const allowed = Object.keys(SCALES);
-  const fav = getList('picker.favoriteScales', allowed);
   const recent = getList('picker.recentScales', allowed);
   const last = getSetting('picker.lastScale', null);
   const common = ['Major (Ionian)', 'Natural Minor (Aeolian)', 'Dorian', 'Phrygian', 'Minor Pentatonic'];
@@ -358,7 +349,6 @@ export function getQuickScales(cap = 5) {
     if (id && SCALES[id] && !out.includes(id)) out.push(id);
   };
   if (last) add(last);
-  fav.forEach(add);
   recent.forEach(add);
   common.forEach(add);
   return out.slice(0, cap);
@@ -370,7 +360,6 @@ export function openChordPicker({ value } = {}) {
   const names = Object.keys(CHORDS);
   const current = value && CHORDS[value] ? value : 'Major';
   const recent = getList('picker.recentChords', names);
-  const favorites = getList('picker.favoriteChords', names);
 
   const items = names.map(name => {
     const def = CHORDS[name];
@@ -389,10 +378,8 @@ export function openChordPicker({ value } = {}) {
     value: current,
     searchPlaceholder: 'm7, maj9, 7#11, sus2…',
     recent,
-    favorites,
     categories: CHORD_CATEGORIES,
     items,
-    onToggleFavorite: (id) => toggleFavorite('picker.favoriteChords', id, { allowed: names }),
     onSelect: (id) => {
       pushRecent('picker.recentChords', id, { allowed: names });
       saveSetting('picker.lastChord', id);
@@ -419,7 +406,6 @@ export function openTuningPicker({
     ? (findPresetByName(value)?.name || value)
     : 'Standard';
   const recent = getList('picker.recentTunings', [...names, 'Custom']);
-  const favorites = getList('picker.favoriteTunings', [...names, 'Custom']);
 
   const items = names
     .filter((name) => {
@@ -463,10 +449,8 @@ export function openTuningPicker({
     value: current,
     searchPlaceholder: 'Drop C, CGCFAD, 7-string…',
     recent,
-    favorites,
     categories: TUNING_CATEGORIES,
     items,
-    onToggleFavorite: (id) => toggleFavorite('picker.favoriteTunings', id, { allowed: [...names, 'Custom'] }),
     onSelect: (id) => {
       pushRecent('picker.recentTunings', id, { allowed: [...names, 'Custom'] });
       saveSetting('picker.lastTuning', id);
@@ -487,7 +471,6 @@ export function openTempoPicker({
   const current = Math.round(Number(value)) || 120;
   const tempos = buildTempoOptions(current);
   const recent = getList('picker.recentTempos', tempos.map(String));
-  const favorites = getList('picker.favoriteTempos', tempos.map(String));
 
   const items = tempos.map((bpm) => ({
     id: String(bpm),
@@ -502,9 +485,7 @@ export function openTempoPicker({
     search: true,
     searchPlaceholder: '120, 90, 140…',
     recent,
-    favorites,
     items,
-    onToggleFavorite: (id) => toggleFavorite('picker.favoriteTempos', id, { allowed: tempos.map(String) }),
     onSelect: (id) => {
       const bpm = Number(id);
       pushRecent('picker.recentTempos', id, { allowed: tempos.map(String) });
@@ -525,7 +506,6 @@ export function openMeterPicker({
   const current = value || '4/4';
   const meters = meterOptions(current);
   const recent = getList('picker.recentMeters', meters);
-  const favorites = getList('picker.favoriteMeters', meters);
 
   const items = meters.map((meter) => ({
     id: meter,
@@ -540,9 +520,7 @@ export function openMeterPicker({
     search: true,
     searchPlaceholder: '4/4, 3/4, 6/8…',
     recent,
-    favorites,
     items,
-    onToggleFavorite: (id) => toggleFavorite('picker.favoriteMeters', id, { allowed: meters }),
     onSelect: (id) => {
       pushRecent('picker.recentMeters', id, { allowed: meters });
       saveSetting('picker.lastMeter', id);

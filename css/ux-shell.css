@@ -279,18 +279,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.area-tool-fav {
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 1.15rem;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.area-tool-fav.on { color: var(--accent); }
 .area-list-label {
   font-size: 0.65rem;
   text-transform: uppercase;
@@ -433,16 +421,6 @@ body:not(.hold-rec-relevant) #hold-rec-btn {
 @media (min-width: 769px) {
   .md-back { display: none !important; }
 }
-
-/* ---- Tempo phases collapsed ---- */
-.phases-collapsed-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 48px;
-}
-.phases-collapsed-row .phases-state { color: var(--muted); font-weight: 600; }
 
 /* ---- Config above content on mobile: reorder quiz-layout ---- */
 @media (max-width: 768px) {

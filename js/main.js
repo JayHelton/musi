@@ -222,20 +222,6 @@ function restoreArriveViewState(sectionId) {
   if (sectionId === 'exercises') restoreScroll('library:exercises');
 }
 
-function isFavorite(toolId) {
-  const favs = getSetting('home.favorites', []);
-  return Array.isArray(favs) && favs.includes(toolId);
-}
-
-function setFavorite(toolId, next) {
-  const favs = getSetting('home.favorites', []);
-  const list = Array.isArray(favs) ? [...favs] : [];
-  const index = list.indexOf(toolId);
-  if (next && index < 0) list.push(toolId);
-  else if (!next && index >= 0) list.splice(index, 1);
-  saveSetting('home.favorites', list);
-}
-
 /**
  * Mount the shared tool-page shell once per tool section. The shell owns the
  * back button, the title, the description, and the mode tabs.
@@ -255,14 +241,12 @@ function mountToolPageIfNeeded(toolId, sec) {
     activeMode: currentRouteId === toolId ? currentRouteParams.mode : '',
     contextFields: toolContextFields(toolId),
     moreItems: [],
-    isFavorite: isFavorite(toolId),
     onBack: () => goBack(() => applyRoute({
       id: parentRouteForTool(tool),
       params: {},
       mode: 'replace',
       source: 'internal',
     })),
-    onFavorite: (next) => setFavorite(toolId, next),
     onModeChange: (modeId) => {
       if (currentRouteId !== toolId) return;
       if (currentRouteParams.mode === modeId) return;

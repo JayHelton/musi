@@ -4,8 +4,7 @@
 // list of the tools in that area. Library uses the same renderer, so its
 // landing page stays a plain list of Exercises and Workbooks, not a dashboard.
 
-import { getSetting, saveSetting } from './persistence.js';
-import { AREAS, TOOL_ICONS, getArea, getTool, toolsInArea } from './tools.js';
+import { AREAS, TOOL_ICONS, getArea, toolsInArea } from './tools.js';
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -15,21 +14,7 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function favorites() {
-  const stored = getSetting('home.favorites', []);
-  return Array.isArray(stored) ? stored.filter(id => !!getTool(id)) : [];
-}
-
-function toggleFavorite(id) {
-  const list = favorites();
-  const index = list.indexOf(id);
-  if (index >= 0) list.splice(index, 1);
-  else list.push(id);
-  saveSetting('home.favorites', list);
-}
-
-function toolRow(tool, { openTool, onFavorite }) {
-  const isFavorite = favorites().includes(tool.id);
+function toolRow(tool, { openTool }) {
   const row = document.createElement('div');
   row.className = 'area-tool-row';
   row.dataset.toolId = tool.id;
@@ -41,17 +26,8 @@ function toolRow(tool, { openTool, onFavorite }) {
       <span class="area-tool-title">${escapeHtml(tool.label)}</span>
       <span class="area-tool-desc">${escapeHtml(tool.description)}</span>
     </span>
-    <button type="button" class="area-tool-fav${isFavorite ? ' on' : ''}" aria-label="Favorite" aria-pressed="${isFavorite ? 'true' : 'false'}">${isFavorite ? '★' : '☆'}</button>
   `;
-  row.querySelector('.area-tool-fav').onclick = (e) => {
-    e.stopPropagation();
-    toggleFavorite(tool.id);
-    if (onFavorite) onFavorite();
-  };
-  const open = (e) => {
-    if (e.target.closest('.area-tool-fav')) return;
-    openTool(tool.id);
-  };
+  const open = () => openTool(tool.id);
   row.addEventListener('click', open);
   row.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -82,25 +58,7 @@ export function renderAreaPage(areaId, container, { openTool } = {}) {
   `;
 
   const list = container.querySelector('.area-tool-list');
-  const repaint = () => renderAreaPage(areaId, container, { openTool });
-  const pinned = favorites().filter(id => tools.some(t => t.id === id));
-
-  if (pinned.length) {
-    const label = document.createElement('div');
-    label.className = 'area-list-label';
-    label.textContent = 'Pinned';
-    list.appendChild(label);
-    pinned.forEach(id => {
-      const tool = getTool(id);
-      if (tool) list.appendChild(toolRow(tool, { openTool, onFavorite: repaint }));
-    });
-    const all = document.createElement('div');
-    all.className = 'area-list-label';
-    all.textContent = 'All';
-    list.appendChild(all);
-  }
-
-  tools.forEach(tool => list.appendChild(toolRow(tool, { openTool, onFavorite: repaint })));
+  tools.forEach(tool => list.appendChild(toolRow(tool, { openTool })));
 }
 
 export function isAreaPage(id) {
