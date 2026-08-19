@@ -177,6 +177,9 @@ export function createPlayerState(gpResult, options = {}) {
     loopEnd: clampBar(options.initialLoopEnd, Math.max(0, measureCount - 1)),
     loopEnabled: !!options.initialLoopEnabled,
     loopRestSec: Math.max(0, Number(options.loopRestSec) || 0),
+    // The loop button steps through three modes: 'off', 'range' (a marked span
+    // of measures), and 'song' (the whole score).
+    loopMode: options.initialLoopEnabled ? 'range' : 'off',
     loopSelectMode: false,
     exerciseScope: !!options.exerciseScope,
     autoFollow: readBool(AUTO_FOLLOW_KEY, true),
@@ -369,6 +372,8 @@ export function createPlayerState(gpResult, options = {}) {
 
   function clearLoop() {
     state.loopEnabled = false;
+    state.loopMode = 'off';
+    state.loopSelectMode = false;
     state.loopStartBeat = null;
     state.loopEndBeat = null;
     state.loopStart = 0;
@@ -448,6 +453,7 @@ export function createPlayerState(gpResult, options = {}) {
     state.loopEndBeat = null;
     state.loopStart = 0;
     state.loopEnd = Math.max(0, mc - 1);
+    state.loopMode = 'off';
     state.loopSelectMode = false;
     state.loopRestSec = Math.max(0, Number(options.loopRestSec) || 0);
     state.bpmUserOverride = false;

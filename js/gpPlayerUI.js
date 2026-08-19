@@ -401,6 +401,9 @@ export function mountGpPlayer(host, {
   let importPanel = null;
   let loopSnapshot = null;
   let externalLoopSnapshot = null;
+  // The last span the player marked. The loop button returns to it when the
+  // range mode comes back on.
+  let lastRangeLoop = null;
   let loopController = null;
   let layoutMetrics = null;
   let viewMode = loadViewMode();
@@ -729,7 +732,7 @@ export function mountGpPlayer(host, {
       noteDraft: noteDraftSelection
         ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }
         : null,
-      loopSelectMode: false,
+      loopSelectMode: !!state.loopSelectMode,
       noteSelectMode: noteSelectActive,
       zoom: state.parchmentZoom,
       autoFollow: state.autoFollow && !reducedMotion,
@@ -1099,7 +1102,7 @@ export function mountGpPlayer(host, {
         noteDraft: noteDraftSelection
           ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }
           : null,
-        loopSelectMode: false,
+        loopSelectMode: !!state.loopSelectMode,
         noteSelectMode: noteSelectActive,
         zoom: state.parchmentZoom,
         autoFollow: state.autoFollow && !reducedMotion,
@@ -1321,14 +1324,24 @@ export function mountGpPlayer(host, {
     if (state.loopStartBeat != null && state.loopEndBeat != null) {
       stateController.setLoopRange(state.loopStartBeat, state.loopEndBeat);
       state.loopEnabled = true;
+      // A drag on the score or on the measure strip marks a span, so the loop
+      // is in the range mode from now on.
+      if (state.loopMode !== 'song') {
+        state.loopMode = 'range';
+        state.loopSelectMode = true;
+        rememberRangeLoop();
+      }
     }
     reloadModel();
     settingsDrawer?.sync();
+    parchment?.setLoopSelectMode?.(!!state.loopSelectMode);
+    transport?.sync();
   }
 
   function snapshotLoopState() {
     return {
       loopEnabled: state.loopEnabled,
+      loopMode: state.loopMode,
       loopStart: state.loopStart,
       loopEnd: state.loopEnd,
       loopStartBeat: state.loopStartBeat,
@@ -1343,6 +1356,7 @@ export function mountGpPlayer(host, {
       return;
     }
     state.loopEnabled = true;
+    state.loopMode = snap.loopMode === 'song' ? 'song' : 'range';
     if (snap.loopStartBeat != null && snap.loopEndBeat != null) {
       state.loopStartBeat = snap.loopStartBeat;
       state.loopEndBeat = snap.loopEndBeat;
@@ -1375,7 +1389,7 @@ export function mountGpPlayer(host, {
       percModel: perc,
       zoom: state.parchmentZoom,
       autoFollow: state.autoFollow,
-      loopSelectMode: false,
+      loopSelectMode: !!state.loopSelectMode,
       selection: state.loopEnabled
         ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
         : null,
@@ -1419,6 +1433,8 @@ export function mountGpPlayer(host, {
     applyRange: (startBeat, endBeat) => {
       if (stateController.setLoopRange(startBeat, endBeat)) {
         state.loopEnabled = true;
+        state.loopMode = 'range';
+        state.loopSelectMode = true;
       }
     },
     clearRange: () => stateController.clearLoop(),
@@ -1434,6 +1450,7 @@ export function mountGpPlayer(host, {
     onLoopRange: (startIdx, endIdx) => {
       loopController?.applyMeasureRange(startIdx, endIdx);
       state.loopEnabled = true;
+      state.loopMode = 'range';
       onLoopChanged();
     },
   });
@@ -1444,72 +1461,6 @@ export function mountGpPlayer(host, {
   });
 
   practiceRail = mountPracticeRail(practiceRailHost, {
-    onSpeedStep: (delta) => {
-      const pct = state.scoreBpm
-        ? Math.round((state.bpm / state.scoreBpm) * 100)
-        : 100;
-      const next = clampTempoPct(pct + delta);
-      tempoRamp.stopSession();
-      state.bpmUserOverride = true;
-      state.bpm = clampBpm(Math.round(state.scoreBpm * (next / 100)));
-      applyBpmChange();
-    },
-    onSpeedInput: (value) => {
-      tempoRamp.stopSession();
-      state.bpmUserOverride = true;
-      const pct = clampTempoPct(Number(value) || 100);
-      state.bpm = clampBpm(Math.round(state.scoreBpm * (pct / 100)));
-      applyBpmChange();
-    },
-    onBpmStep: (delta) => stepBpm(delta),
-    onBpmInput: (value) => {
-      tempoRamp.stopSession();
-      state.bpmUserOverride = true;
-      state.bpm = clampBpm(Number(value) || state.scoreBpm);
-      applyBpmChange();
-    },
-    onBpmReset: () => {
-      tempoRamp.stopSession();
-      stateController.resetBpm();
-      applyBpmChange();
-    },
-    onLoopToggle: () => setLoopEnabled(!state.loopEnabled),
-    onClearLoop: () => {
-      stateController.clearLoop();
-      onLoopChanged();
-    },
-    onMetroToggle: () => {
-      state.metro.enabled = !state.metro.enabled;
-      syncMetroMirrors();
-      stateController.persistMetroPrefs?.();
-      onSettingsChange({ metronome: true });
-    },
-    onCountInToggle: () => {
-      state.metro.countInEnabled = !state.metro.countInEnabled;
-      syncMetroMirrors();
-      stateController.persistMetroPrefs?.();
-      onSettingsChange({ metronome: true });
-    },
-    getBpm: () => state.bpm,
-    getScoreBpm: () => state.scoreBpm,
-    canResetBpm: () => {
-      const scoreRounded = Math.round(state.scoreBpm);
-      return !(!state.bpmUserOverride && Math.round(state.bpm) === scoreRounded);
-    },
-    getLoopEnabled: () => state.loopEnabled,
-    getLoopRangeLabel: () => {
-      if (!state.loopEnabled) return '';
-      return `Loop ${state.loopStart + 1}–${state.loopEnd + 1}`;
-    },
-    getMetroEnabled: () => !!state.metro.enabled,
-    getCountInEnabled: () => !!state.metro.countInEnabled,
-    getOverlayLabel: () => practiceOverlayLabel(lastTickResting, lastRestRemaining),
-  });
-
-  transport = mountTransportDock(transportHost, {
-    extraNode: transportExtra,
-    practiceRailNode: practiceRailHost,
-    syncPracticeRail: () => practiceRail?.sync(),
     onPrev: () => {
       const scope = stateController.getScope();
       const cur = navMeasureIndex();
@@ -1520,14 +1471,43 @@ export function mountGpPlayer(host, {
       const cur = navMeasureIndex();
       if (canNextMeasure(cur, scope)) seekToBar(cur + 1, { autoplay: player.playing });
     },
-    onPlayPause: () => togglePlayPause(),
-    onStop: () => stopPlayback(),
-    onRestart: () => restartPlayback(),
-    getPlaying: () => player.playing,
-    getTimeLabel: () => `${fmtTime(player.currentSec)} / ${fmtTime(player.durationSec)}`,
     canPrev: () => canPrevMeasure(navMeasureIndex(), stateController.getScope()),
     canNext: () => canNextMeasure(navMeasureIndex(), stateController.getScope()),
+    onLoopCycle: () => cycleLoopMode(),
+    onMetroToggle: () => {
+      state.metro.enabled = !state.metro.enabled;
+      syncMetroMirrors();
+      stateController.persistMetroPrefs?.();
+      onSettingsChange({ metronome: true });
+    },
+    getLoopMode: () => currentLoopMode(),
+    getLoopRangeLabel: () => {
+      if (!state.loopEnabled || state.loopMode === 'song') return '';
+      return `${state.loopStart + 1}–${state.loopEnd + 1}`;
+    },
+    getMetroEnabled: () => !!state.metro.enabled,
+    getOverlayLabel: () => practiceOverlayLabel(lastTickResting, lastRestRemaining),
+  });
+
+  transport = mountTransportDock(transportHost, {
+    extraNode: transportExtra,
+    practiceRailNode: practiceRailHost,
+    syncPracticeRail: () => practiceRail?.sync(),
+    onPlayPause: () => togglePlayPause(),
+    onRestart: () => restartPlayback(),
+    onBpmStep: (delta) => stepBpm(delta),
+    onBpmInput: (value) => {
+      tempoRamp.stopSession();
+      state.bpmUserOverride = true;
+      state.bpm = clampBpm(Number(value) || state.scoreBpm);
+      applyBpmChange();
+    },
+    getBpm: () => state.bpm,
+    getScoreBpm: () => state.scoreBpm,
+    getPlaying: () => player.playing,
+    getTimeLabel: () => `${fmtTime(player.currentSec)} / ${fmtTime(player.durationSec)}`,
     getRampStatusLabel: () => rampStatusLabel(),
+    onExpandedChange: () => layoutMetrics?.refresh?.(),
     onOpenMenu: () => {
       if (panelManager.isOpen('menu')) panelManager.close('menu');
       else {
@@ -1573,6 +1553,18 @@ export function mountGpPlayer(host, {
       onChange: onSettingsChange,
       getShowNotation: () => showStandardNotation,
       getZoomLimit: () => parchmentZoomLimit,
+      onSpeedPct: (value) => {
+        tempoRamp.stopSession();
+        state.bpmUserOverride = true;
+        const pct = clampTempoPct(Number(value) || 100);
+        state.bpm = clampBpm(Math.round(state.scoreBpm * (pct / 100)));
+        applyBpmChange();
+      },
+      onTempoReset: () => {
+        tempoRamp.stopSession();
+        stateController.resetBpm();
+        applyBpmChange();
+      },
     });
   } catch (e) {
     console.error(e);
@@ -1715,6 +1707,7 @@ export function mountGpPlayer(host, {
         onPreview: (startIdx, endIdx) => {
           stateController.setLoopMeasures(startIdx, endIdx);
           state.loopEnabled = true;
+          state.loopMode = 'range';
           onLoopChanged();
           seekToBar(startIdx, { autoplay: true });
         },
@@ -1976,11 +1969,10 @@ export function mountGpPlayer(host, {
       } else if (e.key === 'l' || e.key === 'L') {
         if (e.shiftKey) {
           e.preventDefault();
-          stateController.clearLoop();
-          onLoopChanged();
+          setLoopMode('off');
         } else {
           e.preventDefault();
-          setLoopEnabled(!state.loopEnabled);
+          cycleLoopMode();
         }
       } else if (e.key === 'm' || e.key === 'M') {
         if (e.shiftKey) {
@@ -2050,6 +2042,7 @@ export function mountGpPlayer(host, {
 
   function reapplyExternalLoop(snap) {
     state.loopEnabled = true;
+    state.loopMode = snap.loopMode === 'song' ? 'song' : 'range';
     const beats = snap.loopStartBeat != null
       && snap.loopEndBeat != null
       && snap.loopEndBeat > snap.loopStartBeat
@@ -2069,11 +2062,120 @@ export function mountGpPlayer(host, {
       externalLoopSnapshot = null;
     } else {
       state.loopEnabled = true;
+      state.loopMode = 'range';
+    }
+    state.loopSelectMode = state.loopEnabled && state.loopMode === 'range';
+    reloadModel();
+    if (!isAlive()) return;
+    settingsDrawer?.sync();
+    loopController?.syncFromState();
+    syncLoopSelectMode();
+  }
+
+  /** Keep the marked span, so the loop button can return to it. */
+  function rememberRangeLoop() {
+    if (state.loopMode === 'song') return;
+    if (state.loopStartBeat == null || state.loopEndBeat == null) return;
+    lastRangeLoop = { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
+  }
+
+  /** The mode the loop button shows: 'off', 'range', or 'song'. */
+  function currentLoopMode() {
+    if (!state.loopEnabled) return 'off';
+    return state.loopMode === 'song' ? 'song' : 'range';
+  }
+
+  /** The span a new range loop starts with: the play position and three bars. */
+  function defaultRangeBeats() {
+    const measures = state.viewModel?.measures || [];
+    if (!measures.length) return null;
+    const scope = stateController.getScope();
+    const first = Math.max(0, Math.min(measures.length - 1, scope.start ?? 0));
+    const last = Math.max(first, Math.min(measures.length - 1, scope.end ?? measures.length - 1));
+    const start = Math.max(first, Math.min(last, navMeasureIndex() ?? first));
+    const end = Math.min(last, start + 3);
+    const startBeat = measures[start]?.startBeat;
+    const endBeat = measures[end]?.endBeat;
+    if (!Number.isFinite(startBeat) || !Number.isFinite(endBeat) || endBeat <= startBeat) return null;
+    return { startBeat, endBeat };
+  }
+
+  /** The span of the whole score. */
+  function songBeats() {
+    const measures = state.viewModel?.measures || [];
+    if (!measures.length) return null;
+    const startBeat = measures[0]?.startBeat ?? 0;
+    const endBeat = state.viewModel?.totalBeats ?? measures[measures.length - 1]?.endBeat;
+    if (!Number.isFinite(endBeat) || endBeat <= startBeat) return null;
+    return { startBeat, endBeat };
+  }
+
+  /**
+   * Put the loop in one mode.
+   * 'range' keeps a span the player already marked, or marks a new one.
+   * 'song' loops the whole score. 'off' clears the loop.
+   */
+  function setLoopMode(mode) {
+    if (!isAlive()) return;
+    if (mode === 'off') {
+      externalLoopSnapshot = snapshotLoopState();
+      stateController.clearLoop();
+    } else if (mode === 'song') {
+      const span = songBeats();
+      if (!span) return;
+      stateController.setLoopRange(span.startBeat, span.endBeat);
+      state.loopEnabled = true;
+      state.loopMode = 'song';
+      state.loopSelectMode = false;
+    } else {
+      // A range already on the score keeps its span. The markers come on, so
+      // the player can drag them.
+      let span = null;
+      if (state.loopEnabled && state.loopMode !== 'song'
+        && state.loopStartBeat != null && state.loopEndBeat != null) {
+        span = { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
+      }
+      if (!span) span = lastRangeLoop || defaultRangeBeats();
+      if (!span) return;
+      externalLoopSnapshot = null;
+      stateController.setLoopRange(span.startBeat, span.endBeat);
+      state.loopEnabled = true;
+      state.loopMode = 'range';
+      state.loopSelectMode = true;
+      rememberRangeLoop();
     }
     reloadModel();
     if (!isAlive()) return;
     settingsDrawer?.sync();
     loopController?.syncFromState();
+    syncLoopSelectMode();
+  }
+
+  /** One press of the loop button: range, then song, then off. */
+  function cycleLoopMode() {
+    const mode = currentLoopMode();
+    if (mode === 'song') {
+      setLoopMode('off');
+    } else if (mode === 'range' && state.loopSelectMode) {
+      setLoopMode('song');
+    } else {
+      // Off, or a range the host set up without markers. Either way the first
+      // press marks a range and puts the markers on the score.
+      setLoopMode('range');
+    }
+  }
+
+  // The score shows drag markers only while the range mode holds the loop.
+  function syncLoopSelectMode() {
+    parchment?.setLoopSelectMode?.(!!state.loopSelectMode);
+    measureNav?.update({
+      measureIndex: player.measureIndex,
+      navBar: state.navBar,
+      loopEnabled: state.loopEnabled,
+      loopStart: state.loopStart,
+      loopEnd: state.loopEnd,
+    });
+    transport?.sync();
   }
 
   /** Rename the back button, e.g. when the workbook player changes level. */

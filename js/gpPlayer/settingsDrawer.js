@@ -28,6 +28,8 @@ export function mountSettingsDrawer(host, {
   uidPrefix = 'gpp',
   getShowNotation = () => false,
   getZoomLimit = () => Infinity,
+  onSpeedPct = null,
+  onTempoReset = null,
 } = {}) {
   const noop = {
     open() {},
@@ -101,6 +103,7 @@ export function mountSettingsDrawer(host, {
     tuning: `${prefix}-tuning`,
     retuneFinger: `${prefix}-retune-finger`,
     retunePitch: `${prefix}-retune-pitch`,
+    speed: `${prefix}-speed`,
     zoom: `${prefix}-zoom`,
     autoFollow: `${prefix}-autofollow`,
     notation: `${prefix}-notation`,
@@ -182,6 +185,43 @@ export function mountSettingsDrawer(host, {
       type: 'checkbox', id: ids.notation, 'aria-label': 'Show standard notation staff',
     });
 
+    const speedInput = el('input', {
+      type: 'number', class: 'gpp-num', id: ids.speed, min: '25', max: '200', step: '5',
+      'aria-label': 'Playback speed percent',
+    });
+    const speedNote = el('div', { class: 'gpp-settings-note', text: '' });
+    const tempoResetBtn = el('button', {
+      class: 'btn sm', type: 'button', text: 'Reset to score tempo',
+      onClick: () => { onTempoReset?.(); sync(); },
+    });
+
+    // The dock holds the BPM steps. The percent of the score tempo and the
+    // reset live here, where there is room to name both numbers.
+    const tempoSection = el('details', { class: 'gpp-settings-section', open: true }, [
+      el('summary', { class: 'gpp-settings-section-title', text: 'Tempo' }),
+      el('div', { class: 'gpp-settings-section-body' }, [
+        el('div', { class: 'gpp-field' }, [
+          el('span', { class: 'gpp-control-label', text: 'Speed' }),
+          el('div', { class: 'gpp-control-row' }, [
+            el('button', {
+              class: 'btn sm', type: 'button', text: '−',
+              'aria-label': 'Slower by 5 percent',
+              onClick: () => { onSpeedPct?.(Number(speedInput.value) - 5); sync(); },
+            }),
+            speedInput,
+            el('span', { class: 'gpp-unit', text: '%' }),
+            el('button', {
+              class: 'btn sm', type: 'button', text: '+',
+              'aria-label': 'Faster by 5 percent',
+              onClick: () => { onSpeedPct?.(Number(speedInput.value) + 5); sync(); },
+            }),
+          ]),
+          speedNote,
+        ]),
+        el('div', { class: 'gpp-control-row' }, [tempoResetBtn]),
+      ]),
+    ]);
+
     const loopSection = el('details', { class: 'gpp-settings-section', open: true }, [
       el('summary', { class: 'gpp-settings-section-title', text: 'Loop' }),
       el('div', { class: 'gpp-settings-section-body' }, [
@@ -233,7 +273,9 @@ export function mountSettingsDrawer(host, {
       ]),
     ]);
 
-    controlsBody.append(loopSection, scoreSection, pitchSection);
+    controlsBody.append(tempoSection, loopSection, scoreSection, pitchSection);
+
+    speedInput.addEventListener('change', () => { onSpeedPct?.(speedInput.value); sync(); });
 
     restInput.addEventListener('change', () => {
       stateController.state.loopRestSec = Math.max(0, Math.min(30, Number(restInput.value) || 0));
@@ -274,6 +316,7 @@ export function mountSettingsDrawer(host, {
     return {
       restInput, transposeInput, tuningSelect, retuneFinger, retunePitch,
       zoomInput, zoomPct, zoomLimitNote, autoFollowCheck, notationCheck, pitchSection, scoreSection,
+      speedInput, speedNote, tempoResetBtn,
     };
   }
 
@@ -316,9 +359,24 @@ export function mountSettingsDrawer(host, {
     tuningSelect.value = stateController.state.tuning || '__file__';
   }
 
+  function syncTempo(st) {
+    const bpm = Math.round(Number(st.bpm) || 0);
+    const scoreBpm = Math.round(Number(st.scoreBpm) || 0);
+    const pct = scoreBpm ? Math.round((bpm / scoreBpm) * 100) : 100;
+    if (typeof document === 'undefined' || document.activeElement !== controls.speedInput) {
+      controls.speedInput.value = String(pct);
+    }
+    controls.speedNote.textContent = scoreBpm
+      ? `${pct}% of the score tempo. That is ${bpm} BPM, and the score tempo is ${scoreBpm} BPM.`
+      : `${bpm} BPM.`;
+    const atScore = !st.bpmUserOverride && bpm === scoreBpm;
+    controls.tempoResetBtn.disabled = atScore;
+  }
+
   function sync() {
     if (!controls) return;
     const st = stateController.state;
+    syncTempo(st);
     rebuildTuningSelect(controls.tuningSelect);
     controls.restInput.value = String(st.loopRestSec);
     controls.transposeInput.value = String(st.transpose);

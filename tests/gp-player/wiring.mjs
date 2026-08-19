@@ -111,27 +111,28 @@ plainMount.destroy();
 assert.equal(plainHost.innerHTML, '', 'destroy should clear host');
 assert.equal(plainHost.children.length, 0, 'destroy should leave host empty');
 
-// ---- transport dock tempo controls (practice rail) ----
+// ---- transport dock tempo controls (row one) ----
 const tempoHost = document.createElement('div');
 const tempoMount = mountGpPlayer(tempoHost, { gpResult: fakeGp, title: 'Tempo dock' });
-const practiceRailEl = tempoHost.querySelector('.gpp-practice-rail');
-assert.ok(practiceRailEl, 'practice rail should render tempo group');
-const dockBpmInput = tempoHost.querySelector('.gpp-practice-bpm-input');
+const tempoRowPrimary = tempoHost.querySelector('.gpp-transport-row-primary');
+assert.ok(tempoRowPrimary, 'row one should render');
+const dockBpmInput = tempoHost.querySelector('.gpp-tempo-input');
 const bpmUpBtn = tempoHost.querySelector('[aria-label="Increase tempo by 5 BPM"]');
 const bpmDownBtn = tempoHost.querySelector('[aria-label="Decrease tempo by 5 BPM"]');
-const bpmResetBtn = tempoHost.querySelector('[aria-label="Reset tempo to score BPM"]');
-assert.ok(dockBpmInput, 'practice rail should render BPM input');
-assert.ok(bpmUpBtn && bpmDownBtn && bpmResetBtn, 'practice rail should render tempo step and reset buttons');
+assert.ok(dockBpmInput, 'row one should render the BPM input');
+assert.ok(tempoRowPrimary.contains(dockBpmInput), 'the BPM field stays in row one');
+assert.ok(bpmUpBtn && bpmDownBtn, 'row one should render the tempo step buttons');
 assert.equal(dockBpmInput.getAttribute('min'), '40');
 assert.equal(dockBpmInput.getAttribute('max'), '320');
+// The unit sits beside the number, so the readout names what it counts.
+const bpmUnit = tempoHost.querySelector('.gpp-tempo-unit');
+assert.ok(bpmUnit && bpmUnit.textContent === 'BPM', 'the tempo field names the unit');
 assert.equal(tempoMount.getState().bpm, 120);
 assert.equal(tempoMount.getState().bpmUserOverride, false);
-assert.equal(bpmResetBtn.disabled, true, 'reset disabled at score tempo');
 
 bpmUpBtn.click();
 assert.equal(tempoMount.getState().bpm, 125);
 assert.equal(tempoMount.getState().bpmUserOverride, true);
-assert.equal(bpmResetBtn.disabled, false, 'reset enabled after tempo override');
 
 bpmDownBtn.click();
 assert.equal(tempoMount.getState().bpm, 120);
@@ -141,11 +142,6 @@ dockBpmInput.value = '90';
 dockBpmInput.change();
 assert.equal(tempoMount.getState().bpm, 90);
 assert.equal(tempoMount.getState().bpmUserOverride, true);
-
-bpmResetBtn.click();
-assert.equal(tempoMount.getState().bpm, 120);
-assert.equal(tempoMount.getState().bpmUserOverride, false);
-assert.equal(bpmResetBtn.disabled, true, 'reset disabled after returning to score tempo');
 
 tempoMount.destroy();
 
@@ -175,11 +171,12 @@ const extraMount = mountGpPlayer(extraHost, {
 
 const extraDock = extraHost.querySelector('.gpp-transport-dock');
 const extraGroup = extraHost.querySelector('.gpp-transport-extra');
-const primaryRow = extraHost.querySelector('.gpp-transport-row-primary');
+const practiceRow = extraHost.querySelector('.gpp-transport-row-practice');
 assert.ok(extraDock, 'dock should render when transportExtra is provided');
 assert.ok(extraGroup, 'extra group should render');
 assert.ok(extraDock.classList.contains('has-extra'), 'dock should carry has-extra');
-assert.equal(primaryRow?.firstChild, extraGroup, 'extra group is first child of primary row');
+// The exercise steps belong with the other controls the toggle reveals.
+assert.equal(practiceRow?.firstChild, extraGroup, 'extra group is first child of row two');
 assert.ok(hasAncestorWithClass(extraNextBtn, 'gpp-transport-extra'), 'button sits under extra group');
 assert.ok(hasAncestorWithClass(extraNextBtn, 'gpp-transport-dock'), 'button sits under transport dock');
 
@@ -318,10 +315,15 @@ assert.ok(tabButtons.length >= 2, 'track strip should list at least two tracks')
 
 const practiceRail = us3Host.querySelector('.gpp-practice-rail');
 assert.ok(practiceRail, 'practice rail should render on the main screen');
-assert.ok(practiceRail.querySelector('[aria-label="Playback speed"]'), 'practice rail should include speed control');
-assert.ok(practiceRail.querySelector('[aria-label="Loop"]'), 'practice rail should include loop toggle');
+assert.ok(practiceRail.querySelector('[aria-label="Previous measure"]'), 'practice rail should include the previous measure button');
+assert.ok(practiceRail.querySelector('[aria-label="Next measure"]'), 'practice rail should include the next measure button');
+assert.ok(practiceRail.querySelector('[aria-label="Loop"]'), 'practice rail should include the loop button');
 assert.ok(practiceRail.querySelector('[aria-label="Metronome"]'), 'practice rail should include metronome toggle');
-assert.ok(practiceRail.querySelector('[aria-label="Count-in"]'), 'practice rail should include count-in toggle');
+// Every rail button names itself, so no bare glyph is left to read.
+for (const btn of practiceRail.querySelectorAll('.gpp-practice-btn')) {
+  const word = btn.querySelector('.gpp-practice-label');
+  assert.ok(word && word.textContent.trim().length > 0, 'each rail button carries a word');
+}
 
 const us3Dock = us3Host.querySelector('.gpp-transport-dock');
 assert.ok(us3Dock, 'transport dock should render');
@@ -332,22 +334,58 @@ assert.ok(rowPractice, 'transport dock row two should render');
 assert.ok(rowPractice.contains(practiceRail), 'practice rail should sit in row two');
 assert.ok(!rowPrimary.contains(practiceRail), 'practice rail should not sit in row one');
 
-// ---- the gear stays out of the scrolling part of row one ----
+// ---- row one collapses to tempo, play, and restart ----
 const us3Scroll = us3Host.querySelector('.gpp-transport-scroll');
 const us3Gear = us3Host.querySelector('.gpp-transport-menu-btn');
+const us3Expand = us3Host.querySelector('.gpp-transport-expand-btn');
 const us3Play = us3Host.querySelector('[aria-label="Play"]');
+const us3Restart = us3Host.querySelector('[aria-label="Restart"]');
 assert.ok(us3Scroll, 'row one should hold a scroller for the transport buttons');
 assert.ok(us3Scroll.contains(us3Play), 'the play button scrolls with the transport buttons');
-assert.ok(!us3Scroll.contains(us3Gear), 'the gear stays out of the scroller');
-assert.ok(us3Gear.parentElement === rowPrimary, 'the gear is a direct child of row one');
+assert.ok(us3Scroll.contains(us3Restart), 'restart stays in row one');
+assert.ok(us3Scroll.contains(us3Host.querySelector('.gpp-tempo-input')), 'the tempo field stays in row one');
+assert.ok(!rowPrimary.contains(us3Gear), 'the gear moved to row two');
+assert.ok(!us3Scroll.contains(us3Expand), 'the toggle stays out of the scroller');
 assert.ok(
-  [...rowPrimary.children].at(-1) === us3Gear,
-  'the gear sits at the end of row one',
+  [...rowPrimary.children].at(-1) === us3Expand,
+  'the toggle sits at the end of row one',
+);
+
+// ---- the gear stays out of the scrolling part of row two ----
+const us3Rail = us3Host.querySelector('.gpp-practice-rail');
+assert.ok(!us3Rail.contains(us3Gear), 'the gear stays out of the rail scroller');
+assert.ok(us3Gear.parentElement === rowPractice, 'the gear is a direct child of row two');
+assert.ok(
+  [...rowPractice.children].at(-1) === us3Gear,
+  'the gear sits at the end of row two',
 );
 assert.ok(
   !us3Host.querySelector('.gpp-transport-measure'),
   'row one shows no measure readout',
 );
+
+// ---- the loop button steps through range, song, and off ----
+const us3Loop = us3Host.querySelector('[aria-label="Loop"]');
+assert.equal(us3Loop.dataset.loopMode, 'off', 'the loop starts off');
+us3Loop.click();
+assert.equal(us3Loop.dataset.loopMode, 'range', 'press one marks a range');
+assert.equal(us3Mount.isLoopEnabled(), true, 'a range loop is on');
+assert.equal(us3Mount.getState().loopSelectMode, true, 'the range mode shows the markers');
+const rangeStart = us3Mount.getState().loopStart;
+const rangeEnd = us3Mount.getState().loopEnd;
+assert.ok(rangeEnd > rangeStart, 'the range covers more than one measure');
+us3Loop.click();
+assert.equal(us3Loop.dataset.loopMode, 'song', 'press two loops the whole song');
+assert.equal(us3Mount.getState().loopSelectMode, false, 'the song mode hides the markers');
+assert.equal(us3Mount.getState().loopStart, 0, 'the song loop starts at the first measure');
+us3Loop.click();
+assert.equal(us3Loop.dataset.loopMode, 'off', 'press three turns the loop off');
+assert.equal(us3Mount.isLoopEnabled(), false, 'no loop after press three');
+us3Loop.click();
+assert.equal(us3Mount.getState().loopStart, rangeStart, 'the marked range comes back');
+assert.equal(us3Mount.getState().loopEnd, rangeEnd, 'the marked range comes back whole');
+us3Loop.click();
+us3Loop.click();
 
 // ---- a drawer paints over the dock, so it comes after it in the score pane ----
 const us3Pane = us3Host.querySelector('.gpp-score-pane');

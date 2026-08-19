@@ -124,8 +124,8 @@ function buildBottom() {
   return bar;
 }
 
-// The gear sits in the head action row, in line with the page heading. A
-// click opens Settings.
+// The gear sits at the right end of the head action row. A click opens
+// Settings.
 function buildSettingsGear() {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -141,20 +141,22 @@ function buildSettingsGear() {
 }
 
 // The head actions hold the quick context button and the settings gear. The
-// row sits at the top right of the content column.
+// row keeps the top right corner of the content column on every screen.
 function buildHeadActions() {
   const row = document.createElement('div');
   row.className = 'shell-head-actions';
   return row;
 }
 
-// Publish the width of the action row. The heading uses it to keep clear of
-// the buttons.
-function syncActionsWidth() {
+// Publish the height of the action band. The content column adds that height
+// to its top padding, so the screen starts below the row. The gear then keeps
+// one place in the top right corner and never touches the corner of a panel.
+// A hidden row measures as zero, which gives the content the full height back.
+function syncActionsHeight() {
   if (!actionsEl || typeof actionsEl.getBoundingClientRect !== 'function') return;
   const rect = actionsEl.getBoundingClientRect();
-  const width = Math.ceil(rect.width || 0);
-  document.body.style.setProperty('--shell-actions-w', width ? `${width + 12}px` : '0px');
+  const height = Math.ceil(rect.height || 0);
+  document.body.style.setProperty('--shell-actions-h', height ? `${height + 12}px` : '0px');
 }
 
 function syncHeadActions(sectionId) {
@@ -164,10 +166,9 @@ function syncHeadActions(sectionId) {
   const showContext = syncContextQuick(sectionId);
   const show = showGear || showContext;
   if (actionsEl) actionsEl.hidden = !show;
-  // The body class keeps the heading clear of the buttons.
   document.body.classList.toggle('shell-gear-on', show);
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(syncActionsWidth);
-  else syncActionsWidth();
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(syncActionsHeight);
+  else syncActionsHeight();
 }
 
 export function setActiveNav(sectionId) {
@@ -214,7 +215,13 @@ export function initShellNav({ showSection, currentId } = {}) {
     const main = document.querySelector('.app-main');
     if (main) main.appendChild(actionsEl);
     else document.body.appendChild(actionsEl);
-    window.addEventListener('resize', syncActionsWidth);
+    window.addEventListener('resize', syncActionsHeight);
+    // A screen can hide the row after the fact. The Score Player does that
+    // when a score fills the view. The observer gives the height back to the
+    // content column at that moment.
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(() => syncActionsHeight()).observe(actionsEl);
+    }
   }
 
   if (currentId) setActiveNav(currentId);

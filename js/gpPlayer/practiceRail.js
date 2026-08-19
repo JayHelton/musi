@@ -1,15 +1,41 @@
-// Main-screen practice controls: speed, loop, metronome, count-in.
+// The practice rail — row two of the transport dock.
+//
+// It holds the controls a player reaches for between takes: step one measure
+// back or forward, and the loop button. Every control carries a word, because
+// a bare glyph does not say what it does.
+//
+// The loop button steps through three modes with each press:
+//   1. "Range"  — loop a span of measures. Drag the two markers on the score,
+//                 or drag across the measure strip, to move the span.
+//   2. "Song"   — loop the whole score.
+//   3. "Off"    — no loop. The next press starts at step one again.
 
 import { el } from './dom.js';
-import {
-  GPP_MIN_BPM,
-  GPP_MAX_BPM,
-  GPP_MIN_TEMPO_PCT,
-  GPP_MAX_TEMPO_PCT,
-  clampBpm,
-  clampTempoPct,
-} from './tempoRange.js';
-import { GPP_TRANSPORT_BPM_STEP } from './transportDock.js';
+
+const LOOP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
+const PREV_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>';
+const NEXT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
+const METRO_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l4 18H5L9 3Z"/><path d="m17 9-9 8"/></svg>';
+
+/** Build a rail button with an icon and a word. */
+function railButton({ cls = '', icon, label, ariaLabel, title }) {
+  return el('button', {
+    class: `gpp-practice-btn${cls ? ` ${cls}` : ''}`,
+    type: 'button',
+    'aria-label': ariaLabel || label,
+    title: title || label,
+  }, [
+    el('span', { class: 'gpp-practice-icon', html: icon, 'aria-hidden': 'true' }),
+    el('span', { class: 'gpp-practice-label', text: label }),
+  ]);
+}
+
+/** The word the loop button shows for a mode. */
+export function loopButtonLabel(mode, rangeText = '') {
+  if (mode === 'song') return 'Loop song';
+  if (mode === 'range') return rangeText ? `Loop ${rangeText}` : 'Loop range';
+  return 'Loop off';
+}
 
 /**
  * @param {HTMLElement} host
@@ -22,157 +48,81 @@ export function mountPracticeRail(host, api = {}) {
   host.innerHTML = '';
   host.classList.add('gpp-practice-rail');
 
-  const speedGroup = el('div', { class: 'gpp-practice-speed' });
-  const pctDownBtn = el('button', {
-    class: 'gpp-practice-btn',
-    type: 'button',
-    text: '−',
-    'aria-label': 'Decrease speed',
-    title: 'Decrease speed',
+  const prevBtn = railButton({
+    cls: 'gpp-practice-prev',
+    icon: PREV_ICON,
+    label: 'Prev bar',
+    ariaLabel: 'Previous measure',
+    title: 'Go to the previous measure',
   });
-  const pctInput = el('input', {
-    class: 'gpp-practice-pct-input',
-    type: 'number',
-    inputmode: 'numeric',
-    min: String(GPP_MIN_TEMPO_PCT),
-    max: String(GPP_MAX_TEMPO_PCT),
-    step: '1',
-    'aria-label': 'Playback speed',
-    title: 'Playback speed percent',
+  const nextBtn = railButton({
+    cls: 'gpp-practice-next',
+    icon: NEXT_ICON,
+    label: 'Next bar',
+    ariaLabel: 'Next measure',
+    title: 'Go to the next measure',
   });
-  const pctUnit = el('span', { class: 'gpp-practice-pct-unit', text: '%' });
-  const pctUpBtn = el('button', {
-    class: 'gpp-practice-btn',
-    type: 'button',
-    text: '+',
-    'aria-label': 'Increase speed',
-    title: 'Increase speed',
+  const loopBtn = railButton({
+    cls: 'gpp-practice-loop-btn',
+    icon: LOOP_ICON,
+    label: 'Loop off',
+    ariaLabel: 'Loop',
+    title: 'Loop',
   });
-  const bpmDownBtn = el('button', {
-    class: 'gpp-practice-btn gpp-practice-bpm-step',
-    type: 'button',
-    text: '−',
-    'aria-label': `Decrease tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
-    title: `Decrease tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
+  loopBtn.setAttribute('aria-pressed', 'false');
+  const metroBtn = railButton({
+    cls: 'gpp-practice-metro-btn',
+    icon: METRO_ICON,
+    label: 'Click',
+    ariaLabel: 'Metronome',
+    title: 'Metronome click',
   });
-  const bpmInput = el('input', {
-    class: 'gpp-practice-bpm-input',
-    type: 'number',
-    inputmode: 'numeric',
-    min: String(GPP_MIN_BPM),
-    max: String(GPP_MAX_BPM),
-    step: '1',
-    'aria-label': 'Tempo BPM',
-    title: 'Tempo BPM',
-  });
-  const bpmUnit = el('span', { class: 'gpp-practice-bpm-unit', text: 'BPM' });
-  const bpmUpBtn = el('button', {
-    class: 'gpp-practice-btn gpp-practice-bpm-step',
-    type: 'button',
-    text: '+',
-    'aria-label': `Increase tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
-    title: `Increase tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
-  });
-  const bpmResetBtn = el('button', {
-    class: 'gpp-practice-btn gpp-practice-bpm-reset',
-    type: 'button',
-    text: '↺',
-    'aria-label': 'Reset tempo to score BPM',
-    title: 'Reset to score tempo',
-  });
-  speedGroup.append(pctDownBtn, pctInput, pctUnit, pctUpBtn, bpmDownBtn, bpmInput, bpmUnit, bpmUpBtn, bpmResetBtn);
+  metroBtn.setAttribute('aria-pressed', 'false');
 
-  const loopBtn = el('button', {
-    class: 'gpp-practice-btn gpp-practice-loop-btn',
-    type: 'button',
-    text: '↻',
-    'aria-label': 'Loop',
-    title: 'Toggle loop',
-    'aria-pressed': 'false',
-  });
-  const loopRangeEl = el('span', { class: 'gpp-practice-loop-range', text: '' });
-  const clearLoopBtn = el('button', {
-    class: 'gpp-practice-btn gpp-practice-clear-loop',
-    type: 'button',
-    text: '✕',
-    'aria-label': 'Clear loop',
-    title: 'Clear loop',
-  });
-  const metroBtn = el('button', {
-    class: 'gpp-practice-btn gpp-practice-metro-btn',
-    type: 'button',
-    text: '♩',
-    'aria-label': 'Metronome',
-    title: 'Metronome',
-    'aria-pressed': 'false',
-  });
-  const countInBtn = el('button', {
-    class: 'gpp-practice-btn gpp-practice-countin-btn',
-    type: 'button',
-    text: '1',
-    'aria-label': 'Count-in',
-    title: 'Count-in',
-    'aria-pressed': 'false',
-  });
+  const loopLabelEl = loopBtn.querySelector('.gpp-practice-label');
+  const hintEl = el('span', { class: 'gpp-practice-hint', text: '', hidden: true });
   const overlayEl = el('span', { class: 'gpp-practice-overlay', text: '', hidden: true });
 
-  host.append(speedGroup, loopBtn, loopRangeEl, clearLoopBtn, metroBtn, countInBtn, overlayEl);
+  host.append(prevBtn, nextBtn, loopBtn, metroBtn, hintEl, overlayEl);
 
-  pctDownBtn.addEventListener('click', () => api.onSpeedStep?.(-5));
-  pctUpBtn.addEventListener('click', () => api.onSpeedStep?.(5));
-  pctInput.addEventListener('change', () => api.onSpeedInput?.(pctInput.value));
-  bpmDownBtn.addEventListener('click', () => api.onBpmStep?.(-GPP_TRANSPORT_BPM_STEP));
-  bpmUpBtn.addEventListener('click', () => api.onBpmStep?.(GPP_TRANSPORT_BPM_STEP));
-  bpmInput.addEventListener('change', () => api.onBpmInput?.(bpmInput.value));
-  bpmResetBtn.addEventListener('click', () => api.onBpmReset?.());
-  loopBtn.addEventListener('click', () => api.onLoopToggle?.());
-  clearLoopBtn.addEventListener('click', () => api.onClearLoop?.());
+  prevBtn.addEventListener('click', () => api.onPrev?.());
+  nextBtn.addEventListener('click', () => api.onNext?.());
+  loopBtn.addEventListener('click', () => api.onLoopCycle?.());
   metroBtn.addEventListener('click', () => api.onMetroToggle?.());
-  countInBtn.addEventListener('click', () => api.onCountInToggle?.());
 
-  function syncSpeedControls() {
-    const bpm = Math.round(Number(api.getBpm?.()) || 0);
-    const scoreBpm = Math.round(Number(api.getScoreBpm?.()) || 0);
-    const pct = scoreBpm ? Math.round((bpm / scoreBpm) * 100) : 100;
-    const canReset = api.canResetBpm?.() !== false;
+  function syncLoop() {
+    const mode = api.getLoopMode?.() || 'off';
+    const rangeTxt = api.getLoopRangeLabel?.() || '';
+    const on = mode !== 'off';
 
-    if (typeof document !== 'undefined' && document.activeElement !== bpmInput) {
-      bpmInput.value = String(bpm);
+    loopLabelEl.textContent = loopButtonLabel(mode, rangeTxt);
+    loopBtn.classList.toggle('is-on', on);
+    loopBtn.dataset.loopMode = mode;
+    loopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (mode === 'range') {
+      loopBtn.title = 'Loop a range. Press again to loop the whole song.';
+    } else if (mode === 'song') {
+      loopBtn.title = 'Loop the whole song. Press again to turn the loop off.';
+    } else {
+      loopBtn.title = 'Loop off. Press to loop a range of measures.';
     }
-    if (typeof document !== 'undefined' && document.activeElement !== pctInput) {
-      pctInput.value = String(clampTempoPct(pct));
-    }
-    bpmInput.title = scoreBpm
-      ? `Tempo: ${bpm} BPM · ${pct}% of score tempo ${scoreBpm}`
-      : `Tempo: ${bpm} BPM`;
-    pctInput.title = `Speed: ${pct}%`;
 
-    bpmResetBtn.disabled = !canReset;
-    bpmResetBtn.title = canReset && scoreBpm
-      ? `Reset to score tempo (${scoreBpm} BPM)`
-      : 'Already at score tempo';
+    // The markers only make sense while the range mode holds the score.
+    const showHint = mode === 'range';
+    hintEl.textContent = showHint ? 'Drag the markers to set the range' : '';
+    hintEl.hidden = !showHint;
   }
 
   function sync() {
-    const loopOn = !!api.getLoopEnabled?.();
-    loopBtn.classList.toggle('is-on', loopOn);
-    loopBtn.setAttribute('aria-pressed', loopOn ? 'true' : 'false');
-    loopBtn.title = loopOn ? 'Loop on' : 'Loop off';
+    syncLoop();
 
-    const rangeTxt = api.getLoopRangeLabel?.() || '';
-    loopRangeEl.textContent = rangeTxt;
-    loopRangeEl.hidden = !rangeTxt;
-    clearLoopBtn.hidden = !loopOn && !rangeTxt;
+    prevBtn.disabled = api.canPrev?.() === false;
+    nextBtn.disabled = api.canNext?.() === false;
 
     const metroOn = !!api.getMetroEnabled?.();
     metroBtn.classList.toggle('is-on', metroOn);
     metroBtn.setAttribute('aria-pressed', metroOn ? 'true' : 'false');
-    metroBtn.title = metroOn ? 'Metronome on' : 'Metronome off';
-
-    const countInOn = !!api.getCountInEnabled?.();
-    countInBtn.classList.toggle('is-on', countInOn);
-    countInBtn.setAttribute('aria-pressed', countInOn ? 'true' : 'false');
-    countInBtn.title = countInOn ? 'Count-in on' : 'Count-in off';
+    metroBtn.title = metroOn ? 'Metronome click on' : 'Metronome click off';
 
     const overlayTxt = api.getOverlayLabel?.() || '';
     if (overlayTxt) {
@@ -182,8 +132,6 @@ export function mountPracticeRail(host, api = {}) {
       overlayEl.textContent = '';
       overlayEl.hidden = true;
     }
-
-    syncSpeedControls();
   }
 
   function destroy() {

@@ -3,6 +3,16 @@
 body.app-shell {
   --shell-top-inset: calc(16px + env(safe-area-inset-top, 0px));
   --shell-rail-w: 88px;
+  /* The height of one head action button. */
+  --shell-actions-row-h: 40px;
+  /* The band the head actions reserve above the screen content. js/shell/nav.js
+     writes the measured value. The two rules here hold the band until the
+     first measurement lands, so the screen does not jump on the first paint. */
+  --shell-actions-h: 0px;
+}
+
+body.app-shell.shell-gear-on {
+  --shell-actions-h: calc(var(--shell-actions-row-h) + 12px);
 }
 
 .app-rail {
@@ -223,9 +233,12 @@ body.app-shell {
   min-width: 0;
 }
 
-/* Head actions. The row sits at the top right of the content column, in line
-   with the page heading. js/shell/nav.js builds it and controls the
-   visibility. */
+/* Head actions. The row holds the quick context button and the settings gear.
+   It keeps one place on every screen: the top right corner of the content
+   column, in a band of its own. The screen content starts below that band, so
+   the gear never touches the corner of a panel and never covers a control.
+   js/shell/nav.js builds the row, measures it, and publishes the band height
+   as --shell-actions-h. */
 .shell-head-actions {
   position: absolute;
   top: var(--shell-top-inset);
@@ -233,7 +246,9 @@ body.app-shell {
   z-index: 20;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  min-height: var(--shell-actions-row-h);
   max-width: calc(100% - var(--content-pad) * 2);
 }
 
@@ -247,8 +262,8 @@ body.app-shell {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--shell-actions-row-h);
+  height: var(--shell-actions-row-h);
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
@@ -282,26 +297,23 @@ body.app-shell.route-notice-on .shell-head-actions {
   top: calc(var(--shell-top-inset) + var(--route-notice-h, 64px) + 10px);
 }
 
-/* Keep the page heading clear of the head actions. js/shell/nav.js measures
-   the row and publishes --shell-actions-w. */
-body.shell-gear-on .section-head,
-body.shell-gear-on .tools-home-kicker,
-body.shell-gear-on .tools-home-title {
-  margin-right: var(--shell-actions-w, 52px);
-}
 
 /* The Score Player takes the whole view once a score loads. */
 body:has(.gpp-score-loaded) .shell-head-actions {
   display: none;
 }
 
+/* The content starts below the head action band, so nothing on the screen can
+   sit beside the gear or under it. */
 body.app-shell .app-main {
-  padding-top: var(--shell-top-inset);
+  padding-top: calc(var(--shell-top-inset) + var(--shell-actions-h));
 }
 
 body.app-shell.route-notice-on .app-main,
 body.app-shell.route-notice-on main.app-main {
-  padding-top: calc(var(--shell-top-inset) + var(--route-notice-h, 64px) + 10px);
+  padding-top: calc(
+    var(--shell-top-inset) + var(--route-notice-h, 64px) + 10px + var(--shell-actions-h)
+  );
 }
 
 body.app-shell main.app-main,
@@ -336,6 +348,19 @@ body.app-shell .app-main {
   body.app-shell .app-main,
   body.app-shell main.app-main {
     padding-bottom: calc(var(--dock-h) + 18px);
+  }
+}
+
+/* A short landscape screen gives the score and the staff every pixel it can,
+   so the head action band gets smaller there. */
+@media (orientation: landscape) and (max-height: 500px) {
+  body.app-shell {
+    --shell-actions-row-h: 34px;
+  }
+
+  .shell-settings-btn svg {
+    width: 17px;
+    height: 17px;
   }
 }
 

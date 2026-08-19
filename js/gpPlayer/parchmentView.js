@@ -207,7 +207,6 @@ export function mountParchmentView(host, {
   let systemEls = [];
   let playheadEl = null;
   let legendEl = null;
-  let selOverlayEl = null;
   let noteOverlayEl = null;
   let annoSpanEls = [];
   let handleStart = null;
@@ -645,11 +644,11 @@ export function mountParchmentView(host, {
     wrap.addEventListener('click', (e) => {
       if (Date.now() < suppressClickUntil) return;
       if (e.target.closest('.gpp-parch-anno-callout')) return;
-      if (selectMode || resizeDrag || drag || noteDrag) return;
+      if (resizeDrag || drag || noteDrag) return;
       if (typeof onMeasureClick === 'function') onMeasureClick(mi);
     });
 
-    if (selectMode || noteMode) {
+    if (noteMode) {
       wrap.style.touchAction = 'pan-y';
       wrap.addEventListener('pointerdown', onPointerDown);
     }
@@ -698,7 +697,6 @@ export function mountParchmentView(host, {
         measureSystemIndex = [];
         measureGeom = [];
         playheadEl = null;
-        selOverlayEl = null;
         handleStart = null;
         handleEnd = null;
         lastActiveBeatKey = '';
@@ -794,7 +792,6 @@ export function mountParchmentView(host, {
       measureSystemIndex = [];
       measureGeom = [];
       playheadEl = null;
-      selOverlayEl = null;
       handleStart = null;
       handleEnd = null;
       lastActiveBeatKey = '';
@@ -938,7 +935,7 @@ export function mountParchmentView(host, {
   }
 
   function onLongPressDown(e) {
-    if (e.button !== 0 || selectMode || noteMode || resizeDrag || drag) return;
+    if (e.button !== 0 || noteMode || resizeDrag || drag) return;
     if (e.target.closest('.gpp-parch-anno-callout')) return;
     clearLongPress();
     longPressTarget = e.currentTarget;
@@ -1073,7 +1070,6 @@ export function mountParchmentView(host, {
   }
 
   function removeSelectionDecor() {
-    if (selOverlayEl) { selOverlayEl.remove(); selOverlayEl = null; }
     if (handleStart) { handleStart.remove(); handleStart = null; }
     if (handleEnd) { handleEnd.remove(); handleEnd = null; }
     eachAllMeasureEls((el) => el.classList.remove('in-loop'));
@@ -1209,6 +1205,19 @@ export function mountParchmentView(host, {
     return { left, width: Math.max(8, right - left), right };
   }
 
+  /** Where one measure element sits inside the sheet. */
+  function boxInSheet(measureEl) {
+    if (!measureEl || !sheet) return null;
+    const sheetRect = sheet.getBoundingClientRect();
+    const r = measureEl.getBoundingClientRect();
+    return {
+      left: xOffsetInSheet(r.left, sheetRect),
+      right: xOffsetInSheet(r.right, sheetRect),
+      top: yOffsetInSheet(r.top, sheetRect),
+      height: r.height,
+    };
+  }
+
   function paintSelection(nextSel) {
     removeSelectionDecor();
     if (!nextSel) return;
@@ -1225,57 +1234,71 @@ export function mountParchmentView(host, {
     }
     if (!firstEl || !sheet) return;
 
-    const bounds = overlayBoundsForMeasureRange(startIdx, endIdx);
-    if (!bounds) return;
+    // The loop measures carry their own tint. A score wraps onto several rows,
+    // so one rectangle across the sheet would cover measures outside the loop.
+    if (!selectMode) return;
 
-    selOverlayEl = document.createElement('div');
-    selOverlayEl.className = 'gpp-parch-sel-overlay';
-    selOverlayEl.style.left = `${bounds.left}px`;
-    selOverlayEl.style.width = `${bounds.width}px`;
-    sheet.appendChild(selOverlayEl);
+    const startBox = boxInSheet(firstEl);
+    const endBox = boxInSheet(lastEl || firstEl);
+    if (!startBox || !endBox) return;
 
-    const left = bounds.left;
-    const right = bounds.right;
+    handleStart = document.createElement('div');
+    handleStart.className = 'gpp-parch-handle start';
+    handleStart.title = 'Drag to move the start of the loop';
+    handleStart.style.left = `${startBox.left - 8}px`;
+    handleStart.style.top = `${startBox.top}px`;
+    handleStart.style.height = `${startBox.height}px`;
 
-    if (selectMode) {
-      handleStart = document.createElement('div');
-      handleStart.className = 'gpp-parch-handle start';
-      handleStart.style.left = `${left}px`;
-      handleEnd = document.createElement('div');
-      handleEnd.className = 'gpp-parch-handle end';
-      handleEnd.style.left = `${right - 8}px`;
-      attachResizeHandle(handleStart, 'start');
-      attachResizeHandle(handleEnd, 'end');
-      sheet.appendChild(handleStart);
-      sheet.appendChild(handleEnd);
-    }
+    handleEnd = document.createElement('div');
+    handleEnd.className = 'gpp-parch-handle end';
+    handleEnd.title = 'Drag to move the end of the loop';
+    handleEnd.style.left = `${endBox.right - 8}px`;
+    handleEnd.style.top = `${endBox.top}px`;
+    handleEnd.style.height = `${endBox.height}px`;
+
+    attachResizeHandle(handleStart, 'start');
+    attachResizeHandle(handleEnd, 'end');
+    sheet.appendChild(handleStart);
+    sheet.appendChild(handleEnd);
+  }
+
+  // A drag repaints the selection, and the repaint replaces the marker
+  // element. The move and up listeners therefore live on the window, so the
+  // drag survives every repaint.
+  function onResizeMove(e) {
+    if (!resizeDrag || resizeDrag.pointerId !== e.pointerId || !sel) return;
+    const beat = beatFromPointer(e.clientX, e.clientY);
+    if (beat == null) return;
+    let start = sel.startBeat;
+    let end = sel.endBeat;
+    if (resizeDrag.edge === 'start') start = beat;
+    else end = beat;
+    const norm = normalizeBeatRange(start, end, { minSpan: 1, songEndBeat: totalBeats() });
+    if (!norm) return;
+    if (norm.startBeat === sel.startBeat && norm.endBeat === sel.endBeat) return;
+    sel = norm;
+    paintSelection(sel);
+  }
+
+  function endResizeDrag(e) {
+    if (!resizeDrag || (e && resizeDrag.pointerId !== e.pointerId)) return;
+    resizeDrag = null;
+    window.removeEventListener('pointermove', onResizeMove);
+    window.removeEventListener('pointerup', endResizeDrag);
+    window.removeEventListener('pointercancel', endResizeDrag);
+    suppressClickUntil = Date.now() + 400;
+    fireSelection(sel);
   }
 
   function attachResizeHandle(handle, edge) {
     handle.addEventListener('pointerdown', (e) => {
       if (!selectMode || !sel) return;
       e.stopPropagation();
-      resizeDrag = { edge, pointerId: e.pointerId };
-      handle.setPointerCapture(e.pointerId);
       e.preventDefault();
-    });
-    handle.addEventListener('pointermove', (e) => {
-      if (!resizeDrag || resizeDrag.pointerId !== e.pointerId || !sel) return;
-      const beat = beatFromPointer(e.clientX, e.clientY);
-      if (beat == null) return;
-      let start = sel.startBeat;
-      let end = sel.endBeat;
-      if (resizeDrag.edge === 'start') start = beat;
-      else end = beat;
-      const norm = normalizeBeatRange(start, end, { minSpan: 1, songEndBeat: totalBeats() });
-      if (!norm) return;
-      sel = norm;
-      paintSelection(sel);
-    });
-    handle.addEventListener('pointerup', (e) => {
-      if (!resizeDrag || resizeDrag.pointerId !== e.pointerId) return;
-      resizeDrag = null;
-      fireSelection(sel);
+      resizeDrag = { edge, pointerId: e.pointerId };
+      window.addEventListener('pointermove', onResizeMove);
+      window.addEventListener('pointerup', endResizeDrag);
+      window.addEventListener('pointercancel', endResizeDrag);
     });
   }
 
@@ -1589,6 +1612,7 @@ export function mountParchmentView(host, {
 
   function destroy() {
     destroyed = true;
+    endResizeDrag();
     clearLongPress();
     cancelAnimationFrame(rafId);
     if (resizeQuietRaf) cancelAnimationFrame(resizeQuietRaf);

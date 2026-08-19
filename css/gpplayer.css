@@ -682,11 +682,14 @@
   outline-offset: -2px;
   background: rgba(107, 76, 154, 0.08);
 }
+/* The loop measures carry the mark, one measure at a time, so a score that
+   wraps onto several rows shows the right measures. */
 .gpp-parch-measure.in-loop {
-  background: rgba(107, 76, 154, 0.06);
+  background: rgba(107, 76, 154, 0.14);
+  box-shadow: inset 0 2px 0 rgba(107, 76, 154, 0.55);
 }
 .gpp-parch-measure.in-loop.is-active {
-  background: rgba(107, 76, 154, 0.1);
+  background: rgba(107, 76, 154, 0.2);
 }
 .gpp-parch-measure.is-nav:not(.is-active) {
   outline: 1px solid rgba(107, 45, 139, 0.55);
@@ -950,47 +953,45 @@
   opacity: 0.85;
 }
 
-.gpp-parch-sel-overlay {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(107, 76, 154, 0.12),
-    rgba(107, 76, 154, 0.12) 4px,
-    rgba(107, 76, 154, 0.22) 4px,
-    rgba(107, 76, 154, 0.22) 8px
-  );
-  border: 1px dashed #6b4c9a;
-  pointer-events: none;
-  z-index: 2;
-}
-
+/* The two loop markers. The player drags them across the measures to set the
+   range, the way a tab site marks a practice loop. They are wide enough for a
+   finger, and they stand out against the parchment. */
 .gpp-parch-handle {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 16px;
   cursor: ew-resize;
-  z-index: 4;
+  z-index: 6;
   touch-action: none;
-}
-.gpp-parch-handle.start {
-  left: -4px;
-}
-.gpp-parch-handle.end {
-  right: -4px;
 }
 .gpp-parch-handle::after {
   content: "";
   position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 3px;
-  width: 4px;
-  border-radius: 2px;
-  background: rgba(107, 76, 154, 0.65);
-  border: 1px solid rgba(58, 42, 24, 0.35);
+  top: 4px;
+  bottom: 4px;
+  left: 5px;
+  width: 6px;
+  border-radius: 3px;
+  background: #6b4c9a;
+  border: 1px solid rgba(255, 252, 240, 0.75);
+  box-shadow: 0 1px 4px rgba(26, 20, 32, 0.45);
+}
+.gpp-parch-handle::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #6b4c9a;
+  border: 2px solid rgba(255, 252, 240, 0.9);
+  box-shadow: 0 1px 4px rgba(26, 20, 32, 0.45);
+}
+.gpp-parch-handle:hover::after,
+.gpp-parch-handle:hover::before {
+  background: #8a63c4;
 }
 
 .gpp-parch-notes-rail {
@@ -1216,17 +1217,12 @@
   pointer-events: auto;
 }
 
-.gpp-transport-primary,
 .gpp-transport-row-primary {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   flex-wrap: nowrap;
-}
-
-.gpp-transport-dock.has-extra .gpp-transport-primary {
-  flex-wrap: wrap;
 }
 
 /* The transport buttons and the readout scroll sideways when they do not fit.
@@ -1264,9 +1260,90 @@
   white-space: nowrap;
 }
 
-.gpp-transport-menu-btn {
+.gpp-transport-menu-btn,
+.gpp-transport-expand-btn {
   flex: 0 0 auto;
-  margin-left: 4px;
+  margin-left: 6px;
+  min-width: var(--tap-min, 44px);
+}
+
+.gpp-transport-expand-btn svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.18s ease;
+}
+
+.gpp-transport-dock.is-expanded .gpp-transport-expand-btn svg {
+  transform: rotate(180deg);
+}
+
+.gpp-transport-row-practice[hidden] {
+  display: none;
+}
+
+/* The tempo group names its own number. "120" beside a play button says
+   nothing on its own, so the unit stays in the field. */
+.gpp-transport-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.gpp-tempo-step {
+  min-width: 38px;
+  padding: 0 6px;
+  font-size: 1.05rem;
+}
+
+.gpp-tempo-field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  min-height: var(--tap-min, 44px);
+  padding: 0 10px;
+  border: 1px solid rgba(58, 42, 24, 0.35);
+  border-radius: 11px;
+  background: rgba(255, 252, 240, 0.96);
+}
+
+.gpp-transport-tempo.is-changed .gpp-tempo-field {
+  border-color: #6b4c9a;
+  background: rgba(107, 76, 154, 0.12);
+}
+
+.gpp-transport-dock .gpp-tempo-input {
+  width: 3.4ch;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #1e1408;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  line-height: var(--tap-min, 44px);
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.gpp-transport-dock .gpp-tempo-input::-webkit-outer-spin-button,
+.gpp-transport-dock .gpp-tempo-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.gpp-transport-dock .gpp-tempo-input:focus-visible {
+  outline: 2px solid #6b4c9a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.gpp-tempo-unit {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: rgba(30, 20, 8, 0.62);
 }
 
 .gpp-transport-extra {
@@ -1277,19 +1354,6 @@
   padding-right: 6px;
   margin-right: 2px;
   border-right: 1px solid rgba(58, 42, 24, 0.35);
-}
-
-.gpp-transport-secondary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.82rem;
-  color: rgba(30, 20, 8, 0.78);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.2;
 }
 
 .gpp-transport-btn {
@@ -1347,23 +1411,6 @@
   box-shadow: inset 0 0 0 1px rgba(107, 76, 154, 0.35);
 }
 
-.gpp-loop-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(58, 42, 24, 0.3);
-  background: rgba(107, 76, 154, 0.12);
-  color: #1e1408;
-  font-size: 0.78rem;
-  white-space: nowrap;
-}
-.gpp-loop-chip.is-off {
-  opacity: 0.6;
-  background: rgba(255, 252, 240, 0.5);
-}
-
 .gpp-ramp-chip {
   display: inline-flex;
   align-items: center;
@@ -1380,116 +1427,6 @@
 /* The chip keeps no width while it is hidden, so the dock row stays short. */
 .gpp-ramp-chip[hidden] {
   display: none;
-}
-
-.gpp-transport-metro-btn {
-  font-size: 1.05rem;
-  line-height: 1;
-}
-.gpp-transport-metro-btn.is-on {
-  border-color: var(--accent2);
-  background: rgba(107, 76, 154, 0.18);
-  color: var(--accent2);
-  box-shadow: inset 0 0 0 1px var(--accent-dim);
-}
-
-.gpp-transport-tempo {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex-shrink: 0;
-}
-.gpp-transport-tempo-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 36px;
-  padding: 0 6px;
-  border: 1px solid rgba(58, 42, 24, 0.35);
-  border-radius: 9px;
-  background: rgba(255, 252, 240, 0.96);
-  color: #1e1408;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.88rem;
-  line-height: 1;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-.gpp-transport-tempo-btn:hover,
-.gpp-transport-tempo-btn:focus-visible {
-  border-color: #6b4c9a;
-  color: #6b2d8b;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(107, 76, 154, 0.22);
-}
-.gpp-transport-tempo-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.gpp-transport-tempo-reset {
-  font-size: 0.82rem;
-}
-.gpp-transport-tempo .gpp-transport-bpm-input {
-  width: 4ch;
-  min-width: 4ch;
-  max-width: 4.5ch;
-  padding: 4px 2px;
-  border: 1px solid rgba(58, 42, 24, 0.35);
-  border-radius: 8px;
-  background: rgba(255, 252, 240, 0.96);
-  color: #1e1408;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.82rem;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  line-height: 1.2;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-.gpp-transport-tempo .gpp-transport-bpm-input::-webkit-outer-spin-button,
-.gpp-transport-tempo .gpp-transport-bpm-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.gpp-transport-tempo .gpp-transport-bpm-input:hover {
-  border-color: rgba(58, 42, 24, 0.5);
-}
-.gpp-transport-tempo .gpp-transport-bpm-input:focus-visible {
-  border-color: #6b4c9a;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(107, 76, 154, 0.22);
-}
-.gpp-transport-bpm-unit {
-  font-size: 0.72rem;
-  color: rgba(30, 20, 8, 0.62);
-  letter-spacing: 0.02em;
-  flex-shrink: 0;
-  margin-left: 2px;
-}
-
-.gpp-loop-select-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: var(--tap-min, 44px);
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg2);
-  color: var(--muted);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.92rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-.gpp-loop-select-toggle.is-on {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(255, 225, 74, 0.35);
 }
 
 /* ── Drawers (desktop) / sheets (mobile) ──────────────────────────────── */
@@ -1839,7 +1776,8 @@
   text-transform: uppercase;
   color: var(--accent);
 }
-.gpp-zoom-limit-note {
+.gpp-zoom-limit-note,
+.gpp-settings-note {
   font-family: var(--font-ui, "VT323", monospace);
   font-size: 0.78rem;
   line-height: 1.35;
@@ -2529,9 +2467,6 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   .gpp-score-header {
     gap: 6px;
   }
-  .gpp-transport-primary {
-    gap: 4px;
-  }
   .gpp-transport-btn {
     min-width: var(--tap-min, 44px);
     min-height: var(--tap-min, 44px);
@@ -2540,23 +2475,6 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   .gpp-transport-btn.is-primary {
     min-width: 48px;
     min-height: var(--tap-min, 44px);
-  }
-  .gpp-transport-secondary {
-    font-size: 0.78rem;
-    gap: 6px;
-  }
-  .gpp-transport-tempo-btn {
-    min-width: 30px;
-    min-height: 36px;
-    padding: 0 5px;
-    font-size: 0.84rem;
-  }
-  .gpp-transport-tempo .gpp-transport-bpm-input {
-    font-size: 0.78rem;
-    padding: 3px 1px;
-  }
-  .gpp-transport-bpm-unit {
-    font-size: 0.68rem;
   }
   .gpp-chrome {
     height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 100px);
@@ -2656,41 +2574,6 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
     border-radius: 14px;
     max-width: calc(100% - 8px);
   }
-  .gpp-transport-primary {
-    gap: 3px;
-    flex-shrink: 0;
-  }
-  .gpp-transport-secondary {
-    flex: 1;
-    min-width: 0;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    gap: 6px;
-    font-size: 0.76rem;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .gpp-transport-tempo {
-    gap: 2px;
-  }
-  .gpp-transport-tempo-btn {
-    min-width: 28px;
-    min-height: 36px;
-    padding: 0 4px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-  }
-  .gpp-transport-tempo .gpp-transport-bpm-input {
-    font-size: 0.76rem;
-  }
-  .gpp-transport-bpm-unit {
-    font-size: 0.66rem;
-  }
-  .gpp-transport-secondary::-webkit-scrollbar {
-    display: none;
-  }
   .gpp-transport-btn {
     min-width: var(--tap-min, 44px);
     min-height: var(--tap-min, 44px);
@@ -2707,15 +2590,6 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
     gap: 3px;
     padding-right: 5px;
     margin-right: 1px;
-  }
-  .gpp-loop-select-toggle {
-    min-height: 36px;
-    padding: 0 8px;
-    font-size: 0.82rem;
-  }
-  .gpp-loop-chip {
-    font-size: 0.75rem;
-    padding: 2px 8px;
   }
 
   .gpp-drawer {
@@ -2788,11 +2662,6 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   .gpp-transport-btn {
     min-width: var(--tap-min, 44px);
     min-height: var(--tap-min, 44px);
-  }
-  .gpp-transport-tempo-btn {
-    min-width: 28px;
-    min-height: 36px;
-    font-size: 0.78rem;
   }
   .gpp-transport-anchor {
     padding: 0 4px max(2px, env(safe-area-inset-bottom, 0px));
@@ -2896,42 +2765,80 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   border-color: var(--accent, #f5d300);
 }
 
+/* The rail scrolls sideways when the buttons do not fit. The player menu
+   button sits beside the rail, outside that scroller, so the gear keeps one
+   place at the end of row two. */
 .gpp-practice-rail-host {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .gpp-practice-rail {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
-  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
-.gpp-practice-speed {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
+.gpp-practice-rail::-webkit-scrollbar {
+  display: none;
 }
 
-.gpp-practice-btn,
-.gpp-practice-bpm-step,
-.gpp-practice-bpm-reset {
+.gpp-practice-rail > * {
+  flex: 0 0 auto;
+}
+
+/* Every rail button carries an icon and a word, so the player can read what
+   the button does without a guess. */
+.gpp-practice-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--tap-min, 44px);
+  gap: 6px;
   min-height: var(--tap-min, 44px);
-  padding: 0 8px;
+  padding: 0 12px;
   border: 1px solid rgba(58, 42, 24, 0.35);
   border-radius: 11px;
   background: rgba(255, 252, 240, 0.96);
   color: #1e1408;
   font-family: var(--font-ui, "VT323", monospace);
   font-size: 0.95rem;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.gpp-practice-btn:hover,
+.gpp-practice-btn:focus-visible {
+  border-color: #6b4c9a;
+  color: #6b2d8b;
+  outline: none;
+}
+
+.gpp-practice-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.gpp-practice-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.gpp-practice-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.gpp-practice-label {
+  font-variant-numeric: tabular-nums;
 }
 
 .gpp-practice-btn.is-on {
@@ -2940,20 +2847,21 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   color: #6b2d8b;
 }
 
-.gpp-practice-pct-input,
-.gpp-practice-bpm-input {
-  width: 3.2rem;
-  min-height: var(--tap-min, 44px);
-  text-align: center;
-  border: 1px solid rgba(58, 42, 24, 0.35);
-  border-radius: 8px;
-  font-family: var(--font-ui, "VT323", monospace);
+/* The whole song loop reads as the wider of the two loop modes. */
+.gpp-practice-loop-btn[data-loop-mode="song"] {
+  border-color: #6b4c9a;
+  background: rgba(107, 76, 154, 0.24);
 }
 
-.gpp-practice-loop-range {
+.gpp-practice-hint {
   font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  color: rgba(30, 20, 8, 0.7);
   white-space: nowrap;
+}
+
+.gpp-practice-hint[hidden] {
+  display: none;
 }
 
 .gpp-practice-overlay {
@@ -2979,9 +2887,10 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   width: 100%;
-  padding-top: 2px;
+  padding-top: 4px;
+  margin-top: 2px;
   border-top: 1px solid rgba(58, 42, 24, 0.2);
 }
 
@@ -3050,16 +2959,8 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
      pixel of tablature. Row one keeps the full 44 pixel tap size for the
      transport. Row two holds the practice steppers at a smaller size. */
   .gpp-practice-btn,
-  .gpp-practice-bpm-step,
-  .gpp-practice-bpm-reset,
-  .gpp-practice-pct-input,
-  .gpp-practice-bpm-input,
   .gpp-practice-overlay {
     min-height: 36px;
-  }
-  .gpp-practice-pct-input,
-  .gpp-practice-bpm-input {
-    width: 2.8rem;
   }
 
   /* The dock must fit the screen. Row one held nine controls at a fixed
@@ -3091,20 +2992,9 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   .gpp-transport-row-practice {
     width: 100%;
     max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .gpp-transport-row-practice::-webkit-scrollbar {
-    display: none;
   }
   .gpp-practice-rail {
-    flex-wrap: nowrap;
     justify-content: flex-start;
-  }
-  .gpp-practice-speed {
-    flex-wrap: nowrap;
   }
 }
 
@@ -3124,31 +3014,15 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
     max-width: none;
     min-width: 0;
     padding-top: 0;
+    margin-top: 0;
     padding-left: 6px;
     border-top: none;
     border-left: 1px solid rgba(58, 42, 24, 0.2);
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .gpp-transport-row-practice::-webkit-scrollbar {
-    display: none;
   }
   .gpp-practice-rail {
-    flex-wrap: nowrap;
     justify-content: flex-start;
   }
-  .gpp-practice-speed {
-    flex: 0 0 auto;
-    flex-wrap: nowrap;
-    justify-content: center;
-  }
   .gpp-practice-btn,
-  .gpp-practice-bpm-step,
-  .gpp-practice-bpm-reset,
-  .gpp-practice-pct-input,
-  .gpp-practice-bpm-input,
   .gpp-practice-overlay {
     min-height: 36px;
   }
@@ -3162,18 +3036,6 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
     max-width: min(100%, 900px);
   }
   .gpp-transport-row-practice {
-    flex-wrap: nowrap;
     justify-content: center;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .gpp-transport-row-practice::-webkit-scrollbar {
-    display: none;
-  }
-  .gpp-practice-rail {
-    flex-wrap: nowrap;
-  }
-  .gpp-practice-speed {
-    flex-wrap: nowrap;
   }
 }

@@ -35,11 +35,6 @@
   color: var(--text);
 }
 
-/* Keep the header clear of the shell head actions (context and gear). */
-body.shell-gear-on .tool-page-header {
-  margin-right: var(--shell-actions-w, 52px);
-}
-
 .tool-page .section-head {
   display: none;
 }

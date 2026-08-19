@@ -29,7 +29,7 @@
   <script type="module">
     // Checks two things about the transport dock.
     // 1. The menu button (the gear) stays out of the scrolling part of row
-    //    one, and it stays inside the dock. The player must not scroll the
+    //    two, and it stays inside the dock. The player must not scroll the
     //    row to find Practice settings.
     // 2. An open drawer or sheet paints over the dock. Practice settings must
     //    not appear behind the transport buttons.
@@ -123,10 +123,10 @@
 
       const dock = host.querySelector('.gpp-transport-dock');
       const row = host.querySelector('.gpp-transport-row-primary');
-      const scroll = host.querySelector('.gpp-transport-scroll');
+      const rail = host.querySelector('.gpp-practice-rail');
       const gear = host.querySelector('.gpp-transport-menu-btn');
 
-      const gearOutOfScroller = !!scroll && !scroll.contains(gear);
+      const gearOutOfScroller = !!rail && !rail.contains(gear);
       const gearRect = gear.getBoundingClientRect();
       const dockRect = dock.getBoundingClientRect();
       const gearInsideDock = gearRect.right <= dockRect.right + 1
