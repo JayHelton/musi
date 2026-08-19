@@ -278,7 +278,7 @@ function stopWorkoutAudio() {
   cw.timers = [];
   cw.voices.forEach(v => { try { v.stop(); } catch (e) {} });
   cw.voices = [];
-  document.querySelectorAll('#sec-chordlab .cw-play-btn').forEach(b => b.classList.remove('playing'));
+  document.querySelectorAll('#sec-chordworkout .cw-play-btn').forEach(b => b.classList.remove('playing'));
 }
 
 function scheduleTone(midi, startTime, duration, vol = 0.16) {

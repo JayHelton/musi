@@ -141,7 +141,6 @@
     display:flex;flex-direction:column;min-height:0;max-height:calc(100dvh - var(--dock-h) - 52px)
   }
   #sec-exercises .section-head{margin-bottom:2px;flex-shrink:0}
-  #sec-exercises .section-kicker{display:none}
 
   /* Keep the folder tree beside the list; a phone in portrait hides it instead. */
   #sec-exercises .ex-layout{

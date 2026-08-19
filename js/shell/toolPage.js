@@ -123,6 +123,11 @@ export function mountToolPage(sectionEl, descriptor = {}) {
 
   const header = buildHeader(descriptor);
 
+  const descriptionEl = document.createElement('p');
+  descriptionEl.className = 'tool-page-description';
+  descriptionEl.textContent = descriptor.description || '';
+  descriptionEl.hidden = !descriptor.description;
+
   const contextEl = document.createElement('div');
   contextEl.className = 'tool-page-context';
   contextEl.hidden = true;
@@ -134,8 +139,11 @@ export function mountToolPage(sectionEl, descriptor = {}) {
   let modesController = null;
   if (descriptor.modes?.length) {
     modesController = initSubviewTabs(modesEl, descriptor.modes, {
-      defaultId: descriptor.defaultMode,
+      defaultId: descriptor.activeMode || descriptor.defaultMode,
       className: 'tool-page-modes subview-tabs',
+      onChange: (id) => {
+        if (typeof descriptor.onModeChange === 'function') descriptor.onModeChange(id);
+      },
     });
   }
 
@@ -165,7 +173,7 @@ export function mountToolPage(sectionEl, descriptor = {}) {
     advancedObserver.observe(advancedEl, { childList: true });
   }
 
-  page.append(header, contextEl, modesEl, workspace, primaryEl, advancedEl);
+  page.append(header, descriptionEl, contextEl, modesEl, workspace, primaryEl, advancedEl);
   sectionEl.appendChild(page);
   sectionEl.dataset.toolPage = '1';
 
@@ -204,10 +212,23 @@ export function mountToolPage(sectionEl, descriptor = {}) {
     modesController = initSubviewTabs(modesEl, modes, {
       defaultId: activeId,
       className: 'tool-page-modes subview-tabs',
+      onChange: (id) => {
+        if (typeof descriptor.onModeChange === 'function') descriptor.onModeChange(id);
+      },
     });
     if (activeId && modesController?.setActive) {
       modesController.setActive(activeId, { silent: true });
     }
+  }
+
+  /** Switch modes without telling the caller; used when a route sets the mode. */
+  function setActiveMode(id) {
+    if (!id || !modesController?.setActive) return;
+    modesController.setActive(id, { silent: true });
+  }
+
+  function activeMode() {
+    return modesController ? modesController.active : '';
   }
 
   function destroy() {
@@ -222,7 +243,7 @@ export function mountToolPage(sectionEl, descriptor = {}) {
     mountedHandles.delete(sectionEl);
   }
 
-  const handle = { workspace, setContextRow, setModes, destroy };
+  const handle = { workspace, setContextRow, setModes, setActiveMode, activeMode, destroy };
   mountedHandles.set(sectionEl, handle);
   return handle;
 }

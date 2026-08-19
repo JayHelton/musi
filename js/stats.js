@@ -1,27 +1,16 @@
-// Lightweight training-stats store for Musi. Records each drill answer and
-// surfaces a motivational, quick-scan summary on Home: minutes trained today,
-// current accuracy, current streak, best streak, and the weakest skill.
+// Lightweight training-stats store for Musi. Every drill answer lands here:
+// minutes trained today, accuracy, the current streak, the best streak, and a
+// per-skill tally.
 //
-// Everything is local-only and stored under the shared settings store so it
-// survives reloads. Active "minutes trained today" is approximated by summing
-// the gaps between consecutive answers (gaps longer than IDLE_MS are treated as
-// the player stepping away and are not counted).
+// Everything is local-only and stored under the shared settings store, so it
+// survives a reload and it travels with device and cloud sync. Active "minutes
+// trained today" is the sum of the gaps between consecutive answers; a gap
+// longer than IDLE_MS means the player stepped away, so it does not count.
 
 import { getSetting, saveSetting } from './persistence.js';
 
 const STATS_KEY = 'stats';
 const IDLE_MS = 120000; // gaps longer than 2 min don't count as active practice
-const WEAK_MIN_ATTEMPTS = 4; // need a few reps before a skill can be "weakest"
-
-const SKILL_LABELS = {
-  scale: 'Scales',
-  interval: 'Intervals',
-  sightreading: 'Sight Reading',
-  fretboard: 'Fretboard',
-  intervalorbit: 'Interval Map',
-  ear: 'Ear',
-  timing: 'Timing',
-};
 
 function todayKey() {
   const d = new Date();
@@ -73,64 +62,4 @@ export function recordAttempt(skillId, correct) {
   stats.today.perSkill[skillId] = skill;
 
   saveStats(stats);
-  renderStats();
-}
-
-function weakestSkill(today) {
-  let weakest = null;
-  Object.entries(today.perSkill || {}).forEach(([id, s]) => {
-    if (!s || s.attempts < WEAK_MIN_ATTEMPTS) return;
-    const acc = s.correct / s.attempts;
-    if (!weakest || acc < weakest.acc) {
-      weakest = { id, acc };
-    }
-  });
-  return weakest;
-}
-
-export function getStatsSnapshot() {
-  const stats = loadStats();
-  const t = stats.today;
-  const accuracy = t.attempts > 0 ? Math.round((t.correct / t.attempts) * 100) : null;
-  const weak = weakestSkill(t);
-  return {
-    minutesToday: Math.round(t.trainedMs / 60000),
-    accuracy,
-    currentStreak: stats.currentStreak,
-    bestStreak: stats.bestStreak,
-    weakest: weak ? { label: SKILL_LABELS[weak.id] || weak.id, accuracy: Math.round(weak.acc * 100) } : null,
-  };
-}
-
-function tile(value, label, opts = {}) {
-  const sub = opts.sub ? `<div class="stat-tile-sub">${opts.sub}</div>` : '';
-  const cls = 'stat-tile' + (opts.highlight ? ' highlight' : '') + (opts.wide ? ' wide' : '');
-  const icon = opts.icon ? `<span class="stat-tile-icon">${opts.icon}</span>` : '';
-  return `<div class="${cls}">
-      <div class="stat-tile-value">${icon}${value}</div>
-      <div class="stat-tile-label">${label}</div>
-      ${sub}
-    </div>`;
-}
-
-export function renderStats() {
-  const s = getStatsSnapshot();
-  const grid = document.getElementById('home-stats-grid');
-  if (!grid) return;
-
-  const accVal = s.accuracy === null ? '--' : `${s.accuracy}%`;
-  const weakVal = s.weakest ? s.weakest.label : '--';
-  const weakSub = s.weakest ? `${s.weakest.accuracy}% accuracy` : 'Keep training';
-
-  grid.innerHTML = [
-    tile(`${s.minutesToday}<span class="stat-tile-unit">min</span>`, 'Trained today'),
-    tile(accVal, 'Accuracy today'),
-    tile(`${s.currentStreak}`, 'Current streak', { icon: '\u{1F525}', highlight: s.currentStreak >= 3 }),
-    tile(`${s.bestStreak}`, 'Best streak'),
-    tile(weakVal, 'Weakest skill', { sub: weakSub, wide: true }),
-  ].join('');
-}
-
-export function initStats() {
-  renderStats();
 }

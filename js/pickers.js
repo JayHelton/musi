@@ -471,9 +471,7 @@ export function openTuningPicker({
       pushRecent('picker.recentTunings', id, { allowed: [...names, 'Custom'] });
       saveSetting('picker.lastTuning', id);
       if (id === 'Custom' && typeof onCustom === 'function') onCustom();
-      else if (syncContext && typeof scopeId === 'string' && scopeId.length > 0) {
-        writePickerValue(scopeId, { tuning: id }, source);
-      }
+      else if (syncContext) writePickerValue(scopeId, { tuning: id }, source);
     },
   });
 }

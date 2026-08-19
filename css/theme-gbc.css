@@ -90,31 +90,23 @@ main {
 }
 
 /* ---- Type hierarchy (all retro) ---- */
-.section-kicker,
-.home-section-label,
-.home-routines-title,
 .sl-head,
 .sl-group-label,
 .ph-streak-label,
 .ph-acc-label,
 .setup-summary-label,
 .setup-chip-hint,
-.hub-recent-label,
-.hub-pinned-label {
+.area-list-label {
   font-family: var(--font-pixel);
   font-size: 0.52rem;
   letter-spacing: 1.5px;
   font-weight: 400;
   text-transform: uppercase;
 }
-.section-kicker {
-  color: var(--accent);
-}
 .section-head h2,
 .modal-title,
 .question,
-.ht-title,
-.hub-tool-title {
+.area-tool-title {
   font-family: var(--font-display);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -123,8 +115,7 @@ main {
 }
 .section-head h2 { font-size: clamp(0.85rem, 2.4vw, 1.15rem); }
 .question { font-size: clamp(0.78rem, 2vw, 1rem); }
-.ht-title,
-.hub-tool-title {
+.area-tool-title {
   font-family: var(--font-body) !important;
   text-transform: none;
   letter-spacing: 0.03em;
@@ -140,12 +131,8 @@ textarea,
 .diff-btn,
 .oct-btn,
 .subview-tab,
-.dock-item,
-.dock-group-trigger,
-.dock-menu-item,
 .rail-icon-btn,
-.home-tool-row,
-.hub-tool-row,
+.area-tool-row,
 .setup-chip,
 .sl-item,
 .np-label,
@@ -157,22 +144,14 @@ textarea,
 }
 
 /* Dense chrome / labels read cleaner in VT323 */
-.dock-item,
-.dock-group-trigger,
 .rail-icon-btn,
 .ph-bar-count,
-.home-today,
 .section-head p,
 .modal-body,
 .field-label,
 .context-field-label {
   font-family: var(--font-ui) !important;
   letter-spacing: 0.04em;
-}
-.dock-item,
-.dock-group-trigger {
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
 }
 .section-head p,
 .modal-body {
@@ -230,32 +209,11 @@ textarea,
 }
 
 /* ---- Dock as handheld footer chrome ---- */
-.dock {
-  background: linear-gradient(180deg, rgba(26, 10, 46, 0.55), rgba(11, 16, 32, 0.92));
-  border-top: 1px solid rgba(180, 140, 255, 0.22);
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
-.dock-item.active,
-.dock-group-trigger.active {
-  color: var(--accent);
-}
-.dock-item.active::after,
-.dock-group-trigger.active::after {
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow);
-}
-
 /* ---- Cards / panels as screen tiles ---- */
 .quiz-card,
 .progress-header,
 .sidebar-list,
 .adv-options,
-.home-all-panel,
-.home-today,
-.home-routine-card,
-.home-routines-empty,
 .setup-summary,
 .compact-progress,
 .action-dock {

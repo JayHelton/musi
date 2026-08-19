@@ -62,7 +62,7 @@ function stubSettingsFetch(external) {
 
 export async function run(test) {
   // The router in js/main.js reads the hash and accepts a tool id such as
-  // `musicprefs`. It does not accept `sec-musicprefs`, which is the id of the
+  // `musicprefs`. It does not accept `sec-settings`, which is the id of the
   // DOM element. A wrong value here sends the user to the Home screen.
   await test('authRedirectUrl returns the Settings route of the app', async () => {
     const prevLocation = globalThis.location;

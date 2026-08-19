@@ -13,7 +13,7 @@ import {
   TEMPO_MAX,
 } from '../musicalContext.js';
 import { shortScaleName } from '../scales.js';
-import { openRootPicker, openScalePicker, getQuickScales } from '../pickers.js';
+import { openRootPicker, openScalePicker, openTuningPicker, getQuickScales } from '../pickers.js';
 import { toolContextFields } from '../tools.js';
 
 const CONTEXT_SOURCE = 'context-quick';
@@ -31,13 +31,14 @@ let activeSectionId = null;
  * Text for the quick context button.
  * @param {object} ctx a musical context snapshot
  * @param {string[]} fields the fields the tool reads
- * @returns {{key: string, tempo: string, label: string}}
+ * @returns {{key: string, tempo: string, tuning: string, label: string}}
  */
 export function contextButtonText(ctx = {}, fields = []) {
   const list = Array.isArray(fields) ? fields : [];
   const hasRoot = list.includes('root');
   const hasScale = list.includes('scale');
   const hasTempo = list.includes('tempo');
+  const hasTuning = list.includes('tuning');
 
   let key = '';
   if (hasRoot && hasScale) key = `${ctx.root} ${shortScaleName(ctx.scale)}`;
@@ -45,16 +46,19 @@ export function contextButtonText(ctx = {}, fields = []) {
   else if (hasScale) key = shortScaleName(ctx.scale);
 
   const tempo = hasTempo && ctx.tempo != null ? `${ctx.tempo}` : '';
+  const tuning = hasTuning && ctx.tuning ? String(ctx.tuning) : '';
 
   const parts = [];
   if (hasRoot && hasScale) parts.push(`${ctx.root} ${ctx.scale}`);
   else if (hasRoot) parts.push(`Key ${ctx.root}`);
   else if (hasScale) parts.push(String(ctx.scale || ''));
   if (tempo) parts.push(`${tempo} BPM`);
+  if (tuning) parts.push(tuning);
 
   return {
     key,
     tempo,
+    tuning,
     label: `Musical context: ${parts.join(', ')}`,
   };
 }
@@ -74,6 +78,7 @@ function paintButton() {
   const text = contextButtonText(getContext(), activeFields);
   const keyEl = buttonEl.querySelector('.shell-context-key');
   const tempoEl = buttonEl.querySelector('.shell-context-tempo');
+  const tuningEl = buttonEl.querySelector('.shell-context-tuning');
   if (keyEl) {
     keyEl.textContent = text.key;
     keyEl.hidden = !text.key;
@@ -81,6 +86,10 @@ function paintButton() {
   if (tempoEl) {
     tempoEl.textContent = text.tempo;
     tempoEl.hidden = !text.tempo;
+  }
+  if (tuningEl) {
+    tuningEl.textContent = text.tuning;
+    tuningEl.hidden = !text.tuning;
   }
   buttonEl.setAttribute('aria-label', text.label);
   buttonEl.title = text.label;
@@ -143,6 +152,22 @@ function buildTempoField() {
   return field;
 }
 
+function buildTuningField() {
+  const field = document.createElement('div');
+  field.className = 'context-field';
+  field.innerHTML = `
+    <div class="context-field-label">Tuning</div>
+    <button type="button" class="setup-chip context-pick-btn" data-ctx-role="tuning">
+      <span class="setup-chip-value" data-ctx-value="tuning"></span>
+      <span class="setup-chip-hint">Change</span>
+    </button>
+  `;
+  field.querySelector('[data-ctx-role="tuning"]').onclick = async () => {
+    await openTuningPicker({ value: getContext().tuning, source: CONTEXT_SOURCE });
+  };
+  return field;
+}
+
 function paintQuickScales() {
   const row = panelEl?.querySelector('[data-ctx-role="quick-scales"]');
   if (!row) return;
@@ -164,9 +189,11 @@ function paintPanel() {
   const rootVal = panelEl.querySelector('[data-ctx-value="root"]');
   const scaleVal = panelEl.querySelector('[data-ctx-value="scale"]');
   const tempoVal = panelEl.querySelector('[data-ctx-value="tempo"]');
+  const tuningVal = panelEl.querySelector('[data-ctx-value="tuning"]');
   if (rootVal) rootVal.textContent = ctx.root;
   if (scaleVal) scaleVal.textContent = shortScaleName(ctx.scale);
   if (tempoVal && Number(tempoVal.value) !== ctx.tempo) tempoVal.value = ctx.tempo;
+  if (tuningVal) tuningVal.textContent = ctx.tuning;
   paintQuickScales();
 }
 
@@ -193,6 +220,7 @@ function buildPanel(fields) {
   if (fields.includes('root')) body.appendChild(buildRootField());
   if (fields.includes('scale')) body.appendChild(buildScaleField());
   if (fields.includes('tempo')) body.appendChild(buildTempoField());
+  if (fields.includes('tuning')) body.appendChild(buildTuningField());
 
   const help = document.createElement('p');
   help.className = 'shell-context-panel-help';
@@ -293,6 +321,7 @@ function buildButton() {
     <span class="shell-context-icon" aria-hidden="true">${NOTE_ICON}</span>
     <span class="shell-context-key"></span>
     <span class="shell-context-tempo"></span>
+    <span class="shell-context-tuning"></span>
   `;
   btn.onclick = () => openContextPanel();
   return btn;

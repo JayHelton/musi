@@ -642,7 +642,6 @@ body.wb-cmp-drawer-open{overflow:hidden}
     display:flex;flex-direction:column;min-height:0;max-height:calc(100dvh - var(--dock-h) - 52px)
   }
   #sec-workbooks:not(.wb-practicing) .section-head{margin-bottom:2px;flex-shrink:0}
-  #sec-workbooks:not(.wb-practicing) .section-kicker{display:none}
 
   /* Keep the folder tree beside the list; a phone in portrait hides it instead. */
   #sec-workbooks:not(.wb-practicing) .wb-layout{

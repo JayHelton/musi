@@ -50,8 +50,10 @@ function initScaleRef() {
   const ctx = getContext();
   refRoot = ctx.root;
   refScale = ctx.scale;
+  // The tuning comes from the shared context too. The tool-local setting is
+  // the fallback when the context holds a tuning this screen cannot draw.
   const tuningNames = Object.keys(TUNINGS);
-  refTuning = getSetting('ref.tuning', refTuning, tuningNames);
+  refTuning = resolveTuningKey(ctx.tuning) || getSetting('ref.tuning', refTuning, tuningNames);
   refModeIndex = clampModeIndex(Number(getSetting('ref.modeIndex', refModeIndex)));
   refFbStart = Number(getSetting('ref.fbStart', refFbStart));
   refFbEnd = Number(getSetting('ref.fbEnd', refFbEnd));
@@ -212,6 +214,8 @@ function buildTuningList() {
       div.classList.add('active');
       refTuning = name;
       saveSetting('ref.tuning', refTuning);
+      // The tuning is shared, so every compatible tool follows this pick.
+      setContext({ tuning: name }, 'scaleref');
       renderRefFretboard();
     };
     container.appendChild(div);
@@ -792,6 +796,7 @@ export function applyScaleRefSelection({ root, scale, tuning } = {}) {
     if (key !== refTuning) {
       refTuning = key;
       saveSetting('ref.tuning', refTuning);
+      setContext({ tuning: key }, 'scaleref');
       changed = true;
     }
   }

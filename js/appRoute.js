@@ -1,4 +1,6 @@
-const ROUTINE_KEY_ORDER = ['routine', 'session', 'workbook', 'exercise', 'companion'];
+// Params that name a place in the library hierarchy. They are written first
+// so a hash reads in the same order as the screens the user walked through.
+const HIERARCHY_KEY_ORDER = ['workbook', 'exercise', 'companion'];
 
 function safeDecodeURIComponent(value) {
   try {
@@ -56,10 +58,10 @@ export function parseAppRoute(hash) {
  * @returns {string}
  */
 export function buildAppRoute({ id, params = {} }) {
-  const fixed = new Set(ROUTINE_KEY_ORDER);
+  const fixed = new Set(HIERARCHY_KEY_ORDER);
   const keys = [];
 
-  for (const key of ROUTINE_KEY_ORDER) {
+  for (const key of HIERARCHY_KEY_ORDER) {
     if (params[key]) keys.push(key);
   }
   for (const key of Object.keys(params).sort()) {
@@ -83,7 +85,7 @@ export function routeUrl({ id, params }, location) {
       : { pathname: '/', search: '' }
   );
   const base = loc.pathname + loc.search;
-  if (!id || id === 'home' || id === 'tools') return base;
+  if (!id) return base;
   return `${base}#${buildAppRoute({ id, params })}`;
 }
 

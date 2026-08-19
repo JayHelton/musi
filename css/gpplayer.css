@@ -2327,20 +2327,20 @@
 
 /* ── Standalone GP screen: full-bleed score when loaded ─────────────────── */
 
-#sec-gpplayer.gpp-score-loaded {
+#sec-scoreplayer.gpp-score-loaded {
   display: flex;
   flex-direction: column;
   min-height: 0;
   max-height: var(--avail-h, calc(100dvh - var(--dock-h)));
   overflow: hidden;
 }
-#sec-gpplayer.gpp-score-loaded .section-head {
+#sec-scoreplayer.gpp-score-loaded .section-head {
   display: none;
 }
-#sec-gpplayer.gpp-score-loaded #gpp-library {
+#sec-scoreplayer.gpp-score-loaded #gpp-library {
   display: none;
 }
-#sec-gpplayer.gpp-score-loaded .gpp-layout {
+#sec-scoreplayer.gpp-score-loaded .gpp-layout {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -2349,10 +2349,10 @@
   max-width: none;
   max-height: none;
 }
-#sec-gpplayer.gpp-score-loaded .gpp-status:not([data-kind="error"]) {
+#sec-scoreplayer.gpp-score-loaded .gpp-status:not([data-kind="error"]) {
   display: none;
 }
-#sec-gpplayer.gpp-score-loaded .gpp-stage {
+#sec-scoreplayer.gpp-score-loaded .gpp-stage {
   flex: 1;
   min-height: 0;
   padding: 0 2px 2px;
@@ -2361,12 +2361,12 @@
   background: transparent;
   box-shadow: none;
 }
-#sec-gpplayer.gpp-score-loaded .gpp-stage .gpp-root {
+#sec-scoreplayer.gpp-score-loaded .gpp-stage .gpp-root {
   flex: 1;
   min-height: 0;
   height: 100%;
 }
-#sec-gpplayer.gpp-score-loaded .gpp-chrome,
+#sec-scoreplayer.gpp-score-loaded .gpp-chrome,
 .gpp-root.gpp-has-layout-metrics .gpp-chrome {
   min-height: 0;
   height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
@@ -2541,7 +2541,7 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
     height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 100px);
     max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 80px);
   }
-  #sec-gpplayer.gpp-score-loaded .gpp-chrome,
+  #sec-scoreplayer.gpp-score-loaded .gpp-chrome,
   .gpp-root.gpp-has-layout-metrics .gpp-chrome {
     min-height: 0;
     height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
@@ -2551,14 +2551,14 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
 
 /* Landscape phone — full-height score view */
 @media (orientation: landscape) and (max-height: 500px) {
-  #sec-gpplayer .section-head {
+  #sec-scoreplayer .section-head {
     display: none;
   }
-  #sec-gpplayer.gpp-score-loaded .gpp-layout {
+  #sec-scoreplayer.gpp-score-loaded .gpp-layout {
     gap: 2px;
     max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 4px);
   }
-  #sec-gpplayer.gpp-score-loaded .gpp-chrome,
+  #sec-scoreplayer.gpp-score-loaded .gpp-chrome,
   .gpp-root.gpp-has-layout-metrics .gpp-chrome {
     min-height: 0;
     height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 48px) - var(--gpp-bottom-gutter, 6px));
@@ -2745,7 +2745,7 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
 }
 
 @media (orientation: landscape) and (max-height: 380px) {
-  #sec-gpplayer .gpp-layout {
+  #sec-scoreplayer .gpp-layout {
     max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 2px);
   }
   .gpp-score-header {

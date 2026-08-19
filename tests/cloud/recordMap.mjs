@@ -17,8 +17,8 @@ function filterSyncRemainder(obj) {
 }
 
 export async function runRecordMapTests(test) {
-  await test('SYNC_DOMAINS has twelve fixed domains', () => {
-    assert.equal(SYNC_DOMAINS.length, 12);
+  await test('SYNC_DOMAINS has eleven fixed domains', () => {
+    assert.equal(SYNC_DOMAINS.length, 11);
     assert.ok(SYNC_DOMAINS.includes('settings'));
     assert.ok(SYNC_DOMAINS.includes('attachmentsMeta'));
   });
@@ -26,7 +26,7 @@ export async function runRecordMapTests(test) {
   await test('toRecords then fromRecords round-trips buildSnapshot data bag', async () => {
     globalThis.localStorage.setItem('musi:settings', JSON.stringify({
       'global.volume': 0.7,
-      'nav.lastTool': 'scale',
+      'nav.lastTool': 'scaleref',
       'subview.chords': 'triads',
       'cloud.blobSyncEnabled': true,
       'sync.scopes': ['settings'],
@@ -80,9 +80,8 @@ export async function runRecordMapTests(test) {
 
   await test('device-local keys never appear in toRecords', () => {
     globalThis.localStorage.setItem('musi:settings', JSON.stringify({
-      'nav.lastTool': 'ear',
-      'nav.lastCategory': 'practice',
-      'subview.tuner': 'on',
+      'nav.lastTool': 'pitchear',
+      'subview.scaleref': 'on',
       'cloud.cursor': 5,
       'sync.advancedOpened': true,
       'io.minRms': 0.01,

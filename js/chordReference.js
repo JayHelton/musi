@@ -69,7 +69,7 @@ function selectChord(name, { animateDir = 0 } = {}) {
   }
   renderChordRef();
   if (animateDir) {
-    const main = document.querySelector('#sec-chords .quiz-main');
+    const main = document.querySelector('#sec-chordref .quiz-main');
     if (main) {
       main.classList.remove('chord-slide-left', 'chord-slide-right');
       // Force reflow so repeated swipes retrigger the animation.
@@ -92,7 +92,7 @@ function stepChord(dir) {
 }
 
 function wireChordSwipe() {
-  const main = document.querySelector('#sec-chords .quiz-main');
+  const main = document.querySelector('#sec-chordref .quiz-main');
   if (!main || chSwipeWired) return;
   chSwipeWired = true;
   main.classList.add('chord-swipe-target');
@@ -138,7 +138,7 @@ function wireChordSwipe() {
   // Keyboard: ← / → while the Chords section is active (skip form fields).
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    const sec = document.getElementById('sec-chords');
+    const sec = document.getElementById('sec-chordref');
     if (!sec?.classList.contains('active')) return;
     const t = e.target;
     if (t && (t.closest?.('input, textarea, select') || t.isContentEditable)) return;
@@ -155,7 +155,7 @@ function initChordRef() {
   chRoot = ROOTS.includes(ctx.root) ? ctx.root : chRoot;
   chChord = getSetting('chordref.chord', chChord, Object.keys(CHORDS));
   const tuningNames = Object.keys(TUNINGS);
-  chTuning = getSetting('chordref.tuning', chTuning, tuningNames);
+  chTuning = resolveTuningKey(ctx.tuning) || getSetting('chordref.tuning', chTuning, tuningNames);
   chFbStart = Number(getSetting('chordref.fbStart', chFbStart));
   chFbEnd = Number(getSetting('chordref.fbEnd', chFbEnd));
   chRootsOnly = getSetting('chordref.rootsOnly', chRootsOnly, [true, false]);
@@ -232,6 +232,7 @@ function buildTuningList() {
       div.classList.add('active');
       chTuning = name;
       saveSetting('chordref.tuning', chTuning);
+      setContext({ tuning: name }, 'chordref');
       renderChordFretboard();
     };
     container.appendChild(div);
@@ -708,6 +709,7 @@ export function applyChordRefSelection({ root, chord, tuning } = {}) {
     if (key && key !== chTuning) {
       chTuning = key;
       saveSetting('chordref.tuning', chTuning);
+      setContext({ tuning: key }, 'chordref');
     }
   }
 

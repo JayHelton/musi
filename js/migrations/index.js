@@ -2,7 +2,6 @@ import { getSetting, saveSetting } from '../persistence.js';
 import { normalizeNote } from '../notes.js';
 import { normalizeExerciseItem } from '../exercises.js';
 import { normalizeWorkbook } from '../workbookModel.js';
-import { normalizeRoutine } from '../routineModel.js';
 import { getAudioMeta, putFileWithId, hasFile } from '../attachments.js';
 import { listPatterns } from '../drums/drumPatternDb.js';
 import { readDrumPatternsInbox, mergeDrumPatternLists } from '../cloud/recordMap.js';
@@ -14,7 +13,6 @@ const NOTES_KEY = 'musi.notes';
 const SONGS_KEY = 'musi.songs';
 const EXERCISES_KEY = 'musi.exercises';
 const WORKBOOKS_KEY = 'musi.workbooks';
-const ROUTINES_KEY = 'musi.routines';
 
 export const MIGRATIONS = Object.freeze([
   notesUnfiled,
@@ -75,18 +73,6 @@ function readWorkbookStore() {
     };
   } catch (e) {
     return { folders: [], workbooks: [] };
-  }
-}
-
-function readRoutineStore() {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) return [];
-    const raw = window.localStorage.getItem(ROUTINES_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.routines) ? parsed.routines : [];
-  } catch (e) {
-    return [];
   }
 }
 
@@ -159,17 +145,6 @@ export function createLiveContext() {
       },
       normalizeWorkbook(raw) {
         return normalizeWorkbook(raw);
-      },
-    },
-    routines: {
-      readAll() {
-        return readRoutineStore();
-      },
-      writeAll(routines) {
-        writeJson(ROUTINES_KEY, { routines: Array.isArray(routines) ? routines : [] });
-      },
-      normalizeRoutine(raw) {
-        return normalizeRoutine(raw);
       },
     },
     attachments: {

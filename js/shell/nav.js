@@ -1,22 +1,30 @@
-import { getSetting } from '../persistence.js';
-import { CATEGORY_ICONS, TOOL_ICONS, getTool } from '../tools.js';
+// App shell navigation.
+//
+// The primary bar holds the four product areas: Train, Study, Create, and
+// Library. Utilities are subordinate: they live behind one compact button
+// that opens a small menu. The same item list drives the desktop rail and
+// the phone bottom bar.
+
+import { AREAS, AREA_ICONS, TOOL_ICONS, getTool, utilityTools } from '../tools.js';
+import { openOverflowMenu } from '../uxPrimitives.js';
 import { initContextQuick, syncContextQuick } from './contextQuick.js';
 
 const SPLIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>';
 
-// A wrench. CATEGORY_ICONS.tools is a keyboard, so the bar uses its own icon.
-const TOOLS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3.5a5.5 5.5 0 0 0-5 7.7L3.7 18a2.1 2.1 0 0 0 3 3l6.8-6.8a5.5 5.5 0 0 0 6.6-7.6l-3 3-2.7-2.7 3-3a5.5 5.5 0 0 0-1.9-.4z"/></svg>';
+/** The four primary areas, in product order. */
+export const PRIMARY_NAV_ITEMS = AREAS.map(area => ({
+  id: area.id,
+  label: area.label,
+  icon: AREA_ICONS[area.icon] || '',
+}));
 
-const NAV_ITEMS = [
-  { id: 'reference', label: 'Reference', icon: CATEGORY_ICONS.reference, section: 'reference' },
-  { id: 'library', label: 'Library', icon: TOOL_ICONS.exercises, section: 'library' },
-  { id: 'create', label: 'Create', icon: CATEGORY_ICONS.create, section: 'create' },
-  { id: 'tools', label: 'Tools', icon: TOOLS_ICON, section: 'tools' },
-];
+/** Utilities never appear as a primary item. */
+export function utilityNavItems() {
+  return utilityTools().map(tool => ({ id: tool.id, label: tool.label }));
+}
 
-// The gear shows on every screen except Settings itself, which is the screen
-// the gear opens.
-const SETTINGS_GEAR_HIDDEN_SECTIONS = new Set(['musicprefs']);
+// The gear shows on every screen except Settings itself.
+const SETTINGS_GEAR_HIDDEN_SECTIONS = new Set(['settings']);
 
 let showSectionFn = null;
 let railEl = null;
@@ -24,41 +32,43 @@ let bottomEl = null;
 let settingsEl = null;
 let actionsEl = null;
 
-function navHighlightId(sectionId) {
-  if (!sectionId) return null;
-  if (sectionId === 'reference' || sectionId === 'hub-reference') return 'reference';
-  if (sectionId === 'create' || sectionId === 'hub-create') return 'create';
-  if (sectionId === 'exercises' || sectionId === 'workbooks') return 'library';
+/**
+ * The primary nav item to highlight for a screen.
+ * @param {string} screenId an area id or a tool id
+ * @returns {string|null}
+ */
+export function navHighlightId(screenId) {
+  if (!screenId) return null;
+  if (PRIMARY_NAV_ITEMS.some(item => item.id === screenId)) return screenId;
 
-  const tool = getTool(sectionId);
-  if (tool) {
-    if (tool.category === 'reference') return 'reference';
-    if (tool.category === 'create') return 'create';
-  }
-
-  // Settings has its own gear in the page head. It highlights no bar item.
-  if (sectionId === 'musicprefs') return null;
-
-  if (sectionId === 'tools') return 'tools';
-
-  if (tool) return 'tools';
-  return null;
+  const tool = getTool(screenId);
+  if (!tool) return null;
+  // Utilities are subordinate, so they light up no primary item.
+  if (tool.utility) return null;
+  return tool.area;
 }
 
-function openLibraryNav() {
-  if (!showSectionFn) return;
-  const mode = getSetting('library.tab', 'exercises');
-  const tab = mode === 'workbooks' ? 'workbooks' : 'exercises';
-  showSectionFn('library', false, { mode: tab });
+function openUtilityMenu(trigger) {
+  openOverflowMenu(trigger, utilityNavItems().map(item => ({
+    label: item.label,
+    onClick: () => { if (showSectionFn) showSectionFn(item.id); },
+  })));
 }
 
-function wireNavAction(item) {
-  if (item.section === 'library') {
-    return () => openLibraryNav();
-  }
-  return () => {
-    if (showSectionFn) showSectionFn(item.section);
+function buildUtilityButton(className) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = className;
+  btn.dataset.nav = 'utilities';
+  btn.setAttribute('aria-haspopup', 'menu');
+  btn.setAttribute('aria-label', 'Utilities');
+  btn.title = 'Utilities';
+  btn.innerHTML = `<span class="app-nav-icon" aria-hidden="true">${AREA_ICONS.utility}</span><span class="app-nav-util-label">Tools</span>`;
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    openUtilityMenu(btn);
   };
+  return btn;
 }
 
 function buildRail() {
@@ -66,15 +76,19 @@ function buildRail() {
   rail.className = 'app-rail';
   rail.setAttribute('aria-label', 'Primary');
 
-  NAV_ITEMS.forEach(item => {
+  PRIMARY_NAV_ITEMS.forEach(item => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'app-rail-item';
     btn.dataset.nav = item.id;
     btn.innerHTML = `<span class="app-rail-icon" aria-hidden="true">${item.icon}</span><span>${item.label}</span>`;
-    btn.onclick = wireNavAction(item);
+    btn.onclick = () => { if (showSectionFn) showSectionFn(item.id); };
     rail.appendChild(btn);
   });
+
+  const foot = document.createElement('div');
+  foot.className = 'app-rail-foot';
+  foot.appendChild(buildUtilityButton('rail-icon-btn app-rail-util'));
 
   // The split-view control lives at the foot of the rail. js/main.js wires the
   // click and controls the visibility.
@@ -85,7 +99,8 @@ function buildRail() {
   split.setAttribute('aria-label', 'Split view');
   split.title = 'Split view';
   split.innerHTML = SPLIT_ICON;
-  rail.appendChild(split);
+  foot.appendChild(split);
+  rail.appendChild(foot);
 
   return rail;
 }
@@ -95,16 +110,17 @@ function buildBottom() {
   bar.className = 'app-bottom';
   bar.setAttribute('aria-label', 'Primary');
 
-  NAV_ITEMS.forEach(item => {
+  PRIMARY_NAV_ITEMS.forEach(item => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'app-bottom-item';
     btn.dataset.nav = item.id;
     btn.innerHTML = `<span class="app-bottom-icon" aria-hidden="true">${item.icon}</span><span>${item.label}</span>`;
-    btn.onclick = wireNavAction(item);
+    btn.onclick = () => { if (showSectionFn) showSectionFn(item.id); };
     bar.appendChild(btn);
   });
 
+  bar.appendChild(buildUtilityButton('app-bottom-util'));
   return bar;
 }
 
@@ -117,9 +133,9 @@ function buildSettingsGear() {
   btn.className = 'shell-settings-btn';
   btn.setAttribute('aria-label', 'Settings');
   btn.title = 'Settings';
-  btn.innerHTML = TOOL_ICONS.musicprefs;
+  btn.innerHTML = TOOL_ICONS.settings;
   btn.onclick = () => {
-    if (showSectionFn) showSectionFn('musicprefs');
+    if (showSectionFn) showSectionFn('settings');
   };
   return btn;
 }

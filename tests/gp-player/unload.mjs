@@ -74,7 +74,7 @@ plainMount.destroy();
 
 // ---- C–F: standalone unload via gpPlayer.js ----
 const section = document.createElement('section');
-section.id = 'sec-gpplayer';
+section.id = 'sec-scoreplayer';
 section.setAttribute('data-gpp-immersive', '');
 
 const drop = document.createElement('div');

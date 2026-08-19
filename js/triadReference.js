@@ -265,6 +265,7 @@ function buildTuningList() {
     div.onclick = () => {
       trTuning = name;
       saveSetting('triadref.tuning', trTuning);
+      setContext({ tuning: name }, 'triadref');
       // Keep highest string set when possible after retune.
       const sets = stringSetsForTuning(trTuning);
       const preferHigh = sets.find(s => s.isHighest);
@@ -714,7 +715,7 @@ export function initTriadRef() {
   const ctx = getContext();
   trRoot = ROOTS.includes(ctx.root) ? ctx.root : getSetting('triadref.root', trRoot, ROOTS);
   const tuningNames = Object.keys(TUNINGS);
-  trTuning = getSetting('triadref.tuning', trTuning, tuningNames);
+  trTuning = resolveTuningKey(ctx.tuning) || getSetting('triadref.tuning', trTuning, tuningNames);
   trFbStart = Number(getSetting('triadref.fbStart', trFbStart));
   trFbEnd = Number(getSetting('triadref.fbEnd', trFbEnd));
   trMaxSpan = Number(getSetting('triadref.maxSpan', trMaxSpan));
@@ -766,6 +767,7 @@ export function applyTriadRefSelection({ root, tuning, stringSet } = {}) {
     if (key && key !== trTuning) {
       trTuning = key;
       saveSetting('triadref.tuning', trTuning);
+      setContext({ tuning: key }, 'triadref');
       const sets = stringSetsForTuning(trTuning);
       const preferHigh = sets.find(s => s.isHighest);
       trStringSet = preferHigh ? preferHigh.index : 0;

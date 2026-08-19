@@ -127,7 +127,7 @@ export async function getAccessToken() {
 /**
  * Return address Supabase must send the user back to after OAuth.
  *
- * The route hash is `#musicprefs`. `sec-musicprefs` is the id of the DOM
+ * The route hash is `#musicprefs`. `sec-settings` is the id of the DOM
  * element, and the router does not accept it, so a wrong value here drops the
  * user on the Home screen.
  */

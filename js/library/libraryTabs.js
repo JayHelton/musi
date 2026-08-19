@@ -1,4 +1,7 @@
-import { getSetting, saveSetting } from '../persistence.js';
+// The Exercises / Workbooks switch. Both pages sit under Library, so the bar
+// lets the user move sideways without going back to the Library page first.
+
+import { saveSetting } from '../persistence.js';
 import { initSubviewTabs } from '../uxPrimitives.js';
 
 const LIBRARY_TABS = [
@@ -20,7 +23,7 @@ function ensureTabBar(sectionId) {
     if (!head) return null;
     container = document.createElement('div');
     container.className = 'library-tabs subview-tabs';
-    container.id = `library-tabs-${sectionId}`;
+    container.id = barId;
     head.insertAdjacentElement('afterend', container);
   }
 
@@ -31,9 +34,7 @@ function ensureTabBar(sectionId) {
       className: 'library-tabs subview-tabs',
       onChange: (mode) => {
         saveSetting('library.tab', mode);
-        if (openRouteFn) {
-          openRouteFn('library', { mode }, { replace: true });
-        }
+        if (openRouteFn) openRouteFn(mode, {}, { replace: true });
       },
     });
     tabApis.set(sectionId, api);

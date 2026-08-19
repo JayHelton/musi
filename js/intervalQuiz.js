@@ -1,7 +1,7 @@
-import { getSelected, clearIntQTimers } from './scaleQuiz.js';
+import { getSelected, clearIntQTimers } from './quizShared.js';
 import { pick, normNote } from './theory.js';
 import { getIntervalPool, computeInterval } from './intervals.js';
-import { S } from './scaleQuiz.js';
+import { S } from './quizShared.js';
 import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
 
 export function newIntQ() {

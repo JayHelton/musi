@@ -1,157 +1,144 @@
 # Musi
 
-Musi is an installable music theory and practice app for musicians who want one
-fast place to learn, drill, hear, create, and analyze musical ideas. It combines
-interactive education, browser-native audio tools, guitar-focused workflows, and
-creative generators in a lightweight progressive web app.
+Musi is a practice workbench for musicians. It is an installable progressive web
+app with no backend and no build step. Open it, pick an activity, and move from
+theory to sound in one place.
 
-The product goal is simple: make the practice room feel like a modern creative
-workbench. Open Musi, pick what you want to sharpen, and move from theory to
-sound without switching apps, installing plug-ins, or waiting on a backend.
+The product has four areas and one set of supporting utilities:
 
-## What Musi does
+```text
+Musi
+├── Train
+├── Study
+├── Create
+├── Library
+│   ├── Exercises
+│   └── Workbooks
+└── Utilities
+    ├── Metronome
+    ├── Keyboard
+    ├── Score Player
+    └── Settings
+```
 
-Musi is built around five practice modes:
+Train, Study, and Create are the three musical activities. Library holds the
+material you own. Utilities support the other areas; they are not a fourth
+purpose, so they sit behind one compact menu.
 
-### Quiz
+## Train
 
-- **Scale quiz** - spell the seven diatonic modes in order with randomized,
-  non-repeating roots, scoring, streaks, and hints.
-- **Interval quiz** - identify target notes from interval prompts (rooted in the
-  shared musical context's key) across easy, medium, and hard difficulties.
-- **Sight-reading trainer** - read treble and bass staff notes with instant
-  feedback and score tracking.
+Drills that build your ear, your reading, and your hands.
 
-### Reference
+- **Intervals** — name the note an interval above the root. The root comes from
+  the shared musical context.
+- **Sight Reading** — read pitches on the treble and bass staff, with a score
+  and a streak.
+- **Chord Workout** — practice chord shapes on the neck with guided prompts.
+- **Pitch & Ear** — one microphone lab with five modes:
+  - *Tuner* — note, frequency, and cents offset, with noise rejection.
+  - *Reference tone* — sound any note, and play a segment of the context scale.
+  - *Pitch match* — sing and hold a target note, with live feedback.
+  - *Pitch runner* — a scrolling pitch game in 4/4 at the context tempo.
+  - *Ear training* — identify a pitch, a degree, or an interval by ear.
 
-- **Scale reference** - browse 27 scale and mode families, step patterns,
-  intervals, semitone maps, key signatures, diatonic chords, and guitar-friendly
-  three-notes-per-string layouts.
-- **Chord builder** - select notes and octaves, hear the voicing, and analyze the
-  chord quality.
-- **Circle of fifths** - explore key relationships visually.
+## Study
 
-### Tools
+Look up scales, chords, triads, and key relationships.
 
-- **Playable keyboard** - trigger notes from the UI or QWERTY keyboard, choose
-  waveforms, control volume, and sustain drones for pitch practice.
-- **Advanced metronome** - set BPM and time signatures, tap tempo, design custom
-  rhythmic measures, use dotted/triplet/rest values, toggle accents, loop, and
-  load practice presets such as shuffle, gallop, and blast beat.
+- **Scale Reference** — scale and mode families, step patterns, key signatures,
+  diatonic chords, and three-notes-per-string neck layouts.
+- **Chord Reference** — voicings on the neck, movable chord cards, and CAGED.
+- **Triads** — closed triad voicings and sweep-picking shapes on any string set.
+- **Circle of Fifths** — key relationships, drawn.
 
-### Train
+## Create
 
-- **Fretboard trainer** - practice interval recognition across guitar tunings
-  including Standard, Drop D, Half Step Down, Drop C, Open G, Open D, and DADGAD.
-- **Interval Orbit** - root-centered interval mapping with orbit sizes, find/identify/
-  complete/formula drills, preset & custom progression improv loops, and session history.
-- **Vocal trainer** - use confidence-gated microphone pitch detection to see the
-  note, frequency, and cents offset while matching reference tones. Detection
-  rejects background noise and holds a steady note instead of flickering on small
-  voice variations. Play a configurable segment of the shared musical context's
-  scale in the selected octave - choose the starting degree, number of notes, and
-  the interval between notes (scale steps, thirds for triads, fourths, or fifths)
-  to drill triads and other segmented scales, one beat per note at the context
-  tempo.
-- **Pitch runner** - a Guitar Hero / Yousician-style scrolling pitch game in the
-  Pitch section. Note bars stream in from the right in strict 4/4 time and you
-  sing each one in tune as it crosses the hit line, with pitch on the vertical
-  axis (a piano-roll ladder), a live pitch trace, an optional metronome and
-  melody guide, and score/combo/accuracy tracking. Melody, key, scale, and tempo
-  follow the shared musical context.
-- **Ear trainer** - hear notes in the shared musical context's key and scale and
-  identify them by ear, with replay and streak tracking.
+Record, write, and keep notes.
 
-### Create
+- **Audio Studio** — three modes over one recording:
+  - *Record* — capture a take with the microphone, then play it back, save it to
+    the Library, or download it.
+  - *Analyze* — detected key, detected pitches, and a note list for the take.
+  - *Import & transcribe* — turn a sung or hummed riff into guitar tab, or drop
+    an isolated audio stem and read it onto basic sheet music.
+- **Song Studio** — write lyrics and attach a recording to each song.
+- **Notes** — plain practice notes and ideas.
 
-- **Backing track builder** - generate and audition key-aware progressions such
-  as pop, jazz ii-V-I, blues, rock, minor, and canon-style patterns with editable
-  chord lengths and octaves.
-- **Riff generator** - create scale-aware guitar riffs, render them as tab, and
-  play them back with highlighted notes.
-- **Riff composer** - build your own note/rest timeline, set durations, and play
-  the phrase back at tempo.
-- **Voice recorder** - record vocal ideas, monitor live pitch, play back takes,
-  download audio, view detected notes, and estimate the key using pitch-class
-  analysis.
+## Library
 
-## Home and navigation
+The material you own. Exercises and Workbooks keep separate schemas and separate
+storage; the Library page is the door to both.
 
-- **Home** - a routine dashboard. It shows one card for every stored routine, a
-  `New Routine` action, an `Import Routine` action, and a collapsed `Browse tools`
-  panel. Home shows no hero, no continue card, no quick-start grid, no study
-  recommendation, and no category grid.
-- **Routines** - routine content behaves as a stack of layers: the routines list,
-  the routine overview, the session detail, the workbook detail, and then an
-  exercise or a study companion. One Back press moves up exactly one layer.
-- **Workbook page** - a workbook opens on its own page, not on the first
-  exercise. The page shows the name, a count of exercises and tools, a
-  `Start practice` button, the ordered exercise list, the notes, and the
-  companion tools. Select an exercise to practice it. `Back` returns from the
-  player to this page, and a second `Back` returns to the library.
-- **Workbook companion tools** - a workbook pins reference and drill tools next to
-  its exercises: scale, triad, sweep, pitch trainer, ear trainer, interval orbit,
-  and metronome. Add and edit the tools on the workbook page, or with the `Tools`
-  control in the player. The workbook stores each tool's settings. The metronome
-  stores a BPM progression, so the player presses Start instead of building a
-  tempo plan again in each session.
-- **Workbook notes** - a workbook keeps free text that describes it. Open the
-  workbook and press `Edit notes`, or use `Add notes` in the row menu of the
-  library. The first line of the notes shows under the workbook name in the
-  library, and the library search finds a workbook by its notes.
-- **Library** - Exercises and Workbooks stay separate, but both use the same
-  file browser. It works like Google Drive: a folder tree on the left, a
-  breadcrumb on top, one folder level at a time, folders above items, sortable
-  columns, a list view and a grid view, a row menu, and drag-and-drop to move
-  rows into a folder. Unfiled items sit at the root of the library.
-- **Settings** - default musical context, audio volume, device sync, cloud
-  account, and library cleanup. Every tool is always available; Settings holds no
-  feature list and no genre control.
-- **Study Lab** - opens a default study. It uses no genre profile.
+- **Exercises** — upload tabs, Guitar Pro files, audio, video, and lesson links.
+  Organize them in folders with a file-browser view.
+- **Workbooks** — order exercises into a focused practice collection, with
+  looping, auto-advance, notes, and companion widgets.
 
-## Why it is useful
+The path is Library → Workbooks → workbook overview → exercise player. Back
+walks the same path in reverse.
 
-Musi bridges the gap between a theory worksheet and a creative instrument:
+## Utilities
 
-- **For students:** focused drills reinforce scales, intervals, notation, ear
-  training, and fretboard fluency.
-- **For singers:** live pitch feedback turns the browser into a reference tuner,
-  recorder, and intonation coach.
-- **For guitarists:** alternate tunings, tab rendering, 3-NPS references, and
-  fretboard prompts keep theory connected to the instrument.
-- **For songwriters:** backing progressions, riff generation, a composer, and a
-  recorder make it easy to capture and iterate on musical ideas.
-- **For teachers:** the app offers quick, visual exercises that can be opened on
-  any modern browser or installed as a standalone PWA.
+Supporting tools. They open from the compact Tools button on the navigation bar,
+and Settings also opens from the gear beside any page heading.
 
-## Technical highlights
+- **Metronome** — two modes: *Click* for tempo, meter, tap tempo, and a session
+  timer; *Tempo plan* for timed phases, each with its own BPM and subdivision.
+- **Keyboard** — play notes from the screen or the QWERTY keys, and hold drones.
+- **Score Player** — open a `.gp` or `.gp5` score, mix tracks, mark a loop range,
+  and save that range as an exercise.
+- **Settings** — the shared musical context, volume, device and cloud sync,
+  import and export, and library cleanup.
 
-- **Progressive web app:** `manifest.webmanifest` and `service-worker.js` make
-  Musi installable and offline-capable with an app-shell cache.
-- **Static-first architecture:** the web app is plain HTML, CSS, and ES modules;
-  no server, build step, or client framework is required.
-- **Browser-native audio:** Web Audio powers synthesis, metronome scheduling,
-  keyboard drones, riff playback, backing chords, analyzers, and dynamic
-  compression.
-- **Microphone workflows:** MediaRecorder and analyser nodes support vocal pitch
-  tracking, recording, playback analysis, and downloadable takes.
-- **Shared theory engine:** reusable modules handle note parsing, enharmonic
-  spelling, scale definitions, intervals, tunings, and frequency-to-note mapping.
-- **Persistent preferences:** local storage remembers user selections and tool
-  settings. Musi needs no account. An optional cloud account can keep the same
-  library on more than one device.
-- **Responsive interface:** grouped desktop/mobile navigation keeps the full
-  feature set accessible across device sizes.
-- **CLI companion:** the `cli/` package exposes terminal versions of core quiz
-  and training activities using the same theory data as the web app.
+## Shared musical context
+
+One musical context is shared across the app:
+
+```js
+{
+  root: 'E',
+  scale: 'harmonic-minor',
+  tempo: 140,
+  tuning: 'E Standard'
+}
+```
+
+Every tool declares which fields it reads, in `js/tools.js`:
+
+```js
+{ id: 'scaleref', area: 'study', context: ['root', 'scale', 'tuning'] }
+{ id: 'metronome', area: 'utility', utility: true, context: ['tempo'] }
+```
+
+No tool depends on the whole context implicitly. When a tool reads at least one
+field, the quick context button appears beside the page heading; a click opens a
+panel that writes the shared values. Set E harmonic minor at 140 BPM in E
+standard, and Scale Reference, Triads, and Pitch & Ear open in that key while the
+Metronome opens at that tempo. A tool may still hold local state when its feature
+needs it.
+
+## Data and sync
+
+Musi stores everything on the device: `localStorage` for records and IndexedDB
+for audio, video, and score files. There is no backend in the default build.
+
+Two ways to move a library between devices:
+
+- **Device sync** — export a ZIP bundle, or hand data across with QR frames. No
+  account is involved.
+- **Cloud account** — optional Supabase sync, off in the upstream build. See
+  *Optional cloud sync* below.
 
 ## Project layout
 
 ```text
 .
-+-- index.html              # App shell and feature sections
++-- index.html              # App shell: one section per area and per tool
 +-- css/                    # Modular styles by feature area
-+-- js/                     # ES modules for theory, tools, trainers, and audio
++-- js/tools.js             # The tool registry: areas, utilities, and context
++-- js/routeMap.js          # Route ids: the four areas plus every tool
++-- js/areaPages.js         # Train / Study / Create / Library landing pages
++-- js/shell/               # Navigation, the shared tool page, the nav stack
 +-- js/library/             # Shared file-browser for Exercises and Workbooks
 +-- js/cloud/               # Optional Supabase account and library sync
 +-- js/vendor/              # Vendored Supabase client (offline install)
@@ -160,7 +147,28 @@ Musi bridges the gap between a theory worksheet and a creative instrument:
 +-- service-worker.js       # Offline app-shell cache
 +-- supabase/               # Optional cloud sync schema, policies, and function
 +-- cli/                    # Node CLI companion
++-- tests/                  # Zero-dependency Node test runners
 ```
+
+A tool id is one string across the whole app: it is the registry id, the route
+id (`#pitchear`), and the DOM section id (`sec-pitchear`). There is no alias
+table and no legacy route map.
+
+## Tests
+
+Every suite is a zero-dependency Node runner:
+
+```bash
+node tests/product-model/run.mjs   # areas, tools, navigation, no dead references
+node tests/routes/run.mjs          # route resolution and tool modes
+node tests/shell/run.mjs           # nav stack, shared context, tool page
+node tests/workbooks/run.mjs       # workbook model and playthrough
+node tests/exercises/run.mjs       # exercise library
+```
+
+`tests/appcheck/run.mjs` boots the app in headless Chrome and fails on any
+console error. It needs a static server on port 8080 and `google-chrome` on the
+path.
 
 ## Run locally
 
@@ -188,8 +196,8 @@ node bin/musi.js
 
 Musi works fully offline and needs no account. If you want the same library on
 a phone, a tablet, and a desktop, you can turn on an optional cloud account.
-The account covers notes, songs, exercises, workbooks, routines, score
-annotations, drum patterns, practice progress, and shared settings.
+The account covers notes, songs, exercises, workbooks, score annotations,
+drum patterns, practice progress, and shared settings.
 The QR and ZIP device sync stays available for people who prefer no account.
 
 Musi never syncs on its own. You start every pass from the Cloud account panel

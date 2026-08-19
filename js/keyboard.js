@@ -1,7 +1,7 @@
 import { ensureAudio, midiFreq, audioCtx, getAnalyserDestination } from './audio.js';
 import { claimAudio, releaseAudio } from './audio/audioOwner.js';
 import { NOTE_NAMES_SHARP } from './theory.js';
-import { S } from './scaleQuiz.js';
+import { S } from './quizShared.js';
 
 let ownerHandle = null;
 

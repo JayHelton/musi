@@ -14,11 +14,6 @@ import {
 import { gpifToTracks } from '../../js/tab/guitarPro.js';
 import { buildTimedNotes } from '../../js/tab/tabPlayer.js';
 import { midiToDrumInstrument } from '../../js/tab/gpPercussion.js';
-import {
-  percussionToPattern,
-  buildGpSectionSnippets,
-  quantizePercussionToSteps,
-} from '../../js/drums/gpDrumImport.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
 import { DRUM_TAB_LANES } from '../../js/drums/notation.js';
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
@@ -277,15 +272,6 @@ const perc = makePercussionModel({
   ],
   measures: [{ startSlot: 0, endSlot: 4, startBeat: 0, endBeat: 1, marker: 'Verse' }],
 });
-const q = quantizePercussionToSteps(perc, { startBeat: 0, endBeat: 1 });
-assert.equal(q.subdivision, '16th');
-assert.ok(q.steps.some((s) => s.instrument === 'kick' && s.step === 0));
-assert.ok(q.steps.some((s) => s.instrument === 'snare' && s.step === 2));
-
-const pat = percussionToPattern(perc, { title: 'Verse groove', bpm: 120 });
-assert.ok(pat.tab.length > 0);
-assert.ok(pat.tags.includes('guitar-pro'));
-
 const fakeGp = {
   tempo: 120,
   tracks: [{
@@ -349,10 +335,6 @@ assert.equal(clampBpm(225), 225);
 assert.equal(clampBpm(140.4), 140.4);
 assert.equal(clampTempoPct(10), GPP_MIN_TEMPO_PCT);
 assert.equal(clampTempoPct(400), GPP_MAX_TEMPO_PCT);
-
-const snips = buildGpSectionSnippets(fakeGp);
-assert.ok(snips.length >= 2);
-assert.ok(snips.some((s) => s.hasGuitar && s.hasDrums));
 
 // ---- score layout: bar numbers, markers, and drum glyphs ----
 // This block used to read js/gpFollowView.js. The score layout module now

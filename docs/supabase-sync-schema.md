@@ -1,5 +1,11 @@
 # Cloud Sync — Database & Infrastructure Reference
 
+> **Routines were removed.** The consolidation refactor deleted the Routines
+> feature, so `routines` is no longer a sync scope, a sync domain, or a merge
+> case. Every mention of `routines` or `musi.routines` below is history. Stored
+> `musi.routines` data stays on the device; nothing reads it and nothing syncs
+> it.
+
 Supabase-side schema, storage, Realtime, Edge Function, and deployment reference for
 optional Musi cloud sync. Master scope lives in
 [`docs/supabase-sync-plan.md`](supabase-sync-plan.md); client design in

@@ -118,17 +118,17 @@
 /* Reference screens — desktop: setup above chart, full-width content */
 @media (min-width: 769px) {
   #sec-scaleref .quiz-layout,
-  #sec-chords .quiz-layout,
+  #sec-chordref .quiz-layout,
   #sec-triads .quiz-layout {
     flex-direction: column;
   }
   #sec-scaleref.has-setup-summary .sidebar,
-  #sec-chords.has-setup-summary .sidebar,
+  #sec-chordref.has-setup-summary .sidebar,
   #sec-triads.has-setup-summary .sidebar {
     display: none;
   }
   #sec-scaleref .quiz-main,
-  #sec-chords .quiz-main,
+  #sec-chordref .quiz-main,
   #sec-triads .quiz-main {
     width: 100%;
     min-width: 0;
@@ -184,14 +184,14 @@ body.split-mode #ref-modes{display:none}
 .chord-ref-swipe-hint{font-size:.72rem;color:var(--muted);margin:0 0 10px}
 .chord-ref-mood{font-size:.86rem;line-height:1.45;color:var(--text);margin:10px 0;padding:10px 12px;border-left:3px solid var(--accent);border-radius:0 8px 8px 0;background:rgba(255,255,255,0.03)}
 .chord-ref-mood-label{display:block;font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:800;margin-bottom:3px}
-#sec-chords .quiz-main.chord-swipe-target{touch-action:pan-y}
-#sec-chords .quiz-main.chord-swipe-target .ref-fb-scroll{touch-action:pan-x pan-y}
-#sec-chords .quiz-main.chord-slide-left,
-#sec-chords .quiz-main.chord-slide-right{
+#sec-chordref .quiz-main.chord-swipe-target{touch-action:pan-y}
+#sec-chordref .quiz-main.chord-swipe-target .ref-fb-scroll{touch-action:pan-x pan-y}
+#sec-chordref .quiz-main.chord-slide-left,
+#sec-chordref .quiz-main.chord-slide-right{
   animation:chord-ref-slide .28s ease;
 }
-#sec-chords .quiz-main.chord-slide-left{--chord-slide-from:18px}
-#sec-chords .quiz-main.chord-slide-right{--chord-slide-from:-18px}
+#sec-chordref .quiz-main.chord-slide-left{--chord-slide-from:18px}
+#sec-chordref .quiz-main.chord-slide-right{--chord-slide-from:-18px}
 @keyframes chord-ref-slide{
   from{opacity:.55;transform:translateX(var(--chord-slide-from,12px))}
   to{opacity:1;transform:translateX(0)}
@@ -273,55 +273,23 @@ body.split-mode #ref-modes{display:none}
 }
 
 @media(max-width:768px){
-  #sec-chords .sidebar{order:1}
-  #sec-chords .quiz-main{order:2}
+  #sec-chordref .sidebar{order:1}
+  #sec-chordref .quiz-main{order:2}
   .chord-position-head{flex-direction:column;gap:8px}
   .chord-position-help{text-align:left}
   .chord-position-strings{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
 }
 
 /* Backing Track */
-.backing-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-.backing-controls label{color:var(--muted);font-size:.85rem;display:flex;align-items:center;gap:6px}
-.preset-list{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
-.backing-progression{display:flex;gap:8px;flex-wrap:wrap;min-height:56px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:16px;margin-bottom:12px;align-items:center}
-.backing-progression:empty::after{content:'Select a preset or build custom...';color:var(--muted);font-size:.85rem}
-.backing-chord{padding:12px 20px;border:none;border-radius:12px;background:var(--card);color:var(--text);font-size:1rem;font-weight:600;min-width:60px;text-align:center;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
-.backing-chord.playing{background:var(--accent);color:var(--on-accent);box-shadow:0 0 20px var(--accent-dim);transform:scale(1.05)}
-.backing-badges{display:flex;gap:6px;justify-content:center;margin-top:4px}
-.backing-chord .bpc-badge{font-size:.65rem;color:var(--muted);cursor:pointer;transition:color 0.15s ease;padding:2px 6px;border-radius:8px;background:var(--bg2)}
-.backing-chord .bpc-badge:hover{color:var(--accent);background:var(--accent-dim)}
-.backing-chord.playing .bpc-badge{color:var(--on-accent);background:rgba(0,0,0,0.15)}
-.backing-transport{display:flex;gap:8px;align-items:center;margin-bottom:12px}
 
 /* Riff Generator */
-.riff-options{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
-.riff-options label{color:var(--muted);font-size:.85rem;display:flex;align-items:center;gap:6px}
-.riff-options select{padding:5px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.85rem;font-family:inherit}
-.riff-tab-wrap{background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;padding:18px;margin:12px 0;overflow-x:auto}
-.riff-tab-wrap pre{font-family:var(--font-ui,'VT323',monospace);font-size:.9rem;color:var(--accent);line-height:1.8;margin:0;letter-spacing:0}
 .rn.playing{background:linear-gradient(90deg,var(--accent),var(--accent-glow),var(--accent));background-size:200% 100%;color:var(--on-accent);border-radius:3px;animation:noteSweep 0.6s ease infinite}
 @keyframes noteSweep{
   0%{background-position:100% 0}
   100%{background-position:-100% 0}
 }
-.riff-transport{display:flex;gap:8px;align-items:center;margin-bottom:12px}
 
 /* Riff Composer */
-.composer-controls{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
-.composer-note-pick{display:flex;flex-direction:column;gap:2px}
-.composer-note-pick select{padding:6px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text);font-size:.85rem;font-family:inherit}
-.composer-timeline{display:flex;gap:6px;flex-wrap:wrap;min-height:48px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:14px;align-items:center;align-content:flex-start}
-.comp-chip{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 12px;border-radius:10px;background:var(--card);border:1px solid var(--border);position:relative;transition:all 0.2s ease;min-width:48px;cursor:default}
-.comp-chip.rest{opacity:0.6;border-style:dashed}
-.comp-chip.playing{background:var(--accent);border-color:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
-.comp-chip.playing .comp-chip-label{color:#000}
-.comp-chip.playing .comp-chip-len{color:rgba(0,0,0,0.6)}
-.comp-chip-label{font-size:.9rem;font-weight:600;color:var(--text);font-family:var(--font-ui,"VT323",monospace)}
-.comp-chip-len{font-size:.65rem;color:var(--muted);cursor:pointer;padding:1px 6px;border-radius:6px;background:var(--bg2);transition:color 0.15s ease}
-.comp-chip-len:hover{color:var(--accent);background:var(--accent-dim)}
-.comp-chip-del{position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--err);color:#fff;font-size:.7rem;line-height:16px;text-align:center;cursor:pointer;opacity:0;transition:opacity 0.15s ease}
-.comp-chip:hover .comp-chip-del{opacity:1}
 
 @media(max-width:768px){
   .ref-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -332,28 +300,10 @@ body.split-mode #ref-modes{display:none}
   .modal-chord-table th,.modal-chord-table td{padding:8px 10px;font-size:.78rem}
   .guitar-tab-wrap{padding:12px;-webkit-overflow-scrolling:touch}
   .guitar-tab-wrap pre{font-size:.75rem;line-height:1.6}
-  .backing-controls{flex-direction:column;align-items:stretch;gap:8px}
-  .backing-controls label{justify-content:space-between}
-  .backing-progression{gap:6px;padding:10px}
-  .backing-chord{padding:10px 14px;font-size:.9rem;min-width:50px}
-  .riff-options{flex-direction:column;align-items:stretch;gap:6px}
-  .riff-options label{justify-content:space-between}
-  .riff-tab-wrap{padding:12px;-webkit-overflow-scrolling:touch}
-  .riff-tab-wrap pre{font-size:.7rem;line-height:1.5}
-  .composer-controls{flex-direction:column;align-items:stretch;gap:8px}
-  .composer-controls .btn{width:100%}
-  .composer-note-pick{flex-direction:row;align-items:center;gap:8px;justify-content:space-between}
 }
 @media(max-width:480px){
   .ref-table th,.ref-table td{padding:6px 8px;font-size:.75rem}
   .guitar-tab-wrap pre{font-size:.65rem;line-height:1.5;letter-spacing:0}
-  .backing-chord{padding:8px 10px;font-size:.82rem;min-width:44px}
-  .backing-badges{gap:4px}
-  .backing-chord .bpc-badge{font-size:.6rem;padding:1px 4px}
-  .riff-tab-wrap pre{font-size:.6rem;line-height:1.4}
-  .comp-chip{padding:6px 8px;min-width:40px}
-  .comp-chip-label{font-size:.8rem}
-  .comp-chip-len{font-size:.6rem}
 }
 
 /* Landscape phone — shared ref-fretboard compaction */

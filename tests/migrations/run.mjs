@@ -7,7 +7,6 @@ import assert from 'node:assert/strict';
 import { normalizeNote } from '../../js/notes.js';
 import { normalizeExerciseItem } from '../../js/exercises.js';
 import { normalizeWorkbook } from '../../js/workbookModel.js';
-import { normalizeRoutine } from '../../js/routineModel.js';
 import { MIGRATIONS, runMigrations } from '../../js/migrations/index.js';
 import notesUnfiled from '../../js/migrations/notesUnfiled.js';
 import exerciseMetadata from '../../js/migrations/exerciseMetadata.js';
@@ -78,7 +77,6 @@ function createFakeCtx(seed = {}) {
     songs: clone(seed.songs || []),
     exerciseStore: clone(seed.exerciseStore || { categories: [], items: [] }),
     workbookStore: clone(seed.workbookStore || { folders: [], workbooks: [] }),
-    routines: clone(seed.routines || []),
     drumPatterns: clone(seed.drumPatterns || []),
     attachments: seed.attachments instanceof Map
       ? new Map([...seed.attachments.entries()])
@@ -152,17 +150,6 @@ function createFakeCtx(seed = {}) {
       },
       normalizeWorkbook(raw) {
         return normalizeWorkbook(raw);
-      },
-    },
-    routines: {
-      readAll() {
-        return clone(state.routines || []);
-      },
-      writeAll(routines) {
-        state.routines = clone(routines);
-      },
-      normalizeRoutine(raw) {
-        return normalizeRoutine(raw);
       },
     },
     attachments: {

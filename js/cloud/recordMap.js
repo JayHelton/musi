@@ -21,7 +21,6 @@ const CONTENT_KEY_NOTES = 'musi.notes';
 const CONTENT_KEY_SONGS = 'musi.songs';
 const CONTENT_KEY_EXERCISES = 'musi.exercises';
 const CONTENT_KEY_WORKBOOKS = 'musi.workbooks';
-const CONTENT_KEY_ROUTINES = 'musi.routines';
 const CONTENT_KEY_GP_ANNOTATIONS = 'musi.gpAnnotations';
 
 export const DRUM_PATTERNS_INBOX_KEY = 'cloud.drumPatternsInbox';
@@ -107,7 +106,6 @@ export const SYNC_DOMAINS = Object.freeze([
   'exerciseCategories',
   'workbooks',
   'workbookFolders',
-  'routines',
   'gpAnnotations',
   'drumPatterns',
   'attachmentsMeta',
@@ -115,7 +113,6 @@ export const SYNC_DOMAINS = Object.freeze([
 
 export const DEVICE_LOCAL_SETTINGS_KEYS = Object.freeze([
   'nav.lastTool',
-  'nav.lastCategory',
   'io.audioCalibrated',
   'io.minRms',
   'musi.bootSplash.done',
@@ -241,7 +238,7 @@ export function recordTimestamp(domain, recordId, payload) {
     return maxAt > 0 ? isoFromMs(maxAt) : null;
   }
 
-  if (domain === 'notes' || domain === 'songs' || domain === 'workbooks' || domain === 'routines') {
+  if (domain === 'notes' || domain === 'songs' || domain === 'workbooks') {
     const t = payload.updatedAt;
     return typeof t === 'string' && t ? t : null;
   }
@@ -414,17 +411,6 @@ export function toRecords(snapshot, extras = {}) {
     }
   }
 
-  const routinesRaw = data[CONTENT_KEY_ROUTINES];
-  if (routinesRaw != null) {
-    const rt = parseJsonString(routinesRaw);
-    if (isPlainObject(rt) && Array.isArray(rt.routines)) {
-      rt.routines.forEach((routine) => {
-        if (!isPlainObject(routine) || !routine.id) return;
-        pushRecord(records, 'routines', routine.id, routine, recordTimestamp('routines', routine.id, routine));
-      });
-    }
-  }
-
   const gpRaw = data[CONTENT_KEY_GP_ANNOTATIONS];
   if (gpRaw != null) {
     const gp = parseJsonString(gpRaw);
@@ -476,7 +462,6 @@ export function fromRecords(records) {
   let exercisesSeededAt = null;
   const workbookFolders = [];
   const workbooks = [];
-  const routines = [];
   const gpByScore = {};
   let gpVersion = 1;
 
@@ -561,11 +546,6 @@ export function fromRecords(records) {
       return;
     }
 
-    if (domain === 'routines' && isPlainObject(payload)) {
-      routines.push(payload);
-      return;
-    }
-
     if (domain === 'gpAnnotations' && recordId.startsWith('gpAnnotations:')) {
       const scoreKey = recordId.slice('gpAnnotations:'.length);
       if (!scoreKey) return;
@@ -618,10 +598,6 @@ export function fromRecords(records) {
 
   if (workbookFolders.length > 0 || workbooks.length > 0) {
     data[CONTENT_KEY_WORKBOOKS] = JSON.stringify({ folders: workbookFolders, workbooks });
-  }
-
-  if (routines.length > 0) {
-    data[CONTENT_KEY_ROUTINES] = JSON.stringify({ routines });
   }
 
   if (Object.keys(gpByScore).length > 0) {

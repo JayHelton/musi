@@ -133,7 +133,7 @@ function setLoading(loading) {
 }
 
 function resetStandaloneShell() {
-  const section = $('sec-gpplayer');
+  const section = $('sec-scoreplayer');
   const stage = $('gpp-stage');
   section?.classList.remove('gpp-score-loaded');
   if (typeof document !== 'undefined') {

@@ -28,26 +28,9 @@ import {
   MAP_RANGE_DEFS,
 } from '../../js/interval-map/model.js';
 import {
-  createRevealState,
-  applyReveal,
-  buildAttemptMeta,
-  isUnaidedAttempt,
-  revealUsage,
-  REVEAL_LEVELS,
-} from '../../js/interval-map/reveal.js';
-import {
-  validatePlayedPitch,
-  validatePlayedSequence,
-  createStableNoteGate,
-  exerciseAllowsAudioPhysicalScoring,
-} from '../../js/interval-map/audioAnswer.js';
-import {
   generateValidQuestion,
   questionHasValidAnswerInRange,
 } from '../../js/interval-map/questions.js';
-import {
-  visibleShapeLineTargets,
-} from '../../js/interval-map/fretboardView.js';
 
 let passed = 0;
 let failed = 0;
@@ -244,126 +227,7 @@ test('compare standard vs drop lowest-string P5', () => {
   assert.equal(bHigher.vector.deltaFret, 0);
 });
 
-console.log('Reveal logic');
-test('reveal does not count as independent correct', () => {
-  let state = createRevealState({ hideAnswers: true });
-  state = applyReveal(state, 'reveal-one', { position: { string: 1, fret: 5 } });
-  const meta = buildAttemptMeta(state, { correct: true, automatic: true });
-  assert.equal(meta.countsAsIndependentCorrect, false);
-  assert.equal(meta.revealedAttempt, true);
-});
-test('hint usage recorded', () => {
-  let state = createRevealState({});
-  state = applyReveal(state, 'reveal-hint', { kind: 'semitones' });
-  assert.equal(revealUsage(state), REVEAL_LEVELS.hint);
-  assert.equal(isUnaidedAttempt(state), false);
-});
-test('self-assessment stored separately', () => {
-  let state = createRevealState({});
-  state = applyReveal(state, 'reveal-all');
-  state = applyReveal(state, 'self-grade', { grade: 'almost' });
-  const meta = buildAttemptMeta(state, { correct: null, automatic: false });
-  assert.equal(meta.selfGrade, 'almost');
-  assert.equal(meta.countsAsIndependentCorrect, false);
-});
-test('hide again restores unrevealed state', () => {
-  let state = createRevealState({ hideAnswers: true, hideSubject: true });
-  state = applyReveal(state, 'reveal-all');
-  state = applyReveal(state, 'hide-again');
-  assert.equal(state.revealedAll, false);
-  assert.equal(state.revealLevel, REVEAL_LEVELS.none);
-  assert.equal(state.hiddenSubject, true);
-});
-test('subject vs answer reveal distinguished', () => {
-  let state = createRevealState({ hideSubject: true });
-  state = applyReveal(state, 'reveal-subject');
-  assert.equal(state.revealedSubject, true);
-  assert.equal(state.revealedAll, false);
-  assert.equal(revealUsage(state), REVEAL_LEVELS.subject);
-});
 
-console.log('Audio validation');
-test('pitch-class any-register', () => {
-  const r = validatePlayedPitch({
-    playedMidi: 55, // G3
-    playedCents: 0,
-    targetMidi: 67, // G4
-    anchorMidi: 48, // C3
-    registerMode: 'pitchClass',
-    intervalClass: 7,
-  });
-  assert.equal(r.ok, true);
-  assert.equal(r.claimsPhysicalPosition, false);
-});
-test('exact-register mode', () => {
-  const ok = validatePlayedPitch({
-    playedMidi: 55, targetMidi: 55, registerMode: 'exact', playedCents: 10,
-  });
-  assert.equal(ok.ok, true);
-  const bad = validatePlayedPitch({
-    playedMidi: 55, targetMidi: 67, registerMode: 'exact', playedCents: 0,
-  });
-  assert.equal(bad.ok, false);
-});
-test('neighboring semitone fails', () => {
-  const r = validatePlayedPitch({
-    playedMidi: 56, targetMidi: 55, registerMode: 'pitchClass', playedCents: 0,
-  });
-  assert.equal(r.ok, false);
-});
-test('cents tolerance boundaries', () => {
-  const inside = validatePlayedPitch({
-    playedMidi: 55, targetMidi: 55, registerMode: 'exact', playedCents: 35, toleranceCents: 35,
-  });
-  const outside = validatePlayedPitch({
-    playedMidi: 55, targetMidi: 55, registerMode: 'exact', playedCents: 36, toleranceCents: 35,
-  });
-  assert.equal(inside.ok, true);
-  assert.equal(outside.ok, false);
-});
-test('root-then-interval and longer sequences', () => {
-  const steps = [
-    { targetMidi: 48, anchorMidi: 48, intervalClass: 0 },
-    { targetMidi: 55, anchorMidi: 48, intervalClass: 7 },
-  ];
-  const r = validatePlayedSequence([48, 55], steps, { registerMode: 'pitchClass' });
-  assert.equal(r.ok, true);
-  const long = validatePlayedSequence(
-    [48, 51, 55, 58],
-    [
-      { targetMidi: 48, intervalClass: 0 },
-      { targetMidi: 51, intervalClass: 3 },
-      { targetMidi: 55, intervalClass: 7 },
-      { targetMidi: 58, intervalClass: 10 },
-    ],
-    { registerMode: 'pitchClass' }
-  );
-  assert.equal(long.ok, true);
-});
-test('sustained frames register once via stable gate', () => {
-  const gate = createStableNoteGate({ stableMs: 200, toleranceCents: 35 });
-  let releases = 0;
-  for (let t = 0; t <= 400; t += 16) {
-    const r = gate.update(55, 0, 1000 + t, { scoring: true });
-    if (r.stable) releases += 1;
-  }
-  assert.equal(releases, 1);
-});
-test('guide-tone suppression prevents scoring', () => {
-  const gate = createStableNoteGate({ stableMs: 100 });
-  let releases = 0;
-  for (let t = 0; t <= 300; t += 16) {
-    const r = gate.update(55, 0, 1000 + t, { scoring: false });
-    if (r.stable) releases += 1;
-  }
-  assert.equal(releases, 0);
-});
-test('audio exercises do not claim fret/string detection', () => {
-  assert.equal(exerciseAllowsAudioPhysicalScoring('locate-nearest'), false);
-  assert.equal(exerciseAllowsAudioPhysicalScoring('play-interval'), true);
-  const r = validatePlayedPitch({ playedMidi: 55, targetMidi: 55, registerMode: 'pitchClass' });
-  assert.equal(r.claimsPhysicalPosition, false);
-});
 
 console.log('Question validity');
 test('generated questions have valid answers in range', () => {
@@ -411,55 +275,6 @@ test('level filters intervals', () => {
   assert.ok(MAP_RANGE_DEFS[1].name.includes('Local'));
 });
 
-console.log('\nShape lines');
-test('hidden answers do not get connector lines', () => {
-  const positions = [
-    { string: 1, fret: 3, isAnchor: true },
-    { string: 2, fret: 5 },
-    { string: 3, fret: 5 },
-  ];
-  assert.deepEqual(
-    visibleShapeLineTargets(positions, { answersHidden: true }),
-    [],
-  );
-});
-test('revealed answers get connector lines while others stay hidden', () => {
-  const positions = [
-    { string: 1, fret: 3, isAnchor: true },
-    { string: 2, fret: 5 },
-    { string: 3, fret: 5 },
-  ];
-  const targets = visibleShapeLineTargets(positions, {
-    answersHidden: true,
-    revealedKeys: new Set(['2:5']),
-  });
-  assert.equal(targets.length, 1);
-  assert.equal(targets[0].string, 2);
-  assert.equal(targets[0].fret, 5);
-});
-test('correct or shown highlights allow connector lines', () => {
-  const positions = [
-    { string: 2, fret: 5 },
-    { string: 3, fret: 5 },
-  ];
-  const targets = visibleShapeLineTargets(positions, {
-    answersHidden: true,
-    highlight: {
-      '2:5': { correct: true },
-      '3:5': { shown: true },
-    },
-  });
-  assert.equal(targets.length, 2);
-});
-test('when answers are not hidden, all non-anchor targets get lines', () => {
-  const positions = [
-    { string: 1, fret: 3, isAnchor: true },
-    { string: 2, fret: 5 },
-  ];
-  const targets = visibleShapeLineTargets(positions, { answersHidden: false });
-  assert.equal(targets.length, 1);
-  assert.equal(targets[0].string, 2);
-});
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

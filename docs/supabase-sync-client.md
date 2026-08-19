@@ -1,5 +1,11 @@
 # Cloud Sync — Client Design
 
+> **Routines were removed.** The consolidation refactor deleted the Routines
+> feature, so `routines` is no longer a sync scope, a sync domain, or a merge
+> case. Every mention of `routines` or `musi.routines` below is history. Stored
+> `musi.routines` data stays on the device; nothing reads it and nothing syncs
+> it.
+
 Optional Supabase-backed sync for Musi libraries across devices. This document
 specifies the **browser client only**: modules, algorithms, UI, service worker
 changes, and verification. Server schema, RLS, and infrastructure live in sibling

@@ -1,20 +1,15 @@
 /* Chords map: keep fretboard near top on mobile */
 @media (max-width: 768px) {
-  #sec-chords [data-subview="map"] .quiz-layout {
+  #sec-chordref [data-subview="map"] .quiz-layout {
     display: flex;
     flex-direction: column;
   }
-  #sec-chords [data-subview="map"] .ref-fb-card {
+  #sec-chordref [data-subview="map"] .ref-fb-card {
     order: -1;
   }
-  #sec-chords .chord-position-card {
+  #sec-chordref .chord-position-card {
     font-size: 0.85rem;
   }
-}
-
-/* Interval Map: keep actions reachable under the board */
-#sec-intervalorbit .io-actions {
-  margin-top: 10px;
 }
 
 /* Sticky subview tabs clear header */

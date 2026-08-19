@@ -61,14 +61,23 @@
   font-weight: 700;
 }
 
-.shell-context-tempo {
+.shell-context-tempo,
+.shell-context-tuning {
   flex: 0 0 auto;
   padding-left: 6px;
   border-left: 1px solid var(--border);
   color: var(--muted);
 }
 
+.shell-context-tuning {
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .shell-context-tempo[hidden],
+.shell-context-tuning[hidden],
 .shell-context-key[hidden] {
   display: none;
 }
@@ -156,5 +165,8 @@
   }
   .shell-context-key {
     max-width: 84px;
+  }
+  .shell-context-tuning {
+    display: none;
   }
 }

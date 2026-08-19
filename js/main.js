@@ -1,20 +1,14 @@
 import { audioCtx } from './audio.js';
-import { S, buildNoteButtons, selectItem } from './scaleQuiz.js';
+import { S, buildNoteButtons, selectItem } from './quizShared.js';
 import './intervalQuiz.js';
 import { drawCoF } from './circleOfFifths.js';
 import { buildKeyboard, toggleDrone, stopAll, QWERTY_MAP } from './keyboard.js';
 import { initMetronome, stopMetronome, metro } from './metronome.js';
-// SIMPLIFY: Fretboard trainer hidden.
-// import { initFretboard } from './fretboardTrainer.js';
-// SIMPLIFY: Fretboard Interval Map hidden.
-// import { initIntervalOrbit, stopIntervalOrbit } from './intervalOrbit.js';
 import { initChordWorkout, stopChordWorkout } from './chordWorkout.js';
 import { initTuner, stopTuner, stopContextScale, tuner } from './vocalTrainer.js';
 import { initPitchTrainer, stopPitchTrainer, pt } from './pitchTrainer.js';
 import { initPitchRunner, stopPitchRunner, runner } from './pitchRunner.js';
 import { initEarTrainer, stopEarTone, ear } from './earTrainer.js';
-// SIMPLIFY: Timing drill hidden.
-// import { initTimingDrill, stopTimingDrill, timingDrill } from './timingDrill.js';
 import { initSightReading, stopSightReading } from './sightReadingTrainer.js';
 import { initChordRef, stopChordRef, chOscillators } from './chordReference.js';
 import { initMovableChordCards } from './movableChordCards.js';
@@ -22,12 +16,7 @@ import { initRecorder, initHoldRecordButton, stopRecorder, recorder } from './re
 import { initSongwriter, stopSongwriter } from './songwriter.js';
 import { initExercises, stopExercises, closeExerciseViewer, openExerciseViewer, onExerciseViewerChange } from './exercises.js';
 import { initWorkbooks, stopWorkbooks, closeWorkbookDetail, openWorkbookForRoute, onWorkbookDetailChange } from './workbooks.js';
-// SIMPLIFY: Routines and Sessions hidden.
-// import { initRoutines, stopRoutines, createRoutineLayerDescriptors, setRoutineNavigator } from './routines.js';
 import { initNotes, stopNotes } from './notes.js';
-import { initPracticeTimer, stopPracticeTimer } from './practiceTimer.js';
-// SIMPLIFY: Drums generators and builder hidden. Guitar Pro drum playback stays.
-// import { initDrums, stopDrums } from './drums/drumsUI.js';
 import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
@@ -36,21 +25,14 @@ import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { initProgressHeaders } from './progressHeader.js';
-import { renderHub } from './home.js';
+import { renderAreaPage } from './areaPages.js';
 import { initShellNav, setActiveNav } from './shell/nav.js';
-import { initToolsHome, refreshToolsHome, recordToolVisit } from './tools/home.js';
-import { initStats } from './stats.js';
 import { initMusicPreferences, initGlobalVolume } from './musicPreferences.js';
-// SIMPLIFY: Study Lab hidden.
-// import { initStudyLab, stopStudyLab } from './studyLab.js';
-import {
-  CATEGORIES,
-  getTabs, getTool, isHoldRecordRelevant,
-} from './tools.js';
+import { getTabs, getTool, isHoldRecordRelevant, isPrimaryArea, toolContextFields } from './tools.js';
 import { initScreenUx, syncSetupToolbars } from './screenUx.js';
 import { initBootSplash, markBootReady } from './bootSplash.js';
 import { parseAppRoute, routeUrl, sameRoute } from './appRoute.js';
-import { resolveRoute, shouldShowNotice, isKnownRoute, LEGACY_ROUTES } from './routeMap.js';
+import { resolveRoute, isKnownRoute, DEFAULT_ROUTE_ID } from './routeMap.js';
 import { initAudioDock } from './audioDock.js';
 import { initSwReloadGuard } from './swReloadGuard.js';
 import { mountToolPage } from './shell/toolPage.js';
@@ -66,80 +48,64 @@ import {
 } from './shell/navStack.js';
 import { hasUnsaved, confirmLeave } from './shell/unsavedGuard.js';
 import { openSelectionSheet } from './selectionSheet.js';
-import { getExercises } from './exercises.js';
 import { runMigrations, createLiveContext } from './migrations/index.js';
-// SIMPLIFY: Routines hidden. Keep this code to restore later.
-// import { ROUTINE_ROUTE_ID, buildRoutineParams } from './routineRoute.js';
-// import { createRoutineNavigator, createWorkbookLayerDescriptors } from './routineNav.js';
-// import { getRoutine } from './routineModel.js';
-// import { getWorkbook } from './workbookModel.js';
 import { initLibraryTabs, syncLibraryTabs } from './library/libraryTabs.js';
 import { shouldKeepLibraryPlayer, libraryRouteParams } from './library/libraryPlayerRoute.js';
 import { showAppToast } from './appToast.js';
 
 const MOBILE_SWIPE_QUERY = '(max-width: 768px), (orientation: landscape) and (max-height: 500px)';
 
+/** Tool ids that host a library browser rather than a plain tool page. */
+const LIBRARY_TOOL_IDS = new Set(['exercises', 'workbooks']);
+
+/**
+ * Tools that keep their own page chrome. The shared tool-page shell is not
+ * mounted on them: they are full-screen browsers or players.
+ */
+const SELF_CHROMED_TOOL_IDS = new Set(['exercises', 'workbooks', 'scoreplayer', 'settings']);
+
 const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
   scaleref: () => stopScaleRef(),
   triads: () => stopTriadRef(),
-  chords: () => { if (chOscillators.length) stopChordRef(); },
-  tuner: () => { if (tuner.running) stopTuner(); if (tuner.scalePlaying) stopContextScale(); if (pt.running) stopPitchTrainer(); if (runner.running) stopPitchRunner(); },
-  ear: () => { ear._seqTimers.forEach(clearTimeout); ear._seqTimers = []; if (ear._osc) stopEarTone(); },
-  // SIMPLIFY: Timing drill hidden.
-  // timing: () => { if (timingDrill.playing) stopTimingDrill(); },
+  chordref: () => { if (chOscillators.length) stopChordRef(); },
+  pitchear: () => {
+    if (tuner.running) stopTuner();
+    if (tuner.scalePlaying) stopContextScale();
+    if (pt.running) stopPitchTrainer();
+    if (runner.running) stopPitchRunner();
+    ear._seqTimers.forEach(clearTimeout);
+    ear._seqTimers = [];
+    if (ear._osc) stopEarTone();
+  },
   sightreading: () => stopSightReading(),
-  chordlab: () => stopChordWorkout(),
-  // SIMPLIFY: Fretboard Interval Map hidden.
-  // intervalorbit: () => stopIntervalOrbit(),
-  recorder: () => { if (recorder.playing) stopRecorder(); },
-  songwriter: () => stopSongwriter(),
+  chordworkout: () => stopChordWorkout(),
+  audiostudio: () => { if (recorder.playing) stopRecorder(); stopTrackToSheet(); },
+  songstudio: () => stopSongwriter(),
   exercises: () => stopExercises(),
   workbooks: () => stopWorkbooks(),
-  // SIMPLIFY: Routines and Sessions hidden.
-  // routines: () => stopRoutines(),
   notes: () => stopNotes(),
-  practice: () => stopPracticeTimer(),
-  // SIMPLIFY: Drums generators and builder hidden.
-  // drums: () => stopDrums(),
-  tracktosheet: () => stopTrackToSheet(),
-  gpplayer: () => stopGpPlayer(),
-  // SIMPLIFY: Study Lab hidden.
-  // studylab: () => stopStudyLab(),
+  scoreplayer: () => stopGpPlayer(),
 };
+
 const TOOL_INITS = {
   circle: drawCoF,
   keyboard: buildKeyboard,
   metronome: initMetronome,
   scaleref: initScaleRef,
   triads: initTriadRef,
-  chords: () => { initMovableChordCards(); initChordRef(); },
-  // SIMPLIFY: Fretboard trainer hidden.
-  // fretboard: initFretboard,
-  // SIMPLIFY: Fretboard Interval Map hidden.
-  // intervalorbit: initIntervalOrbit,
-  chordlab: initChordWorkout,
-  tuner: () => { initTuner(); initPitchTrainer(); initPitchRunner(); },
-  ear: initEarTrainer,
-  // SIMPLIFY: Timing drill hidden.
-  // timing: initTimingDrill,
+  chordref: () => { initMovableChordCards(); initChordRef(); },
+  chordworkout: initChordWorkout,
+  pitchear: () => { initTuner(); initPitchTrainer(); initPitchRunner(); initEarTrainer(); },
   sightreading: initSightReading,
-  recorder: initRecorder,
-  songwriter: initSongwriter,
+  audiostudio: () => { initRecorder(); initTrackToSheet(); },
+  songstudio: initSongwriter,
   exercises: initExercises,
   workbooks: initWorkbooks,
-  // SIMPLIFY: Routines and Sessions hidden.
-  // routines: initRoutines,
   notes: initNotes,
-  practice: initPracticeTimer,
-  // SIMPLIFY: Drums generators and builder hidden.
-  // drums: initDrums,
-  tracktosheet: initTrackToSheet,
-  gpplayer: initGpPlayer,
-  // SIMPLIFY: Study Lab hidden.
-  // studylab: initStudyLab,
-  musicprefs: () => initMusicPreferences({ showSection }),
+  scoreplayer: initGpPlayer,
+  settings: () => initMusicPreferences({ showSection }),
 };
 
 function stopOtherTools(keepIds) {
@@ -147,13 +113,14 @@ function stopOtherTools(keepIds) {
     if (!keepIds.includes(toolId)) TOOL_STOPPERS[toolId]();
   });
 }
+
 function initTool(id) {
   if (TOOL_INITS[id]) TOOL_INITS[id]();
 }
 
 let splitSecondaryId = null;
-let currentNavId = 'hub-reference';
-let currentRouteId = 'reference';
+let currentNavId = DEFAULT_ROUTE_ID;
+let currentRouteId = DEFAULT_ROUTE_ID;
 let currentRouteParams = {};
 /** How many in-app pushState entries sit above the boot entry (phone Back pops these). */
 let navPushCount = 0;
@@ -161,6 +128,8 @@ let navPushCount = 0;
 let applyingHistory = false;
 /** True for one hashchange that a replaceState already handled. */
 let suppressHashChange = false;
+/** Tool-page handles by tool id, so a route can drive the mode tabs. */
+const toolPages = new Map();
 
 function clearSplitPane() {
   if (!splitSecondaryId) return;
@@ -171,154 +140,51 @@ function clearSplitPane() {
   updateSplitUI();
 }
 
-function isHubId(id) {
-  return typeof id === 'string' && id.startsWith('hub-');
-}
-
-function hubCategory(id) {
-  return id.replace(/^hub-/, '');
-}
-
 function sectionUrl(id, params = {}) {
-  return routeUrl({ id: id || 'reference', params });
+  return routeUrl({ id: id || DEFAULT_ROUTE_ID, params });
 }
 
-function replaceLibraryPlayerHash(params) {
+function replaceLibraryPlayerHash(routeId, params) {
   const nextParams = { ...params };
   if (
-    currentRouteId === 'library'
-    && sameRoute({ id: 'library', params: currentRouteParams }, { id: 'library', params: nextParams })
+    currentRouteId === routeId
+    && sameRoute({ id: routeId, params: currentRouteParams }, { id: routeId, params: nextParams })
   ) {
     return;
   }
-  currentRouteId = 'library';
+  currentRouteId = routeId;
   currentRouteParams = { ...nextParams };
   suppressHashChange = true;
   history.replaceState(
-    { musiNav: 'library', params: nextParams },
+    { musiNav: routeId, params: nextParams },
     '',
-    sectionUrl('library', nextParams),
+    sectionUrl(routeId, nextParams),
   );
 }
 
-const LIVE_SECTION_BY_ROUTE = {
-  reference: 'hub-reference',
-  create: 'hub-create',
-  tools: 'tools',
-  home: 'hub-reference',
-  scalelab: 'scaleref',
-  // SIMPLIFY: Fretboard and Interval Map hidden.
-  // fretmap: 'intervalorbit',
-  chordlab: 'chords',
-  circle: 'circle',
-  triads: 'triads',
-  // SIMPLIFY: Study Lab hidden.
-  // studylab: 'studylab',
-  pitchear: 'tuner',
-  metronome: 'metronome',
-  audiostudio: 'recorder',
-  songstudio: 'songwriter',
-  notes: 'notes',
-  library: 'exercises',
-  // SIMPLIFY: Routines and Sessions hidden.
-  // routines: 'routines',
-  scoreplayer: 'gpplayer',
-  settings: 'musicprefs',
-};
-
-const ROOT_SECTION_IDS = new Set([
-  'tools',
-  'hub-reference',
-  'hub-create',
-  'reference',
-  'create',
-  'exercises',
-  'workbooks',
-]);
-
-const LIBRARY_SECTION_IDS = new Set(['exercises', 'workbooks']);
-
-function resolveSectionAlias(id) {
-  if (id === 'intervalmap') return 'intervalorbit';
-  if (id === 'tabanalyzer') return 'gpplayer';
-  return id;
-}
-
-function liveSectionId(routeId, params = {}) {
-  if (!routeId) return 'hub-reference';
-  if (routeId === 'library') {
-    return params.mode === 'workbooks' ? 'workbooks' : 'exercises';
-  }
-  if (LIVE_SECTION_BY_ROUTE[routeId]) return LIVE_SECTION_BY_ROUTE[routeId];
-  return resolveSectionAlias(routeId);
-}
-
-function inferNavigationOrigin(sectionId) {
-  if (sectionId === 'hub-reference') return 'reference';
-  if (sectionId === 'hub-create') return 'create';
-  if (sectionId === 'exercises' || sectionId === 'workbooks') return 'library';
-  if (sectionId === 'tools') return 'tools';
+function inferNavigationOrigin(screenId) {
+  if (isPrimaryArea(screenId)) return screenId;
+  if (LIBRARY_TOOL_IDS.has(screenId)) return 'library';
   return currentOrigin() || 'direct';
 }
 
-function hubRouteForTool(tool) {
-  if (!tool) return 'tools';
-  if (tool.category === 'reference') return 'reference';
-  if (tool.category === 'create') return 'create';
-  return 'tools';
-}
-
-function routeResolveCtx() {
-  return {
-    hasDrumExercises() {
-      try {
-        return getExercises().some(item => item && item.instrument === 'drums');
-      } catch (e) {
-        return false;
-      }
-    },
-    noticesSeen: getSetting('route.noticesSeen', []),
-  };
+/** The area page a tool belongs to. Utilities fall back to the default area. */
+function parentRouteForTool(tool) {
+  if (!tool || tool.utility) return DEFAULT_ROUTE_ID;
+  return tool.area;
 }
 
 function resolveIncomingRoute(id, params = {}) {
-  const resolved = resolveRoute({ id: id || '', params }, routeResolveCtx());
+  const resolved = resolveRoute({ id: id || '', params });
   return {
     routeId: resolved.id,
-    sectionId: liveSectionId(resolved.id, resolved.params || {}),
     params: resolved.params || {},
-    notice: resolved.notice,
   };
 }
 
 function isValidSection(id) {
-  if (id === '' || id === 'home') return true;
-  if (
-    id === 'reference'
-    || id === 'create'
-    || id === 'hub-reference'
-    || id === 'hub-create'
-    || id === 'circle'
-    || id === 'triads'
-    // SIMPLIFY: Study Lab hidden.
-    // || id === 'studylab'
-    || id === 'notes'
-    || id === 'exercises'
-    || id === 'workbooks'
-  ) {
-    return true;
-  }
-  if (isKnownRoute(id) || LEGACY_ROUTES[id]) return true;
-  const sectionId = liveSectionId(id, paramsForSectionProbe(id));
-  // SIMPLIFY: Routines hidden. Keep this code to restore later.
-  // if (sectionId === ROUTINE_ROUTE_ID) return true;
-  return ROOT_SECTION_IDS.has(sectionId) || getTabs().some(t => t.id === sectionId);
-}
-
-function paramsForSectionProbe(id) {
-  if (id === 'workbooks') return { mode: 'workbooks' };
-  if (id === 'exercises') return { mode: 'exercises' };
-  return {};
+  if (id === '' ) return true;
+  return isKnownRoute(id);
 }
 
 async function promptUnsaved({ title, choices }) {
@@ -341,13 +207,9 @@ async function guardLeave({ fromPopstate = false } = {}) {
 }
 
 function saveLeaveViewState(sectionId) {
-  if (sectionId === 'tools') {
-    const state = readViewState('tools') || {};
-    saveViewState('tools', {
-      ...state,
-      scrollY: window.scrollY,
-      purpose: getSetting('tools.purpose', 'train'),
-    });
+  if (isPrimaryArea(sectionId)) {
+    const state = readViewState(sectionId) || {};
+    saveViewState(sectionId, { ...state, scrollY: window.scrollY });
   }
   if (sectionId === 'exercises') {
     const state = readViewState('library:exercises') || {};
@@ -356,107 +218,105 @@ function saveLeaveViewState(sectionId) {
 }
 
 function restoreArriveViewState(sectionId) {
-  if (sectionId === 'tools') {
-    const state = readViewState('tools');
-    const purpose = state?.purpose;
-    if (purpose === 'train' || purpose === 'study' || purpose === 'create') {
-      saveSetting('tools.purpose', purpose);
-    }
-    restoreScroll('tools');
-  }
-  if (sectionId === 'exercises') {
-    restoreScroll('library:exercises');
-  }
+  if (isPrimaryArea(sectionId)) restoreScroll(sectionId);
+  if (sectionId === 'exercises') restoreScroll('library:exercises');
 }
 
-function mountToolPageIfNeeded(sectionId, sec) {
-  if (sectionId !== 'metronome') return;
+function isFavorite(toolId) {
+  const favs = getSetting('home.favorites', []);
+  return Array.isArray(favs) && favs.includes(toolId);
+}
+
+function setFavorite(toolId, next) {
+  const favs = getSetting('home.favorites', []);
+  const list = Array.isArray(favs) ? [...favs] : [];
+  const index = list.indexOf(toolId);
+  if (next && index < 0) list.push(toolId);
+  else if (!next && index >= 0) list.splice(index, 1);
+  saveSetting('home.favorites', list);
+}
+
+/**
+ * Mount the shared tool-page shell once per tool section. The shell owns the
+ * back button, the title, the description, and the mode tabs.
+ */
+function mountToolPageIfNeeded(toolId, sec) {
+  if (SELF_CHROMED_TOOL_IDS.has(toolId)) return;
   if (sec.dataset.toolPage === '1') return;
-  const tool = getTool(sectionId);
+  const tool = getTool(toolId);
   if (!tool) return;
-  const parentRoute = hubRouteForTool(tool);
-  mountToolPage(sec, {
-    id: sectionId,
+
+  const handle = mountToolPage(sec, {
+    id: toolId,
     title: tool.title || tool.label,
+    description: tool.description || '',
     modes: tool.modes || [],
     defaultMode: tool.defaultMode || '',
-    contextFields: ['tempo'],
+    activeMode: currentRouteId === toolId ? currentRouteParams.mode : '',
+    contextFields: toolContextFields(toolId),
     moreItems: [],
-    isFavorite: (getSetting('home.favorites', []) || []).includes(sectionId),
+    isFavorite: isFavorite(toolId),
     onBack: () => goBack(() => applyRoute({
-      id: parentRoute,
+      id: parentRouteForTool(tool),
       params: {},
       mode: 'replace',
       source: 'internal',
     })),
-    onFavorite: (next) => {
-      const favs = getSetting('home.favorites', []) || [];
-      const list = Array.isArray(favs) ? [...favs] : [];
-      const index = list.indexOf(sectionId);
-      if (next && index < 0) list.push(sectionId);
-      else if (!next && index >= 0) list.splice(index, 1);
-      saveSetting('home.favorites', list);
-      refreshToolsHome();
+    onFavorite: (next) => setFavorite(toolId, next),
+    onModeChange: (modeId) => {
+      if (currentRouteId !== toolId) return;
+      if (currentRouteParams.mode === modeId) return;
+      void applyRoute({
+        id: toolId,
+        params: { ...currentRouteParams, mode: modeId },
+        mode: 'replace',
+        source: 'internal',
+      });
     },
   });
+  toolPages.set(toolId, handle);
 }
-
-// SIMPLIFY: Routines hidden. Keep this code to restore later.
-/*
-function getRoutineSession(routine, sessionId) {
-  if (!routine || !sessionId) return null;
-  const sessions = Array.isArray(routine.sessions) ? routine.sessions : [];
-  return sessions.find(s => s && s.id === sessionId) || null;
-}
-
-function getWorkbookExercise(workbookId, exerciseId) {
-  const workbook = getWorkbook(workbookId);
-  if (!workbook || !exerciseId) return null;
-  const entries = Array.isArray(workbook.entries) ? workbook.entries : [];
-  return entries.find(e => e && (e.exerciseId === exerciseId || e.id === exerciseId)) || null;
-}
-
-function findRoutineCompanion(session, companionId) {
-  if (!session || !companionId) return null;
-  const workbookIds = Array.isArray(session.workbookIds) ? session.workbookIds : [];
-  for (const workbookId of workbookIds) {
-    const workbook = getWorkbook(workbookId);
-    if (!workbook) continue;
-    const companions = Array.isArray(workbook.companions) ? workbook.companions : [];
-    const companion = companions.find(c => c && c.id === companionId);
-    if (companion) return { workbook, companion };
-  }
-  return null;
-}
-*/
 
 function updateHoldRecordVisibility(id) {
-  const relevant = isHoldRecordRelevant(id);
-  document.body.classList.toggle('hold-rec-relevant', relevant);
+  document.body.classList.toggle('hold-rec-relevant', isHoldRecordRelevant(id));
 }
 
 function updateHeaderChrome(id) {
-  const isRoot = ROOT_SECTION_IDS.has(id) || id === 'home';
-  const isTool = id && !isRoot && !isHubId(id) && !!getTool(id);
-  document.body.classList.toggle('tool-screen', !!isTool);
+  const isTool = !!getTool(id);
+  document.body.classList.toggle('tool-screen', isTool);
   setActiveNav(id);
 }
 
-function showHub(categoryId, skipHash) {
-  if (categoryId === 'reference' || categoryId === 'create') {
-    showSection(categoryId, skipHash);
-    return;
+/**
+ * Close one library layer if the route points inside one.
+ * @returns {Promise<boolean>} true when a layer closed and Back is done.
+ */
+async function stepBackInsideLibrary() {
+  if (currentRouteId === 'workbooks' && currentRouteParams.workbook) {
+    const params = currentRouteParams.exercise
+      ? { workbook: currentRouteParams.workbook }
+      : {};
+    await applyRoute({ id: 'workbooks', params, mode: 'replace', source: 'internal' });
+    return true;
   }
-  showSection('tools', skipHash);
+  if (currentRouteId === 'exercises' && currentRouteParams.exercise) {
+    await applyRoute({ id: 'exercises', params: {}, mode: 'replace', source: 'internal' });
+    return true;
+  }
+  return false;
 }
 
 /**
  * Navigate back through in-app screen history (same as the phone Back button).
- * Falls back to category hub / home when there is nothing left to pop.
+ * Falls back to the parent screen when there is nothing left to pop.
  */
 async function goBack(fallback) {
   const canLeave = await guardLeave();
   if (!canLeave) return false;
+
+  // A library player sits on a replaced hash, so Back must step down the
+  // Library -> Workbooks -> workbook -> exercise chain before it pops history.
+  if (await stepBackInsideLibrary()) return false;
 
   if (navPushCount > 0) {
     history.back();
@@ -468,10 +328,6 @@ async function goBack(fallback) {
     return false;
   }
 
-  // SIMPLIFY: Routines hidden. Keep this code to restore later.
-  // const origin = (currentRouteId === ROUTINE_ROUTE_ID || currentNavId === 'workbooks')
-  //   ? 'routine'
-  //   : currentOrigin();
   const origin = currentOrigin();
   const parent = parentAddress(origin, { id: currentRouteId, params: currentRouteParams });
   popRoute();
@@ -486,12 +342,12 @@ async function goBack(fallback) {
 }
 
 const VALID_NAV_ORIGINS = new Set([
-  'tools',
-  'reference',
+  'train',
+  'study',
   'create',
   'library',
+  'utilities',
   'workbook',
-  'routine',
   'search',
   'recent',
   'direct',
@@ -499,6 +355,66 @@ const VALID_NAV_ORIGINS = new Set([
 
 function coerceNavOrigin(origin) {
   return VALID_NAV_ORIGINS.has(origin) ? origin : 'direct';
+}
+
+function applyAreaSection(areaId, sec) {
+  renderAreaPage(areaId, sec, {
+    openTool: (toolId) => {
+      void applyRoute({
+        id: toolId,
+        params: {},
+        mode: 'push',
+        source: 'internal',
+        origin: areaId,
+      });
+    },
+  });
+  stopOtherTools([]);
+  updateHoldRecordVisibility(null);
+  updateHeaderChrome(areaId);
+  updateSplitUI();
+}
+
+/** Wire the back button of a section that keeps its own page chrome. */
+function wireSelfChromedBack(sec, parentRouteId) {
+  const back = sec?.querySelector('.tool-back:not(.tool-page-back)');
+  if (!back) return;
+  back.textContent = '← Back';
+  back.onclick = () => goBack(() => applyRoute({
+    id: parentRouteId,
+    params: {},
+    mode: 'replace',
+    source: 'internal',
+  }));
+}
+
+function applyLibrarySection(sectionId) {
+  syncLibraryTabs(sectionId);
+  const keepWorkbookPlayer = shouldKeepLibraryPlayer('workbooks', currentRouteParams);
+  const keepExercisePlayer = shouldKeepLibraryPlayer('exercises', currentRouteParams);
+  if (sectionId === 'workbooks') {
+    closeExerciseViewer();
+    if (!keepWorkbookPlayer) closeWorkbookDetail();
+  } else {
+    closeWorkbookDetail();
+    if (!keepExercisePlayer) closeExerciseViewer();
+  }
+  stopOtherTools([sectionId]);
+  initTool(sectionId);
+  wireSelfChromedBack(document.getElementById('sec-' + sectionId), 'library');
+  if (keepWorkbookPlayer && sectionId === 'workbooks') {
+    openWorkbookForRoute({
+      workbookId: currentRouteParams.workbook,
+      exerciseId: currentRouteParams.exercise,
+      companionId: currentRouteParams.companion,
+    });
+  } else if (keepExercisePlayer && sectionId === 'exercises') {
+    void openExerciseViewer(currentRouteParams.exercise);
+  }
+  updateHoldRecordVisibility(sectionId);
+  updateHeaderChrome(sectionId);
+  updateSplitUI();
+  syncSetupToolbars();
 }
 
 function applySection(id, { keep = [] } = {}) {
@@ -509,108 +425,35 @@ function applySection(id, { keep = [] } = {}) {
     document.body.classList.remove('split-mode');
   }
 
-  const sectionId = id === 'home' ? 'hub-reference' : id;
-  const sec = document.getElementById('sec-' + sectionId);
+  const sec = document.getElementById('sec-' + id);
   if (!sec) return;
 
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.dock-item,.dock-menu-item').forEach(t => t.classList.remove('active'));
-
   sec.classList.add('active');
-  currentNavId = sectionId;
+  currentNavId = id;
 
-  document.querySelectorAll(`.dock-item[data-s="${id}"]`).forEach(el => el.classList.add('active'));
-
-  if (sectionId === 'tools') {
-    refreshToolsHome();
-    stopOtherTools([]);
-    updateHoldRecordVisibility(null);
-    updateHeaderChrome(sectionId);
-    updateSplitUI();
+  if (isPrimaryArea(id)) {
+    applyAreaSection(id, sec);
     return;
   }
 
-  if (LIBRARY_SECTION_IDS.has(sectionId)) {
-    const mode = sectionId === 'workbooks' ? 'workbooks' : 'exercises';
-    syncLibraryTabs(mode);
-    const keepWorkbookPlayer = shouldKeepLibraryPlayer('workbooks', currentRouteParams);
-    const keepExercisePlayer = shouldKeepLibraryPlayer('exercises', currentRouteParams);
-    if (sectionId === 'workbooks') {
-      closeExerciseViewer();
-      if (!keepWorkbookPlayer) closeWorkbookDetail();
-    } else {
-      closeWorkbookDetail();
-      if (!keepExercisePlayer) closeExerciseViewer();
-    }
-    stopOtherTools([sectionId]);
-    initTool(sectionId);
-    if (keepWorkbookPlayer && sectionId === 'workbooks') {
-      openWorkbookForRoute({
-        workbookId: currentRouteParams.workbook,
-        exerciseId: currentRouteParams.exercise,
-        companionId: currentRouteParams.companion,
-      });
-    } else if (keepExercisePlayer && sectionId === 'exercises') {
-      void openExerciseViewer(currentRouteParams.exercise);
-    }
-    updateHoldRecordVisibility(sectionId);
-    updateHeaderChrome(sectionId);
-    updateSplitUI();
-    syncSetupToolbars();
-    return;
-  }
-
-  if (isHubId(sectionId)) {
-    const cat = hubCategory(sectionId);
-    saveSetting('nav.lastCategory', cat);
-    const hubOrigin = cat === 'reference' ? 'reference' : (cat === 'create' ? 'create' : 'tools');
-    const hubShowSection = (toolId) => {
-      void applyRoute({
-        id: toolId,
-        params: {},
-        mode: 'push',
-        source: 'internal',
-        origin: hubOrigin,
-      });
-    };
-    const repaintHub = () => {
-      renderHub(cat, sec, {
-        showSection: hubShowSection,
-        onFavorite: () => { refreshToolsHome(); repaintHub(); },
-      });
-    };
-    repaintHub();
-    stopOtherTools([]);
-    updateHoldRecordVisibility(null);
-    updateHeaderChrome(sectionId);
-    updateSplitUI();
+  if (LIBRARY_TOOL_IDS.has(id)) {
+    applyLibrarySection(id);
     return;
   }
 
   const tool = getTool(id);
-  if (tool) {
-    saveSetting('nav.lastTool', id);
-    saveSetting('nav.lastCategory', tool.category);
-    recordToolVisit(id);
-  }
+  if (tool) saveSetting('nav.lastTool', id);
 
-  mountToolPageIfNeeded(sectionId, sec);
-
-  const back = sec.querySelector('.tool-back:not(.tool-page-back)');
-  if (back && tool && sec.dataset.toolPage !== '1') {
-    const parentRoute = hubRouteForTool(tool);
-    const hubLabel = CATEGORIES.find(c => c.id === tool.category)?.label || 'Back';
-    back.onclick = () => goBack(() => applyRoute({
-      id: parentRoute,
-      params: {},
-      mode: 'replace',
-      source: 'internal',
-    }));
-    back.textContent = `← ${hubLabel}`;
-  }
+  mountToolPageIfNeeded(id, sec);
+  const page = toolPages.get(id);
+  if (page && currentRouteParams.mode) page.setActiveMode(currentRouteParams.mode);
 
   stopOtherTools([id, ...keep]);
   initTool(id);
+  // Sections that keep their own chrome still need a wired back button. This
+  // runs after initTool because a tool may repaint its own page head.
+  if (SELF_CHROMED_TOOL_IDS.has(id)) wireSelfChromedBack(sec, parentRouteForTool(tool));
   updateHoldRecordVisibility(id);
   updateHeaderChrome(id);
   updateSplitUI();
@@ -619,7 +462,7 @@ function applySection(id, { keep = [] } = {}) {
 
 function showSection(id, skipHash, params = {}) {
   const incoming = resolveIncomingRoute(id, params);
-  const mode = (skipHash || currentNavId === incoming.sectionId) ? 'replace' : 'push';
+  const mode = (skipHash || currentNavId === incoming.routeId) ? 'replace' : 'push';
   void applyRoute({
     id: incoming.routeId,
     params: incoming.params,
@@ -628,230 +471,31 @@ function showSection(id, skipHash, params = {}) {
   });
 }
 
-// SIMPLIFY: Routines hidden. Keep this code to restore later.
-/*
-let routineNavigator = null;
-
-const routineShell = {
-  activateSection(sectionId, { keep = [] } = {}) {
-    applySection(sectionId, { keep });
-  },
-  pushRoute(route) {
-    if (applyingHistory) return;
-    const params = buildRoutineParams(route);
-    const url = sectionUrl(ROUTINE_ROUTE_ID, params);
-    history.pushState({ musiNav: ROUTINE_ROUTE_ID, params }, '', url);
-    navPushCount += 1;
-  },
-  replaceRoute(route) {
-    const params = buildRoutineParams(route);
-    const url = sectionUrl(ROUTINE_ROUTE_ID, params);
-    history.replaceState({ musiNav: ROUTINE_ROUTE_ID, params }, '', url);
-  },
-  backToRoute(parentRoute) {
-    if (navPushCount > 0) {
-      history.back();
-      return;
-    }
-    routineShell.replaceRoute(parentRoute);
-    const nav = getRoutineNavigator();
-    if (nav) nav.applyRoute(buildRoutineParams(parentRoute), { source: 'internal' });
-  },
-  goHome() {
-    applySection('tools');
-    history.replaceState({ musiNav: 'tools', params: {} }, '', sectionUrl('tools'));
-  },
-  hasInAppHistory() {
-    return navPushCount > 0;
-  },
-};
-
-function onEntryReplace(route) {
-  routineShell.replaceRoute(route);
-}
-
-function getRoutineNavigator() {
-  if (routineNavigator) return routineNavigator;
-  try {
-    const root = document.getElementById('sec-routines');
-    if (!root) return null;
-    routineNavigator = createRoutineNavigator({
-      root,
-      getRoutine,
-      getSession: getRoutineSession,
-      getWorkbook,
-      getExercise: getWorkbookExercise,
-      getCompanion: findRoutineCompanion,
-      shell: routineShell,
-      layers: {
-        ...createRoutineLayerDescriptors(),
-        ...createWorkbookLayerDescriptors({
-          shell: routineShell,
-          onEntryReplace,
-          onBack: () => { const nav = getRoutineNavigator(); if (nav) nav.back(); },
-        }),
-      },
-      homeStatus: () => document.getElementById('home-status'),
-    });
-    setRoutineNavigator(routineNavigator);
-    return routineNavigator;
-  } catch (_) {
-    return null;
-  }
-}
-*/
-
-const ROUTE_NOTICE_MESSAGES = {
-  'notice.scales-removed': 'Scale Spelling is hidden.',
-  'notice.intervals-removed': 'The Intervals quiz moved to Fretboard & Interval Map at Learn.',
-  'notice.fretboard-removed': 'The Fretboard trainer is hidden.',
-  'notice.fretmap-removed': 'Fretboard and Interval Map is hidden.',
-  'notice.chordlab-removed': 'This link now opens Chord Lab Reference.',
-  'notice.timing-removed': 'The Timing drill is hidden.',
-  'notice.sightreading-removed': 'The Sight Reading quiz moved to Train.',
-  'notice.notes-removed': 'Your notes moved to Song Studio under Unfiled Notes.',
-  'notice.pitch-reference': 'The keyboard is now a pitch reference in Study.',
-  'notice.drums-removed': 'Drum generators and builder are hidden.',
-  'notice.studylab-removed': 'Study Lab is hidden.',
-  'notice.routines-removed': 'Routines and Sessions are hidden.',
-};
-
-let activeRouteNoticeId = null;
-const PENDING_NOTICE_KEY = 'musi:routeNotice';
-
-function readPendingNotice() {
-  try {
-    const raw = sessionStorage.getItem(PENDING_NOTICE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed.id !== 'string') return null;
-    return parsed;
-  } catch (e) {
-    return null;
-  }
-}
-
-function writePendingNotice(noticeId, routeId) {
-  if (typeof noticeId !== 'string' || noticeId === '') return;
-  try {
-    sessionStorage.setItem(PENDING_NOTICE_KEY, JSON.stringify({
-      id: noticeId,
-      routeId: routeId || '',
-    }));
-  } catch (e) {
-    // sessionStorage can be blocked; the live notice still shows on this pass
-  }
-}
-
-function clearPendingNotice() {
-  try {
-    sessionStorage.removeItem(PENDING_NOTICE_KEY);
-  } catch (e) {
-    // ignore
-  }
-}
-
-function syncRouteNoticeLayout() {
-  const el = document.getElementById('route-notice');
-  const visible = el && !el.hidden;
-  document.body.classList.toggle('route-notice-on', visible);
-  if (visible) {
-    document.body.style.setProperty('--route-notice-h', `${el.offsetHeight}px`);
-  } else {
-    document.body.classList.remove('route-notice-on');
-    document.body.style.removeProperty('--route-notice-h');
-  }
-}
-
-function hideRouteNotice() {
-  const el = document.getElementById('route-notice');
-  if (el) el.hidden = true;
-  syncRouteNoticeLayout();
-}
-
-function showRouteNotice(noticeId) {
-  const el = document.getElementById('route-notice');
-  const textEl = document.getElementById('route-notice-text');
-  if (!el || !textEl) return;
-  const message = ROUTE_NOTICE_MESSAGES[noticeId];
-  if (!message) return;
-  activeRouteNoticeId = noticeId;
-  textEl.textContent = message;
-  el.hidden = false;
-  syncRouteNoticeLayout();
-  requestAnimationFrame(() => syncRouteNoticeLayout());
-}
-
-function dismissRouteNotice(noticeId) {
-  const seen = getSetting('route.noticesSeen', []);
-  const next = Array.isArray(seen) ? [...seen] : [];
-  if (!next.includes(noticeId)) next.push(noticeId);
-  saveSetting('route.noticesSeen', next);
-  activeRouteNoticeId = null;
-  clearPendingNotice();
-  hideRouteNotice();
-}
-
-function updateRouteNotice(notice, routeId) {
-  if (typeof notice === 'string' && notice !== '') {
-    writePendingNotice(notice, routeId);
-  }
-  const pending = readPendingNotice();
-  const noticeId = (typeof notice === 'string' && notice !== '')
-    ? notice
-    : (pending && pending.routeId && pending.routeId === routeId ? pending.id : null);
-  if (noticeId) {
-    const seen = getSetting('route.noticesSeen', []);
-    if (shouldShowNotice(noticeId, seen)) {
-      showRouteNotice(noticeId);
-      return;
-    }
-  }
-  hideRouteNotice();
-}
-
 async function applyRoute({
   id,
   params = {},
   mode = 'push',
   source = 'internal',
-  notice = null,
   origin = null,
 }) {
   try {
-  const inboundId = id;
-  const incoming = resolveIncomingRoute(inboundId, params);
-  let routeId = incoming.routeId;
-  let sectionId = incoming.sectionId;
-  const routeParams = incoming.params;
-  if (notice == null) notice = incoming.notice;
-  if (typeof notice === 'string' && notice !== '') {
-    writePendingNotice(notice, incoming.routeId);
-  }
+    const incoming = resolveIncomingRoute(id, params);
+    const routeId = incoming.routeId;
+    const routeParams = incoming.params;
 
-  if (!isValidSection(inboundId)) {
-    routeId = 'reference';
-    sectionId = 'hub-reference';
-  }
+    const prevSectionId = currentNavId;
+    if (routeId !== prevSectionId) {
+      const canLeave = await guardLeave({ fromPopstate: source === 'popstate' });
+      if (!canLeave) return;
+      saveLeaveViewState(prevSectionId);
+    }
 
-  const prevSectionId = currentNavId;
-  if (sectionId !== prevSectionId) {
-    const canLeave = await guardLeave({ fromPopstate: source === 'popstate' });
-    if (!canLeave) return;
-    saveLeaveViewState(prevSectionId);
-  }
+    currentRouteId = routeId;
+    currentRouteParams = { ...routeParams };
 
-  currentRouteId = routeId;
-  currentRouteParams = { ...routeParams };
-
-  // SIMPLIFY: Routines hidden. Keep this code to restore later.
-  // Routine routes fall through to the normal tools or reference path.
-  /*
-  if (routeId === ROUTINE_ROUTE_ID) {
-    const routineOrigin = origin || (currentOrigin() === 'direct' ? 'routine' : currentOrigin()) || 'routine';
     if (!applyingHistory && mode !== 'none') {
-      const url = sectionUrl(ROUTINE_ROUTE_ID, routeParams);
-      const histState = { musiNav: ROUTINE_ROUTE_ID, params: routeParams };
+      const url = sectionUrl(routeId, routeParams);
+      const histState = { musiNav: routeId, params: routeParams };
       if (mode === 'replace') {
         suppressHashChange = true;
         history.replaceState(histState, '', url);
@@ -859,78 +503,41 @@ async function applyRoute({
         suppressHashChange = true;
         history.pushState(histState, '', url);
         navPushCount += 1;
+        const navOrigin = coerceNavOrigin(origin || inferNavigationOrigin(prevSectionId));
+        pushRoute({ id: routeId, params: routeParams }, navOrigin);
       }
     }
-    if (mode === 'push' || currentOrigin() === 'direct') {
-      pushRoute({ id: routeId, params: routeParams }, routineOrigin);
-    }
-    const navigator = getRoutineNavigator();
-    if (navigator) {
-      navigator.applyRoute(routeParams, { source });
-    } else {
-      applySection(ROUTINE_ROUTE_ID);
-    }
-    updateRouteNotice(notice, routeId);
-    focusHeading(document.getElementById('sec-' + ROUTINE_ROUTE_ID));
-    return;
-  }
-  */
 
-  if (!applyingHistory && mode !== 'none') {
-    const url = sectionUrl(routeId, routeParams);
-    const histState = { musiNav: routeId, params: routeParams };
-    if (mode === 'replace') {
-      suppressHashChange = true;
-      history.replaceState(histState, '', url);
-    } else if (mode === 'push') {
-      suppressHashChange = true;
-      history.pushState(histState, '', url);
-      navPushCount += 1;
-      const navOrigin = coerceNavOrigin(origin || inferNavigationOrigin(prevSectionId));
-      pushRoute({ id: routeId, params: routeParams }, navOrigin);
-    }
-  }
-
-  applySection(sectionId);
-  updateRouteNotice(notice, routeId);
-  restoreArriveViewState(sectionId);
-  focusHeading(document.getElementById('sec-' + sectionId));
+    applySection(routeId);
+    restoreArriveViewState(routeId);
+    focusHeading(document.getElementById('sec-' + routeId));
   } catch (err) {
     console.error('applyRoute failed:', err);
     showAppToast(err?.message);
   }
 }
 
-function initRouteNoticeBanner() {
-  const closeBtn = document.getElementById('route-notice-close');
-  if (closeBtn) {
-    closeBtn.onclick = () => {
-      if (activeRouteNoticeId) dismissRouteNotice(activeRouteNoticeId);
-    };
-  }
-}
-
 window.showSection = showSection;
-window.showHub = showHub;
 window.goBack = goBack;
 
 function enterSplit(secondaryId) {
-  const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
+  const primaryId = currentPrimaryId();
   if (isMobileSwipeNav()) return;
-  if (!secondaryId || secondaryId === primaryId || primaryId === 'home' || primaryId === 'tools' || secondaryId === 'home' || secondaryId === 'tools') return;
-  if (isHubId(primaryId) || isHubId(secondaryId)) return;
+  if (!secondaryId || secondaryId === primaryId) return;
+  if (isPrimaryArea(primaryId) || isPrimaryArea(secondaryId)) return;
   if (!getTabs().some(t => t.id === secondaryId)) return;
   splitSecondaryId = secondaryId;
   document.body.classList.add('split-mode');
   const sec = document.getElementById('sec-' + secondaryId);
   if (sec) sec.classList.add('active', 'split-secondary');
+  mountToolPageIfNeeded(secondaryId, sec);
   initTool(secondaryId);
   updateSplitUI();
 }
 
 function exitSplit() {
   if (!splitSecondaryId) return;
-  const primaryId = (document.querySelector('.section.active:not(.split-secondary)')?.id || '').replace('sec-', '');
+  const primaryId = currentPrimaryId();
   stopOtherTools(primaryId ? [primaryId] : []);
   clearSplitPane();
 }
@@ -960,7 +567,7 @@ function buildSplitMenu() {
   if (splitSecondaryId) {
     const exit = document.createElement('button');
     exit.className = 'tc-menu-item split-exit';
-    exit.textContent = '\u2715 Exit split view';
+    exit.textContent = '✕ Exit split view';
     exit.onclick = (e) => { e.stopPropagation(); exitSplit(); closeSplitMenu(); };
     splitMenuEl.appendChild(exit);
   }
@@ -983,6 +590,7 @@ function openSplitMenu() {
   const maxTop = window.innerHeight - splitMenuEl.offsetHeight - 8;
   splitMenuEl.style.top = Math.max(8, Math.min(r.top - 8, maxTop)) + 'px';
 }
+
 function closeSplitMenu() { if (splitMenuEl) splitMenuEl.classList.remove('open'); }
 
 function updateSplitUI() {
@@ -995,7 +603,7 @@ function updateSplitUI() {
       if (sec) sec.classList.remove('active', 'split-secondary');
       splitSecondaryId = null;
       document.body.classList.remove('split-mode');
-      stopOtherTools(primaryId && !isHubId(primaryId) && primaryId !== 'home' && primaryId !== 'tools' ? [primaryId] : []);
+      stopOtherTools(primaryId && !isPrimaryArea(primaryId) ? [primaryId] : []);
     }
     closeSplitMenu();
     trigger.style.display = 'none';
@@ -1003,7 +611,7 @@ function updateSplitUI() {
     return;
   }
   const primary = currentPrimaryId();
-  trigger.style.display = (primary === 'home' || primary === 'tools' || isHubId(primary)) ? 'none' : '';
+  trigger.style.display = isPrimaryArea(primary) ? 'none' : '';
   trigger.classList.toggle('active', !!splitSecondaryId);
 }
 
@@ -1034,21 +642,8 @@ function isMobileSwipeNav() {
   return window.matchMedia(MOBILE_SWIPE_QUERY).matches;
 }
 
-function initNav() {
-  initShellNav({ showSection, currentId: currentNavId });
-}
-
-function rebuildNav() {
-  setActiveNav(currentNavId);
-  closeSplitMenu();
-  updateSplitUI();
-}
-
 async function init() {
   const bootHash = location.hash;
-  const earlyBoot = parseAppRoute(bootHash);
-  const earlyResolved = resolveRoute({ id: earlyBoot.id, params: earlyBoot.params || {} });
-  if (earlyResolved.notice) writePendingNotice(earlyResolved.notice, earlyResolved.id);
   if ('scrollRestoration' in history) {
     history.scrollRestoration = 'manual';
   }
@@ -1065,8 +660,7 @@ async function init() {
     console.warn('Migration runner failed:', err);
   }
 
-  initNav();
-  initRouteNoticeBanner();
+  initShellNav({ showSection, currentId: currentNavId });
 
   window.addEventListener('error', (event) => {
     if (!event?.error) return;
@@ -1153,8 +747,7 @@ async function init() {
     };
   }
 
-  buildNoteButtons('sq-notes', 'scale');
-  buildNoteButtons('iq-notes', 'interval');
+  buildNoteButtons('iq-notes');
 
   initGlobalVolume();
   initMetronome();
@@ -1164,16 +757,6 @@ async function init() {
   initSwReloadGuard();
   initHoldRecordButton();
   initProgressHeaders();
-  initToolsHome({
-    showSection,
-    openRoute: (routeId, routeParams, { origin } = {}) => applyRoute({
-      id: routeId,
-      params: routeParams || {},
-      mode: 'push',
-      source: 'internal',
-      origin: origin || 'tools',
-    }),
-  });
   initLibraryTabs({
     openRoute: (routeId, routeParams, { replace } = {}) => applyRoute({
       id: routeId,
@@ -1184,42 +767,35 @@ async function init() {
     }),
   });
   onWorkbookDetailChange(({ open, workbookId, exerciseId }) => {
-    if (currentNavId !== 'workbooks' && currentRouteId !== 'library') return;
+    if (currentRouteId !== 'workbooks') return;
     if (open && workbookId) {
-      replaceLibraryPlayerHash(libraryRouteParams({
-        mode: 'workbooks',
+      replaceLibraryPlayerHash('workbooks', libraryRouteParams({
         workbook: workbookId,
         exercise: exerciseId,
       }));
-    } else if (currentRouteParams.mode === 'workbooks' || currentNavId === 'workbooks') {
-      replaceLibraryPlayerHash(libraryRouteParams({ mode: 'workbooks' }));
+    } else {
+      replaceLibraryPlayerHash('workbooks', {});
     }
   });
   onExerciseViewerChange(({ open, exerciseId }) => {
-    if (currentNavId !== 'exercises' && currentRouteId !== 'library') return;
+    if (currentRouteId !== 'exercises') return;
     if (open && exerciseId) {
-      replaceLibraryPlayerHash(libraryRouteParams({ mode: 'exercises', exercise: exerciseId }));
-    } else if (currentRouteParams.mode === 'exercises' || currentNavId === 'exercises') {
-      replaceLibraryPlayerHash(libraryRouteParams({ mode: 'exercises' }));
+      replaceLibraryPlayerHash('exercises', libraryRouteParams({ exercise: exerciseId }));
+    } else {
+      replaceLibraryPlayerHash('exercises', {});
     }
   });
-  initStats();
   initMusicPreferences({ showSection });
   initSplitView();
-  initScreenUx({ showSection, showHub });
+  initScreenUx({ showSection });
 
   const bootRoute = parseAppRoute(bootHash);
-  if (isValidSection(bootRoute.id)) {
-    await applyRoute({
-      id: bootRoute.id,
-      params: bootRoute.params,
-      mode: 'replace',
-      source: 'boot',
-    });
-  } else {
-    history.replaceState({ musiNav: 'reference', params: {} }, '', sectionUrl('reference'));
-    applySection('hub-reference');
-  }
+  await applyRoute({
+    id: bootRoute.id,
+    params: bootRoute.params,
+    mode: 'replace',
+    source: 'boot',
+  });
 
   // Phone / browser Back: walk the screen stack instead of leaving the PWA.
   window.addEventListener('popstate', async (e) => {
@@ -1234,16 +810,12 @@ async function init() {
         routeId = parsed.id;
         routeParams = parsed.params;
       }
-      if (isValidSection(routeId)) {
-        await applyRoute({
-          id: routeId,
-          params: routeParams,
-          mode: 'none',
-          source: 'popstate',
-        });
-      } else {
-        await applyRoute({ id: 'reference', params: {}, mode: 'none', source: 'popstate' });
-      }
+      await applyRoute({
+        id: routeId,
+        params: routeParams,
+        mode: 'none',
+        source: 'popstate',
+      });
     } catch (err) {
       console.error('popstate handler failed:', err);
     } finally {
@@ -1261,18 +833,13 @@ async function init() {
     try {
       const parsed = parseAppRoute(location.hash);
       const incoming = resolveIncomingRoute(parsed.id, parsed.params);
-      if (parsed.id && isValidSection(parsed.id)) {
-        if (incoming.sectionId !== currentNavId) navPushCount += 1;
-        await applyRoute({
-          id: parsed.id,
-          params: parsed.params,
-          mode: 'none',
-          source: 'hashchange',
-        });
-      } else if (!parsed.id) {
-        if (currentNavId !== 'hub-reference') navPushCount += 1;
-        await applyRoute({ id: 'reference', params: {}, mode: 'none', source: 'hashchange' });
-      }
+      if (incoming.routeId !== currentNavId) navPushCount += 1;
+      await applyRoute({
+        id: parsed.id,
+        params: parsed.params,
+        mode: 'none',
+        source: 'hashchange',
+      });
     } catch (err) {
       console.error('hashchange handler failed:', err);
     } finally {

@@ -1,16 +1,11 @@
 /**
- * Zero-dependency Node tests for the Tools home section model.
+ * Zero-dependency Node tests for the app shell: navigation stack, shared
+ * musical context wiring, the unsaved guard, and the shared tool page.
  * Run: node tests/shell/run.mjs
  */
 
 import assert from 'node:assert/strict';
-import {
-  buildHomeSections,
-  normalizeRecents,
-  pushRecent,
-  searchTools,
-} from '../../js/tools/homeModel.js';
-import { TOOLS, toolContextFields } from '../../js/tools.js';
+import { TOOLS, CONTEXT_FIELDS, toolContextFields } from '../../js/tools.js';
 import {
   pushRoute,
   popRoute,
@@ -49,7 +44,7 @@ function testAsync(name, fn) {
   pendingAsync.push({ name, fn });
 }
 
-const NAV_ORIGINS = ['tools', 'reference', 'create', 'library', 'workbook', 'routine', 'search', 'recent', 'direct'];
+const NAV_ORIGINS = ['train', 'study', 'create', 'library', 'utilities', 'workbook', 'search', 'recent', 'direct'];
 
 function drainNavStack() {
   while (true) {
@@ -115,166 +110,25 @@ function collectLabels(sections) {
   return labels;
 }
 
-console.log('Section order and visibility');
-test('section order with favorites, recents, and active routines', () => {
-  const sections = buildHomeSections({
-    tools: FAKE_TOOLS,
-    favorites: ['alpha'],
-    recents: [{ id: 'alpha', mode: 'mode-a', at: '2026-08-14T10:00:00.000Z' }],
-    activeRoutines: [{ id: 'r1', name: 'Morning routine' }],
-    query: '',
-  });
-
-  assert.deepEqual(sectionIds(sections), [
-    'favorites',
-    'recents',
-    'search',
-    'browse',
-  ]);
-  assert.equal(sections[0].items.length, 1);
-  assert.equal(sections[0].items[0].id, 'alpha');
-  assert.equal(sections[1].items[0].source, 'recent');
-  assert.equal(sectionIds(sections).includes('continue'), false);
-});
-
-test('empty favorites, recents, and routines omit those sections', () => {
-  const sections = buildHomeSections({
-    tools: FAKE_TOOLS,
-    favorites: [],
-    recents: [],
-    activeRoutines: [],
-    query: '',
-  });
-
-  assert.deepEqual(sectionIds(sections), ['search', 'browse']);
-});
-
-console.log('Recents');
-test('normalizeRecents caps at five, one entry per tool, newest first', () => {
-  const list = [];
-  for (let i = 0; i < 7; i += 1) {
-    list.push({
-      id: `tool-${i}`,
-      mode: '',
-      at: `2026-08-14T0${i}:00:00.000Z`,
-    });
-  }
-
-  const normalized = normalizeRecents(list, 5);
-  assert.equal(normalized.length, 5);
-  assert.equal(normalized[0].id, 'tool-6');
-  assert.equal(normalized[4].id, 'tool-2');
-});
-
-test('normalizeRecents keeps one row per tool id with the newest timestamp', () => {
-  const normalized = normalizeRecents([
-    { id: 'alpha', mode: 'mode-a', at: '2026-08-14T08:00:00.000Z' },
-    { id: 'beta', mode: '', at: '2026-08-14T09:00:00.000Z' },
-    { id: 'alpha', mode: 'mode-a', at: '2026-08-14T10:00:00.000Z' },
-  ]);
-
-  assert.equal(normalized.length, 2);
-  assert.equal(normalized[0].id, 'alpha');
-  assert.equal(normalized[0].at, '2026-08-14T10:00:00.000Z');
-});
-
-test('pushRecent replaces the prior row for the same tool and does not mutate input', () => {
-  const input = [
-    { id: 'alpha', mode: 'mode-a', at: '2026-08-14T08:00:00.000Z' },
-    { id: 'beta', mode: '', at: '2026-08-14T09:00:00.000Z' },
-  ];
-  const snapshot = JSON.stringify(input);
-
-  const next = pushRecent(input, {
-    id: 'alpha',
-    mode: 'mode-a',
-    at: '2026-08-14T11:00:00.000Z',
-  });
-
-  assert.equal(JSON.stringify(input), snapshot);
-  assert.equal(next.length, 2);
-  assert.equal(next[0].id, 'alpha');
-  assert.equal(next[0].at, '2026-08-14T11:00:00.000Z');
-  assert.equal(next[1].id, 'beta');
-});
-
-console.log('Search');
-test('search matches a tool name', () => {
-  const matches = searchTools(FAKE_TOOLS, 'beta');
-  assert.equal(matches.length, 1);
-  assert.equal(matches[0].id, 'beta');
-});
-
-test('search matches a mode label', () => {
-  const matches = searchTools(FAKE_TOOLS, 'mode alpha');
-  assert.equal(matches.length, 1);
-  assert.equal(matches[0].id, 'alpha');
-  assert.equal(matches[0].matchedMode, 'mode-a');
-});
-
-test('search does not match description-only text', () => {
-  const matches = searchTools(FAKE_TOOLS, 'xyzzyplugh');
-  assert.equal(matches.length, 0);
-});
-
-test('empty search query returns no rows', () => {
-  assert.deepEqual(searchTools(FAKE_TOOLS, ''), []);
-  assert.deepEqual(searchTools(FAKE_TOOLS, '   '), []);
-});
-
-console.log('Browse and favorites');
-test('browse lists all supplied tools', () => {
-  const sections = buildHomeSections({
-    tools: FAKE_TOOLS,
-    query: '',
-  });
-  const browse = sections.find(s => s.id === 'browse');
-  assert.deepEqual(browse.items.map(item => item.id), ['alpha', 'beta', 'gamma', 'legacy']);
-});
-
-test('favorites skip tools not in the catalog list', () => {
-  const sections = buildHomeSections({
-    tools: FAKE_TOOLS.filter(t => t.id !== 'legacy'),
-    favorites: ['legacy', 'alpha'],
-    query: '',
-  });
-  const favorites = sections.find(s => s.id === 'favorites');
-  assert.deepEqual(favorites.items.map(item => item.id), ['alpha']);
-});
-
-console.log('Copy guardrails');
-test('no section or item label equals "No routines yet"', () => {
-  const sections = buildHomeSections({
-    tools: FAKE_TOOLS,
-    favorites: ['alpha'],
-    recents: [{ id: 'alpha', mode: '', at: '2026-08-14T10:00:00.000Z' }],
-    activeRoutines: [{ id: 'r1', name: 'Morning routine' }],
-    query: 'alpha',
-  });
-
-  const labels = collectLabels(sections);
-  assert.equal(labels.includes('No routines yet'), false);
-});
-
 console.log('Shared musical context');
-test('toolContextFields lists fields in root, scale, tempo order', () => {
-  assert.deepEqual(toolContextFields('tuner'), ['root', 'scale', 'tempo']);
-  assert.deepEqual(toolContextFields('scaleref'), ['root', 'scale']);
+test('toolContextFields lists fields in root, scale, tempo, tuning order', () => {
+  assert.deepEqual(toolContextFields('pitchear'), ['root', 'scale', 'tempo', 'tuning']);
+  assert.deepEqual(toolContextFields('scaleref'), ['root', 'scale', 'tuning']);
   assert.deepEqual(toolContextFields('metronome'), ['tempo']);
 });
 
 test('toolContextFields returns no field for other tools and unknown ids', () => {
-  assert.deepEqual(toolContextFields('circle'), []);
   assert.deepEqual(toolContextFields('notes'), []);
+  assert.deepEqual(toolContextFields('exercises'), []);
   assert.deepEqual(toolContextFields('no-such-tool'), []);
   assert.deepEqual(toolContextFields(''), []);
 });
 
-test('every context field is a known field name', () => {
+test('every tool declares its context fields, and every field is known', () => {
   for (const tool of TOOLS) {
-    if (!tool.context) continue;
+    assert.equal(Array.isArray(tool.context), true, `${tool.id} has no context list`);
     for (const field of tool.context) {
-      assert.equal(['root', 'scale', 'tempo'].includes(field), true, `${tool.id} uses ${field}`);
+      assert.equal(CONTEXT_FIELDS.includes(field), true, `${tool.id} uses ${field}`);
     }
   }
 });
@@ -312,12 +166,12 @@ for (const origin of NAV_ORIGINS) {
 
 test('popRoute returns the prior stack entry', () => {
   drainNavStack();
-  const first = { id: 'tools', params: {} };
+  const first = { id: 'train', params: {} };
   const second = { id: 'metronome', params: {} };
-  pushRoute(first, 'tools');
+  pushRoute(first, 'train');
   pushRoute(second, 'library');
-  assert.deepEqual(popRoute(), { route: first, origin: 'tools' });
-  assert.equal(currentOrigin(), 'tools');
+  assert.deepEqual(popRoute(), { route: first, origin: 'train' });
+  assert.equal(currentOrigin(), 'train');
   assert.equal(popRoute(), null);
   assert.equal(currentOrigin(), 'direct');
 });
@@ -333,7 +187,7 @@ test('popRoute does not call history', () => {
     go(...args) { historyLog.push(['go', ...args]); },
   };
   try {
-    pushRoute({ id: 'tools', params: {} }, 'tools');
+    pushRoute({ id: 'train', params: {} }, 'train');
     pushRoute({ id: 'metronome', params: {} }, 'search');
     popRoute();
     popRoute();
@@ -368,65 +222,50 @@ test('saveViewState and readViewState round-trip Library filter shape', () => {
 });
 
 console.log('navStack parentAddress');
-test('parentAddress for tools, reference, create, library, search, recent, and direct', () => {
-  assert.deepEqual(parentAddress('tools', { id: 'metronome', params: {} }), {
-    id: 'tools',
+test('parentAddress returns the area a tool was opened from', () => {
+  assert.deepEqual(parentAddress('train', { id: 'pitchear', params: { mode: 'ear' } }), {
+    id: 'train',
     params: {},
   });
-  assert.deepEqual(parentAddress('reference', { id: 'circle', params: {} }), {
-    id: 'reference',
+  assert.deepEqual(parentAddress('study', { id: 'circle', params: {} }), {
+    id: 'study',
     params: {},
   });
-  assert.deepEqual(parentAddress('create', { id: 'recorder', params: {} }), {
+  assert.deepEqual(parentAddress('create', { id: 'audiostudio', params: {} }), {
     id: 'create',
     params: {},
   });
-  assert.deepEqual(parentAddress('library', { id: 'scalelab', params: { mode: 'overview' } }), {
+  assert.deepEqual(parentAddress('library', { id: 'workbooks', params: {} }), {
     id: 'library',
-    params: { mode: 'exercises' },
-  });
-  assert.deepEqual(parentAddress('search', { id: 'fretmap', params: {} }), {
-    id: 'tools',
-    params: {},
-  });
-  assert.deepEqual(parentAddress('recent', { id: 'chordlab', params: {} }), {
-    id: 'tools',
-    params: {},
-  });
-  assert.deepEqual(parentAddress('direct', { id: 'pitchear', params: { mode: 'tuner' } }), {
-    id: 'tools',
     params: {},
   });
 });
 
-test('parentAddress for routine peels exercise, workbook, session, routine, then tools', () => {
-  const full = {
-    id: 'routines',
-    params: { routine: 'r1', session: 's1', workbook: 'w1', exercise: 'e1' },
-  };
-  assert.deepEqual(parentAddress('routine', full), {
-    id: 'routines',
-    params: { routine: 'r1', session: 's1', workbook: 'w1' },
+test('parentAddress sends a workbook screen back to Workbooks', () => {
+  assert.deepEqual(parentAddress('workbook', { id: 'workbooks', params: { workbook: 'w1' } }), {
+    id: 'workbooks',
+    params: {},
   });
-  assert.deepEqual(parentAddress('routine', {
-    id: 'routines',
-    params: { routine: 'r1', session: 's1', workbook: 'w1' },
-  }), {
-    id: 'routines',
-    params: { routine: 'r1', session: 's1' },
+});
+
+test('parentAddress falls back to the area that owns the tool', () => {
+  assert.deepEqual(parentAddress('direct', { id: 'triads', params: {} }), {
+    id: 'study',
+    params: {},
   });
-  assert.deepEqual(parentAddress('routine', {
-    id: 'routines',
-    params: { routine: 'r1', session: 's1' },
-  }), {
-    id: 'routines',
-    params: { routine: 'r1' },
+  assert.deepEqual(parentAddress('search', { id: 'notes', params: {} }), {
+    id: 'create',
+    params: {},
   });
-  assert.deepEqual(parentAddress('routine', {
-    id: 'routines',
-    params: { routine: 'r1' },
-  }), {
-    id: 'tools',
+});
+
+test('parentAddress falls back to Train for a utility, which has no landing page', () => {
+  assert.deepEqual(parentAddress('utilities', { id: 'metronome', params: {} }), {
+    id: 'train',
+    params: {},
+  });
+  assert.deepEqual(parentAddress('direct', { id: 'settings', params: {} }), {
+    id: 'train',
     params: {},
   });
 });
@@ -491,30 +330,13 @@ for (const { label, result, handler } of unsavedPromptCases) {
 }
 
 console.log('Live catalog');
-test('reference, create, and practice tools use expected categories', () => {
-  const referenceIds = TOOLS.filter(t => t.category === 'reference').map(t => t.id);
-  const createIds = TOOLS.filter(t => t.category === 'create').map(t => t.id);
-  const practiceIds = TOOLS.filter((t) => {
-    if (t.category === 'reference' || t.category === 'create') return false;
-    if (t.id === 'exercises' || t.id === 'workbooks' || t.id === 'musicprefs') return false;
-    return true;
-  }).map(t => t.id);
-
-  for (const id of ['scaleref', 'chords', 'triads', 'circle']) {
-    assert.equal(referenceIds.includes(id), true, `reference missing ${id}`);
+test('every tool sits in one canonical area', () => {
+  const areas = new Set(['train', 'study', 'create', 'library', 'utility']);
+  for (const tool of TOOLS) {
+    assert.equal(areas.has(tool.area), true, `${tool.id} has area ${tool.area}`);
+    assert.equal('category' in tool, false, `${tool.id} still carries category`);
+    assert.equal('purpose' in tool, false, `${tool.id} still carries purpose`);
   }
-  for (const id of ['recorder', 'songwriter', 'notes', 'tracktosheet']) {
-    assert.equal(createIds.includes(id), true, `create missing ${id}`);
-  }
-  for (const id of ['metronome', 'tuner', 'chordlab']) {
-    assert.equal(practiceIds.includes(id), true, `practice missing ${id}`);
-  }
-  assert.equal(practiceIds.includes('intervalorbit'), false, 'intervalorbit should be hidden');
-  assert.equal(practiceIds.includes('studylab'), false, 'studylab should be hidden');
-  assert.equal(practiceIds.includes('drums'), false, 'drums should be hidden');
-
-  assert.equal(TOOLS.some(t => t.id === 'scales'), false, 'scales should be hidden');
-  assert.equal(TOOLS.some(t => t.id === 'drums'), false, 'drums should be hidden');
 });
 
 function installLocalStorageShim() {
@@ -540,6 +362,7 @@ function makeDescriptor(overrides = {}) {
   return {
     id: 'metronome',
     title: 'Metronome',
+    description: 'Tempo, meter, tap tempo, and a tempo plan.',
     modes: [{ id: 'plan', label: 'Plan' }, { id: 'play', label: 'Play' }],
     defaultMode: 'plan',
     contextFields: [],
@@ -588,7 +411,7 @@ testAsync('toolPage: header child order is Back, title, favorite, More', async (
   destroy();
 });
 
-testAsync('toolPage: wrapper child order is header, context, modes, workspace, primary, advanced', async () => {
+testAsync('toolPage: wrapper child order is header, description, context, modes, workspace, primary, advanced', async () => {
   const { installDomShim } = await import('../gp-player/domShim.mjs');
   installDomShim();
   installLocalStorageShim();
@@ -601,6 +424,7 @@ testAsync('toolPage: wrapper child order is header, context, modes, workspace, p
   const classes = [...page.children].map((el) => el.className);
   assert.deepEqual(classes, [
     'tool-page-header',
+    'tool-page-description',
     'tool-page-context',
     'tool-page-modes subview-tabs',
     'tool-page-workspace',

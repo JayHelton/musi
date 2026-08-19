@@ -1,17 +1,21 @@
+// In-app screen stack. It remembers where the user came from so a Back press
+// walks the product hierarchy: area -> tool, and Library -> Workbooks ->
+// workbook -> exercise.
+
+import { getTool } from '../tools.js';
+import { DEFAULT_ROUTE_ID } from '../routeMap.js';
+
 const VALID_ORIGINS = new Set([
-  'tools',
-  'reference',
+  'train',
+  'study',
   'create',
   'library',
+  'utilities',
   'workbook',
-  'routine',
   'search',
   'recent',
   'direct',
 ]);
-
-const ROUTINE_PEEL_ORDER = ['exercise', 'companion', 'workbook', 'session', 'routine'];
-const ROUTINE_PARAM_KEYS = ['routine', 'session', 'workbook', 'exercise', 'companion'];
 
 const stack = [];
 const viewStates = new Map();
@@ -38,36 +42,6 @@ function normalizeLibraryViewState(state) {
     selectedId: state?.selectedId ?? null,
     scrollY: typeof state?.scrollY === 'number' ? state.scrollY : 0,
   };
-}
-
-function copyRoutineParams(params = {}) {
-  const next = {};
-  for (const key of ROUTINE_PARAM_KEYS) {
-    if (params[key]) next[key] = params[key];
-  }
-  return next;
-}
-
-function peelRoutineParams(params) {
-  for (const key of ROUTINE_PEEL_ORDER) {
-    if (!params[key]) continue;
-    const next = { ...params };
-    delete next[key];
-    if (key === 'workbook' || key === 'companion') {
-      delete next.exercise;
-      if (key === 'companion') delete next.workbook;
-    }
-    if (key === 'session') {
-      delete next.workbook;
-      delete next.exercise;
-      delete next.companion;
-    }
-    if (key === 'routine') {
-      return { id: 'tools', params: {} };
-    }
-    return { id: 'routines', params: next };
-  }
-  return { id: 'tools', params: {} };
 }
 
 export function pushRoute(route, origin) {
@@ -125,27 +99,33 @@ export function focusHeading(sectionEl) {
   }
 }
 
+/**
+ * The screen one level up from a tool page.
+ * @param {string} origin how the user reached the current screen
+ * @param {{ id: string, params?: Record<string, string> }} route the current route
+ * @returns {{ id: string, params: Record<string, string> }}
+ */
 export function parentAddress(origin, route) {
-  const params = route?.params ?? {};
+  const routeId = route?.id || '';
 
   switch (origin) {
-    case 'tools':
-      return { id: 'tools', params: {} };
-    case 'reference':
-      return { id: 'reference', params: {} };
+    case 'train':
+    case 'study':
     case 'create':
-      return { id: 'create', params: {} };
     case 'library':
-      return { id: 'library', params: { mode: 'exercises' } };
+      return { id: origin, params: {} };
     case 'workbook':
-      return { id: 'routines', params: copyRoutineParams(params) };
-    case 'routine':
-      return peelRoutineParams(copyRoutineParams(params));
+      return { id: 'workbooks', params: {} };
+    case 'utilities':
     case 'search':
     case 'recent':
     case 'direct':
-      return { id: 'tools', params: {} };
-    default:
-      return { id: 'tools', params: {} };
+    default: {
+      // Fall back to the area that owns the tool. Utilities have no landing
+      // page, so they fall back to the default screen.
+      const tool = getTool(routeId);
+      if (tool && !tool.utility) return { id: tool.area, params: {} };
+      return { id: DEFAULT_ROUTE_ID, params: {} };
+    }
   }
 }

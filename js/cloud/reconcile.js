@@ -491,16 +491,6 @@ export async function deleteLocalRecords(list) {
         continue;
       }
 
-      if (domain === 'routines') {
-        const rt = readJsonKey('musi.routines');
-        if (isPlainObject(rt) && Array.isArray(rt.routines)) {
-          rt.routines = rt.routines.filter((routine) => routine?.id !== recordId);
-          writeJsonKey('musi.routines', rt);
-          deleted.push({ domain, recordId });
-        }
-        continue;
-      }
-
       if (domain === 'gpAnnotations' && recordId.startsWith('gpAnnotations:')) {
         const scoreKey = recordId.slice('gpAnnotations:'.length);
         const gp = readJsonKey('musi.gpAnnotations');

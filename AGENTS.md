@@ -105,7 +105,7 @@ dark/modern dashboard style.
   motion should stay subtle and purposeful.
 - **Do not** restyle toward purple-on-white SaaS, cream/terracotta editorial, or
   broadsheet newspaper layouts. When adding feature CSS (`css/<feature>.css`), reuse
-  existing tokens/fonts so Exercises, Drums, etc. stay on-theme.
+  existing tokens/fonts so Exercises, Workbooks, etc. stay on-theme.
 
 ### Running the services
 
@@ -117,11 +117,31 @@ dark/modern dashboard style.
   `node bin/musi.js reference --root C --type "Major (Ionian)"` or
   `node bin/musi.js --help`. See `cli/README.md` for all activities/flags.
 
+### Product model
+
+Musi has four areas and one set of supporting utilities. `js/tools.js` is the one
+place that classifies every screen:
+
+- **Train** — Intervals, Sight Reading, Chord Workout, Pitch & Ear.
+- **Study** — Scale Reference, Chord Reference, Triads, Circle of Fifths.
+- **Create** — Audio Studio, Song Studio, Notes.
+- **Library** — Exercises, Workbooks.
+- **Utilities** (`utility: true`) — Metronome, Keyboard, Score Player, Settings.
+
+Rules to keep:
+
+- One classification field: `area`. Do not add `category` or `purpose` back.
+- One id space: the tool id is the route id (`#pitchear`) and the DOM section id
+  (`sec-pitchear`). Do not add alias tables or legacy route maps.
+- Utilities are subordinate. They never join the primary navigation bar.
+- Each tool lists the shared-context fields it reads in `context: [...]`.
+- `node tests/product-model/run.mjs` enforces all of the above.
+
 ### Gotchas
 
 - There is **no lint, test, or build tooling** in this repo (no ESLint/Prettier, no
-  test framework, no bundler). "Verifying" means running the CLI and exercising the web
-  UI in a browser.
+  test framework, no bundler). "Verifying" means running the CLI, exercising the web
+  UI in a browser, and running the Node test runners under `tests/`.
 - `npm install` in `cli/` is effectively a no-op (no dependencies, no lockfile).
 - The static server caches via the service worker; after editing JS/CSS, do a hard
   reload (or update the cache name in `service-worker.js`) to pick up changes reliably.

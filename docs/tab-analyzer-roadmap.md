@@ -1,5 +1,10 @@
 # Guitar Tab Analyzer Roadmap
 
+> **Some referenced modules are gone.** The consolidation refactor deleted the
+> drum builder, including `js/drums/pdfExtract.js`, `js/drums/tabParser.js`, and
+> `js/drums/drumsUI.js`. Guitar Pro drum playback and notation stay. Read the
+> references to those modules below as history, not as current code.
+
 This document is the planning record for a new **Tab Analyzer** feature: paste or
 upload a guitar tab (plain text or PDF), pick the tuning, and get an in‑depth
 music‑theory breakdown — key / tonal center(s), chords and progression, the

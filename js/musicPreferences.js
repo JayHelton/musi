@@ -19,8 +19,6 @@ import {
 } from './audio.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { loadCloudConfig, isCloudEnabled } from './cloud/cloudConfig.js';
-// SIMPLIFY: Routines hidden. Keep this code to restore later.
-// import { collectAttachedWorkbookIds } from './routineModel.js';
 import { pruneMissingExercisesAll } from './workbookModel.js';
 import { getExercises, getExercisesWithoutFolder, deleteExercisesWithoutFolder } from './exercises.js';
 
@@ -40,8 +38,8 @@ function render() {
   }
   host.innerHTML = `
     <div class="section-head">
-      <div class="section-kicker">Settings</div>
-      <h2>Settings & Preferences</h2>
+      <button type="button" class="tool-back">← Back</button>
+      <h2>Settings</h2>
       <p>Set the musical context, the volume, and how this device syncs.</p>
     </div>
 
@@ -502,14 +500,6 @@ function openConfirm(title, body, confirmLabel, onConfirm, { danger = false } = 
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeDialog(); });
   dialogRoot.appendChild(overlay);
 }
-
-// SIMPLIFY: Routines hidden. Keep this code to restore later.
-/*
-function getUnattachedWorkbookCount() {
-  const attached = collectAttachedWorkbookIds();
-  return listWorkbooks().filter((wb) => !attached.has(wb.id)).length;
-}
-*/
 
 function paintLibraryCleanup() {
   const root = host?.querySelector('#mp-cleanup-root');

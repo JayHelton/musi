@@ -4,6 +4,7 @@ import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext } from './musicalContext.js';
 import { shortScaleName } from './scales.js';
 import { TUNINGS } from './theory.js';
+import { resolveTuningKey } from './tunings.js';
 import { CHORDS } from './chords.js';
 import {
   openRootPicker, openScalePicker, openChordPicker, openTuningPicker,
@@ -173,8 +174,8 @@ function refreshScaleRefSetup() {
   const el = getSetupSummaryTarget('scaleref-setup');
   if (!el) return;
   const ctx = getContext();
-  const tuningNames = Object.keys(TUNINGS);
-  const tuning = getSetting('ref.tuning', 'Standard', tuningNames);
+  // The tuning is part of the shared context, like the root and the scale.
+  const tuning = resolveTuningKey(ctx.tuning);
 
   renderSetupSummary(el, [
     {
@@ -254,7 +255,7 @@ function wireTriadSweepNav() {
 
 /* ── Chords ──────────────────────────────────────────────────── */
 function setupChords() {
-  const sec = document.getElementById('sec-chords');
+  const sec = document.getElementById('sec-chordref');
   if (!sec) return;
   sec.classList.add('has-setup-summary');
   ensureBackButton(sec);
@@ -304,7 +305,7 @@ function setupChords() {
   });
 
   // Move fret opts into Options for map
-  const chordOpts = document.querySelector('#sec-chords .ref-fb-opts');
+  const chordOpts = document.querySelector('#sec-chordref .ref-fb-opts');
   if (chordOpts && !document.getElementById('chord-fb-options-details')) {
     const details = document.createElement('details');
     details.className = 'adv-options';
@@ -403,10 +404,10 @@ function refreshChordsSetup() {
   if (!el) return;
   const c = getContext();
   const chord = getSetting('chordref.chord', 'Major');
-  const tuning = getSetting('chordref.tuning', 'Standard');
+  const tuning = resolveTuningKey(c.tuning);
   const title = formatChordLabel(c.root, chord);
   // Update section context line
-  const h2 = document.querySelector('#sec-chords .section-head h2');
+  const h2 = document.querySelector('#sec-chordref .section-head h2');
   if (h2) h2.dataset.context = `${title} · ${tuning}`;
 
   renderSetupSummary(el, [
@@ -508,41 +509,34 @@ function setupChordCardsFilters() {
   updateSummary();
 }
 
-/* ── Fretboard Interval Map (route: intervalorbit) ───────────── */
-function setupIntervalOrbit() {
-  const sec = document.getElementById('sec-intervalorbit');
-  if (!sec) return;
-  sec.classList.add('has-setup-summary');
-  ensureBackButton(sec);
-  const explain = sec.querySelector('.section-head p');
-  if (explain) explain.classList.add('drill-explain');
-  // Tabs, setup summary, board, and subviews are owned by js/interval-map/ui.js.
-}
 
 /* ── Pitch ───────────────────────────────────────────────────── */
 function setupPitch() {
-  const sec = document.getElementById('sec-tuner');
+  const sec = document.getElementById('sec-pitchear');
   if (!sec) return;
-  ensureBackButton(sec);
   const center = sec.querySelector('.tuner-center');
   if (!center) return;
+  if (center.dataset.uxModes === '1') return;
+  center.dataset.uxModes = '1';
 
-  const tabs = document.createElement('div');
-  tabs.id = 'pitch-tabs';
-  sec.insertBefore(tabs, center);
-
+  // The shared tool-page shell owns the mode bar. Its container id is fixed by
+  // js/shell/toolPage.js, so the panels point at it directly.
+  const forTabs = 'tool-page-modes-pitchear';
   const cards = [...center.querySelectorAll(':scope > .quiz-card')];
-  // Expected order: tuner, reference, trainer, runner
-  const names = ['tuner', 'reference', 'trainer', 'runner'];
+  // Expected order: tuner, reference tone, pitch match, pitch runner.
+  const names = ['tuner', 'tone', 'match', 'runner'];
   cards.forEach((card, i) => {
-    wrapAsSubview([card], { id: names[i] || `p${i}`, forTabs: 'pitch-tabs', active: i === 0 });
+    wrapAsSubview([card], { id: names[i] || `p${i}`, forTabs, active: i === 0 });
   });
+
+  const earPane = center.querySelector(':scope > .ear-pane');
+  if (earPane) wrapAsSubview([earPane], { id: 'ear', forTabs, active: false });
 
   // Move trainer/runner configs into options details
   collapsePitchControls();
 
   // Hide runner intro
-  const intro = document.querySelector('.pr-intro');
+  const intro = sec.querySelector('.pr-intro');
   if (intro) {
     intro.hidden = true;
     const help = document.createElement('button');
@@ -553,24 +547,14 @@ function setupPitch() {
     intro.parentNode.insertBefore(help, intro);
   }
 
-  initSubviewTabs(tabs, [
-    { id: 'tuner', label: 'Tuner' },
-    { id: 'reference', label: 'Reference' },
-    { id: 'trainer', label: 'Trainer' },
-    { id: 'runner', label: 'Runner' },
-  ], {
-    settingsKey: 'subview.tuner',
-    defaultId: 'tuner',
-  });
-
-  wireDrillFocus('sec-tuner', 'pt');
+  wireDrillFocus('sec-pitchear', 'pt');
 }
 
 function collapsePitchControls() {
   // Trainer controls
-  const ptControls = document.querySelectorAll('#sec-tuner .pt-controls, #sec-tuner .pr-toggles');
-  const trainerCard = document.querySelector('[data-subview="trainer"] .quiz-card') ||
-    [...document.querySelectorAll('#sec-tuner .quiz-card')].find(c => c.querySelector('#pt-toggle'));
+  const ptControls = document.querySelectorAll('#sec-pitchear .pt-controls, #sec-pitchear .pr-toggles');
+  const trainerCard = document.querySelector('[data-subview="match"] .quiz-card') ||
+    [...document.querySelectorAll('#sec-pitchear .quiz-card')].find(c => c.querySelector('#pt-toggle'));
   if (trainerCard && !trainerCard.querySelector('#pt-setup-details')) {
     const details = document.createElement('details');
     details.className = 'adv-options';
@@ -588,7 +572,7 @@ function collapsePitchControls() {
   }
 
   // Reference scale playback details
-  const refCard = document.querySelector('[data-subview="reference"] .quiz-card');
+  const refCard = document.querySelector('[data-subview="tone"] .quiz-card');
   if (refCard && !refCard.querySelector('#vt-scale-details')) {
     const scaleControls = refCard.querySelector('.vt-scale-controls');
     if (scaleControls) {
@@ -622,79 +606,23 @@ function collapsePitchControls() {
   }
 }
 
-/* ── Fretboard / Ear / Sight / Intervals / Chord Workout ───── */
-function setupFretboard() {
-  const sec = document.getElementById('sec-fretboard');
-  if (!sec) return;
-  sec.classList.add('has-setup-summary');
-  ensureBackButton(sec);
-  const layout = sec.querySelector('.quiz-layout');
-  const main = sec.querySelector('.quiz-main');
-  if (!layout || !main) return;
 
-  const { host: setup } = createSetupToolbar('fb-setup');
-  insertBefore(layout, setup, main);
-
-  const opts = main.querySelector('details.adv-options') || main.querySelector('.fb-workbench-controls');
-  // Ensure workbench is in closed details
-  if (opts && opts.classList.contains('fb-workbench-controls')) {
-    const details = document.createElement('details');
-    details.className = 'adv-options';
-    details.innerHTML = `<summary><span class="adv-gear">⚙</span> Options</summary>`;
-    opts.parentNode.insertBefore(details, opts);
-    details.appendChild(opts);
-  } else if (opts && opts.tagName === 'DETAILS') {
-    opts.open = false;
-  }
-
-  const compact = document.createElement('div');
-  compact.id = 'fb-compact-progress';
-  compact.className = 'compact-progress auto-hide';
-  const ph = main.querySelector('.progress-header');
-  if (ph) ph.after(compact);
-
-  refreshFbSetup();
-  wireDrillFocus('sec-fretboard', 'fb');
-}
-
-function refreshFbSetup() {
-  const el = getSetupSummaryTarget('fb-setup');
-  if (!el) return;
-  const tuning = getSetting('fb.tuning', document.querySelector('#sl-fb-tuning .sl-item.active')?.dataset.val || 'Standard');
-  const mode = getSetting('fb.mode', document.querySelector('#sl-fb-mode .sl-item.active')?.dataset.val || 'notes');
-  renderSetupSummary(el, [
-    {
-      key: 'tuning', value: tuning, hint: 'Tuning',
-      onClick: async () => {
-        const next = await openTuningPicker({ value: tuning });
-        if (next && next !== 'Custom') {
-          const item = document.querySelector(`#sl-fb-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
-          if (item) item.click();
-          refreshFbSetup();
-        }
-      },
-    },
-    {
-      key: 'mode', value: String(mode), hint: 'Mode',
-      onClick: () => openIoListPicker('Mode', 'sl-fb-mode', 'fb.mode').then(refreshFbSetup),
-    },
-  ]);
-}
 
 function setupEar() {
-  const sec = document.getElementById('sec-ear');
-  if (!sec) return;
-  sec.classList.add('has-setup-summary');
-  ensureBackButton(sec);
-  const layout = sec.querySelector('.quiz-layout');
-  const main = sec.querySelector('.quiz-main');
+  const pane = document.querySelector('#sec-pitchear .ear-pane');
+  if (!pane) return;
+  if (pane.dataset.uxWired === '1') return;
+  pane.dataset.uxWired = '1';
+  pane.classList.add('has-setup-summary');
+  const layout = pane.querySelector('.quiz-layout');
+  const main = pane.querySelector('.quiz-main');
   if (!layout || !main) return;
 
   const { host: setup, inner } = createSetupToolbar('ear-setup');
   insertBefore(layout, setup, main);
 
   // Sidebar becomes setup sheet content
-  const sidebar = sec.querySelector('.sidebar');
+  const sidebar = pane.querySelector('.sidebar');
   renderSetupSummary(inner, [
     {
       key: 'setup', value: 'Ear setup', hint: 'Change',
@@ -706,7 +634,6 @@ function setupEar() {
   compact.id = 'ear-compact-progress';
   compact.className = 'compact-progress auto-hide';
   main.querySelector('.progress-header')?.after(compact);
-  wireDrillFocus('sec-ear', 'ear');
   refreshEarSetupSummary();
 }
 
@@ -723,18 +650,14 @@ function refreshEarSetupSummary() {
       key: 'setup',
       value: bits.join(' · ') || 'Ear setup',
       hint: 'Change',
-      onClick: () => openEarSetupSheet(document.querySelector('#sec-ear .sidebar')),
+      onClick: () => openEarSetupSheet(document.querySelector('#sec-pitchear .ear-pane .sidebar')),
     },
   ]);
 }
 
-async function openEarSetupSheet(sidebar) {
+function openEarSetupSheet(sidebar) {
   if (!sidebar) return;
-  // Present as a simple multi-section sheet by cloning labels into selection
-  // For each list, open sequentially is heavy — instead show a dialog with the sidebar content.
-  const { openSelectionSheet: open } = await import('./selectionSheet.js');
-  // Use a lightweight custom panel via selection sheet items for first list only isn't enough.
-  // Toggle a class that shows sidebar as a sheet on mobile.
+  // The sidebar doubles as a bottom sheet on a phone.
   sidebar.classList.add('mobile-setup-sheet');
   sidebar.classList.toggle('open');
   if (!document.getElementById('ear-setup-sheet-style')) {
@@ -742,17 +665,16 @@ async function openEarSetupSheet(sidebar) {
     style.id = 'ear-setup-sheet-style';
     style.textContent = `
       @media ${MOBILE_UX_MQ}{
-        #sec-ear.has-setup-summary .sidebar.mobile-setup-sheet{
+        .ear-pane.has-setup-summary .sidebar.mobile-setup-sheet{
           ${SETUP_SHEET_BASE}
         }
-        #sec-ear.has-setup-summary .sidebar.mobile-setup-sheet.open{display:block}
-        #sec-ear.has-setup-summary:has(.sidebar.mobile-setup-sheet.open){transform:none!important}
+        .ear-pane.has-setup-summary .sidebar.mobile-setup-sheet.open{display:block}
       }
       @media (max-width:768px){
-        #sec-ear.has-setup-summary .sidebar.mobile-setup-sheet{${SETUP_SHEET_PORTRAIT}}
+        .ear-pane.has-setup-summary .sidebar.mobile-setup-sheet{${SETUP_SHEET_PORTRAIT}}
       }
       @media ${LANDSCAPE_PHONE_MQ}{
-        #sec-ear.has-setup-summary .sidebar.mobile-setup-sheet{${SETUP_SHEET_LANDSCAPE}}
+        .ear-pane.has-setup-summary .sidebar.mobile-setup-sheet{${SETUP_SHEET_LANDSCAPE}}
       }
     `;
     document.head.appendChild(style);
@@ -828,7 +750,7 @@ function setupIntervalsAndSight() {
 }
 
 function setupChordWorkout() {
-  const sec = document.getElementById('sec-chordlab');
+  const sec = document.getElementById('sec-chordworkout');
   if (!sec) return;
   sec.classList.add('has-setup-summary');
   ensureBackButton(sec);
@@ -875,14 +797,28 @@ function setupChordWorkout() {
   const taskList = sec.querySelector('.cw-tasks, #cw-tasks');
   if (taskList) taskList.classList.add('cw-tasks-compact');
 
-  wireDrillFocus('sec-chordlab', 'cw');
+  wireDrillFocus('sec-chordworkout', 'cw');
 }
 
 /* ── Metronome ───────────────────────────────────────────────── */
 function setupMetronome() {
   const sec = document.getElementById('sec-metronome');
   if (!sec) return;
-  ensureBackButton(sec);
+
+  // The shared tool-page shell owns the mode bar. The click controls sit in
+  // one mode, the tempo plan in the other.
+  const simple = sec.querySelector('.metronome-simple');
+  if (simple && simple.dataset.uxModes !== '1') {
+    simple.dataset.uxModes = '1';
+    const forTabs = 'tool-page-modes-metronome';
+    const cards = [...simple.querySelectorAll(':scope > .quiz-card')];
+    const phases = simple.querySelector('#m-phases-card');
+    const clickCards = cards.filter(card => card !== phases);
+    if (clickCards.length) {
+      wrapAsSubview(clickCards, { id: 'metronome', forTabs, active: true });
+    }
+    if (phases) wrapAsSubview([phases], { id: 'plan', forTabs, active: false });
+  }
 
   const beatCard = sec.querySelector('.metro-settings-card');
   if (beatCard && !beatCard.querySelector('summary')) {
@@ -969,105 +905,7 @@ function setupMetronome() {
   }
 }
 
-/* ── Practice Timer ──────────────────────────────────────────── */
-function setupPracticeTimer() {
-  const sec = document.getElementById('sec-practice');
-  if (!sec) return;
-  ensureBackButton(sec);
-  const drive = document.getElementById('ptimer-drive') || sec.querySelector('[id*="drive"], [id*="metro"]');
-  // Hide tempo plan until drive enabled
-  const plan = sec.querySelector('.ptimer-plan, #ptimer-plan, [class*="tempo-plan"]');
-  const planCards = [...sec.querySelectorAll('.quiz-card')].filter(c => /tempo plan|phase|drive the metronome/i.test(c.textContent));
-  // Heuristic: last cards after main timer
-  const allCards = [...sec.querySelectorAll('.quiz-card')];
-  if (allCards.length > 1) {
-    const secondary = allCards.slice(1);
-    secondary.forEach(c => {
-      if (/drive|tempo|phase|plan/i.test(c.textContent)) {
-        c.classList.add('ptimer-plan-block');
-      }
-    });
-  }
-  const driveToggle = sec.querySelector('input[type=checkbox]');
-  const sync = () => {
-    const on = !!sec.querySelector('input[type=checkbox]:checked');
-    sec.querySelectorAll('.ptimer-plan-block').forEach(el => {
-      // Keep the drive toggle card visible; hide deeper editors when off
-    });
-  };
-  // More precise: find "Drive the Metronome" checkbox
-  const labels = [...sec.querySelectorAll('label')];
-  const driveLabel = labels.find(l => /drive the metronome/i.test(l.textContent));
-  if (driveLabel) {
-    const cb = driveLabel.querySelector('input[type=checkbox]');
-    const planSection = driveLabel.closest('.quiz-card')?.nextElementSibling;
-    const hidePlan = () => {
-      let el = driveLabel.closest('.quiz-card')?.nextElementSibling;
-      while (el) {
-        if (el.classList?.contains('quiz-card') || el.matches?.('.flat-block, details, .ptimer-plan')) {
-          el.hidden = !cb?.checked;
-        }
-        el = el.nextElementSibling;
-      }
-      // Show compact summary when on
-      if (cb?.checked) {
-        let sum = document.getElementById('ptimer-plan-summary');
-        if (!sum) {
-          sum = document.createElement('div');
-          sum.id = 'ptimer-plan-summary';
-          sum.className = 'setup-summary';
-          sum.innerHTML = `<div class="setup-summary-label">Tempo plan</div>
-            <button type="button" class="btn sm" id="ptimer-edit-plan">Edit plan</button>`;
-          driveLabel.closest('.quiz-card')?.after(sum);
-          sum.querySelector('#ptimer-edit-plan').onclick = () => {
-            let n = sum.nextElementSibling;
-            while (n) {
-              n.hidden = false;
-              n = n.nextElementSibling;
-            }
-          };
-        }
-        sum.hidden = false;
-      } else {
-        const sum = document.getElementById('ptimer-plan-summary');
-        if (sum) sum.hidden = true;
-      }
-    };
-    cb?.addEventListener('change', hidePlan);
-    hidePlan();
-  }
-}
 
-/* ── Timing ──────────────────────────────────────────────────── */
-function setupTiming() {
-  const sec = document.getElementById('sec-timing');
-  if (!sec) return;
-  sec.classList.add('has-setup-summary');
-  ensureBackButton(sec);
-  const explain = [...sec.querySelectorAll('p')].filter(p => p.closest('.section-head') || /perfect|threshold|early|late/i.test(p.textContent));
-  explain.forEach(p => p.classList.add('drill-explain'));
-
-  const { host: setup, inner } = createSetupToolbar('timing-setup', '');
-  const head = sec.querySelector('.section-head');
-  if (head) head.after(setup);
-
-  const bpm = document.getElementById('td-bpm') || sec.querySelector('input[type=number]');
-  const refresh = () => {
-    const c = getContext();
-    renderSetupSummary(inner, [
-      {
-        key: 'bpm', value: `${bpm?.value || c.tempo} BPM`, hint: 'Tempo',
-        onClick: () => {
-          const details = sec.querySelector('details.adv-options') || bpm?.closest('.quiz-card');
-          if (details?.tagName === 'DETAILS') details.open = true;
-          bpm?.focus();
-        },
-      },
-    ]);
-  };
-  refresh();
-  wireDrillFocus('sec-timing', 'timing');
-}
 
 /* ── Songwriting / Notes ─────────────────────────────────────── */
 function setupMasterDetail(sectionId, listSel, editorSel, itemSel) {
@@ -1109,8 +947,8 @@ function setupMasterDetail(sectionId, listSel, editorSel, itemSel) {
 }
 
 function setupSongwriter() {
-  setupMasterDetail('sec-songwriter', '.sw-list, .songwriter-list, #sw-list', '.sw-editor, .songwriter-editor, #sw-editor', '.sw-list-item');
-  const sec = document.getElementById('sec-songwriter');
+  setupMasterDetail('sec-songstudio', '.sw-list, .songwriter-list, #sw-list', '.sw-editor, .songwriter-editor, #sw-editor', '.sw-list-item');
+  const sec = document.getElementById('sec-songstudio');
   if (!sec) return;
   // Collapsible recordings
   const rec = [...sec.querySelectorAll('details, .sw-recordings, [class*=record]')].find(el => /recording/i.test(el.textContent || ''));
@@ -1201,55 +1039,30 @@ function setupKeyboard() {
 }
 
 function setupRecorder() {
-  const sec = document.getElementById('sec-recorder');
+  const sec = document.getElementById('sec-audiostudio');
   if (!sec) return;
-  ensureBackButton(sec);
-  const tabs = document.createElement('div');
-  tabs.id = 'rec-tabs';
-  const head = sec.querySelector('.section-head');
-  if (head) head.after(tabs);
+  const center = sec.querySelector('.recorder-center');
+  if (!center) return;
+  if (center.dataset.uxModes === '1') return;
+  center.dataset.uxModes = '1';
 
-  const cards = [...sec.querySelectorAll(':scope > .quiz-card, :scope > .rec-card, .recorder-grid > .quiz-card')];
-  // Fallback: group by known IDs
-  const live = document.getElementById('rec-live-card') || sec.querySelector('.rec-live') || cards[0];
-  const takes = document.getElementById('rec-takes')?.closest('.quiz-card') ||
-    [...sec.querySelectorAll('.quiz-card')].find(c => /takes|previous/i.test(c.querySelector('h3, .field-label, .rec-section-label')?.textContent || ''));
-  const analysis = document.getElementById('rec-analysis-card') ||
-    [...sec.querySelectorAll('.quiz-card')].find(c => /analysis|pitch/i.test(c.querySelector('h3, .field-label')?.textContent || ''));
+  // The shared tool-page shell owns the mode bar.
+  const forTabs = 'tool-page-modes-audiostudio';
+  const cards = [...center.querySelectorAll(':scope > .quiz-card')];
+  const analysis = document.getElementById('rec-analysis-card');
+  const riff = document.getElementById('rec-riff-card');
+  const ttsPane = center.querySelector(':scope > .tts-pane');
+  const captureCards = cards.filter(card => card !== analysis && card !== riff);
 
-  if (live) wrapAsSubview([live], { id: 'record', forTabs: 'rec-tabs', active: true });
-  if (takes) wrapAsSubview([takes], { id: 'takes', forTabs: 'rec-tabs', active: false });
-  if (analysis) wrapAsSubview([analysis], { id: 'analysis', forTabs: 'rec-tabs', active: false });
-
-  if (live || takes || analysis) {
-    initSubviewTabs(tabs, [
-      { id: 'record', label: 'Record' },
-      ...(takes ? [{ id: 'takes', label: 'Takes' }] : []),
-      ...(analysis ? [{ id: 'analysis', label: 'Analysis' }] : []),
-    ], { settingsKey: 'subview.recorder', defaultId: 'record' });
+  if (captureCards.length) {
+    wrapAsSubview(captureCards, { id: 'capture', forTabs, active: true });
   }
-}
+  if (analysis) wrapAsSubview([analysis], { id: 'analyze', forTabs, active: false });
 
-function setupDrums() {
-  const sec = document.getElementById('sec-drums');
-  if (!sec) return;
-  ensureBackButton(sec);
-  const subnav = sec.querySelector('.drums-subnav, .drum-tabs, [role=tablist]');
-  if (subnav) {
-    subnav.classList.add('subview-tabs');
-    subnav.style.overflowX = 'auto';
+  const transcribe = [riff, ttsPane].filter(Boolean);
+  if (transcribe.length) {
+    wrapAsSubview(transcribe, { id: 'transcribe', forTabs, active: false });
   }
-}
-
-function setupScaleQuiz() {
-  const sec = document.getElementById('sec-scales');
-  if (!sec) return;
-  ensureBackButton(sec);
-  const compact = document.createElement('div');
-  compact.id = 'scales-compact-progress';
-  compact.className = 'compact-progress auto-hide';
-  sec.querySelector('.progress-header')?.after(compact);
-  wireDrillFocus('sec-scales', 'scale');
 }
 
 /* ── Drill focus helper ──────────────────────────────────────── */
@@ -1417,7 +1230,7 @@ function refreshTriadsSetup() {
   const el = getSetupSummaryTarget('triads-setup');
   if (!el) return;
   const c = getContext();
-  const tuning = getSetting('triadref.tuning', 'Standard');
+  const tuning = resolveTuningKey(c.tuning);
   const viewMode = getSetting('triadref.viewMode', 'triads', ['triads', 'sweep']);
   const stringSet = Number(getSetting('triadref.stringSet', NaN));
   const setLabel = (() => {
@@ -1482,32 +1295,26 @@ function refreshTriadsSetup() {
 /* ── Generic back buttons for remaining tools ────────────────── */
 function ensureAllBackButtons() {
   document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
-    if (sec.id === 'sec-home' || sec.id.startsWith('sec-hub-')) return;
+    if (sec.classList.contains('area-section')) return;
     ensureBackButton(sec);
   });
 }
 
 export function initScreenUx(config = {}) {
   showSectionFn = config.showSection;
-  setupScaleQuiz();
   setupScaleRef();
   setupChords();
   setupTriads();
-  setupIntervalOrbit();
   setupPitch();
-  setupFretboard();
   setupEar();
   setupIntervalsAndSight();
   setupChordWorkout();
   setupMetronome();
-  setupPracticeTimer();
-  setupTiming();
   setupSongwriter();
   setupNotes();
   setupExercises();
   setupKeyboard();
   setupRecorder();
-  setupDrums();
   ensureAllBackButtons();
   syncSetupToolbars();
   window.matchMedia(LANDSCAPE_PHONE_MQ).addEventListener('change', syncSetupToolbars);

@@ -1,5 +1,11 @@
 # Cloud Sync & Accounts — Implementation Plan
 
+> **Routines were removed.** The consolidation refactor deleted the Routines
+> feature, so `routines` is no longer a sync scope, a sync domain, or a merge
+> case. Every mention of `routines` or `musi.routines` below is history. Stored
+> `musi.routines` data stays on the device; nothing reads it and nothing syncs
+> it.
+
 Optional accounts and background sync across Musi installs — Supabase as the data plane only.
 
 Musi today is a fully local progressive web app: routines, exercises, workbooks, notes, songs, progress stats, and preferences all live on the device. Device sync (ZIP export/import and QR beam/receive) already moves most of that library between machines, but it is manual, one-shot, and cannot express deletes. This plan adds an **optional** cloud layer: sign in with a passwordless email OTP, and Musi keeps the same data in step across phones, tablets, and desktops. Supabase provides Auth, Postgres, Storage, and Realtime only; the PWA continues to ship as static files from its current host with no build step.

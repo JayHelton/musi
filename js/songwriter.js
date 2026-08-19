@@ -282,7 +282,7 @@ function selectSong(id, { showEditor = false } = {}) {
   showEditorBody(true);
   renderRecordings(song);
   renderList();
-  if (showEditor) setMasterDetailView('sec-songwriter', 'editor');
+  if (showEditor) setMasterDetailView('sec-songstudio', 'editor');
 }
 
 function newSong() {
@@ -296,7 +296,7 @@ function newSong() {
   showEditorBody(true);
   renderRecordings(song);
   renderList();
-  setMasterDetailView('sec-songwriter', 'editor');
+  setMasterDetailView('sec-songstudio', 'editor');
   setTimeout(() => titleInput.focus(), 30);
 }
 
@@ -357,7 +357,7 @@ function confirmDeleteSong() {
       revokeRecURLs();
       showEditorBody(false);
       renderList();
-      setMasterDetailView('sec-songwriter', 'list');
+      setMasterDetailView('sec-songstudio', 'list');
       for (const id of ids) { try { await deleteAudio(id); } catch (e) {} }
     },
   );
@@ -705,7 +705,7 @@ export function initSongwriter() {
 
   if (!listEl) return;
 
-  setMasterDetailView('sec-songwriter', 'list');
+  setMasterDetailView('sec-songstudio', 'list');
 
   if (!wired) {
     wired = true;

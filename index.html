@@ -78,38 +78,25 @@
 <link rel="stylesheet" href="css/library-drive.css">
 <link rel="stylesheet" href="css/companions.css">
 <link rel="stylesheet" href="css/workbooks.css">
-<!-- SIMPLIFY: Routines styles hidden. Link kept. -->
-<!-- <link rel="stylesheet" href="css/routines.css"> -->
-<!-- SIMPLIFY: Drums builder styles hidden. Guitar Pro player styles stay. -->
-<!-- <link rel="stylesheet" href="css/drums.css"> -->
 <link rel="stylesheet" href="css/chordworkout.css">
 <link rel="stylesheet" href="css/notes.css">
-<link rel="stylesheet" href="css/practice.css">
 <link rel="stylesheet" href="css/tabanalyzer.css">
 <link rel="stylesheet" href="css/tracktosheet.css">
 <link rel="stylesheet" href="css/gpplayer.css">
 <link rel="stylesheet" href="css/gpimport.css">
-<!-- SIMPLIFY: Interval Map styles hidden. Link kept. -->
-<!-- <link rel="stylesheet" href="css/intervalorbit.css"> -->
 <link rel="stylesheet" href="css/selection-sheet.css">
 <link rel="stylesheet" href="css/ux-shell.css">
-<link rel="stylesheet" href="css/ux-chords-orbit.css">
+<link rel="stylesheet" href="css/chordref.css">
 <link rel="stylesheet" href="css/triads.css">
 <link rel="stylesheet" href="css/settings.css">
-<!-- SIMPLIFY: Study Lab styles hidden. Link kept. -->
-<!-- <link rel="stylesheet" href="css/study-lab.css"> -->
 <link rel="stylesheet" href="css/sync.css">
 <link rel="stylesheet" href="css/cloud.css">
 <link rel="stylesheet" href="css/theme-gbc.css">
-<link rel="stylesheet" href="css/route-notice.css">
 <link rel="stylesheet" href="css/app-toast.css">
 <link rel="stylesheet" href="css/shell.css">
 <link rel="stylesheet" href="css/context-quick.css">
-<link rel="stylesheet" href="css/tools-home.css">
 <link rel="stylesheet" href="css/tool-page.css">
 <link rel="stylesheet" href="css/audio-dock.css">
-<!-- SIMPLIFY: Fretboard trainer styles hidden. Link kept. -->
-<!-- <link rel="stylesheet" href="css/fretboard.css"> -->
 <link rel="stylesheet" href="css/landscape.css">
 </head>
 <body class="boot-locked app-shell">
@@ -167,10 +154,6 @@
   </div>
 </div>
 <canvas id="visualizer-canvas"></canvas>
-<div id="route-notice" class="route-notice" hidden role="status" aria-live="polite">
-  <p class="route-notice-text" id="route-notice-text"></p>
-  <button type="button" class="route-notice-close" id="route-notice-close" aria-label="Dismiss">&times;</button>
-</div>
 
 <div id="now-playing" class="now-playing">
   <div class="np-eq">
@@ -203,74 +186,17 @@
   <span class="hold-rec-btn-icon" aria-hidden="true">&#9679;</span>
 </button>
 
-<nav id="nav" class="dock"></nav>
 <main class="app-main">
-  <!-- TOOLS HOME -->
-  <section id="sec-tools" class="section">
-    <div id="tools-home" class="tools-home"></div>
-  </section>
 
-  <!-- HOME (legacy; no longer boot target) -->
-  <section id="sec-home" class="section">
-    <div class="section-head">
-      <div class="section-kicker">Practice</div>
-      <h2>musi</h2>
-    </div>
-    <!-- SIMPLIFY: Routines home cards hidden. Markup kept. -->
-    <div id="home-routines" class="home-routines" hidden></div>
-    <div id="home-status" class="home-status" role="status" aria-live="polite"></div>
-    <details id="home-all-panel" class="home-section home-all-panel">
-      <summary class="home-section-label home-panel-summary">
-        <span>Browse tools</span>
-      </summary>
-      <div class="home-all-rows"></div>
-    </details>
-  </section>
-
-  <!-- CATEGORY HUBS (mobile) -->
-  <section id="sec-hub-train" class="section hub-section"></section>
-  <section id="sec-hub-reference" class="section hub-section"></section>
-  <section id="sec-hub-create" class="section hub-section"></section>
-  <section id="sec-hub-tools" class="section hub-section"></section>
-
-  <!-- SIMPLIFY: Scale Spelling hidden. Section kept. -->
-  <!-- SCALE QUIZ -->
-  <section id="sec-scales" class="section" hidden>
-    <div class="section-head">
-      <div class="section-kicker">Drill</div>
-      <h2>Scale Spelling</h2>
-    </div>
-    <div class="quiz-layout">
-      <div class="quiz-main">
-        <div class="progress-header" data-score="#sq-score" data-streak="#sq-streak">
-          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="sq-streak">0</span><span class="ph-streak-label">Streak</span></div>
-          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count" id="sq-score">0 / 0</span></div>
-          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
-          <button class="btn sm ph-reset" onclick="resetScore('scale')">Reset</button>
-        </div>
-        <div class="quiz-card">
-          <div class="question" id="sq-question">Press Next to start.</div>
-          <div class="note-input-display empty" id="sq-display"></div>
-          <div class="note-btn-row" id="sq-notes"></div>
-          <div class="feedback" id="sq-feedback"></div>
-          <div class="hint-bar" id="sq-hint-bar"></div>
-        </div>
-        <div class="action-dock">
-          <div class="note-action-row">
-            <button class="btn sm" onclick="noteUndo()">Backspace</button>
-            <button class="btn sm" onclick="noteClear()">Clear</button>
-            <button class="btn primary" onclick="checkScaleA()">Submit</button>
-            <button class="btn new-q-btn" onclick="newScaleQ()">Next</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+  <!-- AREA PAGES -->
+  <section id="sec-train" class="section area-section"></section>
+  <section id="sec-study" class="section area-section"></section>
+  <section id="sec-create" class="section area-section"></section>
+  <section id="sec-library" class="section area-section"></section>
 
   <!-- INTERVAL QUIZ -->
   <section id="sec-intervals" class="section">
     <div class="section-head">
-      <div class="section-kicker">Drill</div>
       <h2>Intervals</h2>
     </div>
     <div class="quiz-layout">
@@ -285,7 +211,7 @@
           <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="iq-streak">0</span><span class="ph-streak-label">Streak</span></div>
           <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count" id="iq-score">0 / 0</span></div>
           <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
-          <button class="btn sm ph-reset" onclick="resetScore('interval')">Reset</button>
+          <button class="btn sm ph-reset" onclick="resetScore()">Reset</button>
         </div>
         <div class="quiz-card">
           <div class="question" id="iq-question">Set difficulty, then Next.</div>
@@ -304,7 +230,6 @@
   <!-- SIGHT READING QUIZ -->
   <section id="sec-sightreading" class="section">
     <div class="section-head">
-      <div class="section-kicker">Drill</div>
       <h2>Sight Reading</h2>
     </div>
     <div class="quiz-layout">
@@ -342,7 +267,6 @@
   <!-- SCALE REFERENCE -->
   <section id="sec-scaleref" class="section">
     <div class="section-head">
-      <div class="section-kicker">Reference</div>
       <h2>Scale Reference</h2>
     </div>
     <div class="quiz-layout">
@@ -391,10 +315,9 @@
   </section>
 
   <!-- CHORDS: MAPPING + BUILDER -->
-  <section id="sec-chords" class="section">
+  <section id="sec-chordref" class="section">
     <div class="section-head">
-      <div class="section-kicker">Reference</div>
-      <h2>Chords</h2>
+      <h2>Chord Reference</h2>
       <p>Browse chord tones on the neck and study closed movable shapes for standard and drop tuning.</p>
     </div>
     <div class="quiz-layout">
@@ -505,8 +428,7 @@
   <!-- TRIADS REFERENCE -->
   <section id="sec-triads" class="section">
     <div class="section-head">
-      <div class="section-kicker">Reference</div>
-      <h2>Triads Reference</h2>
+      <h2>Triads</h2>
       <p>Closed triad patterns and sweep-picking shapes for a selected root — map every movable triad voicing or study authored 3/4/5-string sweeps with inversions.</p>
     </div>
     <div class="quiz-layout">
@@ -562,7 +484,6 @@
   <!-- CIRCLE OF FIFTHS -->
   <section id="sec-circle" class="section">
     <div class="section-head">
-      <div class="section-kicker">Reference</div>
       <h2>Circle of Fifths</h2>
     </div>
     <div id="circle-container">
@@ -576,7 +497,6 @@
   <!-- KEYBOARD -->
   <section id="sec-keyboard" class="section">
     <div class="section-head">
-      <div class="section-kicker">Tools</div>
       <h2>Keyboard</h2>
       <p>Play notes, hold drones, and test sounds directly in the browser.</p>
     </div>
@@ -599,7 +519,6 @@
   <!-- METRONOME -->
   <section id="sec-metronome" class="section">
     <div class="section-head">
-      <div class="section-kicker">Tools</div>
       <h2>Metronome</h2>
     </div>
     <div class="metronome-simple">
@@ -687,175 +606,11 @@
       </div>
     </div>
 
-    <!-- Advanced metronome UI disabled for now. Keep this markup for future reactivation.
-    <div class="metro-grid">
-      <div class="quiz-card">
-        <div class="metro-card-title">Tempo &amp; Time Signature</div>
-        <div class="metro-row">
-          <label>BPM</label>
-          <input type="number" id="m-bpm" min="30" max="300" value="120">
-          <input type="range" id="m-bpm-slider" min="30" max="300" value="120">
-          <button class="btn sm" id="m-tap">Tap Tempo</button>
-        </div>
-        <div class="metro-row">
-          <label>Time Sig</label>
-          <select id="m-ts-num">
-            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-            <option value="4" selected>4</option><option value="5">5</option><option value="6">6</option>
-            <option value="7">7</option><option value="8">8</option><option value="9">9</option>
-            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
-          </select>
-          <span style="color:var(--muted);font-size:1.1rem">/</span>
-          <select id="m-ts-den">
-            <option value="2">2</option><option value="4" selected>4</option>
-            <option value="8">8</option><option value="16">16</option>
-          </select>
-        </div>
-      </div>
-      <div class="quiz-card">
-        <div class="metro-card-title">Measure Builder</div>
-        <div class="m-bar" id="m-bar"></div>
-        <div class="m-beats-filled" id="m-beats-filled">Beats filled: 0 / 4</div>
-        <div class="metro-row">
-          <button class="nv-btn" data-nv="whole">W</button>
-          <button class="nv-btn" data-nv="half">H</button>
-          <button class="nv-btn" data-nv="quarter">Q</button>
-          <button class="nv-btn" data-nv="eighth">8th</button>
-          <button class="nv-btn" data-nv="sixteenth">16th</button>
-        </div>
-        <div class="metro-row">
-          <button class="btn sm mod-toggle" id="m-dot">Dot ·</button>
-          <button class="btn sm mod-toggle" id="m-trip">Triplet 3</button>
-          <button class="btn sm mod-toggle" id="m-rest">Rest</button>
-          <button class="btn sm" onclick="clearMeasure()">Clear</button>
-        </div>
-      </div>
-      <div class="quiz-card">
-        <div class="metro-card-title">Presets</div>
-        <div class="metro-row">
-          <button class="btn sm" onclick="loadPreset('straight-quarters')">Straight Quarters</button>
-          <button class="btn sm" onclick="loadPreset('straight-eighths')">Straight Eighths</button>
-          <button class="btn sm" onclick="loadPreset('gallop')">Gallop</button>
-          <button class="btn sm" onclick="loadPreset('shuffle')">Shuffle</button>
-          <button class="btn sm" onclick="loadPreset('blast-beat')">Blast Beat</button>
-        </div>
-      </div>
-      <div class="quiz-card">
-        <div class="metro-card-title">Accents</div>
-        <div class="metro-row" id="m-accents"></div>
-      </div>
-      <div class="quiz-card">
-        <div class="metro-card-title">Transport</div>
-        <div class="metro-row">
-          <button class="btn primary" id="m-play">&#9654; Play</button>
-          <button class="btn sm metro-toggle active" id="m-loop">Loop: On</button>
-          <button class="btn sm metro-toggle" id="m-countin">Count-in: Off</button>
-        </div>
-        <div id="m-beat-ind"></div>
-        <div class="beat-pulse-ring" id="beat-pulse-ring"></div>
-      </div>
-    </div>
-    -->
-  </section>
-
-  <!-- SIMPLIFY: Fretboard trainer hidden. Section kept. -->
-  <!-- FRETBOARD TRAINER -->
-  <section id="sec-fretboard" class="section" hidden>
-    <div class="section-head">
-      <div class="section-kicker">Drill</div>
-      <h2>Fretboard</h2>
-    </div>
-    <div class="quiz-layout">
-      <div class="sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Tuning</div>
-          <div class="sl-scroll" id="sl-fb-tuning"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Mode</div>
-          <div class="sl-scroll" id="sl-fb-mode"></div>
-        </div>
-      </div>
-      <div class="quiz-main">
-        <div class="progress-header" data-right="#fb-right" data-total="#fb-total" data-streak="#fb-streak">
-          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="fb-streak">0</span><span class="ph-streak-label">Streak</span></div>
-          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count"><b id="fb-right">0</b> / <span id="fb-total">0</span></span></div>
-          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
-          <button class="btn sm ph-reset" id="fb-reset-score" onclick="resetFbScore()">Reset</button>
-        </div>
-        <details class="adv-options">
-          <summary><span class="adv-gear">&#9881;</span> Options</summary>
-          <div class="fb-workbench-controls">
-            <label>Frets <input type="number" id="fb-fret-start" min="0" max="24" value="0" inputmode="numeric"> - <input type="number" id="fb-fret-end" min="1" max="24" value="15" inputmode="numeric"></label>
-            <label><input type="checkbox" id="fb-show-labels"> Labels</label>
-            <label><input type="checkbox" id="fb-show-intervals"> Intervals</label>
-          </div>
-        </details>
-        <div class="quiz-card fb-card-compact">
-          <div class="fb-question" id="fb-question">Next to start.</div>
-          <div class="fb-wrap">
-            <div class="fretboard" id="fb-board"></div>
-          </div>
-          <div class="field-label" id="fb-answer-label">Interval from root</div>
-          <div class="int-picker" id="fb-intervals"></div>
-          <div class="fb-feedback" id="fb-feedback"></div>
-        </div>
-        <div class="action-dock">
-          <button class="btn primary" style="width:100%" onclick="newFbQuestion()">Next</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SIMPLIFY: Fretboard Interval Map hidden. Section kept. -->
-  <!-- INTERVAL ORBIT -->
-  <section id="sec-intervalorbit" class="section" hidden>
-    <div class="section-head">
-      <div class="section-kicker">Train</div>
-      <h2>Fretboard Interval Map</h2>
-      <p>Learn the reusable fretboard shapes for every interval around an anchor root, then test yourself by locating, naming, or playing them.</p>
-    </div>
-    <div class="quiz-layout io-layout">
-      <div class="quiz-main io-main">
-        <div id="io-tabs" class="subview-tabs" role="tablist" aria-label="Interval Map views"></div>
-        <div id="io-setup" class="setup-summary mobile-setup-first"></div>
-        <div id="io-compact-progress" class="compact-progress" aria-live="polite"></div>
-
-        <div id="io-panel-map" class="subview-panel active" data-subview="map" data-subview-for="io-tabs">
-          <div id="io-anchor-display" class="io-anchor-display" aria-live="polite"></div>
-          <div id="io-interval-picker" class="io-interval-picker" role="toolbar" aria-label="Interval focus"></div>
-        </div>
-        <div id="io-panel-quiz" class="subview-panel" data-subview="quiz" data-subview-for="io-tabs" hidden></div>
-        <div id="io-panel-play" class="subview-panel" data-subview="play" data-subview-for="io-tabs" hidden></div>
-        <div id="io-panel-progress" class="subview-panel" data-subview="progress" data-subview-for="io-tabs" hidden>
-          <div id="io-progress-body"></div>
-        </div>
-
-        <div class="quiz-card fb-card-compact io-card" id="io-workbench">
-          <div class="fb-question" id="io-challenge" aria-live="polite">Choose an anchor root to begin.</div>
-          <div id="io-interval-meta" class="io-interval-meta"></div>
-          <div class="io-board-wrap">
-            <div class="fb-wrap">
-              <svg class="io-shape-overlay" id="io-shape-overlay" aria-hidden="true"></svg>
-              <div class="fretboard io-fretboard" id="io-board" role="grid" aria-label="Guitar fretboard"></div>
-            </div>
-          </div>
-          <div id="io-shape-compare" class="io-shape-compare"></div>
-          <div id="io-answer-picker" class="int-picker" hidden></div>
-          <div id="io-pitch-live" class="io-pitch-live" aria-live="polite"></div>
-          <div class="fb-feedback" id="io-feedback" aria-live="polite"></div>
-          <div id="io-actions" class="io-actions"></div>
-        </div>
-
-        <div class="quiz-card io-improv-panel" id="io-improv-panel" hidden></div>
-      </div>
-    </div>
   </section>
 
   <!-- CHORD WORKOUT -->
-  <section id="sec-chordlab" class="section">
+  <section id="sec-chordworkout" class="section">
     <div class="section-head">
-      <div class="section-kicker">Drill</div>
       <h2>Chord Workout</h2>
       <p>Get a random chord &mdash; a random root and chord type each time &mdash; then work through its positions, arpeggios and scale. Record yourself for feedback, and reveal the answer when you are ready.</p>
     </div>
@@ -901,10 +656,9 @@
   </section>
 
   <!-- VOCAL TRAINER -->
-  <section id="sec-tuner" class="section">
+  <section id="sec-pitchear" class="section">
     <div class="section-head">
-      <div class="section-kicker">Drill</div>
-      <h2>Pitch</h2>
+      <h2>Pitch &amp; Ear</h2>
     </div>
     <div class="tuner-center">
       <div class="quiz-card">
@@ -1096,283 +850,61 @@
         </div>
         <div class="pt-status" id="pr-status">Mic off</div>
       </div>
-    </div>
-  </section>
-
-  <!-- EAR TRAINER -->
-  <section id="sec-ear" class="section">
-    <div class="section-head">
-      <div class="section-kicker">Drill</div>
-      <h2>Ear</h2>
-    </div>
-    <div class="quiz-layout">
-      <div class="sidebar">
-        <details class="adv-options">
-          <summary><span class="adv-gear">&#9881;</span> Options</summary>
-          <div class="sidebar-list">
-            <div class="sl-head">Context</div>
-            <div class="sl-scroll" id="sl-ear-context"></div>
-          </div>
-          <div class="sidebar-list">
-            <div class="sl-head">Pool</div>
-            <div class="sl-scroll" id="sl-ear-pool"></div>
-          </div>
-          <div class="sidebar-list">
-            <div class="sl-head">Answer</div>
-            <div class="sl-scroll" id="sl-ear-answer"></div>
-          </div>
-          <div class="sidebar-list">
-            <div class="sl-head">Octave</div>
-            <div class="sl-scroll" id="sl-ear-octave"></div>
-          </div>
-        </details>
-      </div>
-      <div class="quiz-main">
-        <div class="progress-header" data-right="#ear-right" data-total="#ear-total" data-streak="#ear-streak">
-          <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="ear-streak">0</span><span class="ph-streak-label">Streak</span></div>
-          <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count"><b id="ear-right">0</b> / <span id="ear-total">0</span></span></div>
-          <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
-          <button class="btn sm ph-reset" onclick="resetEarScore()">Reset</button>
-        </div>
-        <div class="quiz-card">
-          <div class="question" id="ear-question">Play to start.</div>
-          <div class="ear-ripple-wrap" id="ear-ripple-wrap"></div>
-          <div class="field-label" id="ear-answer-label">Pitch</div>
-          <div class="note-btn-row" id="ear-answers"></div>
-          <div class="fb-feedback" id="ear-feedback"></div>
-        </div>
-        <div class="action-dock">
-          <div class="ear-transport">
-            <button class="btn sm" onclick="replayEarNote()">Replay</button>
-            <button class="btn primary" onclick="playEarQuestion()">Play / Next</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SIMPLIFY: Timing drill hidden. Section kept. -->
-  <!-- TIMING DRILL -->
-  <section id="sec-timing" class="section" hidden>
-    <div class="section-head">
-      <div class="section-kicker">Drill</div>
-      <h2>Timing</h2>
-      <p>Tap with your thumb against a click track and learn whether each beat is perfect, good, too fast or too slow.</p>
-    </div>
-    <div class="timing-layout">
-      <div class="quiz-card timing-main-card">
-        <div class="timing-topline">
-          <div>
-            <div class="timing-readout" id="td-bpm-readout">120 BPM</div>
-            <div class="timing-subreadout" id="td-measure-label">Measure 1 - 4/4</div>
-          </div>
-          <div class="timing-current">
-            <span>Beat</span>
-            <b id="td-current-beat">1.1</b>
-          </div>
-        </div>
-
-        <div class="timing-controls">
-          <label class="timing-field">
-            <span>BPM</span>
-            <input type="number" id="td-bpm" min="30" max="300" value="120" inputmode="numeric" aria-label="Timing drill BPM">
-          </label>
-          <label class="timing-field timing-slider-field">
-            <span>Tempo</span>
-            <input type="range" id="td-bpm-slider" min="30" max="300" value="120" aria-label="Timing drill BPM slider">
-          </label>
-          <label class="timing-field">
-            <span>Measure</span>
-            <select id="td-beats" aria-label="Timing drill beats per measure"></select>
-          </label>
-        </div>
-
-        <div class="timing-transport">
-          <button class="btn primary" id="td-start" type="button">Start click</button>
-          <button class="btn sm" id="td-reset" type="button">Reset score</button>
-        </div>
-
-        <div class="timing-beat-dots" id="td-beat-dots" aria-label="Measure beats"></div>
-
-        <div class="timing-result-row">
-          <div class="td-result" id="td-result">Ready</div>
-          <div class="td-result-detail" id="td-result-detail">Start the click track and tap with your thumb.</div>
-        </div>
-
-        <div class="td-offset-meter" aria-hidden="true">
-          <span>Fast</span>
-          <div class="td-offset-track">
-            <div class="td-offset-center"></div>
-            <div class="td-offset-marker" id="td-offset-marker"></div>
-          </div>
-          <span>Slow</span>
-        </div>
-
-        <button class="timing-tap-pad" id="td-tap-pad" type="button" aria-label="Tap timing beat">
-          <span class="timing-tap-label">Thumb Tap</span>
-          <span class="timing-tap-hint">Tap every click or press Space</span>
-        </button>
-
-        <div class="timing-status" id="td-status">Click track stopped.</div>
-      </div>
-
-      <div class="quiz-card timing-score-card">
-        <div class="metro-card-title">Timing Score</div>
-        <div class="timing-score-grid">
-          <div class="timing-score perfect"><b id="td-perfect">0</b><span>Perfect</span></div>
-          <div class="timing-score good"><b id="td-good">0</b><span>Good</span></div>
-          <div class="timing-score fast"><b id="td-fast">0</b><span>Too fast</span></div>
-          <div class="timing-score slow"><b id="td-slow">0</b><span>Too slow</span></div>
-        </div>
-        <div class="timing-summary">
-          <div><span>Total taps</span><b id="td-attempts">0</b></div>
-          <div><span>On time</span><b id="td-on-time">0%</b></div>
-          <div><span>Streak</span><b id="td-streak">0</b></div>
-        </div>
-        <p class="timing-help">Perfect is within 20 ms of the click. Good is within 60 ms. Early taps are too fast; late taps are too slow.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- BACKING TRACK -->
-  <!-- Backing Track feature disabled in the UI for now. Keep this markup for future reactivation.
-  <section id="sec-backing" class="section">
-    <div class="quiz-layout">
-      <div class="sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Key</div>
-          <div class="sl-scroll" id="sl-backing-key"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Scale</div>
-          <div class="sl-scroll" id="sl-backing-scale"></div>
-        </div>
-      </div>
-      <div class="quiz-main">
-        <div class="quiz-card">
-          <div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">Preset Progressions</div>
-          <div class="preset-list" id="backing-presets"></div>
-          <div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">Progression</div>
-          <div class="backing-progression" id="backing-prog"></div>
-          <div style="font-size:.75rem;color:var(--muted);margin-bottom:10px">Click a chord's beat count to change it</div>
-          <div class="backing-controls">
-            <label>BPM <input type="number" id="backing-bpm" min="40" max="220" value="100" style="width:70px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);text-align:center"></label>
-            <label>Time Sig
-              <select id="backing-ts" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text)">
-                <option value="4" selected>4/4</option>
-                <option value="3">3/4</option>
-                <option value="6">6/8</option>
-                <option value="2">2/4</option>
-                <option value="5">5/4</option>
-                <option value="7">7/8</option>
-              </select>
-            </label>
-            <label>Default beats
-              <select id="backing-bpc" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text)">
-                <option value="2">2</option>
-                <option value="4" selected>4</option>
-                <option value="8">8</option>
-              </select>
-            </label>
-          </div>
-          <div class="backing-transport">
-            <button class="btn primary" id="backing-play" onclick="toggleBacking()">Play</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-  -->
-
-  <!-- RIFF GENERATOR -->
-  <!-- Riff Generator feature disabled in the UI for now. Keep this markup for future reactivation.
-  <section id="sec-riff" class="section">
-    <div class="quiz-layout">
-      <div class="sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Key</div>
-          <div class="sl-scroll" id="sl-riff-key"></div>
-        </div>
-        <div class="sidebar-list">
-          <div class="sl-head">Scale</div>
-          <div class="sl-scroll" id="sl-riff-scale" style="max-height:200px"></div>
-        </div>
-      </div>
-      <div class="quiz-main">
-        <div class="quiz-card">
-          <div class="riff-options">
-            <label>Tuning <select id="riff-tuning"></select></label>
-            <label>Length <select id="riff-length">
-              <option value="1">1 bar</option>
-              <option value="2" selected>2 bars</option>
-              <option value="4">4 bars</option>
-            </select></label>
-            <label>Density <select id="riff-density">
-              <option value="quarter">Quarter</option>
-              <option value="eighth" selected>Eighth</option>
-              <option value="sixteenth">Sixteenth</option>
-            </select></label>
-            <label>BPM <input type="number" id="riff-bpm" min="40" max="220" value="110" style="width:70px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);text-align:center"></label>
-          </div>
-          <div class="riff-transport">
-            <button class="btn primary" onclick="generateRiff()">Generate</button>
-            <button class="btn" id="riff-play" onclick="toggleRiffPlay()">Play</button>
-          </div>
-        </div>
-        <div class="riff-tab-wrap" id="riff-output">
-          <p style="color:var(--muted);font-size:.9rem">Press Generate to create a riff</p>
-        </div>
-
-        <div class="quiz-card" style="margin-top:16px">
-          <h3 style="margin:0 0 12px;font-size:1rem;color:var(--text)">Riff Composer</h3>
-          <div class="composer-controls">
-            <div class="composer-note-pick">
-              <label style="font-size:.85rem;color:var(--muted)">Note</label>
-              <select id="comp-note"></select>
+      <div class="ear-pane">
+      <div class="quiz-layout">
+        <div class="sidebar">
+          <details class="adv-options">
+            <summary><span class="adv-gear">&#9881;</span> Options</summary>
+            <div class="sidebar-list">
+              <div class="sl-head">Context</div>
+              <div class="sl-scroll" id="sl-ear-context"></div>
             </div>
-            <div class="composer-note-pick">
-              <label style="font-size:.85rem;color:var(--muted)">Octave</label>
-              <select id="comp-oct">
-                <option value="2">2</option>
-                <option value="3" selected>3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-              </select>
+            <div class="sidebar-list">
+              <div class="sl-head">Pool</div>
+              <div class="sl-scroll" id="sl-ear-pool"></div>
             </div>
-            <div class="composer-note-pick">
-              <label style="font-size:.85rem;color:var(--muted)">Length</label>
-              <select id="comp-len">
-                <option value="0.25">Sixteenth</option>
-                <option value="0.5">Eighth</option>
-                <option value="1" selected>Quarter</option>
-                <option value="1.5">Dotted Quarter</option>
-                <option value="2">Half</option>
-                <option value="3">Dotted Half</option>
-                <option value="4">Whole</option>
-              </select>
+            <div class="sidebar-list">
+              <div class="sl-head">Answer</div>
+              <div class="sl-scroll" id="sl-ear-answer"></div>
             </div>
-            <button class="btn primary" onclick="composerAddNote()">Add Note</button>
-            <button class="btn sm" onclick="composerAddRest()">Add Rest</button>
+            <div class="sidebar-list">
+              <div class="sl-head">Octave</div>
+              <div class="sl-scroll" id="sl-ear-octave"></div>
+            </div>
+          </details>
+        </div>
+        <div class="quiz-main">
+          <div class="progress-header" data-right="#ear-right" data-total="#ear-total" data-streak="#ear-streak">
+            <div class="ph-streak"><span class="ph-flame">&#128293;</span><span class="ph-streak-val" id="ear-streak">0</span><span class="ph-streak-label">Streak</span></div>
+            <div class="ph-bar"><div class="ph-bar-track"><div class="ph-bar-fill"></div></div><span class="ph-bar-count"><b id="ear-right">0</b> / <span id="ear-total">0</span></span></div>
+            <div class="ph-accuracy"><span class="ph-acc-val">0%</span><span class="ph-acc-label">Accuracy</span></div>
+            <button class="btn sm ph-reset" onclick="resetEarScore()">Reset</button>
           </div>
-          <div class="composer-timeline" id="comp-timeline">
-            <p style="color:var(--muted);font-size:.85rem;margin:0">Add notes to compose a riff</p>
+          <div class="quiz-card">
+            <div class="question" id="ear-question">Play to start.</div>
+            <div class="ear-ripple-wrap" id="ear-ripple-wrap"></div>
+            <div class="field-label" id="ear-answer-label">Pitch</div>
+            <div class="note-btn-row" id="ear-answers"></div>
+            <div class="fb-feedback" id="ear-feedback"></div>
           </div>
-          <div class="riff-transport" style="margin-top:10px">
-            <button class="btn primary" id="comp-play" onclick="toggleComposerPlay()">Play</button>
-            <button class="btn sm" onclick="composerClear()">Clear</button>
-            <label style="font-size:.85rem;color:var(--muted);display:flex;align-items:center;gap:6px">BPM <input type="number" id="comp-bpm" min="40" max="220" value="110" style="width:70px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);text-align:center"></label>
+          <div class="action-dock">
+            <div class="ear-transport">
+              <button class="btn sm" onclick="replayEarNote()">Replay</button>
+              <button class="btn primary" onclick="playEarQuestion()">Play / Next</button>
+            </div>
           </div>
         </div>
       </div>
+      </div>
     </div>
   </section>
-  -->
+
+
 
   <!-- VOICE RECORDER -->
-  <section id="sec-recorder" class="section">
+  <section id="sec-audiostudio" class="section">
     <div class="section-head">
-      <div class="section-kicker">Tools</div>
-      <h2>Recorder</h2>
+      <h2>Audio Studio</h2>
       <p>Capture a take, spot-check pitch and key, then turn a sung or hummed riff into guitar tab for the GP player.</p>
     </div>
     <div class="recorder-center">
@@ -1484,14 +1016,101 @@
           <button class="btn" id="rec-riff-play-gp" type="button" disabled>Play in Guitar Pro Player</button>
         </div>
       </div>
+      <div class="tts-pane">
+      <div class="tts-layout">
+        <div class="tts-input-col">
+          <div class="tts-drop" id="tts-drop">
+            <div class="tts-drop-title">Drop an audio stem</div>
+            <div class="tts-drop-sub">WAV, MP3, M4A, OGG, or WebM. One pitched layer at a time. Save stems to your library to reopen them later.</div>
+            <div class="tts-input-actions">
+              <label class="btn" for="tts-file">Choose file</label>
+              <input type="file" id="tts-file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm,.aac,.flac" hidden>
+              <button class="btn primary" id="tts-transcribe" type="button" disabled>Transcribe</button>
+              <button class="btn" id="tts-save" type="button" disabled>Save to Library</button>
+            </div>
+            <div class="tts-file-note" id="tts-file-note"></div>
+            <audio id="tts-player" controls hidden></audio>
+          </div>
+  
+          <div id="tts-analysis-mount" class="tts-analysis-mount"></div>
+  
+          <div class="tts-readouts" id="tts-readouts" hidden>
+            <div class="tts-readout">
+              <span class="tts-readout-label">Grid</span>
+              <span class="tts-readout-value" id="tts-grid">--</span>
+            </div>
+            <div class="tts-readout">
+              <span class="tts-readout-label">Quality</span>
+              <span class="tts-readout-value" id="tts-quality">--</span>
+            </div>
+            <div class="tts-readout">
+              <span class="tts-readout-label">Tempo fit</span>
+              <span class="tts-readout-value" id="tts-tempo-fit">--</span>
+            </div>
+          </div>
+  
+          <div class="tts-controls">
+            <div class="tts-control-row">
+              <label for="tts-bpm">Tempo (BPM)</label>
+              <input type="number" id="tts-bpm" min="40" max="240" step="1" value="120">
+            </div>
+            <div class="tts-control-row">
+              <label for="tts-clef">Clef</label>
+              <select id="tts-clef">
+                <option value="Treble">Treble</option>
+                <option value="Bass">Bass</option>
+              </select>
+            </div>
+            <div class="tts-control-row">
+              <label for="tts-accidentals">Accidentals</label>
+              <select id="tts-accidentals">
+                <option value="sharps">Sharps</option>
+                <option value="flats">Flats</option>
+              </select>
+            </div>
+          </div>
+  
+          <div class="tts-status" id="tts-status" hidden></div>
+          <progress class="tts-progress" id="tts-progress" max="1" value="0" hidden></progress>
+  
+          <div class="tts-library" id="tts-library">
+            <div class="tts-library-head">
+              <div class="tts-library-title">Saved stems</div>
+              <a class="btn sm" href="#exercises">Open Exercises</a>
+            </div>
+            <div class="tts-library-list" id="tts-library-list"></div>
+          </div>
+        </div>
+  
+        <div class="tts-main">
+          <div class="tts-score-card">
+            <div class="tts-score-card-head">
+              <div class="tts-score-card-title">Sheet music</div>
+              <div class="tts-score-card-actions">
+                <button class="btn sm" id="tts-open-gp" type="button" hidden>Open in GP Player</button>
+                <button class="btn sm" id="tts-copy" type="button">Copy note list</button>
+              </div>
+            </div>
+            <div class="tts-score-wrap" id="tts-score-wrap">
+              <p class="tts-muted">Upload a stem and hit Transcribe. Notes appear on the staff with approximate rhythm.</p>
+            </div>
+          </div>
+          <div class="tts-notes-card">
+            <div class="tts-score-card-title">Detected notes</div>
+            <div class="tts-note-list" id="tts-note-list">
+              <p class="tts-muted">No notes yet.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
     </div>
   </section>
 
   <!-- SONGWRITING NOTEPAD -->
-  <section id="sec-songwriter" class="section">
+  <section id="sec-songstudio" class="section">
     <div class="section-head">
-      <div class="section-kicker">Tools</div>
-      <h2>Songwriting</h2>
+      <h2>Song Studio</h2>
       <p>Write lyrics and attach a vocal recording to each song.</p>
     </div>
     <div class="sw-layout">
@@ -1531,21 +1150,14 @@
     </div>
   </section>
 
-  <!-- SIMPLIFY: Study Lab hidden. Section kept. -->
-  <!-- STUDY LAB -->
-  <section id="sec-studylab" class="section" hidden>
-    <div id="study-lab-root"></div>
-  </section>
-
   <!-- MUSIC PREFERENCES -->
-  <section id="sec-musicprefs" class="section">
+  <section id="sec-settings" class="section">
     <div id="music-prefs-root"></div>
   </section>
 
   <!-- NOTES -->
   <section id="sec-notes" class="section">
     <div class="section-head">
-      <div class="section-kicker">Tools</div>
       <h2>Notes</h2>
       <p>Jot down practice notes, ideas and reminders. Saved on this device.</p>
     </div>
@@ -1575,75 +1187,9 @@
     </div>
   </section>
 
-  <!-- PRACTICE TIMER -->
-  <section id="sec-practice" class="section">
-    <div class="section-head">
-      <div class="section-kicker">Tools</div>
-      <h2>Practice Timer</h2>
-      <p>Set a countdown for focused practice, with an optional tempo plan that drives the metronome.</p>
-    </div>
-    <div class="pt-layout">
-      <div class="quiz-card pt-timer-card">
-        <div class="pt-display" id="pt-display" aria-live="polite">15:00</div>
-        <div class="pt-progress"><div class="pt-progress-fill" id="pt-progress-fill"></div></div>
-        <div class="pt-status" id="pt-timer-status">Ready</div>
-        <div class="pt-duration">
-          <span class="pt-field-label">Duration (minutes)</span>
-          <div class="pt-duration-row">
-            <button class="metro-round-btn" id="pt-min-down" type="button" aria-label="Decrease minutes">-</button>
-            <input type="number" id="pt-minutes" min="1" max="180" value="15" inputmode="numeric" aria-label="Practice minutes">
-            <button class="metro-round-btn" id="pt-min-up" type="button" aria-label="Increase minutes">+</button>
-          </div>
-          <div class="pt-presets">
-            <button class="btn sm pt-preset" data-min="5" type="button">5</button>
-            <button class="btn sm pt-preset" data-min="10" type="button">10</button>
-            <button class="btn sm pt-preset" data-min="15" type="button">15</button>
-            <button class="btn sm pt-preset" data-min="20" type="button">20</button>
-            <button class="btn sm pt-preset" data-min="30" type="button">30</button>
-            <button class="btn sm pt-preset" data-min="45" type="button">45</button>
-          </div>
-        </div>
-        <div class="pt-controls">
-          <button class="btn primary pt-start" id="pt-start" type="button">&#9654; Start</button>
-          <button class="btn pt-reset" id="pt-reset" type="button">Reset</button>
-        </div>
-        <label class="pt-alarm-row">
-          <input type="checkbox" id="pt-alarm" checked>
-          <span>Play an alarm when time is up</span>
-        </label>
-      </div>
-      <div class="quiz-card pt-sched-card">
-        <div class="pt-sched-head">
-          <div class="metro-card-title">Tempo plan</div>
-          <label class="pt-sched-toggle">
-            <input type="checkbox" id="pt-auto">
-            <span>Drive the metronome</span>
-          </label>
-        </div>
-        <p class="pt-sched-note">Set a tempo for points in your session. When the timer reaches each mark, the metronome switches to that BPM.</p>
-        <div class="pt-gen">
-          <div class="pt-gen-title">Quick plan</div>
-          <div class="pt-gen-row">
-            <label>Every <input type="number" id="pt-gen-interval" min="1" max="60" value="5" inputmode="numeric"> min</label>
-            <label>Start <input type="number" id="pt-gen-start" min="30" max="300" value="80" inputmode="numeric"> BPM</label>
-            <label>Change <input type="number" id="pt-gen-step" min="-100" max="100" value="5" inputmode="numeric"> BPM</label>
-          </div>
-          <button class="btn sm" id="pt-gen-build" type="button">Generate plan</button>
-        </div>
-        <div class="pt-sched-list" id="pt-sched-list"></div>
-        <div class="pt-sched-add">
-          <label>At <input type="number" id="pt-add-min" min="0" max="180" value="0" inputmode="numeric"> min</label>
-          <label><input type="number" id="pt-add-bpm" min="30" max="300" value="120" inputmode="numeric"> BPM</label>
-          <button class="btn sm" id="pt-add" type="button">+ Add</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- EXERCISES (MEDIA LIBRARY) -->
   <section id="sec-exercises" class="section" data-gpp-immersive>
     <div class="section-head">
-      <div class="section-kicker">Library</div>
       <h2>Exercises</h2>
       <p>Your practice files and lesson links. Drag files in from your desktop, double-click to open, drag rows onto a folder to file them.</p>
     </div>
@@ -1680,7 +1226,6 @@
   <!-- WORKBOOKS -->
   <section id="sec-workbooks" class="section">
     <div class="section-head">
-      <div class="section-kicker">Library</div>
       <h2>Workbooks</h2>
       <p>Ordered runs of exercises. Double-click to open one, drag rows onto a folder to file them.</p>
     </div>
@@ -1712,73 +1257,10 @@
     </div>
   </section>
 
-  <!-- SIMPLIFY: Routines and Sessions hidden. Section kept. -->
-  <!-- ROUTINES -->
-  <section id="sec-routines" class="section" hidden>
-    <div class="section-head">
-      <div class="section-kicker">Tools</div>
-      <h2>Routines</h2>
-      <p>Plan practice as a run of sessions. Each session attaches workbooks and keeps its own notes. Export a routine to a file to back it up or share it, and import a routine on any device.</p>
-    </div>
-    <div class="quiz-layout rt-layout">
-      <aside class="sidebar rt-sidebar">
-        <div class="sidebar-list">
-          <div class="sl-head">Routines</div>
-          <div class="sl-scroll" id="rt-routine-list"></div>
-        </div>
-        <div class="rt-sidebar-actions">
-          <button class="btn sm primary" id="rt-new-btn" type="button">+ New Routine</button>
-          <button class="btn sm" id="rt-import-btn" type="button">Import</button>
-          <button class="btn sm" id="rt-export-all-btn" type="button">Export all</button>
-        </div>
-        <input type="file" id="rt-import-file" accept="application/json,.json" hidden>
-      </aside>
-      <div class="quiz-main rt-main">
-        <div class="rt-toolbar">
-          <div class="rt-toolbar-title" id="rt-current-title">Routines</div>
-          <div class="rt-toolbar-actions" id="rt-toolbar-actions"></div>
-        </div>
-        <div class="rt-status" id="rt-status" style="display:none"></div>
-        <div class="rt-workspace" id="rt-workspace">
-          <div class="rt-overview-pane" id="rt-overview-pane">
-            <div class="rt-overview" id="rt-overview"></div>
-            <div class="rt-session-list" id="rt-session-list"></div>
-          </div>
-          <div class="rt-session-pane" id="rt-session-pane" hidden>
-            <div class="rt-session-head">
-              <button class="btn sm" type="button" id="rt-session-back">← Sessions</button>
-              <div class="rt-session-title" id="rt-session-title"></div>
-              <div class="rt-session-actions" id="rt-session-actions"></div>
-            </div>
-            <div class="rt-session-body" id="rt-session-body"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SIMPLIFY: Drums generators and builder hidden. Section kept. -->
-  <!-- DRUMS -->
-  <section id="sec-drums" class="section" hidden>
-    <div class="section-head">
-      <div class="section-kicker">Tools</div>
-      <h2>Drums</h2>
-      <p>Import Guitar Pro drum tracks or PDFs into your library, play them with a built-in drum machine, generate fills and run tempo-ramp practice.</p>
-    </div>
-    <div class="drums-subnav" id="drums-subnav"></div>
-    <div class="drums-views">
-      <div class="drums-view" id="drums-view-library"></div>
-      <div class="drums-view" id="drums-view-machine"></div>
-      <div class="drums-view" id="drums-view-fills"></div>
-      <div class="drums-view" id="drums-view-practice"></div>
-    </div>
-  </section>
-
   <!-- GUITAR PRO PLAYER -->
-  <section id="sec-gpplayer" class="section" data-gpp-immersive>
+  <section id="sec-scoreplayer" class="section" data-gpp-immersive>
     <div class="section-head">
-      <div class="section-kicker">Tools</div>
-      <h2>Guitar Pro Player</h2>
+      <h2>Score Player</h2>
       <p>Open a <code>.gp</code> or <code>.gp5</code> score in a parchment score view. Mix tracks independently of what you are viewing, use <strong>Loop Selection</strong> to mark a practice range, and save that range as an Exercise. Tempo, transpose, and tuning live under Practice settings.</p>
     </div>
     <div class="gpp-layout">
@@ -1802,101 +1284,6 @@
           <a class="btn sm" href="#exercises">Open Exercises</a>
         </div>
         <div class="gpp-library-list" id="gpp-library-list"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- TRACK → SHEET -->
-  <section id="sec-tracktosheet" class="section">
-    <div class="section-head">
-      <div class="section-kicker">Create</div>
-      <h2>Track → Sheet</h2>
-      <p>Upload an isolated stem — vocal, guitar, bass — and Musi reads the pitches onto basic sheet music. Works best with a single dry monophonic track; no source separation.</p>
-    </div>
-    <div class="tts-layout">
-      <div class="tts-input-col">
-        <div class="tts-drop" id="tts-drop">
-          <div class="tts-drop-title">Drop an audio stem</div>
-          <div class="tts-drop-sub">WAV, MP3, M4A, OGG, or WebM. One pitched layer at a time. Save stems to your library to reopen them later.</div>
-          <div class="tts-input-actions">
-            <label class="btn" for="tts-file">Choose file</label>
-            <input type="file" id="tts-file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm,.aac,.flac" hidden>
-            <button class="btn primary" id="tts-transcribe" type="button" disabled>Transcribe</button>
-            <button class="btn" id="tts-save" type="button" disabled>Save to Library</button>
-          </div>
-          <div class="tts-file-note" id="tts-file-note"></div>
-          <audio id="tts-player" controls hidden></audio>
-        </div>
-
-        <div id="tts-analysis-mount" class="tts-analysis-mount"></div>
-
-        <div class="tts-readouts" id="tts-readouts" hidden>
-          <div class="tts-readout">
-            <span class="tts-readout-label">Grid</span>
-            <span class="tts-readout-value" id="tts-grid">--</span>
-          </div>
-          <div class="tts-readout">
-            <span class="tts-readout-label">Quality</span>
-            <span class="tts-readout-value" id="tts-quality">--</span>
-          </div>
-          <div class="tts-readout">
-            <span class="tts-readout-label">Tempo fit</span>
-            <span class="tts-readout-value" id="tts-tempo-fit">--</span>
-          </div>
-        </div>
-
-        <div class="tts-controls">
-          <div class="tts-control-row">
-            <label for="tts-bpm">Tempo (BPM)</label>
-            <input type="number" id="tts-bpm" min="40" max="240" step="1" value="120">
-          </div>
-          <div class="tts-control-row">
-            <label for="tts-clef">Clef</label>
-            <select id="tts-clef">
-              <option value="Treble">Treble</option>
-              <option value="Bass">Bass</option>
-            </select>
-          </div>
-          <div class="tts-control-row">
-            <label for="tts-accidentals">Accidentals</label>
-            <select id="tts-accidentals">
-              <option value="sharps">Sharps</option>
-              <option value="flats">Flats</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="tts-status" id="tts-status" hidden></div>
-        <progress class="tts-progress" id="tts-progress" max="1" value="0" hidden></progress>
-
-        <div class="tts-library" id="tts-library">
-          <div class="tts-library-head">
-            <div class="tts-library-title">Saved stems</div>
-            <a class="btn sm" href="#exercises">Open Exercises</a>
-          </div>
-          <div class="tts-library-list" id="tts-library-list"></div>
-        </div>
-      </div>
-
-      <div class="tts-main">
-        <div class="tts-score-card">
-          <div class="tts-score-card-head">
-            <div class="tts-score-card-title">Sheet music</div>
-            <div class="tts-score-card-actions">
-              <button class="btn sm" id="tts-open-gp" type="button" hidden>Open in GP Player</button>
-              <button class="btn sm" id="tts-copy" type="button">Copy note list</button>
-            </div>
-          </div>
-          <div class="tts-score-wrap" id="tts-score-wrap">
-            <p class="tts-muted">Upload a stem and hit Transcribe. Notes appear on the staff with approximate rhythm.</p>
-          </div>
-        </div>
-        <div class="tts-notes-card">
-          <div class="tts-score-card-title">Detected notes</div>
-          <div class="tts-note-list" id="tts-note-list">
-            <p class="tts-muted">No notes yet.</p>
-          </div>
-        </div>
       </div>
     </div>
   </section>

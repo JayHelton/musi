@@ -78,9 +78,6 @@ function seedFullProfile() {
     folders: [{ id: 'wbf-1', name: 'Folder' }],
     workbooks: [{ id: 'wb-1', name: 'WB', folderId: 'wbf-1', entries: [], loopEnabled: true, activeEntryId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }],
   }));
-  store.set('musi.routines', JSON.stringify({
-    routines: [{ id: 'rt-1', name: 'Morning', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }],
-  }));
   store.set('musi.gpAnnotations', JSON.stringify({
     version: 1,
     byScore: { 'att:gp1': { annotations: [{ id: 'gpa-1', startBeat: 0, endBeat: 1, title: 't', text: 'x', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }] } },
@@ -132,7 +129,6 @@ await test('round trip reproduces direct localStorage values byte-for-byte', asy
     'musi.songs',
     'musi.exercises',
     'musi.workbooks',
-    'musi.routines',
     'musi.gpAnnotations',
   ];
   const originals = Object.fromEntries(directKeys.map((k) => [k, store.get(k)]));
@@ -287,7 +283,7 @@ await test('summarizeSnapshot returns counts and tolerates corrupt values', asyn
   assert.equal(summary.keyCount, Object.keys(snap.data).length);
   assert.ok(summary.byteSize > 0);
   assert.ok(summary.items.some((i) => i.label === 'Notes' && i.count === 1));
-  assert.ok(summary.items.some((i) => i.label === 'Routines' && i.count === 1));
+  assert.ok(summary.items.some((i) => i.label === 'Workbooks' && i.count === 1));
   assert.ok(summary.items.some((i) => i.label === 'Practice stats'));
 
   const corrupt = summarizeSnapshot({
@@ -337,126 +333,6 @@ await test('import survives subsequent saveSetting after settings cache was warm
   assert.equal(stats.today.attempts, 99);
   assert.equal(stats.bestStreak, 10);
   assert.equal(getSetting('context.root', null), 'E');
-});
-
-await test('musi.routines is in content scope and snapshot, not settings or progress', async () => {
-  store.clear();
-  store.set('musi.routines', JSON.stringify({
-    routines: [{ id: 'rt-1', name: 'Routine', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }],
-  }));
-
-  const contentScope = SYNC_SCOPES.find((s) => s.id === 'content');
-  assert.ok(contentScope.keys.includes('musi.routines'));
-  assert.ok(!SYNC_SCOPES.find((s) => s.id === 'settings').keys.includes('musi.routines'));
-  assert.ok(!SYNC_SCOPES.find((s) => s.id === 'progress').keys.includes('musi.routines'));
-
-  const snap = buildSnapshot({ scopes: ['content'] });
-  assert.ok(snap.data['musi.routines']);
-  assert.ok(!snap.data['musi:settings']);
-  assert.ok(!snap.data.stats);
-});
-
-await test('validateSnapshot accepts musi.routines', async () => {
-  const snap = {
-    app: 'musi',
-    kind: SNAPSHOT_KIND,
-    version: SNAPSHOT_VERSION,
-    createdAt: new Date().toISOString(),
-    scopes: ['content'],
-    data: {
-      'musi.routines': JSON.stringify({ routines: [{ id: 'rt-1', name: 'R', updatedAt: '2026-01-01T00:00:00.000Z' }] }),
-    },
-  };
-  const result = validateSnapshot(snap);
-  assert.equal(result.ok, true);
-});
-
-await test('merge mode unions routines with timestamp and conflict rules', async () => {
-  store.clear();
-  store.set('musi.routines', JSON.stringify({
-    routines: [
-      { id: 'rt-local', name: 'Local', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-05T00:00:00.000Z' },
-      { id: 'rt-conflict', name: 'Local wins', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
-      { id: 'rt-only-local', name: 'Only here', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
-    ],
-  }));
-
-  const incoming = {
-    app: 'musi',
-    kind: SNAPSHOT_KIND,
-    version: SNAPSHOT_VERSION,
-    createdAt: new Date().toISOString(),
-    scopes: ['content'],
-    data: {
-      'musi.routines': JSON.stringify({
-        routines: [
-          { id: 'rt-incoming', name: 'New', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' },
-          { id: 'rt-local', name: 'Incoming newer', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-10T00:00:00.000Z' },
-          { id: 'rt-conflict', name: 'Incoming stale', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
-        ],
-      }),
-    },
-  };
-
-  const result = await applySnapshot(incoming, { mode: 'merge', scopes: ['content'] });
-  assert.equal(result.errors.length, 0);
-
-  const routines = JSON.parse(localStorage.getItem('musi.routines'));
-  const ids = routines.routines.map((r) => r.id).sort();
-  assert.deepEqual(ids, ['rt-conflict', 'rt-incoming', 'rt-local', 'rt-only-local']);
-  const rtLocal = routines.routines.find((r) => r.id === 'rt-local');
-  assert.equal(rtLocal.name, 'Incoming newer');
-  const rtConflict = routines.routines.find((r) => r.id === 'rt-conflict');
-  assert.equal(rtConflict.name, 'Local wins');
-
-  assert.ok(result.counts['musi.routines'].conflicts >= 1);
-  assert.ok(result.counts['musi.routines'].added >= 1);
-  assert.ok(result.counts['musi.routines'].updated >= 1);
-});
-
-await test('replace mode overwrites routines and removes when key absent', async () => {
-  store.clear();
-  store.set('musi.routines', JSON.stringify({
-    routines: [{ id: 'rt-old', name: 'Old', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }],
-  }));
-  store.set('musi.notes', JSON.stringify([{ id: 'keep-note', title: 'Stay', body: '', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]));
-
-  const incoming = {
-    app: 'musi',
-    kind: SNAPSHOT_KIND,
-    version: SNAPSHOT_VERSION,
-    createdAt: new Date().toISOString(),
-    scopes: ['content'],
-    data: {
-      'musi.routines': JSON.stringify({
-        routines: [{ id: 'rt-new', name: 'New', description: '', sessions: [], activeSessionId: null, createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' }],
-      }),
-    },
-  };
-
-  const result = await applySnapshot(incoming, { mode: 'replace', scopes: ['content'] });
-  assert.equal(result.errors.length, 0);
-  const routines = JSON.parse(localStorage.getItem('musi.routines'));
-  assert.equal(routines.routines.length, 1);
-  assert.equal(routines.routines[0].id, 'rt-new');
-  assert.equal(localStorage.getItem('musi.notes'), null);
-});
-
-await test('summarizeSnapshot reports routines label and count', async () => {
-  const snap = {
-    createdAt: '2026-08-09T12:00:00.000Z',
-    scopes: ['content'],
-    data: {
-      'musi.routines': JSON.stringify({
-        routines: [
-          { id: 'rt-1', name: 'A', updatedAt: '2026-01-01T00:00:00.000Z' },
-          { id: 'rt-2', name: 'B', updatedAt: '2026-01-01T00:00:00.000Z' },
-        ],
-      }),
-    },
-  };
-  const summary = summarizeSnapshot(snap);
-  assert.ok(summary.items.some((i) => i.label === 'Routines' && i.count === 2));
 });
 
 await test('merge mode keeps parentId on exercise and workbook folders', async () => {
