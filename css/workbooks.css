@@ -333,10 +333,6 @@ body.wb-cmp-drawer-open{overflow:hidden}
 .wb-ov-tools-mount .wb-cmp-root.is-inline{position:static;z-index:auto}
 .wb-ov-tools-mount .wb-cmp-panel-body{gap:14px}
 
-/* The landing page scrolls; the player does not. */
-#sec-workbooks.wb-overview-open .wb-detail-body{display:block;overflow:auto;overflow-x:hidden}
-#sec-workbooks.wb-overview-open .wb-detail-head{flex-wrap:wrap}
-
 @media (max-width:520px){
   .wb-ov-hero{padding:12px}
   .wb-ov-name{font-size:1.05rem}
@@ -432,6 +428,19 @@ body.wb-cmp-drawer-open{overflow:hidden}
 #sec-workbooks.wb-practicing .wb-has-companions .wb-detail-tabs{
   flex-shrink:0;padding:4px 8px 0
 }
+
+/* ---- Practice mode: the landing page scrolls; the player does not ----
+   These rules come after the player rules above and add .wb-practicing to the
+   selector. The landing page is a document, so it must win the cascade and
+   turn the fixed-height player body back into one scroll area. */
+#sec-workbooks.wb-practicing.wb-overview-open .wb-detail-body{
+  display:block;flex:1;min-height:0;
+  overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch
+}
+#sec-workbooks.wb-practicing.wb-overview-open .wb-detail-head{flex-wrap:wrap}
+#sec-workbooks.wb-practicing.wb-overview-open .wb-detail-actions{flex-wrap:wrap;min-width:0}
+#sec-workbooks.wb-practicing.wb-overview-open .wb-overview{min-height:0}
 
 /* Workbook controls injected into .gpp-score-actions */
 .wb-gpp-head-extra{
