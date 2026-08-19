@@ -1243,8 +1243,68 @@ function ensurePlayerElements() {
   return !!(workspaceEl && playerPaneEl && playerBodyEl && playerTitleEl && playerActionsEl);
 }
 
+// The viewer takes the screen, so the section must know where it starts. The
+// CSS in css/exercises.css turns this offset into a height for the pane. Without
+// it the pane holds only its content, and a PDF frame shows a short band.
+const VIEWER_GUTTER_PX = 8;
+let viewerMetricsHandle = null;
+
+function installViewerMetrics(section) {
+  if (viewerMetricsHandle) {
+    viewerMetricsHandle.refresh();
+    return;
+  }
+  let raf = 0;
+
+  function measure() {
+    if (!section?.isConnected || !section.classList.contains('ex-viewing')) return;
+    const top = Math.max(0, Math.round(section.getBoundingClientRect().top));
+    section.style.setProperty('--ex-viewer-top', `${top}px`);
+    section.style.setProperty('--ex-viewer-gutter', `${VIEWER_GUTTER_PX}px`);
+  }
+
+  function schedule() {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(measure);
+    });
+  }
+
+  // The first measurement runs now, because an animation frame never arrives on
+  // a hidden tab, and the pane must not wait for it.
+  measure();
+  schedule();
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+  window.visualViewport?.addEventListener('resize', schedule);
+
+  viewerMetricsHandle = {
+    refresh: schedule,
+    destroy() {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('orientationchange', schedule);
+      window.visualViewport?.removeEventListener('resize', schedule);
+      section.style.removeProperty('--ex-viewer-top');
+      section.style.removeProperty('--ex-viewer-gutter');
+      viewerMetricsHandle = null;
+    },
+  };
+}
+
+function destroyViewerMetrics() {
+  viewerMetricsHandle?.destroy();
+}
+
+function refreshViewerMetrics() {
+  viewerMetricsHandle?.refresh();
+}
+
 function setViewerLayoutActive(on) {
-  if (sectionEl) sectionEl.classList.toggle('ex-viewing', on);
+  if (!sectionEl) return;
+  sectionEl.classList.toggle('ex-viewing', on);
+  if (on) installViewerMetrics(sectionEl);
+  else destroyViewerMetrics();
 }
 
 // Overlays that own Escape themselves; closing the whole viewer underneath them
@@ -1509,6 +1569,8 @@ export async function openExerciseViewer(id) {
   }
 
   playerPaneEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // The scroll moves the section, and the height depends on where it starts.
+  refreshViewerMetrics();
   } catch (err) {
     showAppToast(err?.message);
   }

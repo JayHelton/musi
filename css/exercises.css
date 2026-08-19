@@ -127,6 +127,22 @@
 #sec-exercises.ex-viewing .ex-player-pane{
   flex:1;min-height:0;display:flex!important;flex-direction:column
 }
+/* The viewer needs a definite height, or the pane collapses to its content and
+   a PDF frame shows only its 360px minimum. This measures the top of the
+   section and takes the rest of the screen above the dock, the same way
+   #sec-workbooks.wb-practicing does. A loaded score keeps its own rules in
+   css/gpplayer.css, so this one steps aside for it. */
+#sec-exercises.ex-viewing.active:not(.gpp-score-loaded){
+  display:flex;flex-direction:column;min-height:0;
+  height:calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 96px) - var(--ex-viewer-gutter, 8px));
+  max-height:calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 96px) - var(--ex-viewer-gutter, 8px));
+  margin-bottom:calc(-1 * (var(--dock-h) + 18px));
+  overflow:hidden;max-width:100vw;box-sizing:border-box
+}
+/* The pane now gives the body a real height. A minimum on the frame would push
+   past that height and cut off the bottom of the page. */
+#sec-exercises.ex-viewing .ex-player-frame{min-height:0;height:100%}
+#sec-exercises.ex-viewing .ex-player-doc-fallback{flex:1;min-height:0}
 
 @media(max-width:900px){
   #sec-exercises{overflow-x:hidden}
@@ -214,9 +230,10 @@
 
 /* ex-viewing wins over the landscape split-list rules above */
 @media (orientation:landscape) and (max-height:500px){
-  #sec-exercises.ex-viewing.active{
+  #sec-exercises.ex-viewing.active:not(.gpp-score-loaded){
     display:flex;flex-direction:column;min-height:0;
-    max-height:calc(100dvh - var(--dock-h) - 52px)
+    height:calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 52px) - var(--ex-viewer-gutter, 8px));
+    max-height:calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 52px) - var(--ex-viewer-gutter, 8px))
   }
   #sec-exercises.ex-viewing .ex-layout{
     display:flex!important;flex-direction:column!important;flex:1;min-height:0
