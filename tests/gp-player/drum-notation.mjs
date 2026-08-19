@@ -13,6 +13,7 @@ import {
   drumHitLabel,
   drumHitPriority,
   drumTabLegendFor,
+  isFlamGraceStroke,
 } from '../../js/drums/notation.js';
 import { gpifToTracks } from '../../js/tab/guitarPro.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
@@ -102,6 +103,25 @@ assert.deepEqual(
   ['x', 'g', 'f'],
 );
 
+// ---- flams: one symbol for the pair ----
+assert.equal(drumTabGlyph({ instrument: 'snare', flam: true }), 'f');
+assert.equal(drumTabGlyph({ instrument: 'tomHigh', flam: true }), 'f', 'a flam reads as f on any lane');
+assert.equal(
+  drumTabGlyph({ instrument: 'snare', flam: true, accent: true }),
+  'f',
+  'the flam symbol wins over the accent symbol',
+);
+assert.equal(
+  drumTabGlyph({ instrument: 'snare', flam: true, midi: 37 }),
+  'f',
+  'the flam symbol wins over the articulation symbol',
+);
+assert.equal(drumTabGlyph({ instrument: 'snare', flam: false }), 'o');
+assert.equal(isFlamGraceStroke({ grace: true, flam: true }), true);
+assert.equal(isFlamGraceStroke({ grace: true }), false);
+assert.equal(isFlamGraceStroke({ flam: true }), false);
+assert.equal(isFlamGraceStroke({}), false);
+
 // ---- drumHitLabel ----
 assert.equal(drumHitLabel({ instrument: 'snare', velocity: 0.5 }), 'Snare');
 assert.equal(drumHitLabel({ instrument: 'snare', velocity: 1 }), 'Snare (accent)');
@@ -111,6 +131,8 @@ assert.equal(drumHitLabel({ instrument: 'ride', midi: 53 }), 'Ride (bell)');
 assert.equal(drumHitLabel({ instrument: 'snare', midi: 37 }), 'Snare (side stick)');
 assert.equal(drumHitLabel({ instrument: 'snareFlam', velocity: 0.95 }), 'Flam');
 assert.equal(drumHitLabel({ instrument: 'snareGhost' }), 'Ghost');
+assert.equal(drumHitLabel({ instrument: 'snare', flam: true }), 'Snare (flam)');
+assert.equal(drumHitLabel({ instrument: 'tomFloor', flam: true }), 'Floor (flam)');
 
 // ---- parse-time articulation enrichment (GPIF) ----
 const DRUM_ARTICULATION_SET = `

@@ -2,7 +2,12 @@
 // No DOM access. No global state.
 
 import { TECHNIQUE_LABELS } from '../tab/tabModel.js';
-import { drumTabGlyph, drumLaneFor } from '../drums/notation.js';
+import {
+  drumTabGlyph,
+  drumHitLabel,
+  drumLaneFor,
+  isFlamGraceStroke,
+} from '../drums/notation.js';
 import { measureSpan } from './rangeUtils.js';
 
 const LANE_NAMES = ['notationStaff', 'techniqueAbove', 'tabStaff', 'rhythm', 'techniqueBelow'];
@@ -455,7 +460,7 @@ function columnMinAdvances(bar, cols, geoPx) {
       if (Math.abs(Number(ev.start) - beatStart) >= 1e-4) continue;
       const label = ev.dead ? 'x' : String(ev.fret ?? '');
       maxChars = Math.max(maxChars, label.length);
-      if (ev.grace) {
+      if (ev.grace && !isFlamGraceStroke(ev)) {
         const gw = fretTextWidth(label.length, geoPx);
         graceBearing = Math.max(graceBearing, gw * 0.9 + geoPx * 0.2);
       }
@@ -758,6 +763,8 @@ function addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, drumMode, stri
   const stringH = tabLane.h / rowCount;
 
   for (const ev of bar.events) {
+    // The main hit of a flam spells both strokes with one symbol.
+    if (isFlamGraceStroke(ev)) continue;
     const beatStart = Number(ev.start);
     let row;
     let si;
@@ -808,7 +815,7 @@ function addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, drumMode, stri
         w,
         h: stringH * 0.7,
         text: drumTabGlyph(ev),
-        aria: 'Drum hit',
+        aria: drumHitLabel(ev),
         beatStart,
         stringIndex: si,
       });

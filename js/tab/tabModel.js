@@ -162,6 +162,52 @@ export function gp5DurationToQuarters(durationByte, tuplet = 0, dotted = false) 
   return q;
 }
 
+/** Longest lead-in a grace note may take before its main beat, in quarters. */
+export const MAX_GRACE_LEAD_QUARTERS = 0.25;
+
+/** Lead-in used when the file gives no usable grace length. */
+export const DEFAULT_GRACE_LEAD_QUARTERS = 0.125;
+
+/**
+ * Lead-in a grace note takes before the beat that it decorates.
+ * A flam sits close to its main note, so a long written value is clamped.
+ * @param {number} [quarters] written length of the grace note in quarters
+ * @returns {number} lead-in in quarter-note units
+ */
+export function graceLeadQuarters(quarters) {
+  const q = Number(quarters);
+  if (!Number.isFinite(q) || q <= 0) return DEFAULT_GRACE_LEAD_QUARTERS;
+  return Math.min(MAX_GRACE_LEAD_QUARTERS, q);
+}
+
+/**
+ * Sort model events and keep every `beats[].noteIndices` reference correct.
+ * Each beat stores positions in the event array. A plain sort moves the
+ * events but leaves those positions behind, so the beat then points at
+ * another beat's notes. This returns the sorted events and matching beats.
+ * @param {object[]} events
+ * @param {object[]} [beats]
+ * @param {(a:object,b:object)=>number} compare
+ * @returns {{ events: object[], beats: object[] }}
+ */
+export function sortEventsWithBeats(events, beats, compare) {
+  const entries = (events || []).map((ev, index) => ({ ev, index }));
+  entries.sort((a, b) => compare(a.ev, b.ev) || (a.index - b.index));
+  const newIndexByOld = new Map();
+  entries.forEach((entry, newIndex) => newIndexByOld.set(entry.index, newIndex));
+  const sorted = entries.map((entry) => entry.ev);
+  const remapped = (beats || []).map((beat) => {
+    if (!beat?.noteIndices) return beat;
+    return {
+      ...beat,
+      noteIndices: beat.noteIndices
+        .map((old) => newIndexByOld.get(old))
+        .filter((idx) => idx != null),
+    };
+  });
+  return { events: sorted, beats: remapped };
+}
+
 export function midiToNoteOct(midi) {
   const pc = ((midi % 12) + 12) % 12;
   return { note: NOTE_NAMES_SHARP[pc], oct: Math.floor(midi / 12) - 1, openMidi: midi };

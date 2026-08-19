@@ -18,6 +18,7 @@ import {
 } from '../../js/tab/gpPercussion.js';
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
 import { createPlayerState } from '../../js/gpPlayer/playerState.js';
+import { drumTabGlyph } from '../../js/drums/notation.js';
 import { installDomShim } from './domShim.mjs';
 import { makeFixtures } from './fixtures/makeFixtures.mjs';
 
@@ -611,5 +612,121 @@ emptyPlayer.load({ drumModels: [], guitarModels: [], bpm: 120 });
 await emptyPlayer.play();
 assert.equal(emptyEnded, false, 'play() on empty score must not call onEnded');
 assert.equal(emptyPlayer.playing, false, 'play() on empty score must not start playback');
+
+// ---- GPIF: a grace beat is a flam, and it takes no time from the bar ----
+const gpifFlam = `<?xml version="1.0" encoding="UTF-8"?>
+<GPIF>
+  <MasterBars><MasterBar><Bars>0</Bars><Time>4/4</Time></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0 1 2 3 4</Beats></Voice></Voices>
+  <Beats>
+    <Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
+    <Beat id="1"><GraceNotes>BeforeBeat</GraceNotes><Rhythm ref="1"/><Notes>1</Notes></Beat>
+    <Beat id="2"><Rhythm ref="0"/><Notes>2</Notes></Beat>
+    <Beat id="3"><Rhythm ref="0"/><Notes>3</Notes></Beat>
+    <Beat id="4"><Rhythm ref="0"/><Notes>4</Notes></Beat>
+  </Beats>
+  <Notes>
+    <Note id="0"><InstrumentArticulation>2</InstrumentArticulation></Note>
+    <Note id="1"><InstrumentArticulation>1</InstrumentArticulation></Note>
+    <Note id="2"><InstrumentArticulation>1</InstrumentArticulation></Note>
+    <Note id="3"><InstrumentArticulation>2</InstrumentArticulation></Note>
+    <Note id="4"><InstrumentArticulation>1</InstrumentArticulation></Note>
+  </Notes>
+  <Rhythms>
+    <Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm>
+    <Rhythm id="1"><NoteValue>32nd</NoteValue></Rhythm>
+  </Rhythms>
+  <Tracks>
+    <Track id="0">
+      <Name>Drums</Name>
+      ${DRUM_ARTICULATION_SET}
+    </Track>
+  </Tracks>
+</GPIF>`;
+const flamModel = gpifToTracks(gpifFlam).tracks[0].model;
+assert.equal(flamModel.measures.length, 1);
+assert.equal(flamModel.measures[0].endBeat, 4, 'a grace beat must not lengthen the bar');
+const flamStarts = flamModel.events.map((e) => e.start);
+assert.deepEqual(flamStarts, [0, 1, 1, 2, 3], 'hits after the flam keep their beat positions');
+const flamGrace = flamModel.events.find((e) => e.grace);
+const flamMain = flamModel.events.find((e) => e.start === 1 && !e.grace);
+assert.ok(flamGrace, 'the grace beat becomes a grace hit');
+assert.equal(flamGrace.instrument, 'snare');
+assert.equal(flamGrace.duration, 0.125, 'a 32nd grace leads its beat by an eighth of a quarter');
+assert.equal(flamGrace.flam, true, 'a grace hit on the lane of its main hit is a flam');
+assert.equal(flamMain.flam, true, 'the main hit of the pair carries the flam mark');
+assert.equal(drumTabGlyph(flamMain), 'f', 'drum tab spells a flam with f');
+assert.ok(
+  (flamModel.beats || []).every((b) => !(b.noteIndices || [])
+    .some((i) => flamModel.events[i].grace)),
+  'a grace hit never joins the notes of a beat',
+);
+
+// The grace hit must sound just before the beat that it decorates.
+const flamTimeline = buildTimeline({
+  playOrder: buildPlayOrder(flamModel.measures),
+  tempoMap: flamModel.tempoMap || [],
+  baseBpm: 120,
+  rate: 1,
+  tracks: { guitarModels: [], drumModels: [flamModel] },
+});
+const flamTimes = flamTimeline.events.map((e) => Number(e.startSec.toFixed(4)));
+assert.deepEqual(flamTimes, [0, 0.4375, 0.5, 1, 1.5], 'the grace stroke lands before the main hit');
+
+// ---- GPIF: a grace beat on another lane stays its own hit ----
+const gpifDrag = gpifFlam.replace(
+  '<Note id="1"><InstrumentArticulation>1</InstrumentArticulation></Note>',
+  '<Note id="1"><InstrumentArticulation>0</InstrumentArticulation></Note>',
+);
+const dragModel = gpifToTracks(gpifDrag).tracks[0].model;
+const dragGrace = dragModel.events.find((e) => e.grace);
+assert.equal(dragGrace.instrument, 'kick');
+assert.ok(!dragGrace.flam, 'a grace hit on another lane is not a flam');
+assert.ok(!dragModel.events.find((e) => e.start === 1 && !e.grace).flam);
+
+// ---- GPIF: two voices keep every beat pointed at its own notes ----
+const twoVoiceBeats = twoVoiceModel.beats || [];
+assert.ok(twoVoiceBeats.length > 0, 'the two-voice drum model carries beats');
+for (const beat of twoVoiceBeats) {
+  for (const idx of beat.noteIndices || []) {
+    const ev = twoVoiceModel.events[idx];
+    assert.ok(ev, `beat at ${beat.start} points at event ${idx}`);
+    assert.ok(
+      Math.abs(ev.start - beat.start) < 1e-6,
+      `beat at ${beat.start} must own the hit at ${ev.start}`,
+    );
+  }
+}
+const twoVoiceTimeline = buildTimeline({
+  playOrder: buildPlayOrder(twoVoiceModel.measures),
+  tempoMap: twoVoiceModel.tempoMap || [],
+  baseBpm: 120,
+  rate: 1,
+  tracks: { guitarModels: [], drumModels: [twoVoiceModel] },
+});
+const kickTimes = twoVoiceTimeline.events
+  .filter((e) => e.instrument === 'kick')
+  .map((e) => Number(e.startSec.toFixed(4)))
+  .sort((a, b) => a - b);
+assert.deepEqual(kickTimes, [0, 1], 'the kick of voice 1 plays on beats 1 and 3');
+
+// ---- GP5: drums-flam.gp5 reads the grace hit on the snare ----
+const gp5Flam = await parseGuitarPro(fixtureBytes('drums-flam.gp5'));
+const gp5FlamModel = gp5Flam.drumTracks[0].model;
+assert.equal(gp5FlamModel.measures[0].endBeat, 4, 'the grace hit must not lengthen the bar');
+const gp5FlamGrace = gp5FlamModel.events.find((e) => e.grace);
+assert.ok(gp5FlamGrace, 'GP5 reads the percussion grace note');
+assert.equal(gp5FlamGrace.start, 1);
+assert.equal(gp5FlamGrace.flam, true);
+assert.equal(gp5FlamGrace.duration, 0.125);
+const gp5FlamMain = gp5FlamModel.events.find((e) => e.start === 1 && !e.grace);
+assert.equal(gp5FlamMain.flam, true);
+assert.equal(drumTabGlyph(gp5FlamMain), 'f');
+assert.deepEqual(
+  gp5FlamModel.events.filter((e) => !e.grace).map((e) => e.start),
+  [0, 1, 2, 3],
+  'the other hits keep their beat positions',
+);
 
 console.log('gp-player drum parsing: ok');

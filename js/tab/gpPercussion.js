@@ -3,7 +3,8 @@
 // dynamics, decode GP6 element+variation pairs, and build a PercussionModel
 // parallel to TabModel.
 
-import { drumArticulationFromMidi } from '../drums/notation.js';
+import { drumArticulationFromMidi, drumLaneFor } from '../drums/notation.js';
+import { sortEventsWithBeats } from './tabModel.js';
 
 /** Guitar Pro "input" kit number → General MIDI percussion number. */
 const INPUT_TO_GM = new Map([
@@ -188,6 +189,24 @@ export function deriveMeasureSlotSpans(measures, events) {
 }
 
 /**
+ * Mark a drum ornament: a grace hit on the lane of its main hit is a flam.
+ * Both events keep the `flam` flag. The main hit then spells the flam with
+ * one symbol, and the grace hit still sounds just before the beat.
+ * @param {{instrument?:string, grace?:boolean}} graceEvent
+ * @param {{instrument?:string}[]} mainEvents hits of the beat the grace leads into
+ * @returns {boolean} true when the pair makes a flam
+ */
+export function markFlamPair(graceEvent, mainEvents) {
+  const graceLane = drumLaneFor(graceEvent?.instrument)?.key;
+  if (!graceLane) return false;
+  const main = (mainEvents || []).find((e) => drumLaneFor(e?.instrument)?.key === graceLane);
+  if (!main) return false;
+  graceEvent.flam = true;
+  main.flam = true;
+  return true;
+}
+
+/**
  * Build a PercussionModel from timed drum hits.
  * @typedef {{ slot:number, start:number, duration:number, instrument:string, velocity:number, midi:number, articulation:string|null, accent:boolean }} PercEvent
  * @typedef {{
@@ -201,18 +220,21 @@ export function deriveMeasureSlotSpans(measures, events) {
  *   warnings: string[],
  * }} PercussionModel
  */
-export function makePercussionModel({ name, tempo, events, measures, warnings = [] }) {
-  const evs = assignPercussionSlots(events || [])
-    .sort((a, b) => (a.start - b.start) || (a.midi - b.midi))
-    .map((e) => ({
-      ...e,
-      articulation: e.articulation ?? drumArticulationFromMidi(e.midi),
-    }));
+export function makePercussionModel({ name, tempo, events, measures, warnings = [], beats = null }) {
+  const sorted = sortEventsWithBeats(
+    assignPercussionSlots(events || []),
+    beats,
+    (a, b) => (a.start - b.start) || (a.midi - b.midi),
+  );
+  const evs = sorted.events.map((e) => ({
+    ...e,
+    articulation: e.articulation ?? drumArticulationFromMidi(e.midi),
+  }));
   const slots = evs.length ? Math.max(...evs.map((e) => e.slot)) + 1 : (measures?.length || 0);
   const totalBeats = measures?.length
     ? measures[measures.length - 1].endBeat
     : (evs.length ? Math.max(...evs.map((e) => e.start + (e.duration || 0))) : 0);
-  return {
+  const model = {
     percussion: true,
     name: name || 'Drums',
     tempo: Number.isFinite(tempo) && tempo > 0 ? tempo : 120,
@@ -222,4 +244,6 @@ export function makePercussionModel({ name, tempo, events, measures, warnings = 
     totalBeats,
     warnings,
   };
+  if (beats) model.beats = sorted.beats;
+  return model;
 }

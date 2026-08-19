@@ -27,6 +27,8 @@ import {
   noteValueToQuarters,
   normalizeTrackInfo,
   clampVelocity,
+  graceLeadQuarters,
+  sortEventsWithBeats,
 } from './tabModel.js';
 import {
   midiToDrumInstrument,
@@ -34,6 +36,7 @@ import {
   normalizePercussionMidi,
   gp6ElementVariationToMidi,
   makePercussionModel,
+  markFlamPair,
   assignPercussionSlots,
   deriveMeasureSlotSpans,
 } from './gpPercussion.js';
@@ -580,6 +583,20 @@ function readNoteGrace(noteNode) {
   return { grace: true, graceTransition: transition };
 }
 
+/**
+ * Grace mark of a GPIF beat. Guitar Pro 6 and later write a flam, a drag, or
+ * an acciaccatura as a separate beat with a `GraceNotes` mark. That beat
+ * decorates the beat after it and takes no time of its own, so the reader
+ * must not advance the bar by its written value.
+ * @param {object} beatNode
+ * @returns {'beforeBeat'|'onBeat'|null}
+ */
+function readBeatGrace(beatNode) {
+  const txt = childText(beatNode, 'GraceNotes');
+  if (!txt) return null;
+  return /onbeat/i.test(txt) ? 'onBeat' : 'beforeBeat';
+}
+
 function beatTechniquesFromNode(beat) {
   const beatTechniques = [];
   if (firstChild(beat, 'Tremolo')) beatTechniques.push('tremolo');
@@ -683,6 +700,46 @@ export function gpifToTracks(xml) {
   return { tracks, tempo: shared.tempo };
 }
 
+/**
+ * Drum hits of one waiting grace beat, timed to sound `lead` quarters before
+ * the beat that they decorate. `beats[].noteIndices` never holds a grace hit:
+ * the beat owns the notes that carry its rhythm, and the score timeline reads
+ * grace hits by `beatIndex`.
+ * @returns {object[]}
+ */
+function gpifPercussionGraceEvents({
+  waiting, notes, articulations, beatStart, voiceIndex, beatIndex,
+}) {
+  const out = [];
+  for (const noteId of waiting.noteRefs) {
+    const note = notes.get(noteId);
+    if (!note) continue;
+    const resolved = resolveGpifPercussionNote(note, articulations);
+    if (!resolved) continue;
+    const dynTxt = waiting.beatDyn
+      || childText(note, 'Dynamic')
+      || childText(firstChild(note, 'Dynamic'), 'Value');
+    const velocity = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
+    const instrument = midiToDrumInstrument(resolved.midi, {
+      velocity,
+      ghost: resolved.ghost,
+    });
+    if (!instrument) continue;
+    out.push({
+      start: beatStart,
+      duration: waiting.lead,
+      instrument,
+      velocity,
+      midi: resolved.midi,
+      accent: resolved.accent,
+      voiceIndex,
+      beatIndex,
+      grace: true,
+    });
+  }
+  return out;
+}
+
 /** Build a PercussionModel for a GPIF drum track (no string tuning). */
 function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
   const { bars, voices, beats, notes, masterBars, rhythms, tempo, tempoMap, anacrusis } = shared;
@@ -696,6 +753,9 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
   let cursor = 0;
   let measureIndex = 0;
   let maxVoiceCount = 0;
+  // Grace beats wait for the beat that they decorate, which can sit in the
+  // next bar. The wait is per voice, so each voice keeps its own list.
+  const pendingGraces = new Map();
 
   for (const mb of masterBars) {
     const barRefs = childText(mb, 'Bars').split(/\s+/).filter(Boolean);
@@ -735,6 +795,15 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
         const beatTechniques = beatTechniquesFromNode(beat);
         const noteRefs = childText(beat, 'Notes').split(/\s+/).filter(Boolean);
         const isRest = noteRefs.length === 0;
+        const beatIndex = modelBeats.length;
+        if (readBeatGrace(beat)) {
+          if (!isRest) {
+            const waiting = pendingGraces.get(vi) || [];
+            waiting.push({ noteRefs, beatDyn, lead: graceLeadQuarters(duration) });
+            pendingGraces.set(vi, waiting);
+          }
+          continue;
+        }
         if (isRest) {
           const restEntry = {
             measureIndex,
@@ -776,8 +845,23 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
               velocity,
               midi: resolved.midi,
               accent: resolved.accent,
+              voiceIndex: vi,
+              beatIndex,
             });
           }
+          // A grace hit sounds just before this beat. On the lane of one of
+          // the beat's own hits it makes a flam, which drum tab spells with
+          // one symbol on the main hit.
+          const mainEvents = noteIndices.map((i) => rawEvents[i]);
+          for (const waiting of pendingGraces.get(vi) || []) {
+            for (const graceEvent of gpifPercussionGraceEvents({
+              waiting, notes, articulations, beatStart, voiceIndex: vi, beatIndex,
+            })) {
+              markFlamPair(graceEvent, mainEvents);
+              rawEvents.push(graceEvent);
+            }
+          }
+          pendingGraces.delete(vi);
           modelBeats.push({
             measureIndex,
             voiceIndex: vi,
@@ -824,12 +908,65 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
 
   if (!events.length) warnings.push('The percussion track had no mappable drum hits.');
   const voiceCount = Math.max(1, Math.min(4, maxVoiceCount || 1));
-  const out = makePercussionModel({ name, tempo, events, measures, warnings });
+  const out = makePercussionModel({
+    name,
+    tempo,
+    events,
+    measures,
+    warnings,
+    beats: modelBeats.length ? modelBeats : null,
+  });
   out.trackInfo = trackInfo;
   out.voiceCount = voiceCount;
-  if (modelBeats.length) out.beats = modelBeats;
   if (modelRests.length) out.rests = modelRests;
   if (tempoMap.length) out.tempoMap = tempoMap;
+  return out;
+}
+
+/**
+ * Fretted notes of one waiting grace beat, timed to sound `lead` quarters
+ * before the beat that they decorate. A grace note stays out of
+ * `beats[].noteIndices`, because the beat owns the notes that carry its
+ * rhythm; the score timeline reads grace notes by `beatIndex`.
+ * @returns {object[]}
+ */
+function gpifFrettedGraceEvents({
+  waiting, notes, strings, beatStart, eventSlot, voiceIndex, beatIndex,
+}) {
+  const out = [];
+  for (const noteId of waiting.noteRefs) {
+    const note = notes.get(noteId);
+    if (!note) continue;
+    const props = firstChild(note, 'Properties');
+    const fretTxt = childText(property(props, 'Fret'), 'Fret');
+    const strTxt = childText(property(props, 'String'), 'String');
+    const midiTxt = childText(property(props, 'Midi'), 'Number');
+    const fret = fretTxt === '' ? null : parseInt(fretTxt, 10);
+    const stringIndex = strTxt === '' ? 0 : parseInt(strTxt, 10);
+    let midi = midiTxt === '' ? null : parseInt(midiTxt, 10);
+    if (midi == null && fret != null && strings[stringIndex]) {
+      midi = strings[stringIndex].openMidi + fret;
+    }
+    if (midi == null) continue;
+    const dynTxt = waiting.beatDyn
+      || childText(note, 'Dynamic')
+      || childText(firstChild(note, 'Dynamic'), 'Value');
+    out.push({
+      slot: eventSlot,
+      stringIndex,
+      fret,
+      midi,
+      pc: ((midi % 12) + 12) % 12,
+      dead: false,
+      start: beatStart,
+      duration: waiting.lead,
+      voiceIndex,
+      beatIndex,
+      grace: true,
+      velocity: clampVelocity(dynamicsToVelocity(dynTxt === '' ? null : dynTxt)),
+      techniques: [],
+    });
+  }
   return out;
 }
 
@@ -855,6 +992,9 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
   let cursor = 0;
   let measureIndex = 0;
   let maxVoiceCount = 0;
+  // Grace beats wait for the beat that they decorate, which can sit in the
+  // next bar. The wait is per voice, so each voice keeps its own list.
+  const pendingGraces = new Map();
   for (const mb of masterBars) {
     const barRefs = childText(mb, 'Bars').split(/\s+/).filter(Boolean);
     const barId = barRefs[trackIndex] != null ? barRefs[trackIndex] : barRefs[0];
@@ -898,6 +1038,15 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
         const noteRefs = childText(beat, 'Notes').split(/\s+/).filter(Boolean);
         const isRest = noteRefs.length === 0;
         const beatIndex = modelBeats.length;
+
+        if (readBeatGrace(beat)) {
+          if (!isRest) {
+            const waiting = pendingGraces.get(vi) || [];
+            waiting.push({ noteRefs, beatDyn, lead: graceLeadQuarters(duration) });
+            pendingGraces.set(vi, waiting);
+          }
+          continue;
+        }
 
         let eventSlot;
         if (vi === 0) {
@@ -1003,6 +1152,12 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
             }
             noteIndices.push(events.length - 1);
           }
+          for (const waiting of pendingGraces.get(vi) || []) {
+            events.push(...gpifFrettedGraceEvents({
+              waiting, notes, strings, beatStart, eventSlot, voiceIndex: vi, beatIndex,
+            }));
+          }
+          pendingGraces.delete(vi);
           modelBeats.push({
             measureIndex,
             voiceIndex: vi,
@@ -1051,8 +1206,15 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
     measureIndex += 1;
   }
 
-  events.sort((a, b) => (a.slot - b.slot) || (a.stringIndex - b.stringIndex));
-  if (!events.some((e) => e.fret != null || e.dead)) {
+  // The sort keeps `beats[].noteIndices` pointing at the same notes.
+  const sorted = sortEventsWithBeats(
+    events,
+    modelBeats,
+    (a, b) => (a.slot - b.slot) || (a.stringIndex - b.stringIndex),
+  );
+  const sortedEvents = sorted.events;
+  const sortedBeats = sorted.beats;
+  if (!sortedEvents.some((e) => e.fret != null || e.dead)) {
     warnings.push('The Guitar Pro track had no playable notes on the analyzed staff.');
   }
 
@@ -1060,8 +1222,8 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
   const out = {
     tuning: tuningName,
     strings,
-    events,
-    slots: events.length ? Math.max(...events.map((e) => e.slot)) + 1 : slot,
+    events: sortedEvents,
+    slots: sortedEvents.length ? Math.max(...sortedEvents.map((e) => e.slot)) + 1 : slot,
     measures,
     tempo: Number.isFinite(tempo) && tempo > 0 ? tempo : 120,
     totalBeats: cursor,
@@ -1071,7 +1233,7 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
     voiceCount,
   };
   if (tempoMap.length) out.tempoMap = tempoMap;
-  if (modelBeats.length) out.beats = modelBeats;
+  if (sortedBeats.length) out.beats = sortedBeats;
   if (modelRests.length) out.rests = modelRests;
   return out;
 }

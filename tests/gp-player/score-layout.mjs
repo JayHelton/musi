@@ -1135,6 +1135,36 @@ function isCompleteBarSystem(sys) {
   );
 }
 
+// A flam draws one symbol: the grace stroke stays silent on the page.
+{
+  const flamModel = {
+    percussion: true,
+    name: 'Drums',
+    events: [
+      { start: 0, instrument: 'kick', duration: 1 },
+      { start: 1, instrument: 'snare', duration: 1, flam: true },
+      { start: 1, instrument: 'snare', duration: 0.125, grace: true, flam: true },
+      { start: 2, instrument: 'hihatClosed', duration: 1 },
+    ],
+    beats: [
+      { measureIndex: 0, voiceIndex: 0, start: 0, duration: 1, noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [0] },
+      { measureIndex: 0, voiceIndex: 0, start: 1, duration: 1, noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [1] },
+      { measureIndex: 0, voiceIndex: 0, start: 2, duration: 1, noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [3] },
+    ],
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+  const layout = layoutForModel(flamModel, {
+    drumMode: true,
+    drumLanes: ['hihat', 'snare', 'kick'],
+    widthPx: 900,
+  });
+  const hits = layout.bars[0].glyphs.filter((g) => g.kind === 'drumHit');
+  assert.equal(hits.length, 3, 'the grace stroke of a flam draws no symbol of its own');
+  const flamHits = hits.filter((g) => g.text === 'f');
+  assert.equal(flamHits.length, 1, 'the main hit of the flam draws one f');
+  assert.equal(flamHits[0].aria, 'Snare (flam)');
+}
+
 console.log('gp-player score-layout: ok');
 if (techniqueReport) {
   console.log(`technique coverage: ${techniqueReport.drawnTotal}/${techniqueReport.fileTotal} (${(techniqueReport.ratio * 100).toFixed(1)}%)`);

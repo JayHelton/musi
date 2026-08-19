@@ -2,9 +2,11 @@
 
 import {
   DRUM_TAB_LANES,
+  drumLaneFor,
   drumTabGlyph,
   drumHitLabel,
   drumTabLegendFor,
+  isFlamGraceStroke,
 } from '../drums/notation.js';
 import { createFollowScrollGuard } from './followScroll.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
@@ -581,6 +583,7 @@ export function mountParchmentView(host, {
       const b = Number(ev.start);
       return b >= mStart - BEAT_EPS && b < mEnd - BEAT_EPS;
     });
+    const laneKeys = isDrum ? activeDrumLanes().map((lane) => lane.key) : [];
 
     const laneTops = new Map();
     for (const lane of barLayout.lanes) {
@@ -614,8 +617,15 @@ export function mountParchmentView(host, {
       const parent = (glyph.kind === 'fret' || glyph.kind === 'deadNote' || glyph.kind === 'drumHit')
         ? laneRef.laneNotes
         : laneRef.content;
+      // Several drums can share one beat, so the tooltip must read the hit
+      // that sits on the row this symbol draws on.
+      const glyphLaneKey = glyph.kind === 'drumHit'
+        ? laneKeys[glyph.stringIndex]
+        : null;
       const evForDrum = glyph.kind === 'drumHit'
-        ? eventsAtBar.find((ev) => Math.abs(Number(ev.start) - Number(glyph.beatStart)) < BEAT_EPS)
+        ? eventsAtBar.find((ev) => Math.abs(Number(ev.start) - Number(glyph.beatStart)) < BEAT_EPS
+          && !isFlamGraceStroke(ev)
+          && (glyphLaneKey == null || drumLaneFor(ev.instrument)?.key === glyphLaneKey))
         : null;
       appendGlyph(parent, glyph, unitPx, evForDrum, laneTops.get(glyph.lane) || 0);
     }

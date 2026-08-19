@@ -901,6 +901,23 @@ function writeAllFixtures() {
     }],
   }, join(OUT_DIR, 'drums-only.gp5'));
 
+  // Feature: drum track with a flam. The snare on beat 2 carries a grace hit.
+  writeGp5({
+    tracks: [{
+      name: 'Drums',
+      isPercussion: true,
+      tuning: [0, 0, 0, 0, 0, 0],
+      measures: [{
+        voices: [[
+          quarterBeat(1, 36),
+          quarterBeat(2, 38, { effects: { grace: true, graceFret: 38 } }),
+          quarterBeat(3, 42),
+          quarterBeat(4, 38),
+        ], []],
+      }],
+    }],
+  }, join(OUT_DIR, 'drums-flam.gp5'));
+
   // Feature: one bar score.
   writeGp5({
     tracks: [{

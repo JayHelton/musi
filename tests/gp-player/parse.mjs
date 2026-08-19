@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseGuitarPro } from '../../js/tab/guitarPro.js';
+import { parseGuitarPro, gpifToTracks } from '../../js/tab/guitarPro.js';
 import { makeFixtures } from './fixtures/makeFixtures.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -205,6 +205,57 @@ const graceMain = techGp5.tracks[0].model.events.find(
 );
 assert.ok(graceMain, 'techniques.gp5: main note on the grace beat');
 assert.equal(graceMain.fret, 5, 'techniques.gp5: main note fret');
+
+// A GPIF grace beat decorates the beat after it and takes no time of its own.
+const gpifGraceBeat = `<?xml version="1.0" encoding="UTF-8"?>
+<GPIF>
+  <MasterBars><MasterBar><Bars>0</Bars><Time>4/4</Time></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0 1 2 3 4</Beats></Voice></Voices>
+  <Beats>
+    <Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
+    <Beat id="1"><GraceNotes>BeforeBeat</GraceNotes><Rhythm ref="1"/><Notes>1</Notes></Beat>
+    <Beat id="2"><Rhythm ref="0"/><Notes>2</Notes></Beat>
+    <Beat id="3"><Rhythm ref="0"/><Notes>3</Notes></Beat>
+    <Beat id="4"><Rhythm ref="0"/><Notes>4</Notes></Beat>
+  </Beats>
+  <Notes>
+    <Note id="0"><Properties><Property name="Fret"><Fret>0</Fret></Property><Property name="String"><String>5</String></Property></Properties></Note>
+    <Note id="1"><Properties><Property name="Fret"><Fret>4</Fret></Property><Property name="String"><String>5</String></Property></Properties></Note>
+    <Note id="2"><Properties><Property name="Fret"><Fret>5</Fret></Property><Property name="String"><String>5</String></Property></Properties></Note>
+    <Note id="3"><Properties><Property name="Fret"><Fret>7</Fret></Property><Property name="String"><String>5</String></Property></Properties></Note>
+    <Note id="4"><Properties><Property name="Fret"><Fret>3</Fret></Property><Property name="String"><String>5</String></Property></Properties></Note>
+  </Notes>
+  <Rhythms>
+    <Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm>
+    <Rhythm id="1"><NoteValue>16th</NoteValue></Rhythm>
+  </Rhythms>
+  <Tracks>
+    <Track id="0">
+      <Name>Guitar</Name>
+      <Staves><Staff><Properties>
+        <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+      </Properties></Staff></Staves>
+    </Track>
+  </Tracks>
+</GPIF>`;
+const graceBeatModel = gpifToTracks(gpifGraceBeat).tracks[0].model;
+assert.equal(graceBeatModel.measures[0].endBeat, 4, 'a grace beat must not lengthen the bar');
+assert.deepEqual(
+  graceBeatModel.events.filter((e) => !e.grace).map((e) => e.start),
+  [0, 1, 2, 3],
+  'notes after a grace beat keep their beat positions',
+);
+const gpifGrace = graceBeatModel.events.find((e) => e.grace);
+assert.ok(gpifGrace, 'the grace beat becomes a grace note');
+assert.equal(gpifGrace.fret, 4);
+assert.equal(gpifGrace.start, 1, 'the grace note shares the start of the note it decorates');
+assert.equal(gpifGrace.duration, 0.25, 'a 16th grace leads its beat by a quarter of a quarter');
+assert.ok(
+  graceBeatModel.beats.every((b) => !(b.noteIndices || [])
+    .some((i) => graceBeatModel.events[i].grace)),
+  'a grace note never joins the notes of a beat',
+);
 
 // techniques.gp5 must carry every one of the 13 techniques from FR-021.
 const FR021_TECHNIQUES = [

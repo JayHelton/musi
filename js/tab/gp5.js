@@ -14,12 +14,18 @@
 // desynchronize everything after it.
 
 import { NOTE_NAMES_SHARP, TUNINGS } from '../theory.js';
-import { gp5DurationToQuarters, clampVelocity, normalizeTrackInfo } from './tabModel.js';
+import {
+  gp5DurationToQuarters,
+  clampVelocity,
+  normalizeTrackInfo,
+  graceLeadQuarters,
+} from './tabModel.js';
 import {
   midiToDrumInstrument,
   normalizeGp5PercussionMidi,
   dynamicsToVelocity,
   makePercussionModel,
+  markFlamPair,
   assignPercussionSlots,
   deriveMeasureSlotSpans,
 } from './gpPercussion.js';
@@ -262,15 +268,20 @@ function readBend(r) {
   return { points };
 }
 
+// GP5 grace duration byte → written length in quarter notes.
+const GRACE_DURATION_QUARTERS = { 1: 0.125, 2: 1 / 6, 3: 0.25 };
+
 function readGrace(r) {
   const fret = r.i8();
-  r.i8();                          // velocity
+  const dynamics = r.i8();
   const transition = r.i8();
-  r.i8();                          // duration
+  const duration = r.i8();
   r.u8();                          // flags
   const transitions = { 0: null, 1: 'slide', 2: 'bend', 3: 'hammer' };
   return {
     fret,
+    dynamics,
+    lead: graceLeadQuarters(GRACE_DURATION_QUARTERS[duration]),
     graceTransition: transitions[transition] || null,
   };
 }
@@ -747,6 +758,28 @@ function pushGp5BeatRhythm({
   return { ...rhythm, beatIndex: beats.length - 1 };
 }
 
+// One grace drum hit, timed to sound `lead` quarters before its beat.
+// `beats[].noteIndices` never holds a grace hit: the beat owns the notes that
+// carry its rhythm, and the score timeline reads grace hits by `beatIndex`.
+function percussionGraceEvent({ grace, voiceCursor, voiceIndex, beatIndex }) {
+  const midi = normalizeGp5PercussionMidi(grace.fret);
+  if (midi == null) return null;
+  const velocity = dynamicsToVelocity(grace.dynamics);
+  const instrument = midiToDrumInstrument(midi, { velocity });
+  if (!instrument) return null;
+  return {
+    start: voiceCursor,
+    duration: grace.lead,
+    instrument,
+    velocity,
+    midi,
+    accent: false,
+    voiceIndex,
+    beatIndex,
+    grace: true,
+  };
+}
+
 function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120, ctx = {}) {
   const events = [];
   const measureSpans = [];
@@ -797,11 +830,13 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120,
 
         if (!beat.empty) {
           const noteIndices = [];
+          const graceNotes = [];
           for (const n of beat.notes) {
             if (n.dead || n.tie || n.midi == null) continue;
             const velocity = dynamicsToVelocity(n.dynamics);
             const instrument = midiToDrumInstrument(n.midi, { velocity, ghost: n.ghost });
             if (!instrument) continue;
+            if (n.graceInfo) graceNotes.push(n.graceInfo);
             noteIndices.push(events.length);
             events.push({
               start: voiceCursor,
@@ -813,6 +848,18 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120,
               voiceIndex,
               beatIndex,
             });
+          }
+          // A grace hit sounds just before the beat. On the lane of one of the
+          // beat's own hits it makes a flam, which drum tab spells with one
+          // symbol on the main hit.
+          const mainEvents = noteIndices.map((i) => events[i]);
+          for (const grace of graceNotes) {
+            const graceEvent = percussionGraceEvent({
+              grace, voiceCursor, voiceIndex, beatIndex,
+            });
+            if (!graceEvent) continue;
+            markFlamPair(graceEvent, mainEvents);
+            events.push(graceEvent);
           }
           if (beats[beatIndex] && !beats[beatIndex].rest) {
             beats[beatIndex].noteIndices = noteIndices;
@@ -858,10 +905,10 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120,
     events: slottedEvents,
     measures: measuresWithSlots,
     warnings,
+    beats,
   });
   return {
     ...model,
-    beats,
     rests,
     voiceCount,
     trackInfo: buildTrackInfo(track, ctx),
