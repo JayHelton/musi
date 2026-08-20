@@ -5,8 +5,9 @@
 // the page comes from `js/drums/staffSvg.js`, so the page and the score player
 // draw the same notation.
 //
-// The text drum tab section stays at the end, because most tabs on the web
-// still use letters and dashes.
+// The page is long, so it splits over the mode tabs of the tool page: the
+// staff and the kit, the note values and the marks, the bars to play, and the
+// text drum tab that most tabs on the web still use.
 
 import { DRUM_TAB_LANES, DRUM_TAB_LEGEND } from './drums/notation.js';
 import {
@@ -48,6 +49,9 @@ const GLYPH_SOUND = {
   f: 'snareFlam',
 };
 
+/** The tab row the tool-page shell draws for this tool. */
+const MODES_ID = 'tool-page-modes-drumtab';
+
 let root = null;
 let playingId = '';
 /** The playhead of each drawn example, keyed by example id. */
@@ -65,6 +69,33 @@ function card(title, help) {
   if (title) node.appendChild(el('h3', 'dtr-card-title', title));
   if (help) node.appendChild(el('p', 'dtr-help', help));
   return node;
+}
+
+/** One tab panel. The tool-page tab row shows and hides these by id. */
+function panel(id, children) {
+  const node = el('div', 'subview-panel dtr-panel');
+  node.dataset.subview = id;
+  node.dataset.subviewFor = MODES_ID;
+  for (const child of children) node.appendChild(child);
+  return node;
+}
+
+/**
+ * Match the panels to the tab that is already active.
+ *
+ * The tab row mounts before this page builds its panels, so the row cannot
+ * hide a panel that does not exist yet. With no tab row the page reads as one
+ * long document, and every panel stays open.
+ */
+function syncPanels() {
+  const tabs = document.getElementById(MODES_ID);
+  const active = tabs?.querySelector('.subview-tab.active')?.dataset.id;
+  if (!active) return;
+  root.querySelectorAll('.dtr-panel').forEach((node) => {
+    const show = node.dataset.subview === active;
+    node.hidden = !show;
+    node.classList.toggle('active', show);
+  });
 }
 
 function scroller(child) {
@@ -564,21 +595,27 @@ export function initDrumTabReference() {
   root.dataset.built = '1';
   playheads.clear();
 
+  // The tab already names this panel, so the list needs no heading of its own.
+  const examples = el('div', 'dtr-examples');
+  for (const example of DRUM_STAFF_EXAMPLES) examples.appendChild(buildExample(example));
+
+  const barsPanel = panel('bars', [examples]);
   root.append(
-    buildIntro(),
-    buildNotationChart(),
-    buildKitMap(),
-    buildNoteValues(),
-    buildMarks(),
+    panel('staff', [buildIntro(), buildNotationChart(), buildKitMap()]),
+    panel('values', [buildNoteValues(), buildMarks()]),
+    barsPanel,
+    panel('texttab', [buildTextTab()]),
   );
 
-  const examples = el('div', 'dtr-examples');
-  examples.appendChild(el('h3', 'dtr-section-title', 'Read and play these bars'));
-  for (const example of DRUM_STAFF_EXAMPLES) examples.appendChild(buildExample(example));
-  root.appendChild(examples);
+  // A bar that is playing must stop when the reader leaves its tab.
+  if (typeof MutationObserver === 'function') {
+    const watcher = new MutationObserver(() => {
+      if (barsPanel.hidden && playingId) stopExample();
+    });
+    watcher.observe(barsPanel, { attributes: true, attributeFilter: ['hidden'] });
+  }
 
-  root.appendChild(buildTextTab());
-
+  syncPanels();
   syncExampleButtons();
 }
 

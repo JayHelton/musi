@@ -51,6 +51,21 @@ function test(name, fn) {
   }
 }
 
+test('the page splits over the tabs of the tool page', () => {
+  const tool = getTool('drumtab');
+  assert.ok(tool.modes?.length >= 3, 'a long page needs tabs');
+  assert.ok(
+    tool.modes.some((mode) => mode.id === tool.defaultMode),
+    'the default tab must be one of the tabs',
+  );
+  const page = readFileSync(new URL('../../js/drumTabReference.js', import.meta.url), 'utf8');
+  for (const mode of tool.modes) {
+    assert.ok(page.includes(`panel('${mode.id}'`), `no panel for the ${mode.id} tab`);
+  }
+  // The tab row belongs to the tool-page shell, so the ids must agree.
+  assert.ok(page.includes("'tool-page-modes-drumtab'"), 'the page must name the tab row');
+});
+
 test('Drum Notation is a Study tool with its own section', () => {
   const tool = getTool('drumtab');
   assert.ok(tool, 'no drumtab tool');

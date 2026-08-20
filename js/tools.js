@@ -154,6 +154,13 @@ export const TOOLS = [
     area: 'study',
     description: 'Read drum music: where each piece of the kit sits on the staff.',
     title: 'Drum Notation',
+    modes: [
+      { id: 'staff', label: 'The staff' },
+      { id: 'values', label: 'Note values' },
+      { id: 'bars', label: 'Play bars' },
+      { id: 'texttab', label: 'Text tab' },
+    ],
+    defaultMode: 'staff',
     context: [],
     holdRecord: false,
   },

@@ -7,6 +7,12 @@
   max-width: 1000px;
 }
 
+.dtr-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .dtr-card {
   padding: 16px;
 }
@@ -23,15 +29,6 @@
 
 .dtr-subtitle {
   margin-top: 18px;
-  color: var(--accent2, var(--accent));
-}
-
-.dtr-section-title {
-  margin: 4px 0 10px;
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.58rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
   color: var(--accent2, var(--accent));
 }
 
