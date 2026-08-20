@@ -22,6 +22,14 @@ export { mountTrackTabs } from './trackTabs.js';
 export { createPanelManager } from './panelManager.js';
 export { mountShortcutHelp, GPP_SHORTCUTS } from './shortcutHelp.js';
 export { mountTrackMixer } from './trackMixer.js';
+export { mountBackingPanel } from './backingPanel.js';
+export {
+  createBackingSync,
+  targetMediaSec,
+  driftRateFactor,
+  ELEMENT_THRESHOLDS,
+  IFRAME_THRESHOLDS,
+} from './backingSync.js';
 export { mountSettingsDrawer } from './settingsDrawer.js';
 export { mountPlayerMenu } from './playerMenu.js';
 export { mountAnnotationsDrawer } from './annotationsDrawer.js';

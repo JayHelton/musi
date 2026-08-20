@@ -16,6 +16,7 @@ const LOOP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const PREV_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>';
 const NEXT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
 const METRO_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l4 18H5L9 3Z"/><path d="m17 9-9 8"/></svg>';
+const BACKING_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>';
 
 /** Build a rail button with an icon and a word. */
 function railButton({ cls = '', icon, label, ariaLabel, title }) {
@@ -78,17 +79,28 @@ export function mountPracticeRail(host, api = {}) {
     title: 'Metronome click',
   });
   metroBtn.setAttribute('aria-pressed', 'false');
+  // The backing track button only appears when the score has a track attached.
+  const backingBtn = railButton({
+    cls: 'gpp-practice-backing-btn',
+    icon: BACKING_ICON,
+    label: 'Real song',
+    ariaLabel: 'Play the real song instead of the synth',
+    title: 'Play the real song instead of the synth',
+  });
+  backingBtn.setAttribute('aria-pressed', 'false');
+  backingBtn.hidden = true;
 
   const loopLabelEl = loopBtn.querySelector('.gpp-practice-label');
   const hintEl = el('span', { class: 'gpp-practice-hint', text: '', hidden: true });
   const overlayEl = el('span', { class: 'gpp-practice-overlay', text: '', hidden: true });
 
-  host.append(prevBtn, nextBtn, loopBtn, metroBtn, hintEl, overlayEl);
+  host.append(prevBtn, nextBtn, loopBtn, metroBtn, backingBtn, hintEl, overlayEl);
 
   prevBtn.addEventListener('click', () => api.onPrev?.());
   nextBtn.addEventListener('click', () => api.onNext?.());
   loopBtn.addEventListener('click', () => api.onLoopCycle?.());
   metroBtn.addEventListener('click', () => api.onMetroToggle?.());
+  backingBtn.addEventListener('click', () => api.onBackingToggle?.());
 
   function syncLoop() {
     const mode = api.getLoopMode?.() || 'off';
@@ -123,6 +135,17 @@ export function mountPracticeRail(host, api = {}) {
     metroBtn.classList.toggle('is-on', metroOn);
     metroBtn.setAttribute('aria-pressed', metroOn ? 'true' : 'false');
     metroBtn.title = metroOn ? 'Metronome click on' : 'Metronome click off';
+
+    const hasBacking = !!api.getBackingAvailable?.();
+    backingBtn.hidden = !hasBacking;
+    if (hasBacking) {
+      const backingOn = !!api.getBackingActive?.();
+      backingBtn.classList.toggle('is-on', backingOn);
+      backingBtn.setAttribute('aria-pressed', backingOn ? 'true' : 'false');
+      backingBtn.title = backingOn
+        ? 'The real song plays. Press to go back to the synth.'
+        : 'The synth plays. Press to play the real song.';
+    }
 
     const overlayTxt = api.getOverlayLabel?.() || '';
     if (overlayTxt) {

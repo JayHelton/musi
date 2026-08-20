@@ -3147,3 +3147,152 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
     justify-content: center;
   }
 }
+
+/* ── Backing track drawer ─────────────────────────────────────────────── */
+
+/* .gpp-practice-btn sets display, so it beats the [hidden] default. */
+.gpp-practice-btn[hidden] {
+  display: none;
+}
+
+.gpp-backing-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: var(--font-body, "Pixelify Sans", sans-serif);
+  font-size: 0.9rem;
+}
+
+.gpp-backing-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(11, 16, 32, 0.55);
+}
+
+.gpp-backing-group-title {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.gpp-backing-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.gpp-backing-label {
+  flex: 0 0 6.5rem;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.gpp-backing-readout {
+  min-width: 5rem;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+  color: var(--accent);
+  text-align: right;
+}
+
+.gpp-backing-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.gpp-backing-source-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.gpp-backing-url {
+  flex: 1 1 10rem;
+  min-width: 0;
+  min-height: var(--tap-min, 44px);
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(11, 16, 32, 0.75);
+  color: var(--text);
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+}
+
+.gpp-backing-anchor {
+  width: 6rem;
+  min-height: var(--tap-min, 44px);
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(11, 16, 32, 0.75);
+  color: var(--text);
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+}
+
+.gpp-backing-volume,
+.gpp-backing-trim {
+  flex: 1 1 6rem;
+  min-width: 0;
+  min-height: var(--tap-min, 44px);
+  accent-color: var(--accent);
+}
+
+.gpp-backing-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap-min, 44px);
+  cursor: pointer;
+}
+
+.gpp-backing-active {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+.gpp-backing-yt {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.gpp-backing-yt iframe,
+.gpp-backing-yt .gpp-backing-yt-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.gpp-backing-status {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.gpp-backing-notice {
+  padding: 8px 10px;
+  border: 1px solid var(--accent2);
+  border-radius: 10px;
+  background: rgba(107, 76, 154, 0.18);
+  font-size: 0.84rem;
+  color: var(--text);
+}

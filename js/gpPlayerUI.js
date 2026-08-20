@@ -45,6 +45,7 @@ import { mountSettingsDrawer } from './gpPlayer/settingsDrawer.js';
 import { mountPlayerMenu } from './gpPlayer/playerMenu.js';
 import { mountMetronomePanel } from './gpPlayer/metronomePanel.js';
 import { mountAnnotationsDrawer } from './gpPlayer/annotationsDrawer.js';
+import { mountBackingPanel } from './gpPlayer/backingPanel.js';
 import { buildMeasureDigests } from './gpPlayer/measureDigest.js';
 import { mountExerciseImportPanel } from './gpPlayer/exerciseImportPanel.js';
 import {
@@ -340,7 +341,9 @@ export function mountGpPlayer(host, {
   const annoDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-anno-drawer-root' });
   const metroDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-metro-drawer-root' });
   const helpDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-help-drawer-root' });
+  const backingDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-backing-drawer-root' });
   const tracksMixerHost = el('div', { class: 'gpp-tracks-drawer-mount' });
+  const backingHost = el('div', { class: 'gpp-tracks-drawer-mount gpp-backing-mount' });
   scorePane.append(scoreBody);
 
   const analysisResultsEl = el('div', {
@@ -372,6 +375,7 @@ export function mountGpPlayer(host, {
     annoDrawerRoot,
     metroDrawerRoot,
     helpDrawerRoot,
+    backingDrawerRoot,
   );
   stagePane.append(stageContent);
 
@@ -398,6 +402,8 @@ export function mountGpPlayer(host, {
   let playerMenu = null;
   let tracksDrawer = null;
   let annoDrawer = null;
+  let backingDrawer = null;
+  let backingPanel = null;
   let importPanel = null;
   let loopSnapshot = null;
   let externalLoopSnapshot = null;
@@ -442,6 +448,7 @@ export function mountGpPlayer(host, {
       metro: 'metro',
       help: 'help',
       import: 'import',
+      backing: 'backing',
     };
     for (const [key, id] of Object.entries(map)) {
       if (except === key) continue;
@@ -1486,6 +1493,9 @@ export function mountGpPlayer(host, {
       return `${state.loopStart + 1}–${state.loopEnd + 1}`;
     },
     getMetroEnabled: () => !!state.metro.enabled,
+    getBackingAvailable: () => !!backingPanel?.hasSource(),
+    getBackingActive: () => !!backingPanel?.isActive(),
+    onBackingToggle: () => backingPanel?.toggleActive(),
     getOverlayLabel: () => practiceOverlayLabel(lastTickResting, lastRestRemaining),
   });
 
@@ -1523,6 +1533,38 @@ export function mountGpPlayer(host, {
     title: 'Tracks',
     bodyEl: tracksMixerHost,
   });
+
+  backingDrawer = mountTracksDrawerShell(backingDrawerRoot, {
+    title: 'Backing track',
+    bodyEl: backingHost,
+  });
+
+  try {
+    backingPanel = mountBackingPanel(backingHost, {
+      getScoreKey: () => scoreKey,
+      // The follower must read the clock that the note scheduler reads, or the
+      // recording leads the sound by the start delay that play() adds.
+      getClock: () => {
+        const anchor = player.getClockAnchor?.();
+        return {
+          songSec: songSecFromAudioClock(),
+          rate: player.rate ?? 1,
+          playing: !!player.playing,
+          holding: !!anchor && anchor.holdSec != null,
+        };
+      },
+      onActiveChange: (mute) => {
+        player.setNotesMuted?.(mute);
+      },
+      onChange: () => {
+        practiceRail?.sync();
+      },
+    });
+    // The rail mounts first, so it has not seen the saved source yet.
+    practiceRail?.sync();
+  } catch (e) {
+    console.error(e);
+  }
 
   try {
     trackMixer = mountTrackMixer(tracksMixerHost, {
@@ -1659,6 +1701,10 @@ export function mountGpPlayer(host, {
         closeOtherOverlays('tracks');
         panelManager.open('tracks');
       },
+      onOpenBacking: () => {
+        closeOtherOverlays('backing');
+        panelManager.open('backing');
+      },
       onOpenMetronome: () => {
         closeOtherOverlays('metro');
         panelManager.open('metro');
@@ -1685,6 +1731,7 @@ export function mountGpPlayer(host, {
     panelManager.register('tracks', tracksDrawer);
     panelManager.register('notes', annoDrawer);
     panelManager.register('metro', metronomePanel);
+    panelManager.register('backing', backingDrawer);
   } catch (e) {
     console.error(e);
   }
@@ -2189,6 +2236,9 @@ export function mountGpPlayer(host, {
 
   return {
     player,
+    // The backing track panel, so an embedder can read its state and a test
+    // can measure how well the recording holds the score.
+    get backing() { return backingPanel; },
     setBackLabel,
     isLoopEnabled: () => !!state.loopEnabled,
     setLoopEnabled,
@@ -2241,6 +2291,10 @@ export function mountGpPlayer(host, {
           }
         } catch (e) { console.error(e); }
         try { tracksDrawer?.destroy(); } catch (e) { console.error(e); }
+        // The backing panel holds a media element or an iframe. It must go
+        // before the host detaches, or the sound keeps playing.
+        try { backingPanel?.destroy(); } catch (e) { console.error(e); }
+        try { backingDrawer?.destroy(); } catch (e) { console.error(e); }
         try { layoutMetrics?.destroy(); } catch (e) { console.error(e); }
         layoutMetrics = null;
         try {

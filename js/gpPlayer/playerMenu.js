@@ -14,6 +14,7 @@ const ICONS = {
   settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>',
   metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 18v4"/><path d="m19.07 19.07-2.83-2.83"/><path d="M18 12h4"/><path d="m19.07 4.93-2.83 2.83"/><circle cx="12" cy="12" r="4"/></svg>',
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
+  backing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>',
 };
 
 function viewLabel(mode) {
@@ -45,6 +46,7 @@ export function mountPlayerMenu(host, {
   onOpenNotes = null,
   onOpenSplit = null,
   onOpenTracks = null,
+  onOpenBacking = null,
   onOpenMetronome = null,
   onOpenSettings = null,
   onOpenHelp = null,
@@ -204,6 +206,17 @@ export function mountPlayerMenu(host, {
         onClick: () => {
           close();
           onOpenTracks();
+        },
+      }));
+    }
+    if (typeof onOpenBacking === 'function') {
+      actionsGroup.appendChild(makeMenuRow({
+        label: 'Backing track',
+        ariaLabel: 'Backing track and sync delay',
+        icon: ICONS.backing,
+        onClick: () => {
+          close();
+          onOpenBacking();
         },
       }));
     }

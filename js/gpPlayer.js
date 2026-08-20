@@ -25,6 +25,7 @@ import {
   isTabModelItem,
 } from './exercises.js';
 import { resolveScoreKey, migrateAnnotations, copyAnnotations } from './gpAnnotations.js';
+import { migrateBackingTrack } from './gpBackingTrack.js';
 import { beatsFromMeasureRange } from './gpPlayer/rangeUtils.js';
 import { formatBarRange } from './gpPlayer/measureDigest.js';
 import {
@@ -400,6 +401,9 @@ async function saveToLibrary() {
       byteLength: state.bytes?.length,
     });
     migrateAnnotations(fromKey, toKey);
+    // The score keeps its key only until it reaches the library. Move the
+    // backing track with it, or the alignment the user set is lost.
+    migrateBackingTrack(fromKey, toKey);
     state.exerciseId = item.id;
     state.attachmentId = meta.id;
     mountCurrent();

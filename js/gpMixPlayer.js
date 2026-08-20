@@ -228,6 +228,9 @@ export function createGpMixPlayer(opts = {}) {
     voiceFactory: null,
     prewarmDone: false,
     playGeneration: 0,
+    // A backing track replaces the synth sound. The transport, the playhead,
+    // and the metronome must continue, so the mute stops the notes only.
+    notesMuted: false,
   };
 
   function wallSecFromEvent(ev) {
@@ -614,6 +617,9 @@ export function createGpMixPlayer(opts = {}) {
 
   function scheduleEvent(ev, when, now) {
     if (state.destroyed || !state.voiceFactory) return;
+    // The backing track carries the notes now. Keep the event cursor moving so
+    // the position, the loop, and the metronome stay correct.
+    if (state.notesMuted) return;
     // A late note must still sound. The engine used to drop any note whose
     // time had passed, so one slow frame deleted notes from the score and the
     // learner heard a skip. Play a late note now instead. Only a note that is
@@ -1363,6 +1369,21 @@ export function createGpMixPlayer(opts = {}) {
     setTrackBusPan(key, pans[index]);
   }
 
+  /**
+   * Silence the synth notes without a reload and without a restart.
+   *
+   * `setTrackEnabled` cannot do this job. It rebuilds the event list and it
+   * starts playback again, and it would also overwrite the track mixer that
+   * the user set. This flag keeps every one of those values.
+   */
+  function setNotesMuted(on) {
+    const next = !!on;
+    if (state.notesMuted === next) return;
+    state.notesMuted = next;
+    // A note that already sounds must stop, or it rings over the record.
+    if (next) fadeVoices();
+  }
+
   function setMetronomeEnabled(on) {
     state.metronomeEnabled = !!on;
     const was = state.playing;
@@ -1479,6 +1500,7 @@ export function createGpMixPlayer(opts = {}) {
     setTrackEnabled,
     setTrackVolume,
     setTrackPan,
+    setNotesMuted,
     setMetronomeEnabled,
     setMetronomeConfig,
     setLoop,
@@ -1490,6 +1512,10 @@ export function createGpMixPlayer(opts = {}) {
     get playing() { return state.playing; },
     get paused() { return state.paused; },
     get bpm() { return state.baseBpm * state.rate; },
+    // The practice speed factor. Engine seconds are score-tempo seconds
+    // divided by this value, so a follower needs it to map to real media time.
+    get rate() { return state.rate; },
+    get notesMuted() { return state.notesMuted; },
     get currentSec() { return songTimeNow(); },
     get durationSec() { return durationSec(); },
     get measureIndex() { return state.measureIndex; },

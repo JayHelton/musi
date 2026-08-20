@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v264-drum-notation-tabs";
+const CACHE_VERSION = "v265-backing-track-sync";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -135,10 +135,14 @@ const PRECACHE_URLS = [
   "js/exercisesBulkUI.js",
   "js/folderTree.js",
   "js/gpAnnotations.js",
+  "js/gpBackingTrack.js",
   "js/gpExerciseScore.js",
   "js/gpMixPlayer.js",
   "js/gpPlayer.js",
   "js/gpPlayer/annotationsDrawer.js",
+  "js/gpPlayer/backingPanel.js",
+  "js/gpPlayer/backingSources.js",
+  "js/gpPlayer/backingSync.js",
   "js/gpPlayer/dom.js",
   "js/gpPlayer/exerciseImportPanel.js",
   "js/gpPlayer/exerciseSegments.js",
@@ -322,6 +326,19 @@ function isSupabaseSyncRequest(url) {
   return SUPABASE_API_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
 }
 
+// Hosts that serve the YouTube IFrame player, its assets, and its media.
+const YOUTUBE_HOSTS = [
+  "youtube.com",
+  "youtube-nocookie.com",
+  "ytimg.com",
+  "googlevideo.com",
+];
+
+function isYouTubeRequest(url) {
+  const host = url.hostname.toLowerCase();
+  return YOUTUBE_HOSTS.some((base) => host === base || host.endsWith(`.${base}`));
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -336,6 +353,10 @@ self.addEventListener("fetch", (event) => {
 
   // Runtime cloud-config.json must always come from the network.
   if (url.pathname.endsWith("cloud-config.json")) return;
+
+  // The YouTube player and its media come from the network every time. The
+  // cross-origin branch below would keep a stale copy of a versioned script.
+  if (isYouTubeRequest(url)) return;
 
   // For navigations, serve the cached app shell when offline.
   if (request.mode === "navigate") {

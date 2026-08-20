@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>gp-player backing track sync</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    #host { width: 520px; height: 460px; }
+    #out { white-space: pre; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    // Attach a real audio file to a real score, play it, and measure how far
+    // the recording sits from the score at full speed, at half speed, and
+    // across a loop wrap.
+    import { writeln, printTable, runMain, reportResult } from './harness.js';
+
+    const BARS = 24;
+    const TONE_HZ = 220;
+    const CLIP_SEC = 60;
+    const SETTLE_MS = 1200;
+    const MEASURE_MS = 2500;
+    // The follower seeks when the drift passes 120 ms, so a run that stays
+    // inside 60 ms shows the correction is doing real work.
+    const MAX_DRIFT_MS = 60;
+
+    function makeGpResult(barCount) {
+      const strings = [
+        { note: 'E', oct: 4, label: 'E', openMidi: 64 },
+        { note: 'B', oct: 3, label: 'B', openMidi: 59 },
+        { note: 'G', oct: 3, label: 'G', openMidi: 55 },
+        { note: 'D', oct: 3, label: 'D', openMidi: 50 },
+        { note: 'A', oct: 2, label: 'A', openMidi: 45 },
+        { note: 'E', oct: 2, label: 'E', openMidi: 40 },
+      ];
+      const events = [];
+      const measures = [];
+      for (let bar = 0; bar < barCount; bar += 1) {
+        measures.push({
+          startSlot: bar * 4,
+          endSlot: bar * 4 + 4,
+          startBeat: bar * 4,
+          endBeat: bar * 4 + 4,
+          timeSig: [4, 4],
+        });
+        for (let beat = 0; beat < 4; beat += 1) {
+          events.push({
+            slot: bar * 4 + beat,
+            stringIndex: 5,
+            fret: beat,
+            midi: 40 + beat,
+            pc: (40 + beat) % 12,
+            dead: false,
+            start: bar * 4 + beat,
+            duration: 1,
+            techniques: [],
+          });
+        }
+      }
+      return {
+        tempo: 120,
+        tracks: [{
+          index: 0,
+          name: 'Guitar',
+          tuning: 'Standard',
+          noteCount: events.length,
+          model: {
+            tuning: 'Standard',
+            strings,
+            events,
+            measures,
+            slots: barCount * 4,
+            tempo: 120,
+            totalBeats: barCount * 4,
+            techniqueCounts: {},
+            warnings: [],
+          },
+        }],
+        drumTracks: [],
+      };
+    }
+
+    /** A plain 16-bit mono WAV, so the browser decodes a real media file. */
+    function makeWavFile(seconds, hz) {
+      const rate = 22050;
+      const frames = Math.floor(seconds * rate);
+      const bytes = new ArrayBuffer(44 + frames * 2);
+      const view = new DataView(bytes);
+      const text = (offset, s) => {
+        for (let i = 0; i < s.length; i += 1) view.setUint8(offset + i, s.charCodeAt(i));
+      };
+      text(0, 'RIFF');
+      view.setUint32(4, 36 + frames * 2, true);
+      text(8, 'WAVE');
+      text(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, rate, true);
+      view.setUint32(28, rate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      text(36, 'data');
+      view.setUint32(40, frames * 2, true);
+      for (let i = 0; i < frames; i += 1) {
+        const sample = Math.sin((2 * Math.PI * hz * i) / rate) * 0.25;
+        view.setInt16(44 + i * 2, Math.round(sample * 32767), true);
+      }
+      return new File([bytes], 'backing.wav', { type: 'audio/wav' });
+    }
+
+    function attachFile(file) {
+      const input = document.querySelector('.gpp-backing-file');
+      if (!input) throw new Error('the backing track file input is missing');
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change'));
+    }
+
+    function stats(list) {
+      if (!list.length) return { worst: 0, mean: 0 };
+      const abs = list.map((n) => Math.abs(n));
+      return {
+        worst: Math.max(...abs),
+        mean: abs.reduce((a, b) => a + b, 0) / abs.length,
+      };
+    }
+
+    runMain(async () => {
+      localStorage.removeItem('musi.gpBackingTracks');
+
+      const { mountGpPlayer } = await import('/js/gpPlayerUI.js');
+      const audio = await import('/js/audio.js');
+      const host = document.getElementById('host');
+      const mount = mountGpPlayer(host, {
+        gpResult: makeGpResult(BARS),
+        title: 'Backing track measurement',
+        scoreKey: 'harness:backing-sync',
+        skipCountIn: true,
+      });
+
+      audio.ensureAudio();
+      if (audio.audioCtx?.state === 'suspended') await audio.audioCtx.resume();
+
+      const realSetTimeout = window.setTimeout.bind(window);
+      const wait = (ms) => new Promise((r) => realSetTimeout(r, ms));
+      await wait(400);
+
+      const backing = mount.backing;
+      if (!backing) throw new Error('the backing panel did not mount');
+
+      writeln('backing-sync: recording against score');
+      writeln(`bars: ${BARS}  clip seconds: ${CLIP_SEC}  drift limit: ${MAX_DRIFT_MS} ms`);
+      writeln('');
+
+      // 1. Attach a file. The rail button must appear.
+      attachFile(makeWavFile(CLIP_SEC, TONE_HZ));
+      await wait(500);
+      const hasSource = backing.hasSource();
+      const railShown = !document.querySelector('.gpp-practice-backing-btn')?.hidden;
+
+      // 2. Turn the backing track on. The synth notes must go quiet.
+      await backing.setActive(true);
+      await wait(200);
+      const mutedOnEnable = mount.player.notesMuted === true;
+
+      // 3. Play and measure the drift at full speed.
+      await mount.player.play({ fromSec: 0 });
+      await wait(SETTLE_MS);
+      const fullSpeed = [];
+      let end = performance.now() + MEASURE_MS;
+      while (performance.now() < end) {
+        fullSpeed.push(backing.getDriftSec() * 1000);
+        await wait(50);
+      }
+      const fullStats = stats(fullSpeed);
+      const fullSpeedStatus = backing.getStatusKey();
+      const syncedAtFullSpeed = fullSpeedStatus === 'sync' || fullSpeedStatus === 'correcting';
+
+      // 4. Half speed. The recording must follow and stay in time.
+      mount.stepBpm(-60);
+      await wait(SETTLE_MS);
+      const halfSpeed = [];
+      end = performance.now() + MEASURE_MS;
+      while (performance.now() < end) {
+        halfSpeed.push(backing.getDriftSec() * 1000);
+        await wait(50);
+      }
+      const halfStats = stats(halfSpeed);
+      const rateFollowed = Math.abs((mount.player.rate ?? 1) - 0.5) < 0.01;
+
+      // 5. Back to full speed, then jump. A seek takes the same path a loop
+      // wrap takes, so the recording must catch up and hold again.
+      mount.stepBpm(60);
+      await wait(400);
+      mount.seekToBar(12);
+      await wait(SETTLE_MS);
+      const afterSeek = [];
+      end = performance.now() + MEASURE_MS;
+      while (performance.now() < end) {
+        afterSeek.push(backing.getDriftSec() * 1000);
+        await wait(50);
+      }
+      const seekStats = stats(afterSeek);
+      const heldAfterSeek = backing.getStatusKey() === 'sync'
+        || backing.getStatusKey() === 'correcting';
+
+      mount.player.pause();
+      await wait(300);
+      // 6. A paused score leaves the recording paused too.
+      const pausedWithScore = backing.getStatusKey() === 'idle';
+
+      // 7. Turning the backing track off gives the notes back.
+      await backing.setActive(false);
+      await wait(200);
+      const unmutedOnDisable = mount.player.notesMuted === false;
+
+      const rows = [
+        { check: 'file attaches', value: String(hasSource), ok: hasSource ? 'yes' : 'no' },
+        { check: 'rail button shows', value: String(railShown), ok: railShown ? 'yes' : 'no' },
+        { check: 'synth mutes', value: String(mutedOnEnable), ok: mutedOnEnable ? 'yes' : 'no' },
+        {
+          check: 'follows at 100%',
+          value: fullSpeedStatus,
+          ok: syncedAtFullSpeed ? 'yes' : 'no',
+        },
+        {
+          check: 'worst drift 100% ms',
+          value: fullStats.worst.toFixed(1),
+          ok: fullStats.worst <= MAX_DRIFT_MS ? 'yes' : 'no',
+        },
+        { check: 'mean drift 100% ms', value: fullStats.mean.toFixed(1), ok: '' },
+        { check: 'rate follows to 50%', value: String(rateFollowed), ok: rateFollowed ? 'yes' : 'no' },
+        {
+          check: 'worst drift 50% ms',
+          value: halfStats.worst.toFixed(1),
+          ok: halfStats.worst <= MAX_DRIFT_MS ? 'yes' : 'no',
+        },
+        { check: 'mean drift 50% ms', value: halfStats.mean.toFixed(1), ok: '' },
+        { check: 'holds after a seek', value: String(heldAfterSeek), ok: heldAfterSeek ? 'yes' : 'no' },
+        {
+          check: 'worst drift after seek ms',
+          value: seekStats.worst.toFixed(1),
+          ok: seekStats.worst <= MAX_DRIFT_MS ? 'yes' : 'no',
+        },
+        { check: 'pauses with score', value: String(pausedWithScore), ok: pausedWithScore ? 'yes' : 'no' },
+        { check: 'synth returns', value: String(unmutedOnDisable), ok: unmutedOnDisable ? 'yes' : 'no' },
+        {
+          check: 'samples',
+          value: `${fullSpeed.length} / ${halfSpeed.length} / ${afterSeek.length}`,
+          ok: '',
+        },
+      ];
+      printTable(rows, [{ key: 'check' }, { key: 'value' }, { key: 'ok' }]);
+
+      mount.destroy();
+      localStorage.removeItem('musi.gpBackingTracks');
+
+      reportResult(rows.every((row) => row.ok !== 'no'));
+    });
+  </script>
+</body>
+</html>

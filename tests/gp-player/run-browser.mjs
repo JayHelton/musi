@@ -29,6 +29,7 @@ const PAGES = [
   'realtime-dropouts.html',
   'realtime-ui-jank.html',
   'follow-scroll.html',
+  'backing-sync.html',
   'zoom-overflow.html',
   'score-wrap.html',
   'score-tuplets.html',
