@@ -1135,6 +1135,87 @@ function isCompleteBarSystem(sys) {
   );
 }
 
+// Drum staff mode draws a five-line percussion staff instead of kit rows.
+{
+  const staffModel = {
+    percussion: true,
+    name: 'Drums',
+    events: [
+      { start: 0, instrument: 'hihatClosed', duration: 0.5 },
+      { start: 0, instrument: 'kick', duration: 1 },
+      { start: 0.5, instrument: 'hihatClosed', duration: 0.5 },
+      { start: 1, instrument: 'hihatClosed', duration: 0.5 },
+      { start: 1, instrument: 'snare', duration: 1, accent: true },
+      { start: 1.5, instrument: 'hihatClosed', duration: 0.5 },
+      { start: 2, instrument: 'crash', duration: 1 },
+      { start: 2, instrument: 'kick', duration: 1 },
+      { start: 3, instrument: 'snare', duration: 1 },
+    ],
+    beats: [
+      { measureIndex: 0, voiceIndex: 0, start: 0, duration: 0.5, noteValue: 8, dots: 0, tuplet: null, rest: false, noteIndices: [0, 1] },
+      { measureIndex: 0, voiceIndex: 0, start: 0.5, duration: 0.5, noteValue: 8, dots: 0, tuplet: null, rest: false, noteIndices: [2] },
+      { measureIndex: 0, voiceIndex: 0, start: 1, duration: 0.5, noteValue: 8, dots: 0, tuplet: null, rest: false, noteIndices: [3, 4] },
+      { measureIndex: 0, voiceIndex: 0, start: 1.5, duration: 0.5, noteValue: 8, dots: 0, tuplet: null, rest: false, noteIndices: [5] },
+      { measureIndex: 0, voiceIndex: 0, start: 2, duration: 1, noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [6, 7] },
+      { measureIndex: 0, voiceIndex: 0, start: 3, duration: 1, noteValue: 4, dots: 0, tuplet: null, rest: false, noteIndices: [8] },
+    ],
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+  const layout = layoutForModel(staffModel, {
+    drumMode: true,
+    drumStaff: true,
+    drumLanes: ['crash', 'hihat', 'snare', 'kick'],
+    widthPx: 900,
+  });
+  const bar = layout.bars[0];
+  const kinds = (kind) => bar.glyphs.filter((g) => g.kind === kind);
+
+  assert.equal(kinds('staffLine').length, 5, 'a drum staff draws five lines');
+  assert.ok(
+    bar.lanes.every((l) => l.name !== 'rhythm'),
+    'the staff carries the rhythm, so the rhythm lane must go',
+  );
+
+  const hits = kinds('drumHit');
+  assert.equal(hits.length, 9, 'every hit draws one note head');
+  assert.ok(hits.every((g) => g.head), 'every note head names its shape');
+  assert.ok(hits.every((g) => g.text === ''), 'a note head is a shape, not a letter');
+
+  const hatHead = hits.find((g) => g.aria === 'Closed hi-hat');
+  const snareHead = hits.find((g) => g.aria.startsWith('Snare drum'));
+  const kickHead = hits.find((g) => g.aria === 'Kick drum');
+  const crashHead = hits.find((g) => g.aria === 'Crash cymbal');
+  assert.equal(hatHead.head, 'x', 'a cymbal takes a cross head');
+  assert.equal(snareHead.head, 'normal', 'a drum takes a round head');
+  assert.ok(hatHead.y < snareHead.y, 'the hi-hat sits above the snare');
+  assert.ok(snareHead.y < kickHead.y, 'the snare sits above the kick');
+  assert.ok(crashHead.y < hatHead.y, 'the crash sits above the hi-hat');
+  assert.equal(hatHead.voice, 'up', 'the hands take the upper voice');
+  assert.equal(kickHead.voice, 'down', 'the feet take the lower voice');
+
+  assert.equal(kinds('ledger').length, 1, 'the crash needs a ledger line');
+  assert.equal(kinds('accent').length, 1, 'the accented snare carries one mark');
+  assert.equal(kinds('rest').length, 2, 'the kick rests on beats 2 and 4');
+  assert.ok(kinds('beam').length >= 2, 'the eighth notes join under beams');
+  assert.ok(kinds('stem').length >= 6, 'every note value under a whole note carries a stem');
+
+  // Lane mode must still work, so nothing that reads a drum tab breaks.
+  const laneLayout = layoutForModel(staffModel, {
+    drumMode: true,
+    drumLanes: ['crash', 'hihat', 'snare', 'kick'],
+    widthPx: 900,
+  });
+  assert.equal(
+    laneLayout.bars[0].glyphs.filter((g) => g.kind === 'staffLine').length,
+    0,
+    'lane mode draws no staff lines',
+  );
+  assert.ok(
+    laneLayout.bars[0].glyphs.some((g) => g.kind === 'drumHit' && g.text === 'x'),
+    'lane mode still draws tab symbols',
+  );
+}
+
 // A flam draws two symbols: a small grace stroke just before the main hit.
 {
   const flamModel = {

@@ -3,6 +3,13 @@
 
 import { TECHNIQUE_LABELS } from '../tab/tabModel.js';
 import { drumTabGlyph, drumHitLabel, drumLaneFor } from '../drums/notation.js';
+import {
+  NOTATION_LABELS,
+  beamCountOf,
+  beamUnitOf,
+  staffBarFromEvents,
+  staffPositionFor,
+} from '../drums/staffNotation.js';
 import { measureSpan } from './rangeUtils.js';
 
 const LANE_NAMES = ['notationStaff', 'techniqueAbove', 'tabStaff', 'rhythm', 'techniqueBelow'];
@@ -71,6 +78,14 @@ const LAYOUT_BASE_PX = 12;
 // a limit. The learner can scroll, but a bar must stay readable.
 const MAX_BAR_CONTENT_UNITS = 4000;
 const DRUM_ROW_MIN_UNITS = 14;
+// A drum staff is five lines. One space is this share of the base font size.
+const DRUM_STAFF_SPACE_RATIO = 0.66;
+// Room above the top line for the crash, the stems, and the accent marks.
+const DRUM_STAFF_TOP_SPACES = 4.4;
+// Room under the bottom line for the hi-hat pedal and the foot stems.
+const DRUM_STAFF_BOTTOM_SPACES = 3.8;
+// A stem reaches this far past the staff, so every beam in a bar stays flat.
+const DRUM_STEM_REACH_SPACES = 2.6;
 const ARC_STACK_LIFT_UNITS = 4;
 const ARC_Y_BAND_TOLERANCE = 2;
 // A slur and a tie arch over the note text by this much.
@@ -107,6 +122,9 @@ function defaultOptions(options = {}) {
     showRhythm: options.showRhythm !== false,
     drumMode: Boolean(options.drumMode),
     drumLanes: Array.isArray(options.drumLanes) ? options.drumLanes : [],
+    // A drum track can read as one row for each kit piece, or as a five-line
+    // percussion staff with note heads, stems, beams, and rests.
+    drumStaff: Boolean(options.drumStaff),
     minFretFontPx: Number(options.minFretFontPx) || 12,
     barIndex: Number.isFinite(options.barIndex) ? options.barIndex : 0,
     isFirstSystem: Boolean(options.isFirstSystem),
@@ -259,6 +277,17 @@ export function buildOverlayPaths(glyphs, overlayRecords) {
   });
 }
 
+/** The height of a drum staff, in layout units. */
+function drumStaffHeight(fontPx) {
+  const space = drumStaffSpace(fontPx);
+  return space * (DRUM_STAFF_TOP_SPACES + 4 + DRUM_STAFF_BOTTOM_SPACES);
+}
+
+/** One staff space, in layout units. */
+function drumStaffSpace(fontPx) {
+  return Math.max(5, fontPx * DRUM_STAFF_SPACE_RATIO);
+}
+
 function laneLayout({
   fontPx,
   stringCount,
@@ -266,6 +295,7 @@ function laneLayout({
   showRhythm,
   drumMode,
   drumLanes,
+  drumStaff,
 }) {
   // Every lane sits as close to the staff as its own glyphs allow. A tall lane
   // costs a row of screen height on every system, and the learner reads more
@@ -279,7 +309,9 @@ function laneLayout({
   // This lane also holds the bar number and the section marker that the view
   // draws over it, so it must stay tall enough to hold that text.
   const techAboveH = Math.max(11, fontPx * 0.95);
-  const tabH = Math.max(stringH, rowCount * stringH);
+  const tabH = drumMode && drumStaff
+    ? drumStaffHeight(fontPx)
+    : Math.max(stringH, rowCount * stringH);
   const rhythmH = showRhythm ? Math.max(15, fontPx * 1.3) : 0;
   const techBelowH = Math.max(8, fontPx * 0.8);
   let y = 0;
@@ -834,6 +866,348 @@ function addTabGlyphs(glyphs, lanes, bar, cols, contentW, fontPx, drumMode, stri
   }
 }
 
+/**
+ * The x of one point in the bar, in layout units.
+ *
+ * A note lands on the column its beat placed. A rest falls between two
+ * columns, so its x comes from the two columns beside it.
+ */
+function drumStaffXAt(cols, relStart, fontPx, contentW) {
+  const originOffset = noteOriginOffset(fontPx);
+  const start = BAR_PAD_START + originOffset;
+  const end = BAR_PAD_START + contentW;
+  if (!cols.length) return start + relStart * (end - start);
+
+  const points = cols.map((col) => ({ rel: col.relStart, x: col.xLeft + originOffset }));
+  points.sort((a, b) => a.rel - b.rel);
+  for (const point of points) {
+    if (Math.abs(point.rel - relStart) < 1e-4) return point.x;
+  }
+  if (relStart <= points[0].rel) return points[0].x;
+  const last = points[points.length - 1];
+  if (relStart >= last.rel) {
+    const span = Math.max(1e-6, 1 - last.rel);
+    return last.x + ((relStart - last.rel) / span) * Math.max(0, end - last.x);
+  }
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    if (relStart <= b.rel) {
+      const span = Math.max(1e-6, b.rel - a.rel);
+      return a.x + ((relStart - a.rel) / span) * (b.x - a.x);
+    }
+  }
+  return last.x;
+}
+
+/** Split the entries of one voice into beam groups. */
+function drumBeamGroups(entries, beamUnit) {
+  const groups = [];
+  let current = null;
+  for (const entry of entries) {
+    const beams = entry.rest ? 0 : beamCountOf(entry.value);
+    if (!beams) {
+      current = null;
+      continue;
+    }
+    const unit = Math.floor(entry.start / beamUnit + 1e-6);
+    if (current && current.unit === unit && current.end + 1e-6 >= entry.start) {
+      current.entries.push(entry);
+      current.end = entry.start + entry.dur;
+    } else {
+      current = { unit, entries: [entry], end: entry.start + entry.dur };
+      groups.push(current);
+    }
+  }
+  return groups;
+}
+
+/** A readable name for one note head, for the tooltip and for aria. */
+function drumStaffNoteLabel(note, place) {
+  const base = NOTATION_LABELS[note.name] || note.name;
+  const marks = [];
+  if (note.accent) marks.push('accent');
+  if (note.ghost || place.ghost) marks.push('ghost');
+  if (note.flam || place.flam) marks.push('flam');
+  return marks.length ? `${base} (${marks.join(', ')})` : base;
+}
+
+const DRUM_REST_TEXT = {
+  1: '\u{1D13B}',
+  2: '\u{1D13C}',
+  4: '\u{1D13D}',
+  8: '\u{1D13E}',
+  16: '\u{1D13F}',
+  32: '\u{1D140}',
+};
+
+/**
+ * Draw a drum track as a five-line percussion staff.
+ *
+ * The hands take the stems up and the feet take the stems down, so the two
+ * parts stay apart on one staff. Every hit keeps the `drumHit` kind, so the
+ * playhead and the tap targets of the view still find it.
+ */
+function addDrumStaffGlyphs(
+  glyphs, lanes, bar, cols, contentW, fontPx, measureLen, nominalLen, barStart,
+) {
+  const lane = laneByName(lanes, 'tabStaff');
+  const space = drumStaffSpace(fontPx);
+  const staffTop = lane.y + space * DRUM_STAFF_TOP_SPACES;
+  const staffBottom = staffTop + 4 * space;
+  const stepY = (step) => staffTop + (step * space) / 2;
+  const headW = space * 1.18;
+  const headH = space * 0.86;
+  const stemW = Math.max(1, space * 0.15);
+  const stemTopY = staffTop - DRUM_STEM_REACH_SPACES * space;
+  const stemBottomY = staffBottom + DRUM_STEM_REACH_SPACES * space;
+  const restStep = { up: 1, down: 6.5 };
+
+  for (let i = 0; i < 5; i += 1) {
+    pushGlyph(glyphs, {
+      kind: 'staffLine',
+      lane: 'tabStaff',
+      x: 0,
+      y: staffTop + i * space,
+      w: 0,
+      h: 1,
+      text: '',
+      aria: 'Staff line',
+      beatStart: barStart,
+    });
+  }
+
+  // Note values come from the written length of the bar, not from the width
+  // the layout gave it. A bar that holds more time than its time signature
+  // names still draws every hit it carries.
+  let lastHit = 0;
+  for (const ev of bar.events) {
+    const at = Number(ev.start) - barStart;
+    if (Number.isFinite(at)) lastHit = Math.max(lastHit, at);
+  }
+  const staffLen = Math.max(nominalLen, lastHit + 0.25);
+  const staffBar = staffBarFromEvents(
+    bar.events,
+    barStart,
+    staffLen,
+    bar.measure?.timeSig || [4, 4],
+  );
+  const voices = staffBar.voices;
+  const beamUnit = beamUnitOf(bar.measure?.timeSig);
+  const xAt = (relStart) => drumStaffXAt(cols, relStart, fontPx, contentW);
+
+  for (const voiceName of ['up', 'down']) {
+    const up = voiceName === 'up';
+    const entries = voices[voiceName] || [];
+    const stemEndY = up ? stemTopY : stemBottomY;
+    const groups = drumBeamGroups(entries, beamUnit);
+    const beamed = new Set();
+    for (const group of groups) {
+      if (group.entries.length > 1) for (const e of group.entries) beamed.add(e);
+    }
+
+    for (const entry of entries) {
+      const rel = measureLen > 0 ? entry.start / measureLen : 0;
+      const x = xAt(rel);
+      const beatStart = barStart + entry.start;
+
+      if (entry.rest) {
+        pushGlyph(glyphs, {
+          kind: 'rest',
+          lane: 'tabStaff',
+          x: x - space * 0.4,
+          y: stepY(restStep[voiceName]) - space,
+          w: space * 0.9,
+          h: space * 2,
+          text: DRUM_REST_TEXT[entry.value] || DRUM_REST_TEXT[4],
+          aria: 'Rest',
+          beatStart,
+          voice: voiceName,
+        });
+        continue;
+      }
+
+      const steps = [];
+      for (const note of entry.notes) {
+        const place = staffPositionFor(note.name);
+        if (!place) continue;
+        steps.push(place.step);
+        const y = stepY(place.step);
+
+        for (let led = -2; led >= place.step; led -= 2) {
+          pushGlyph(glyphs, {
+            kind: 'ledger',
+            lane: 'tabStaff',
+            x: x - headW * 0.85,
+            y: stepY(led),
+            w: headW * 1.7,
+            h: 1,
+            text: '',
+            aria: 'Ledger line',
+            beatStart,
+          });
+        }
+
+        if (note.flam) {
+          pushGlyph(glyphs, {
+            kind: 'drumHit',
+            lane: 'tabStaff',
+            x: x - headW * 1.9,
+            y: y - headH * 0.32,
+            w: headW * 0.64,
+            h: headH * 0.64,
+            text: '',
+            aria: `${NOTATION_LABELS[note.name] || note.name} grace stroke`,
+            beatStart,
+            head: place.head,
+            grace: true,
+            voice: voiceName,
+          });
+        }
+
+        if (note.ghost || place.ghost) {
+          // A ghost note reads as a note head inside brackets.
+          for (const side of [-1, 1]) {
+            pushGlyph(glyphs, {
+              kind: 'ghostParen',
+              lane: 'tabStaff',
+              x: x + side * headW * 0.92 - space * 0.25,
+              y: y - space * 0.72,
+              w: space * 0.5,
+              h: space * 1.44,
+              text: side < 0 ? '(' : ')',
+              aria: 'Ghost note',
+              beatStart,
+            });
+          }
+        }
+
+        pushGlyph(glyphs, {
+          kind: 'drumHit',
+          lane: 'tabStaff',
+          x: x - headW / 2,
+          y: y - headH / 2,
+          w: headW,
+          h: headH,
+          text: '',
+          aria: drumStaffNoteLabel(note, place),
+          beatStart,
+          head: place.head,
+          hollow: entry.value <= 2,
+          open: place.open === true,
+          ghost: note.ghost === true || place.ghost === true,
+          accent: note.accent === true,
+          voice: voiceName,
+          eventRef: note.eventRef || null,
+        });
+      }
+      if (!steps.length) continue;
+
+      if (entry.value >= 2) {
+        const anchorY = stepY(up ? Math.max(...steps) : Math.min(...steps));
+        const stemX = up ? x + headW / 2 - stemW : x - headW / 2;
+        pushGlyph(glyphs, {
+          kind: 'stem',
+          lane: 'tabStaff',
+          x: stemX,
+          y: Math.min(anchorY, stemEndY),
+          w: stemW,
+          h: Math.abs(stemEndY - anchorY),
+          text: '',
+          aria: 'Stem',
+          beatStart,
+        });
+        if (beamCountOf(entry.value) && !beamed.has(entry)) {
+          pushGlyph(glyphs, {
+            kind: 'drumFlag',
+            lane: 'tabStaff',
+            x: stemX,
+            y: up ? stemEndY : stemEndY - space * 1.5,
+            w: space * 0.85,
+            h: space * 1.5,
+            text: '',
+            aria: 'Flag',
+            beatStart,
+            voice: voiceName,
+          });
+        }
+      }
+
+      if (entry.dots > 0) {
+        pushGlyph(glyphs, {
+          kind: 'dot',
+          lane: 'tabStaff',
+          x: x + headW * 0.7,
+          y: stepY(up ? Math.max(...steps) : Math.min(...steps)) - space * 0.16,
+          w: space * 0.32,
+          h: space * 0.32,
+          text: '',
+          aria: 'Dot',
+          beatStart,
+        });
+      }
+
+      if (entry.notes.some((n) => n.accent)) {
+        pushGlyph(glyphs, {
+          kind: 'accent',
+          lane: 'tabStaff',
+          x: x - space * 0.5,
+          y: (up ? stemTopY - space * 1.3 : stemBottomY + space * 0.3),
+          w: space,
+          h: space * 0.9,
+          text: '>',
+          aria: 'Accent',
+          beatStart,
+        });
+      }
+    }
+
+    for (const group of groups) {
+      if (group.entries.length < 2) continue;
+      const stemXOf = (entry) => {
+        const x = xAt(measureLen > 0 ? entry.start / measureLen : 0);
+        return up ? x + headW / 2 - stemW : x - headW / 2;
+      };
+      const thickness = space * 0.46;
+      const gap = space * 0.32;
+      const dir = up ? 1 : -1;
+      const maxBeams = Math.max(...group.entries.map((e) => beamCountOf(e.value)));
+      for (let level = 1; level <= maxBeams; level += 1) {
+        const y = stemEndY + dir * (level - 1) * (thickness + gap);
+        let runStart = -1;
+        for (let i = 0; i <= group.entries.length; i += 1) {
+          const has = i < group.entries.length
+            && beamCountOf(group.entries[i].value) >= level;
+          if (has && runStart < 0) runStart = i;
+          if (!has && runStart >= 0) {
+            const from = group.entries[runStart];
+            const to = group.entries[i - 1];
+            let x1 = stemXOf(from);
+            let x2 = stemXOf(to) + stemW;
+            if (from === to) {
+              const stub = space * 1.1;
+              if (runStart > 0) x1 = x2 - stub;
+              else x2 = x1 + stub;
+            }
+            pushGlyph(glyphs, {
+              kind: 'beam',
+              lane: 'tabStaff',
+              x: x1,
+              y: Math.min(y, y + dir * thickness),
+              w: Math.max(stemW, x2 - x1),
+              h: thickness,
+              text: '',
+              aria: 'Beam',
+              beatStart: barStart + from.start,
+            });
+            runStart = -1;
+          }
+        }
+      }
+    }
+  }
+}
+
 function addTechniqueGlyphs(glyphs, overlayRecords, lanes, bar, cols, contentW, fontPx) {
   const above = laneByName(lanes, 'techniqueAbove');
   const below = laneByName(lanes, 'techniqueBelow');
@@ -1266,13 +1640,18 @@ export function layoutBar(bar, options = {}) {
   // into each other.
   const geoPx = LAYOUT_BASE_PX;
   const stringCount = Math.max(1, (bar.strings || []).length);
+  // A drum staff carries its own stems and beams, so the rhythm lane under it
+  // would only repeat what the staff already says.
+  const useDrumStaff = opts.drumMode && opts.drumStaff;
+  const showRhythm = opts.showRhythm && !useDrumStaff;
   const { lanes, stringH } = laneLayout({
     fontPx: geoPx,
     stringCount,
     showNotationStaff: opts.showNotationStaff,
-    showRhythm: opts.showRhythm,
+    showRhythm,
     drumMode: opts.drumMode,
     drumLanes: opts.drumLanes,
+    drumStaff: useDrumStaff,
   });
 
   // A bar can hold more written time than its time signature names. The
@@ -1310,8 +1689,14 @@ export function layoutBar(bar, options = {}) {
   const overlayRecords = [];
 
   addMeasureChrome(glyphs, lanes, bar, opts, contentW, geoPx);
-  addRhythmGlyphs(glyphs, overlayRecords, lanes, cols, contentW, geoPx, opts.showRhythm);
-  addTabGlyphs(glyphs, lanes, bar, cols, contentW, geoPx, opts.drumMode, bar.strings || [], opts.drumLanes, warnings);
+  addRhythmGlyphs(glyphs, overlayRecords, lanes, cols, contentW, geoPx, showRhythm);
+  if (useDrumStaff) {
+    addDrumStaffGlyphs(
+      glyphs, lanes, bar, cols, contentW, geoPx, measureLen, nominalLen, barStart,
+    );
+  } else {
+    addTabGlyphs(glyphs, lanes, bar, cols, contentW, geoPx, opts.drumMode, bar.strings || [], opts.drumLanes, warnings);
+  }
   addTechniqueGlyphs(glyphs, overlayRecords, lanes, bar, cols, contentW, geoPx);
 
   if (opts.showNotationStaff) {

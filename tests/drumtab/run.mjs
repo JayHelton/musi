@@ -1,5 +1,5 @@
 /**
- * Zero-dependency Node tests for the Drum Tab reference model.
+ * Zero-dependency Node tests for the Drum Notation study page.
  * Run: node tests/drumtab/run.mjs
  */
 
@@ -18,6 +18,22 @@ import {
   soundForCell,
   velocityFor,
 } from '../../js/drums/tabReferenceModel.js';
+import {
+  DRUM_NOTATION_KEY,
+  DRUM_STAFF_POSITIONS,
+  NOTATION_LABELS,
+  NOTATION_SOUND,
+  NOTE_VALUE_ROWS,
+  barsToPattern,
+  durationOf,
+  noteValueOf,
+  normalizeBars,
+  staffBarFromEvents,
+  staffPositionFor,
+  voicesFromEvents,
+} from '../../js/drums/staffNotation.js';
+import { layoutDrumStaff } from '../../js/drums/staffLayout.js';
+import { DRUM_STAFF_EXAMPLES, staffExampleBars } from '../../js/drums/tabReferenceModel.js';
 import { getTool, toolsInArea } from '../../js/tools.js';
 
 let passed = 0;
@@ -35,7 +51,7 @@ function test(name, fn) {
   }
 }
 
-test('Drum Tab is a Study tool with its own section', () => {
+test('Drum Notation is a Study tool with its own section', () => {
   const tool = getTool('drumtab');
   assert.ok(tool, 'no drumtab tool');
   assert.equal(tool.area, 'study');
@@ -128,12 +144,169 @@ test('every example plays at least one hit on every row it draws', () => {
   }
 });
 
+// ---------------------------------------------------------- staff notation --
+
+test('every piece the chart names has a place, a sound, and a label', () => {
+  for (const row of DRUM_NOTATION_KEY) {
+    const place = staffPositionFor(row.name);
+    assert.ok(place, `no staff place for ${row.name}`);
+    assert.ok(place.voice === 'up' || place.voice === 'down', `${row.name} has no voice`);
+    assert.ok(NOTATION_SOUND[row.name], `no sound for ${row.name}`);
+    assert.ok(NOTATION_LABELS[row.name], `no label for ${row.name}`);
+    assert.ok(row.lines.length === 2, `${row.name} needs a two-line chart label`);
+  }
+});
+
+test('the staff places follow the standard drum key', () => {
+  assert.equal(DRUM_STAFF_POSITIONS.crash.step, -2, 'the crash takes the ledger line above');
+  assert.equal(DRUM_STAFF_POSITIONS.hihatClosed.step, -1, 'the hi-hat takes the space above');
+  assert.equal(DRUM_STAFF_POSITIONS.ride.step, 0, 'the ride takes the top line');
+  assert.equal(DRUM_STAFF_POSITIONS.tomHigh.step, 1);
+  assert.equal(DRUM_STAFF_POSITIONS.tomMid.step, 2);
+  assert.equal(DRUM_STAFF_POSITIONS.snare.step, 3, 'the snare takes the middle space');
+  assert.equal(DRUM_STAFF_POSITIONS.tomFloor.step, 5);
+  assert.equal(DRUM_STAFF_POSITIONS.kick.step, 7, 'the kick takes the bottom space');
+  assert.equal(DRUM_STAFF_POSITIONS.hihatPedal.step, 9, 'the pedal sits under the staff');
+  assert.equal(DRUM_STAFF_POSITIONS.kick.voice, 'down');
+  assert.equal(DRUM_STAFF_POSITIONS.hihatPedal.voice, 'down');
+  assert.equal(DRUM_STAFF_POSITIONS.snare.voice, 'up');
+});
+
+test('a cymbal takes a cross head and a drum takes a round head', () => {
+  for (const name of ['crash', 'ride', 'hihatClosed', 'hihatOpen', 'hihatPedal']) {
+    assert.equal(DRUM_STAFF_POSITIONS[name].head, 'x', `${name} needs a cross head`);
+  }
+  for (const name of ['kick', 'snare', 'tomHigh', 'tomMid', 'tomFloor']) {
+    assert.equal(DRUM_STAFF_POSITIONS[name].head, 'normal', `${name} needs a round head`);
+  }
+  assert.equal(DRUM_STAFF_POSITIONS.hihatOpen.open, true, 'an open hi-hat carries a ring');
+});
+
+test('a note value and a length name the same note', () => {
+  for (const row of NOTE_VALUE_ROWS) {
+    const quarters = durationOf(row.value);
+    assert.equal(quarters * row.perBar, 4, `${row.name} must fill one 4/4 bar`);
+    assert.deepEqual(noteValueOf(quarters), { value: row.value, dots: 0 });
+  }
+  assert.deepEqual(noteValueOf(1.5), { value: 4, dots: 1 }, 'a dotted quarter is 1.5 beats');
+  assert.equal(durationOf(4, 1), 1.5);
+});
+
+test('every worked bar fills its own time signature', () => {
+  for (const example of DRUM_STAFF_EXAMPLES) {
+    const bars = staffExampleBars(example);
+    assert.ok(bars.length >= 1, `${example.id} draws no bar`);
+    for (const bar of bars) {
+      for (const voice of ['up', 'down']) {
+        const entries = bar.voices[voice];
+        if (!entries.length) continue;
+        const total = entries.reduce((sum, entry) => sum + entry.dur, 0);
+        assert.ok(
+          Math.abs(total - bar.quarters) < 1e-6,
+          `${example.id} bar ${bar.index} voice ${voice} holds ${total} of ${bar.quarters} beats`,
+        );
+      }
+    }
+  }
+});
+
+test('every worked bar plays inside its own grid', () => {
+  for (const example of DRUM_STAFF_EXAMPLES) {
+    const bars = staffExampleBars(example);
+    const pattern = barsToPattern(bars, example.id);
+    assert.ok(pattern.steps.length > 0, `${example.id} plays nothing`);
+    const limit = pattern.stepsPerBar * pattern.bars;
+    for (const step of pattern.steps) {
+      assert.ok(step.step >= 0 && step.step < limit, `${example.id} step ${step.step} is out of range`);
+    }
+    assert.ok(example.bpm >= 40 && example.bpm <= 200, `${example.id} has an odd tempo`);
+  }
+});
+
+test('the hands take the stems up and the feet take the stems down', () => {
+  const events = [
+    { start: 0, instrument: 'hihatClosed', duration: 0.5 },
+    { start: 0, instrument: 'kick', duration: 1 },
+    { start: 0.5, instrument: 'hihatClosed', duration: 0.5 },
+    { start: 1, instrument: 'snare', duration: 1, accent: true },
+    { start: 2, instrument: 'kick', duration: 1 },
+  ];
+  const bar = staffBarFromEvents(events, 0, 4, [4, 4]);
+  assert.equal(bar.voices.up[0].notes[0].name, 'hihatClosed');
+  assert.equal(bar.voices.down[0].notes[0].name, 'kick');
+  // The kick lasts one beat, so a rest holds the beat after it.
+  assert.equal(bar.voices.down[1].rest, true);
+  const accented = bar.voices.up.find((entry) => entry.notes.some((n) => n.accent));
+  assert.ok(accented, 'the accent must survive the split');
+});
+
+test('a grace stroke marks its note as a flam and takes no column', () => {
+  const events = [
+    { start: 0, instrument: 'snare', duration: 0.5, grace: true },
+    { start: 0, instrument: 'snare', duration: 0.5 },
+  ];
+  const voices = voicesFromEvents(events, 0, 4);
+  assert.equal(voices.up[0].notes.length, 1, 'the grace stroke shares the column of its note');
+  assert.equal(voices.up[0].notes[0].flam, true);
+});
+
+test('a hit reads its place from the articulation, then from the midi number', () => {
+  const byArticulation = voicesFromEvents(
+    [{ start: 0, instrument: 'hihatClosed', articulation: 'hihatPedal', duration: 4 }], 0, 4,
+  );
+  assert.equal(byArticulation.down[0].notes[0].name, 'hihatPedal');
+  const byMidi = voicesFromEvents(
+    [{ start: 0, instrument: 'snare', midi: 37, duration: 4 }], 0, 4,
+  );
+  assert.equal(byMidi.up[0].notes[0].name, 'sideStick');
+});
+
+test('the layout draws five staff lines and beams a pair of eighth notes', () => {
+  const bars = normalizeBars([{
+    timeSig: [4, 4],
+    voices: {
+      up: [
+        { dur: 0.5, notes: ['hihatClosed'] },
+        { dur: 0.5, notes: ['hihatClosed'] },
+        { dur: 1, notes: ['snare'] },
+        { dur: 2, notes: ['ride'] },
+      ],
+      down: [{ dur: 1, notes: ['kick'] }, { dur: 3, rest: true }],
+    },
+  }]);
+  const layout = layoutDrumStaff(bars);
+  const roles = layout.elements.reduce((acc, el) => {
+    acc[el.role] = (acc[el.role] || 0) + 1;
+    return acc;
+  }, {});
+  assert.equal(roles.staffLine, 5, 'a staff has five lines');
+  assert.equal(roles.beam, 1, 'the two eighth notes join under one beam');
+  assert.ok(roles.headX >= 2, 'the hi-hat and the ride take cross heads');
+  assert.ok(roles.head >= 2, 'the snare and the kick take round heads');
+  assert.ok(layout.width > 0 && layout.height > 0);
+  assert.ok(layout.columns.length >= 6, 'every entry of both voices gets a column');
+});
+
+test('the layout lifts the crash onto a ledger line', () => {
+  const bars = normalizeBars([{
+    timeSig: [4, 4],
+    voices: { up: [{ dur: 4, notes: ['crash'] }], down: [] },
+  }]);
+  const layout = layoutDrumStaff(bars);
+  const ledgers = layout.elements.filter((el) => el.role === 'ledger');
+  assert.equal(ledgers.length, 1, 'the crash needs one ledger line');
+  assert.ok(ledgers[0].y1 < layout.staffTop, 'the ledger line sits above the staff');
+});
+
 test('the reference is precached with its stylesheet', () => {
   const sw = readFileSync(new URL('../../service-worker.js', import.meta.url), 'utf8');
   assert.ok(sw.includes('"js/drumTabReference.js"'), 'the page module is not precached');
   assert.ok(sw.includes('"js/drums/tabReferenceModel.js"'), 'the model is not precached');
   assert.ok(sw.includes('"css/drumtab.css"'), 'the stylesheet is not precached');
+  for (const file of ['staffNotation.js', 'staffLayout.js', 'staffSvg.js', 'kitMapSvg.js']) {
+    assert.ok(sw.includes(`"js/drums/${file}"`), `js/drums/${file} is not precached`);
+  }
 });
 
-console.log(`\ndrumtab tests: ${passed} passed${failed ? `, ${failed} failed` : ''}`);
+console.log(`\ndrum notation tests: ${passed} passed${failed ? `, ${failed} failed` : ''}`);
 if (failed) process.exit(1);

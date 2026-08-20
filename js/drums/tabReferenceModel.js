@@ -1,9 +1,16 @@
-// DOM-free model for the Drum Tab reference page.
+// DOM-free model for the Drum Notation study page.
 //
-// Drum tab has no single standard. Two writers can spell the same hit with two
-// different characters, so this file states what Musi draws first, then lists
-// the spellings other writers use. The lane list and the symbol list come from
-// `js/drums/notation.js`, so the page and the score views never drift apart.
+// The page teaches the staff first: five lines, one line or space for each
+// piece of the kit. `DRUM_STAFF_EXAMPLES` holds the bars the page draws and
+// plays. The staff places themselves come from `js/drums/staffNotation.js`.
+//
+// Text drum tab is the second format the page covers, because most tabs on the
+// web still use it. Drum tab has no single standard, so this file states what
+// Musi draws first, then lists the spellings other writers use. The lane list
+// and the symbol list come from `js/drums/notation.js`, so the page and the
+// score views never drift apart.
+
+import { normalizeBars } from './staffNotation.js';
 
 /** The instrument each lane plays when the reader taps it. */
 export const LANE_SOUND = {
@@ -68,10 +75,213 @@ export const OTHER_SYMBOLS = [
   },
 ];
 
-/** Worked examples. Each one plays with the built-in kit.
+/** Shorthand for one hit that the reader must play louder. */
+const accent = (name) => ({ name, accent: true });
+/** Shorthand for one hit that the reader must play very quietly. */
+const ghost = (name) => ({ name, ghost: true });
+
+/** A quarter-note rest. */
+const rest = (dur) => ({ dur, rest: true });
+
+/**
+ * The bars the study page draws on a staff and plays with the built-in kit.
  *
- * A row is one character per grid step. A `|` in a row is a bar line: it is
- * drawn, and it takes no step of its own.
+ * Each bar holds two voices. `up` is what the hands play, and the layout draws
+ * it with the stems up. `down` is what the feet play, with the stems down.
+ * Every entry states its own length in quarter notes, so the layout can pick
+ * the note value, the beams, and the rests without any grid.
+ */
+export const DRUM_STAFF_EXAMPLES = [
+  {
+    id: 'rock',
+    title: 'Straight rock beat',
+    help: 'The hi-hat keeps eighth notes. The kick takes beats 1 and 3, and the '
+      + 'snare takes beats 2 and 4.',
+    bpm: 92,
+    tabId: 'rock',
+    countPerQuarter: 2,
+    bars: [{
+      timeSig: [4, 4],
+      voices: {
+        up: [
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed', 'snare'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed', 'snare'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+        ],
+        down: [
+          { dur: 1, notes: ['kick'] },
+          rest(1),
+          { dur: 1, notes: ['kick'] },
+          rest(1),
+        ],
+      },
+    }],
+  },
+  {
+    id: 'voices',
+    title: 'Two voices: hands up, feet down',
+    help: 'The ride and the snare point up, because the hands play them. The kick '
+      + 'and the hi-hat pedal point down, because the feet play them.',
+    bpm: 88,
+    countPerQuarter: 2,
+    bars: [{
+      timeSig: [4, 4],
+      voices: {
+        up: [
+          { dur: 1, notes: ['ride'] },
+          { dur: 1, notes: ['ride', 'snare'] },
+          { dur: 1, notes: ['ride'] },
+          { dur: 1, notes: ['ride', 'snare'] },
+        ],
+        down: [
+          { dur: 1, notes: ['kick'] },
+          { dur: 1, notes: ['hihatPedal'] },
+          { dur: 1, notes: ['kick'] },
+          { dur: 1, notes: ['hihatPedal'] },
+        ],
+      },
+    }],
+  },
+  {
+    id: 'open',
+    title: 'An open hi-hat',
+    help: 'A circle around the cross opens the hi-hat. The last eighth note rings '
+      + 'on into the next bar.',
+    bpm: 92,
+    tabId: 'open',
+    countPerQuarter: 2,
+    bars: [{
+      timeSig: [4, 4],
+      voices: {
+        up: [
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed', 'snare'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.5, notes: ['hihatClosed', 'snare'] },
+          { dur: 0.5, notes: ['hihatOpen'] },
+        ],
+        down: [
+          { dur: 1, notes: ['kick'] },
+          rest(1),
+          { dur: 1, notes: ['kick'] },
+          rest(0.5),
+          { dur: 0.5, notes: ['kick'] },
+        ],
+      },
+    }],
+  },
+  {
+    id: 'ghost',
+    title: 'Accents and ghost notes',
+    help: 'The snare on 2 and 4 carries an accent, so it is the loudest hit. The '
+      + 'snare notes in brackets are ghost notes: play them very quietly.',
+    bpm: 84,
+    tabId: 'ghost',
+    countPerQuarter: 4,
+    bars: [{
+      timeSig: [4, 4],
+      voices: {
+        up: [
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.25, notes: ['hihatClosed'] },
+          { dur: 0.25, notes: [ghost('snare')] },
+          { dur: 0.5, notes: ['hihatClosed', accent('snare')] },
+          { dur: 0.25, notes: ['hihatClosed'] },
+          { dur: 0.25, notes: [ghost('snare')] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+          { dur: 0.25, notes: ['hihatClosed'] },
+          { dur: 0.25, notes: [ghost('snare')] },
+          { dur: 0.5, notes: ['hihatClosed', accent('snare')] },
+          { dur: 0.5, notes: ['hihatClosed'] },
+        ],
+        down: [
+          { dur: 1, notes: ['kick'] },
+          rest(1),
+          { dur: 0.5, notes: ['kick'] },
+          rest(0.5),
+          { dur: 0.5, notes: ['kick'] },
+          rest(0.5),
+        ],
+      },
+    }],
+  },
+  {
+    id: 'fill',
+    title: 'A tom fill into a crash',
+    help: 'The fill runs down the kit in sixteenth notes. The crash and the kick '
+      + 'then land together on beat 1 of the next bar.',
+    bpm: 92,
+    tabId: 'fill',
+    countPerQuarter: 4,
+    bars: [
+      {
+        timeSig: [4, 4],
+        voices: {
+          up: [
+            { dur: 0.5, notes: ['hihatClosed'] },
+            { dur: 0.5, notes: ['hihatClosed'] },
+            { dur: 0.5, notes: ['hihatClosed', 'snare'] },
+            { dur: 0.5, notes: ['hihatClosed'] },
+            { dur: 0.25, notes: ['snare'] },
+            { dur: 0.25, notes: ['snare'] },
+            { dur: 0.25, notes: ['tomHigh'] },
+            { dur: 0.25, notes: ['tomHigh'] },
+            { dur: 0.25, notes: ['tomMid'] },
+            { dur: 0.25, notes: ['tomMid'] },
+            { dur: 0.25, notes: ['tomFloor'] },
+            { dur: 0.25, notes: ['tomFloor'] },
+          ],
+          down: [
+            { dur: 1, notes: ['kick'] },
+            rest(1),
+            rest(1),
+            rest(1),
+          ],
+        },
+      },
+      {
+        timeSig: [4, 4],
+        voices: {
+          up: [
+            { dur: 0.5, notes: [accent('crash')] },
+            { dur: 0.5, notes: ['hihatClosed'] },
+            { dur: 0.5, notes: ['hihatClosed', 'snare'] },
+            { dur: 0.5, notes: ['hihatClosed'] },
+            { dur: 0.5, notes: ['hihatClosed'] },
+            { dur: 0.5, notes: ['hihatClosed'] },
+            { dur: 0.5, notes: ['hihatClosed', 'snare'] },
+            { dur: 0.5, notes: ['hihatClosed'] },
+          ],
+          down: [
+            { dur: 1, notes: ['kick'] },
+            rest(1),
+            { dur: 1, notes: ['kick'] },
+            rest(1),
+          ],
+        },
+      },
+    ],
+  },
+];
+
+/** The same examples, with every derived field filled in. */
+export function staffExampleBars(example) {
+  return normalizeBars(example.bars);
+}
+
+/** The same bars written as text drum tab.
+ *
+ * The page shows these under each staff example, so a reader can match the two
+ * formats. A row is one character per grid step. A `|` in a row is a bar line:
+ * it is drawn, and it takes no step of its own.
  */
 export const DRUM_TAB_EXAMPLES = [
   {

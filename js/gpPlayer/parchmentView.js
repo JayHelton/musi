@@ -353,7 +353,13 @@ export function mountParchmentView(host, {
     return tuningCaptionText() || 'Drum kit lanes';
   }
 
+  /** A drum track reads as a five-line percussion staff, not as one row per piece. */
+  function useDrumStaff() {
+    return isDrum;
+  }
+
   function tabStaffRowCount() {
+    if (useDrumStaff()) return 1;
     if (isDrum) return Math.max(1, activeDrumLanes().length);
     return Math.max(1, model?.strings?.length || 1);
   }
@@ -401,6 +407,17 @@ export function mountParchmentView(host, {
         row.appendChild(lab);
         gutterStaff.appendChild(row);
       }
+    } else if (useDrumStaff()) {
+      const row = document.createElement('div');
+      row.className = 'gpp-parch-gutter-row gpp-parch-gutter-drums';
+      const lab = document.createElement('span');
+      lab.className = 'gpp-parch-gutter-label';
+      lab.textContent = 'Kit';
+      row.appendChild(lab);
+      if (tabStaffLane && rowH > 0) {
+        row.style.height = `${tabStaffLane.h * unitPx}px`;
+      }
+      gutterStaff.appendChild(row);
     } else {
       const lanes = activeDrumLanes();
       if (lanes.length) {
@@ -462,7 +479,8 @@ export function mountParchmentView(host, {
    */
   function appendGlyph(parent, glyph, scaleUnit, evForDrum = null, laneY = 0) {
     const top = (glyph.y - laneY) * scaleUnit;
-    if (glyph.kind === 'beam' && glyph.lane === 'notationStaff' && glyph.h <= 1) {
+    if (glyph.kind === 'staffLine'
+      || (glyph.kind === 'beam' && glyph.lane === 'notationStaff' && glyph.h <= 1)) {
       const line = document.createElement('div');
       line.className = 'gpp-parch-notation-line';
       line.style.left = `${glyph.x * scaleUnit}px`;
@@ -470,6 +488,37 @@ export function mountParchmentView(host, {
       line.style.width = `calc(100% - ${glyph.x * scaleUnit}px)`;
       parent.appendChild(line);
       return line;
+    }
+    if (glyph.kind === 'ledger') {
+      const line = document.createElement('div');
+      line.className = 'gpp-parch-notation-line gpp-parch-ledger';
+      line.style.left = `${glyph.x * scaleUnit}px`;
+      line.style.top = `${top}px`;
+      line.style.width = `${Math.max(2, glyph.w * scaleUnit)}px`;
+      parent.appendChild(line);
+      return line;
+    }
+    // A drum staff draws a note head as a shape, not as a letter.
+    if (glyph.kind === 'drumHit' && glyph.head) {
+      const head = document.createElement('span');
+      head.className = `gpp-glyph gpp-glyph--drumHit gpp-parch-drum-note${glyph.grace ? ' grace' : ''}`;
+      head.dataset.head = glyph.head;
+      head.dataset.note = '1';
+      if (glyph.hollow) head.dataset.hollow = '1';
+      if (glyph.open) head.dataset.open = '1';
+      if (glyph.ghost) head.dataset.ghost = '1';
+      if (glyph.voice) head.dataset.voice = glyph.voice;
+      head.style.left = `${glyph.x * scaleUnit}px`;
+      head.style.top = `${top}px`;
+      head.style.width = `${Math.max(2, glyph.w * scaleUnit)}px`;
+      head.style.height = `${Math.max(2, glyph.h * scaleUnit)}px`;
+      if (glyph.beatStart != null) head.dataset.beatStart = String(glyph.beatStart);
+      if (glyph.aria) {
+        head.setAttribute('aria-label', glyph.aria);
+        head.title = glyph.aria;
+      }
+      parent.appendChild(head);
+      return head;
     }
     const el = document.createElement('span');
     const legacy = glyph.kind === 'fret' || glyph.kind === 'deadNote'
@@ -483,6 +532,7 @@ export function mountParchmentView(host, {
     if (glyph.text) el.textContent = glyph.text;
     if (glyph.aria) el.setAttribute('aria-label', glyph.aria);
     if (glyph.beatStart != null) el.dataset.beatStart = String(glyph.beatStart);
+    if (glyph.voice) el.dataset.voice = glyph.voice;
     if (glyph.kind === 'fret' || glyph.kind === 'deadNote' || glyph.kind === 'drumHit') {
       el.dataset.note = '1';
     }
@@ -595,8 +645,9 @@ export function mountParchmentView(host, {
         const laneNotes = document.createElement('div');
         laneNotes.className = 'gpp-parch-lane-notes';
         content.appendChild(laneNotes);
-        const stringCount = tabStaffRowCount();
-        renderStringRows(laneNotes, stringCount, lane.h * unitPx);
+        if (!useDrumStaff()) {
+          renderStringRows(laneNotes, tabStaffRowCount(), lane.h * unitPx);
+        }
         laneEls.set(lane.name, { content: laneNotes, laneNotes });
       } else {
         laneEls.set(lane.name, { content, laneNotes: content });
@@ -733,6 +784,7 @@ export function mountParchmentView(host, {
           showNotationStaff: showNotation,
           showRhythm,
           drumMode: isDrum,
+          drumStaff: useDrumStaff(),
           drumLanes: isDrum ? activeDrumLanes().map((lane) => lane.key) : [],
           minFretFontPx: LAYOUT_BASE_PX,
           maxMeasuresPerSystem: onePerRow ? 1 : undefined,
@@ -871,7 +923,7 @@ export function mountParchmentView(host, {
       playheadEl.hidden = true;
       sheet.appendChild(playheadEl);
 
-      if (isDrum && activeDrumLanes().length) {
+      if (isDrum && !useDrumStaff() && activeDrumLanes().length) {
         const legendRows = drumTabLegendFor(drumGlyphsUsed(model));
         if (legendRows.length) {
           legendEl = document.createElement('div');

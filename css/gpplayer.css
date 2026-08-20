@@ -918,6 +918,104 @@
   color: #3d2060;
 }
 
+/* ---- Drum staff: five lines, note heads, stems, beams, and rests ---- */
+.gpp-parch-ledger {
+  right: auto;
+  background: rgba(26, 20, 32, 0.5);
+}
+.gpp-parch-gutter-drums {
+  display: flex;
+  align-items: center;
+}
+.gpp-parch-drum-note {
+  position: absolute;
+  box-sizing: border-box;
+  z-index: 2;
+  pointer-events: none;
+}
+.gpp-parch-drum-note[data-head="normal"] {
+  background: #1a1006;
+  border-radius: 50%;
+  transform: rotate(-18deg);
+}
+.gpp-parch-drum-note[data-head="normal"][data-hollow="1"] {
+  background: transparent;
+  border: calc(1.4px * var(--gpp-scale, 1)) solid #1a1006;
+}
+.gpp-parch-drum-note[data-head="x"]::before,
+.gpp-parch-drum-note[data-head="x"]::after,
+.gpp-parch-drum-note[data-head="cross"]::before {
+  content: "";
+  position: absolute;
+  left: -8%;
+  top: 50%;
+  width: 116%;
+  height: calc(1.6px * var(--gpp-scale, 1));
+  background: #1a1006;
+  border-radius: 1px;
+}
+.gpp-parch-drum-note[data-head="x"]::before {
+  transform: translateY(-50%) rotate(38deg);
+}
+.gpp-parch-drum-note[data-head="x"]::after {
+  transform: translateY(-50%) rotate(-38deg);
+}
+.gpp-parch-drum-note[data-head="cross"] {
+  background: #1a1006;
+  border-radius: 50%;
+}
+.gpp-parch-drum-note[data-head="cross"]::before {
+  transform: translateY(-50%) rotate(38deg);
+  background: rgba(255, 252, 244, 0.9);
+}
+.gpp-parch-drum-note[data-head="diamond"] {
+  border: calc(1.4px * var(--gpp-scale, 1)) solid #1a1006;
+  transform: rotate(45deg);
+}
+.gpp-parch-drum-note[data-open="1"] {
+  border: calc(1.3px * var(--gpp-scale, 1)) solid #1a1006;
+  border-radius: 50%;
+  padding: 0;
+}
+.gpp-parch-drum-note[data-ghost="1"] {
+  opacity: 0.5;
+}
+.gpp-parch-drum-note.grace {
+  opacity: 0.75;
+}
+.gpp-glyph-lane--tabStaff.gpp-glyph--rest,
+.gpp-glyph--rest {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: calc(15px * var(--gpp-scale, 1));
+  line-height: 1;
+  color: #1a1006;
+}
+.gpp-glyph--rest[data-voice="down"] {
+  opacity: 0.62;
+}
+/* A flag curls off the end of a stem, so it must not read as a black box. */
+.gpp-glyph--drumFlag {
+  background: #1a1006;
+}
+.gpp-glyph--drumFlag[data-voice="up"] {
+  border-radius: 0 96% 82% 6% / 0 40% 96% 10%;
+}
+.gpp-glyph--drumFlag[data-voice="down"] {
+  border-radius: 6% 82% 96% 0 / 10% 96% 40% 0;
+}
+.gpp-glyph--ghostParen {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-size: calc(13px * var(--gpp-scale, 1));
+  line-height: 1;
+  color: #4a3a2a;
+}
+.gpp-glyph--accent {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-weight: 700;
+  font-size: calc(12px * var(--gpp-scale, 1));
+  color: #2a1808;
+}
+
 .gpp-parch-drum-legend {
   flex-shrink: 0;
   display: flex;

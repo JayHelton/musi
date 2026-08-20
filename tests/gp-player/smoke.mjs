@@ -15,7 +15,6 @@ import { gpifToTracks } from '../../js/tab/guitarPro.js';
 import { buildTimedNotes } from '../../js/tab/tabPlayer.js';
 import { midiToDrumInstrument } from '../../js/tab/gpPercussion.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
-import { DRUM_TAB_LANES } from '../../js/drums/notation.js';
 import { createGpMixPlayer } from '../../js/gpMixPlayer.js';
 import { scheduleMetronomeClick } from '../../js/tab/metroClick.js';
 import {
@@ -1009,17 +1008,28 @@ zoomParch.destroy();
 
 const drumParchHost = document.createElement('div');
 const drumParchment = mountParchmentView(drumParchHost, { percModel: perc });
-const drumHits = drumParchHost.querySelectorAll('.gpp-parch-drum-hit');
-assert.ok(drumHits.length > 0, 'drums-only parchment should render drum hits');
+// A drum track reads as a five-line percussion staff, not as one row for each
+// kit piece, so every hit is a note head with a place and a name.
+const drumHits = drumParchHost.querySelectorAll('.gpp-parch-drum-note');
+assert.ok(drumHits.length > 0, 'drums-only parchment should render drum note heads');
 for (const hit of drumHits) {
-  assert.notEqual(hit.textContent, '●', 'parchment drum hit must be a tab glyph');
-  assert.ok(hit.dataset?.glyph, 'parchment drum hit should carry data-glyph');
-  assert.ok(hit.title, 'parchment drum hit should carry title');
+  assert.ok(hit.dataset?.head, 'a drum note head should name its shape');
+  assert.ok(hit.title, 'a drum note head should carry a title');
+  assert.equal(hit.textContent, '', 'a drum note head is a shape, not a letter');
 }
-assert.ok(drumParchHost.querySelector('.gpp-parch-drum-legend'), 'drums-only parchment should render legend');
 assert.ok(
-  drumParchHost.querySelectorAll('.gpp-parch-legend-item').length >= 1,
-  'drum legend should list at least one glyph',
+  drumParchHost.querySelectorAll('.gpp-parch-notation-line').length >= 5,
+  'a drum staff should draw five lines',
+);
+assert.equal(
+  drumParchHost.querySelector('.gpp-parch-drum-lane'),
+  null,
+  'a drum staff should not draw one row for each kit piece',
+);
+assert.equal(
+  drumParchHost.querySelector('.gpp-parch-drum-legend'),
+  null,
+  'a drum staff needs no symbol legend',
 );
 
 assert.equal(
@@ -1033,24 +1043,12 @@ assert.equal(
   'per-measure lane labels should be removed',
 );
 
-const percInsts = new Set(perc.events.map((e) => e.instrument).filter(Boolean));
-const activeLaneLabels = DRUM_TAB_LANES
-  .filter((lane) => lane.instruments.some((i) => percInsts.has(i)))
-  .map((lane) => lane.label);
-
+// One staff carries the whole kit, so the gutter names the track once.
 for (const sys of drumParchHost.querySelectorAll('.gpp-parch-system')) {
   const gutter = sys.querySelector('.gpp-parch-gutter');
   assert.ok(gutter, 'drum system should have gutter');
   const labels = gutter.querySelectorAll('.gpp-parch-gutter-label').map((el) => el.textContent);
-  assert.deepEqual(labels, activeLaneLabels, 'drum gutter labels should match active lanes in order');
-  const measure = sys.querySelector('.gpp-parch-measure');
-  if (measure) {
-    assert.equal(
-      gutterTabRowCount(gutter),
-      staffTabRowCount(measure),
-      'gutter row count should match staff row count for drums',
-    );
-  }
+  assert.deepEqual(labels, ['Kit'], 'a drum staff gutter names the kit once');
   const spacers = gutter.querySelectorAll('.gpp-parch-gutter-spacer');
   assert.equal(spacers.length, 2, 'drum gutter should hold a top spacer and a bottom spacer');
 }
@@ -1062,7 +1060,7 @@ for (const measure of drumParchHost.querySelectorAll('.gpp-parch-measure')) {
   const staff = measure.querySelector('.gpp-parch-staff');
   if (!staff) continue;
   for (const row of staff.children) {
-    if (row.querySelectorAll('.gpp-parch-drum-hit').length > 0) {
+    if (row.querySelectorAll('.gpp-parch-drum-note').length > 0) {
       assert.equal(
         row.querySelectorAll('.gpp-parch-lane-notes').length,
         1,

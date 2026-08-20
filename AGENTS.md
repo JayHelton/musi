@@ -124,7 +124,7 @@ place that classifies every screen:
 
 - **Train** — Intervals, Sight Reading, Chord Workout, Pitch & Ear.
 - **Study** — Scale Reference, Chord Reference, Chord Finder, Triads, Circle of Fifths,
-  Drum Tab.
+  Drum Notation.
 - **Create** — Audio Studio, Song Studio, Notes.
 - **Library** — Exercises, Workbooks.
 - **Utilities** (`utility: true`) — Metronome, Keyboard, Score Player, Settings.
