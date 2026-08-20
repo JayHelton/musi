@@ -39,6 +39,7 @@ import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
 import { initTriadRef, stopTriadRef } from './triadReference.js';
+import { initChordFinder, stopChordFinder } from './chordFinder.js';
 import { initDrumTabReference, stopDrumTabReference } from './drumTabReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
@@ -88,6 +89,7 @@ const TOOL_STOPPERS = {
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
   scaleref: () => stopScaleRef(),
   triads: () => stopTriadRef(),
+  chordfinder: () => stopChordFinder(),
   chordref: () => { if (chOscillators.length) stopChordRef(); },
   pitchear: () => {
     if (tuner.running) stopTuner();
@@ -115,6 +117,7 @@ const TOOL_INITS = {
   metronome: initMetronome,
   scaleref: initScaleRef,
   triads: initTriadRef,
+  chordfinder: initChordFinder,
   chordref: () => { initMovableChordCards(); initChordRef(); },
   chordworkout: initChordWorkout,
   pitchear: () => { initTuner(); initPitchTrainer(); initPitchRunner(); initEarTrainer(); },

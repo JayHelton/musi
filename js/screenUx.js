@@ -1072,6 +1072,48 @@ function syncCompactProgress(sectionId, prefix) {
 /* ── Triads Reference ────────────────────────────────────────── */
 let triadsRefTabsApi = null;
 
+/* ── Chord Finder ────────────────────────────────────────────── */
+function setupChordFinder() {
+  const sec = document.getElementById('sec-chordfinder');
+  if (!sec) return;
+  sec.classList.add('has-setup-summary');
+  ensureBackButton(sec);
+
+  const layout = sec.querySelector('.quiz-layout');
+  const main = sec.querySelector('.quiz-main');
+  if (!layout || !main) return;
+
+  const { host: setup } = createSetupToolbar('chordfinder-setup');
+  insertBefore(layout, setup, main);
+  refreshChordFinderSetup();
+}
+
+/** The tuning chip that replaces the sidebar on a phone. */
+function refreshChordFinderSetup() {
+  const el = getSetupSummaryTarget('chordfinder-setup');
+  if (!el) return;
+  const tuning = resolveTuningKey(getContext().tuning);
+
+  renderSetupSummary(el, [{
+    key: 'tuning',
+    label: 'Tuning',
+    value: tuning,
+    hint: 'Tuning',
+    onClick: async () => {
+      const next = await openTuningPicker({
+        value: tuning,
+        source: 'chordfinder',
+        syncContext: false,
+      });
+      if (!next || next === 'Custom') return;
+      // Click the sidebar row so the finder keeps one path for a tuning change.
+      const item = document.querySelector(`#sl-cf-tuning .sl-item[data-val="${CSS.escape(next)}"]`);
+      if (item) item.click();
+      refreshChordFinderSetup();
+    },
+  }]);
+}
+
 function setupTriads() {
   const sec = document.getElementById('sec-triads');
   if (!sec) return;
@@ -1264,6 +1306,7 @@ export function initScreenUx(config = {}) {
   setupScaleRef();
   setupChords();
   setupTriads();
+  setupChordFinder();
   setupPitch();
   setupEar();
   setupIntervalsAndSight();
@@ -1283,5 +1326,6 @@ export function initScreenUx(config = {}) {
     refreshScaleRefSetup();
     refreshChordsSetup();
     refreshTriadsSetup();
+    refreshChordFinderSetup();
   });
 }

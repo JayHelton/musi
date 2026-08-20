@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v259-drum-flams";
+const CACHE_VERSION = "v260-chord-finder";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -43,6 +43,7 @@ const PRECACHE_URLS = [
   "css/ux-shell.css",
   "css/chordref.css",
   "css/triads.css",
+  "css/chordfinder.css",
   "css/drumtab.css",
   "css/settings.css",
   "css/sync.css",
@@ -66,6 +67,7 @@ const PRECACHE_URLS = [
   "chord-cards/src/validate.js",
   "js/analysis/arpeggios.js",
   "js/analysis/chordDetect.js",
+  "js/analysis/chordMatch.js",
   "js/analysis/keyDetect.js",
   "js/analysis/pitchClass.js",
   "js/analysis/scaleDetect.js",
@@ -88,6 +90,7 @@ const PRECACHE_URLS = [
   "js/audioDock.js",
   "js/audioOwner.js",
   "js/bootSplash.js",
+  "js/chordFinder.js",
   "js/chordReference.js",
   "js/chordWorkout.js",
   "js/chords.js",

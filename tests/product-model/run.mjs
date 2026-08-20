@@ -102,7 +102,7 @@ test('Train holds the four drills', () => {
 
 test('Study holds the references', () => {
   assert.deepEqual(ids(toolsInArea('study')),
-    ['scaleref', 'chordref', 'triads', 'circle', 'drumtab']);
+    ['scaleref', 'chordref', 'chordfinder', 'triads', 'circle', 'drumtab']);
 });
 
 test('Create holds the three writing tools', () => {
@@ -182,6 +182,7 @@ test('each tool declares the context fields it reads', () => {
   assert.deepEqual(toolContextFields('scaleref'), ['root', 'scale', 'tuning']);
   assert.deepEqual(toolContextFields('triads'), ['root', 'scale', 'tempo', 'tuning']);
   assert.deepEqual(toolContextFields('pitchear'), ['root', 'scale', 'tempo', 'tuning']);
+  assert.deepEqual(toolContextFields('chordfinder'), ['tuning']);
   assert.deepEqual(toolContextFields('metronome'), ['tempo']);
   assert.deepEqual(toolContextFields('notes'), []);
 });

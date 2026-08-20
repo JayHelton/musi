@@ -88,6 +88,7 @@
 <link rel="stylesheet" href="css/ux-shell.css">
 <link rel="stylesheet" href="css/chordref.css">
 <link rel="stylesheet" href="css/triads.css">
+<link rel="stylesheet" href="css/chordfinder.css">
 <link rel="stylesheet" href="css/drumtab.css">
 <link rel="stylesheet" href="css/settings.css">
 <link rel="stylesheet" href="css/sync.css">
@@ -423,6 +424,41 @@
         <div class="caged-sub" id="caged-sub"></div>
       </div>
       <div class="caged-grid" id="caged-shapes"></div>
+    </div>
+  </section>
+
+  <!-- CHORD FINDER -->
+  <section id="sec-chordfinder" class="section">
+    <div class="section-head">
+      <h2>Chord Finder</h2>
+      <p>Pick a tuning, tap notes on the neck, and read every chord those notes spell. A set of notes usually has more than one true name, so the finder ranks them all.</p>
+    </div>
+    <div class="quiz-layout">
+      <div class="sidebar">
+        <div class="sidebar-list">
+          <div class="sl-head">Tuning</div>
+          <div class="sl-scroll" id="sl-cf-tuning"></div>
+        </div>
+      </div>
+      <div class="quiz-main">
+        <div class="quiz-card ref-fb-card" id="cf-fb-card">
+          <div class="ref-fb-head">
+            <div>
+              <div class="ref-fb-title" id="cf-fb-title">Fretboard</div>
+              <div class="ref-fb-sub" id="cf-fb-sub"></div>
+            </div>
+            <div class="ref-fb-opts">
+              <button type="button" class="btn sm chord-ref-play" id="cf-play" aria-label="Play the selected notes">&#9654; Play</button>
+              <button type="button" class="btn sm" id="cf-clear">Clear</button>
+              <label class="ref-fb-range">Fret <input type="number" id="cf-fb-start" min="0" max="24" value="0"></label>
+              <label class="ref-fb-range">&ndash; <input type="number" id="cf-fb-end" min="1" max="24" value="15"></label>
+              <label class="ref-fb-check"><input type="checkbox" id="cf-show-all" checked> Note names</label>
+            </div>
+          </div>
+          <div class="ref-fb-scroll"><div class="ref-fretboard cf-fretboard" id="cf-fretboard"></div></div>
+        </div>
+        <div class="quiz-card cf-results" id="cf-results"></div>
+      </div>
     </div>
   </section>
 

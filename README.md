@@ -166,6 +166,7 @@ node tests/routes/run.mjs          # route resolution and tool modes
 node tests/shell/run.mjs           # nav stack, shared context, tool page
 node tests/workbooks/run.mjs       # workbook model and playthrough
 node tests/exercises/run.mjs       # exercise library
+node tests/chord-match/run.mjs     # multi-answer chord identification
 ```
 
 `tests/appcheck/run.mjs` boots the app in headless Chrome and fails on any
