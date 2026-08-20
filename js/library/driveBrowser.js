@@ -7,7 +7,8 @@
 //   - the folder tree in the sidebar, with a "+ New" menu above it
 //   - the breadcrumb trail, the search box, the sort control, the view toggle
 //   - one level of content at a time: subfolders first, then items
-//   - selection (click, ctrl-click, shift-click) and the selection action bar
+//   - selection (click, ctrl-click, shift-click, hold to select on a touch
+//     screen) and the selection action bar
 //   - the row menu, the right-click menu, and drag-and-drop moves
 //   - keyboard navigation
 //
@@ -40,6 +41,11 @@ import {
   formatModified,
   formatCount,
 } from './driveModel.js';
+
+// A press that stays down for this long on a touch screen starts multi-select.
+const LONG_PRESS_MS = 450;
+// A press that moves more than this is a scroll, not a hold.
+const LONG_PRESS_SLOP_PX = 10;
 
 const SORT_LABELS = {
   name: 'Name',
@@ -103,6 +109,13 @@ function isTouchPrimary() {
   } catch (e) {
     return false;
   }
+}
+
+/** A pointer event with no pointerType comes from an older browser shim. */
+function isTouchPointer(event) {
+  const type = event && typeof event.pointerType === 'string' ? event.pointerType : '';
+  if (type) return type !== 'mouse';
+  return isTouchPrimary();
 }
 
 function closestIn(target, selector) {
@@ -241,6 +254,8 @@ export function createDriveBrowser(config) {
   let query = '';
   const expanded = new Set(readExpanded());
   let selection = new Set();
+  // True after a hold on a touch screen. A tap then adds or removes a row.
+  let selectMode = false;
   let anchorKey = '';
   let focusKey = '';
   let dragKeys = [];
@@ -354,7 +369,21 @@ export function createDriveBrowser(config) {
 
   function clearSelection() {
     selection.clear();
+    selectMode = false;
     anchorKey = '';
+  }
+
+  /** Adds the row to the selection, or removes it if it is already there. */
+  function toggleSelection(key) {
+    if (selection.has(key)) {
+      selection.delete(key);
+      if (anchorKey === key) anchorKey = '';
+    } else {
+      selection.add(key);
+      anchorKey = key;
+    }
+    // The last row out also ends multi-select, so a tap opens rows again.
+    if (!selection.size) selectMode = false;
   }
 
   function applyClickSelection(key, event) {
@@ -962,15 +991,78 @@ export function createDriveBrowser(config) {
   function wireRowInteraction(node, entry) {
     const key = entryKey(entry);
     const openOnSingleTap = isTouchPrimary();
+    let pressTimer = null;
+    let pressStart = null;
+    // Set when a hold selects the row. The tap and the menu that follow the
+    // hold must not open the row as well.
+    let heldToSelect = false;
+    // A click event carries no pointer type, so the press before it tells the
+    // row whether a finger or a mouse made it.
+    let touchPress = openOnSingleTap;
+
+    function endPress() {
+      if (pressTimer) clearTimeout(pressTimer);
+      pressTimer = null;
+      pressStart = null;
+    }
+
+    function onHold() {
+      pressTimer = null;
+      heldToSelect = true;
+      selectMode = true;
+      toggleSelection(key);
+      paintSelection();
+      renderSelectionBar();
+      try {
+        if (navigator && typeof navigator.vibrate === 'function') navigator.vibrate(12);
+      } catch (err) {
+        /* haptics are optional */
+      }
+    }
+
+    node.addEventListener('pointerdown', (e) => {
+      endPress();
+      heldToSelect = false;
+      touchPress = isTouchPointer(e);
+      if (closestIn(e.target, '.drv-kebab')) return;
+      if (!touchPress) return;
+      pressStart = { x: e.clientX || 0, y: e.clientY || 0 };
+      pressTimer = setTimeout(onHold, LONG_PRESS_MS);
+    });
+
+    node.addEventListener('pointermove', (e) => {
+      if (!pressTimer || !pressStart) return;
+      const dx = Math.abs((e.clientX || 0) - pressStart.x);
+      const dy = Math.abs((e.clientY || 0) - pressStart.y);
+      if (dx > LONG_PRESS_SLOP_PX || dy > LONG_PRESS_SLOP_PX) endPress();
+    });
+
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => {
+      node.addEventListener(type, endPress);
+    });
 
     node.addEventListener('click', (e) => {
       if (closestIn(e.target, '.drv-kebab')) return;
+      endPress();
       trackPointer(e);
       focusKey = key;
+      // The tap that ends a hold belongs to the hold, not to the row.
+      if (heldToSelect) {
+        heldToSelect = false;
+        return;
+      }
+      const plain = !e.ctrlKey && !e.metaKey && !e.shiftKey;
+      // A hold started multi-select, so a tap now adds the row or takes it
+      // out again. The row opens again after the last row leaves.
+      if (plain && selectMode && touchPress) {
+        toggleSelection(key);
+        paintSelection();
+        renderSelectionBar();
+        return;
+      }
       // A finger has no modifier keys, so a plain tap opens the row. It must
       // not select as well, or the selection bar appears with no way to build
       // on it and no obvious way to dismiss it.
-      const plain = !e.ctrlKey && !e.metaKey && !e.shiftKey;
       if (openOnSingleTap && plain) {
         activateEntry(entry);
         return;
@@ -987,6 +1079,9 @@ export function createDriveBrowser(config) {
 
     node.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      endPress();
+      // A touch screen fires this after the hold. The hold selects instead.
+      if (heldToSelect) return;
       trackPointer(e);
       if (!selection.has(key)) {
         selection = new Set([key]);
@@ -1326,6 +1421,7 @@ export function createDriveBrowser(config) {
     [...selection].forEach((key) => {
       if (!live.has(key)) selection.delete(key);
     });
+    if (!selection.size) selectMode = false;
 
     renderTree();
     renderCrumbs();

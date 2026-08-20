@@ -1,5 +1,5 @@
 /**
- * Zero-dependency Node tests for the shared Drive-style library browser model.
+ * Zero-dependency Node tests for the shared Drive-style library browser.
  * Run: node tests/library/run.mjs
  */
 
@@ -221,4 +221,8 @@ test('formatCount pluralizes and stays empty at zero', () => {
 });
 
 console.log(`\n${passed} tests passed`);
+
+// The browser tests need a DOM shim, so they run in their own module.
+await import('./touch-multiselect.mjs');
+
 console.log('library tests: ok');
