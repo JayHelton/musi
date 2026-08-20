@@ -13,7 +13,6 @@ import {
   drumHitLabel,
   drumHitPriority,
   drumTabLegendFor,
-  isFlamGraceStroke,
 } from '../../js/drums/notation.js';
 import { gpifToTracks } from '../../js/tab/guitarPro.js';
 import { makePercussionModel } from '../../js/tab/gpPercussion.js';
@@ -103,24 +102,20 @@ assert.deepEqual(
   ['x', 'g', 'f'],
 );
 
-// ---- flams: one symbol for the pair ----
-assert.equal(drumTabGlyph({ instrument: 'snare', flam: true }), 'f');
-assert.equal(drumTabGlyph({ instrument: 'tomHigh', flam: true }), 'f', 'a flam reads as f on any lane');
+// ---- flams: each stroke keeps the symbol of its drum ----
+assert.equal(drumTabGlyph({ instrument: 'snare', flam: true }), 'o');
+assert.equal(drumTabGlyph({ instrument: 'snare', grace: true, flam: true }), 'o');
 assert.equal(
   drumTabGlyph({ instrument: 'snare', flam: true, accent: true }),
-  'f',
-  'the flam symbol wins over the accent symbol',
+  'O',
+  'an accented flam keeps the accent symbol',
 );
 assert.equal(
   drumTabGlyph({ instrument: 'snare', flam: true, midi: 37 }),
-  'f',
-  'the flam symbol wins over the articulation symbol',
+  '@',
+  'a flam keeps the articulation symbol',
 );
-assert.equal(drumTabGlyph({ instrument: 'snare', flam: false }), 'o');
-assert.equal(isFlamGraceStroke({ grace: true, flam: true }), true);
-assert.equal(isFlamGraceStroke({ grace: true }), false);
-assert.equal(isFlamGraceStroke({ flam: true }), false);
-assert.equal(isFlamGraceStroke({}), false);
+assert.equal(drumTabGlyph({ instrument: 'snareFlam' }), 'f', 'the drum-tab tool keeps its f');
 
 // ---- drumHitLabel ----
 assert.equal(drumHitLabel({ instrument: 'snare', velocity: 0.5 }), 'Snare');
@@ -133,6 +128,7 @@ assert.equal(drumHitLabel({ instrument: 'snareFlam', velocity: 0.95 }), 'Flam');
 assert.equal(drumHitLabel({ instrument: 'snareGhost' }), 'Ghost');
 assert.equal(drumHitLabel({ instrument: 'snare', flam: true }), 'Snare (flam)');
 assert.equal(drumHitLabel({ instrument: 'tomFloor', flam: true }), 'Floor (flam)');
+assert.equal(drumHitLabel({ instrument: 'snare', grace: true, flam: true }), 'Snare (grace)');
 
 // ---- parse-time articulation enrichment (GPIF) ----
 const DRUM_ARTICULATION_SET = `

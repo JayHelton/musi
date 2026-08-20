@@ -69,9 +69,6 @@ const ARTICULATION_GLYPH = {
 // never overrides them.
 const SELF_SPELLED = new Set(['snareGhost', 'snareFlam', 'hihatOpen']);
 
-/** Symbol for a flam on any lane. */
-const FLAM_GLYPH = 'f';
-
 /** Parenthetical articulation phrase appended to the instrument label. */
 const ARTICULATION_PHRASE = {
   hihatPedal: 'foot',
@@ -104,12 +101,13 @@ export const DRUM_TAB_LEGEND = [
 ];
 
 /**
- * @param {{ instrument?: string, velocity?: number, midi?: number, articulation?: string|null, accent?: boolean|null, flam?: boolean }} event
+ * @param {{ instrument?: string, velocity?: number, midi?: number, articulation?: string|null, accent?: boolean|null, flam?: boolean, grace?: boolean }} event
  * @returns {{
  *   instrument: string|undefined,
  *   articulation: string|null,
  *   accented: boolean,
  *   flam: boolean,
+ *   grace: boolean,
  *   glyph: string,
  *   normalGlyph: string,
  *   accentGlyph: string,
@@ -121,17 +119,18 @@ function resolveHit(event) {
   // Guitar Pro sets accent explicitly; hand-authored drum patterns rely on velocity.
   const accented = event?.accent
     ?? (Number.isFinite(event?.velocity) && event.velocity >= ACCENT_VELOCITY);
-  // A flam is two strokes on one lane. Drum tab spells the pair with one
-  // symbol, so the ornament wins over the accent and the articulation.
+  // A flam is two strokes on one lane: a small grace stroke and the main hit.
+  // Each stroke keeps its own symbol, the way a score draws the pair.
   const flam = event?.flam === true || instrument === 'snareFlam';
+  const grace = event?.grace === true;
   const pair = instrument ? INSTRUMENT_GLYPHS[instrument] : null;
   const normalGlyph = pair ? pair[0] : 'x';
   const accentGlyph = pair ? pair[1] : 'x';
   const articGlyph = articulation && instrument && !SELF_SPELLED.has(instrument)
     ? ARTICULATION_GLYPH[articulation]
     : undefined;
-  const glyph = flam ? FLAM_GLYPH : (articGlyph ?? (accented ? accentGlyph : normalGlyph));
-  return { instrument, articulation, accented, flam, glyph, normalGlyph, accentGlyph };
+  const glyph = articGlyph ?? (accented ? accentGlyph : normalGlyph);
+  return { instrument, articulation, accented, flam, grace, glyph, normalGlyph, accentGlyph };
 }
 
 /**
@@ -168,12 +167,14 @@ export function drumTabGlyph(event) {
  * @returns {string}
  */
 export function drumHitLabel(event) {
-  const { instrument, articulation, flam, glyph, normalGlyph, accentGlyph } = resolveHit(event);
+  const {
+    instrument, articulation, flam, grace, glyph, normalGlyph, accentGlyph,
+  } = resolveHit(event);
   const base = (instrument && INSTRUMENT_LABELS[instrument]) || 'Drum';
 
-  if (flam) {
-    return instrument === 'snareFlam' ? base : `${base} (flam)`;
-  }
+  if (instrument === 'snareFlam') return base;
+  if (grace) return `${base} (grace)`;
+  if (flam) return `${base} (flam)`;
 
   if (
     articulation
@@ -197,16 +198,6 @@ export function drumHitLabel(event) {
  */
 export function drumHitPriority(instrument) {
   return HIT_PRIORITY[instrument] ?? 2;
-}
-
-/**
- * True for the grace stroke of a flam. The main hit already spells the flam
- * with one symbol, so the grace stroke draws no symbol of its own.
- * @param {{ grace?: boolean, flam?: boolean }} event
- * @returns {boolean}
- */
-export function isFlamGraceStroke(event) {
-  return event?.grace === true && event?.flam === true;
 }
 
 /**

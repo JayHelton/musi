@@ -613,6 +613,63 @@ await emptyPlayer.play();
 assert.equal(emptyEnded, false, 'play() on empty score must not call onEnded');
 assert.equal(emptyPlayer.playing, false, 'play() on empty score must not start playback');
 
+// ---- GPIF: an accent sounds louder and a ghost note sounds softer ----
+const gpifAccents = `<?xml version="1.0" encoding="UTF-8"?>
+<GPIF>
+  <MasterBars><MasterBar><Bars>0</Bars><Time>4/4</Time></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0 1 2</Beats></Voice></Voices>
+  <Beats>
+    <Beat id="0"><Rhythm ref="0"/><Dynamic>MF</Dynamic><Notes>0</Notes></Beat>
+    <Beat id="1"><Rhythm ref="0"/><Dynamic>MF</Dynamic><Notes>1</Notes></Beat>
+    <Beat id="2"><Rhythm ref="0"/><Dynamic>MF</Dynamic><Notes>2</Notes></Beat>
+  </Beats>
+  <Notes>
+    <Note id="0"><InstrumentArticulation>1</InstrumentArticulation></Note>
+    <Note id="1"><InstrumentArticulation>1</InstrumentArticulation><Accent>4</Accent></Note>
+    <Note id="2"><InstrumentArticulation>1</InstrumentArticulation><AntiAccent>normal</AntiAccent></Note>
+  </Notes>
+  <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
+  <Tracks>
+    <Track id="0">
+      <Name>Drums</Name>
+      ${DRUM_ARTICULATION_SET}
+    </Track>
+  </Tracks>
+</GPIF>`;
+const accentModel = gpifToTracks(gpifAccents).tracks[0].model;
+const plainHit = accentModel.events.find((e) => e.start === 0);
+const accentHit = accentModel.events.find((e) => e.start === 1);
+const ghostHit = accentModel.events.find((e) => e.start === 2);
+assert.equal(accentHit.accent, true, 'the Accent mark reaches the model');
+assert.ok(
+  accentHit.velocity > plainHit.velocity,
+  `an accent must sound louder (${accentHit.velocity} vs ${plainHit.velocity})`,
+);
+assert.ok(
+  ghostHit.velocity < plainHit.velocity,
+  `a ghost note must sound softer (${ghostHit.velocity} vs ${plainHit.velocity})`,
+);
+assert.equal(ghostHit.instrument, 'snareGhost');
+assert.ok(accentHit.velocity <= 1, 'velocity stays inside the 0..1 scale');
+// The loudness must survive the trip into the mix player.
+const accentTimeline = buildTimeline({
+  playOrder: buildPlayOrder(accentModel.measures),
+  tempoMap: accentModel.tempoMap || [],
+  baseBpm: 120,
+  rate: 1,
+  tracks: { guitarModels: [], drumModels: [accentModel] },
+});
+const timedByStart = new Map(accentTimeline.events.map((e) => [Number(e.startSec.toFixed(4)), e]));
+assert.ok(
+  timedByStart.get(0.5).velocity > timedByStart.get(0).velocity,
+  'the timeline keeps the accent louder',
+);
+assert.ok(
+  timedByStart.get(1).velocity < timedByStart.get(0).velocity,
+  'the timeline keeps the ghost note softer',
+);
+
 // ---- GPIF: a grace beat is a flam, and it takes no time from the bar ----
 const gpifFlam = `<?xml version="1.0" encoding="UTF-8"?>
 <GPIF>
@@ -656,7 +713,12 @@ assert.equal(flamGrace.instrument, 'snare');
 assert.equal(flamGrace.duration, 0.125, 'a 32nd grace leads its beat by an eighth of a quarter');
 assert.equal(flamGrace.flam, true, 'a grace hit on the lane of its main hit is a flam');
 assert.equal(flamMain.flam, true, 'the main hit of the pair carries the flam mark');
-assert.equal(drumTabGlyph(flamMain), 'f', 'drum tab spells a flam with f');
+assert.equal(drumTabGlyph(flamMain), 'o', 'each stroke of a flam keeps the symbol of its drum');
+assert.equal(drumTabGlyph(flamGrace), 'o');
+assert.ok(
+  flamGrace.velocity < flamMain.velocity,
+  'the grace stroke of a flam sounds softer than its main hit',
+);
 assert.ok(
   (flamModel.beats || []).every((b) => !(b.noteIndices || [])
     .some((i) => flamModel.events[i].grace)),
@@ -722,7 +784,8 @@ assert.equal(gp5FlamGrace.flam, true);
 assert.equal(gp5FlamGrace.duration, 0.125);
 const gp5FlamMain = gp5FlamModel.events.find((e) => e.start === 1 && !e.grace);
 assert.equal(gp5FlamMain.flam, true);
-assert.equal(drumTabGlyph(gp5FlamMain), 'f');
+assert.equal(drumTabGlyph(gp5FlamMain), 'o');
+assert.ok(gp5FlamGrace.velocity < gp5FlamMain.velocity, 'the grace stroke sounds softer');
 assert.deepEqual(
   gp5FlamModel.events.filter((e) => !e.grace).map((e) => e.start),
   [0, 1, 2, 3],

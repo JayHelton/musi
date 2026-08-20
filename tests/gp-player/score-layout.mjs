@@ -1135,7 +1135,7 @@ function isCompleteBarSystem(sys) {
   );
 }
 
-// A flam draws one symbol: the grace stroke stays silent on the page.
+// A flam draws two symbols: a small grace stroke just before the main hit.
 {
   const flamModel = {
     percussion: true,
@@ -1159,10 +1159,19 @@ function isCompleteBarSystem(sys) {
     widthPx: 900,
   });
   const hits = layout.bars[0].glyphs.filter((g) => g.kind === 'drumHit');
-  assert.equal(hits.length, 3, 'the grace stroke of a flam draws no symbol of its own');
-  const flamHits = hits.filter((g) => g.text === 'f');
-  assert.equal(flamHits.length, 1, 'the main hit of the flam draws one f');
-  assert.equal(flamHits[0].aria, 'Snare (flam)');
+  assert.equal(hits.length, 4, 'every stroke of the flam draws its own symbol');
+  const graceHits = hits.filter((g) => g.grace);
+  assert.equal(graceHits.length, 1, 'the flam draws one grace stroke');
+  assert.equal(graceHits[0].text, 'o', 'the grace stroke keeps the symbol of its drum');
+  assert.equal(graceHits[0].aria, 'Snare (grace)');
+  const mainHit = hits.find((g) => !g.grace && g.beatStart === 1);
+  assert.equal(mainHit.text, 'o');
+  assert.equal(mainHit.aria, 'Snare (flam)');
+  assert.ok(
+    graceHits[0].x < mainHit.x,
+    'the grace stroke draws before the hit that it decorates',
+  );
+  assert.equal(graceHits[0].y, mainHit.y, 'both strokes sit on the snare row');
 }
 
 console.log('gp-player score-layout: ok');

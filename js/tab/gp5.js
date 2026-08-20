@@ -24,6 +24,7 @@ import {
   midiToDrumInstrument,
   normalizeGp5PercussionMidi,
   dynamicsToVelocity,
+  drumHitVelocity,
   makePercussionModel,
   markFlamPair,
   assignPercussionSlots,
@@ -764,14 +765,14 @@ function pushGp5BeatRhythm({
 function percussionGraceEvent({ grace, voiceCursor, voiceIndex, beatIndex }) {
   const midi = normalizeGp5PercussionMidi(grace.fret);
   if (midi == null) return null;
-  const velocity = dynamicsToVelocity(grace.dynamics);
-  const instrument = midiToDrumInstrument(midi, { velocity });
+  const written = dynamicsToVelocity(grace.dynamics);
+  const instrument = midiToDrumInstrument(midi, { velocity: written });
   if (!instrument) return null;
   return {
     start: voiceCursor,
     duration: grace.lead,
     instrument,
-    velocity,
+    velocity: drumHitVelocity(written, { grace: true }),
     midi,
     accent: false,
     voiceIndex,
@@ -833,8 +834,8 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120,
           const graceNotes = [];
           for (const n of beat.notes) {
             if (n.dead || n.tie || n.midi == null) continue;
-            const velocity = dynamicsToVelocity(n.dynamics);
-            const instrument = midiToDrumInstrument(n.midi, { velocity, ghost: n.ghost });
+            const written = dynamicsToVelocity(n.dynamics);
+            const instrument = midiToDrumInstrument(n.midi, { velocity: written, ghost: n.ghost });
             if (!instrument) continue;
             if (n.graceInfo) graceNotes.push(n.graceInfo);
             noteIndices.push(events.length);
@@ -842,16 +843,19 @@ function buildPercussionModel(track, measures, measureHeaders = [], tempo = 120,
               start: voiceCursor,
               duration,
               instrument,
-              velocity,
+              velocity: drumHitVelocity(written, {
+                accent: n.accent,
+                ghost: instrument === 'snareGhost',
+              }),
               midi: n.midi,
               accent: n.accent,
               voiceIndex,
               beatIndex,
             });
           }
-          // A grace hit sounds just before the beat. On the lane of one of the
-          // beat's own hits it makes a flam, which drum tab spells with one
-          // symbol on the main hit.
+          // A grace hit sounds just before the beat, and it draws before the
+          // main hit. On the lane of one of the beat's own hits it makes a
+          // flam, and both strokes carry the mark.
           const mainEvents = noteIndices.map((i) => events[i]);
           for (const grace of graceNotes) {
             const graceEvent = percussionGraceEvent({

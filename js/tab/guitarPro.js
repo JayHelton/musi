@@ -33,6 +33,7 @@ import {
 import {
   midiToDrumInstrument,
   dynamicsToVelocity,
+  drumHitVelocity,
   normalizePercussionMidi,
   gp6ElementVariationToMidi,
   makePercussionModel,
@@ -719,9 +720,9 @@ function gpifPercussionGraceEvents({
     const dynTxt = waiting.beatDyn
       || childText(note, 'Dynamic')
       || childText(firstChild(note, 'Dynamic'), 'Value');
-    const velocity = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
+    const written = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
     const instrument = midiToDrumInstrument(resolved.midi, {
-      velocity,
+      velocity: written,
       ghost: resolved.ghost,
     });
     if (!instrument) continue;
@@ -729,7 +730,11 @@ function gpifPercussionGraceEvents({
       start: beatStart,
       duration: waiting.lead,
       instrument,
-      velocity,
+      velocity: drumHitVelocity(written, {
+        accent: resolved.accent,
+        ghost: instrument === 'snareGhost',
+        grace: true,
+      }),
       midi: resolved.midi,
       accent: resolved.accent,
       voiceIndex,
@@ -831,9 +836,9 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
             const dynTxt = beatDyn
               || childText(note, 'Dynamic')
               || childText(firstChild(note, 'Dynamic'), 'Value');
-            const velocity = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
+            const written = dynamicsToVelocity(dynTxt === '' ? null : dynTxt);
             const instrument = midiToDrumInstrument(resolved.midi, {
-              velocity,
+              velocity: written,
               ghost: resolved.ghost,
             });
             if (!instrument) continue;
@@ -842,16 +847,19 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
               start: beatStart,
               duration,
               instrument,
-              velocity,
+              velocity: drumHitVelocity(written, {
+                accent: resolved.accent,
+                ghost: instrument === 'snareGhost',
+              }),
               midi: resolved.midi,
               accent: resolved.accent,
               voiceIndex: vi,
               beatIndex,
             });
           }
-          // A grace hit sounds just before this beat. On the lane of one of
-          // the beat's own hits it makes a flam, which drum tab spells with
-          // one symbol on the main hit.
+          // A grace hit sounds just before this beat, and it draws before
+          // the main hit. On the lane of one of the beat's own hits it makes
+          // a flam, and both strokes carry the mark.
           const mainEvents = noteIndices.map((i) => rawEvents[i]);
           for (const waiting of pendingGraces.get(vi) || []) {
             for (const graceEvent of gpifPercussionGraceEvents({

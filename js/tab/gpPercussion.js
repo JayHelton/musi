@@ -189,9 +189,45 @@ export function deriveMeasureSlotSpans(measures, events) {
 }
 
 /**
+ * Ceiling for a hit with no accent. Playback loudness follows velocity, and
+ * velocity stops at 1. A written dynamic of FF would therefore leave an
+ * accent no room to sound louder, so an un-accented hit keeps this much of
+ * the scale and the accent uses the rest.
+ */
+export const PLAIN_CEILING = 0.85;
+
+/** Loudness of an accented hit against the hits around it. */
+export const ACCENT_GAIN = 1.55;
+
+/** Loudness of a ghost note against a plain hit. */
+export const GHOST_GAIN = 0.45;
+
+/** Loudness of a grace stroke against its main hit. */
+export const GRACE_GAIN = 0.6;
+
+/**
+ * Loudness of one drum hit (0..1). Guitar Pro writes one dynamic for the
+ * beat and marks the accent, the ghost note, and the grace stroke apart from
+ * it. Each mark must reach the ear: an accent is louder than the hits around
+ * it, a ghost note is much softer, and the small stroke of a flam sits under
+ * its main hit.
+ * @param {number} velocity written dynamic as 0..1
+ * @param {{ accent?: boolean, ghost?: boolean, grace?: boolean }} [marks]
+ * @returns {number}
+ */
+export function drumHitVelocity(velocity, marks = {}) {
+  const written = Number.isFinite(Number(velocity)) ? Number(velocity) : 0.78;
+  let level = Math.max(0, Math.min(1, written)) * PLAIN_CEILING;
+  if (marks.accent) level *= ACCENT_GAIN;
+  if (marks.ghost) level *= GHOST_GAIN;
+  if (marks.grace) level *= GRACE_GAIN;
+  return Math.max(0.05, Math.min(1, level));
+}
+
+/**
  * Mark a drum ornament: a grace hit on the lane of its main hit is a flam.
- * Both events keep the `flam` flag. The main hit then spells the flam with
- * one symbol, and the grace hit still sounds just before the beat.
+ * Both events keep the `flam` flag, which names the pair for the reader and
+ * for a tooltip. Each stroke keeps its own symbol and its own sound.
  * @param {{instrument?:string, grace?:boolean}} graceEvent
  * @param {{instrument?:string}[]} mainEvents hits of the beat the grace leads into
  * @returns {boolean} true when the pair makes a flam

@@ -2,11 +2,9 @@
 
 import {
   DRUM_TAB_LANES,
-  drumLaneFor,
   drumTabGlyph,
   drumHitLabel,
   drumTabLegendFor,
-  isFlamGraceStroke,
 } from '../drums/notation.js';
 import { createFollowScrollGuard } from './followScroll.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
@@ -477,7 +475,7 @@ export function mountParchmentView(host, {
     const legacy = glyph.kind === 'fret' || glyph.kind === 'deadNote'
       ? ` gpp-parch-note${glyph.kind === 'deadNote' ? ' dead' : ''}`
       : (glyph.kind === 'drumHit' ? ' gpp-parch-drum-hit' : '');
-    el.className = `${glyphClassName(glyph.kind, glyph.lane)}${legacy}`;
+    el.className = `${glyphClassName(glyph.kind, glyph.lane)}${legacy}${glyph.grace ? ' grace' : ''}`;
     el.style.left = `${glyph.x * scaleUnit}px`;
     el.style.top = `${top}px`;
     el.style.width = `${Math.max(1, glyph.w * scaleUnit)}px`;
@@ -583,7 +581,6 @@ export function mountParchmentView(host, {
       const b = Number(ev.start);
       return b >= mStart - BEAT_EPS && b < mEnd - BEAT_EPS;
     });
-    const laneKeys = isDrum ? activeDrumLanes().map((lane) => lane.key) : [];
 
     const laneTops = new Map();
     for (const lane of barLayout.lanes) {
@@ -618,14 +615,10 @@ export function mountParchmentView(host, {
         ? laneRef.laneNotes
         : laneRef.content;
       // Several drums can share one beat, so the tooltip must read the hit
-      // that sits on the row this symbol draws on.
-      const glyphLaneKey = glyph.kind === 'drumHit'
-        ? laneKeys[glyph.stringIndex]
-        : null;
+      // that the layout drew this symbol for.
       const evForDrum = glyph.kind === 'drumHit'
-        ? eventsAtBar.find((ev) => Math.abs(Number(ev.start) - Number(glyph.beatStart)) < BEAT_EPS
-          && !isFlamGraceStroke(ev)
-          && (glyphLaneKey == null || drumLaneFor(ev.instrument)?.key === glyphLaneKey))
+        ? (glyph.eventRef
+          || eventsAtBar.find((ev) => Math.abs(Number(ev.start) - Number(glyph.beatStart)) < BEAT_EPS))
         : null;
       appendGlyph(parent, glyph, unitPx, evForDrum, laneTops.get(glyph.lane) || 0);
     }

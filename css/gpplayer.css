@@ -876,6 +876,12 @@
 .gpp-parch-note.dead {
   opacity: 0.55;
 }
+/* A grace note leads the beat, so it draws small and just before the main
+   note. This is the small stroke of a flam on a drum staff. */
+.gpp-parch-note.grace {
+  font-size: calc(9px * var(--gpp-scale, 1));
+  opacity: 0.8;
+}
 
 .gpp-parch-drum-lane {
   position: relative;
@@ -901,6 +907,10 @@
 }
 .gpp-parch-drum-hit[data-glyph="g"] {
   opacity: 0.45;
+}
+.gpp-parch-drum-hit.grace {
+  font-size: calc(7px * var(--gpp-scale, 1));
+  opacity: 0.8;
 }
 .gpp-parch-drum-hit[data-glyph="+"],
 .gpp-parch-drum-hit[data-glyph="b"],
