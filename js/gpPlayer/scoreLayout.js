@@ -1762,6 +1762,23 @@ const LAST_FRAGMENT_ONLY_KINDS = new Set(['repeatClose']);
 const SPANNING_GLYPH_KINDS = new Set(['beam', 'tupletBracket']);
 
 /**
+ * True when a glyph is a staff line, not a mark on the staff.
+ *
+ * A staff line runs from its own x to the right edge of the box that draws it.
+ * The drum staff gives each line the start beat of the bar, so the beat filter
+ * below drops the line from every fragment after the first. The notation staff
+ * draws each line as a beam of no width, and the clip for a spanning glyph
+ * drops that shape too. A wrapped bar then shows its notes on no staff at all.
+ */
+function isStaffRule(glyph) {
+  if (glyph.kind === 'staffLine') return true;
+  return glyph.kind === 'beam'
+    && glyph.lane === 'notationStaff'
+    && glyph.h <= 1
+    && glyph.w === 0;
+}
+
+/**
  * Width of a column-range fragment before stretch.
  */
 function fragmentWidthUnits(bar, colStart, colEnd, isContinuation, isLastFragment) {
@@ -1843,6 +1860,15 @@ function sliceBarLayout(bar, { colStart, colEnd, isContinuation, isLastFragment 
         oldToNew.set(i, newGlyphs.length);
         newGlyphs.push({ ...g, x: shiftX(g.x) });
       }
+      continue;
+    }
+
+    // A staff line belongs to the fragment, not to a beat in it. Keep the bar
+    // x, because the view measures the line from the left edge of the box it
+    // draws in, and that box is now the fragment.
+    if (isStaffRule(g)) {
+      oldToNew.set(i, newGlyphs.length);
+      newGlyphs.push({ ...g });
       continue;
     }
 
