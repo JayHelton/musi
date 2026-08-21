@@ -1255,6 +1255,108 @@ function isCompleteBarSystem(sys) {
   assert.equal(graceHits[0].y, mainHit.y, 'both strokes sit on the snare row');
 }
 
+// A bar that is too wide for one row wraps into fragments. Every fragment must
+// draw its own staff, or the notes after the wrap stand on nothing.
+{
+  const events = [];
+  const beats = [];
+  const measures = [];
+  for (let bar = 0; bar < 2; bar += 1) {
+    measures.push({ startBeat: bar * 4, endBeat: bar * 4 + 4, timeSig: [4, 4] });
+    for (let i = 0; i < 32; i += 1) {
+      const start = bar * 4 + i * 0.125;
+      const index = events.length;
+      events.push({ start, duration: 0.125, instrument: 'hihatClosed' });
+      beats.push({
+        measureIndex: bar,
+        voiceIndex: 0,
+        start,
+        duration: 0.125,
+        noteValue: 32,
+        dots: 0,
+        tuplet: null,
+        rest: false,
+        noteIndices: [index],
+      });
+    }
+  }
+  const wrapModel = {
+    percussion: true, name: 'Drums', events, beats, measures,
+  };
+  const layout = layoutForModel(wrapModel, {
+    drumMode: true,
+    drumStaff: true,
+    drumLanes: ['crash', 'hihat', 'snare', 'kick'],
+    widthPx: 480,
+  });
+  const parts = layout.systems.flatMap((sys) => sys.parts);
+  assert.ok(
+    parts.some((part) => part.isContinuation),
+    'the narrow row must wrap a bar, or this check proves nothing',
+  );
+  for (const part of parts) {
+    const lines = part.layout.glyphs.filter((g) => g.kind === 'staffLine');
+    assert.equal(
+      lines.length,
+      5,
+      `bar ${part.barIndex} fragment at column ${part.colStart} draws five staff lines`,
+    );
+    assert.ok(
+      lines.every((g) => g.x === 0),
+      'a staff line starts at the left edge of the fragment that draws it',
+    );
+  }
+}
+
+// The notation staff draws its five lines as beams of no width. A wrapped bar
+// must keep them too.
+{
+  const notes = [];
+  const beats = [];
+  const measures = [];
+  for (let bar = 0; bar < 2; bar += 1) {
+    measures.push({ startBeat: bar * 4, endBeat: bar * 4 + 4, timeSig: [4, 4] });
+    for (let i = 0; i < 32; i += 1) {
+      const index = notes.length;
+      notes.push({ string: 0, fret: (i % 12) + 1, midi: 64 });
+      beats.push({
+        measureIndex: bar,
+        voiceIndex: 0,
+        start: bar * 4 + i * 0.125,
+        duration: 0.125,
+        noteValue: 32,
+        dots: 0,
+        tuplet: null,
+        rest: false,
+        noteIndices: [index],
+      });
+    }
+  }
+  const wrapModel = {
+    measures,
+    beats,
+    notes,
+    rests: [],
+    strings: [{ midi: 64 }, { midi: 59 }, { midi: 55 }, { midi: 50 }, { midi: 45 }, { midi: 40 }],
+  };
+  const layout = layoutForModel(wrapModel, { showNotationStaff: true, widthPx: 480 });
+  const parts = layout.systems.flatMap((sys) => sys.parts);
+  assert.ok(
+    parts.some((part) => part.isContinuation),
+    'the narrow row must wrap a bar, or this check proves nothing',
+  );
+  for (const part of parts) {
+    const lines = part.layout.glyphs.filter(
+      (g) => g.kind === 'beam' && g.lane === 'notationStaff' && g.h <= 1,
+    );
+    assert.equal(
+      lines.length,
+      5,
+      `bar ${part.barIndex} fragment at column ${part.colStart} keeps the notation staff`,
+    );
+  }
+}
+
 console.log('gp-player score-layout: ok');
 if (techniqueReport) {
   console.log(`technique coverage: ${techniqueReport.drawnTotal}/${techniqueReport.fileTotal} (${(techniqueReport.ratio * 100).toFixed(1)}%)`);
