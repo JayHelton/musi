@@ -360,6 +360,11 @@ export function createDriveBrowser(config) {
     return currentEntries().map(entryKey);
   }
 
+  /** Item ids in the order the browser shows them. Folder rows stay out. */
+  function visibleItemIds() {
+    return currentEntries().filter((entry) => entry.kind === 'item').map((entry) => entry.id);
+  }
+
   // --- selection ------------------------------------------------------------
 
   function selectedEntries() {
@@ -1462,6 +1467,7 @@ export function createDriveBrowser(config) {
     render,
     navigateTo,
     getFolderId: () => folderId,
+    listItemIds: visibleItemIds,
     getSelection: () => [...selection],
     clearSelection: () => {
       clearSelection();

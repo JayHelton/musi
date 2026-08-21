@@ -209,3 +209,27 @@ export function formatCount(count, noun = 'item') {
   if (!value) return '';
   return `${value} ${noun}${value === 1 ? '' : 's'}`;
 }
+
+/**
+ * The item before and after `currentId` in a list of ids the browser shows.
+ * The ends stop instead of wrapping, so the first row has no previous item and
+ * the last row has no next item. `index` is -1 when the list has no such id.
+ */
+export function neighborIds(ids, currentId) {
+  const list = Array.isArray(ids) ? ids.filter((id) => typeof id === 'string' && id) : [];
+  const index = list.indexOf(currentId);
+  if (index < 0) return { prevId: '', nextId: '', index: -1, total: list.length };
+  return {
+    prevId: index > 0 ? list[index - 1] : '',
+    nextId: index < list.length - 1 ? list[index + 1] : '',
+    index,
+    total: list.length,
+  };
+}
+
+/** "3 of 12" for the player head. Empty when the position is unknown. */
+export function formatPosition(index, total) {
+  if (typeof index !== 'number' || index < 0) return '';
+  if (typeof total !== 'number' || total <= 0) return '';
+  return `${index + 1} of ${total}`;
+}

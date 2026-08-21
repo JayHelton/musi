@@ -10,5 +10,6 @@ await import('./folder-delete.mjs');
 await import('./nested-folders.mjs');
 await import('./unfiled-delete.mjs');
 await import('./upload-accept.mjs');
+await import('./player-step.mjs');
 
 console.log('exercises tests: ok');

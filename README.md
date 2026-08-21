@@ -73,7 +73,8 @@ The material you own. Exercises and Workbooks keep separate schemas and separate
 storage; the Library page is the door to both.
 
 - **Exercises** — upload tabs, Guitar Pro files, audio, video, and lesson links.
-  Organize them in folders with a file-browser view.
+  Organize them in folders with a file-browser view. The player has Previous and
+  Next buttons, so you step through a folder without a return to the list.
 - **Workbooks** — order exercises into a focused practice collection, with
   looping, auto-advance, notes, and companion widgets.
 

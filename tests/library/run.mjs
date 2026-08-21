@@ -19,6 +19,8 @@ import {
   formatSize,
   formatModified,
   formatCount,
+  neighborIds,
+  formatPosition,
 } from '../../js/library/driveModel.js';
 
 let passed = 0;
@@ -189,6 +191,47 @@ test('stepKey stops at both ends instead of wrapping', () => {
   assert.equal(stepKey(KEYS, 'item:1', 1), 'item:2');
   assert.equal(stepKey(KEYS, 'unknown', 1), 'folder:a');
   assert.equal(stepKey([], 'item:1', 1), '');
+});
+
+// --- player steps -----------------------------------------------------------
+
+const ITEM_IDS = ['ex-a', 'ex-b', 'ex-c'];
+
+test('neighborIds names the item before and after the open one', () => {
+  assert.deepEqual(neighborIds(ITEM_IDS, 'ex-b'), {
+    prevId: 'ex-a', nextId: 'ex-c', index: 1, total: 3,
+  });
+});
+
+test('neighborIds stops at both ends instead of wrapping', () => {
+  assert.deepEqual(neighborIds(ITEM_IDS, 'ex-a'), {
+    prevId: '', nextId: 'ex-b', index: 0, total: 3,
+  });
+  assert.deepEqual(neighborIds(ITEM_IDS, 'ex-c'), {
+    prevId: 'ex-b', nextId: '', index: 2, total: 3,
+  });
+});
+
+test('neighborIds reports no place for an id the list does not hold', () => {
+  assert.deepEqual(neighborIds(ITEM_IDS, 'gone'), {
+    prevId: '', nextId: '', index: -1, total: 3,
+  });
+  assert.deepEqual(neighborIds(null, 'ex-a'), {
+    prevId: '', nextId: '', index: -1, total: 0,
+  });
+});
+
+test('neighborIds of a single item has no step in either direction', () => {
+  assert.deepEqual(neighborIds(['ex-a'], 'ex-a'), {
+    prevId: '', nextId: '', index: 0, total: 1,
+  });
+});
+
+test('formatPosition counts from one and stays empty when the place is unknown', () => {
+  assert.equal(formatPosition(0, 3), '1 of 3');
+  assert.equal(formatPosition(2, 3), '3 of 3');
+  assert.equal(formatPosition(-1, 3), '');
+  assert.equal(formatPosition(0, 0), '');
 });
 
 // --- formatting -------------------------------------------------------------

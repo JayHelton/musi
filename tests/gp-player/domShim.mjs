@@ -248,6 +248,7 @@ export function installDomShim() {
         if (document._activeElement === el) document._activeElement = null;
         this.dispatch('blur');
       },
+      scrollIntoView() {},
       setPointerCapture() { el._pointerCapture = true; },
       releasePointerCapture() { el._pointerCapture = false; },
       get onclick() { return el._onclick || null; },

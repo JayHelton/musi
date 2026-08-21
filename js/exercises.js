@@ -46,6 +46,7 @@ import {
   nextParentAfterDelete,
 } from './folderTree.js';
 import { createDriveBrowser, closeDriveMenu } from './library/driveBrowser.js';
+import { neighborIds, formatPosition, sortEntries } from './library/driveModel.js';
 import { showAppToast } from './appToast.js';
 
 const STORAGE_KEY = 'musi.exercises';
@@ -820,6 +821,7 @@ let browser = null;
 
 let listEl, catListEl, crumbsEl, toolsEl, statusEl, bulkBarEl, fileInput, bulkFileInput;
 let sectionEl, workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
+let playerStepEl, playerPrevBtn, playerNextBtn, playerPosEl;
 let activeExerciseId = null;
 let viewerURL = null;
 let viewerGpMount = null;
@@ -980,6 +982,7 @@ function render() {
     browser.render();
     selectedCategory = browser.getFolderId();
   }
+  updatePlayerStep();
   emitFoldersChanged();
 }
 
@@ -1240,6 +1243,10 @@ function ensurePlayerElements() {
   playerTitleEl = playerTitleEl || document.getElementById('ex-player-title');
   playerActionsEl = playerActionsEl || document.getElementById('ex-player-actions');
   playerBackBtn = playerBackBtn || document.getElementById('ex-player-back');
+  playerStepEl = playerStepEl || document.getElementById('ex-player-step');
+  playerPrevBtn = playerPrevBtn || document.getElementById('ex-player-prev');
+  playerNextBtn = playerNextBtn || document.getElementById('ex-player-next');
+  playerPosEl = playerPosEl || document.getElementById('ex-player-pos');
   return !!(workspaceEl && playerPaneEl && playerBodyEl && playerTitleEl && playerActionsEl);
 }
 
@@ -1322,6 +1329,14 @@ function viewerOverlayOpen() {
 }
 
 function wirePlayerControls() {
+  if (playerPrevBtn && !playerPrevBtn.dataset.wired) {
+    playerPrevBtn.dataset.wired = '1';
+    playerPrevBtn.addEventListener('click', () => stepExercise(-1));
+  }
+  if (playerNextBtn && !playerNextBtn.dataset.wired) {
+    playerNextBtn.dataset.wired = '1';
+    playerNextBtn.addEventListener('click', () => stepExercise(1));
+  }
   if (!playerBackBtn || playerBackBtn.dataset.wired) return;
   playerBackBtn.dataset.wired = '1';
   playerBackBtn.addEventListener('click', closeExerciseViewer);
@@ -1334,6 +1349,61 @@ function wirePlayerControls() {
     if (viewerOverlayOpen()) return;
     closeExerciseViewer();
   });
+}
+
+// --- step through the folder ------------------------------------------------
+//
+// The player shows one exercise, but the user practises a whole folder. These
+// helpers find the exercise before and after the open one, in the same order
+// the library list shows them, so the step buttons match what the user saw.
+
+/** Exercise ids of one folder, in the browser's default name order. */
+function folderExerciseIds(folderId) {
+  const target = folderId && folderById(getStore().categories, folderId) ? folderId : '';
+  const rows = getExercises()
+    .filter((item) => {
+      const raw = item.categoryId || '';
+      const owner = raw && folderById(getStore().categories, raw) ? raw : '';
+      return owner === target;
+    })
+    .map((item) => ({ kind: 'item', ...describeExerciseRow(item) }));
+  return sortEntries(rows, { key: 'name', dir: 'asc' }).map((row) => row.id);
+}
+
+/**
+ * The list the step buttons walk. It is the visible list of the browser, so a
+ * sort or a search changes the order of the steps too. A route can open an
+ * exercise the list does not hold; that case falls back to its own folder.
+ */
+function stepListFor(id) {
+  const visible = browser && typeof browser.listItemIds === 'function' ? browser.listItemIds() : [];
+  if (visible.includes(id)) return visible;
+  return folderExerciseIds(getExercise(id)?.categoryId || '');
+}
+
+/** Enable, disable, or hide the step buttons for the open exercise. */
+function updatePlayerStep() {
+  if (!playerStepEl || !playerPrevBtn || !playerNextBtn) return;
+  if (!activeExerciseId) {
+    playerStepEl.hidden = true;
+    if (playerPosEl) playerPosEl.textContent = '';
+    return;
+  }
+  const { prevId, nextId, index, total } = neighborIds(stepListFor(activeExerciseId), activeExerciseId);
+  // One exercise on its own has nowhere to step, so the buttons stay away.
+  playerStepEl.hidden = total < 2;
+  playerPrevBtn.disabled = !prevId;
+  playerNextBtn.disabled = !nextId;
+  if (playerPosEl) playerPosEl.textContent = formatPosition(index, total);
+}
+
+/** Open the exercise before (-1) or after (1) the open one. */
+function stepExercise(delta) {
+  if (!activeExerciseId) return;
+  const { prevId, nextId } = neighborIds(stepListFor(activeExerciseId), activeExerciseId);
+  const target = delta < 0 ? prevId : nextId;
+  if (!target) return;
+  void openExerciseViewer(target);
 }
 
 function fillPlayerHead(item, kind, blob) {
@@ -1528,6 +1598,7 @@ function teardownPlayer() {
     playerBodyEl.innerHTML = '';
     playerBodyEl.className = 'ex-player-body';
   }
+  updatePlayerStep();
   applyActiveRowHighlight();
 }
 
@@ -1551,6 +1622,7 @@ export async function openExerciseViewer(id) {
   setViewerLayoutActive(true);
   playerPaneEl.hidden = false;
   fillPlayerHead(item, kind, blob);
+  updatePlayerStep();
   const gpMount = mountPlayerBody(item, kind, blob);
   applyActiveRowHighlight();
   exerciseViewerChangeHandlers.forEach((handler) => {
@@ -1876,6 +1948,10 @@ export function initExercises() {
   playerTitleEl = document.getElementById('ex-player-title');
   playerActionsEl = document.getElementById('ex-player-actions');
   playerBackBtn = document.getElementById('ex-player-back');
+  playerStepEl = document.getElementById('ex-player-step');
+  playerPrevBtn = document.getElementById('ex-player-prev');
+  playerNextBtn = document.getElementById('ex-player-next');
+  playerPosEl = document.getElementById('ex-player-pos');
 
   if (!listEl) return;
 
