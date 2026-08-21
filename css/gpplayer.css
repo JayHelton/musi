@@ -1015,6 +1015,15 @@
   font-size: calc(12px * var(--gpp-scale, 1));
   color: #2a1808;
 }
+/* The R or the L of a sticking, in a row under the drum staff. */
+.gpp-glyph--sticking {
+  font-family: var(--font-ui, "VT323", monospace);
+  font-weight: 700;
+  font-size: calc(12px * var(--gpp-scale, 1));
+  line-height: 1;
+  text-align: center;
+  color: #3a2410;
+}
 
 .gpp-parch-drum-legend {
   flex-shrink: 0;

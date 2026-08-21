@@ -8,8 +8,10 @@
 import {
   STAFF_LINE_COUNT,
   STAFF_BOTTOM_STEP,
+  STICKING_LABELS,
   beamCountOf,
   staffPositionFor,
+  stickingOf,
 } from './staffNotation.js';
 
 /** Default sizes, in pixels. One "space" is the gap between two staff lines. */
@@ -33,10 +35,18 @@ export const STAFF_DEFAULTS = {
   // `level` gives every stem the same end, so beams stay flat. `natural`
   // gives each stem its own length, the way a single example note reads.
   stemMode: 'level',
+  // Draw the R and the L of a sticking under the staff, for the notes that
+  // name a hand. A bar with no sticking draws no row and loses no height.
+  showSticking: true,
 };
 
 /** How far a stem reaches above the top line, in spaces. */
 const UP_STEM_TOP_SPACES = 2.6;
+/** How far under the bottom line the sticking row sits, in spaces. */
+const STICKING_SPACES = 4.4;
+/** How far under the bottom line the count row sits, with and without a sticking. */
+const COUNT_SPACES = 4.2;
+const COUNT_SPACES_WITH_STICKING = 6;
 /** How far a stem reaches below the bottom line, in spaces. */
 const DOWN_STEM_BOTTOM_SPACES = 2.6;
 /** The step a rest of each voice sits on. The two voices keep apart. */
@@ -97,6 +107,15 @@ export function layoutDrumStaff(bars, options = {}) {
 
   const staffStartX = opt.padLeft;
   let cursor = x;
+  // Every bar keeps the count row at the same height, so the row is only
+  // pushed down when some bar of this staff carries a sticking.
+  const anySticking = opt.showSticking !== false && list.some(barHasSticking);
+  const stickingY = staffBottom + space * STICKING_SPACES;
+  const countY = staffBottom
+    + space * (anySticking ? COUNT_SPACES_WITH_STICKING : COUNT_SPACES);
+  // The lowest ink of the staff, so a sticking row or a count row is never cut
+  // off by the bottom padding.
+  let inkBottom = staffBottom;
 
   for (const bar of list) {
     const barX = cursor;
@@ -138,10 +157,28 @@ export function layoutDrumStaff(bars, options = {}) {
       });
     }
 
+    if (anySticking) {
+      const size = space * 1.5;
+      for (const { start, hand } of barSticking(bar)) {
+        elements.push({
+          type: 'text',
+          role: 'sticking',
+          x: noteX(start),
+          y: stickingY,
+          text: hand,
+          size,
+          anchor: 'middle',
+          title: STICKING_LABELS[hand],
+        });
+      }
+      inkBottom = Math.max(inkBottom, stickingY + size * 0.7);
+    }
+
     if (opt.countPerQuarter > 0) {
       const per = opt.countPerQuarter;
       const marks = per === 4 ? ['e', '+', 'a'] : (per === 3 ? ['trip', 'let'] : ['+']);
       const beats = Math.round(bar.quarters);
+      const size = space * 1.35;
       for (let beat = 0; beat < beats; beat += 1) {
         for (let sub = 0; sub < per; sub += 1) {
           const text = sub === 0 ? String((beat % 9) + 1) : marks[sub - 1];
@@ -150,13 +187,14 @@ export function layoutDrumStaff(bars, options = {}) {
             type: 'text',
             role: sub === 0 ? 'countBeat' : 'countSub',
             x: noteX(beat + sub / per),
-            y: staffBottom + space * 4.2,
+            y: countY,
             text,
-            size: space * 1.35,
+            size,
             anchor: 'middle',
           });
         }
       }
+      inkBottom = Math.max(inkBottom, countY + size * 0.7);
     }
 
     if (opt.showBarLines) {
@@ -188,7 +226,7 @@ export function layoutDrumStaff(bars, options = {}) {
 
   return {
     width: staffEndX + opt.padRight,
-    height: staffBottom + opt.padBottom,
+    height: Math.max(staffBottom + opt.padBottom, inkBottom + space * 0.6),
     space,
     staffTop,
     staffBottom,
@@ -198,6 +236,35 @@ export function layoutDrumStaff(bars, options = {}) {
     columns,
     barBoxes,
   };
+}
+
+/**
+ * The sticking of one bar: one letter for each column that names a hand.
+ *
+ * The letters share a single row under the staff, so a column takes only one
+ * letter. The hands play the upper voice, so that voice answers first.
+ *
+ * @param {object} bar normalized bar
+ * @returns {Array<{ start:number, hand:string }>}
+ */
+function barSticking(bar) {
+  const byStart = new Map();
+  for (const voice of ['up', 'down']) {
+    for (const entry of bar.voices?.[voice] || []) {
+      if (entry.rest) continue;
+      if (byStart.has(entry.start)) continue;
+      const note = entry.notes.find((item) => stickingOf(item));
+      if (note) byStart.set(entry.start, stickingOf(note));
+    }
+  }
+  return [...byStart.entries()]
+    .map(([start, hand]) => ({ start, hand }))
+    .sort((a, b) => a.start - b.start);
+}
+
+/** True when a bar names the hand of at least one note. */
+function barHasSticking(bar) {
+  return barSticking(bar).length > 0;
 }
 
 /** Split the entries of one voice into beam groups. */

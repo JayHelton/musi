@@ -51,8 +51,9 @@ Look up scales, chords, triads, and key relationships.
 - **Triads** — closed triad voicings and sweep-picking shapes on any string set.
 - **Circle of Fifths** — key relationships, drawn.
 - **Drum Notation** — where each piece of the kit sits on the staff, what each
-  note value lasts, and bars you can read and play. It also covers text drum
-  tab, the format most tabs on the web use.
+  note value lasts, and bars you can read and play. Sticking letters under the
+  staff name the hand: R for the right hand and L for the left hand. It also
+  covers text drum tab, the format most tabs on the web use.
 
 ## Create
 

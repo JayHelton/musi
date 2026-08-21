@@ -1216,6 +1216,59 @@ function isCompleteBarSystem(sys) {
   );
 }
 
+// A drum staff names the hand of a hit that carries one, in a row under the staff.
+{
+  const stickingModel = {
+    percussion: true,
+    name: 'Drums',
+    events: [
+      { start: 0, instrument: 'snare', duration: 0.5, hand: 'R' },
+      { start: 0.5, instrument: 'snare', duration: 0.5, hand: 'left' },
+      { start: 1, instrument: 'snare', duration: 0.5 },
+      { start: 1.5, instrument: 'snare', duration: 0.5, sticking: 'R' },
+    ],
+    beats: [
+      { measureIndex: 0, voiceIndex: 0, start: 0, duration: 0.5, noteValue: 8, dots: 0, tuplet: null, rest: false, noteIndices: [0] },
+      { measureIndex: 0, voiceIndex: 0, start: 0.5, duration: 0.5, noteValue: 8, dots: 0, tuplet: null, rest: false, noteIndices: [1] },
+      { measureIndex: 0, voiceIndex: 0, start: 1, duration: 0.5, noteValue: 8, dots: 0, tuplet: null, rest: false, noteIndices: [2] },
+      { measureIndex: 0, voiceIndex: 0, start: 1.5, duration: 0.5, noteValue: 8, dots: 0, tuplet: null, rest: false, noteIndices: [3] },
+    ],
+    measures: [{ startBeat: 0, endBeat: 4, timeSig: [4, 4] }],
+  };
+  const layout = layoutForModel(stickingModel, {
+    drumMode: true,
+    drumStaff: true,
+    drumLanes: ['snare'],
+    widthPx: 900,
+  });
+  const bar = layout.bars[0];
+  const letters = bar.glyphs.filter((g) => g.kind === 'sticking');
+  assert.deepEqual(letters.map((g) => g.text), ['R', 'L', 'R'], 'only a named hand draws a letter');
+  assert.equal(letters[0].aria, 'Right hand');
+  assert.equal(letters[1].aria, 'Left hand');
+  assert.ok(letters[0].x < letters[1].x, 'the letters follow the notes across the bar');
+  const heads = bar.glyphs.filter((g) => g.kind === 'drumHit');
+  const lowestHead = Math.max(...heads.map((g) => g.y));
+  assert.ok(letters.every((g) => g.y > lowestHead), 'the row sits under the staff');
+  const staffLane = bar.lanes.find((l) => l.name === 'tabStaff');
+  assert.ok(
+    letters.every((g) => g.y + g.h <= staffLane.y + staffLane.h + 1e-6),
+    'the staff lane grows to hold the row',
+  );
+
+  // A drum staff with no hand named draws no letters at all.
+  const plain = layoutForModel({
+    ...stickingModel,
+    events: stickingModel.events.map(({ hand, sticking, ...rest }) => rest),
+  }, {
+    drumMode: true,
+    drumStaff: true,
+    drumLanes: ['snare'],
+    widthPx: 900,
+  });
+  assert.equal(plain.bars[0].glyphs.filter((g) => g.kind === 'sticking').length, 0);
+}
+
 // A flam draws two symbols: a small grace stroke just before the main hit.
 {
   const flamModel = {

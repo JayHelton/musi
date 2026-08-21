@@ -5,10 +5,12 @@ import { TECHNIQUE_LABELS } from '../tab/tabModel.js';
 import { drumTabGlyph, drumHitLabel, drumLaneFor } from '../drums/notation.js';
 import {
   NOTATION_LABELS,
+  STICKING_LABELS,
   beamCountOf,
   beamUnitOf,
   staffBarFromEvents,
   staffPositionFor,
+  stickingOf,
 } from '../drums/staffNotation.js';
 import { measureSpan } from './rangeUtils.js';
 
@@ -996,6 +998,10 @@ function addDrumStaffGlyphs(
   const beamUnit = beamUnitOf(bar.measure?.timeSig);
   const xAt = (relStart) => drumStaffXAt(cols, relStart, fontPx, contentW);
 
+  addDrumStickingGlyphs(glyphs, voices, {
+    space, staffBottom, measureLen, barStart, xAt,
+  });
+
   for (const voiceName of ['up', 'down']) {
     const up = voiceName === 'up';
     const entries = voices[voiceName] || [];
@@ -1204,6 +1210,42 @@ function addDrumStaffGlyphs(
           }
         }
       }
+    }
+  }
+}
+
+/**
+ * Draw the R and the L of a sticking, in one row under the drum staff.
+ *
+ * A column takes one letter only, because the letters share a row. The hands
+ * play the upper voice, so that voice answers first.
+ */
+function addDrumStickingGlyphs(glyphs, voices, {
+  space, staffBottom, measureLen, barStart, xAt,
+}) {
+  // The row clears the foot stems and the accent mark of the lower voice.
+  const y = staffBottom + space * 4;
+  const taken = new Set();
+  for (const voiceName of ['up', 'down']) {
+    for (const entry of voices?.[voiceName] || []) {
+      if (entry.rest) continue;
+      const note = (entry.notes || []).find((item) => stickingOf(item));
+      if (!note) continue;
+      const key = Math.round(entry.start * 48);
+      if (taken.has(key)) continue;
+      taken.add(key);
+      const hand = stickingOf(note);
+      pushGlyph(glyphs, {
+        kind: 'sticking',
+        lane: 'tabStaff',
+        x: xAt(measureLen > 0 ? entry.start / measureLen : 0) - space * 0.45,
+        y,
+        w: space * 0.9,
+        h: space * 1.15,
+        text: hand,
+        aria: STICKING_LABELS[hand],
+        beatStart: barStart + entry.start,
+      });
     }
   }
 }

@@ -94,6 +94,30 @@ export const NOTATION_LABELS = {
   kick: 'Kick drum',
 };
 
+/**
+ * The hand that plays a note. Drum music writes a letter under the staff: R
+ * for the right hand and L for the left hand. The letters are a sticking, so
+ * they name the hand and never change the sound.
+ */
+export const STICKING_LABELS = { R: 'Right hand', L: 'Left hand' };
+
+/**
+ * The sticking letter of a note or of a score event, or an empty string.
+ *
+ * A note writes the hand as `hand`, and a score event can write it as `hand`
+ * or as `sticking`. Both accept `R`, `L`, `right`, and `left`, in any case.
+ *
+ * @param {{ hand?: string, sticking?: string }|null|undefined} source
+ * @returns {'R'|'L'|''}
+ */
+export function stickingOf(source) {
+  const raw = source?.hand ?? source?.sticking ?? '';
+  const text = String(raw).trim().toLowerCase();
+  if (text === 'r' || text === 'right') return 'R';
+  if (text === 'l' || text === 'left') return 'L';
+  return '';
+}
+
 /** An articulation replaces the plain instrument with its own notation name. */
 const ARTICULATION_NAME = {
   hihatPedal: 'hihatPedal',
@@ -228,6 +252,13 @@ export const DRUM_ARTICULATION_KEY = [
     mark: 'o',
     note: 'A circle around the cross. The hi-hat rings until the next hit.',
   },
+  {
+    id: 'sticking',
+    title: 'Sticking',
+    mark: 'R L',
+    note: 'A letter under the staff names the hand. R is the right hand and L '
+      + 'is the left hand.',
+  },
 ];
 
 /** How long each note lasts, in quarter notes. */
@@ -297,9 +328,9 @@ export function beamUnitOf(timeSig) {
 }
 
 function noteEntry(note) {
-  if (typeof note === 'string') return { name: note };
+  if (typeof note === 'string') return { name: note, hand: '' };
   const name = note?.name || notationNameFor(note);
-  return { ...note, name };
+  return { ...note, name, hand: stickingOf(note) };
 }
 
 /**
@@ -448,6 +479,7 @@ export function voicesFromEvents(events, barStart, quarters) {
       accent: ev.accent === true,
       ghost: name === 'snareGhost',
       flam: ev.flam === true || name === 'snareFlam' || graceAt.has(`${ticks}:${name}`),
+      hand: stickingOf(ev),
       duration: Number(ev.duration) || 0,
     });
     slot.set(at, list);

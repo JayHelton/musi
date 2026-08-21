@@ -75,8 +75,27 @@ export const OTHER_SYMBOLS = [
   },
 ];
 
+/** The two letters a sticking uses, and what each one asks the reader to do. */
+export const STICKING_SYMBOLS = [
+  {
+    glyph: 'R',
+    text: 'Right hand',
+    note: 'Strike this note with the right hand. The letter sits under the staff, '
+      + 'or in a row of its own under a text tab. A lowercase r in a kit row is a '
+      + 'roll, not a hand.',
+  },
+  {
+    glyph: 'L',
+    text: 'Left hand',
+    note: 'Strike this note with the left hand. A left-handed player reads the two '
+      + 'letters the other way round.',
+  },
+];
+
 /** Shorthand for one hit that the reader must play louder. */
 const accent = (name) => ({ name, accent: true });
+/** Shorthand for one hit, with the hand that plays it. */
+const stick = (name, hand) => ({ name, hand });
 /** Shorthand for one hit that the reader must play very quietly. */
 const ghost = (name) => ({ name, ghost: true });
 
@@ -216,8 +235,9 @@ export const DRUM_STAFF_EXAMPLES = [
   {
     id: 'fill',
     title: 'A tom fill into a crash',
-    help: 'The fill runs down the kit in sixteenth notes. The crash and the kick '
-      + 'then land together on beat 1 of the next bar.',
+    help: 'The fill runs down the kit in sixteenth notes. The letters under the '
+      + 'fill name the hand: the two hands alternate all the way down the toms. '
+      + 'The crash and the kick then land together on beat 1 of the next bar.',
     bpm: 92,
     tabId: 'fill',
     countPerQuarter: 4,
@@ -230,14 +250,14 @@ export const DRUM_STAFF_EXAMPLES = [
             { dur: 0.5, notes: ['hihatClosed'] },
             { dur: 0.5, notes: ['hihatClosed', 'snare'] },
             { dur: 0.5, notes: ['hihatClosed'] },
-            { dur: 0.25, notes: ['snare'] },
-            { dur: 0.25, notes: ['snare'] },
-            { dur: 0.25, notes: ['tomHigh'] },
-            { dur: 0.25, notes: ['tomHigh'] },
-            { dur: 0.25, notes: ['tomMid'] },
-            { dur: 0.25, notes: ['tomMid'] },
-            { dur: 0.25, notes: ['tomFloor'] },
-            { dur: 0.25, notes: ['tomFloor'] },
+            { dur: 0.25, notes: [stick('snare', 'R')] },
+            { dur: 0.25, notes: [stick('snare', 'L')] },
+            { dur: 0.25, notes: [stick('tomHigh', 'R')] },
+            { dur: 0.25, notes: [stick('tomHigh', 'L')] },
+            { dur: 0.25, notes: [stick('tomMid', 'R')] },
+            { dur: 0.25, notes: [stick('tomMid', 'L')] },
+            { dur: 0.25, notes: [stick('tomFloor', 'R')] },
+            { dur: 0.25, notes: [stick('tomFloor', 'L')] },
           ],
           down: [
             { dur: 1, notes: ['kick'] },
@@ -266,6 +286,51 @@ export const DRUM_STAFF_EXAMPLES = [
             { dur: 1, notes: ['kick'] },
             rest(1),
           ],
+        },
+      },
+    ],
+  },
+  {
+    id: 'sticking',
+    title: 'Sticking: which hand plays the note',
+    help: 'The letters under the staff name the hand. R is the right hand and L '
+      + 'is the left hand. The first bar plays singles, so the hands alternate. '
+      + 'The second bar plays a paradiddle: right left right right, then left '
+      + 'right left left.',
+    bpm: 76,
+    tabId: 'sticking',
+    countPerQuarter: 2,
+    bars: [
+      {
+        timeSig: [4, 4],
+        voices: {
+          up: [
+            { dur: 0.5, notes: [stick('snare', 'R')] },
+            { dur: 0.5, notes: [stick('snare', 'L')] },
+            { dur: 0.5, notes: [stick('snare', 'R')] },
+            { dur: 0.5, notes: [stick('snare', 'L')] },
+            { dur: 0.5, notes: [stick('snare', 'R')] },
+            { dur: 0.5, notes: [stick('snare', 'L')] },
+            { dur: 0.5, notes: [stick('snare', 'R')] },
+            { dur: 0.5, notes: [stick('snare', 'L')] },
+          ],
+          down: [],
+        },
+      },
+      {
+        timeSig: [4, 4],
+        voices: {
+          up: [
+            { dur: 0.5, notes: [stick('snare', 'R')] },
+            { dur: 0.5, notes: [stick('snare', 'L')] },
+            { dur: 0.5, notes: [stick('snare', 'R')] },
+            { dur: 0.5, notes: [stick('snare', 'R')] },
+            { dur: 0.5, notes: [stick('snare', 'L')] },
+            { dur: 0.5, notes: [stick('snare', 'R')] },
+            { dur: 0.5, notes: [stick('snare', 'L')] },
+            { dur: 0.5, notes: [stick('snare', 'L')] },
+          ],
+          down: [],
         },
       },
     ],
@@ -343,6 +408,21 @@ export const DRUM_TAB_EXAMPLES = [
       { lane: 'tomFloor', cells: '----------o-o---|----------------' },
       { lane: 'kick', cells: '----------------|o-------o-------' },
     ],
+    sticking: 'R-L-R-L-R-L-R---|----------------',
+  },
+  {
+    id: 'sticking',
+    title: 'Singles and a paradiddle',
+    help: 'The bottom row names the hand of every hit. The first bar alternates, '
+      + 'and the second bar plays a paradiddle.',
+    subdivision: '8th',
+    stepsPerBar: 8,
+    bars: 2,
+    bpm: 76,
+    lines: [
+      { lane: 'snare', cells: 'oooooooo|oooooooo' },
+    ],
+    sticking: 'RLRLRLRL|RLRRLRLL',
   },
 ];
 

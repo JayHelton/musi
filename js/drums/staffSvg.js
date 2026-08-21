@@ -53,6 +53,15 @@ function drawElement(parent, element) {
     node.textContent = element.text;
   }
 
+  // A mark that stands for a word carries that word, so a reader who hovers it
+  // or listens to the page gets the meaning of the letter.
+  if (node && element.title) {
+    node.setAttribute('aria-label', element.title);
+    const tip = svgEl('title');
+    tip.textContent = element.title;
+    node.appendChild(tip);
+  }
+
   if (node) parent.appendChild(node);
   return node;
 }

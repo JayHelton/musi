@@ -13,23 +13,27 @@ import {
   LANE_NOTES,
   LANE_SOUND,
   OTHER_SYMBOLS,
+  STICKING_SYMBOLS,
   countRow,
   examplePattern,
   soundForCell,
   velocityFor,
 } from '../../js/drums/tabReferenceModel.js';
 import {
+  DRUM_ARTICULATION_KEY,
   DRUM_NOTATION_KEY,
   DRUM_STAFF_POSITIONS,
   NOTATION_LABELS,
   NOTATION_SOUND,
   NOTE_VALUE_ROWS,
+  STICKING_LABELS,
   barsToPattern,
   durationOf,
   noteValueOf,
   normalizeBars,
   staffBarFromEvents,
   staffPositionFor,
+  stickingOf,
   voicesFromEvents,
 } from '../../js/drums/staffNotation.js';
 import { layoutDrumStaff } from '../../js/drums/staffLayout.js';
@@ -118,6 +122,27 @@ test('a count row lines up under the cells of every example', () => {
         count.length,
         `${example.id}: the ${line.lane} row does not match the count row`,
       );
+    }
+    if (!example.sticking) continue;
+    assert.equal(
+      example.sticking.length,
+      count.length,
+      `${example.id}: the hand row does not match the count row`,
+    );
+    for (const glyph of example.sticking) {
+      assert.ok('RL-|'.includes(glyph), `${example.id}: ${glyph} is not a hand`);
+    }
+  }
+});
+
+test('a hand row only names a step that some lane strikes', () => {
+  for (const example of DRUM_TAB_EXAMPLES) {
+    if (!example.sticking) continue;
+    for (let i = 0; i < example.sticking.length; i += 1) {
+      const hand = example.sticking[i];
+      if (hand === '-' || hand === '|') continue;
+      const struck = example.lines.some((line) => !'-|'.includes(line.cells[i]));
+      assert.ok(struck, `${example.id}: the hand at column ${i} strikes nothing`);
     }
   }
 });
@@ -311,6 +336,128 @@ test('the layout lifts the crash onto a ledger line', () => {
   const ledgers = layout.elements.filter((el) => el.role === 'ledger');
   assert.equal(ledgers.length, 1, 'the crash needs one ledger line');
   assert.ok(ledgers[0].y1 < layout.staffTop, 'the ledger line sits above the staff');
+});
+
+// ------------------------------------------------------------- sticking --
+
+test('a hand reads from a letter or from a word, in any case', () => {
+  assert.equal(stickingOf({ hand: 'R' }), 'R');
+  assert.equal(stickingOf({ hand: 'l' }), 'L');
+  assert.equal(stickingOf({ hand: 'Right' }), 'R');
+  assert.equal(stickingOf({ hand: ' left ' }), 'L');
+  // A score event may name the same thing `sticking`.
+  assert.equal(stickingOf({ sticking: 'R' }), 'R');
+  assert.equal(stickingOf({ hand: 'foot' }), '');
+  assert.equal(stickingOf({}), '');
+  assert.equal(stickingOf(null), '');
+});
+
+test('both hands carry a name the page can print', () => {
+  assert.equal(STICKING_LABELS.R, 'Right hand');
+  assert.equal(STICKING_LABELS.L, 'Left hand');
+  assert.deepEqual(STICKING_SYMBOLS.map((row) => row.glyph), ['R', 'L']);
+  for (const row of STICKING_SYMBOLS) {
+    assert.ok(row.text && row.note, `the ${row.glyph} row needs a name and a note`);
+  }
+  const mark = DRUM_ARTICULATION_KEY.find((row) => row.id === 'sticking');
+  assert.ok(mark, 'the marks key must cover the sticking');
+});
+
+test('a normalized note keeps the hand that plays it', () => {
+  const bars = normalizeBars([{
+    timeSig: [4, 4],
+    voices: {
+      up: [
+        { dur: 1, notes: [{ name: 'snare', hand: 'R' }] },
+        { dur: 1, notes: ['snare'] },
+      ],
+      down: [{ dur: 2, notes: [{ name: 'kick', hand: 'nonsense' }] }],
+    },
+  }]);
+  assert.equal(bars[0].voices.up[0].notes[0].hand, 'R');
+  assert.equal(bars[0].voices.up[1].notes[0].hand, '', 'a note with no hand keeps an empty one');
+  assert.equal(bars[0].voices.down[0].notes[0].hand, '', 'a word that names no hand is dropped');
+});
+
+test('a score event carries its hand onto the staff', () => {
+  const voices = voicesFromEvents([
+    { start: 0, instrument: 'snare', duration: 0.5, hand: 'right' },
+    { start: 0.5, instrument: 'snare', duration: 0.5, sticking: 'L' },
+    { start: 1, instrument: 'snare', duration: 0.5 },
+  ], 0, 4);
+  assert.equal(voices.up[0].notes[0].hand, 'R');
+  assert.equal(voices.up[1].notes[0].hand, 'L');
+  assert.equal(voices.up[2].notes[0].hand, '');
+});
+
+test('the layout draws one letter per column, under the staff', () => {
+  const bars = normalizeBars([{
+    timeSig: [4, 4],
+    voices: {
+      up: [
+        { dur: 1, notes: [{ name: 'snare', hand: 'R' }] },
+        { dur: 1, notes: [{ name: 'snare', hand: 'L' }] },
+        { dur: 1, rest: true },
+        // Two pieces struck together share one column, so they share one letter.
+        { dur: 1, notes: [{ name: 'hihatClosed', hand: 'R' }, { name: 'snare', hand: 'L' }] },
+      ],
+      down: [{ dur: 4, notes: ['kick'] }],
+    },
+  }]);
+  const layout = layoutDrumStaff(bars);
+  const letters = layout.elements.filter((el) => el.role === 'sticking');
+  assert.deepEqual(letters.map((el) => el.text), ['R', 'L', 'R']);
+  assert.ok(
+    letters.every((el) => el.y > layout.staffBottom),
+    'the letters sit under the staff',
+  );
+  assert.ok(letters[0].x < letters[1].x, 'the letters follow the notes across the bar');
+  assert.equal(letters[0].title, 'Right hand', 'a letter carries the name of its hand');
+  assert.ok(layout.height > layout.staffBottom, 'the staff makes room for the row');
+});
+
+test('a bar with no hand draws no letter and keeps the count row in place', () => {
+  const plain = normalizeBars([{
+    timeSig: [4, 4],
+    voices: { up: [{ dur: 1, notes: ['snare'] }, { dur: 3, rest: true }], down: [] },
+  }]);
+  const withHand = normalizeBars([{
+    timeSig: [4, 4],
+    voices: {
+      up: [{ dur: 1, notes: [{ name: 'snare', hand: 'R' }] }, { dur: 3, rest: true }],
+      down: [],
+    },
+  }]);
+  const bare = layoutDrumStaff(plain, { countPerQuarter: 2 });
+  const stuck = layoutDrumStaff(withHand, { countPerQuarter: 2 });
+  assert.equal(bare.elements.filter((el) => el.role === 'sticking').length, 0);
+  const countOf = (layout) => layout.elements.find((el) => el.role === 'countBeat').y;
+  assert.ok(countOf(stuck) > countOf(bare), 'the hand row pushes the count row down');
+  const letter = stuck.elements.find((el) => el.role === 'sticking');
+  assert.ok(letter.y < countOf(stuck), 'the hand row sits above the count row');
+
+  // The staff can turn the row off, for a view that has no room for it.
+  const off = layoutDrumStaff(withHand, { showSticking: false });
+  assert.equal(off.elements.filter((el) => el.role === 'sticking').length, 0);
+});
+
+test('the sticking example teaches singles and then a paradiddle', () => {
+  const example = DRUM_STAFF_EXAMPLES.find((ex) => ex.id === 'sticking');
+  assert.ok(example, 'the page must teach the sticking');
+  const bars = staffExampleBars(example);
+  const handsOf = (bar) => bar.voices.up.map((entry) => entry.notes[0].hand).join('');
+  assert.equal(handsOf(bars[0]), 'RLRLRLRL', 'the first bar alternates');
+  assert.equal(handsOf(bars[1]), 'RLRRLRLL', 'the second bar is a paradiddle');
+  const letters = layoutDrumStaff(bars).elements.filter((el) => el.role === 'sticking');
+  assert.equal(letters.length, 16, 'every note of the example names its hand');
+});
+
+test('every mark of the key has a drawn sample on the page', () => {
+  const page = readFileSync(new URL('../../js/drumTabReference.js', import.meta.url), 'utf8');
+  for (const mark of DRUM_ARTICULATION_KEY) {
+    assert.ok(page.includes(`${mark.id}: {`), `the page draws no sample for ${mark.id}`);
+    assert.ok(mark.title && mark.note, `${mark.id} needs a title and a note`);
+  }
 });
 
 test('the reference is precached with its stylesheet', () => {

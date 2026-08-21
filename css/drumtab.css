@@ -91,6 +91,12 @@
   height: 106px;
 }
 
+/* The sticking sample carries a row under the staff, so it needs more room. */
+.dsn-staff--mark-tall {
+  width: 96px;
+  height: 134px;
+}
+
 .dsn-staff--value {
   width: 44px;
   height: 68px;
@@ -216,6 +222,14 @@
 
 .dsn-countBeat {
   fill: var(--accent2, #b45eff);
+}
+
+/* The R and the L of a sticking, under the staff. */
+.dsn-sticking {
+  fill: var(--accent, #ffe14a);
+  font-family: var(--font-body, "Pixelify Sans", sans-serif);
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .dsn-chartLabel {

@@ -32,6 +32,7 @@ import {
   LANE_NOTES,
   LANE_SOUND,
   OTHER_SYMBOLS,
+  STICKING_SYMBOLS,
   countRow,
   staffExampleBars,
 } from './drums/tabReferenceModel.js';
@@ -48,6 +49,9 @@ const GLYPH_SOUND = {
   g: 'snareGhost',
   f: 'snareFlam',
 };
+
+/** The label of the hand row under a text drum tab. */
+const STICKING_LABEL = 'R/L';
 
 /** The tab row the tool-page shell draws for this tool. */
 const MODES_ID = 'tool-page-modes-drumtab';
@@ -424,6 +428,7 @@ function buildMarks() {
     ghost: { name: 'snare', notes: [{ name: 'snare', ghost: true }] },
     flam: { name: 'snare', notes: [{ name: 'snare', flam: true }] },
     open: { name: 'hihatOpen', notes: ['hihatOpen'] },
+    sticking: { name: 'snare', notes: [{ name: 'snare', hand: 'R' }] },
   };
   for (const mark of DRUM_ARTICULATION_KEY) {
     const spec = samples[mark.id];
@@ -446,7 +451,9 @@ function buildMarks() {
       showClef: false,
       showTimeSig: false,
       showBarLines: false,
-      className: 'dsn-staff--mark',
+      className: mark.id === 'sticking'
+        ? 'dsn-staff--mark dsn-staff--mark-tall'
+        : 'dsn-staff--mark',
       title: mark.title,
     });
     const box = el('span', 'dtr-mark-art');
@@ -466,10 +473,12 @@ function buildMarks() {
 function tabTextFor(example) {
   const source = DRUM_TAB_EXAMPLES.find((e) => e.id === example.tabId);
   if (!source) return null;
-  const labelWidth = Math.max(...source.lines.map((line) => {
+  const laneWidth = Math.max(...source.lines.map((line) => {
     const lane = DRUM_TAB_LANES.find((l) => l.key === line.lane);
     return (lane ? lane.label : line.lane).length;
   }));
+  // The hand row carries its own label, so every row makes room for it.
+  const labelWidth = Math.max(laneWidth, source.sticking ? STICKING_LABEL.length : 0);
   const rows = source.lines.map((line) => {
     const lane = DRUM_TAB_LANES.find((l) => l.key === line.lane);
     const label = (lane ? lane.label : line.lane).padEnd(labelWidth, ' ');
@@ -477,6 +486,10 @@ function tabTextFor(example) {
   });
   const count = countRow(source.subdivision, source.stepsPerBar, source.bars || 1);
   rows.push(`${' '.repeat(labelWidth + 1)}${count}`);
+  // The hand row sits at the foot of the tab, under the count.
+  if (source.sticking) {
+    rows.push(`${STICKING_LABEL.padEnd(labelWidth, ' ')} ${source.sticking}`);
+  }
   return rows.join('\n');
 }
 
@@ -563,6 +576,25 @@ function buildTextTab() {
     symbols.appendChild(row);
   }
   node.appendChild(symbols);
+
+  node.appendChild(el('h3', 'dtr-card-title dtr-subtitle', 'Which hand plays the note'));
+  const hands = el('div', 'dtr-table dtr-symbols');
+  for (const entry of STICKING_SYMBOLS) {
+    const row = el('div', 'dtr-row');
+    row.append(
+      el('span', 'dtr-cell dtr-key dtr-glyph', entry.glyph),
+      el('span', 'dtr-cell dtr-name', entry.text),
+    );
+    row.appendChild(el('span', 'dtr-note', entry.note));
+    hands.appendChild(row);
+  }
+  node.appendChild(hands);
+  node.appendChild(el(
+    'p',
+    'dtr-help dtr-help-after',
+    'A sticking is a row of R and L letters under the tab. It names the hand, so '
+    + 'it never changes the sound. A staff writes the same letters under the notes.',
+  ));
 
   node.appendChild(el('h3', 'dtr-card-title dtr-subtitle', 'Symbols other writers use'));
   const other = el('div', 'dtr-table dtr-symbols');
