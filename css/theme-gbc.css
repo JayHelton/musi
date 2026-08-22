@@ -49,15 +49,13 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(180, 140, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(180, 140, 255, 0.04) 1px, transparent 1px),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 72' preserveAspectRatio='none'%3E%3Cpath d='M0 36 C40 18 80 54 120 36 S200 18 240 36 S320 54 360 36 S440 18 480 36 S560 54 600 36 S640 18 640 36' fill='none' stroke='%23b45eff' stroke-width='1.2' opacity='0.14' stroke-linecap='round'/%3E%3Cpath d='M0 44 C40 58 80 30 120 44 S200 58 240 44 S320 30 360 44 S440 58 480 44 S560 30 600 44 S640 58 640 44' fill='none' stroke='%234da3ff' stroke-width='0.9' opacity='0.1' stroke-linecap='round'/%3E%3C/svg%3E"),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 56' preserveAspectRatio='none'%3E%3Cpath d='M0 28 C24 14 48 42 72 28 S120 14 144 28 S192 42 216 28 S264 14 288 28 S336 42 360 28 S408 14 432 28 S480 42 480 28' fill='none' stroke='%23ffe14a' stroke-width='0.8' opacity='0.08' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-size: 28px 28px, 28px 28px, 180% 96px, 200% 72px;
-  background-repeat: repeat, repeat, repeat-x, repeat-x;
-  background-position: 0 0, 0 0, 0 78%, 100% 88%;
+  background-size: 180% 96px, 200% 72px;
+  background-repeat: repeat-x, repeat-x;
+  background-position: 0 78%, 100% 88%;
   opacity: 0.85;
-  animation: gbcGridDrift 40s linear infinite;
+  animation: gbcCircuitDrift 40s linear infinite;
 }
 
 /* Soft scanline / LCD veil */
@@ -79,9 +77,9 @@ body::after {
   opacity: 0.45;
 }
 
-@keyframes gbcGridDrift {
-  from { background-position: 0 0, 0 0, 0 78%, 100% 88%; }
-  to { background-position: 28px 28px, 28px 28px, -180px 78%, calc(100% + 180px) 88%; }
+@keyframes gbcCircuitDrift {
+  from { background-position: 0 78%, 100% 88%; }
+  to { background-position: -180px 78%, calc(100% + 180px) 88%; }
 }
 
 main {

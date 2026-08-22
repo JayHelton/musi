@@ -30,18 +30,6 @@
   transition: opacity 0.32s ease, visibility 0.32s ease;
 }
 
-.boot-splash::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(180, 140, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(180, 140, 255, 0.05) 1px, transparent 1px);
-  background-size: 24px 24px;
-  opacity: 0.55;
-}
-
 .boot-splash::after {
   content: "";
   position: absolute;
