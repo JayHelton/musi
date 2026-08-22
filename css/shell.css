@@ -53,7 +53,7 @@ body.app-shell.shell-gear-on {
   justify-content: center;
   gap: 2px;
   border: 1px solid transparent;
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -120,7 +120,7 @@ body.app-shell.shell-gear-on {
   min-height: var(--tap-min);
   padding: 8px 6px;
   border: 1px solid transparent;
-  border-radius: var(--radius-screen);
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -185,7 +185,7 @@ body.app-shell.shell-gear-on {
   min-height: var(--tap-min);
   padding: 6px 4px;
   border: none;
-  border-radius: var(--radius-screen);
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -266,7 +266,7 @@ body.app-shell.shell-gear-on {
   height: var(--shell-actions-row-h);
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   background: var(--card);
   color: var(--muted);
   cursor: pointer;

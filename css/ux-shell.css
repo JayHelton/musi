@@ -13,7 +13,7 @@
   margin-bottom: 12px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 0;
   background: rgba(18, 26, 46, 0.72);
 }
 .setup-summary-label {
@@ -35,7 +35,7 @@
   gap: 1px;
   min-height: 44px;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: var(--bg2);
   color: var(--text);
@@ -76,7 +76,7 @@
   gap: 4px;
   margin-bottom: 12px;
   padding: 4px;
-  border-radius: 14px;
+  border-radius: 0;
   background: var(--bg2);
   border: 1px solid var(--border);
   position: sticky;
@@ -96,7 +96,7 @@
   min-width: 64px;
   padding: 8px 14px;
   border: none;
-  border-radius: 10px;
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
   font-family: inherit;
@@ -123,7 +123,7 @@
   gap: 8px;
   padding: 8px 12px;
   margin-bottom: 10px;
-  border-radius: 12px;
+  border-radius: 0;
   background: rgba(18, 26, 46, 0.7);
   border: 1px solid var(--border);
   font-size: 0.85rem;
@@ -164,7 +164,7 @@
   max-width: min(280px, calc(100vw - 16px));
   background: rgba(18, 26, 46, 0.98);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 0;
   padding: 6px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
   display: none;
@@ -178,7 +178,7 @@
   background: none;
   color: var(--text);
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: 0;
   cursor: pointer;
   font-family: inherit;
   font-size: 0.88rem;
@@ -200,7 +200,7 @@
   gap: 8px;
   min-height: 44px;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: var(--bg2);
   color: var(--text);
@@ -220,7 +220,7 @@
   min-width: 22px;
   height: 22px;
   padding: 0 7px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--accent-dim);
   color: var(--accent);
   font-size: 0.72rem;
@@ -248,7 +248,7 @@
   width: 100%;
   min-height: 56px;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: rgba(18, 26, 46, 0.65);
   color: var(--text);
@@ -260,7 +260,7 @@
 .area-tool-row .area-tool-icon {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--accent-dim);
   color: var(--accent);
   display: flex;
@@ -356,7 +356,7 @@ body:not(.hold-rec-relevant) #hold-rec-btn {
   gap: 6px;
   min-height: 40px;
   padding: 6px 10px;
-  border-radius: 10px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
@@ -381,7 +381,7 @@ body:not(.hold-rec-relevant) #hold-rec-btn {
   flex: 0 0 auto;
   min-height: 40px;
   padding: 8px 12px;
-  border-radius: 999px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: var(--bg2);
   color: var(--text);

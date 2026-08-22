@@ -16,7 +16,7 @@
   min-height: var(--tap-min);
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-screen);
+  border-radius: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%),
     var(--card);
@@ -84,7 +84,7 @@
   min-height: var(--tap-min);
   padding: 0 10px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   background: var(--bg2);
   color: var(--accent);
   font-family: var(--font-ui);
@@ -107,7 +107,7 @@
 .tool-page-context {
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-screen);
+  border-radius: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
     var(--bg2);
@@ -156,7 +156,7 @@
   min-height: var(--tap-min);
   padding: 8px 14px;
   border: 1px dashed var(--border);
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   background: transparent;
   color: var(--accent2);
   font-family: var(--font-body);
@@ -200,7 +200,7 @@
 .tool-page-advanced {
   margin-bottom: 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius-screen);
+  border-radius: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 38%),
     var(--card);
