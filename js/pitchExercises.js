@@ -94,6 +94,37 @@ export function ascendDescend(offsets) {
   return [...offsets, ...descending, offsets[0]];
 }
 
+export const SEQUENCE_DIRECTIONS = [
+  { id: 'natural', label: 'As written' },
+  { id: 'up', label: 'Up only' },
+  { id: 'down', label: 'Down only' },
+  { id: 'updown', label: 'Up and down' },
+];
+
+/** The part of a pattern up to its highest note. */
+function ascendingCore(offsets) {
+  let peak = 0;
+  for (let i = 1; i < offsets.length; i++) {
+    if (offsets[i] > offsets[peak]) peak = i;
+  }
+  const prefix = offsets.slice(0, peak + 1);
+  if (prefix.length >= 2) return prefix;
+  return uniqueInOrder([...offsets].sort((a, b) => a - b));
+}
+
+/**
+ * Change the travel direction of a pattern.
+ * 'natural' keeps the pattern as the catalog writes it.
+ */
+export function applyDirection(offsets, direction = 'natural') {
+  const list = offsets || [];
+  if (list.length <= 1 || !direction || direction === 'natural') return [...list];
+  if (direction === 'up') return ascendingCore(list);
+  if (direction === 'down') return [...ascendingCore(list)].reverse();
+  if (direction === 'updown') return ascendDescend(ascendingCore(list));
+  return [...list];
+}
+
 function patternById(patternId) {
   return SCALE_PATTERNS.find(p => p.id === patternId) || SCALE_PATTERNS[0];
 }
@@ -212,7 +243,7 @@ function buildSkipTones(scale) {
   return ascendDescend(uniqueInOrder(pickSteps(scale, indexes)));
 }
 
-export function buildPatternOffsets(scaleName, patternId) {
+function basePatternOffsets(scaleName, patternId) {
   const scale = selectedScaleOffsets(scaleName);
   const pattern = patternById(patternId);
 
@@ -266,7 +297,11 @@ export function buildPatternOffsets(scaleName, patternId) {
   return ascendDescend(scale);
 }
 
-export function buildStages(scaleName = 'Major (Ionian)', patternId = 'full') {
+export function buildPatternOffsets(scaleName, patternId, direction = 'natural') {
+  return applyDirection(basePatternOffsets(scaleName, patternId), direction);
+}
+
+export function buildStages(scaleName = 'Major (Ionian)', patternId = 'full', direction = 'natural') {
   const pattern = patternById(patternId);
   return [
     {
@@ -274,7 +309,7 @@ export function buildStages(scaleName = 'Major (Ionian)', patternId = 'full') {
       label: `${scaleName} · ${pattern.label}`,
       hint: pattern.hint,
       kind: 'scale-pattern',
-      offsets: buildPatternOffsets(scaleName, pattern.id),
+      offsets: buildPatternOffsets(scaleName, pattern.id, direction),
     },
   ];
 }
@@ -397,6 +432,7 @@ export function buildSequenceForTask({
   high,
   intervalSemitones = 'M2',
   intervalDirection = 'ascending',
+  direction = 'natural',
 }) {
   const lo = Math.min(low, high);
   const hi = Math.max(low, high);
@@ -415,14 +451,14 @@ export function buildSequenceForTask({
 
   const parsed = parseNote(rootName);
   const rootPc = parsed ? parsed.semi : 0;
-  const offsets = buildPatternOffsets(scaleName, patternId);
+  const offsets = buildPatternOffsets(scaleName, patternId, direction);
   let placed = placeOffsetsInRange(offsets, rootPc, lo, hi);
 
   if (!placed.ok && patternId !== 'five-tone') {
-    placed = placeOffsetsInRange(fiveToneOffsets(scaleName), rootPc, lo, hi);
+    placed = placeOffsetsInRange(applyDirection(fiveToneOffsets(scaleName), direction), rootPc, lo, hi);
   }
   if (!placed.ok) {
-    placed = placeOffsetsInRange(triadOffsets(scaleName), rootPc, lo, hi);
+    placed = placeOffsetsInRange(applyDirection(triadOffsets(scaleName), direction), rootPc, lo, hi);
   }
 
   if (!placed.ok) {

@@ -13,6 +13,8 @@ import {
 import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.js';
 import { scoreRunnerNote } from './pitchMetrics.js';
 import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
+import { ROOTS } from './theory.js';
+import { orderedScaleNames, shortScaleName } from './scales.js';
 import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
 
 // "Pitch runner" — a Guitar-Hero / Yousician-style scrolling pitch game that
@@ -45,17 +47,62 @@ const RANGE_PRESETS = [
 
 // How the timeline maps to the canvas.
 const HIT_X_RATIO = 0.28;      // hit line position, fraction of width from left
-const LEAD_IN_BEATS = 4;       // one 4/4 measure of count-in before the first note
-const NOTE_GAP_BEATS = 0.18;   // silent gap (beats) between adjacent notes
-const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
-// Short cue length for the optional melody guide. Kept brief so the singer —
+const LEAD_IN_BEATS = 8;       // two 4/4 measures of count-in before the first note
+const MIN_NOTE_GAP_BEATS = 0.18; // smallest silence (beats) between two note bars
+const NOTE_LENGTHS = [1, 2, 3, 4, 6, 8]; // selectable note durations, in beats
+const REST_CHOICES = [0, 0.5, 1, 2];     // selectable rest after each note, in beats
+const REST_LABELS = { 0: 'None', 0.5: '0.5 beat', 1: '1 beat', 2: '2 beats' };
+// The runner starts slower than the shared 120 BPM default. A singer needs time
+// to breathe and to find each pitch.
+const DEFAULT_RUNNER_TEMPO = 76;
+// Short cue length for the optional pitch cue. Kept brief so the singer —
 // not the app's own speakers — must sustain the note for the hit.
 const GUIDE_CUE_BEATS = 0.35;
 
-// Beats of runway shown to the right of the hit line. Scales with note length
-// so a long, sustained note still fits comfortably on screen with approach time.
-function visibleBeatsAhead() {
-  return 6 + (runner.noteBeats - 1) * 2;
+// Beats of runway shown to the right of the hit line. It grows with the note
+// length and with the rest, so a long note and its rest still fit on screen
+// with approach time before the hit line.
+function visibleBeatsAhead(noteBeats = runner.noteBeats, restBeats = runner.restBeats) {
+  return Math.max(6 + (noteBeats - 1) * 2, noteBeats + restBeats + 4);
+}
+
+// Length of one note bar, in beats. With no rest the app keeps a small silence
+// so two bars do not touch. With a rest the bar keeps its full note length and
+// the rest becomes empty space on the timeline.
+function noteDurationBeats(noteBeats, restBeats) {
+  const gap = restBeats > 0 ? 0 : MIN_NOTE_GAP_BEATS;
+  return Math.max(0.35, noteBeats - gap);
+}
+
+// Beats from the start of one note to the start of the next note.
+function noteStepBeats(noteBeats, restBeats) {
+  return noteBeats + restBeats;
+}
+
+// Beats of one complete pass of the melody. The listen phase uses this length.
+function listenPassBeats(seqLength, noteBeats, restBeats) {
+  if (!seqLength) return 0;
+  return seqLength * noteStepBeats(noteBeats, restBeats);
+}
+
+// Lay out note plans from a start beat up to a horizon beat. This function is
+// pure: it reads no state and it writes no state.
+function planNotes({ patternSeq, noteBeats, restBeats, startBeat, seqIdx = 0, untilBeat, maxNotes = 512 }) {
+  const notes = [];
+  let beat = startBeat;
+  let idx = seqIdx;
+  if (!Array.isArray(patternSeq) || !patternSeq.length) {
+    return { notes, nextBeat: beat, seqIdx: idx };
+  }
+  const dur = noteDurationBeats(noteBeats, restBeats);
+  const step = noteStepBeats(noteBeats, restBeats);
+  if (!(step > 0)) return { notes, nextBeat: beat, seqIdx: idx };
+  while (beat < untilBeat && notes.length < maxNotes) {
+    notes.push({ startBeat: beat, dur, midi: patternSeq[idx % patternSeq.length] });
+    idx += 1;
+    beat += step;
+  }
+  return { notes, nextBeat: beat, seqIdx: idx };
 }
 
 const GUIDE_LAYERS = [
@@ -79,8 +126,11 @@ const runner = {
   rangeLow: 48,
   rangeHigh: 72,
   noteBeats: 2,
+  restBeats: 1,
   metronome: true,
   guide: false,
+  listenFirst: true,
+  previewing: false,
 
   // Timeline / scoring state.
   startAudioTime: 0,
@@ -95,7 +145,11 @@ const runner = {
   laneMin: 55,
   laneMax: 67,
   trail: [],
-  guideVoices: [],
+  voices: [],
+  listenBeats: 0,
+  firstNoteBeat: LEAD_IN_BEATS,
+  listenLockUntil: 0,
+  overlayText: null,
 
   score: 0,
   combo: 0,
@@ -129,12 +183,12 @@ function scheduleClick(time, accented) {
   });
 }
 
-// A short, soft melody-guide cue at a note's start. Intentionally brief — just
-// enough to hint the pitch — so speaker bleed can't sustain the hit for the
-// singer. Returns the cue's audible duration in seconds (including release).
-function scheduleGuideTone(midi, time) {
+// Schedule one soft tone. The app keeps every voice, so stopRunner() and
+// stopListenPreview() can stop the sound at once. Returns the audible duration
+// in seconds, and the release is part of that duration.
+function scheduleTone(midi, time, durSec, peak) {
   const freq = midiFreq(midi);
-  const dur = Math.max(0.16, Math.min(0.55, GUIDE_CUE_BEATS * runner.secPerBeat));
+  const dur = Math.max(0.12, durSec);
   const release = 0.12;
   const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
@@ -142,8 +196,8 @@ function scheduleGuideTone(midi, time) {
   filter.frequency.value = Math.min(Math.max(freq * 6, 1800), 6000);
   filter.Q.value = 0.4;
   gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.linearRampToValueAtTime(0.1, time + 0.025);
-  gain.gain.setValueAtTime(0.08, time + dur * 0.55);
+  gain.gain.linearRampToValueAtTime(peak, time + 0.025);
+  gain.gain.setValueAtTime(peak * 0.8, time + dur * 0.55);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + dur + release);
   const oscs = GUIDE_LAYERS.map(layer => {
     const osc = audioCtx.createOscillator();
@@ -158,8 +212,48 @@ function scheduleGuideTone(midi, time) {
   });
   filter.connect(gain);
   gain.connect(getAnalyserDestination());
-  oscs.forEach(o => { o.start(time); o.stop(time + dur + release + 0.05); });
+  const endTime = time + dur + release + 0.05;
+  oscs.forEach(o => { o.start(time); o.stop(endTime); });
+  trackVoice({ oscs, gain, endTime });
   return dur + release;
+}
+
+function trackVoice(voice) {
+  runner.voices.push(voice);
+  if (runner.voices.length > 64) {
+    const now = audioCtx.currentTime;
+    runner.voices = runner.voices.filter(v => v.endTime > now);
+  }
+}
+
+// Stop every scheduled tone now. The gain falls in 30 ms, so there is no click.
+function stopScheduledTones() {
+  if (!audioCtx) { runner.voices = []; return; }
+  const now = audioCtx.currentTime;
+  for (const voice of runner.voices) {
+    try {
+      voice.gain.gain.cancelScheduledValues(now);
+      voice.gain.gain.setValueAtTime(voice.gain.gain.value, now);
+      voice.gain.gain.linearRampToValueAtTime(0.0001, now + 0.03);
+      voice.oscs.forEach(o => { try { o.stop(now + 0.05); } catch (e) { /* already stopped */ } });
+    } catch (e) {
+      // The voice already ended. There is nothing to stop.
+    }
+  }
+  runner.voices = [];
+}
+
+// A short, soft pitch cue at a note's start. Intentionally brief — just enough
+// to hint the pitch — so speaker bleed can't sustain the hit for the singer.
+function scheduleGuideTone(midi, time) {
+  const dur = Math.max(0.16, Math.min(0.55, GUIDE_CUE_BEATS * runner.secPerBeat));
+  return scheduleTone(midi, time, dur, 0.1);
+}
+
+// A full-length tone for the listen phase. The app scores nothing during that
+// phase, so the tone can last for the complete note.
+function scheduleListenTone(midi, time, durSec) {
+  return scheduleTone(midi, time, Math.max(0.18, durSec - 0.06), 0.12);
 }
 
 // ---- Sequence building ------------------------------------------------------
@@ -242,30 +336,42 @@ function getAnalysisDelaySec() {
   return 4096 / audioCtx.sampleRate / 2;
 }
 
+// Turn one note plan into a live note on the timeline.
+function makeNote(plan, listenOnly = false) {
+  const startAudioTime = runner.startAudioTime + plan.startBeat * runner.secPerBeat;
+  return {
+    startBeat: plan.startBeat,
+    dur: plan.dur,
+    midi: plan.midi,
+    startAudioTime,
+    endAudioTime: startAudioTime + plan.dur * runner.secPerBeat,
+    samples: [],
+    judged: false,
+    result: null,
+    noteAccuracy: 0,
+    guideMuteUntil: 0,
+    guideScheduled: false,
+    listenOnly,
+  };
+}
+
 // Append notes until the timeline is populated a comfortable margin past the
 // right edge, cycling the pattern endlessly.
 function ensureNotes(playheadBeat) {
+  if (!runner.patternSeq.length) return;
+  if (!Number.isFinite(runner.nextBeat)) return;
   const horizon = playheadBeat + visibleBeatsAhead() + runner.noteBeats + 4;
-  const dur = Math.max(0.35, runner.noteBeats - NOTE_GAP_BEATS);
-  while (runner.nextBeat < horizon) {
-    const midi = runner.patternSeq[runner.seqIdx % runner.patternSeq.length];
-    const startAudioTime = runner.startAudioTime + runner.nextBeat * runner.secPerBeat;
-    runner.notes.push({
-      startBeat: runner.nextBeat,
-      dur,
-      midi,
-      startAudioTime,
-      endAudioTime: startAudioTime + dur * runner.secPerBeat,
-      samples: [],
-      judged: false,
-      result: null,
-      noteAccuracy: 0,
-      guideMuteUntil: 0,
-      guideScheduled: false,
-    });
-    runner.seqIdx += 1;
-    runner.nextBeat += runner.noteBeats;
-  }
+  const planned = planNotes({
+    patternSeq: runner.patternSeq,
+    noteBeats: runner.noteBeats,
+    restBeats: runner.restBeats,
+    startBeat: runner.nextBeat,
+    seqIdx: runner.seqIdx,
+    untilBeat: horizon,
+  });
+  for (const plan of planned.notes) runner.notes.push(makeNote(plan));
+  runner.nextBeat = planned.nextBeat;
+  runner.seqIdx = planned.seqIdx;
 }
 
 // ---- Scoring ----------------------------------------------------------------
@@ -444,7 +550,7 @@ function draw(playheadBeat) {
   }
 
   // Note bars.
-  const activeMidi = currentTargetMidi(playheadBeat);
+  const activeMidi = currentTargetMidi(playheadBeat, true);
   for (const note of runner.notes) {
     const x = hitX + (note.startBeat - playheadBeat) * ppb;
     const w = note.dur * ppb;
@@ -452,7 +558,9 @@ function draw(playheadBeat) {
     const y = midiToY(note.midi);
     const barH = Math.max(10, lh * 0.72);
     let fill;
-    if (note.judged) {
+    if (note.listenOnly) {
+      fill = note.midi === activeMidi ? c.accent : c.muted;
+    } else if (note.judged) {
       fill = note.result === 'miss' ? c.err : note.result === 'centered' ? c.ok : c.warn;
     } else if (note.midi === activeMidi) {
       fill = c.accent;
@@ -522,9 +630,11 @@ function draw(playheadBeat) {
     ctx.fill();
   }
 
-  // Count-in cue before the first note reaches the line.
-  if (playheadBeat < LEAD_IN_BEATS) {
-    const remaining = Math.ceil(LEAD_IN_BEATS - playheadBeat);
+  // Count-in cue between the listen phase and the first scored note.
+  if (Number.isFinite(runner.firstNoteBeat)
+    && playheadBeat >= runner.listenBeats
+    && playheadBeat < runner.firstNoteBeat) {
+    const remaining = Math.ceil(runner.firstNoteBeat - playheadBeat);
     ctx.fillStyle = c.text;
     ctx.globalAlpha = 0.85;
     ctx.textAlign = 'center';
@@ -546,8 +656,9 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function currentTargetMidi(playheadBeat) {
+function currentTargetMidi(playheadBeat, includeListen = true) {
   for (const note of runner.notes) {
+    if (note.listenOnly && !includeListen) continue;
     if (playheadBeat >= note.startBeat && playheadBeat < note.startBeat + note.dur) {
       return note.midi;
     }
@@ -570,28 +681,35 @@ function scheduleAudio(playheadBeat) {
     }
     runner.nextClickBeat += 1;
   }
-  // Optional short melody-guide cues at each upcoming note's start. Scoring is
-  // muted for the cue's audible life so speaker bleed can't count as a hit.
-  if (runner.guide) {
-    for (const note of runner.notes) {
-      if (note.guideScheduled) continue;
-      if (note.startBeat <= horizonBeat) {
-        const t = runner.startAudioTime + note.startBeat * runner.secPerBeat;
-        if (t > audioCtx.currentTime - 0.05) {
-          const cueSec = scheduleGuideTone(note.midi, t);
-          note.guideMuteUntil = lockoutUntil(t + cueSec);
-        }
-        note.guideScheduled = true;
+  // Tones for the listen phase, and the optional short pitch cues during play.
+  // Scoring is muted for the audible life of each tone, so speaker bleed can't
+  // count as a hit.
+  for (const note of runner.notes) {
+    if (note.guideScheduled) continue;
+    if (note.startBeat > horizonBeat) continue;
+    if (!note.listenOnly && !runner.guide) continue;
+    const t = runner.startAudioTime + note.startBeat * runner.secPerBeat;
+    if (t > audioCtx.currentTime - 0.05) {
+      const toneSec = note.listenOnly
+        ? scheduleListenTone(note.midi, t, note.dur * runner.secPerBeat)
+        : scheduleGuideTone(note.midi, t);
+      note.guideMuteUntil = lockoutUntil(t + toneSec);
+      if (note.listenOnly) {
+        runner.listenLockUntil = Math.max(runner.listenLockUntil, note.guideMuteUntil);
       }
     }
+    note.guideScheduled = true;
   }
 }
 
 function handleRunnerPitchFrame(frame) {
   if (!runner.running) return;
   const audioTime = frame.audioTime;
-  let anyLockActive = false;
+  // The listen phase blocks the microphone completely. The app collects no
+  // samples and it adapts no noise floor while the melody plays.
+  let anyLockActive = !isScoringWindowClear(audioTime, runner.listenLockUntil, runner.capture);
   for (const note of runner.notes) {
+    if (anyLockActive) break;
     if (note.guideMuteUntil > 0 && !isScoringWindowClear(audioTime, note.guideMuteUntil, runner.capture)) {
       anyLockActive = true;
       break;
@@ -612,7 +730,7 @@ function handleRunnerPitchFrame(frame) {
 }
 
 function loop() {
-  if (!runner.running) return;
+  if (!runner.running && !runner.previewing) return;
   try {
     step();
   } catch (e) {
@@ -633,6 +751,16 @@ function step() {
 
   ensureNotes(playheadBeat);
   scheduleAudio(playheadBeat);
+  updatePhaseOverlay(playheadBeat);
+
+  // The listen preview plays the melody with the microphone closed. It draws
+  // the timeline and it scores nothing.
+  if (runner.previewing) {
+    pruneTimeline(playheadBeat, false);
+    draw(playheadBeat);
+    if (playheadBeat >= runner.listenBeats + 1) stopListenPreview(true);
+    return;
+  }
 
   const frame = runner.lastPitchFrame;
   const voiced = frame?.voiced ?? false;
@@ -648,20 +776,22 @@ function step() {
     : now - getAnalysisDelaySec() - getInputLatencySec();
   const sampleTimestampMs = frame?.timestampMs ?? correctedAudioTime * 1000;
 
-  const target = currentTargetMidi(playheadBeat);
+  const target = currentTargetMidi(playheadBeat, false);
   let inTune = false;
   if (voiced && frequencyHz > 0 && target != null) {
     const cents = centsOffFromTarget(frequencyHz, target);
     inTune = cents != null && Math.abs(cents) <= 20;
   }
 
+  const listenClear = isScoringWindowClear(correctedAudioTime, runner.listenLockUntil, runner.capture);
   for (const note of runner.notes) {
-    if (note.judged) continue;
+    if (note.listenOnly || note.judged) continue;
     const end = note.startBeat + note.dur;
     const inNoteWindow = correctedAudioTime >= note.startAudioTime
       && correctedAudioTime < note.endAudioTime;
     if (inNoteWindow) {
-      const scoring = isScoringWindowClear(correctedAudioTime, note.guideMuteUntil, runner.capture);
+      const scoring = listenClear
+        && isScoringWindowClear(correctedAudioTime, note.guideMuteUntil, runner.capture);
       if (scoring) {
         const cents = voiced && frequencyHz > 0
           ? centsOffFromTarget(frequencyHz, note.midi)
@@ -683,30 +813,75 @@ function step() {
 
   // Record the pitch trace and prune notes/trail that scrolled off-screen.
   runner.trail.push({ beat: playheadBeat, midiFloat: midiFloat ?? runner.laneMin, hasPitch, inTune });
-  const leftBeats = (runner.cssW * HIT_X_RATIO) / pxPerBeat();
-  const cutoff = playheadBeat - leftBeats - 1;
-  while (runner.trail.length && runner.trail[0].beat < cutoff) runner.trail.shift();
-  runner.notes = runner.notes.filter(n => n.startBeat + n.dur >= cutoff);
+  pruneTimeline(playheadBeat, true);
 
   draw(playheadBeat);
 }
 
+// Drop notes and trail points that scrolled off the left edge.
+function pruneTimeline(playheadBeat, keepTrail) {
+  const leftBeats = (runner.cssW * HIT_X_RATIO) / pxPerBeat();
+  const cutoff = playheadBeat - leftBeats - 1;
+  if (keepTrail) {
+    while (runner.trail.length && runner.trail[0].beat < cutoff) runner.trail.shift();
+  } else {
+    runner.trail = [];
+  }
+  runner.notes = runner.notes.filter(n => n.startBeat + n.dur >= cutoff);
+}
+
+// Show the phase of the run on the overlay: the listen pass, or the game.
+function updatePhaseOverlay(playheadBeat) {
+  if (runner.listenBeats > 0 && playheadBeat < runner.listenBeats) {
+    const total = Math.max(1, Math.round(runner.listenBeats));
+    const beat = Math.min(total, Math.max(1, Math.floor(playheadBeat) + 1));
+    setOverlay(`LISTEN \u00B7 beat ${beat} of ${total}`, 'pr-listening');
+  } else if (!runner.previewing) {
+    setOverlay('');
+  }
+}
+
 // ---- Lifecycle --------------------------------------------------------------
 
-function resetTimeline() {
+// Build the timeline. The listen phase, when the player asks for it, occupies
+// the beats before the count-in. The scored run starts at firstNoteBeat.
+function resetTimeline({ previewOnly = false } = {}) {
   runner.secPerBeat = 60 / getContext().tempo;
   runner.startAudioTime = audioCtx.currentTime + 0.15;
   runner.seqIdx = 0;
-  runner.nextBeat = LEAD_IN_BEATS;
   runner.nextClickBeat = 0;
   runner.notes = [];
   runner.trail = [];
+  runner.listenLockUntil = 0;
   buildPatternSeq();
-  ensureNotes(0);
+
+  const wantListen = previewOnly || runner.listenFirst;
+  const listenBeats = wantListen
+    ? listenPassBeats(runner.patternSeq.length, runner.noteBeats, runner.restBeats)
+    : 0;
+  runner.listenBeats = listenBeats;
+  runner.firstNoteBeat = previewOnly ? Infinity : listenBeats + LEAD_IN_BEATS;
+
+  if (listenBeats > 0) {
+    const pass = planNotes({
+      patternSeq: runner.patternSeq,
+      noteBeats: runner.noteBeats,
+      restBeats: runner.restBeats,
+      startBeat: 0,
+      seqIdx: 0,
+      untilBeat: listenBeats,
+    });
+    for (const plan of pass.notes) runner.notes.push(makeNote(plan, true));
+  }
+
+  runner.seqIdx = 0;
+  runner.nextBeat = runner.firstNoteBeat;
+  if (!previewOnly) ensureNotes(0);
 }
 
 async function startRunner() {
   stopOtherPitchMicTools('runner');
+  stopListenPreview();
 
   ensureAudio();
   readColors();
@@ -748,7 +923,11 @@ async function startRunner() {
     setToggleLabel(true);
     setOverlay('');
     const status = el('pr-status');
-    if (status) status.textContent = 'Listening\u2026 sing the notes as they cross the line';
+    if (status) {
+      status.textContent = runner.listenBeats > 0
+        ? 'Listen to the melody first. Then sing the notes at the line.'
+        : 'Listening\u2026 sing the notes as they cross the line';
+    }
     runner.startAudioTime = audioCtx.currentTime + 0.15;
     runner.nextClickBeat = 0;
     syncNoteAudioTimes();
@@ -763,15 +942,18 @@ async function startRunner() {
 }
 
 function stopRunner() {
+  if (runner.previewing) stopListenPreview();
   if (!runner.running && !runner.stream) {
     setToggleLabel(false);
     return;
   }
   runner.running = false;
   if (runner.rafId) { cancelAnimationFrame(runner.rafId); runner.rafId = null; }
+  stopScheduledTones();
   if (runner.capture) { runner.capture.stop(); runner.capture = null; }
   runner.lastPitchFrame = null;
   runner.guideLockActive = false;
+  runner.listenLockUntil = 0;
   if (runner.noiseFloor) runner.noiseFloor = null;
   if (runner.stream) { releaseMicStream(runner.stream); runner.stream = null; }
   setToggleLabel(false);
@@ -793,15 +975,68 @@ function togglePitchRunner() {
   if (runner.running) stopRunner(); else startRunner();
 }
 
+// ---- Listen preview ---------------------------------------------------------
+
+// Play one pass of the melody with the microphone closed. The player uses this
+// to hear the notes before the game starts.
+function startListenPreview() {
+  if (runner.running) return;
+  if (runner.previewing) { stopListenPreview(); return; }
+
+  ensureAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  readColors();
+  resizeCanvas();
+  resetTimeline({ previewOnly: true });
+  if (runner.sequenceError || !runner.patternSeq.length) {
+    updateStartState();
+    return;
+  }
+
+  runner.previewing = true;
+  setListenLabel(true);
+  setOverlay('LISTEN', 'pr-listening');
+  const status = el('pr-status');
+  if (status) status.textContent = 'The app plays the melody. The microphone stays off.';
+  loop();
+}
+
+function stopListenPreview(finished = false) {
+  if (!runner.previewing) return;
+  runner.previewing = false;
+  if (runner.rafId) { cancelAnimationFrame(runner.rafId); runner.rafId = null; }
+  stopScheduledTones();
+  runner.notes = [];
+  runner.trail = [];
+  runner.listenBeats = 0;
+  runner.listenLockUntil = 0;
+  setListenLabel(false);
+  setOverlay('Press start to play');
+  const status = el('pr-status');
+  if (status) status.textContent = finished ? 'Melody complete. Press start to sing it.' : 'Mic off';
+  drawIdle();
+}
+
+function setListenLabel(on) {
+  const btn = el('pr-listen');
+  if (btn) btn.textContent = on ? 'Stop listen' : 'Listen';
+}
+
 function setToggleLabel(on) {
   const btn = el('pr-toggle');
   if (btn) btn.textContent = on ? 'Stop game' : 'Start game';
+  const listenBtn = el('pr-listen');
+  if (listenBtn) listenBtn.disabled = !!on;
 }
 
-function setOverlay(text) {
+function setOverlay(text, cls) {
   const ov = el('pr-overlay');
   if (!ov) return;
+  const next = (text || '') + '|' + (cls || '');
+  if (runner.overlayText === next) return;
+  runner.overlayText = next;
   ov.textContent = text || '';
+  ov.className = cls ? `pr-overlay ${cls}` : 'pr-overlay';
   ov.style.display = text ? 'flex' : 'none';
 }
 
@@ -811,14 +1046,25 @@ function restartIfRunning() {
     resetTimeline();
     runner.startAudioTime = audioCtx.currentTime + 0.15;
     runner.nextClickBeat = 0;
+    stopScheduledTones();
     syncNoteAudioTimes();
   } else {
+    if (runner.previewing) stopListenPreview();
     buildPatternSeq();
     if (runner.ctx2d) drawIdle();
   }
 }
 
 // ---- Controls / init --------------------------------------------------------
+
+// Push the runner's saved tempo into the shared musical context.
+function applyRunnerTempo() {
+  const saved = Number(getSetting('pitchRunner.tempo', DEFAULT_RUNNER_TEMPO));
+  const tempo = Number.isFinite(saved) ? Math.round(saved) : DEFAULT_RUNNER_TEMPO;
+  const clamped = Math.max(TEMPO_MIN, Math.min(TEMPO_MAX, tempo));
+  setContext({ tempo: clamped }, 'pitchRunner');
+  runner.secPerBeat = 60 / getContext().tempo;
+}
 
 function syncTempoLabel() {
   const bpmEl = el('pr-bpm');
@@ -832,11 +1078,18 @@ function initPitchRunner() {
   runner.rangeLow = Number(getSetting('pitchRunner.rangeLow', runner.rangeLow));
   runner.rangeHigh = Number(getSetting('pitchRunner.rangeHigh', runner.rangeHigh));
   runner.noteBeats = Number(getSetting('pitchRunner.noteBeats', runner.noteBeats));
+  runner.restBeats = Number(getSetting('pitchRunner.restBeats', runner.restBeats));
   runner.metronome = getSetting('pitchRunner.metronome', runner.metronome) !== false;
   runner.guide = getSetting('pitchRunner.guide', runner.guide) === true;
+  runner.listenFirst = getSetting('pitchRunner.listenFirst', runner.listenFirst) !== false;
   if (!(runner.rangeLow >= 36 && runner.rangeLow <= 84)) runner.rangeLow = 48;
   if (!(runner.rangeHigh >= 36 && runner.rangeHigh <= 84)) runner.rangeHigh = 72;
   if (!NOTE_LENGTHS.includes(runner.noteBeats)) runner.noteBeats = 2;
+  if (!REST_CHOICES.includes(runner.restBeats)) runner.restBeats = 1;
+
+  // The runner keeps its own tempo. It is slower than the shared 120 BPM
+  // default, because a singer needs more time than an instrument player.
+  applyRunnerTempo();
 
   if (runner.initialized) {
     syncControls();
@@ -861,6 +1114,38 @@ function initPitchRunner() {
     diffSel.onchange = () => {
       runner.difficulty = diffSel.value;
       saveSetting('pitchRunner.difficulty', runner.difficulty);
+      restartIfRunning();
+    };
+  }
+
+  const keySel = el('pr-key');
+  if (keySel) {
+    keySel.innerHTML = '';
+    ROOTS.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      keySel.appendChild(opt);
+    });
+    keySel.value = getContext().root;
+    keySel.onchange = () => {
+      setContext({ root: keySel.value }, 'pitchRunner');
+      restartIfRunning();
+    };
+  }
+
+  const scaleSel = el('pr-scale');
+  if (scaleSel) {
+    scaleSel.innerHTML = '';
+    orderedScaleNames().forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = shortScaleName(name);
+      scaleSel.appendChild(opt);
+    });
+    scaleSel.value = getContext().scale;
+    scaleSel.onchange = () => {
+      setContext({ scale: scaleSel.value }, 'pitchRunner');
       restartIfRunning();
     };
   }
@@ -921,11 +1206,29 @@ function initPitchRunner() {
     };
   }
 
+  const restSel = el('pr-rest');
+  if (restSel) {
+    restSel.innerHTML = '';
+    REST_CHOICES.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = String(n);
+      opt.textContent = REST_LABELS[n] || `${n} beats`;
+      restSel.appendChild(opt);
+    });
+    restSel.value = String(runner.restBeats);
+    restSel.onchange = () => {
+      runner.restBeats = Number(restSel.value);
+      saveSetting('pitchRunner.restBeats', runner.restBeats);
+      restartIfRunning();
+    };
+  }
+
   const bpmDown = el('pr-bpm-down');
   const bpmUp = el('pr-bpm-up');
   const changeTempo = (delta) => {
     const next = Math.max(TEMPO_MIN, Math.min(TEMPO_MAX, getContext().tempo + delta));
     setContext({ tempo: next }, 'pitchRunner');
+    saveSetting('pitchRunner.tempo', next);
     syncTempoLabel();
     if (runner.running) { runner.secPerBeat = 60 / next; }
   };
@@ -955,9 +1258,26 @@ function initPitchRunner() {
     };
   }
 
-  // Keep tempo label in sync when other tools change the shared context.
+  const listenChk = el('pr-listen-first');
+  if (listenChk) {
+    listenChk.checked = runner.listenFirst;
+    listenChk.onchange = () => {
+      runner.listenFirst = listenChk.checked;
+      saveSetting('pitchRunner.listenFirst', runner.listenFirst);
+      restartIfRunning();
+    };
+  }
+
+  const listenBtn = el('pr-listen');
+  if (listenBtn) {
+    listenBtn.onclick = () => startListenPreview();
+  }
+
+  // Keep the labels and the selects in step when other tools change the
+  // shared context.
   subscribeContext(() => {
     syncTempoLabel();
+    syncContextControls();
     if (!runner.running) { buildPatternSeq(); if (runner.ctx2d) drawIdle(); }
   });
 
@@ -971,6 +1291,7 @@ function initPitchRunner() {
   }
 
   syncTempoLabel();
+  syncContextControls();
   readColors();
   buildPatternSeq();
   resizeCanvas();
@@ -985,21 +1306,47 @@ function matchPreset() {
   return found ? found.id : 'tenor';
 }
 
+function syncContextControls() {
+  const { root, scale } = getContext();
+  const keySel = el('pr-key');
+  const scaleSel = el('pr-scale');
+  if (keySel) keySel.value = root;
+  if (scaleSel) scaleSel.value = scale;
+}
+
 function syncControls() {
   const diffSel = el('pr-difficulty');
   const patternSel = el('pr-pattern');
   const presetSel = el('pr-range-preset');
   const lengthSel = el('pr-length');
+  const restSel = el('pr-rest');
   const metroChk = el('pr-metronome');
   const guideChk = el('pr-guide');
+  const listenChk = el('pr-listen-first');
   if (diffSel) diffSel.value = runner.difficulty;
   if (patternSel) patternSel.value = runner.pattern;
   if (presetSel) presetSel.value = matchPreset();
   if (lengthSel) lengthSel.value = String(runner.noteBeats);
+  if (restSel) restSel.value = String(runner.restBeats);
   if (metroChk) metroChk.checked = runner.metronome;
   if (guideChk) guideChk.checked = runner.guide;
+  if (listenChk) listenChk.checked = runner.listenFirst;
+  syncContextControls();
 }
 
-window.togglePitchRunner = togglePitchRunner;
+if (typeof window !== 'undefined') window.togglePitchRunner = togglePitchRunner;
 
-export { initPitchRunner, stopRunner as stopPitchRunner, runner };
+export {
+  initPitchRunner,
+  stopRunner as stopPitchRunner,
+  runner,
+  planNotes,
+  noteDurationBeats,
+  noteStepBeats,
+  listenPassBeats,
+  visibleBeatsAhead,
+  NOTE_LENGTHS,
+  REST_CHOICES,
+  LEAD_IN_BEATS,
+  DEFAULT_RUNNER_TEMPO,
+};

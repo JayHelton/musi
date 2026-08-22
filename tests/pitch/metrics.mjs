@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { midiFreq } from '../../js/audio.js';
 import { createPitchMatcher } from '../../js/pitchMatch.js';
-import { createScoringWindow } from '../../js/pitchMetrics.js';
+import { createScoringWindow, DEFAULT_HOLD_MS, HOLD_DURATIONS_MS } from '../../js/pitchMetrics.js';
 import { samplesForTone, heldDisplaySilence } from './helpers.mjs';
 
 const TARGET_MIDI = 69;
@@ -180,5 +180,35 @@ export function runMetricsTests() {
       true,
     );
     assert.equal(after.matched, true, 'fresh scoring after guide should pass');
+  }
+
+  console.log('test: hold durations reach 8 seconds and stay sorted');
+  {
+    assert.ok(HOLD_DURATIONS_MS.includes(DEFAULT_HOLD_MS), 'default hold must be selectable');
+    assert.ok(HOLD_DURATIONS_MS.includes(8000), 'the list must offer an 8 second hold');
+    for (let i = 1; i < HOLD_DURATIONS_MS.length; i++) {
+      assert.ok(HOLD_DURATIONS_MS[i] > HOLD_DURATIONS_MS[i - 1], 'hold list must ascend');
+    }
+    const unique = new Set(HOLD_DURATIONS_MS);
+    assert.equal(unique.size, HOLD_DURATIONS_MS.length, 'hold list must have no repeats');
+  }
+
+  console.log('test: a long hold still passes over an 8 second window');
+  {
+    const w = makeWindow('center', 8000);
+    const samples = samplesForTone({ fps: 60, durationMs: 8600, centsOff: 0 });
+    const snap = feedWindow(w, samples);
+    assert.equal(snap.matched, true, 'a steady 8 second tone must pass an 8 second hold');
+    const result = w.finalize();
+    assert.ok(result && result.passed, 'finalize must report a pass for the long hold');
+  }
+
+  console.log('test: a long hold does not pass before the hold time ends');
+  {
+    const w = makeWindow('center', 8000);
+    const samples = samplesForTone({ fps: 60, durationMs: 5000, centsOff: 0 });
+    const snap = feedWindow(w, samples);
+    assert.equal(snap.matched, false, '5 seconds must not pass an 8 second hold');
+    assert.ok(snap.progress < 1, 'progress must stay below 1 before the hold time ends');
   }
 }

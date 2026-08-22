@@ -93,6 +93,9 @@
 .pt-field span{color:var(--muted);font-size:.8rem}
 .pt-field select{padding:6px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.9rem;min-width:120px;font-family:inherit}
 .pt-pattern-field select{min-width:260px}
+.pt-group-label{width:100%;margin:0 0 2px;color:var(--muted);font-family:var(--font-ui,"VT323",monospace);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;text-align:left}
+.pt-pace{font-size:.85rem;color:var(--accent);text-align:center;margin:2px 0 0;font-family:var(--font-ui,"VT323",monospace)}
+.pt-pace[hidden]{display:none !important}
 .pt-stage{font-size:.9rem;color:var(--muted);text-align:center;margin:6px 0}
 .pt-stage-name{color:var(--accent);font-weight:600}
 .pt-prompt{font-size:1.6rem;font-weight:700;color:var(--text);text-align:center;margin:4px 0}
@@ -162,6 +165,7 @@
 .pr-stage{position:relative;width:100%;height:320px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--card)}
 .pr-stage canvas{display:block;width:100%;height:100%}
 .pr-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.05rem;font-weight:600;color:var(--muted);background:rgba(0,0,0,0.35);z-index:2;text-align:center;padding:0 20px}
+.pr-overlay.pr-listening{align-items:flex-start;justify-content:center;background:rgba(0,0,0,0.18);padding-top:10px;color:var(--accent);font-family:var(--font-body,inherit);font-size:.9rem;letter-spacing:.08em;text-transform:uppercase}
 .pr-judge{position:absolute;top:14%;left:50%;transform:translateX(-50%);font-size:1.6rem;font-weight:800;opacity:0;pointer-events:none;z-index:3;text-shadow:0 2px 12px rgba(0,0,0,0.6)}
 .pr-judge.perfect{color:var(--ok)}
 .pr-judge.good{color:var(--warn)}

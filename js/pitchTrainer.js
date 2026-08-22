@@ -1,7 +1,8 @@
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
-import { parseNote } from './theory.js';
+import { parseNote, ROOTS } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
-import { getContext, subscribeContext } from './musicalContext.js';
+import { getContext, setContext, subscribeContext } from './musicalContext.js';
+import { orderedScaleNames } from './scales.js';
 import { createAdaptiveNoiseFloor } from './pitch.js';
 import { createPitchCapture } from './pitchCapture.js';
 import {
@@ -14,6 +15,7 @@ import { createPitchMatcher, midiToLabel } from './pitchMatch.js';
 import {
   buildStages,
   SCALE_PATTERNS,
+  SEQUENCE_DIRECTIONS,
   buildSequenceForTask,
   chromaticMidisInRange,
   pickNextCenterMidi,
@@ -59,11 +61,34 @@ const DEFAULT_CUSTOM_PRESETS = [
 ];
 
 const TASKS = [
-  { id: 'center', label: 'Center' },
-  { id: 'land', label: 'Land' },
-  { id: 'interval', label: 'Interval' },
-  { id: 'pattern', label: 'Pattern' },
+  { id: 'center', label: 'Single note · center' },
+  { id: 'land', label: 'Single note · land' },
+  { id: 'interval', label: 'Interval jump' },
+  { id: 'pattern', label: 'Run · scale sequence' },
 ];
+
+// Guide-tone length in seconds. A null value keeps the tone until the singer starts.
+const GUIDE_LENGTH_OPTIONS = [
+  { id: 'short', label: 'Short · 0.7s', seconds: 0.7 },
+  { id: 'medium', label: 'Medium · 1.5s', seconds: 1.5 },
+  { id: 'long', label: 'Long · 3s', seconds: 3 },
+  { id: 'sustain', label: 'Until you sing', seconds: null },
+];
+const DEFAULT_GUIDE_LENGTH = 'medium';
+
+// Breath and settle time after the guide tone. The trainer does not score here.
+const PREP_OPTIONS = [
+  { ms: 0, label: 'None' },
+  { ms: 1000, label: '1s' },
+  { ms: 2000, label: '2s' },
+  { ms: 3000, label: '3s' },
+];
+const DEFAULT_PREP_MS = 1000;
+
+// Limits for the "Until you sing" guide tone.
+const SUSTAIN_GUIDE_MIN_SEC = 1.0;
+const SUSTAIN_GUIDE_MAX_SEC = 12;
+const SUSTAIN_GUIDE_VOICED_FRAMES = 4;
 
 const PROFILE_OPTIONS = [
   { id: 'learn', label: 'Learn' },
@@ -110,6 +135,9 @@ const pt = {
   intervalDirection: 'ascending',
 
   pattern: 'five-tone',
+  direction: 'natural',
+  guideLength: DEFAULT_GUIDE_LENGTH,
+  prepMs: DEFAULT_PREP_MS,
   rangeLow: 48,
   rangeHigh: 72,
   guide: true,
@@ -134,6 +162,12 @@ const pt = {
   guideLockActive: false,
   guideEndsAt: 0,
   guideEndsAudioTime: 0,
+  guideToneEndsAudioTime: 0,
+  sustainGuide: false,
+  sustainStartAudioTime: 0,
+  sustainVoicedFrames: 0,
+  paceText: '',
+  paceTimer: null,
   puckRatio: 0.5,
   lastRenderMs: 0,
   lastVoicedRenderMs: 0,
@@ -157,6 +191,11 @@ function nearestHold(ms) {
     if (d < bestDist) { best = h; bestDist = d; }
   }
   return best;
+}
+
+/** Read a hold time as seconds, for example 750 ms becomes "0.75s". */
+function holdLabel(ms) {
+  return `${Number((ms / 1000).toFixed(2))}s`;
 }
 
 function migrateFromLegacyDifficulty(oldId) {
@@ -223,6 +262,37 @@ function applyFeedbackVisibility() {
 function resetNoteFeedback() {
   pt.noteConsecutivePasses = 0;
   applyFeedbackVisibility();
+}
+
+function guideLengthOption() {
+  return GUIDE_LENGTH_OPTIONS.find(o => o.id === pt.guideLength) || GUIDE_LENGTH_OPTIONS[1];
+}
+
+function prepSeconds() {
+  const ms = Number(pt.prepMs);
+  return Number.isFinite(ms) && ms > 0 ? ms / 1000 : 0;
+}
+
+/** Show one short pacing message below the prompt. */
+function setPaceLine(text, autoClearMs = 0) {
+  if (pt.paceText === text) return;
+  pt.paceText = text;
+  if (pt.paceTimer) {
+    clearTimeout(pt.paceTimer);
+    pt.paceTimer = null;
+  }
+  const node = el('pt-pace');
+  if (!node) return;
+  if (!text) {
+    node.textContent = '';
+    node.hidden = true;
+    return;
+  }
+  node.textContent = text;
+  node.hidden = false;
+  if (autoClearMs > 0) {
+    pt.paceTimer = setTimeout(() => setPaceLine(''), autoClearMs);
+  }
 }
 
 // ---- Reference / guide tone -------------------------------------------------
@@ -302,7 +372,9 @@ function startGuideTone(midi) {
 }
 
 function armGuideLockout(audibleEnd) {
-  pt.guideEndsAudioTime = lockoutUntil(audibleEnd);
+  const quiet = lockoutUntil(audibleEnd);
+  // The prep window extends the same lockout. The matcher cannot score in it.
+  pt.guideEndsAudioTime = quiet === Infinity ? Infinity : quiet + prepSeconds();
   if (pt.guideEndsAudioTime === Infinity) {
     pt.guideEndsAt = Infinity;
   } else if (audioCtx) {
@@ -315,12 +387,63 @@ function armGuideLockout(audibleEnd) {
 
 function playTone(midi, duration = 0.7) {
   stopGuideTone();
+  pt.sustainGuide = false;
   const voice = startGuideTone(midi);
-  const sustain = duration * 0.5;
-  const release = duration * 0.35;
-  const audibleEnd = audioCtx.currentTime + sustain + release;
+  const sustain = duration * 0.7;
+  const release = duration * 0.3;
+  const audibleEnd = audioCtx.currentTime + duration;
+  pt.guideToneEndsAudioTime = audibleEnd;
   armGuideLockout(audibleEnd);
   voice.releaseTimer = setTimeout(() => releaseVoice(voice, release), sustain * 1000);
+}
+
+/** Keep the guide tone until the singer starts, or until the time limit. */
+function startSustainGuide(midi) {
+  stopGuideTone(0.05);
+  startGuideTone(midi);
+  pt.sustainGuide = true;
+  pt.sustainVoicedFrames = 0;
+  pt.sustainStartAudioTime = audioCtx.currentTime;
+  pt.guideToneEndsAudioTime = Infinity;
+  pt.guideEndsAudioTime = Infinity;
+  pt.guideEndsAt = Infinity;
+  if (pt.matcher) pt.matcher.markGuideTone();
+  if (pt.capture) pt.capture.reset();
+  pt.guideLockActive = true;
+}
+
+function endSustainGuide() {
+  if (!pt.sustainGuide) return;
+  pt.sustainGuide = false;
+  stopGuideTone(0.12);
+  const audibleEnd = audioCtx.currentTime + 0.12;
+  pt.guideToneEndsAudioTime = audibleEnd;
+  armGuideLockout(audibleEnd);
+}
+
+/** Play the guide tone with the selected length. */
+function playGuideForTarget(midi) {
+  const option = guideLengthOption();
+  if (option.seconds == null) {
+    startSustainGuide(midi);
+    return;
+  }
+  playTone(midi, option.seconds);
+}
+
+/** Give the singer a prep window when the guide tone is off. */
+function armPrepOnly() {
+  const prep = prepSeconds();
+  if (!(prep > 0)) return;
+  ensureAudio();
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  pt.guideToneEndsAudioTime = now;
+  pt.guideEndsAudioTime = now + prep;
+  pt.guideEndsAt = performance.now() + prep * 1000;
+  if (pt.matcher) pt.matcher.markGuideTone();
+  if (pt.capture) pt.capture.reset();
+  pt.guideLockActive = true;
 }
 
 function ptStartReplay() {
@@ -329,6 +452,8 @@ function ptStartReplay() {
   if (midi == null) return;
   stopGuideTone(0.05);
   startGuideTone(midi);
+  pt.sustainGuide = false;
+  pt.guideToneEndsAudioTime = Infinity;
   pt.guideEndsAudioTime = Infinity;
   pt.guideEndsAt = Infinity;
   if (pt.matcher) pt.matcher.markGuideTone();
@@ -341,6 +466,7 @@ function ptStopReplay() {
   if (!pt.replayActive) return;
   stopGuideTone(0.14);
   const audibleEnd = audioCtx.currentTime + 0.14;
+  pt.guideToneEndsAudioTime = audibleEnd;
   armGuideLockout(audibleEnd);
 }
 
@@ -354,14 +480,14 @@ function guideMidi() {
 function currentStage() {
   if (!pt.stages.length) {
     const { scale } = getContext();
-    pt.stages = buildStages(scale, pt.pattern);
+    pt.stages = buildStages(scale, pt.pattern, pt.direction);
   }
   return pt.stages[pt.stageIdx % pt.stages.length];
 }
 
 function buildSequence() {
   const { root, scale } = getContext();
-  pt.stages = buildStages(scale, pt.pattern);
+  pt.stages = buildStages(scale, pt.pattern, pt.direction);
   pt.stageIdx = 0;
 
   const lo = Math.min(pt.rangeLow, pt.rangeHigh);
@@ -397,6 +523,7 @@ function buildSequence() {
     patternId: pt.pattern,
     scaleName: scale,
     rootName: root,
+    direction: pt.direction,
     low: lo,
     high: hi,
   });
@@ -450,8 +577,17 @@ function stageLabel() {
   }
   const stage = currentStage();
   const { root } = getContext();
+  // A changed direction makes the catalog hint wrong. Show the direction instead.
+  if (pt.direction !== 'natural') {
+    return `${root} · ${stage.label} · ${directionLabel(pt.direction).toLowerCase()}`;
+  }
   const hint = stage.hint ? ` · ${stage.hint}` : '';
   return `${root} · ${stage.label}${hint}`;
+}
+
+function directionLabel(id) {
+  const found = SEQUENCE_DIRECTIONS.find(d => d.id === id);
+  return found ? found.label : 'As written';
 }
 
 function intervalLabel() {
@@ -550,10 +686,15 @@ function setTarget() {
   updatePrompt();
   const resultEl = el('pt-result');
   if (resultEl) resultEl.hidden = true;
+  setPaceLine('');
   if (pt.guide && midi != null) {
     const guide = guideMidi();
-    if (guide != null) playTone(guide);
+    if (guide != null) {
+      playGuideForTarget(guide);
+      return;
+    }
   }
+  armPrepOnly();
 }
 
 function advance() {
@@ -786,7 +927,7 @@ function confidenceLabel(tracked, res) {
   return 'Voiced';
 }
 
-function renderMeter(res, info, tracked, guideLockout, now) {
+function renderMeter(res, info, tracked, guideLockout, now, lockPhase) {
   const puck = el('pt-puck');
   const progress = el('pt-progress');
   const noteEl = el('pt-note');
@@ -804,7 +945,7 @@ function renderMeter(res, info, tracked, guideLockout, now) {
     if (showLive) puck.style.top = (pt.puckRatio * 100) + '%';
     puck.className = 'pt-puck holding ' + (pt.puckHoldCls || 'idle');
     if (progress) progress.style.height = '0%';
-    if (confEl) confEl.textContent = 'Guide tone';
+    if (confEl) confEl.textContent = lockPhase === 'prep' ? 'Get ready' : 'Guide tone';
     return;
   }
 
@@ -892,8 +1033,8 @@ function renderLoop(now) {
   if (!pt.running) return;
   pt.rafId = requestAnimationFrame(renderLoop);
   if (pt.pendingRender) {
-    const { res, info, tracked, guideLockout } = pt.pendingRender;
-    renderMeter(res, info, tracked, guideLockout, now);
+    const { res, info, tracked, guideLockout, lockPhase } = pt.pendingRender;
+    renderMeter(res, info, tracked, guideLockout, now, lockPhase);
   }
 }
 
@@ -917,11 +1058,15 @@ function handlePitchFrame(frame) {
       if (pt.capture) pt.capture.reset();
       pt.guideLockActive = true;
     }
+    if (pt.sustainGuide) updateSustainGuide(audioTime, voiced);
+    const tonePlays = !(audioTime >= pt.guideToneEndsAudioTime);
+    setPaceLine(tonePlays ? 'Guide tone plays' : 'Get ready. Take a breath.');
     pt.pendingRender = {
       res: { active: true, freq: -1, centsOff: null, within: false, progress: 0, voiced: false },
       info: null,
       tracked: { voiced: false, freq: -1 },
       guideLockout: true,
+      lockPhase: tonePlays ? 'guide' : 'prep',
     };
     return;
   }
@@ -930,6 +1075,8 @@ function handlePitchFrame(frame) {
     pt.guideLockActive = false;
     if (pt.matcher) pt.matcher.reset();
     if (pt.capture) pt.capture.reset();
+    pt.failHandled = false;
+    setPaceLine('Sing now', 1600);
   }
 
   const activeMinRms = pt.noiseFloor ? pt.noiseFloor.ingest(frame.rms) : frame.rms;
@@ -957,10 +1104,22 @@ function handlePitchFrame(frame) {
 
   pt.pendingRender = { res, info: noteInfo, tracked: frame, guideLockout: false };
 
-  if (!pt.awaitingRelease) {
+  // The prep window blocks scoring, so an attempt cannot fail inside it.
+  if (!pt.awaitingRelease && !pt.guideLockActive) {
     if (res.matched) onMatched();
     else if (res.progress >= 1 && !res.matched && !pt.failHandled) onAttemptFailed();
   }
+}
+
+/** Stop the sustained guide tone when the singer starts, or at the time limit. */
+function updateSustainGuide(audioTime, voiced) {
+  if (!Number.isFinite(audioTime)) return;
+  const elapsed = audioTime - pt.sustainStartAudioTime;
+  if (voiced) pt.sustainVoicedFrames += 1;
+  else pt.sustainVoicedFrames = 0;
+  if (elapsed < SUSTAIN_GUIDE_MIN_SEC) return;
+  const singerStarted = pt.sustainVoicedFrames >= SUSTAIN_GUIDE_VOICED_FRAMES;
+  if (singerStarted || elapsed >= SUSTAIN_GUIDE_MAX_SEC) endSustainGuide();
 }
 
 async function startPitchTrainer() {
@@ -977,9 +1136,12 @@ async function startPitchTrainer() {
   pt.completed = 0;
   pt.guideEndsAt = 0;
   pt.guideEndsAudioTime = 0;
+  pt.guideToneEndsAudioTime = 0;
+  pt.sustainGuide = false;
   pt.guideLockActive = false;
   pt.awaitingRelease = false;
   pt.puckRatio = 0.5;
+  setPaceLine('');
   pt.centsSmoothed = null;
   pt.dirState = 'Center';
   pt.lastVoicedRenderMs = 0;
@@ -1040,7 +1202,10 @@ function stopPitchTrainer() {
   pt.running = false;
   pt.guideEndsAt = 0;
   pt.guideEndsAudioTime = 0;
+  pt.guideToneEndsAudioTime = 0;
+  pt.sustainGuide = false;
   pt.guideLockActive = false;
+  setPaceLine('');
   pt.awaitingRelease = false;
   pt.pendingRender = null;
   if (pt.rafId) { cancelAnimationFrame(pt.rafId); pt.rafId = null; }
@@ -1084,7 +1249,9 @@ function ptNext() {
 
 function ptReplay() {
   const midi = guideMidi();
-  if (midi != null) playTone(midi);
+  if (midi == null) return;
+  // A manual replay always ends. The "Until you sing" option needs a mic.
+  playTone(midi, guideLengthOption().seconds ?? 1.5);
 }
 
 function wireReplayButton() {
@@ -1151,6 +1318,42 @@ function fillSelect(select, options, valueKey, labelKey, selected) {
   select.value = selected;
 }
 
+/** Fill the Key and Scale selects from the shared musical context. */
+function fillContextSelects() {
+  const { root, scale } = getContext();
+  const keySel = el('pt-key');
+  if (keySel) {
+    keySel.innerHTML = '';
+    ROOTS.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      keySel.appendChild(opt);
+    });
+    keySel.value = root;
+  }
+  const scaleSel = el('pt-scale-name');
+  if (scaleSel) {
+    scaleSel.innerHTML = '';
+    orderedScaleNames().forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      scaleSel.appendChild(opt);
+    });
+    scaleSel.value = scale;
+  }
+}
+
+/** Keep the Key and Scale selects equal to the shared musical context. */
+function syncContextSelects() {
+  const { root, scale } = getContext();
+  const keySel = el('pt-key');
+  const scaleSel = el('pt-scale-name');
+  if (keySel && keySel.value !== root) keySel.value = root;
+  if (scaleSel && scaleSel.value !== scale) scaleSel.value = scale;
+}
+
 function syncRangeUI() {
   const lowSel = el('pt-range-low');
   const highSel = el('pt-range-high');
@@ -1174,14 +1377,15 @@ function refreshRangePresetOptions() {
 }
 
 function updateTaskVisibility() {
-  const patternField = document.querySelector('.pt-pattern-field');
   const intervalWrap = el('pt-interval-wrap');
   const intervalDirWrap = el('pt-interval-dir-wrap');
   const melodyNote = el('pt-melody-note');
-  if (patternField) patternField.hidden = pt.task !== 'pattern';
+  const patternNote = el('pt-pattern-note');
   if (intervalWrap) intervalWrap.hidden = pt.task !== 'interval';
   if (intervalDirWrap) intervalDirWrap.hidden = pt.task !== 'interval';
   if (melodyNote) melodyNote.hidden = pt.task !== 'pattern';
+  // The run pattern select stays visible. This note tells the singer when it applies.
+  if (patternNote) patternNote.hidden = pt.task === 'pattern';
 }
 
 function rebuildIfRunning() {
@@ -1196,7 +1400,7 @@ function rebuildIfRunning() {
 
 function rebuildPreviewStage() {
   const { scale } = getContext();
-  pt.stages = buildStages(scale, pt.pattern);
+  pt.stages = buildStages(scale, pt.pattern, pt.direction);
   pt.stageIdx = 0;
   buildSequence();
   updateTaskVisibility();
@@ -1227,6 +1431,10 @@ function loadSettings() {
     saveSetting('pitchTrainer.feedbackMode', 'live');
   }
   pt.pattern = getSetting('pitchTrainer.pattern', pt.pattern, SCALE_PATTERNS.map(p => p.id));
+  pt.direction = getSetting('pitchTrainer.direction', pt.direction, SEQUENCE_DIRECTIONS.map(d => d.id));
+  pt.guideLength = getSetting('pitchTrainer.guideLength', pt.guideLength, GUIDE_LENGTH_OPTIONS.map(o => o.id));
+  pt.prepMs = Number(getSetting('pitchTrainer.prepMs', pt.prepMs));
+  if (!PREP_OPTIONS.some(o => o.ms === pt.prepMs)) pt.prepMs = DEFAULT_PREP_MS;
   pt.intervalId = getSetting('pitchTrainer.intervalId', pt.intervalId, INTERVAL_OPTIONS);
   pt.intervalDirection = getSetting('pitchTrainer.intervalDirection', pt.intervalDirection, ['ascending', 'descending']);
   pt.rangeLow = Number(getSetting('pitchTrainer.rangeLow', pt.rangeLow));
@@ -1245,10 +1453,19 @@ function initPitchTrainer() {
   if (pt.initialized) {
     syncRangeUI();
     refreshRangePresetOptions();
+    syncContextSelects();
     const patternSel = el('pt-pattern');
     if (patternSel) patternSel.value = pt.pattern;
     const taskSel = el('pt-task');
     if (taskSel) taskSel.value = pt.task;
+    const dirSel = el('pt-seq-dir');
+    if (dirSel) dirSel.value = pt.direction;
+    const guideLenSel = el('pt-guide-length');
+    if (guideLenSel) guideLenSel.value = pt.guideLength;
+    const prepSel = el('pt-prep');
+    if (prepSel) prepSel.value = String(pt.prepMs);
+    const holdSel2 = el('pt-hold');
+    if (holdSel2) holdSel2.value = String(pt.holdMs);
     if (!pt.running) rebuildPreviewStage();
     setReplayButtonActive(false);
     applyFeedbackVisibility();
@@ -1267,7 +1484,7 @@ function initPitchTrainer() {
     HOLD_DURATIONS_MS.forEach(ms => {
       const opt = document.createElement('option');
       opt.value = String(ms);
-      opt.textContent = (ms / 1000).toFixed(ms % 1000 ? 2 : 1) + 's';
+      opt.textContent = holdLabel(ms);
       holdSel.appendChild(opt);
     });
     holdSel.value = String(pt.holdMs);
@@ -1276,6 +1493,32 @@ function initPitchTrainer() {
       saveSetting('pitchTrainer.holdMs', pt.holdMs);
       if (pt.matcher) rebuildMatcher();
       if (pt.running) setTarget();
+    };
+  }
+
+  fillSelect(
+    el('pt-guide-length'),
+    GUIDE_LENGTH_OPTIONS.map(o => ({ id: o.id, label: o.label })),
+    'id', 'label', pt.guideLength,
+  );
+  const guideLenSel = el('pt-guide-length');
+  if (guideLenSel) {
+    guideLenSel.onchange = () => {
+      pt.guideLength = guideLenSel.value;
+      saveSetting('pitchTrainer.guideLength', pt.guideLength);
+    };
+  }
+
+  fillSelect(
+    el('pt-prep'),
+    PREP_OPTIONS.map(o => ({ id: String(o.ms), label: o.label })),
+    'id', 'label', String(pt.prepMs),
+  );
+  const prepSel = el('pt-prep');
+  if (prepSel) {
+    prepSel.onchange = () => {
+      pt.prepMs = Number(prepSel.value);
+      saveSetting('pitchTrainer.prepMs', pt.prepMs);
     };
   }
 
@@ -1377,6 +1620,36 @@ function initPitchTrainer() {
     };
   }
 
+  fillContextSelects();
+
+  const keySel = el('pt-key');
+  if (keySel) {
+    keySel.onchange = () => {
+      // The musical context is the one source of truth. It saves itself.
+      setContext({ root: keySel.value }, 'pitchTrainer');
+      syncContextSelects();
+    };
+  }
+
+  const scaleSel = el('pt-scale-name');
+  if (scaleSel) {
+    scaleSel.onchange = () => {
+      setContext({ scale: scaleSel.value }, 'pitchTrainer');
+      syncContextSelects();
+    };
+  }
+
+  const seqDirSel = el('pt-seq-dir');
+  if (seqDirSel) {
+    fillSelect(seqDirSel, SEQUENCE_DIRECTIONS, 'id', 'label', pt.direction);
+    seqDirSel.onchange = () => {
+      pt.direction = seqDirSel.value;
+      saveSetting('pitchTrainer.direction', pt.direction);
+      rebuildIfRunning();
+      if (!pt.running) rebuildPreviewStage();
+    };
+  }
+
   fillNoteSelect(lowSel, pt.rangeLow);
   fillNoteSelect(highSel, pt.rangeHigh);
   refreshRangePresetOptions();
@@ -1422,13 +1695,14 @@ function initPitchTrainer() {
   }
 
   subscribeContext(() => {
+    syncContextSelects();
     if (pt.running) { buildSequence(); setTarget(); }
     else rebuildPreviewStage();
   });
 
   if (!pt.stages.length) {
     const { scale } = getContext();
-    pt.stages = buildStages(scale, pt.pattern);
+    pt.stages = buildStages(scale, pt.pattern, pt.direction);
   }
   updateTaskVisibility();
   rebuildPreviewStage();

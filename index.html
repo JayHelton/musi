@@ -98,6 +98,7 @@
 <link rel="stylesheet" href="css/shell.css">
 <link rel="stylesheet" href="css/context-quick.css">
 <link rel="stylesheet" href="css/tool-page.css">
+<link rel="stylesheet" href="css/pixel-ui.css">
 <link rel="stylesheet" href="css/audio-dock.css">
 <link rel="stylesheet" href="css/landscape.css">
 </head>
@@ -769,37 +770,35 @@
       <div class="quiz-card" style="margin-top:16px">
         <div class="field-label">Pitch trainer</div>
         <div class="pt-controls">
+          <div class="pt-group-label">Musical</div>
           <label class="pt-field">
             <span>Task</span>
             <select id="pt-task"></select>
           </label>
           <label class="pt-field">
-            <span>Profile</span>
-            <select id="pt-profile"></select>
+            <span>Key</span>
+            <select id="pt-key"></select>
           </label>
           <label class="pt-field">
-            <span>Hold</span>
-            <select id="pt-hold"></select>
-          </label>
-          <label class="pt-field">
-            <span>Style</span>
-            <select id="pt-style"></select>
-          </label>
-          <label class="pt-field">
-            <span>Feedback</span>
-            <select id="pt-feedback"></select>
+            <span>Scale</span>
+            <select id="pt-scale-name"></select>
           </label>
           <label class="pt-field pt-pattern-field">
-            <span>Pattern</span>
+            <span>Run pattern</span>
             <select id="pt-pattern"></select>
           </label>
+          <label class="pt-field" id="pt-seq-dir-wrap">
+            <span>Run direction</span>
+            <select id="pt-seq-dir"></select>
+          </label>
+          <p class="pt-melody-note" id="pt-pattern-note" hidden>The run pattern applies to the Run task. Select the Run task to sing it.</p>
           <p class="pt-melody-note" id="pt-melody-note" hidden>Melody lives in Runner.</p>
           <label class="pt-field pt-interval-field" id="pt-interval-wrap" hidden>
             <span>Interval</span>
             <select id="pt-interval"></select>
           </label>
           <label class="pt-field pt-interval-field" id="pt-interval-dir-wrap" hidden>
-            <span>Direction</span>
+            <span>Interval direction</span>
             <select id="pt-interval-dir"></select>
           </label>
           <label class="pt-field">
@@ -815,6 +814,33 @@
             <select id="pt-range-high"></select>
           </label>
         </div>
+        <div class="pt-controls">
+          <div class="pt-group-label">Pacing</div>
+          <label class="pt-field">
+            <span>Hold</span>
+            <select id="pt-hold"></select>
+          </label>
+          <label class="pt-field">
+            <span>Guide length</span>
+            <select id="pt-guide-length"></select>
+          </label>
+          <label class="pt-field">
+            <span>Prep time</span>
+            <select id="pt-prep"></select>
+          </label>
+          <label class="pt-field">
+            <span>Profile</span>
+            <select id="pt-profile"></select>
+          </label>
+          <label class="pt-field">
+            <span>Style</span>
+            <select id="pt-style"></select>
+          </label>
+          <label class="pt-field">
+            <span>Feedback</span>
+            <select id="pt-feedback"></select>
+          </label>
+        </div>
         <div class="pt-controls" style="margin-bottom:6px">
           <label class="pt-field" style="flex-direction:row;align-items:center;gap:8px">
             <input type="checkbox" id="pt-guide" checked>
@@ -826,6 +852,7 @@
         </div>
         <div class="pt-stage" id="pt-stage">Press start to begin</div>
         <div class="pt-prompt" id="pt-prompt">--<span class="pt-prompt-sub">Sing the center of the note</span></div>
+        <div class="pt-pace" id="pt-pace" hidden aria-live="polite"></div>
         <div class="pt-meter" id="pt-meter">
           <div class="pt-meter-scale" id="pt-scale"></div>
           <div class="pt-meter-track" id="pt-track">
@@ -854,11 +881,19 @@
       </div>
       <div class="quiz-card pr-card" style="margin-top:16px">
         <div class="field-label">Pitch runner <span class="pr-tag">beta</span></div>
-        <p class="pr-intro">Sing and sustain each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left. Use Note length (1&ndash;4 beats) to practice longer holds. The melody guide is a short cue only and does not count toward hits.</p>
+        <p class="pr-intro">Sing and sustain each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left. Set the key, the scale, the melody, the note length, and the rest between notes. Use &quot;Listen first&quot; to hear the melody one time before you sing it.</p>
         <div class="pt-controls">
           <label class="pt-field">
             <span>Challenge</span>
             <select id="pr-difficulty"></select>
+          </label>
+          <label class="pt-field">
+            <span>Key</span>
+            <select id="pr-key"></select>
+          </label>
+          <label class="pt-field">
+            <span>Scale</span>
+            <select id="pr-scale"></select>
           </label>
           <label class="pt-field pt-pattern-field">
             <span>Melody</span>
@@ -873,6 +908,10 @@
             <select id="pr-length"></select>
           </label>
           <label class="pt-field">
+            <span>Rest between notes</span>
+            <select id="pr-rest"></select>
+          </label>
+          <label class="pt-field">
             <span>Tempo</span>
             <span class="pr-tempo">
               <button type="button" class="pr-bpm-btn" id="pr-bpm-down" aria-label="Slower">&minus;</button>
@@ -883,7 +922,8 @@
         </div>
         <div class="pr-toggles">
           <label class="pr-check"><input type="checkbox" id="pr-metronome" checked><span>Metronome click</span></label>
-          <label class="pr-check"><input type="checkbox" id="pr-guide"><span>Play melody guide</span></label>
+          <label class="pr-check"><input type="checkbox" id="pr-guide"><span>Short pitch cue at each note</span></label>
+          <label class="pr-check"><input type="checkbox" id="pr-listen-first"><span>Listen first, then sing</span></label>
         </div>
         <div class="pr-hud">
           <div class="pr-stat"><span class="pr-stat-val" id="pr-score">0</span><span class="pr-stat-label">Score</span></div>
@@ -897,6 +937,7 @@
         </div>
         <div class="tuner-tuning-row" style="margin-top:14px;margin-bottom:0">
           <button class="btn primary" id="pr-toggle" onclick="togglePitchRunner()">Start game</button>
+          <button class="btn" id="pr-listen" type="button">Listen</button>
         </div>
         <div class="pt-status" id="pr-status">Mic off</div>
       </div>

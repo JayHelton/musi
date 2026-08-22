@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v268-scale-positions";
+const CACHE_VERSION = "v269-pixel-ui";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -53,6 +53,7 @@ const PRECACHE_URLS = [
   "css/shell.css",
   "css/context-quick.css",
   "css/tool-page.css",
+  "css/pixel-ui.css",
   "css/audio-dock.css",
   "css/landscape.css",
   "chord-cards/",

@@ -17,9 +17,11 @@
   --btn-b: #ffe14a;
   --btn-x: #4da3ff;
   --on-accent: #0b1020;
-  --radius-shell: 28px;
-  --radius-screen: 18px;
-  --radius-pill: 999px;
+  /* Hard pixel chrome: the shell keeps square edges. The stepped
+     corners come from --px-notch in css/pixel-ui.css. */
+  --radius-shell: 0px;
+  --radius-screen: 0px;
+  --radius-pill: 0px;
 }
 
 html {
@@ -175,18 +177,14 @@ textarea,
 
 /* ---- Buttons / pills (hardware-inspired) ---- */
 .btn {
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
+  border-radius: 0;
+  border: var(--px-border) solid var(--px-edge);
   background: var(--bg2);
 }
 .btn.primary {
   background: var(--accent);
   color: var(--on-accent);
-  border-color: transparent;
-  box-shadow: 0 0 18px var(--accent-dim);
-}
-.btn.primary:hover {
-  box-shadow: 0 0 28px var(--accent-glow);
+  border-color: var(--on-accent);
 }
 .diff-btn.active,
 .oct-btn.active,
@@ -199,17 +197,19 @@ textarea,
 /* Selection bars like the handheld OS */
 .subview-tabs {
   background: rgba(18, 26, 46, 0.9);
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   padding: 4px;
 }
 .subview-tab.active {
-  background: linear-gradient(180deg, #7eb8ff, #4da3ff);
+  background: var(--btn-x);
   color: var(--on-accent);
-  border-radius: var(--radius-pill);
+  border-radius: 0;
 }
 
 /* ---- Dock as handheld footer chrome ---- */
 /* ---- Cards / panels as screen tiles ---- */
+/* The panels take their hard outline and their stepped corners from
+   css/pixel-ui.css. This rule only sets the shared fill. */
 .quiz-card,
 .progress-header,
 .sidebar-list,
@@ -217,10 +217,10 @@ textarea,
 .setup-summary,
 .compact-progress,
 .action-dock {
-  border-radius: var(--radius-screen);
-  border-color: var(--border);
-  background: rgba(22, 31, 54, 0.88);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
+  border-radius: 0;
+  border-color: var(--px-edge);
+  background: var(--px-panel-fill);
+  box-shadow: none;
 }
 
 /* Triads Reference — quality colors from GBC face buttons / accent tokens */
@@ -235,9 +235,10 @@ textarea,
 
 #sec-triads .triad-row {
   background: rgba(18, 26, 46, 0.72);
-  border-color: rgba(180, 140, 255, 0.18);
-  border-radius: var(--radius-screen);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border-color: var(--px-edge);
+  border-width: var(--px-border);
+  border-radius: 0;
+  box-shadow: var(--px-shadow-sm);
 }
 #sec-triads .triad-info-head h3,
 #sec-triads .ref-fb-title {
@@ -263,14 +264,15 @@ textarea,
 }
 
 .rail-icon-btn {
-  border-radius: 14px;
+  border-radius: 0;
+  border: var(--px-border) solid var(--px-edge);
   background: rgba(18, 26, 46, 0.9);
 }
 
 .now-playing {
   background: rgba(22, 31, 54, 0.94);
-  border: 1px solid rgba(180, 140, 255, 0.25);
-  border-radius: var(--radius-pill);
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

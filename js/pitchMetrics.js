@@ -7,7 +7,7 @@ export const ACCURACY_PROFILES = {
 };
 
 export const DEFAULT_PROFILE_ID = 'center';
-export const HOLD_DURATIONS_MS = [750, 1000, 1500, 2000, 2500];
+export const HOLD_DURATIONS_MS = [750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
 export const DEFAULT_HOLD_MS = 1000;
 
 export const ONSET_IGNORE_MS = 250;

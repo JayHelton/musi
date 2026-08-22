@@ -1,0 +1,1331 @@
+/* ============================================================
+   Pixel UI primitives
+   Hard-edged pixel-art chrome for the Atomic Purple GBC theme.
+
+   This file adds shape only. It does not change the palette.
+   All colours come from the tokens in css/base.css and
+   css/theme-gbc.css.
+
+   Primitives:
+     .px-panel      stepped-corner panel, hard outline, solid shadow
+     .px-panel-flat stepped-corner panel without the drop shadow
+     .px-frame      rectangular hard frame with a solid drop shadow
+     .px-dstroke    double-stroke frame (outer 2px, gap, inner 1px)
+     .px-inset      dashed 1px inner content frame
+     .px-rule       1 pixel dashed divider line
+     .px-dither-25  25 percent checker fill
+     .px-dither-50  50 percent checker fill
+     .px-titlebar   card header strip with three pixel dots
+     .px-hud        blocky stat readout tile
+     .px-press      press-down feedback on the shadow axis
+     .px-pixelated  crisp scaling for pixel-art raster images
+   ============================================================ */
+
+/* ---- 1. Shape primitives ---------------------------------- */
+
+/* A panel with a square notch cut from each corner. The element
+   background paints the outline. The ::before layer paints the
+   fill, inset by the outline width. A drop-shadow filter follows
+   the notched silhouette, so the shadow steps with the corners. */
+.px-panel,
+.px-panel-flat {
+  --px-s: var(--px-step);
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  background: var(--px-edge);
+  background-image: none;
+  clip-path: var(--px-notch);
+}
+
+.px-panel {
+  filter: drop-shadow(var(--px-shadow-x) var(--px-shadow-y) 0 var(--px-ink));
+}
+
+.px-panel::before,
+.px-panel-flat::before {
+  content: "";
+  position: absolute;
+  inset: var(--px-border);
+  z-index: -1;
+  background-color: var(--px-panel-fill);
+  background-image: var(--px-panel-tex, none);
+  background-size: var(--px-dither-size);
+  clip-path: var(--px-notch);
+  pointer-events: none;
+}
+
+/* A rectangular hard frame. Use it where a clip path is not safe,
+   for example a sticky bar or a control that holds a popover. */
+.px-frame {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--px-panel-fill);
+  box-shadow: var(--px-shadow);
+}
+
+/* The PRESS START treatment. An outer stroke, a gap, an inner
+   hairline stroke. --px-ds-ink is the stroke colour.
+   --px-ds-gap is the gap colour, normally the fill colour. */
+.px-dstroke {
+  border: var(--px-border) solid var(--px-ds-ink, var(--on-accent));
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 2px var(--px-ds-gap, transparent),
+    inset 0 0 0 3px var(--px-ds-ink, var(--on-accent));
+}
+
+/* A dashed 1 pixel frame for a content region inside a panel. */
+.px-inset {
+  border: var(--px-hair) dashed var(--px-edge-hi);
+  border-radius: 0;
+}
+
+/* A dashed divider line. */
+.px-rule {
+  height: 2px;
+  border: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--px-edge-hi) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+/* ---- 2. Dither fills -------------------------------------- */
+
+.px-dither-25 {
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+}
+
+.px-dither-50 {
+  background-image: var(--px-dither-50);
+  background-size: var(--px-dither-size);
+}
+
+/* ---- 3. Title bar chrome ---------------------------------- */
+
+.px-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-pixel);
+  font-size: 0.52rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background-color: rgba(11, 16, 32, 0.55);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  border-bottom: var(--px-border) solid var(--px-edge);
+}
+
+/* Three pixel dots in the ABXY hues. */
+.px-titlebar::before,
+.sidebar-list > .sl-head::before,
+.setup-summary > .setup-summary-label::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 4px;
+  height: 4px;
+  margin-right: 16px;
+  background: var(--btn-a);
+  box-shadow: 7px 0 0 var(--btn-b), 14px 0 0 var(--btn-x);
+}
+
+/* ---- 4. HUD stat tile ------------------------------------- */
+
+/* A blocky score readout. The label sits in pixel type. The value
+   sits in VT323 with tabular figures, so digits do not jump. */
+.px-hud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: 64px;
+  padding: 4px 10px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: rgba(11, 16, 32, 0.6);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+}
+
+.px-hud-label,
+.px-hud .ph-streak-label,
+.px-hud .ph-acc-label {
+  font-family: var(--font-pixel) !important;
+  font-size: 0.46rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.px-hud-value,
+.px-hud .ph-streak-val,
+.px-hud .ph-acc-val {
+  font-family: var(--font-ui) !important;
+  font-size: 1.35rem;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  color: var(--accent);
+}
+
+/* ---- 5. Press feedback ------------------------------------ */
+
+/* A pixel button moves along the shadow axis and drops its
+   shadow. It never scales, because a scale breaks the grid. */
+.px-press {
+  box-shadow: var(--px-shadow-sm);
+  transition: background 0.12s steps(2, end), color 0.12s steps(2, end),
+    border-color 0.12s steps(2, end);
+}
+
+.px-press:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 0 var(--px-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .px-press {
+    transition: none;
+  }
+}
+
+/* ---- 6. Pixel-art raster images --------------------------- */
+
+.px-pixelated,
+.boot-splash-inner img,
+.app-rail img,
+.app-bottom img,
+.area-tool-icon img {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ============================================================
+   APPLICATION LAYER
+   The rules below map the primitives onto the real components.
+   ============================================================ */
+
+/* ---- Focus: a hard accent outline, no blur ----------------- */
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--px-border) solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+
+.btn.primary:focus-visible,
+.subview-tab.active:focus-visible,
+.diff-btn.active:focus-visible,
+.oct-btn.active:focus-visible,
+.quick-scale-chip.active:focus-visible {
+  outline-color: var(--text);
+}
+
+.section-head h2:focus,
+.section-head h2:focus-visible {
+  outline: var(--px-border) solid var(--px-edge-hi);
+  outline-offset: 4px;
+}
+
+/* ---- Generic controls ------------------------------------- */
+
+.btn {
+  min-height: var(--tap-min);
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--bg2);
+  box-shadow: var(--px-shadow-sm);
+  letter-spacing: 0.04em;
+}
+
+.btn:hover {
+  transform: none;
+  background: var(--hover);
+  border-color: var(--px-edge-hi);
+}
+
+.btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 0 var(--px-ink);
+}
+
+/* The primary button carries the double-stroke frame. */
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: var(--px-border) solid var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent),
+    var(--px-shadow-sm);
+  font-weight: 600;
+}
+
+.btn.primary:hover {
+  background: var(--accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent),
+    inset 0 0 0 200px rgba(255, 255, 255, 0.08),
+    var(--px-shadow-sm);
+}
+
+.btn.primary:active {
+  transform: translate(3px, 3px);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent);
+}
+
+.btn.sm {
+  min-height: 34px;
+  padding: 4px 12px;
+}
+
+.btn.modal-danger {
+  border-color: var(--err);
+  box-shadow: var(--px-shadow-sm);
+}
+
+/* ---- Segmented groups ------------------------------------- */
+
+.diff-group,
+.oct-group {
+  gap: 4px;
+}
+
+.diff-btn,
+.oct-btn,
+.quick-scale-chip,
+.seg-btn {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0 !important;
+  background: var(--bg2);
+  box-shadow: var(--px-shadow-sm);
+  min-height: var(--tap-min);
+}
+
+.diff-btn:not(:last-child),
+.oct-btn:not(:last-child) {
+  border-right: var(--px-border) solid var(--px-edge);
+}
+
+.diff-btn:hover,
+.oct-btn:hover,
+.quick-scale-chip:hover,
+.seg-btn:hover {
+  border-color: var(--px-edge-hi);
+  color: var(--text);
+}
+
+.diff-btn:active,
+.oct-btn:active,
+.quick-scale-chip:active,
+.seg-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 0 var(--px-ink);
+}
+
+.diff-btn.active,
+.oct-btn.active,
+.quick-scale-chip.active,
+.seg-btn.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent),
+    var(--px-shadow-sm);
+}
+
+/* ---- Subview tab bar -------------------------------------- */
+
+.subview-tabs {
+  gap: 4px;
+  padding: 4px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: rgba(11, 16, 32, 0.86);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  box-shadow: var(--px-shadow-sm);
+}
+
+.subview-tab {
+  border: var(--px-border) solid transparent;
+  border-radius: 0;
+  min-height: var(--tap-min);
+}
+
+.subview-tab:hover {
+  border-color: var(--px-edge);
+  color: var(--text);
+}
+
+.subview-tab.active,
+.tool-page-modes.subview-tabs .subview-tab.active {
+  background: var(--btn-x);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 2px var(--btn-x),
+    inset 0 0 0 3px var(--on-accent);
+}
+
+.tool-page-modes.subview-tabs .subview-tab.active {
+  background: var(--accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent);
+}
+
+/* ---- Form controls ---------------------------------------- */
+
+select,
+input[type="text"],
+input[type="number"],
+input[type="search"],
+textarea,
+.modal-input {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: var(--tap-min);
+}
+
+select:hover,
+input[type="text"]:hover,
+input[type="number"]:hover,
+textarea:hover {
+  border-color: var(--px-edge-hi);
+}
+
+select:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+.modal-input:focus {
+  border-color: var(--accent);
+  box-shadow: none;
+  outline: var(--px-border) solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A native select keeps operating-system chrome, so the arrow is
+   replaced by a stepped pixel triangle drawn in an inline SVG. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' shape-rendering='crispEdges'%3E%3Cpath fill='%23ffe14a' d='M0 0h12v2H0z M2 2h8v2H2z M4 4h4v2H4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 6px;
+}
+
+select option {
+  background: var(--bg2);
+  color: var(--text);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  border: var(--px-border) solid var(--px-edge-hi);
+  border-radius: 0;
+  background: var(--bg2);
+  cursor: pointer;
+}
+
+:where(input[type="checkbox"], input[type="radio"]) {
+  width: 18px;
+  height: 18px;
+}
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  background-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' shape-rendering='crispEdges'%3E%3Cpath fill='%230b1020' d='M0 4h2v2H0z M2 6h2v2H2z M4 6h2v2H4z M6 2h2v2H6z M8 0h2v2H8z M6 4h2v2H6z M4 4h2v2H4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  border-color: var(--on-accent);
+}
+
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+/* ---- Cards and panels ------------------------------------- */
+
+.quiz-card,
+.progress-header,
+.sidebar-list,
+.adv-options,
+.tool-page-advanced,
+.setup-summary,
+.compact-progress,
+.tool-page-header,
+.tool-page-context,
+.area-tool-row,
+.modal-dialog,
+.overflow-menu,
+.shell-context-panel,
+.filter-summary-btn,
+.options-trigger,
+.setup-chip {
+  --px-s: var(--px-step);
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  background: var(--px-edge);
+  background-image: none;
+  box-shadow: none;
+  clip-path: var(--px-notch);
+  filter: drop-shadow(var(--px-shadow-x) var(--px-shadow-y) 0 var(--px-ink));
+}
+
+.quiz-card::before,
+.progress-header::before,
+.sidebar-list::before,
+.adv-options::before,
+.tool-page-advanced::before,
+.setup-summary::before,
+.compact-progress::before,
+.tool-page-header::before,
+.tool-page-context::before,
+.area-tool-row::before,
+.modal-dialog::before,
+.overflow-menu::before,
+.shell-context-panel::before,
+.filter-summary-btn::before,
+.options-trigger::before,
+.setup-chip::before {
+  content: "";
+  position: absolute;
+  inset: var(--px-border);
+  z-index: -1;
+  background-color: var(--px-panel-fill);
+  background-image: var(--px-panel-tex, none);
+  background-size: var(--px-dither-size);
+  clip-path: var(--px-notch);
+  pointer-events: none;
+}
+
+/* Small controls take a smaller notch, so the corner stays even. */
+.setup-chip,
+.options-trigger,
+.filter-summary-btn,
+.compact-progress {
+  --px-s: var(--px-step-sm);
+}
+
+.quiz-card:hover {
+  transform: none;
+  background: var(--px-edge-hi);
+}
+
+.quiz-card {
+  padding: 22px;
+}
+
+/* Panels that sit on a busy background take a light dither, so the
+   shading stays pixel-true instead of a soft gradient. */
+.progress-header,
+.setup-summary,
+.tool-page-context,
+.compact-progress {
+  --px-panel-tex: var(--px-dither-25);
+}
+
+/* ---- Title bar strips ------------------------------------- */
+
+.sidebar-list > .sl-head,
+.setup-summary > .setup-summary-label {
+  display: flex;
+  align-items: center;
+  background-color: rgba(11, 16, 32, 0.5);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  border-bottom: var(--px-border) solid var(--px-edge);
+}
+
+.setup-summary > .setup-summary-label {
+  margin: -10px -12px 4px;
+  padding: 8px 12px;
+}
+
+.sidebar-list > .sl-head {
+  padding: 9px 12px;
+}
+
+.sl-item {
+  border-left: 3px solid transparent;
+  border-radius: 0;
+}
+
+.sl-item.active {
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+
+/* ---- Setup chips ------------------------------------------ */
+
+.setup-chip {
+  min-height: var(--tap-min);
+}
+
+.setup-chip:hover {
+  background: var(--px-edge-hi);
+}
+
+/* ---- Advanced options ------------------------------------- */
+
+.adv-options > summary,
+.tool-page-advanced > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(11, 16, 32, 0.5);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  border-bottom: var(--px-border) solid transparent;
+  font-family: var(--font-pixel) !important;
+  font-size: 0.56rem;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.adv-options[open] > summary,
+.tool-page-advanced[open] > summary {
+  border-bottom-color: var(--px-edge);
+}
+
+.adv-options[open] > *:not(summary),
+.tool-page-advanced[open] > *:not(summary) {
+  margin: 12px;
+  padding: 12px;
+  border: var(--px-hair) dashed var(--px-edge-hi);
+}
+
+/* ---- Options trigger and filter summary ------------------- */
+
+.options-trigger,
+.filter-summary-btn {
+  min-height: var(--tap-min);
+}
+
+.filter-summary-count,
+.filter-summary-results {
+  border-radius: 0;
+  border: var(--px-hair) solid var(--px-edge-hi);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Progress header and HUD tiles ------------------------ */
+
+.progress-header .ph-streak,
+.progress-header .ph-accuracy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: 68px;
+  padding: 4px 10px;
+  border: var(--px-border) solid var(--px-edge);
+  background-color: rgba(11, 16, 32, 0.6);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+}
+
+.progress-header .ph-streak {
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+}
+
+.progress-header .ph-streak-label,
+.progress-header .ph-acc-label {
+  font-family: var(--font-pixel) !important;
+  font-size: 0.44rem;
+  letter-spacing: 1.2px;
+}
+
+.progress-header .ph-streak-val,
+.progress-header .ph-acc-val {
+  font-family: var(--font-ui) !important;
+  font-size: 1.4rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The progress track uses a dither instead of a blurred gradient. */
+.ph-bar-track {
+  border-radius: 0 !important;
+  border: var(--px-hair) solid var(--px-edge);
+  background-color: rgba(11, 16, 32, 0.7);
+  background-image: var(--px-dither-50);
+  background-size: var(--px-dither-size);
+}
+
+.ph-bar-fill {
+  border-radius: 0 !important;
+  background: var(--accent) !important;
+  box-shadow: none !important;
+}
+
+.ph-bar-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Action dock ------------------------------------------ */
+
+/* The dock is sticky and uses a backdrop filter, so it keeps a
+   rectangle and a plain hard frame. */
+.action-dock {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: rgba(11, 16, 32, 0.94);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  box-shadow: var(--px-shadow);
+}
+
+/* ---- Area landing rows ------------------------------------ */
+
+.area-tool-row {
+  min-height: 62px;
+  padding: 12px 14px;
+}
+
+.area-tool-row:hover {
+  background: var(--px-edge-hi);
+}
+
+.area-tool-row .area-tool-icon {
+  width: 40px;
+  height: 40px;
+  border: var(--px-border) solid var(--px-edge-hi);
+  border-radius: 0;
+  background-color: var(--accent-dim);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  color: var(--accent);
+}
+
+.area-tool-row:hover .area-tool-icon,
+.area-tool-row:focus-visible .area-tool-icon {
+  background-color: var(--accent);
+  background-image: none;
+  color: var(--on-accent);
+}
+
+.area-tool-row:active {
+  transform: translate(3px, 3px);
+  filter: none;
+}
+
+.area-tool-title {
+  letter-spacing: 0.04em;
+}
+
+.area-list-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.area-list-label::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 2px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--px-edge-hi) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+/* ---- Left rail and phone bar as handheld chrome ------------ */
+
+.app-rail {
+  background-color: rgba(11, 16, 32, 0.92);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  border-right: var(--px-border) solid var(--px-edge);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.app-rail-item {
+  border: var(--px-border) solid transparent;
+  border-radius: 0;
+  font-family: var(--font-pixel) !important;
+  font-size: 0.44rem;
+  letter-spacing: 1px;
+}
+
+.app-rail-item:hover {
+  border-color: var(--px-edge);
+  background: var(--hover);
+}
+
+.app-rail-item.active {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent);
+}
+
+.app-rail-foot {
+  border-top: var(--px-border) solid var(--px-edge);
+}
+
+.app-rail-util,
+.app-bottom-util {
+  border: var(--px-border) solid transparent;
+  border-radius: 0;
+  font-family: var(--font-pixel) !important;
+  font-size: 0.4rem;
+  letter-spacing: 1px;
+}
+
+.app-rail-util:hover,
+.app-bottom-util:hover {
+  border-color: var(--px-edge);
+}
+
+.app-bottom {
+  background-color: rgba(11, 16, 32, 0.94);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  border-top: var(--px-border) solid var(--px-edge);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.app-bottom-item {
+  border: var(--px-border) solid transparent;
+  border-radius: 0;
+  font-family: var(--font-pixel) !important;
+  font-size: 0.42rem;
+  letter-spacing: 0.6px;
+}
+
+.app-bottom-item.active {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent);
+}
+
+.app-bottom-item.active::after {
+  border-radius: 0;
+  width: 4px;
+  height: 4px;
+  background: var(--on-accent);
+  box-shadow: none;
+}
+
+/* ---- Tool page header ------------------------------------- */
+
+.tool-page-header {
+  --px-s: var(--px-step);
+  --px-panel-tex: var(--px-dither-25);
+  padding: 12px 14px;
+}
+
+.tool-page-header h1,
+.tool-page-header h2 {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+/* The chevron before the back label reads as a pixel arrow. */
+.tool-page-back,
+.tool-back {
+  font-family: var(--font-pixel) !important;
+  font-size: 0.5rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.tool-page-more {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--bg2);
+  box-shadow: var(--px-shadow-sm);
+}
+
+.tool-page-more:active {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+
+.tool-page-context-default {
+  border: var(--px-hair) dashed var(--px-edge-hi);
+  border-radius: 0;
+  min-height: var(--tap-min);
+}
+
+.tool-page-context-label {
+  font-family: var(--font-pixel) !important;
+  font-size: 0.44rem;
+  letter-spacing: 1.2px;
+}
+
+/* ---- Head actions: quick context and settings ------------- */
+
+.shell-context-btn,
+.shell-settings-btn {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--card);
+  box-shadow: var(--px-shadow-sm);
+}
+
+.shell-context-btn:hover,
+.shell-settings-btn:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.shell-context-btn:active,
+.shell-settings-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+
+.shell-context-btn[aria-expanded="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent);
+}
+
+.shell-context-btn[aria-expanded="true"] .shell-context-icon,
+.shell-context-btn[aria-expanded="true"] .shell-context-tempo,
+.shell-context-btn[aria-expanded="true"] .shell-context-tuning {
+  color: var(--on-accent);
+}
+
+.shell-context-tempo,
+.shell-context-tuning {
+  border-left: var(--px-border) solid var(--px-edge);
+  font-variant-numeric: tabular-nums;
+}
+
+.shell-context-panel {
+  --px-panel-tex: var(--px-dither-25);
+  padding: 14px;
+}
+
+.shell-context-panel-head {
+  padding-bottom: 8px;
+  border-bottom: var(--px-border) solid var(--px-edge);
+}
+
+.shell-context-panel-close {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  min-width: 34px;
+  min-height: 34px;
+}
+
+.shell-context-panel-close:hover {
+  border-color: var(--accent);
+}
+
+/* ---- Overflow menu ---------------------------------------- */
+
+.overflow-menu {
+  padding: 6px;
+}
+
+.overflow-menu-item {
+  border-radius: 0;
+  border: var(--px-border) solid transparent;
+  min-height: var(--tap-min);
+}
+
+.overflow-menu-item:hover {
+  border-color: var(--px-edge);
+}
+
+.overflow-menu-sep {
+  height: 2px;
+  background: none;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--px-edge-hi) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+/* ---- Modals ----------------------------------------------- */
+
+.modal-overlay {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(5, 7, 15, 0.78);
+  background-image: var(--px-dither-50);
+  background-size: var(--px-dither-size);
+}
+
+.modal-dialog {
+  --px-s: var(--px-step);
+  padding: 22px;
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: translate(4px, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+
+.modal-title {
+  padding-bottom: 10px;
+  border-bottom: var(--px-border) solid var(--px-edge);
+}
+
+.modal-actions {
+  padding-top: 14px;
+  border-top: var(--px-hair) dashed var(--px-edge-hi);
+}
+
+/* ---- Scrollbars ------------------------------------------- */
+
+::-webkit-scrollbar-thumb {
+  border-radius: 0;
+}
+
+/* ---- Content width ---------------------------------------- */
+
+/* A wide screen gets a wider measure, so a tool panel does not
+   leave a large empty band on each side. */
+@media (min-width: 1000px) {
+  .quiz-layout {
+    gap: 18px;
+  }
+
+  .quiz-main {
+    max-width: 100%;
+  }
+}
+
+/* ---- Narrow screens --------------------------------------- */
+
+@media (max-width: 768px) {
+  :root {
+    --px-step: 5px;
+    --px-step-sm: 4px;
+    --px-shadow-x: 4px;
+    --px-shadow-y: 4px;
+  }
+
+  .quiz-card {
+    padding: 14px;
+  }
+
+  .quiz-card:hover {
+    transform: none;
+  }
+
+  .setup-summary > .setup-summary-label {
+    margin: -10px -12px 4px;
+  }
+
+  .sl-item {
+    border: var(--px-border) solid var(--px-edge);
+    border-radius: 0;
+    background: var(--bg2);
+  }
+
+  .sl-item.active {
+    border-color: var(--on-accent);
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow:
+      inset 0 0 0 2px var(--accent),
+      inset 0 0 0 3px var(--on-accent);
+  }
+}
+
+@media (min-width: 769px) {
+  .has-setup-summary .quiz-layout .sl-item {
+    border: var(--px-border) solid var(--px-edge);
+    border-radius: 0;
+  }
+
+  .has-setup-summary .quiz-layout .sl-item.active {
+    border-color: var(--on-accent);
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow:
+      inset 0 0 0 2px var(--accent),
+      inset 0 0 0 3px var(--on-accent);
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --px-shadow-x: 3px;
+    --px-shadow-y: 3px;
+  }
+}
+
+/* A short landscape screen keeps the chrome small. */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root {
+    --px-step: 4px;
+    --px-step-sm: 3px;
+    --px-shadow-x: 3px;
+    --px-shadow-y: 3px;
+  }
+}
+
+/* ---- Legacy round chrome, squared off --------------------- */
+
+/* These generic quiz controls kept large radii from the older
+   modern look. They now use the same hard pixel frame. */
+.letter-btn,
+.mod-btn,
+.note-chip,
+.note-input-display,
+.feedback,
+.score-bar,
+.hint-text {
+  border-radius: 0 !important;
+}
+
+.letter-btn,
+.mod-btn {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  border: var(--px-border) solid var(--px-edge);
+  background: var(--bg2);
+  box-shadow: var(--px-shadow-sm);
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.letter-btn:hover,
+.mod-btn:hover {
+  border-color: var(--px-edge-hi);
+  background: var(--hover);
+}
+
+.letter-btn:active,
+.mod-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+
+.letter-btn.correct,
+.letter-btn.wrong {
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px currentColor,
+    inset 0 0 0 3px var(--on-accent),
+    var(--px-shadow-sm);
+}
+
+.note-chip {
+  border: var(--px-hair) solid var(--accent);
+}
+
+.note-input-display {
+  border: var(--px-border) solid var(--px-edge);
+}
+
+.feedback {
+  border-left: var(--px-border) solid currentColor;
+}
+
+.score-bar {
+  border: var(--px-border) solid var(--px-edge);
+  background-color: var(--px-panel-fill);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  box-shadow: var(--px-shadow);
+}
+
+/* ---- Select chevron: beat single-class overrides ----------- */
+
+/* Some screens set a background shorthand on a select with one
+   class. The extra attribute selector keeps the pixel chevron and
+   the hard frame in place. */
+select[class] {
+  appearance: none;
+  -webkit-appearance: none;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  padding-right: 34px;
+  background-color: var(--bg2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' shape-rendering='crispEdges'%3E%3Cpath fill='%23ffe14a' d='M0 0h12v2H0z M2 2h8v2H2z M4 4h4v2H4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 6px;
+}
+
+/* ---- Preferences and settings screen ---------------------- */
+
+.mp-block {
+  --px-s: var(--px-step);
+  --px-panel-tex: var(--px-dither-25);
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  background: var(--px-edge);
+  background-image: none;
+  box-shadow: none;
+  clip-path: var(--px-notch);
+  filter: drop-shadow(var(--px-shadow-x) var(--px-shadow-y) 0 var(--px-ink));
+  padding: 0 16px 16px;
+}
+
+.mp-block::before {
+  content: "";
+  position: absolute;
+  inset: var(--px-border);
+  z-index: -1;
+  background-color: var(--px-panel-fill);
+  background-image: var(--px-panel-tex);
+  background-size: var(--px-dither-size);
+  clip-path: var(--px-notch);
+  pointer-events: none;
+}
+
+/* The block title becomes the card title bar. */
+.mp-block-title {
+  display: flex;
+  align-items: center;
+  margin: 0 -16px 10px;
+  padding: 9px 16px;
+  background-color: rgba(11, 16, 32, 0.5);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  border-bottom: var(--px-border) solid var(--px-edge);
+}
+
+.mp-block-title::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 4px;
+  height: 4px;
+  margin-right: 16px;
+  background: var(--btn-a);
+  box-shadow: 7px 0 0 var(--btn-b), 14px 0 0 var(--btn-x);
+}
+
+.mp-sound-row {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+}
+
+/* ---- Steppers and sliders --------------------------------- */
+
+.context-step {
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  box-shadow: var(--px-shadow-sm);
+  font-family: var(--font-ui);
+}
+
+.context-step:hover {
+  border-color: var(--px-edge-hi);
+}
+
+.context-step:active {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+
+.context-tempo-input {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The volume track uses a dither. The thumb is a square block. */
+.mp-volume-row input[type="range"] {
+  height: 10px;
+  border-radius: 0;
+  border: var(--px-hair) solid var(--px-edge);
+  background-color: rgba(11, 16, 32, 0.7);
+  background-image: var(--px-dither-50);
+  background-size: var(--px-dither-size);
+}
+
+.mp-volume-row input[type="range"]::-webkit-slider-thumb {
+  width: 14px;
+  height: 20px;
+  border-radius: 0;
+  border: var(--px-border) solid var(--on-accent);
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.mp-volume-row input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 20px;
+  border-radius: 0;
+  border: var(--px-border) solid var(--on-accent);
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.mp-volume-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Rail icon button ------------------------------------- */
+
+.rail-icon-btn {
+  border-radius: 0;
+  border: var(--px-border) solid var(--px-edge);
+  box-shadow: var(--px-shadow-sm);
+}
+
+.rail-icon-btn:hover {
+  border-color: var(--accent);
+  box-shadow: var(--px-shadow-sm);
+}
+
+.rail-icon-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+
+.rail-icon-btn.active {
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent);
+}

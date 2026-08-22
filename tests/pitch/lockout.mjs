@@ -76,4 +76,30 @@ export function runLockoutTests() {
     );
     assert.equal(after.matched, true, 'pass after lockout with 1500 ms hold');
   }
+
+  console.log('lockout test 5: the prep window blocks scoring and failure');
+  {
+    // The trainer arms the same lockout, then adds the prep time to it.
+    const cap = { sampleRate: 48000, windowSize: 4096 };
+    const audibleEnd = 1.0;
+    const prepSec = 2;
+    const lockUntil = lockoutUntil(audibleEnd) + prepSec;
+    assert.equal(lockUntil, 3.6);
+    assert.equal(isScoringWindowClear(3.5, lockUntil, cap), false, 'prep window must block scoring');
+    assert.equal(isScoringWindowClear(3.7, lockUntil, cap), true, 'scoring must start after the prep window');
+
+    const m = createPitchMatcher({ profileId: 'center', holdMs: 750 });
+    m.setTarget(TARGET_MIDI);
+    let blocked = 0;
+    const prepSamples = samplesForTone({ fps: 60, durationMs: 2500, centsOff: 0 });
+    for (const s of prepSamples) {
+      const audioTime = audibleEnd + (s.timestampMs / 1000);
+      if (isScoringWindowClear(audioTime, lockUntil, cap)) continue;
+      blocked += 1;
+      const snap = feedMatcher(m, [s], false);
+      assert.equal(snap.progress, 0, 'progress must stay 0 inside the prep window');
+      assert.equal(snap.matched, false, 'no pass inside the prep window');
+    }
+    assert.ok(blocked > 100, `the prep window must block many frames, blocked ${blocked}`);
+  }
 }
