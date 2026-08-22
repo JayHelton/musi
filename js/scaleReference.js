@@ -4,6 +4,7 @@ import { diatonicTriadQuality } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { resolveTuningKey } from './tunings.js';
+import { buildScalePositions, nearestPositionIndex, positionNoteKeys } from './scalePositions.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 
 const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
@@ -24,8 +25,6 @@ const DEGREE_LABELS = {
 };
 // Fretboard position inlay markers (single dots), plus a double dot at 12/24.
 const REF_FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
-// Width of the highlighted "box" position window, in frets (inclusive span).
-const REF_BOX_SPAN = 4;
 
 let refRoot = 'C';
 let refScale = 'Major (Ionian)';
@@ -34,8 +33,15 @@ let refModeIndex = 0;
 let refFbStart = 0;
 let refFbEnd = 24;
 let refBoxOnly = false;
+// Index into the position list the engine builds for the current selection.
+// A value below zero means "not chosen yet", so the box opens on position 1.
+let refPositionIndex = -1;
+// Positions of the current selection, low on the neck first. The slider and
+// the fretboard both read this list, so one render fills it.
+let refPositions = [];
 let refContextSubscribed = false;
 let refFbWired = false;
+let refPosWired = false;
 let refPlayWired = false;
 let refVoices = [];
 let refPlayTimers = [];
@@ -58,6 +64,8 @@ function initScaleRef() {
   refFbStart = Number(getSetting('ref.fbStart', refFbStart));
   refFbEnd = Number(getSetting('ref.fbEnd', refFbEnd));
   refBoxOnly = getSetting('ref.boxOnly', refBoxOnly, [true, false]);
+  const savedPosition = Number(getSetting('ref.positionIndex', refPositionIndex));
+  refPositionIndex = Number.isFinite(savedPosition) ? savedPosition : -1;
 
   rootScroll.innerHTML = '';
   ROOTS.forEach(r => {
@@ -69,6 +77,8 @@ function initScaleRef() {
       rootScroll.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       refRoot = r;
+      // A new root moves every box, so the slider goes back to position 1.
+      resetRefPosition();
       saveSetting('ref.root', refRoot);
       setContext({ root: refRoot }, 'scaleref');
       renderScaleRef();
@@ -78,6 +88,7 @@ function initScaleRef() {
   buildScaleList();
   buildTuningList();
   wireFretboardControls();
+  wirePositionSlider();
   wireRefPlay();
   renderScaleRef();
 
@@ -89,6 +100,7 @@ function initScaleRef() {
       refRoot = c.root;
       refScale = c.scale;
       if (scaleChanged) refModeIndex = 0;
+      resetRefPosition();
       syncRefSelection();
       renderScaleRef();
     });
@@ -213,6 +225,8 @@ function buildTuningList() {
       container.querySelectorAll('.sl-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active');
       refTuning = name;
+      // The boxes are tuning specific, so the slider goes back to position 1.
+      resetRefPosition();
       saveSetting('ref.tuning', refTuning);
       // The tuning is shared, so every compatible tool follows this pick.
       setContext({ tuning: name }, 'scaleref');
@@ -282,6 +296,7 @@ function buildScaleList() {
       div.classList.add('active');
       refScale = val;
       refModeIndex = 0;
+      resetRefPosition();
       saveSetting('ref.scale', refScale);
       saveSetting('ref.modeIndex', refModeIndex);
       setContext({ scale: refScale }, 'scaleref');
@@ -584,14 +599,101 @@ function refModeChoices() {
   });
 }
 
-// The initial "box" position for a modal root: a fret window anchored to the
-// lowest occurrence of that root on the lowest string. Guitarists learn scales
-// as movable box shapes, so this gives the player a concrete starting shape.
-function computeRefBox(openMidis, modalRootSemi) {
-  const lowOpen = openMidis[0];
-  let rootFret = 0;
-  while (((lowOpen + rootFret) % 12) !== modalRootSemi && rootFret < 12) rootFret++;
-  return { start: rootFret, end: rootFret + REF_BOX_SPAN };
+// Every playable position of the current selection, low on the neck first.
+// Each position is a four-fret box that starts on the next degree of the
+// scale. The scale does not change from one box to the next, so a minor scale
+// stays minor: only the note under the index finger moves.
+function refBuildPositions(openMidis) {
+  const def = SCALES[refScale];
+  const rootP = parseNote(refRoot);
+  if (!def || !rootP) return [];
+  return buildScalePositions({
+    openMidis,
+    semis: def.map(d => d[1]),
+    rootSemi: rootP.semi,
+    modeIndex: refModeIndex,
+    maxFret: 24,
+  });
+}
+
+/** Index of the box that starts on the tonal centre, lowest on the neck. */
+function refTonicPositionIndex(positions) {
+  const found = positions.findIndex(p => p.isTonic);
+  return found < 0 ? 0 : found;
+}
+
+/** Puts the box back on the tonal centre. Root, scale and mode changes do this. */
+function resetRefPosition() {
+  refPositionIndex = -1;
+}
+
+/** Moves the box `step` positions along the neck and redraws. */
+function slideRefPosition(step) {
+  if (!refPositions.length) return;
+  const next = Math.max(0, Math.min(refPositions.length - 1, refPositionIndex + step));
+  if (next === refPositionIndex) return;
+  refPositionIndex = next;
+  saveSetting('ref.positionIndex', refPositionIndex);
+  renderRefFretboard();
+}
+
+function wirePositionSlider() {
+  const range = document.getElementById('ref-pos-range');
+  const prev = document.getElementById('ref-pos-prev');
+  const next = document.getElementById('ref-pos-next');
+  if (!range || refPosWired) return;
+  refPosWired = true;
+  range.oninput = () => {
+    const value = Math.max(0, Math.min(refPositions.length - 1, Number(range.value) || 0));
+    if (value === refPositionIndex) return;
+    refPositionIndex = value;
+    saveSetting('ref.positionIndex', refPositionIndex);
+    renderRefFretboard();
+  };
+  prev.onclick = () => slideRefPosition(-1);
+  next.onclick = () => slideRefPosition(1);
+}
+
+// Keeps the slider, the buttons and the readout in step with the drawn box.
+function syncPositionSlider(position) {
+  const range = document.getElementById('ref-pos-range');
+  const prev = document.getElementById('ref-pos-prev');
+  const next = document.getElementById('ref-pos-next');
+  const readout = document.getElementById('ref-pos-readout');
+  const wrap = document.getElementById('ref-pos-slider');
+  const total = refPositions.length;
+  if (wrap) wrap.classList.toggle('empty', total < 2);
+  if (range) {
+    range.max = String(Math.max(0, total - 1));
+    range.value = String(refPositionIndex);
+    range.disabled = total < 2;
+  }
+  if (prev) prev.disabled = refPositionIndex <= 0;
+  if (next) next.disabled = refPositionIndex >= total - 1;
+  if (!readout) return;
+  if (!position) { readout.innerHTML = ''; return; }
+
+  const centre = refModeChoices()[refModeIndex] || {};
+  const modeName = centre.name ? centre.name.replace(/\s*\(.*\)/, '') : refScale;
+  const anchor = NOTE_NAMES_SHARP[position.anchorSemi];
+  const degreeSemi = position.degreeSemi;
+  const degreeLabel = DEGREE_LABELS[degreeSemi] || String(degreeSemi);
+  const firstTonic = refTonicPositionIndex(refPositions);
+  const octaveUp = position.isTonic && refPositionIndex > firstTonic;
+
+  const centreName = `${centre.note || refRoot} ${modeName}`;
+  const degreeText = position.isTonic
+    ? `the tonic of ${centreName}`
+    : `scale degree ${degreeLabel} of ${centreName}`;
+
+  readout.innerHTML =
+    `<span class="ref-pos-badge${position.isTonic ? ' tonic' : ''}">Position ${position.degree}</span>` +
+    `<span class="ref-pos-note">starts on <strong>${anchor}</strong> · ${degreeText}</span>` +
+    `<span class="ref-pos-frets">frets ${position.start}–${position.end}` +
+    `<span class="ref-pos-sep">·</span>box ${refPositionIndex + 1} of ${total} on the neck</span>` +
+    `<span class="ref-pos-hold">Still ${centreName} — the same notes, a new hand position.` +
+    (octaveUp ? ' Position 1 comes back here, one octave along the neck.' : '') +
+    `</span>`;
 }
 
 function renderRefModeRow() {
@@ -608,6 +710,8 @@ function renderRefModeRow() {
       (name ? `<span class="rm-name">${name.replace(/\s*\(.*\)/, '')}</span>` : '');
     btn.onclick = () => {
       refModeIndex = index;
+      // A new tonal centre renumbers the boxes, so start again at position 1.
+      resetRefPosition();
       saveSetting('ref.modeIndex', refModeIndex);
       renderScaleRef();
     };
@@ -655,7 +759,15 @@ function renderRefFretboard() {
   });
 
   const modalRootSemi = (rootSemi + def[refModeIndex][1]) % 12;
-  const box = computeRefBox(openMidis, modalRootSemi);
+
+  refPositions = refBuildPositions(openMidis);
+  if (refPositionIndex < 0 || refPositionIndex >= refPositions.length) {
+    refPositionIndex = refTonicPositionIndex(refPositions);
+    saveSetting('ref.positionIndex', refPositionIndex);
+  }
+  const position = refPositions[refPositionIndex] || null;
+  const posKeys = positionNoteKeys(position);
+  const box = position ? { start: position.start, end: position.end } : { start: 0, end: -1 };
 
   const start = Math.max(0, Math.min(24, refFbStart));
   const end = Math.max(start + 1, Math.min(24, refFbEnd));
@@ -666,7 +778,10 @@ function renderRefFretboard() {
 
   let html = '<div class="ref-fb-corner"></div>';
   for (let f = start; f <= end; f++) {
-    html += `<div class="ref-fb-fretnum">${f}</div>`;
+    // The fret under the index finger names the position, so mark it.
+    const isAnchor = position && f === position.anchorFret;
+    html += `<div class="ref-fb-fretnum${isAnchor ? ' anchor' : ''}"` +
+      `${isAnchor ? ' title="Index finger — this fret names the position"' : ''}>${f}</div>`;
   }
 
   for (let s = strings.length - 1; s >= 0; s--) {
@@ -678,7 +793,10 @@ function renderRefFretboard() {
       const pc = midi % 12;
       const inScale = pcSet.has(pc);
       const interval = (pc - modalRootSemi + 12) % 12;
-      const inBox = inScale && f >= box.start && f <= box.end;
+      // A note counts as "in the box" only when the position really fingers it.
+      // Two strings can sound the same pitch inside one box, and the player
+      // fingers only one of them, so the fret window alone is not enough.
+      const inBox = inScale && posKeys.has(`${s}:${f}`);
 
       const cls = ['ref-fb-cell'];
       if (f === 0) cls.push('nut');
@@ -697,7 +815,9 @@ function renderRefFretboard() {
       if (inScale && !(refBoxOnly && !inBox)) {
         const noteCls = ['ref-note', `deg-${interval}`];
         if (interval === 0) noteCls.push('root');
-        if (!inBox) noteCls.push('dim');
+        if (inBox) noteCls.push('in-pos');
+        else noteCls.push('dim');
+        if (inBox && f === position.anchorFret && s === 0) noteCls.push('anchor');
         inner = `<span class="${noteCls.join(' ')}" title="${pcToNote[pc]} · ${INTERVAL_LABELS[interval] || interval}">${DEGREE_LABELS[interval]}</span>`;
       }
       html += `<div class="${cls.join(' ')}">${inner}</div>`;
@@ -707,14 +827,22 @@ function renderRefFretboard() {
 
   const choices = refModeChoices();
   const active = choices[refModeIndex] || {};
-  const modeName = active.name ? active.name.replace(/\s*\(.*\)/, '') : `degree ${refModeIndex + 1}`;
+  // A pentatonic or a symmetric scale has no modal name for each degree, so
+  // name the scale itself, and say which degree the player made the centre.
+  const modeName = active.name
+    ? active.name.replace(/\s*\(.*\)/, '')
+    : (refModeIndex === 0 ? refScale : `${refScale}, degree ${refModeIndex + 1}`);
   const sub = document.getElementById('ref-fb-sub');
   const title = document.getElementById('ref-fb-title');
   if (title) title.textContent = `${refRoot} ${refScale} — ${refTuning}`;
   if (sub) {
+    const where = position
+      ? `position ${position.degree} at frets ${box.start}–${box.end}`
+      : 'no position box on this neck';
     sub.innerHTML = `Tonal centre <strong>${active.note || refRoot} ${modeName}</strong> · ` +
-      `box at frets ${box.start}–${box.end} · every in-key note coloured by interval`;
+      `${where} · every in-key note coloured by interval`;
   }
+  syncPositionSlider(position);
   renderRefLegend(pcSet, modalRootSemi);
 }
 
@@ -777,6 +905,7 @@ export function applyScaleRefSelection({ root, scale, tuning } = {}) {
 
   if (root && ROOTS.includes(root) && root !== refRoot) {
     refRoot = root;
+    resetRefPosition();
     saveSetting('ref.root', refRoot);
     setContext({ root: refRoot }, 'scaleref');
     changed = true;
@@ -785,6 +914,7 @@ export function applyScaleRefSelection({ root, scale, tuning } = {}) {
   if (scale && SCALES[scale] && scale !== refScale) {
     refScale = scale;
     refModeIndex = 0;
+    resetRefPosition();
     saveSetting('ref.scale', refScale);
     saveSetting('ref.modeIndex', refModeIndex);
     setContext({ scale: refScale }, 'scaleref');
@@ -795,6 +925,7 @@ export function applyScaleRefSelection({ root, scale, tuning } = {}) {
     const key = resolveTuningKey(tuning);
     if (key !== refTuning) {
       refTuning = key;
+      resetRefPosition();
       saveSetting('ref.tuning', refTuning);
       setContext({ tuning: key }, 'scaleref');
       changed = true;

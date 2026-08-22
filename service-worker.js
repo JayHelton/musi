@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v267-drum-sticking";
+const CACHE_VERSION = "v268-scale-positions";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -212,6 +212,7 @@ const PRECACHE_URLS = [
   "js/recorder.js",
   "js/recorderWorklet.js",
   "js/routeMap.js",
+  "js/scalePositions.js",
   "js/scaleReference.js",
   "js/scales.js",
   "js/screenUx.js",

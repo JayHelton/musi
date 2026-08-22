@@ -303,6 +303,13 @@
           <div id="ref-scale-controls">
             <div class="ref-mode-label">Mode / tonal center</div>
             <div class="ref-mode-row" id="ref-mode-row"></div>
+            <div class="ref-pos-label">Position box</div>
+            <div class="ref-pos-slider" id="ref-pos-slider">
+              <button type="button" class="ref-pos-step" id="ref-pos-prev" aria-label="Slide the box down the neck">&#9664;</button>
+              <input type="range" id="ref-pos-range" min="0" max="0" step="1" value="0" aria-label="Position of the box on the neck">
+              <button type="button" class="ref-pos-step" id="ref-pos-next" aria-label="Slide the box up the neck">&#9654;</button>
+            </div>
+            <div class="ref-pos-readout" id="ref-pos-readout"></div>
           </div>
           <div class="ref-fb-scroll"><div class="ref-fretboard" id="ref-fretboard"></div></div>
           <div class="ref-fb-legend" id="ref-fb-legend"></div>

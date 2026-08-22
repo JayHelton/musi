@@ -78,11 +78,31 @@
 .ref-mode-btn.active .rm-note{color:var(--accent)}
 .ref-mode-btn .rm-name{font-size:.6rem;color:var(--muted);white-space:nowrap}
 
+/* Position slider: slides the yellow box to the next position on the neck. */
+.ref-pos-label{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600;margin-bottom:6px}
+.ref-pos-slider{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-pill,999px);background:var(--bg2);max-width:520px}
+.ref-pos-slider.empty{opacity:.5}
+.ref-pos-step{flex:0 0 auto;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--accent);font-family:inherit;font-size:.72rem;cursor:pointer;transition:all .15s ease}
+.ref-pos-step:hover:not(:disabled){background:var(--accent-dim);border-color:var(--accent)}
+.ref-pos-step:disabled{opacity:.3;cursor:default;color:var(--muted)}
+.ref-pos-slider input[type=range]{flex:1 1 auto;min-width:100px;accent-color:var(--accent);cursor:pointer;background:transparent}
+.ref-pos-slider input[type=range]:disabled{cursor:default}
+
+.ref-pos-readout{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:8px 0 16px;font-size:.78rem;color:var(--muted)}
+.ref-pos-badge{padding:3px 10px;border-radius:var(--radius-pill,999px);border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:.68rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.ref-pos-badge.tonic{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.ref-pos-note strong{color:var(--accent);font-weight:700}
+.ref-pos-frets{font-family:var(--font-ui,inherit);color:var(--muted)}
+.ref-pos-sep{margin:0 6px;opacity:.5}
+.ref-pos-hold{flex:0 0 100%;font-size:.72rem;color:var(--muted);opacity:.85}
+
 .ref-fb-scroll{overflow-x:auto;overflow-y:hidden;max-width:100%;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding-bottom:4px}
 .ref-fretboard{display:grid;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;min-width:520px}
 #sec-scaleref .ref-fretboard{min-width:784px}
 .ref-fb-corner{height:22px}
 .ref-fb-fretnum{height:22px;display:flex;align-items:center;justify-content:center;font-size:.62rem;color:var(--muted);font-weight:600}
+/* The fret the index finger holds. It names the position. */
+.ref-fb-fretnum.anchor{color:var(--on-accent);background:var(--accent);border-radius:6px;font-weight:800}
 .ref-fb-strlabel{display:flex;align-items:center;justify-content:center;font-size:.66rem;color:var(--muted);font-weight:600;background:var(--bg);border-right:2px solid var(--border);border-top:1px solid rgba(255,255,255,0.05)}
 .ref-fb-cell{position:relative;height:34px;display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,0.05);border-top:1px solid rgba(255,255,255,0.05)}
 .ref-fb-cell.nut{border-right:3px solid var(--muted);background:rgba(255,255,255,0.02)}
@@ -95,7 +115,12 @@
 
 .ref-note{position:relative;z-index:1;width:25px;height:25px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:800;color:var(--on-accent);box-shadow:0 1px 3px rgba(0,0,0,0.5)}
 .ref-note.dim{opacity:0.26}
+/* A note the position really fingers. Everything else on the neck stays dim. */
+.ref-note.in-pos{opacity:1}
+/* The note under the index finger: the note that names the position. */
+.ref-note.anchor{box-shadow:0 0 0 2px var(--accent),0 0 8px var(--accent),0 1px 3px rgba(0,0,0,0.6)}
 .ref-note.root{box-shadow:0 0 0 2px var(--text),0 1px 3px rgba(0,0,0,0.6);width:27px;height:27px}
+.ref-note.root.anchor{box-shadow:0 0 0 2px var(--text),0 0 0 4px var(--accent),0 1px 3px rgba(0,0,0,0.6)}
 
 .ref-fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:14px;font-size:.74rem;color:var(--muted)}
 .ref-leg-item{display:flex;align-items:center;gap:6px}
@@ -151,6 +176,8 @@
   .ref-note{width:22px;height:22px;font-size:.58rem}
   .ref-note.root{width:24px;height:24px}
   .ref-fb-opts{width:100%;justify-content:flex-start}
+  .ref-pos-slider{max-width:none}
+  .ref-pos-step{width:34px;height:34px}
 }
 
 /* 3-NPS modes panel — large screens only, shown beneath the main reference */
@@ -334,6 +361,11 @@ body.split-mode #ref-modes{display:none}
   .ref-mode-row{margin-bottom:0;gap:4px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .ref-mode-btn{min-width:40px;min-height:36px;padding:2px 6px;flex-shrink:0}
   .ref-mode-btn .rm-note{font-size:.82rem}
+  .ref-pos-label{margin-bottom:0;font-size:.62rem}
+  .ref-pos-slider{max-width:none;padding:4px 7px;gap:7px}
+  .ref-pos-step{width:32px;height:32px}
+  .ref-pos-readout{margin:6px 0 8px;font-size:.72rem;gap:4px 8px}
+  .ref-pos-hold{font-size:.66rem}
   .ref-fb-scroll{min-width:0;max-width:100%;margin-top:0}
   .ref-fb-corner,.ref-fb-fretnum{height:16px}
   .ref-fb-fretnum{font-size:.55rem}
@@ -358,6 +390,13 @@ body.split-mode #ref-modes{display:none}
   }
   #sec-scaleref #ref-scale-controls .ref-mode-label{display:none}
   #sec-scaleref #ref-scale-controls .ref-mode-row{margin:0;flex:1;min-width:0}
+  /* Only the two step buttons fit here, so the slider track steps aside. */
+  #sec-scaleref #ref-scale-controls{overflow:hidden}
+  #sec-scaleref #ref-scale-controls .ref-pos-label{display:none}
+  #sec-scaleref #ref-scale-controls .ref-pos-readout{display:none}
+  #sec-scaleref #ref-scale-controls .ref-pos-slider{flex:0 0 auto;padding:0;gap:4px;border:none;background:transparent}
+  #sec-scaleref #ref-scale-controls .ref-pos-slider input[type=range]{display:none}
+  #sec-scaleref #ref-scale-controls .ref-pos-step{width:28px;height:28px}
   #sec-scaleref .adv-options{grid-column:3;grid-row:1;margin:0;align-self:center}
   #sec-scaleref .adv-options>summary{padding:4px 8px;min-height:36px;font-size:.72rem;border:none;background:transparent}
   #sec-scaleref .ref-fb-scroll{grid-column:1/-1;grid-row:2;min-width:0;min-height:0;overflow-y:auto}
@@ -414,4 +453,5 @@ body.split-mode #ref-modes{display:none}
   .ref-fb-corner,.ref-fb-fretnum{height:14px}
   .ref-fb-legend{margin-top:4px;font-size:.62rem}
   .ref-mode-row{margin-bottom:4px}
+  .ref-pos-readout{margin:4px 0 6px}
 }
