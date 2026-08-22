@@ -756,6 +756,9 @@ function step() {
   // The listen preview plays the melody with the microphone closed. It draws
   // the timeline and it scores nothing.
   if (runner.previewing) {
+    // Stop the preview if the player leaves the pitch runner page.
+    const stage = el('pr-stage');
+    if (stage && stage.offsetParent === null) { stopListenPreview(); return; }
     pruneTimeline(playheadBeat, false);
     draw(playheadBeat);
     if (playheadBeat >= runner.listenBeats + 1) stopListenPreview(true);

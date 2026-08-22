@@ -95,7 +95,7 @@ const TOOL_STOPPERS = {
     if (tuner.running) stopTuner();
     if (tuner.scalePlaying) stopContextScale();
     if (pt.running) stopPitchTrainer();
-    if (runner.running) stopPitchRunner();
+    if (runner.running || runner.previewing) stopPitchRunner();
     ear._seqTimers.forEach(clearTimeout);
     ear._seqTimers = [];
     if (ear._osc) stopEarTone();

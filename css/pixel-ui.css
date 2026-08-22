@@ -394,7 +394,6 @@
 select,
 input[type="text"],
 input[type="number"],
-input[type="search"],
 textarea,
 .modal-input {
   border: var(--px-border) solid var(--px-edge);
@@ -402,6 +401,11 @@ textarea,
   background-color: var(--bg2);
   color: var(--text);
   font-family: var(--font-body);
+}
+
+/* The tap-target height uses :where(), so a component that sets its
+   own height still wins. */
+:where(select, input[type="text"], input[type="number"], .modal-input) {
   min-height: var(--tap-min);
 }
 
@@ -765,7 +769,7 @@ input[type="range"] {
 /* ---- Left rail and phone bar as handheld chrome ------------ */
 
 .app-rail {
-  background-color: rgba(11, 16, 32, 0.92);
+  background-color: rgba(11, 16, 32, 0.97);
   background-image: var(--px-dither-25);
   background-size: var(--px-dither-size);
   border-right: var(--px-border) solid var(--px-edge);
@@ -777,7 +781,7 @@ input[type="range"] {
   border: var(--px-border) solid transparent;
   border-radius: 0;
   font-family: var(--font-pixel) !important;
-  font-size: 0.44rem;
+  font-size: 0.47rem;
   letter-spacing: 1px;
 }
 
@@ -814,7 +818,7 @@ input[type="range"] {
 }
 
 .app-bottom {
-  background-color: rgba(11, 16, 32, 0.94);
+  background-color: rgba(11, 16, 32, 0.97);
   background-image: var(--px-dither-25);
   background-size: var(--px-dither-size);
   border-top: var(--px-border) solid var(--px-edge);
@@ -827,7 +831,7 @@ input[type="range"] {
   border: var(--px-border) solid transparent;
   border-radius: 0;
   font-family: var(--font-pixel) !important;
-  font-size: 0.42rem;
+  font-size: 0.45rem;
   letter-spacing: 0.6px;
 }
 
@@ -1328,4 +1332,51 @@ select[class] {
   box-shadow:
     inset 0 0 0 2px var(--accent),
     inset 0 0 0 3px var(--on-accent);
+}
+
+/* ---- Range sliders ---------------------------------------- */
+
+/* A native slider draws a round thumb and a soft track. The pixel
+   version uses a dithered track and a square block thumb. */
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 12px;
+  border: var(--px-hair) solid var(--px-edge);
+  border-radius: 0;
+  background-color: rgba(11, 16, 32, 0.7);
+  background-image: var(--px-dither-50);
+  background-size: var(--px-dither-size);
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 20px;
+  border: var(--px-border) solid var(--on-accent);
+  border-radius: 0;
+  background: var(--accent);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 20px;
+  border: var(--px-border) solid var(--on-accent);
+  border-radius: 0;
+  background: var(--accent);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+input[type="range"]:disabled {
+  opacity: 0.5;
+}
+
+input[type="range"]:focus-visible {
+  outline: var(--px-border) solid var(--accent);
+  outline-offset: 2px;
 }
