@@ -78,6 +78,36 @@
 .ref-mode-btn.active .rm-note{color:var(--accent)}
 .ref-mode-btn .rm-name{font-size:.6rem;color:var(--muted);white-space:nowrap}
 
+/* Pointer from the Scale Reference to the chords of the key in Triads. */
+.ref-xref{margin:14px 0 0;font-size:.82rem;color:var(--muted);line-height:1.5}
+.ref-xref-link{font:inherit;color:var(--accent);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.ref-xref-link:hover{color:var(--text)}
+
+/* The chords of the key, on the Triads tool. */
+.triad-inkey-panel{margin-top:4px}
+.triad-inkey-empty{color:var(--muted);font-size:.85rem;line-height:1.5;margin:12px 0}
+
+/* Interval Map: the same neck, lit by interval instead of by scale. */
+.ivmap-label{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600;margin-bottom:6px}
+.ivmap-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.ivmap-chip{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;column-gap:6px;align-items:center;
+  padding:5px 10px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);
+  cursor:pointer;font-family:inherit;text-align:left;transition:all .15s ease;opacity:.62}
+.ivmap-chip:hover{background:var(--hover);opacity:.85}
+.ivmap-chip.in-key{opacity:1}
+.ivmap-chip.on{border-color:var(--accent);background:var(--accent-dim);box-shadow:0 0 0 1px var(--accent-dim);opacity:1}
+.ivmap-chip-swatch{grid-row:1/3;width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+.ivmap-chip.on .ivmap-chip-swatch{box-shadow:0 0 0 2px var(--accent)}
+.ivmap-chip-deg{font-size:.9rem;font-weight:700;line-height:1.1;color:var(--text)}
+.ivmap-chip.on .ivmap-chip-deg{color:var(--accent)}
+.ivmap-chip-name{grid-column:2;font-size:.6rem;color:var(--muted);white-space:nowrap}
+.ivmap-chip-role{grid-column:1/3;font-size:.56rem;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-top:2px}
+.ivmap-chip.on .ivmap-chip-role{color:var(--accent)}
+#ivmap-fretboard .ref-fb-cell{cursor:pointer}
+/* An interval can land on a note the key does not hold. The ring says so. */
+.ref-note.out-of-key{box-shadow:0 0 0 2px var(--bg2),0 0 0 3px var(--muted),0 1px 3px rgba(0,0,0,0.6)}
+.ref-note.root.out-of-key{box-shadow:0 0 0 2px var(--bg2),0 0 0 4px var(--muted),0 1px 3px rgba(0,0,0,0.6)}
+
 /* Position slider: slides the yellow box to the next position on the neck. */
 .ref-pos-label{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600;margin-bottom:6px}
 .ref-pos-slider{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-pill,999px);background:var(--bg2);max-width:520px}
@@ -178,6 +208,8 @@
   .ref-fb-opts{width:100%;justify-content:flex-start}
   .ref-pos-slider{max-width:none}
   .ref-pos-step{width:34px;height:34px}
+  .ivmap-row{gap:4px}
+  .ivmap-chip{padding:4px 8px}
 }
 
 /* 3-NPS modes panel — large screens only, shown beneath the main reference */
@@ -366,6 +398,10 @@ body.split-mode #ref-modes{display:none}
   .ref-pos-step{width:32px;height:32px}
   .ref-pos-readout{margin:6px 0 8px;font-size:.72rem;gap:4px 8px}
   .ref-pos-hold{font-size:.66rem}
+  .ivmap-label{margin-bottom:4px;font-size:.62rem}
+  .ivmap-row{gap:4px;margin-bottom:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .ivmap-chip{flex-shrink:0;min-height:36px;padding:2px 7px}
+  .ivmap-chip-role{display:none}
   .ref-fb-scroll{min-width:0;max-width:100%;margin-top:0}
   .ref-fb-corner,.ref-fb-fretnum{height:16px}
   .ref-fb-fretnum{font-size:.55rem}
@@ -379,12 +415,12 @@ body.split-mode #ref-modes{display:none}
   #sec-scaleref .quiz-layout{flex-direction:column}
   #sec-scaleref.has-setup-summary .sidebar{display:none}
   #sec-scaleref .quiz-main{width:100%;min-width:0}
-  #sec-scaleref .ref-fb-card{
+  #sec-scaleref #ref-fb-card{
     display:grid;grid-template-columns:minmax(0,1fr) auto auto;grid-template-rows:auto minmax(0,1fr) auto;
     gap:4px;align-items:center;padding:5px 10px 6px;
   }
-  #sec-scaleref .ref-fb-head{grid-column:2;grid-row:1;margin:0;justify-content:flex-end}
-  #sec-scaleref .ref-fb-head>div:first-child{display:none}
+  #sec-scaleref #ref-fb-card .ref-fb-head{grid-column:2;grid-row:1;margin:0;justify-content:flex-end}
+  #sec-scaleref #ref-fb-card .ref-fb-head>div:first-child{display:none}
   #sec-scaleref #ref-scale-controls{
     grid-column:1;grid-row:1;display:flex;align-items:center;gap:6px;margin:0;min-width:0;
   }
@@ -397,10 +433,21 @@ body.split-mode #ref-modes{display:none}
   #sec-scaleref #ref-scale-controls .ref-pos-slider{flex:0 0 auto;padding:0;gap:4px;border:none;background:transparent}
   #sec-scaleref #ref-scale-controls .ref-pos-slider input[type=range]{display:none}
   #sec-scaleref #ref-scale-controls .ref-pos-step{width:28px;height:28px}
-  #sec-scaleref .adv-options{grid-column:3;grid-row:1;margin:0;align-self:center}
-  #sec-scaleref .adv-options>summary{padding:4px 8px;min-height:36px;font-size:.72rem;border:none;background:transparent}
-  #sec-scaleref .ref-fb-scroll{grid-column:1/-1;grid-row:2;min-width:0;min-height:0;overflow-y:auto}
-  #sec-scaleref .ref-fb-legend{grid-column:1/-1;grid-row:3;margin-top:2px}
+  #sec-scaleref #ref-fb-card .adv-options{grid-column:3;grid-row:1;margin:0;align-self:center}
+  #sec-scaleref #ref-fb-card .adv-options>summary{padding:4px 8px;min-height:36px;font-size:.72rem;border:none;background:transparent}
+  #sec-scaleref #ref-fb-card .ref-fb-scroll{grid-column:1/-1;grid-row:2;min-width:0;min-height:0;overflow-y:auto}
+  #sec-scaleref #ref-fb-card .ref-fb-legend{grid-column:1/-1;grid-row:3;margin-top:2px}
+  /* The Interval Map keeps a plain stack here, and drops what does not fit. */
+  #sec-scaleref #ref-ivmap-card{padding:5px 10px 6px;display:flex;flex-direction:column;gap:4px;min-height:0}
+  #sec-scaleref #ref-ivmap-card .ref-fb-sub{display:none}
+  #sec-scaleref #ref-ivmap-card .ivmap-label,
+  #sec-scaleref #ref-ivmap-card .ref-pos-label,
+  #sec-scaleref #ref-ivmap-card .ref-pos-readout,
+  #sec-scaleref #ref-ivmap-card .ref-fb-legend{display:none}
+  #sec-scaleref #ref-ivmap-card .ref-fb-head{margin:0;gap:6px;align-items:center}
+  #sec-scaleref #ref-ivmap-card .ref-fb-scroll{min-height:0;overflow-y:auto}
+  #sec-scaleref #ref-ivmap-card .ref-pos-slider{align-self:flex-start;padding:2px 6px}
+  #sec-scaleref #ref-ivmap-card .ref-pos-step{width:28px;height:28px}
   .modal-chord-viz{margin:10px 0;padding:10px 12px}
   .modal-chord-head{margin-bottom:8px;gap:8px}
   .modal-chord-head h3{font-size:.92rem}

@@ -1,16 +1,16 @@
 import { parseNote, ROOTS, INTERVAL_LABELS, TUNINGS, NOTE_NAMES_SHARP } from './theory.js';
 import { SCALES, getScaleNotes, groupedScaleEntries, scaleStepPattern } from './scales.js';
-import { diatonicTriadQuality } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { resolveTuningKey } from './tunings.js';
 import { buildScalePositions, nearestPositionIndex, positionNoteKeys } from './scalePositions.js';
+import { renderFretboard, MAX_FRET } from './scaleFretboard.js';
+import {
+  defaultMapIntervals, normaliseIntervals, intervalPickerRows,
+  intervalsAbove, THIRD_LETTERS, FIFTH_LETTERS,
+} from './scaleIntervals.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 
-const DEGREE_ROMAN = ['I','II','III','IV','V','VI','VII'];
-const TRIAD_SUFFIX = ['','m','m','','','m','dim'];
-const SEVENTH_SUFFIX = ['maj7','m7','m7','maj7','7','m7','m7b5'];
-const MAJOR_SCALE = 'Major (Ionian)';
 const KEY_SIGS = {
   'C':'none','G':'1#','D':'2#','A':'3#','E':'4#','B':'5#','F#':'6#','Gb':'6b',
   'Db':'5b','Ab':'4b','Eb':'3b','Bb':'2b','F':'1b',
@@ -23,8 +23,6 @@ const DEGREE_LABELS = {
   0:'R', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4',
   6:'b5', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7'
 };
-// Fretboard position inlay markers (single dots), plus a double dot at 12/24.
-const REF_FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 
 let refRoot = 'C';
 let refScale = 'Major (Ionian)';
@@ -42,6 +40,11 @@ let refPositions = [];
 let refContextSubscribed = false;
 let refFbWired = false;
 let refPosWired = false;
+// Interval Map: which intervals the neck shows, and the note they measure from.
+let refMapIntervals = [];
+let refMapRefSemi = null;
+let refMapBoxOnly = false;
+let refMapWired = false;
 let refPlayWired = false;
 let refVoices = [];
 let refPlayTimers = [];
@@ -66,6 +69,8 @@ function initScaleRef() {
   refBoxOnly = getSetting('ref.boxOnly', refBoxOnly, [true, false]);
   const savedPosition = Number(getSetting('ref.positionIndex', refPositionIndex));
   refPositionIndex = Number.isFinite(savedPosition) ? savedPosition : -1;
+  refMapBoxOnly = getSetting('ref.mapBoxOnly', refMapBoxOnly, [true, false]);
+  refMapIntervals = normaliseIntervals(getSetting('ref.mapIntervals', null));
 
   rootScroll.innerHTML = '';
   ROOTS.forEach(r => {
@@ -88,6 +93,7 @@ function initScaleRef() {
   buildScaleList();
   buildTuningList();
   wireFretboardControls();
+  wireIntervalMap();
   wirePositionSlider();
   wireRefPlay();
   renderScaleRef();
@@ -99,7 +105,10 @@ function initScaleRef() {
       const scaleChanged = c.scale !== refScale;
       refRoot = c.root;
       refScale = c.scale;
-      if (scaleChanged) refModeIndex = 0;
+      if (scaleChanged) {
+        refModeIndex = 0;
+        resetMapIntervals();
+      }
       resetRefPosition();
       syncRefSelection();
       renderScaleRef();
@@ -230,7 +239,7 @@ function buildTuningList() {
       saveSetting('ref.tuning', refTuning);
       // The tuning is shared, so every compatible tool follows this pick.
       setContext({ tuning: name }, 'scaleref');
-      renderRefFretboard();
+      renderRefBoards();
     };
     container.appendChild(div);
   });
@@ -255,14 +264,14 @@ function wireFretboardControls() {
     end.value = e;
     saveSetting('ref.fbStart', refFbStart);
     saveSetting('ref.fbEnd', refFbEnd);
-    renderRefFretboard();
+    renderRefBoards();
   };
   start.onchange = updateRange;
   end.onchange = updateRange;
   boxOnly.onchange = () => {
     refBoxOnly = boxOnly.checked;
     saveSetting('ref.boxOnly', refBoxOnly);
-    renderRefFretboard();
+    renderRefBoards();
   };
 }
 
@@ -297,6 +306,7 @@ function buildScaleList() {
       refScale = val;
       refModeIndex = 0;
       resetRefPosition();
+      resetMapIntervals();
       saveSetting('ref.scale', refScale);
       saveSetting('ref.modeIndex', refModeIndex);
       setContext({ scale: refScale }, 'scaleref');
@@ -429,146 +439,6 @@ function renderRefModes() {
   wrap.innerHTML = html;
 }
 
-function noteSemi(note) {
-  const p = parseNote(note);
-  return p ? p.semi : null;
-}
-
-function triadQuality(notes) {
-  const root = noteSemi(notes[0]);
-  const third = noteSemi(notes[1]);
-  const fifth = noteSemi(notes[2]);
-  if (root == null || third == null || fifth == null) return { name: 'Unknown', suffix: '' };
-
-  const thirdIv = (third - root + 12) % 12;
-  const fifthIv = (fifth - root + 12) % 12;
-  return diatonicTriadQuality(thirdIv, fifthIv) || {
-    name: `${INTERVAL_LABELS[thirdIv] || thirdIv} + ${INTERVAL_LABELS[fifthIv] || fifthIv}`,
-    suffix: '',
-  };
-}
-
-function diatonicTriadsForNotes(notes) {
-  if (!notes || notes.length !== 7) return [];
-  return notes.map((root, i) => {
-    const tones = [root, notes[(i + 2) % 7], notes[(i + 4) % 7]];
-    const quality = triadQuality(tones);
-    const rootSemi = noteSemi(tones[0]);
-    const formula = tones.map((tone, toneIndex) => {
-      if (toneIndex === 0 || rootSemi == null) return 'R';
-      const semi = noteSemi(tone);
-      if (semi == null) return '?';
-      const interval = (semi - rootSemi + 12) % 12;
-      return DEGREE_LABELS[interval] || INTERVAL_LABELS[interval] || String(interval);
-    });
-    return {
-      degree: DEGREE_ROMAN[i],
-      root,
-      tones,
-      quality: quality.name,
-      suffix: quality.suffix,
-      formula,
-      display: `${root} ${quality.name}`,
-      symbol: `${root}${quality.suffix}`,
-    };
-  });
-}
-
-function modeAlterations(scaleName) {
-  const major = SCALES[MAJOR_SCALE];
-  const current = SCALES[scaleName];
-  if (!major || !current || current.length !== 7) return [];
-
-  return current.map((d, i) => {
-    const diff = d[1] - major[i][1];
-    if (!diff) return null;
-    const degree = i + 1;
-    if (diff === 1) return `#${degree}`;
-    if (diff === -1) return `b${degree}`;
-    if (diff === 2) return `##${degree}`;
-    if (diff === -2) return `bb${degree}`;
-    return `${diff > 0 ? '+' : ''}${diff} on ${degree}`;
-  }).filter(Boolean);
-}
-
-function renderModalChordVisualizer() {
-  const currentDef = SCALES[refScale];
-  const modalNotes = getScaleNotes(refRoot, refScale);
-  const majorNotes = getScaleNotes(refRoot, MAJOR_SCALE);
-  if (!currentDef || currentDef.length !== 7 || !modalNotes || !majorNotes) return '';
-
-  const majorTriads = diatonicTriadsForNotes(majorNotes);
-  const modalTriads = diatonicTriadsForNotes(modalNotes);
-  const alterations = modeAlterations(refScale);
-  const changedRows = modalTriads
-    .map((chord, i) => ({ chord, base: majorTriads[i] }))
-    .filter(({ chord, base }) => chord.display !== base.display || chord.tones.join(',') !== base.tones.join(','));
-
-  const modeLabel = refScale.replace(/\s*\(.*\)/, '');
-  const alterationText = alterations.length ? alterations.join(', ') : 'no scale-degree changes';
-
-  let html = `<div class="modal-chord-viz">`;
-  html += `<div class="modal-chord-head">`;
-  html += `<div>`;
-  html += `<div class="modal-chord-kicker">Chords in this key/mode</div>`;
-  html += `<h3>All triads in ${refRoot} ${modeLabel}</h3>`;
-  html += `<p>Every chord below is built from the selected scale by stacking 1-3-5 from each interval. This is the full chord set for <strong>${refRoot} ${modeLabel}</strong>.</p>`;
-  html += `</div>`;
-  html += `<div class="modal-chord-count">7 triads</div>`;
-  html += `</div>`;
-  html += `<div class="modal-scale-flow">`;
-  html += `<div><span>Selected scale</span><strong>${modalNotes.join(' ')}</strong></div>`;
-  html += `<div><span>Compared with Major</span><strong>${alterationText}</strong></div>`;
-  html += `</div>`;
-  html += `<div class="modal-chord-grid">`;
-  modalTriads.forEach((chord, i) => {
-    const base = majorTriads[i];
-    const changed = chord.display !== base.display || chord.tones.join(',') !== base.tones.join(',');
-    const toneHtml = chord.tones.map((tone, toneIndex) => {
-      const toneChanged = tone !== base.tones[toneIndex];
-      return `<span class="modal-tone${toneChanged ? ' changed' : ''}">${tone}</span>`;
-    }).join('');
-    html += `<div class="modal-chord-card${changed ? ' changed' : ''}">`;
-    html += `<div class="modal-card-top"><span class="modal-degree">${chord.degree}</span><span class="modal-card-interval">${INTERVAL_LABELS[currentDef[i][1]] || DEGREE_LABELS[currentDef[i][1]] || currentDef[i][1]}</span></div>`;
-    html += `<div class="modal-card-note">${modalNotes[i]}</div>`;
-    html += `<div class="modal-card-chord">${chord.display}</div>`;
-    html += `<div class="modal-symbol">${chord.symbol}</div>`;
-    html += `<div class="modal-card-label">notes</div>`;
-    html += `<div class="modal-tones">${toneHtml}</div>`;
-    html += `<div class="modal-card-label">formula</div>`;
-    html += `<div class="modal-tones">${chord.formula.join(' - ')}</div>`;
-    html += `</div>`;
-  });
-  html += `</div>`;
-  html += `<div class="modal-chord-scroll"><table class="modal-chord-table">`;
-  html += `<tr><th>Interval</th><th>Scale degree</th><th>Chord triad</th><th>Notes in chord</th><th>Formula</th></tr>`;
-  modalTriads.forEach((chord, i) => {
-    const base = majorTriads[i];
-    const changed = chord.display !== base.display || chord.tones.join(',') !== base.tones.join(',');
-    const toneHtml = chord.tones.map((tone, toneIndex) => {
-      const toneChanged = tone !== base.tones[toneIndex];
-      return `<span class="modal-tone${toneChanged ? ' changed' : ''}">${tone}</span>`;
-    }).join('');
-    html += `<tr class="${changed ? 'changed' : ''}">`;
-    html += `<td><span class="modal-degree">${chord.degree}</span></td>`;
-    html += `<td><strong>${modalNotes[i]}</strong><span class="modal-tones">${INTERVAL_LABELS[currentDef[i][1]] || DEGREE_LABELS[currentDef[i][1]] || currentDef[i][1]}</span></td>`;
-    html += `<td><strong>${chord.display}</strong><span class="modal-symbol">${chord.symbol}</span></td>`;
-    html += `<td><span class="modal-tones">${toneHtml}</span></td>`;
-    html += `<td><span class="modal-tones">${chord.formula.join(' - ')}</span></td>`;
-    html += `</tr>`;
-  });
-  html += `</table></div>`;
-
-  if (changedRows.length) {
-    html += `<div class="modal-chord-summary">`;
-    html += `Compared with ${refRoot} Major, modal-color triads are: ${changedRows.map(({ chord, base }) => `<strong>${chord.display}</strong> instead of ${base.display}`).join(' · ')}`;
-    html += `</div>`;
-  }
-
-  html += `</div>`;
-  return html;
-}
-
 // MIDI note numbers of each open string for the active tuning (low → high).
 function refOpenMidis() {
   const strings = TUNINGS[refTuning] || TUNINGS['Standard'];
@@ -622,9 +492,13 @@ function refTonicPositionIndex(positions) {
   return found < 0 ? 0 : found;
 }
 
-/** Puts the box back on the tonal centre. Root, scale and mode changes do this. */
+/**
+ * Puts the box back on the tonal centre, and the Interval Map with it.
+ * Root, scale, mode and tuning changes all do this.
+ */
 function resetRefPosition() {
   refPositionIndex = -1;
+  refMapRefSemi = null;
 }
 
 /** Moves the box `step` positions along the neck and redraws. */
@@ -634,33 +508,46 @@ function slideRefPosition(step) {
   if (next === refPositionIndex) return;
   refPositionIndex = next;
   saveSetting('ref.positionIndex', refPositionIndex);
-  renderRefFretboard();
+  renderRefBoards();
 }
 
+// Both tabs carry a slider and both drive the one box, so each is wired by
+// the prefix of its element ids.
+const POSITION_SLIDERS = ['ref-pos', 'ivmap-pos'];
+
 function wirePositionSlider() {
-  const range = document.getElementById('ref-pos-range');
-  const prev = document.getElementById('ref-pos-prev');
-  const next = document.getElementById('ref-pos-next');
-  if (!range || refPosWired) return;
+  if (refPosWired) return;
   refPosWired = true;
+  POSITION_SLIDERS.forEach(wireOnePositionSlider);
+}
+
+function wireOnePositionSlider(prefix) {
+  const range = document.getElementById(`${prefix}-range`);
+  const prev = document.getElementById(`${prefix}-prev`);
+  const next = document.getElementById(`${prefix}-next`);
+  if (!range) return;
   range.oninput = () => {
     const value = Math.max(0, Math.min(refPositions.length - 1, Number(range.value) || 0));
     if (value === refPositionIndex) return;
     refPositionIndex = value;
     saveSetting('ref.positionIndex', refPositionIndex);
-    renderRefFretboard();
+    renderRefBoards();
   };
-  prev.onclick = () => slideRefPosition(-1);
-  next.onclick = () => slideRefPosition(1);
+  if (prev) prev.onclick = () => slideRefPosition(-1);
+  if (next) next.onclick = () => slideRefPosition(1);
 }
 
-// Keeps the slider, the buttons and the readout in step with the drawn box.
+// Keeps every slider, its buttons and its readout in step with the drawn box.
 function syncPositionSlider(position) {
-  const range = document.getElementById('ref-pos-range');
-  const prev = document.getElementById('ref-pos-prev');
-  const next = document.getElementById('ref-pos-next');
-  const readout = document.getElementById('ref-pos-readout');
-  const wrap = document.getElementById('ref-pos-slider');
+  POSITION_SLIDERS.forEach(prefix => syncOnePositionSlider(prefix, position));
+}
+
+function syncOnePositionSlider(prefix, position) {
+  const range = document.getElementById(`${prefix}-range`);
+  const prev = document.getElementById(`${prefix}-prev`);
+  const next = document.getElementById(`${prefix}-next`);
+  const readout = document.getElementById(`${prefix}-readout`);
+  const wrap = document.getElementById(`${prefix}-slider`);
   const total = refPositions.length;
   if (wrap) wrap.classList.toggle('empty', total < 2);
   if (range) {
@@ -769,61 +656,29 @@ function renderRefFretboard() {
   const posKeys = positionNoteKeys(position);
   const box = position ? { start: position.start, end: position.end } : { start: 0, end: -1 };
 
-  const start = Math.max(0, Math.min(24, refFbStart));
-  const end = Math.max(start + 1, Math.min(24, refFbEnd));
-  const count = end - start + 1;
-  const middleString = Math.floor(strings.length / 2);
-
-  board.style.gridTemplateColumns = `34px repeat(${count}, minmax(30px, 1fr))`;
-
-  let html = '<div class="ref-fb-corner"></div>';
-  for (let f = start; f <= end; f++) {
-    // The fret under the index finger names the position, so mark it.
-    const isAnchor = position && f === position.anchorFret;
-    html += `<div class="ref-fb-fretnum${isAnchor ? ' anchor' : ''}"` +
-      `${isAnchor ? ' title="Index finger — this fret names the position"' : ''}>${f}</div>`;
-  }
-
-  for (let s = strings.length - 1; s >= 0; s--) {
-    const isTop = s === strings.length - 1;
-    const isBottom = s === 0;
-    html += `<div class="ref-fb-strlabel">${strings[s].note}${strings[s].oct}</div>`;
-    for (let f = start; f <= end; f++) {
-      const midi = openMidis[s] + f;
-      const pc = midi % 12;
-      const inScale = pcSet.has(pc);
+  renderFretboard({
+    board,
+    strings,
+    openMidis,
+    start: refFbStart,
+    end: refFbEnd,
+    box: position && { start: box.start, end: box.end, anchorFret: position.anchorFret },
+    noteFor: ({ string, fret, pc }) => {
+      if (!pcSet.has(pc)) return null;
+      const inBox = posKeys.has(`${string}:${fret}`);
+      if (refBoxOnly && !inBox) return null;
       const interval = (pc - modalRootSemi + 12) % 12;
-      // A note counts as "in the box" only when the position really fingers it.
-      // Two strings can sound the same pitch inside one box, and the player
-      // fingers only one of them, so the fret window alone is not enough.
-      const inBox = inScale && posKeys.has(`${s}:${f}`);
-
-      const cls = ['ref-fb-cell'];
-      if (f === 0) cls.push('nut');
-      if (f > 0 && REF_FB_DOTS.includes(f) && s === middleString) cls.push('inlay');
-      // Box band outline drawn with edge classes so the whole position reads as
-      // one rectangle across every string.
-      if (f >= box.start && f <= box.end) {
-        cls.push('in-band');
-        if (f === box.start) cls.push('band-l');
-        if (f === box.end) cls.push('band-r');
-        if (isTop) cls.push('band-t');
-        if (isBottom) cls.push('band-b');
-      }
-
-      let inner = '';
-      if (inScale && !(refBoxOnly && !inBox)) {
-        const noteCls = ['ref-note', `deg-${interval}`];
-        if (interval === 0) noteCls.push('root');
-        if (inBox) noteCls.push('in-pos');
-        else noteCls.push('dim');
-        if (inBox && f === position.anchorFret && s === 0) noteCls.push('anchor');
-        inner = `<span class="${noteCls.join(' ')}" title="${pcToNote[pc]} · ${INTERVAL_LABELS[interval] || interval}">${DEGREE_LABELS[interval]}</span>`;
-      }
-      html += `<div class="${cls.join(' ')}">${inner}</div>`;
-    }
-  }
-  board.innerHTML = html;
+      const classes = [`deg-${interval}`];
+      if (interval === 0) classes.push('root');
+      classes.push(inBox ? 'in-pos' : 'dim');
+      if (inBox && fret === position.anchorFret && string === 0) classes.push('anchor');
+      return {
+        label: DEGREE_LABELS[interval],
+        classes,
+        title: `${pcToNote[pc]} · ${INTERVAL_LABELS[interval] || interval}`,
+      };
+    },
+  });
 
   const choices = refModeChoices();
   const active = choices[refModeIndex] || {};
@@ -844,6 +699,257 @@ function renderRefFretboard() {
   }
   syncPositionSlider(position);
   renderRefLegend(pcSet, modalRootSemi);
+}
+
+/* ── Interval Map ─────────────────────────────────────────────
+ * The same neck as the Fretboard tab, and the same yellow position box, but
+ * the notes it lights up are chosen by interval instead of by scale. The map
+ * measures from a reference note, and the player moves that note by clicking
+ * any note on the neck.
+ */
+
+/** Semitone class the map measures from. The tonal centre until moved. */
+function refMapReference() {
+  if (refMapRefSemi != null) return refMapRefSemi;
+  return refModalRootSemi();
+}
+
+/** Semitone class of the current tonal centre. */
+function refModalRootSemi() {
+  const rootP = parseNote(refRoot);
+  const def = SCALES[refScale];
+  if (!rootP || !def) return 0;
+  return (rootP.semi + def[clampModeIndex(refModeIndex)][1]) % 12;
+}
+
+/**
+ * The intervals the map shows. Until the player picks, these are the third and
+ * the fifth the key puts above the reference note.
+ */
+function refMapSelection() {
+  const def = SCALES[refScale];
+  const rootP = parseNote(refRoot);
+  if (!def || !rootP) return [];
+  if (refMapIntervals.length) return refMapIntervals;
+  return defaultMapIntervals(def, rootP.semi, refMapReference());
+}
+
+function saveMapIntervals(list) {
+  refMapIntervals = normaliseIntervals(list);
+  saveSetting('ref.mapIntervals', refMapIntervals);
+}
+
+/** Puts the map back on the thirds and fifths of the scale. */
+function resetMapIntervals() {
+  refMapIntervals = [];
+  saveSetting('ref.mapIntervals', []);
+}
+
+function toggleMapInterval(semi) {
+  const current = new Set(refMapSelection());
+  if (current.has(semi)) current.delete(semi);
+  else current.add(semi);
+  saveMapIntervals([...current]);
+  renderIntervalMap();
+}
+
+function wireIntervalMap() {
+  if (refMapWired) return;
+  const board = document.getElementById('ivmap-fretboard');
+  if (!board) return;
+  refMapWired = true;
+
+  const row = document.getElementById('ivmap-row');
+  if (row) {
+    row.onclick = (e) => {
+      const btn = e.target.closest('[data-interval]');
+      if (!btn) return;
+      toggleMapInterval(Number(btn.dataset.interval));
+    };
+  }
+
+  // Clicking a note moves the reference, so the player reads the interval
+  // shape from any note on the neck, not only from the tonic.
+  board.onclick = (e) => {
+    const cell = e.target.closest('.ref-fb-cell');
+    if (!cell || cell.dataset.fret == null) return;
+    const strings = TUNINGS[refTuning] || TUNINGS['Standard'];
+    const openMidis = refOpenMidis();
+    const s = Number(cell.dataset.string);
+    const f = Number(cell.dataset.fret);
+    if (!Number.isFinite(s) || !Number.isFinite(f) || !strings[s]) return;
+    const semi = (openMidis[s] + f) % 12;
+    // Clicking the reference again hands it back to the tonal centre.
+    refMapRefSemi = semi === refMapReference() ? null : semi;
+    renderIntervalMap();
+  };
+
+  const reset = document.getElementById('ivmap-reset');
+  if (reset) reset.onclick = () => { resetMapIntervals(); renderIntervalMap(); };
+
+  const all = document.getElementById('ivmap-all');
+  if (all) {
+    all.onclick = () => {
+      const def = SCALES[refScale];
+      if (!def) return;
+      const ref = refMapReference();
+      // Every note of the key, measured from the reference note.
+      saveMapIntervals(def.map(([, semi]) => {
+        const rootP = parseNote(refRoot);
+        return ((rootP.semi + semi - ref) % 12 + 12) % 12;
+      }));
+      renderIntervalMap();
+    };
+  }
+
+  const boxOnly = document.getElementById('ivmap-boxonly');
+  if (boxOnly) {
+    boxOnly.checked = refMapBoxOnly;
+    boxOnly.onchange = () => {
+      refMapBoxOnly = boxOnly.checked;
+      saveSetting('ref.mapBoxOnly', refMapBoxOnly);
+      renderIntervalMap();
+    };
+  }
+}
+
+/** The row of interval buttons. Each says what it is and how the key uses it. */
+function renderIntervalRow(def, rootSemi, refSemi, selected) {
+  const row = document.getElementById('ivmap-row');
+  if (!row) return;
+  const rows = intervalPickerRows(def, rootSemi, refSemi, selected);
+  row.innerHTML = rows.map(item => {
+    const cls = ['ivmap-chip'];
+    if (item.selected) cls.push('on');
+    if (item.inKey) cls.push('in-key');
+    const name = INTERVAL_LABELS[item.semi] || `${item.semi} st`;
+    return `<button type="button" class="${cls.join(' ')}" data-interval="${item.semi}" ` +
+      `aria-pressed="${item.selected}" title="${name}${item.inKey ? ' · in key' : ' · outside the key'}">` +
+      `<span class="ivmap-chip-swatch deg-${item.semi}"></span>` +
+      `<span class="ivmap-chip-deg">${item.label}</span>` +
+      `<span class="ivmap-chip-name">${name}</span>` +
+      `<span class="ivmap-chip-role">${item.role || (item.inKey ? 'in key' : '—')}</span>` +
+      `</button>`;
+  }).join('');
+}
+
+function renderIntervalLegend(selected, refSemi) {
+  const el = document.getElementById('ivmap-legend');
+  if (!el) return;
+  const pcToNote = refScaleSpelling();
+  const refName = pcToNote[refSemi] || NOTE_NAMES_SHARP[refSemi];
+  let html = `<span class="ref-leg-item root">` +
+    `<span class="ref-leg-swatch deg-0"></span>R · ${refName} (reference)</span>`;
+  html += selected.map(semi => {
+    const pc = (refSemi + semi) % 12;
+    const name = pcToNote[pc] || NOTE_NAMES_SHARP[pc];
+    return `<span class="ref-leg-item">` +
+      `<span class="ref-leg-swatch deg-${semi}"></span>` +
+      `${DEGREE_LABELS[semi]} · ${INTERVAL_LABELS[semi] || semi} · ${name}</span>`;
+  }).join('');
+  el.innerHTML = html;
+}
+
+/** Note spelling for each semitone class the scale uses. */
+function refScaleSpelling() {
+  const rootP = parseNote(refRoot);
+  const def = SCALES[refScale];
+  const notes = getScaleNotes(refRoot, refScale);
+  const map = {};
+  if (!rootP || !def) return map;
+  def.forEach((d, i) => {
+    const pc = (rootP.semi + d[1]) % 12;
+    map[pc] = notes ? notes[i] : NOTE_NAMES_SHARP[pc];
+  });
+  return map;
+}
+
+function renderIntervalMap() {
+  const board = document.getElementById('ivmap-fretboard');
+  if (!board) return;
+  const def = SCALES[refScale];
+  const rootP = parseNote(refRoot);
+  if (!def || !rootP) { board.innerHTML = ''; return; }
+
+  const strings = TUNINGS[refTuning] || TUNINGS['Standard'];
+  const openMidis = refOpenMidis();
+  const refSemi = refMapReference();
+  const selected = refMapSelection();
+  const selectedSet = new Set(selected);
+  const pcToNote = refScaleSpelling();
+  const scalePcs = new Set(Object.keys(pcToNote).map(Number));
+
+  // The box comes from the same position engine, so both tabs agree on it.
+  const position = refPositions[refPositionIndex] || null;
+  const posKeys = positionNoteKeys(position);
+
+  renderIntervalRow(def, rootP.semi, refSemi, selected);
+
+  renderFretboard({
+    board,
+    strings,
+    openMidis,
+    start: refFbStart,
+    end: refFbEnd,
+    box: position && { start: position.start, end: position.end, anchorFret: position.anchorFret },
+    noteFor: ({ string, fret, pc }) => {
+      const interval = (pc - refSemi + 12) % 12;
+      if (interval !== 0 && !selectedSet.has(interval)) return null;
+      const inBox = posKeys.has(`${string}:${fret}`);
+      if (refMapBoxOnly && !inBox) return null;
+      const classes = [`deg-${interval}`];
+      if (interval === 0) classes.push('root');
+      classes.push(inBox ? 'in-pos' : 'dim');
+      // An interval can land outside the key. Saying so is the point of the
+      // map, so the note stays on the neck and wears a marker instead.
+      if (!scalePcs.has(pc)) classes.push('out-of-key');
+      const name = pcToNote[pc] || NOTE_NAMES_SHARP[pc];
+      const role = interval === 0 ? 'reference note' : (INTERVAL_LABELS[interval] || interval);
+      return {
+        label: DEGREE_LABELS[interval],
+        classes,
+        title: `${name} · ${role}${scalePcs.has(pc) ? '' : ' · outside the key'}`,
+      };
+    },
+  });
+
+  const refName = pcToNote[refSemi] || NOTE_NAMES_SHARP[refSemi];
+  const isCentre = refMapRefSemi == null;
+  const third = intervalsAbove(def, rootP.semi, refSemi, THIRD_LETTERS)
+    .map(v => DEGREE_LABELS[v]).join(' or ');
+  const fifth = intervalsAbove(def, rootP.semi, refSemi, FIFTH_LETTERS)
+    .map(v => DEGREE_LABELS[v]).join(' or ');
+
+  const title = document.getElementById('ivmap-title');
+  const sub = document.getElementById('ivmap-sub');
+  if (title) title.textContent = `Intervals from ${refName}`;
+  if (sub) {
+    const shape = third && fifth
+      ? `In ${refRoot} ${refScale} the third above ${refName} is a <strong>${third}</strong> ` +
+        `and the fifth is a <strong>${fifth}</strong>.`
+      : `${refName} is outside ${refRoot} ${refScale}, so the key puts no third or fifth above it.`;
+    sub.innerHTML =
+      `${selected.length} interval${selected.length === 1 ? '' : 's'} on the neck · ` +
+      `reference <strong>${refName}</strong>${isCentre ? ' (the tonal centre)' : ''} · ` +
+      `tap any note to measure from it<br>${shape}`;
+  }
+  renderIntervalLegend(selected, refSemi);
+  syncPositionSlider(position);
+}
+
+/** Draws the neck on both tabs from one set of positions. */
+function renderRefBoards() {
+  renderRefFretboard();
+  renderIntervalMap();
+}
+
+// The chords of the key live in the Triads tool now. This takes the player
+// there and opens the tab that holds them.
+function openTriadsInKey() {
+  if (typeof window !== 'undefined' && typeof window.showSection === 'function') {
+    window.showSection('triads');
+  }
+  document.dispatchEvent(new CustomEvent('musi:open-triads-inkey'));
 }
 
 function renderScaleRef() {
@@ -875,18 +981,13 @@ function renderScaleRef() {
   });
   html += `</table>`;
 
-  if (refScale === MAJOR_SCALE && notes.length === 7) {
-    html += `<div class="chord-row"><strong>Diatonic Triads:</strong> <span>`;
-    html += notes.map((n, i) => DEGREE_ROMAN[i] + ': ' + n + TRIAD_SUFFIX[i]).join('  ');
-    html += `</span></div>`;
-    html += `<div class="chord-row"><strong>Diatonic 7ths:</strong> <span>`;
-    html += notes.map((n, i) => DEGREE_ROMAN[i] + ': ' + n + SEVENTH_SUFFIX[i]).join('  ');
-    html += `</span></div>`;
-  }
-
-  html += renderModalChordVisualizer();
+  // The chords of the key live in the Triads tool, on its "In key" tab.
+  html += `<p class="ref-xref">Looking for the chords of this key? They are in ` +
+    `<button type="button" class="ref-xref-link" id="ref-goto-triads">Triads → In key</button>.</p>`;
 
   card.innerHTML = html;
+  const gotoTriads = document.getElementById('ref-goto-triads');
+  if (gotoTriads) gotoTriads.onclick = () => openTriadsInKey();
   const scalePlay = document.getElementById('scale-ref-play');
   if (scalePlay) {
     scalePlay.onclick = () => {
@@ -894,7 +995,7 @@ function renderScaleRef() {
       else playScaleRef();
     };
   }
-  renderRefFretboard();
+  renderRefBoards();
   renderRefModes();
   syncRefPlayButton();
 }
@@ -915,6 +1016,7 @@ export function applyScaleRefSelection({ root, scale, tuning } = {}) {
     refScale = scale;
     refModeIndex = 0;
     resetRefPosition();
+    resetMapIntervals();
     saveSetting('ref.scale', refScale);
     saveSetting('ref.modeIndex', refModeIndex);
     setContext({ scale: refScale }, 'scaleref');

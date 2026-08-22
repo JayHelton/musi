@@ -314,6 +314,30 @@
           <div class="ref-fb-scroll"><div class="ref-fretboard" id="ref-fretboard"></div></div>
           <div class="ref-fb-legend" id="ref-fb-legend"></div>
         </div>
+        <div class="quiz-card ref-fb-card" id="ref-ivmap-card">
+          <div class="ref-fb-head">
+            <div>
+              <div class="ref-fb-title" id="ivmap-title">Interval Map</div>
+              <div class="ref-fb-sub" id="ivmap-sub"></div>
+            </div>
+            <div class="ref-fb-opts">
+              <button type="button" class="btn sm" id="ivmap-reset">Thirds &amp; fifths</button>
+              <button type="button" class="btn sm" id="ivmap-all">All in key</button>
+              <label class="ref-fb-check"><input type="checkbox" id="ivmap-boxonly"> Box only</label>
+            </div>
+          </div>
+          <div class="ivmap-label">Interval from the reference note</div>
+          <div class="ivmap-row" id="ivmap-row"></div>
+          <div class="ref-pos-label">Position box</div>
+          <div class="ref-pos-slider" id="ivmap-pos-slider">
+            <button type="button" class="ref-pos-step" id="ivmap-pos-prev" aria-label="Slide the box down the neck">&#9664;</button>
+            <input type="range" id="ivmap-pos-range" min="0" max="0" step="1" value="0" aria-label="Position of the box on the neck">
+            <button type="button" class="ref-pos-step" id="ivmap-pos-next" aria-label="Slide the box up the neck">&#9654;</button>
+          </div>
+          <div class="ref-pos-readout" id="ivmap-pos-readout"></div>
+          <div class="ref-fb-scroll"><div class="ref-fretboard" id="ivmap-fretboard"></div></div>
+          <div class="ref-fb-legend" id="ivmap-legend"></div>
+        </div>
         <div class="quiz-card" id="ref-card">
           <p style="color:var(--muted)">Pick root &amp; mode.</p>
         </div>
@@ -502,6 +526,7 @@
               <div class="ref-view-picker" id="triad-view-picker" role="group" aria-label="Triads view">
                 <button type="button" class="ref-view-btn active" data-triad-view="triads">Triads</button>
                 <button type="button" class="ref-view-btn" data-triad-view="sweep">Sweep</button>
+                <button type="button" class="ref-view-btn" data-triad-view="inkey">In key</button>
               </div>
               <div id="triad-only-opts" class="triad-only-opts">
                 <label class="ref-fb-range">Fret <input type="number" id="triad-fb-start" min="0" max="24" value="0"></label>
@@ -512,6 +537,7 @@
             </div>
           </div>
           <div id="triad-map" class="triad-map" aria-live="polite"></div>
+          <div id="triad-inkey-panel" class="triad-inkey-panel" hidden></div>
           <div id="triad-sweep-panel" class="triad-sweep-panel" hidden>
             <div id="triad-sweep-controls" class="ref-sweep-controls"></div>
             <div class="ref-fb-scroll"><div class="ref-fretboard" id="triad-sweep-fretboard"></div></div>

@@ -12,7 +12,7 @@ import {
 } from './pickers.js';
 import { stepChord, applyChordRefSelection } from './chordReference.js';
 import { applyScaleRefSelection } from './scaleReference.js';
-import { applyTriadRefSelection } from './triadReference.js';
+import { applyTriadRefSelection, setTriadViewMode, TRIAD_VIEW_MODES } from './triadReference.js';
 import { openSelectionSheet, closeSelectionSheet } from './selectionSheet.js';
 import {
   renderSetupSummary, initSubviewTabs, renderCompactProgress,
@@ -143,6 +143,10 @@ function setupScaleRef() {
   // pill, so they get their own panel under the same tab id.
   if (fbCard) wrapAsSubview([fbCard], { id: 'fretboard', forTabs: 'scaleref-tabs', active: true });
   if (modes) wrapAsSubview([modes], { id: 'fretboard', forTabs: 'scaleref-tabs', active: true });
+  const ivMapCard = document.getElementById('ref-ivmap-card');
+  // The Interval Map leads the tab and the scale table follows it, because the
+  // map is the thing the player works with and the table is the reference.
+  if (ivMapCard) wrapAsSubview([ivMapCard], { id: 'intervals', forTabs: 'scaleref-tabs', active: false });
   if (infoCard) wrapAsSubview([infoCard], { id: 'intervals', forTabs: 'scaleref-tabs', active: false });
 
   initSubviewTabs(tabs, [
@@ -1135,6 +1139,7 @@ function setupTriads() {
   const infoCard = document.getElementById('triad-info-card');
   const triadMap = document.getElementById('triad-map');
   const sweepPanel = document.getElementById('triad-sweep-panel');
+  const inKeyPanel = document.getElementById('triad-inkey-panel');
   const sweepControls = document.getElementById('triad-sweep-controls');
   const triadOnlyOpts = document.getElementById('triad-only-opts');
   const stringSetSidebar = document.getElementById('triad-stringset-sidebar');
@@ -1175,10 +1180,13 @@ function setupTriads() {
   // fbCard in a subview panel or the Sweeps mobile tab hides the whole fretboard).
   function syncTriadSubviewVisibility(tabId) {
     const isSweep = tabId === 'sweeps';
-    if (triadMap) triadMap.hidden = isSweep;
+    const isInKey = tabId === 'inkey';
+    const isShapes = !isSweep && !isInKey;
+    if (triadMap) triadMap.hidden = !isShapes;
     if (sweepPanel) sweepPanel.hidden = !isSweep;
-    if (triadOnlyOpts) triadOnlyOpts.hidden = isSweep;
-    if (stringSetSidebar) stringSetSidebar.hidden = isSweep;
+    if (inKeyPanel) inKeyPanel.hidden = !isInKey;
+    if (triadOnlyOpts) triadOnlyOpts.hidden = !isShapes;
+    if (stringSetSidebar) stringSetSidebar.hidden = !isShapes;
     const nav = document.getElementById('triad-sweep-nav');
     if (nav) nav.hidden = !isSweep;
   }
@@ -1195,20 +1203,25 @@ function setupTriads() {
   }
   initialSubview = initialSubview || 'triads';
 
+  const TAB_VIEW_MODES = { triads: 'triads', sweeps: 'sweep', inkey: 'inkey' };
+
   triadsRefTabsApi = initSubviewTabs(tabs, [
     { id: 'triads', label: 'Triads' },
     { id: 'sweeps', label: 'Sweeps' },
+    { id: 'inkey', label: 'In key' },
   ], {
     settingsKey: 'subview.triadsref',
     defaultId: initialSubview,
     onChange: (id) => {
-      const viewMode = id === 'sweeps' ? 'sweep' : 'triads';
-      saveSetting('triadref.viewMode', viewMode);
       syncTriadSubviewVisibility(id);
-      const btn = document.querySelector(`.ref-view-btn[data-triad-view="${viewMode}"]`);
-      if (btn) btn.click();
+      setTriadViewMode(TAB_VIEW_MODES[id] || 'triads');
       refreshTriadsSetup();
     },
+  });
+
+  // The Scale Reference sends the player here for the chords of the key.
+  document.addEventListener('musi:open-triads-inkey', () => {
+    triadsRefTabsApi?.setActive('inkey');
   });
 
   syncTriadSubviewVisibility(triadsRefTabsApi.active);
@@ -1219,7 +1232,7 @@ function setupTriads() {
   document.addEventListener('musi:triadref-change', (e) => {
     const viewMode = e.detail?.viewMode;
     if (viewMode) {
-      const tabId = viewMode === 'sweep' ? 'sweeps' : 'triads';
+      const tabId = { sweep: 'sweeps', inkey: 'inkey' }[viewMode] || 'triads';
       triadsRefTabsApi?.setActive(tabId, { silent: true });
       syncTriadSubviewVisibility(tabId);
     }
@@ -1232,7 +1245,7 @@ function refreshTriadsSetup() {
   if (!el) return;
   const c = getContext();
   const tuning = resolveTuningKey(c.tuning);
-  const viewMode = getSetting('triadref.viewMode', 'triads', ['triads', 'sweep']);
+  const viewMode = getSetting('triadref.viewMode', 'triads', TRIAD_VIEW_MODES);
   const stringSet = Number(getSetting('triadref.stringSet', NaN));
   const setLabel = (() => {
     const item = document.querySelector(`#sl-triad-stringset .sl-item.active`);
@@ -1255,6 +1268,20 @@ function refreshTriadsSetup() {
       },
     },
   ];
+
+  // The chords of a key come from the root and the scale. Neither the string
+  // set nor the tuning changes them, so the scale takes their place there.
+  if (viewMode === 'inkey') {
+    fields.push({
+      key: 'scale', label: 'Scale', value: shortScaleName(c.scale), hint: 'Scale',
+      onClick: async () => {
+        const next = await openScalePicker({ value: c.scale, source: 'triadref' });
+        if (next) refreshTriadsSetup();
+      },
+    });
+    renderSetupSummary(el, fields);
+    return;
+  }
 
   if (viewMode !== 'sweep') {
     fields.push({

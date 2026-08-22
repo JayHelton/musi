@@ -3,6 +3,8 @@ import { triadQualities as buildTriadQualities } from './chords.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { resolveTuningKey } from './tunings.js';
+import { SCALES, shortScaleName } from './scales.js';
+import { renderDiatonicTriadPanel } from './diatonicTriads.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import {
   initSweepRef,
@@ -25,6 +27,47 @@ function qualityColor(q) {
   return `var(${q.colorVar})`;
 }
 
+/** A view mode this tool knows, from any string. Falls back to the shapes. */
+function normaliseViewMode(mode) {
+  return TRIAD_VIEW_MODES.includes(mode) ? mode : 'triads';
+}
+
+/** The scale the shared context holds. The chords of the key follow it. */
+function triadScale() {
+  const { scale } = getContext();
+  return SCALES[scale] ? scale : 'Major (Ionian)';
+}
+
+/** Switches the view, saves it, and redraws. Other screens call this too. */
+export function setTriadViewMode(mode) {
+  const next = normaliseViewMode(mode);
+  if (next === trViewMode) {
+    renderTriadRef();
+    return;
+  }
+  trViewMode = next;
+  saveSetting('triadref.viewMode', trViewMode);
+  saveSetting('subview.triadsref', VIEW_MODE_TABS[trViewMode]);
+  stopTriadRef();
+  renderTriadRef();
+}
+
+/** The chords of the current key, drawn from the shared root and scale. */
+function renderInKeyPanel() {
+  const panel = document.getElementById('triad-inkey-panel');
+  if (!panel) return;
+  const scale = triadScale();
+  const html = renderDiatonicTriadPanel(trRoot, scale);
+  panel.innerHTML = html || `<p class="triad-inkey-empty">` +
+    `${escapeHtml(shortScaleName(scale))} does not have seven degrees, so it has no ` +
+    `set of diatonic triads. Pick a seven-note scale to see the chords of a key.</p>`;
+}
+
+/** The three views of this tool. Shapes, sweeps, and the chords of the key. */
+export const TRIAD_VIEW_MODES = ['triads', 'sweep', 'inkey'];
+/** Subview tab id for each view mode, and back again. */
+const VIEW_MODE_TABS = { triads: 'triads', sweep: 'sweeps', inkey: 'inkey' };
+
 const FB_DOTS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 const MAX_FRET = 24;
 const DEFAULT_MAX_SPAN = 4;
@@ -36,7 +79,7 @@ let trFbStart = 0;
 let trFbEnd = 15;
 let trMaxSpan = DEFAULT_MAX_SPAN;
 let trShowSus = false;
-let trViewMode = 'triads'; // 'triads' | 'sweep'
+let trViewMode = 'triads'; // 'triads' | 'sweep' | 'inkey'
 let trContextSubscribed = false;
 let trControlsWired = false;
 let trViewWired = false;
@@ -177,7 +220,7 @@ function chordSymbol(root, quality) {
 }
 
 function migrateTriadViewMode() {
-  const saved = getSetting('triadref.viewMode', null, ['triads', 'sweep']);
+  const saved = getSetting('triadref.viewMode', null, TRIAD_VIEW_MODES);
   if (saved) {
     trViewMode = saved;
     return;
@@ -189,19 +232,28 @@ function migrateTriadViewMode() {
 
 function syncTriadViewUi() {
   document.querySelectorAll('#triad-view-picker .ref-view-btn').forEach(btn => {
-    const mode = btn.dataset.triadView === 'sweep' ? 'sweep' : 'triads';
-    btn.classList.toggle('active', mode === trViewMode);
+    btn.classList.toggle('active', normaliseViewMode(btn.dataset.triadView) === trViewMode);
   });
+  const shapes = trViewMode === 'triads';
   const triadMap = document.getElementById('triad-map');
   const sweepPanel = document.getElementById('triad-sweep-panel');
+  const inKeyPanel = document.getElementById('triad-inkey-panel');
   const triadOnlyOpts = document.getElementById('triad-only-opts');
   const stringSetSidebar = document.getElementById('triad-stringset-sidebar');
-  if (triadMap) triadMap.hidden = trViewMode === 'sweep';
+  if (triadMap) triadMap.hidden = !shapes;
   if (sweepPanel) sweepPanel.hidden = trViewMode !== 'sweep';
-  if (triadOnlyOpts) triadOnlyOpts.hidden = trViewMode === 'sweep';
-  if (stringSetSidebar) stringSetSidebar.hidden = trViewMode === 'sweep';
+  if (inKeyPanel) inKeyPanel.hidden = trViewMode !== 'inkey';
+  // The string set and the fret window shape the voicings, and the chords of
+  // the key do not depend on either, so both controls step aside there.
+  if (triadOnlyOpts) triadOnlyOpts.hidden = !shapes;
+  if (stringSetSidebar) stringSetSidebar.hidden = !shapes;
   const nav = document.getElementById('triad-sweep-nav');
   if (nav) nav.hidden = trViewMode !== 'sweep';
+  // Nothing on the in-key panel plays, and no option on it applies.
+  const play = document.getElementById('triad-fb-play');
+  if (play) play.hidden = trViewMode === 'inkey';
+  const options = document.getElementById('triad-fb-options-details');
+  if (options) options.hidden = trViewMode === 'inkey';
 }
 
 function wireTriadViewPicker() {
@@ -211,11 +263,7 @@ function wireTriadViewPicker() {
   trViewWired = true;
   picker.querySelectorAll('.ref-view-btn').forEach(btn => {
     btn.onclick = () => {
-      trViewMode = btn.dataset.triadView === 'sweep' ? 'sweep' : 'triads';
-      saveSetting('triadref.viewMode', trViewMode);
-      saveSetting('subview.triadsref', trViewMode === 'sweep' ? 'sweeps' : 'triads');
-      stopTriadRef();
-      renderTriadRef();
+      setTriadViewMode(btn.dataset.triadView);
     };
   });
 }
@@ -589,6 +637,16 @@ function renderTriadInfo() {
 function renderHeader() {
   const title = document.getElementById('triad-fb-title');
   const sub = document.getElementById('triad-fb-sub');
+  if (trViewMode === 'inkey') {
+    const scale = triadScale();
+    if (title) title.textContent = `Chords in ${trRoot} ${shortScaleName(scale)}`;
+    if (sub) {
+      sub.innerHTML = SCALES[scale] && SCALES[scale].length === 7
+        ? `Every triad the key contains · stack 1-3-5 from each degree`
+        : `Pick a seven-note scale to see the chords of the key`;
+    }
+    return;
+  }
   const sets = stringSetsForTuning(trTuning);
   const set = sets.find(s => s.index === trStringSet) || sets[sets.length - 1];
   if (title) title.textContent = `${trRoot} triad patterns`;
@@ -600,7 +658,10 @@ function renderHeader() {
 
 function renderTriadRef() {
   syncTriadViewUi();
-  if (trViewMode === 'sweep') {
+  if (trViewMode === 'inkey') {
+    renderHeader();
+    renderInKeyPanel();
+  } else if (trViewMode === 'sweep') {
     renderSweepRef(trRoot);
     syncSweepPlayButton();
   } else {
