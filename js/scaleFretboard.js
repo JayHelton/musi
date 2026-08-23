@@ -50,10 +50,10 @@ export function renderFretboard({ board, strings, openMidis, start, end, box, no
 
   let html = '<div class="ref-fb-corner"></div>';
   for (let f = first; f <= last; f++) {
-    // The fret under the index finger names the position, so mark it.
+    // The position starts on this fret, so mark it.
     const isAnchor = box && f === box.anchorFret;
     html += `<div class="ref-fb-fretnum${isAnchor ? ' anchor' : ''}"` +
-      `${isAnchor ? ' title="Index finger — this fret names the position"' : ''}>${f}</div>`;
+      `${isAnchor ? ' title="The position starts on this fret"' : ''}>${f}</div>`;
   }
 
   // The high string draws first, so the neck reads the way the player sees it.

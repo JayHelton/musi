@@ -470,9 +470,9 @@ function refModeChoices() {
 }
 
 // Every playable position of the current selection, low on the neck first.
-// Each position is a four-fret box that starts on the next degree of the
-// scale. The scale does not change from one box to the next, so a minor scale
-// stays minor: only the note under the index finger moves.
+// Each position starts on the next degree of the scale and takes the same
+// number of notes on each string. The scale does not change from one box to
+// the next, so a minor scale stays minor: only the first note moves.
 function refBuildPositions(openMidis) {
   const def = SCALES[refScale];
   const rootP = parseNote(refRoot);
