@@ -354,14 +354,20 @@ function resizeCanvas() {
   const canvas = el('pr-canvas');
   const stage = el('pr-stage');
   if (!canvas || !stage) return;
-  const rect = stage.getBoundingClientRect();
-  const cssW = Math.max(240, Math.round(rect.width));
-  const cssH = Math.max(180, Math.round(rect.height));
+  // Measure the canvas box. The canvas fills the stage inside its border, so
+  // the stage box is 1px larger on each side.
+  const rect = canvas.getBoundingClientRect();
+  const cssW = Math.round(rect.width);
+  const cssH = Math.round(rect.height);
+  // The stage is hidden or not laid out yet. The ResizeObserver calls this
+  // function again when the stage gets a size.
+  if (cssW < 1 || cssH < 1) return;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
+  // Do not write a pixel width or height on the canvas. CSS makes the canvas
+  // fill the stage. A pixel size becomes a minimum size for the layout and
+  // makes the card wider than a phone screen.
   runner.cssW = cssW;
   runner.cssH = cssH;
   const ctx = canvas.getContext('2d');

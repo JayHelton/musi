@@ -36,7 +36,7 @@
 .fb-card-compact{padding:14px 16px}
 
 /* Tuner */
-.tuner-center{max-width:500px;margin:0 auto;text-align:center}
+.tuner-center{width:100%;max-width:500px;min-width:0;margin:0 auto;text-align:center}
 .tuner-tuning-row{display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
 .tuner-tuning-row label{color:var(--muted);font-size:.85rem}
 .tuner-tuning-row select{padding:6px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.9rem;font-family:inherit}
@@ -91,8 +91,8 @@
 .pt-field{display:flex;flex-direction:column;gap:4px;text-align:left}
 .pt-field[hidden],.pt-melody-note[hidden],.pt-trends[hidden],.pt-result[hidden]{display:none !important}
 .pt-field span{color:var(--muted);font-size:.8rem}
-.pt-field select{padding:6px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.9rem;min-width:120px;font-family:inherit}
-.pt-pattern-field select{min-width:260px}
+.pt-field select{padding:6px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.9rem;min-width:min(120px,100%);max-width:100%;font-family:inherit}
+.pt-pattern-field select{min-width:min(260px,100%)}
 .pt-stage{font-size:.9rem;color:var(--muted);text-align:center;margin:6px 0}
 .pt-stage-name{color:var(--accent);font-weight:600}
 .pt-prompt{font-size:1.6rem;font-weight:700;color:var(--text);text-align:center;margin:4px 0}
@@ -146,10 +146,10 @@
 }
 
 /* Pitch Runner — scrolling, Guitar-Hero-style pitch game */
-.pr-card{max-width:640px;margin-left:auto;margin-right:auto}
+.pr-card{width:100%;max-width:640px;min-width:0;margin-left:auto;margin-right:auto}
 .pr-tag{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);border:1px solid var(--accent-dim,rgba(124,156,255,.4));border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
 .pr-intro{font-size:.85rem;color:var(--muted);text-align:center;margin:0 0 14px}
-.pr-tempo{display:inline-flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:4px 8px;min-width:120px;justify-content:center}
+.pr-tempo{display:inline-flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:4px 8px;min-width:min(120px,100%);max-width:100%;justify-content:center}
 .pr-tempo b{font-size:1.05rem;color:var(--text);min-width:38px;text-align:center;font-variant-numeric:tabular-nums}
 .pr-bpm-btn{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:1.1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .pr-bpm-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -159,8 +159,8 @@
 .pr-stat{display:flex;flex-direction:column;align-items:center;min-width:64px}
 .pr-stat-val{font-size:1.4rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
 .pr-stat-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.pr-stage{position:relative;width:100%;height:320px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--card)}
-.pr-stage canvas{display:block;width:100%;height:100%}
+.pr-stage{position:relative;width:100%;min-width:0;height:320px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--card)}
+.pr-stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
 .pr-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.05rem;font-weight:600;color:var(--muted);background:rgba(0,0,0,0.35);z-index:2;text-align:center;padding:0 20px}
 .pr-judge{position:absolute;top:14%;left:50%;transform:translateX(-50%);font-size:1.6rem;font-weight:800;opacity:0;pointer-events:none;z-index:3;text-shadow:0 2px 12px rgba(0,0,0,0.6)}
 .pr-judge.perfect{color:var(--ok)}
