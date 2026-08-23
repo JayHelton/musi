@@ -445,6 +445,7 @@ function readColors() {
   const get = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
   runner.colors = {
     accent: get('--accent', '#7c9cff'),
+    accent2: get('--accent2', '#b45eff'),
     ok: get('--ok', '#4ade80'),
     warn: get('--warn', '#fbbf24'),
     err: get('--err', '#f87171'),
@@ -453,7 +454,13 @@ function readColors() {
     border: get('--border', 'rgba(255,255,255,0.12)'),
     card: get('--card', '#15151d'),
     bg2: get('--bg2', '#1c1c26'),
+    // Pixel chrome tokens. The canvas uses the same ink and edge
+    // colours as the CSS frames around it.
+    ink: get('--px-ink', '#05070f'),
+    edge: get('--px-edge', 'rgba(180,140,255,0.42)'),
   };
+  // The checker pattern holds a colour, so build it again.
+  runner.lanePattern = null;
 }
 
 function resizeCanvas() {
@@ -494,12 +501,159 @@ function laneHeight() {
   return Math.abs(midiToY(runner.laneMin + 1) - midiToY(runner.laneMin));
 }
 
+/* ---- Pixel helpers ---------------------------------------------------------
+   The canvas follows css/pixel-ui.css. Shapes are hard rectangles.
+   Coordinates snap to whole pixels, so an edge stays crisp. */
+
+const CANVAS_LABEL_FONT = '15px "VT323", monospace';
+const CANVAS_COUNT_FONT = '42px "Press Start 2P", monospace';
+
+/** Report the width of one device pixel in canvas units. */
+function hairline() {
+  return 1 / (window.devicePixelRatio || 1);
+}
+
+/** Report true when the browser has the font file. */
+function fontLoaded(spec) {
+  try {
+    return document.fonts ? document.fonts.check(spec) : false;
+  } catch {
+    return false;
+  }
+}
+
+/** Give the font for a lane label. Text metrics need a loaded font. */
+function labelFont() {
+  return fontLoaded('15px "VT323"') ? CANVAS_LABEL_FONT : '12px monospace';
+}
+
+/** Give the font for the count-in digit. */
+function countFont() {
+  return fontLoaded('42px "Press Start 2P"') ? CANVAS_COUNT_FONT : 'bold 36px monospace';
+}
+
+/** Build a 4 by 4 checker fill. It replaces a soft gradient. */
+function lanePattern(ctx) {
+  if (runner.lanePattern) return runner.lanePattern;
+  const cell = document.createElement('canvas');
+  cell.width = 4;
+  cell.height = 4;
+  const cc = cell.getContext('2d');
+  if (!cc) return null;
+  cc.fillStyle = (runner.colors && runner.colors.edge) || 'rgba(180,140,255,0.42)';
+  cc.fillRect(0, 0, 1, 1);
+  cc.fillRect(2, 2, 1, 1);
+  runner.lanePattern = ctx.createPattern(cell, 'repeat');
+  return runner.lanePattern;
+}
+
+/** Draw a block with a dark rim, so it reads over a lane fill. */
+function pixelBlock(ctx, x, y, w, h, fill, ink) {
+  ctx.fillStyle = ink;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = fill;
+  ctx.fillRect(x + 2, y + 2, Math.max(1, w - 4), Math.max(1, h - 4));
+}
+
+/** Draw the live pitch mark: a chunky plus on the pixel grid. */
+function pixelPlus(ctx, cx, cy, fill, ink) {
+  const arm = 4;
+  const reach = 10;
+  const bars = [
+    [cx - reach, cy - arm, reach * 2, arm * 2],
+    [cx - arm, cy - reach, arm * 2, reach * 2],
+  ];
+  ctx.fillStyle = ink;
+  for (const b of bars) ctx.fillRect(b[0] - 2, b[1] - 2, b[2] + 4, b[3] + 4);
+  ctx.fillStyle = fill;
+  for (const b of bars) ctx.fillRect(b[0], b[1], b[2], b[3]);
+}
+
+/** Paint the background, the pitch lanes, and the beat grid. */
+function drawBackdrop(ctx, playheadBeat) {
+  const c = runner.colors;
+  const W = runner.cssW;
+  const H = runner.cssH;
+  const hair = hairline();
+  const lh = laneHeight();
+
+  ctx.fillStyle = c.card;
+  ctx.fillRect(0, 0, W, H);
+
+  // One lane per semitone. A scale tone takes a checker fill.
+  const inSeq = new Set(runner.patternSeq);
+  const checker = lanePattern(ctx);
+  for (let m = runner.laneMin; m <= runner.laneMax; m++) {
+    const top = Math.round(midiToY(m) - lh / 2);
+    if (checker && inSeq.has(m)) {
+      ctx.fillStyle = checker;
+      ctx.fillRect(0, top, W, Math.max(1, Math.round(lh)));
+    }
+    ctx.fillStyle = c.border;
+    ctx.fillRect(0, top, W, hair);
+  }
+
+  // Beat grid. A downbeat takes a wider, brighter line.
+  const hitX = Math.round(W * HIT_X_RATIO);
+  const ppb = pxPerBeat();
+  const firstBeat = Math.floor(playheadBeat - hitX / ppb) - 1;
+  const lastBeat = Math.ceil(playheadBeat + (W - hitX) / ppb) + 1;
+  for (let b = firstBeat; b <= lastBeat; b++) {
+    const x = Math.round(hitX + (b - playheadBeat) * ppb);
+    if (x < 0 || x > W) continue;
+    const downbeat = ((b % 4) + 4) % 4 === 0;
+    ctx.fillStyle = downbeat ? c.edge : c.border;
+    ctx.fillRect(x, 0, downbeat ? 2 : hair, H);
+  }
+}
+
+/** Write the note name of each lane in the left gutter. */
+function drawLaneLabels(ctx) {
+  const c = runner.colors;
+  const inSeq = new Set(runner.patternSeq);
+  const lh = laneHeight();
+  ctx.font = labelFont();
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  for (let m = runner.laneMin; m <= runner.laneMax; m++) {
+    const y = Math.round(midiToY(m));
+    const isTarget = inSeq.has(m);
+    // A short lane only shows the name of a scale tone. The names
+    // would touch each other on a small screen.
+    if (lh < 22 && !isTarget) continue;
+    const lbl = midiToLabel(m).full;
+    const tw = Math.ceil(ctx.measureText(lbl).width);
+    ctx.fillStyle = c.edge;
+    ctx.fillRect(2, y - 10, tw + 12, 20);
+    ctx.fillStyle = c.ink;
+    ctx.fillRect(3, y - 9, tw + 10, 18);
+    ctx.fillStyle = isTarget ? c.accent : c.muted;
+    ctx.fillText(lbl, 8, y);
+  }
+}
+
+/** Draw the line where a note counts. */
+function drawHitLine(ctx) {
+  const c = runner.colors;
+  const hitX = Math.round(runner.cssW * HIT_X_RATIO);
+  ctx.fillStyle = c.ink;
+  ctx.fillRect(hitX - 3, 0, 8, runner.cssH);
+  ctx.fillStyle = c.accent;
+  ctx.fillRect(hitX - 1, 0, 3, runner.cssH);
+}
+
 function drawIdle() {
   const ctx = runner.ctx2d;
   if (!ctx) return;
   ctx.clearRect(0, 0, runner.cssW, runner.cssH);
-  ctx.fillStyle = runner.colors ? runner.colors.card : '#15151d';
-  ctx.fillRect(0, 0, runner.cssW, runner.cssH);
+  if (!runner.colors) {
+    ctx.fillStyle = '#15151d';
+    ctx.fillRect(0, 0, runner.cssW, runner.cssH);
+    return;
+  }
+  drawBackdrop(ctx, 0);
+  drawLaneLabels(ctx);
+  drawHitLine(ctx);
 }
 
 function draw(playheadBeat) {
@@ -508,56 +662,23 @@ function draw(playheadBeat) {
   const c = runner.colors;
   const W = runner.cssW;
   const H = runner.cssH;
-  const hitX = W * HIT_X_RATIO;
+  const hitX = Math.round(W * HIT_X_RATIO);
   const ppb = pxPerBeat();
   const lh = laneHeight();
 
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = c.card;
-  ctx.fillRect(0, 0, W, H);
+  drawBackdrop(ctx, playheadBeat);
 
-  // Pitch lanes (one per semitone), scale tones subtly highlighted.
-  ctx.textBaseline = 'middle';
-  ctx.font = '11px system-ui, sans-serif';
-  const inSeq = new Set(runner.patternSeq);
-  for (let m = runner.laneMin; m <= runner.laneMax; m++) {
-    const y = midiToY(m);
-    if (inSeq.has(m)) {
-      ctx.fillStyle = 'rgba(255,255,255,0.05)';
-      ctx.fillRect(0, y - lh / 2, W, lh);
-    }
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, y - lh / 2);
-    ctx.lineTo(W, y - lh / 2);
-    ctx.stroke();
-  }
-
-  // Beat grid — stronger lines on downbeats to convey 4/4 timing.
-  const firstBeat = Math.floor(playheadBeat - hitX / ppb) - 1;
-  const lastBeat = Math.ceil(playheadBeat + (W - hitX) / ppb) + 1;
-  for (let b = firstBeat; b <= lastBeat; b++) {
-    const x = hitX + (b - playheadBeat) * ppb;
-    if (x < 0 || x > W) continue;
-    const downbeat = ((b % 4) + 4) % 4 === 0;
-    ctx.strokeStyle = downbeat ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = downbeat ? 1.5 : 1;
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, H);
-    ctx.stroke();
-  }
-
-  // Note bars.
+  // Note bars. Each bar is a hard block with a dark rim.
   const activeMidi = currentTargetMidi(playheadBeat, true);
   for (const note of runner.notes) {
-    const x = hitX + (note.startBeat - playheadBeat) * ppb;
-    const w = note.dur * ppb;
+    const x = Math.round(hitX + (note.startBeat - playheadBeat) * ppb);
+    const w = Math.max(6, Math.round(note.dur * ppb));
     if (x + w < 0 || x > W) continue;
-    const y = midiToY(note.midi);
-    const barH = Math.max(10, lh * 0.72);
+    const y = Math.round(midiToY(note.midi));
+    const barH = Math.max(10, Math.round(lh * 0.72));
     let fill;
+    let ahead = false;
     if (note.listenOnly) {
       fill = note.midi === activeMidi ? c.accent : c.muted;
     } else if (note.judged) {
@@ -565,69 +686,41 @@ function draw(playheadBeat) {
     } else if (note.midi === activeMidi) {
       fill = c.accent;
     } else {
-      fill = 'rgba(124,156,255,0.55)';
+      // The note is still ahead of the line.
+      fill = c.accent2;
+      ahead = true;
     }
-    ctx.fillStyle = fill;
-    roundRect(ctx, x, y - barH / 2, Math.max(6, w), barH, Math.min(8, barH / 2));
-    ctx.fill();
+    if (ahead) ctx.globalAlpha = 0.72;
+    pixelBlock(ctx, x, y - Math.round(barH / 2), w, barH, fill, c.ink);
+    ctx.globalAlpha = 1;
   }
 
-  // Pitch trail (recent detected pitch) scrolling left from the hit line.
+  // Pitch trail. Each step is a block, so the trail stays chunky
+  // and the singer can still read the shape.
   if (runner.trail.length > 1) {
     for (let i = 1; i < runner.trail.length; i++) {
       const a = runner.trail[i - 1];
       const b = runner.trail[i];
       if (!a.hasPitch || !b.hasPitch) continue;
-      const xa = hitX + (a.beat - playheadBeat) * ppb;
-      const xb = hitX + (b.beat - playheadBeat) * ppb;
-      ctx.strokeStyle = b.inTune ? c.ok : c.warn;
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(xa, midiToY(a.midiFloat));
-      ctx.lineTo(xb, midiToY(b.midiFloat));
-      ctx.stroke();
+      const xa = Math.round(hitX + (a.beat - playheadBeat) * ppb);
+      const xb = Math.round(hitX + (b.beat - playheadBeat) * ppb);
+      const ya = Math.round(midiToY(a.midiFloat));
+      const yb = Math.round(midiToY(b.midiFloat));
+      const top = Math.min(ya, yb) - 1;
+      const h = Math.max(3, Math.abs(yb - ya) + 2);
+      ctx.fillStyle = b.inTune ? c.ok : c.warn;
+      ctx.fillRect(xa, top, Math.max(3, xb - xa), h);
     }
   }
 
-  // Note-name labels in the left gutter, drawn last so bars never hide them.
-  const inSeqLbl = new Set(runner.patternSeq);
-  for (let m = runner.laneMin; m <= runner.laneMax; m++) {
-    const y = midiToY(m);
-    const isTarget = inSeqLbl.has(m);
-    const lbl = midiToLabel(m);
-    const tw = ctx.measureText(lbl.full).width;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    roundRect(ctx, 3, y - 8, tw + 8, 16, 5);
-    ctx.fill();
-    ctx.fillStyle = isTarget ? c.text : c.muted;
-    ctx.globalAlpha = isTarget ? 0.95 : 0.6;
-    ctx.fillText(lbl.full, 7, y);
-    ctx.globalAlpha = 1;
-  }
+  drawLaneLabels(ctx);
+  drawHitLine(ctx);
 
-  // Hit line.
-  ctx.strokeStyle = c.accent;
-  ctx.lineWidth = 2.5;
-  ctx.globalAlpha = 0.9;
-  ctx.beginPath();
-  ctx.moveTo(hitX, 0);
-  ctx.lineTo(hitX, H);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  // Live pitch puck on the hit line.
+  // Live pitch mark on the hit line.
   const last = runner.trail[runner.trail.length - 1];
   if (last && last.hasPitch) {
-    const y = midiToY(last.midiFloat);
-    ctx.fillStyle = last.inTune ? c.ok : c.warn;
-    ctx.beginPath();
-    ctx.arc(hitX, y, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = c.card;
-    ctx.beginPath();
-    ctx.arc(hitX, y, 3, 0, Math.PI * 2);
-    ctx.fill();
+    const y = Math.round(midiToY(last.midiFloat));
+    pixelPlus(ctx, hitX, y, last.inTune ? c.ok : c.warn, c.ink);
   }
 
   // Count-in cue between the listen phase and the first scored note.
@@ -635,25 +728,17 @@ function draw(playheadBeat) {
     && playheadBeat >= runner.listenBeats
     && playheadBeat < runner.firstNoteBeat) {
     const remaining = Math.ceil(runner.firstNoteBeat - playheadBeat);
-    ctx.fillStyle = c.text;
-    ctx.globalAlpha = 0.85;
+    const cx = Math.round(W / 2);
+    const cy = Math.round(H / 2);
     ctx.textAlign = 'center';
-    ctx.font = '600 42px system-ui, sans-serif';
-    ctx.fillText(String(remaining), W / 2, H / 2);
+    ctx.textBaseline = 'middle';
+    ctx.font = countFont();
+    ctx.fillStyle = c.ink;
+    ctx.fillText(String(remaining), cx + 4, cy + 4);
+    ctx.fillStyle = c.accent;
+    ctx.fillText(String(remaining), cx, cy);
     ctx.textAlign = 'left';
-    ctx.globalAlpha = 1;
   }
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr);
-  ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr);
-  ctx.arcTo(x, y, x + w, y, rr);
-  ctx.closePath();
 }
 
 function currentTargetMidi(playheadBeat, includeListen = true) {

@@ -1,179 +1,1421 @@
-/* Fretboard Trainer */
-.fb-wrap{overflow-x:auto;overflow-y:hidden;max-width:100%;margin:0 auto 10px;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
-.fretboard{display:grid;gap:0;border:1px solid var(--border);border-radius:8px;user-select:none;background:var(--bg2);overflow:hidden;min-width:0;width:100%}
-.fb-cell{display:flex;align-items:center;justify-content:center;height:24px;border-right:1px solid rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;font-size:.58rem;color:transparent;transition:all 0.15s ease;position:relative}
-.fb-cell:hover{background:var(--hover)}
-.fb-cell.in-scale{background:rgba(255,255,255,0.018)}
-.fb-cell.show-label{color:var(--muted)}
-.fb-cell.nut{background:rgba(255,255,255,0.02);border-right:3px solid var(--muted)}
-.fb-cell.dot::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.2);pointer-events:none;z-index:0}
-.fb-cell.selected{background:var(--accent);color:var(--on-accent);font-weight:700;font-size:.7rem}
-.fb-cell.correct{background:var(--ok);color:#fff;font-weight:700;font-size:.7rem;animation:pulseGlow 0.6s ease}
-.fb-cell.wrong{background:var(--err);color:#fff;font-weight:700;font-size:.7rem;animation:shake 0.4s ease}
-.fb-cell.reveal{background:var(--accent-dim);color:var(--accent);font-weight:600;font-size:.7rem}
-.fb-header{display:flex;align-items:center;justify-content:center;height:16px;font-size:.55rem;color:var(--muted);font-weight:600}
-.fb-string-label{display:flex;align-items:center;justify-content:center;height:24px;font-size:.6rem;color:var(--muted);font-weight:600;min-width:22px;border-bottom:1px solid rgba(255,255,255,0.05);background:var(--bg);border-right:2px solid var(--border)}
-.fb-question{font-size:.95rem;font-weight:600;margin-bottom:10px;min-height:1.3em;line-height:1.35}
-.fb-question .highlight{color:var(--accent);font-weight:700}
-.int-picker{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.int-btn{min-height:40px;padding:8px 14px;border:none;border-radius:20px;background:var(--bg2);color:var(--text);cursor:pointer;font-size:.8rem;transition:all 0.15s ease;font-family:inherit}
-.int-btn:hover{background:var(--hover);transform:scale(1.02)}
-.int-btn:active{transform:scale(0.98)}
-.int-btn.selected{background:var(--accent);color:var(--on-accent);font-weight:600}
-.int-btn.correct{background:var(--ok);color:#fff;animation:pulseGlow 0.6s ease}
-.int-btn.wrong{background:var(--err);color:#fff;animation:shake 0.4s ease}
-.fb-feedback{padding:14px 18px;border-radius:16px;font-size:.95rem;margin-bottom:12px;display:none;transition:all 0.2s ease}
-.fb-feedback.show{display:block}
-.fb-feedback.correct{background:rgba(46,204,113,0.08);color:var(--ok)}
-.fb-feedback.wrong{background:rgba(231,76,60,0.08);color:var(--err)}
-.fb-feedback.fade-out{opacity:0;transition:opacity 0.5s ease}
-.fb-score{display:flex;gap:20px;align-items:center;padding:14px 18px;background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,0.5);border-radius:16px;font-size:.85rem;color:var(--muted);margin-bottom:12px}
-.fb-score .val{color:var(--accent);font-weight:700;font-size:1.1rem}
-.fb-workbench-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.45);font-size:.82rem;color:var(--muted)}
-.fb-workbench-controls label{display:flex;gap:6px;align-items:center}
-.fb-workbench-controls input[type=number]{width:54px;padding:6px 8px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text);font:inherit}
-.fb-workbench-controls input[type=checkbox]{accent-color:var(--accent)}
-.fb-card-compact{padding:14px 16px}
+/* ============================================================
+   Trainers: fretboard, tuner, sight reading, ear trainer,
+   pitch match, and pitch runner.
 
-/* Tuner */
-.tuner-center{max-width:500px;margin:0 auto;text-align:center}
-.tuner-tuning-row{display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
-.tuner-tuning-row label{color:var(--muted);font-size:.85rem}
-.tuner-tuning-row select{padding:6px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.9rem;font-family:inherit}
-.string-row{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
-.string-btn{padding:8px 14px;border:none;border-radius:20px;background:var(--card);color:var(--text);cursor:pointer;font-size:.9rem;font-weight:600;transition:all 0.15s ease;min-width:52px;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
-.string-btn:hover{background:var(--hover);transform:scale(1.02)}
-.string-btn.active{background:var(--accent-dim);color:var(--accent);box-shadow:0 0 12px var(--accent-dim)}
+   The chrome follows css/pixel-ui.css. Outlines are hard. Corners
+   are square. Shadows are solid and have no blur. Shaded bands use
+   a checker dither, not a soft gradient. A button moves along the
+   shadow axis when you press it. It does not scale.
 
-/* Sleeker Tuner Gauge */
-.tuner-gauge{position:relative;height:120px;margin:20px 0;overflow:hidden;border-radius:16px;background:var(--card)}
-.tuner-gauge-bg{width:100%;height:100%;position:relative}
-.gauge-bar{position:absolute;bottom:0;left:50%;height:100%;width:1px;background:rgba(255,255,255,0.04);transform:translateX(-50%)}
-.gauge-center{position:absolute;bottom:0;left:50%;width:3px;height:100%;background:var(--accent);transform:translateX(-50%);border-radius:2px;box-shadow:0 0 8px var(--accent-glow)}
-.tuner-needle{position:absolute;bottom:0;left:50%;width:3px;height:90%;background:var(--err);border-radius:3px;transform-origin:bottom center;transition:transform .1s ease}
-.tuner-cents{font-size:2.5rem;font-weight:700;font-family:var(--font-ui,'VT323',monospace);margin:8px 0}
-.tuner-cents.in-tune{color:var(--ok)}
-.tuner-cents.close{color:var(--warn)}
-.tuner-cents.off{color:var(--err)}
-.tuner-note{font-size:1.8rem;font-weight:700;color:var(--accent);margin:4px 0}
-.tuner-freq{font-size:.9rem;color:var(--muted)}
-.tuner-status{font-size:.85rem;color:var(--muted);margin-top:12px}
-.vt-scale-controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px}
-.vt-scale-field{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left}
-.vt-scale-field span{color:var(--muted);font-size:.8rem}
-.vt-scale-field select{padding:6px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.9rem;font-family:inherit;min-width:120px}
+   This file adds shape only. It does not change the palette. All
+   colours come from the tokens in css/base.css and
+   css/theme-gbc.css.
+   ============================================================ */
 
-/* Sight Reading */
-.sr-question{font-size:1.2rem}
-.sr-question .highlight{color:var(--accent);font-weight:700}
-.sr-staff-wrap{display:flex;justify-content:center;align-items:center;margin-bottom:18px;min-height:160px;background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:12px;overflow:hidden}
-.sr-staff{max-width:100%;height:auto}
-.sr-staff .staff-line{stroke:var(--text);stroke-width:1.3;opacity:.8}
-.sr-staff .ledger-line{stroke:var(--text);stroke-width:1.3;opacity:.8}
-.sr-staff .note-head{fill:var(--accent)}
-.sr-staff .note-stem{stroke:var(--accent);stroke-width:2;stroke-linecap:round}
-.sr-staff .clef-glyph{fill:var(--text);font-family:'Bravura','Noto Music',serif;dominant-baseline:auto}
+/* ---- 1. Fretboard trainer --------------------------------- */
 
-/* Ear Trainer */
-#ear-question .highlight{color:var(--accent);font-weight:700}
-
-.ear-transport{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.ear-transport .btn.primary{flex:1 1 140px}
-.ear-transport .btn.sm{flex:0 1 110px}
-.ear-pulse{width:44px;height:44px;margin:0 auto 12px;border-radius:50%;border:1px solid var(--accent);background:var(--accent-dim);animation:earPulse .65s ease-out}
-@keyframes earPulse{
-  0%{transform:scale(.8);opacity:.9}
-  100%{transform:scale(1.8);opacity:0}
+.fb-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  margin: 0 auto 10px;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
-/* Pitch Trainer */
-.pt-controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
-.pt-field{display:flex;flex-direction:column;gap:4px;text-align:left}
-.pt-field[hidden],.pt-melody-note[hidden],.pt-trends[hidden],.pt-result[hidden]{display:none !important}
-.pt-field span{color:var(--muted);font-size:.8rem}
-.pt-field select{padding:6px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);color:var(--text);font-size:.9rem;min-width:120px;font-family:inherit}
-.pt-pattern-field select{min-width:260px}
-.pt-group-label{width:100%;margin:0 0 2px;color:var(--muted);font-family:var(--font-ui,"VT323",monospace);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;text-align:left}
-.pt-pace{font-size:.85rem;color:var(--accent);text-align:center;margin:2px 0 0;font-family:var(--font-ui,"VT323",monospace)}
-.pt-pace[hidden]{display:none !important}
-.pt-stage{font-size:.9rem;color:var(--muted);text-align:center;margin:6px 0}
-.pt-stage-name{color:var(--accent);font-weight:600}
-.pt-prompt{font-size:1.6rem;font-weight:700;color:var(--text);text-align:center;margin:4px 0}
-.pt-prompt-sub{font-size:.85rem;color:var(--muted);font-weight:400;display:block}
-.pt-meter{position:relative;width:100%;max-width:360px;height:280px;margin:16px auto;display:flex;gap:8px;justify-content:center}
-.pt-meter-track{position:relative;flex:1;max-width:280px;height:100%;background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden}
-.pt-target-line{position:absolute;left:0;right:0;top:50%;height:3px;transform:translateY(-50%);background:var(--accent);box-shadow:0 0 10px var(--accent-glow);z-index:3;border-radius:2px}
-.pt-zone-close{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:80%;background:rgba(250,204,21,0.06);border-top:1px dashed rgba(255,255,255,0.08);border-bottom:1px dashed rgba(255,255,255,0.08);z-index:1;pointer-events:none}
-.pt-zone-pass{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:40%;background:rgba(74,222,128,0.12);border-top:1px dashed rgba(74,222,128,0.25);border-bottom:1px dashed rgba(74,222,128,0.25);z-index:2;pointer-events:none}
-.pt-zone-bullseye{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:20%;background:rgba(74,222,128,0.2);border-top:1px solid rgba(74,222,128,0.35);border-bottom:1px solid rgba(74,222,128,0.35);z-index:2;pointer-events:none}
-.pt-zone{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);background:rgba(74,222,128,0.14);border-top:1px dashed rgba(255,255,255,0.12);border-bottom:1px dashed rgba(255,255,255,0.12);z-index:1}
-.pt-tick{position:absolute;left:0;right:0;height:1px;background:rgba(255,255,255,0.06);z-index:1}
-.pt-puck{position:absolute;left:50%;top:50%;width:64px;height:22px;transform:translate(-50%,-50%);border-radius:11px;background:var(--muted);z-index:4;transition:top .06s linear,background-color .15s ease,box-shadow .15s ease;display:flex;align-items:center;justify-content:center;color:#0b0b0f;font-weight:700;font-size:.8rem}
-.pt-puck.idle{background:var(--muted)}
-.pt-puck.holding{opacity:.7}
-.pt-puck.off{background:var(--err)}
-.pt-puck.close{background:var(--warn)}
-.pt-puck.in{background:var(--ok);box-shadow:0 0 16px rgba(74,222,128,0.6)}
-.pt-progress-ring{position:absolute;right:0;bottom:0;width:5px;height:0%;background:var(--ok);box-shadow:0 0 8px var(--accent-glow);border-radius:3px;z-index:5;transition:height .1s linear}
-.pt-meter-scale{width:34px;position:relative;font-size:.65rem;color:var(--muted)}
-.pt-scale-label{position:absolute;right:4px;transform:translateY(-50%);white-space:nowrap}
-.pt-readout{text-align:center;margin-top:6px}
-.pt-readout-note{font-size:1.3rem;font-weight:700;color:var(--text);font-family:var(--font-ui,'VT323',monospace)}
-.pt-readout-cents{font-size:.9rem;color:var(--muted);margin-left:8px;font-family:var(--font-ui,"VT323",monospace)}
-.pt-readout-cents.in{color:var(--ok)}
-.pt-readout-cents.close{color:var(--warn)}
-.pt-readout-cents.off{color:var(--err)}
-.pt-readout-direction{font-size:.85rem;color:var(--muted);margin-left:8px;font-family:var(--font-ui,"VT323",monospace)}
-.pt-readout-direction.in{color:var(--ok)}
-.pt-readout-direction.close{color:var(--warn)}
-.pt-readout-direction.off{color:var(--err)}
-.pt-readout-confidence{display:block;font-size:.8rem;color:var(--muted);margin-top:4px;font-family:var(--font-ui,"VT323",monospace)}
-.pt-readout-cents.dim{opacity:.45}
-.pt-overflow{position:absolute;right:6px;top:4px;font-size:1.1rem;color:var(--warn);z-index:6;font-weight:700;opacity:0;transition:opacity .12s ease}
-.pt-overflow.active{opacity:1}
-.pt-result{margin-top:10px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-screen,16px);font-family:var(--font-ui,"VT323",monospace);font-size:.95rem;color:var(--text);text-align:center;line-height:1.5}
-.pt-trends{width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-screen,16px);font-family:var(--font-ui,"VT323",monospace);font-size:.85rem;color:var(--muted);text-align:left;line-height:1.45}
-.pt-trends b{color:var(--accent);font-weight:600}
-.pt-trends-row{display:block}
-.pt-melody-note{width:100%;margin:-6px 0 4px;font-size:.75rem;color:var(--muted);text-align:left}
-.pt-meter.pt-feedback-reduced .pt-puck{opacity:.65}
-.pt-meter.pt-feedback-result{visibility:hidden;height:0;margin:0;overflow:hidden}
-.pt-readout.pt-feedback-reduced .pt-readout-cents,.pt-readout.pt-feedback-reduced .pt-readout-direction{opacity:.4}
-.pt-status{font-size:.85rem;color:var(--muted);text-align:center;margin-top:10px}
-#pt-replay.playing{background:var(--accent-dim);color:var(--accent);box-shadow:0 0 14px var(--accent-dim)}
-@media(max-width:600px),(orientation:landscape) and (max-height:500px){
-  .pt-meter{height:220px}
-  .pt-controls{flex-direction:column;align-items:stretch}
-  .pt-field{align-items:stretch}
-  .pt-field select{width:100%}
+.fretboard {
+  display: grid;
+  gap: 0;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  user-select: none;
+  background: var(--bg2);
+  overflow: hidden;
+  min-width: 0;
+  width: 100%;
 }
 
-/* Pitch Runner — scrolling, Guitar-Hero-style pitch game */
-.pr-card{max-width:640px;margin-left:auto;margin-right:auto}
-.pr-tag{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);border:1px solid var(--accent-dim,rgba(124,156,255,.4));border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
-.pr-intro{font-size:.85rem;color:var(--muted);text-align:center;margin:0 0 14px}
-.pr-tempo{display:inline-flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:4px 8px;min-width:120px;justify-content:center}
-.pr-tempo b{font-size:1.05rem;color:var(--text);min-width:38px;text-align:center;font-variant-numeric:tabular-nums}
-.pr-bpm-btn{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:1.1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.pr-bpm-btn:hover{border-color:var(--accent);color:var(--accent)}
-.pr-toggles{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
-.pr-check{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted);cursor:pointer}
-.pr-hud{display:flex;justify-content:center;gap:26px;margin-bottom:12px}
-.pr-stat{display:flex;flex-direction:column;align-items:center;min-width:64px}
-.pr-stat-val{font-size:1.4rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
-.pr-stat-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.pr-stage{position:relative;width:100%;height:320px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--card)}
-.pr-stage canvas{display:block;width:100%;height:100%}
-.pr-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.05rem;font-weight:600;color:var(--muted);background:rgba(0,0,0,0.35);z-index:2;text-align:center;padding:0 20px}
-.pr-overlay.pr-listening{align-items:flex-start;justify-content:center;background:rgba(0,0,0,0.18);padding-top:10px;color:var(--accent);font-family:var(--font-body,inherit);font-size:.9rem;letter-spacing:.08em;text-transform:uppercase}
-.pr-judge{position:absolute;top:14%;left:50%;transform:translateX(-50%);font-size:1.6rem;font-weight:800;opacity:0;pointer-events:none;z-index:3;text-shadow:0 2px 12px rgba(0,0,0,0.6)}
-.pr-judge.perfect{color:var(--ok)}
-.pr-judge.good{color:var(--warn)}
-.pr-judge.miss{color:var(--err)}
-.pr-judge.anim{animation:pr-judge-pop .55s ease-out}
-@keyframes pr-judge-pop{0%{opacity:0;transform:translateX(-50%) scale(.7)}25%{opacity:1;transform:translateX(-50%) scale(1.1)}70%{opacity:1;transform:translateX(-50%) scale(1)}100%{opacity:0;transform:translateX(-50%) scale(1)}}
-@media(max-width:600px),(orientation:landscape) and (max-height:500px){
-  .pr-stage{height:260px}
-  .pr-hud{gap:16px}
-  .pr-toggles{gap:12px}
+.fb-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  border-right: var(--px-hair) solid var(--border);
+  border-bottom: var(--px-hair) solid var(--border);
+  cursor: pointer;
+  font-size: 0.58rem;
+  color: transparent;
+  transition: background 0.12s steps(2, end), color 0.12s steps(2, end);
+  position: relative;
+}
+
+.fb-cell:hover { background: var(--hover); }
+.fb-cell.in-scale { background: var(--accent-dim); }
+.fb-cell.show-label { color: var(--muted); }
+
+.fb-cell.nut {
+  background: var(--bg);
+  border-right: 3px solid var(--px-edge-hi);
+}
+
+/* The inlay marker is a square block, not a round dot. */
+.fb-cell.dot::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 0;
+  background: var(--px-edge-hi);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.fb-cell.selected {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  font-size: 0.7rem;
+}
+
+.fb-cell.correct {
+  background: var(--ok);
+  color: var(--on-accent);
+  font-weight: 700;
+  font-size: 0.7rem;
+  animation: pulseGlow 0.6s steps(3, end);
+}
+
+.fb-cell.wrong {
+  background: var(--err);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.7rem;
+  animation: shake 0.4s steps(3, end);
+}
+
+.fb-cell.reveal {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
+.fb-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.fb-string-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 22px;
+  border-bottom: var(--px-hair) solid var(--border);
+  background: var(--bg);
+  border-right: var(--px-border) solid var(--px-edge);
+}
+
+.fb-question {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  min-height: 1.3em;
+  line-height: 1.35;
+}
+
+.fb-question .highlight { color: var(--accent); font-weight: 700; }
+
+/* ---- 2. Interval buttons ---------------------------------- */
+
+.int-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.int-btn {
+  min-height: var(--tap-min);
+  padding: 8px 16px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--bg2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: inherit;
+  box-shadow: var(--px-shadow-sm);
+  transition: background 0.12s steps(2, end), color 0.12s steps(2, end),
+    border-color 0.12s steps(2, end);
+}
+
+.int-btn:hover {
+  background: var(--hover);
+  border-color: var(--px-edge-hi);
+  transform: none;
+}
+
+/* The press moves the button along the shadow axis. */
+.int-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 0 var(--px-ink);
+}
+
+.int-btn.selected {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+  font-weight: 600;
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent),
+    var(--px-shadow-sm);
+}
+
+.int-btn.correct {
+  background: var(--ok);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--ok),
+    inset 0 0 0 3px var(--on-accent),
+    var(--px-shadow-sm);
+  animation: pulseGlow 0.6s steps(3, end);
+}
+
+.int-btn.wrong {
+  background: var(--err);
+  color: var(--text);
+  border-color: var(--text);
+  box-shadow:
+    inset 0 0 0 2px var(--err),
+    inset 0 0 0 3px var(--text),
+    var(--px-shadow-sm);
+  animation: shake 0.4s steps(3, end);
+}
+
+/* ---- 3. Feedback and score strips ------------------------- */
+
+.fb-feedback {
+  padding: 12px 16px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  border-left-width: 6px;
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  margin-bottom: 12px;
+  display: none;
+  text-align: left;
+  background-color: rgba(11, 16, 32, 0.6);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+}
+
+.fb-feedback.show { display: block; }
+.fb-feedback.correct { color: var(--ok); border-left-color: var(--ok); }
+.fb-feedback.wrong { color: var(--err); border-left-color: var(--err); }
+.fb-feedback.fade-out { opacity: 0; transition: opacity 0.5s steps(4, end); }
+
+.fb-score {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 12px 16px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: var(--px-panel-fill);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  box-shadow: var(--px-shadow-sm);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.fb-score .val {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fb-workbench-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: var(--px-panel-fill);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  box-shadow: var(--px-shadow-sm);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.fb-workbench-controls label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: var(--tap-min);
+}
+
+.fb-workbench-controls input[type="number"] {
+  width: 62px;
+  padding: 6px 8px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.fb-workbench-controls input[type="checkbox"] { accent-color: var(--accent); }
+
+.fb-card-compact { padding: 14px 16px; }
+
+/* ---- 4. Tuner --------------------------------------------- */
+
+/* The column fills the width of the workspace. Each mode panel
+   then sets its own measure. The auto margin in a column flex
+   parent would otherwise shrink the column to its content. */
+.tuner-center {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+
+#sec-pitchear [data-subview="tuner"] {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+#sec-pitchear [data-subview="tone"] {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+#sec-pitchear [data-subview="runner"] {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.tuner-tuning-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tuner-tuning-row label {
+  font-family: var(--font-ui);
+  color: var(--muted);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tuner-tuning-row select {
+  padding: 6px 10px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.string-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.string-btn {
+  min-height: var(--tap-min);
+  min-width: 56px;
+  padding: 8px 14px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--bg2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: var(--px-shadow-sm);
+  transition: background 0.12s steps(2, end), color 0.12s steps(2, end),
+    border-color 0.12s steps(2, end);
+}
+
+.string-btn:hover {
+  background: var(--hover);
+  border-color: var(--px-edge-hi);
+  transform: none;
+}
+
+.string-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 0 var(--px-ink);
+}
+
+.string-btn.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent),
+    var(--px-shadow-sm);
+}
+
+/* ---- 5. Tuner gauge as handheld hardware ------------------ */
+
+.tuner-gauge {
+  position: relative;
+  height: 140px;
+  margin: 18px 0;
+  overflow: hidden;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: rgba(11, 16, 32, 0.72);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  box-shadow: var(--px-shadow-sm);
+}
+
+/* A dashed pixel frame inside the case, like an instrument bezel. */
+.tuner-gauge::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: var(--px-hair) dashed var(--px-edge-hi);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.tuner-gauge-bg {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Each scale mark is a dashed pixel column. */
+.gauge-bar {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  height: 100%;
+  width: 2px;
+  transform: translateX(-50%);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--px-edge) 0 3px,
+    transparent 3px 7px
+  );
+}
+
+.gauge-center {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  height: 100%;
+  background: var(--accent);
+  transform: translateX(-50%);
+  border-radius: 0;
+  box-shadow: none;
+  z-index: 2;
+}
+
+.tuner-needle {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 6px;
+  height: 88%;
+  background: var(--err);
+  border: var(--px-hair) solid var(--px-ink);
+  border-radius: 0;
+  transform-origin: bottom center;
+  transition: transform 0.12s steps(5, end);
+  z-index: 3;
+}
+
+.tuner-cents {
+  font-family: var(--font-ui);
+  font-size: 2.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin: 6px 0 2px;
+}
+
+.tuner-cents.in-tune { color: var(--ok); }
+.tuner-cents.close { color: var(--warn); }
+.tuner-cents.off { color: var(--err); }
+
+.tuner-note {
+  font-family: var(--font-pixel);
+  font-size: 1.3rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin: 6px 0 2px;
+}
+
+.tuner-freq {
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tuner-status {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--muted);
+  margin-top: 12px;
+  letter-spacing: 0.06em;
+}
+
+/* ---- 6. Reference tone scale controls --------------------- */
+
+.vt-scale-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 12px;
+  margin-top: 8px;
+  text-align: left;
+}
+
+.vt-scale-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  text-align: left;
+  min-width: 0;
+}
+
+.vt-scale-field span {
+  font-family: var(--font-ui);
+  color: var(--muted);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vt-scale-field select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+/* ---- 7. Sight reading ------------------------------------- */
+
+.sr-question { font-size: 1.2rem; }
+.sr-question .highlight { color: var(--accent); font-weight: 700; }
+
+.sr-staff-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 18px;
+  min-height: 160px;
+  background-color: var(--bg);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  box-shadow: var(--px-shadow-sm);
+  padding: 12px;
+  overflow: hidden;
+}
+
+.sr-staff { max-width: 100%; height: auto; }
+.sr-staff .staff-line { stroke: var(--text); stroke-width: 1.3; opacity: 0.8; }
+.sr-staff .ledger-line { stroke: var(--text); stroke-width: 1.3; opacity: 0.8; }
+.sr-staff .note-head { fill: var(--accent); }
+
+.sr-staff .note-stem {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: butt;
+}
+
+.sr-staff .clef-glyph {
+  fill: var(--text);
+  font-family: "Bravura", "Noto Music", serif;
+  dominant-baseline: auto;
+}
+
+/* ---- 8. Ear trainer --------------------------------------- */
+
+#ear-question .highlight { color: var(--accent); font-weight: 700; }
+
+.ear-transport {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  max-width: 560px;
+  margin: 0 auto 12px;
+  flex-wrap: wrap;
+}
+
+.ear-transport .btn.primary { flex: 1 1 140px; }
+.ear-transport .btn.sm { flex: 0 1 110px; min-height: var(--tap-min); }
+
+/* The play cue is a square block that grows in steps. */
+.ear-pulse {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 12px;
+  border-radius: 0;
+  border: var(--px-border) solid var(--accent);
+  background-color: var(--accent-dim);
+  background-image: var(--px-dither-50);
+  background-size: var(--px-dither-size);
+  animation: earPulse 0.65s steps(4, end);
+}
+
+@keyframes earPulse {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+/* ---- 9. Pitch trainer setup grid -------------------------- */
+
+/* The setup fields sit on a grid. The grid keeps every field on a
+   column, so the rows stay straight. A wide field spans two
+   columns instead of forcing a ragged break. */
+.pt-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  /* An implicit column takes no width. A two-column field can then
+     never break a one-column grid. */
+  grid-auto-columns: 0;
+  gap: 10px 12px;
+  align-items: end;
+  justify-items: stretch;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.pt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  text-align: left;
+  min-width: 0;
+}
+
+.pt-field[hidden],
+.pt-melody-note[hidden],
+.pt-trends[hidden],
+.pt-result[hidden] { display: none !important; }
+
+.pt-field span {
+  font-family: var(--font-ui);
+  color: var(--muted);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+
+.pt-field select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+/* The pattern name is long, so this field takes two columns. */
+.pt-pattern-field { grid-column: span 2; }
+.pt-pattern-field select { min-width: 0; }
+
+.pt-group-label {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+/* A dashed rule runs from the group name to the right edge. */
+.pt-group-label::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 2px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--px-edge-hi) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+.pt-melody-note {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-align: left;
+}
+
+/* ---- 10. Pitch trainer stage and prompt ------------------- */
+
+.pt-pace {
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  color: var(--accent);
+  text-align: center;
+  margin: 4px 0 0;
+  letter-spacing: 0.06em;
+}
+
+.pt-pace[hidden] { display: none !important; }
+
+.pt-stage {
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  color: var(--muted);
+  text-align: center;
+  margin: 6px 0;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pt-stage-name { color: var(--accent); }
+
+.pt-prompt {
+  font-family: var(--font-pixel);
+  font-size: 1.35rem;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  text-align: center;
+  margin: 6px 0 4px;
+}
+
+.pt-prompt-sub {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* ---- 11. Pitch meter as an LCD instrument ----------------- */
+
+.pt-meter {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  height: 290px;
+  margin: 16px auto;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* The track frame is hard. The fill under the bands is a red
+   checker, so a pitch far from the target reads as "off". */
+.pt-meter-track {
+  position: relative;
+  flex: 1;
+  max-width: 320px;
+  height: 100%;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: rgba(11, 16, 32, 0.9);
+  box-shadow: var(--px-shadow-sm);
+  overflow: hidden;
+}
+
+/* Each band writes its own checker. The tokens --px-dither-25 and
+   --px-dither-50 resolve their ink at :root, so a local ink value
+   cannot change them. */
+.pt-meter-track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-conic-gradient(
+    color-mix(in srgb, var(--err) 34%, transparent) 0% 25%,
+    transparent 0% 100%
+  );
+  background-size: var(--px-dither-size);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* The target line is solid, with a pixel cap at each end. */
+.pt-target-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--accent);
+  box-shadow: none;
+  border-radius: 0;
+  z-index: 3;
+}
+
+.pt-target-line::before,
+.pt-target-line::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  width: 6px;
+  height: 8px;
+  background: var(--accent);
+}
+
+.pt-target-line::before { left: 0; }
+.pt-target-line::after { right: 0; }
+
+/* The bands get denser as the pitch gets closer to the target. */
+.pt-zone-close,
+.pt-zone-pass,
+.pt-zone-bullseye,
+.pt-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background-size: var(--px-dither-size);
+  pointer-events: none;
+}
+
+.pt-zone-close {
+  height: 80%;
+  background-color: rgba(11, 16, 32, 0.94);
+  background-image: repeating-conic-gradient(
+    color-mix(in srgb, var(--warn) 24%, transparent) 0% 25%,
+    transparent 0% 100%
+  );
+  border-top: var(--px-hair) dashed var(--px-edge-hi);
+  border-bottom: var(--px-hair) dashed var(--px-edge-hi);
+  z-index: 1;
+}
+
+.pt-zone-pass {
+  height: 40%;
+  background-color: rgba(11, 16, 32, 0.94);
+  background-image: repeating-conic-gradient(
+    color-mix(in srgb, var(--ok) 26%, transparent) 0% 25%,
+    transparent 0% 50%
+  );
+  border-top: var(--px-hair) dashed var(--ok);
+  border-bottom: var(--px-hair) dashed var(--ok);
+  z-index: 2;
+}
+
+.pt-zone-bullseye {
+  height: 20%;
+  background-color: rgba(11, 16, 32, 0.94);
+  background-image: repeating-conic-gradient(
+    color-mix(in srgb, var(--ok) 30%, transparent) 0% 75%,
+    transparent 0% 100%
+  );
+  border-top: var(--px-border) solid var(--ok);
+  border-bottom: var(--px-border) solid var(--ok);
+  z-index: 2;
+}
+
+.pt-zone {
+  background-color: rgba(11, 16, 32, 0.94);
+  background-image: repeating-conic-gradient(
+    color-mix(in srgb, var(--ok) 26%, transparent) 0% 25%,
+    transparent 0% 50%
+  );
+  border-top: var(--px-hair) dashed var(--px-edge-hi);
+  border-bottom: var(--px-hair) dashed var(--px-edge-hi);
+  z-index: 1;
+}
+
+.pt-tick {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--px-hair);
+  background: var(--border);
+  z-index: 1;
+}
+
+/* The puck is a block. It carries a hard rim and a solid shadow. */
+.pt-puck {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 76px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  border: var(--px-border) solid var(--on-accent);
+  border-radius: 0;
+  background: var(--muted);
+  box-shadow: var(--px-shadow-sm);
+  z-index: 4;
+  transition: top 0.06s linear, background-color 0.12s steps(2, end);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-accent);
+  font-family: var(--font-ui);
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-puck.idle { background: var(--muted); }
+.pt-puck.holding { opacity: 0.72; }
+
+.pt-puck.off {
+  background: var(--err);
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.pt-puck.close {
+  background: var(--warn);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+}
+
+/* The pass state takes the double-stroke frame, like a primary
+   button, so a good note is easy to see. */
+.pt-puck.in {
+  background: var(--ok);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--ok),
+    inset 0 0 0 3px var(--on-accent),
+    var(--px-shadow-sm);
+}
+
+/* The hold meter is a stack of blocks, not a soft bar. */
+.pt-progress-ring {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 0%;
+  border-left: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  box-shadow: none;
+  background-image: repeating-linear-gradient(
+    to top,
+    var(--ok) 0 4px,
+    var(--px-ink) 4px 6px
+  );
+  z-index: 5;
+  transition: height 0.1s steps(4, end);
+}
+
+.pt-meter-scale {
+  width: 40px;
+  position: relative;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.pt-scale-label {
+  position: absolute;
+  right: 4px;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-overflow {
+  position: absolute;
+  right: 8px;
+  top: 4px;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--warn);
+  z-index: 6;
+  opacity: 0;
+  transition: opacity 0.12s steps(2, end);
+}
+
+.pt-overflow.active { opacity: 1; }
+
+/* ---- 12. Pitch trainer readout ---------------------------- */
+
+.pt-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 12px;
+  max-width: 440px;
+  margin: 10px auto 0;
+  padding: 8px 12px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: rgba(11, 16, 32, 0.6);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  text-align: center;
+}
+
+.pt-readout-note {
+  font-family: var(--font-ui);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-readout-cents,
+.pt-readout-direction {
+  font-family: var(--font-ui);
+  font-size: 1.1rem;
+  color: var(--muted);
+  margin-left: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-readout-cents.in,
+.pt-readout-direction.in { color: var(--ok); }
+.pt-readout-cents.close,
+.pt-readout-direction.close { color: var(--warn); }
+.pt-readout-cents.off,
+.pt-readout-direction.off { color: var(--err); }
+.pt-readout-cents.dim { opacity: 0.45; }
+
+.pt-readout-confidence {
+  display: block;
+  flex: 1 0 100%;
+  margin: 2px 0 0;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pt-result {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: var(--px-panel-fill);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  box-shadow: var(--px-shadow-sm);
+  font-family: var(--font-ui);
+  font-size: 1.1rem;
+  color: var(--text);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.pt-trends {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 10px 12px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: var(--px-panel-fill);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--muted);
+  text-align: left;
+  line-height: 1.45;
+}
+
+.pt-trends b { color: var(--accent); font-weight: 600; }
+.pt-trends-row { display: block; }
+
+.pt-meter.pt-feedback-reduced .pt-puck { opacity: 0.65; }
+
+.pt-meter.pt-feedback-result {
+  visibility: hidden;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.pt-readout.pt-feedback-reduced .pt-readout-cents,
+.pt-readout.pt-feedback-reduced .pt-readout-direction { opacity: 0.4; }
+
+.pt-status {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 10px;
+}
+
+/* The hold button takes the double-stroke frame while it plays. */
+#pt-replay.playing {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--on-accent),
+    var(--px-shadow-sm);
+}
+
+/* ---- 13. Pitch match card in two columns ------------------ */
+
+/* A wide screen puts the open setup panel beside the stage. The
+   card rows are set one by one, so the setup panel can span them
+   all. Row 10 is flexible and takes the extra height when the
+   setup panel is tall.
+   A closed setup panel leaves the card in one column, with a
+   comfortable measure. */
+@media (min-width: 1080px) {
+  #sec-pitchear [data-subview="match"] > .quiz-card {
+    max-width: 860px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) {
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: minmax(360px, 420px) minmax(0, 1fr);
+    grid-template-rows: repeat(9, auto) 1fr;
+    column-gap: 24px;
+    row-gap: 0;
+    align-items: start;
+  }
+
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .field-label {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > #pt-setup-details {
+    grid-column: 1;
+    grid-row: 2 / 11;
+    align-self: start;
+    margin: 0;
+  }
+
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .pt-stage { grid-area: 2 / 2; }
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .pt-prompt { grid-area: 3 / 2; }
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .pt-pace { grid-area: 4 / 2; }
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .pt-meter { grid-area: 5 / 2; }
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .pt-readout { grid-area: 6 / 2; }
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .pt-result { grid-area: 7 / 2; }
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .tuner-tuning-row { grid-area: 8 / 2; }
+  #sec-pitchear [data-subview="match"] > .quiz-card:has(> #pt-setup-details[open]) > .pt-status { grid-area: 9 / 2; }
+
+  #sec-pitchear [data-subview="match"] .pt-meter {
+    max-width: 440px;
+    height: 320px;
+  }
+}
+
+/* ---- 14. Pitch runner ------------------------------------- */
+
+.pr-card {
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.pr-tag {
+  display: inline-block;
+  font-family: var(--font-pixel);
+  font-size: 0.42rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: var(--px-hair) solid var(--accent);
+  border-radius: 0;
+  padding: 3px 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.pr-intro {
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: left;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: var(--px-hair) dashed var(--px-edge-hi);
+  border-radius: 0;
+}
+
+.pr-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg2);
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  padding: 3px 4px;
+  min-width: 140px;
+  justify-content: center;
+}
+
+.pr-tempo b {
+  font-family: var(--font-ui);
+  font-size: 1.4rem;
+  color: var(--text);
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-bpm-btn {
+  width: var(--tap-min);
+  height: var(--tap-min);
+  min-width: var(--tap-min);
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--px-shadow-sm);
+  transition: background 0.12s steps(2, end), border-color 0.12s steps(2, end);
+}
+
+.pr-bpm-btn:hover {
+  border-color: var(--px-edge-hi);
+  background: var(--hover);
+  color: var(--accent);
+}
+
+.pr-bpm-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 0 var(--px-ink);
+}
+
+.pr-toggles {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.pr-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap-min);
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pr-hud {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* The score tiles copy the .px-hud primitive. The markup comes
+   from index.html, which this task does not change, so the class
+   cannot be added there. */
+.pr-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: 96px;
+  padding: 4px 12px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  background-color: rgba(11, 16, 32, 0.6);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+}
+
+.pr-stat-val {
+  font-family: var(--font-ui);
+  font-size: 1.75rem;
+  line-height: 1.05;
+  font-weight: 400;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.pr-stat-label {
+  font-family: var(--font-pixel);
+  font-size: 0.46rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pr-stage {
+  position: relative;
+  width: 100%;
+  height: 340px;
+  border: var(--px-border) solid var(--px-edge);
+  border-radius: 0;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow: var(--px-shadow-sm);
+}
+
+.pr-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.pr-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  line-height: 1.8;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background-color: rgba(5, 7, 15, 0.72);
+  background-image: var(--px-dither-50);
+  background-size: var(--px-dither-size);
+  z-index: 2;
+  text-align: center;
+  padding: 0 20px;
+}
+
+.pr-overlay.pr-listening {
+  align-items: flex-start;
+  justify-content: center;
+  background-color: rgba(5, 7, 15, 0.35);
+  background-image: var(--px-dither-25);
+  background-size: var(--px-dither-size);
+  padding-top: 12px;
+  color: var(--accent);
+  font-size: 0.6rem;
+}
+
+.pr-judge {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-pixel);
+  font-size: 1.05rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  text-shadow: 3px 3px 0 var(--px-ink);
+}
+
+.pr-judge.perfect { color: var(--ok); }
+.pr-judge.good { color: var(--warn); }
+.pr-judge.miss { color: var(--err); }
+.pr-judge.anim { animation: pr-judge-pop 0.55s steps(2, end); }
+
+/* The judgement hops on the pixel grid. It does not scale. */
+@keyframes pr-judge-pop {
+  0% { opacity: 0; transform: translate(-50%, 8px); }
+  25% { opacity: 1; transform: translate(-50%, -6px); }
+  70% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+
+@media (min-width: 1080px) {
+  .pr-stage { height: 420px; }
+}
+
+/* ---- 15. Small screens and short landscape ---------------- */
+
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+  .pt-meter { height: 220px; max-width: 340px; }
+  .pt-controls { grid-template-columns: minmax(0, 1fr); }
+  .pt-pattern-field { grid-column: 1 / -1; }
+  .pt-field { align-items: stretch; }
+  .pt-field select { width: 100%; }
+  .vt-scale-controls { grid-template-columns: minmax(0, 1fr); }
+  .tuner-gauge { height: 110px; }
+  .pr-stage { height: 260px; }
+  .pr-hud { gap: 8px; }
+  .pr-stat { min-width: 76px; padding: 4px 8px; }
+  .pr-toggles { gap: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .int-btn,
+  .string-btn,
+  .pr-bpm-btn,
+  .pt-puck,
+  .pt-progress-ring,
+  .tuner-needle { transition: none; }
+
+  .ear-pulse,
+  .pr-judge.anim { animation: none; }
 }
