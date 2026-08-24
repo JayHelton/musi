@@ -1748,6 +1748,7 @@ export function mountGpPlayer(host, {
         getBpm: () => state.bpm,
         getAnnotations: () => (scoreKey ? listAnnotations(scoreKey) : []),
         getFolders: () => exerciseImport.getFolders?.() ?? [],
+        getDefaultFolder: () => exerciseImport.getDefaultFolder?.() ?? '',
         onCreateFolder: typeof exerciseImport.createFolder === 'function'
           ? (name) => exerciseImport.createFolder(name)
           : null,

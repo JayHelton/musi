@@ -723,3 +723,7 @@ body.wb-cmp-drawer-open{overflow:hidden}
     max-height: min(68dvh, 760px);
   }
 }
+
+/* A written exercise and a pitch run inside the workbook player. */
+.wb-player-note{padding:18px;max-width:680px;margin:0 auto;color:var(--text);overflow:auto}
+.wb-gp-mount .rx-root{padding:12px;overflow:auto}

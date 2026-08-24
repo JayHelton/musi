@@ -11,5 +11,7 @@ await import('./nested-folders.mjs');
 await import('./unfiled-delete.mjs');
 await import('./upload-accept.mjs');
 await import('./player-step.mjs');
+await import('./runner-model.mjs');
+await import('./add-kinds.mjs');
 
 console.log('exercises tests: ok');

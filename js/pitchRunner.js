@@ -52,10 +52,47 @@ const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
 // not the app's own speakers — must sustain the note for the hit.
 const GUIDE_CUE_BEATS = 0.35;
 
+// The element names the runner reads. The Pitch section holds elements with
+// these ids; a saved runner exercise builds its own stage and binds the same
+// names to its own nodes.
+const RUNNER_ELEMENT_NAMES = [
+  'pr-toggle', 'pr-status', 'pr-judge', 'pr-score', 'pr-combo', 'pr-accuracy',
+  'pr-canvas', 'pr-stage', 'pr-overlay', 'pr-difficulty', 'pr-pattern',
+  'pr-range-preset', 'pr-length', 'pr-bpm', 'pr-bpm-down', 'pr-bpm-up',
+  'pr-metronome', 'pr-guide',
+];
+
+// The longest hold in the run. A free run holds every note for the same
+// length; a saved run gives each note its own length.
+function maxNoteBeats() {
+  if (runner.mode === 'sequence') {
+    return runner.sequence.notes.reduce((max, note) => Math.max(max, note.beats), 1);
+  }
+  return runner.noteBeats;
+}
+
 // Beats of runway shown to the right of the hit line. Scales with note length
 // so a long, sustained note still fits comfortably on screen with approach time.
 function visibleBeatsAhead() {
-  return 6 + (runner.noteBeats - 1) * 2;
+  return 6 + (maxNoteBeats() - 1) * 2;
+}
+
+/** The tempo the timeline runs at. A saved run carries its own tempo. */
+function currentTempo() {
+  if (runner.mode === 'sequence') return runner.sequence.bpm;
+  return getContext().tempo;
+}
+
+/** The count-in length, in beats, before the first note reaches the line. */
+function leadInBeats() {
+  if (runner.mode === 'sequence') return runner.sequence.countInBeats;
+  return LEAD_IN_BEATS;
+}
+
+/** The number of notes one full run plays, or 0 for an endless run. */
+function sequenceNoteBudget() {
+  if (runner.mode !== 'sequence' || !runner.sequence.repeats) return 0;
+  return runner.sequence.notes.length * runner.sequence.repeats;
 }
 
 const GUIDE_LAYERS = [
@@ -65,7 +102,6 @@ const GUIDE_LAYERS = [
 
 const runner = {
   running: false,
-  initialized: false,
   stream: null,
   capture: null,
   noiseFloor: null,
@@ -73,6 +109,14 @@ const runner = {
   lastPitchFrame: null,
   guideLockActive: false,
   rafId: null,
+
+  // 'free' follows the shared root / scale / tempo and cycles a pattern for as
+  // long as the player sings. 'sequence' plays one saved run and then stops.
+  mode: 'free',
+  sequence: null,
+  dom: null,
+  onFinish: null,
+  finished: false,
 
   difficulty: 'medium',
   pattern: 'five-tone',
@@ -111,7 +155,24 @@ const runner = {
   colors: null,
 };
 
-function el(id) { return document.getElementById(id); }
+// The runner drives one stage at a time, because it owns the microphone. The
+// bound map names the elements of that stage.
+function el(name) {
+  return (runner.dom && runner.dom[name]) || null;
+}
+
+function bindRunnerDom(map) {
+  runner.dom = map || null;
+}
+
+/** Collect the runner elements of the Pitch section by their ids. */
+function sectionRunnerDom() {
+  const map = {};
+  RUNNER_ELEMENT_NAMES.forEach((name) => {
+    map[name] = document.getElementById(name);
+  });
+  return map;
+}
 
 function difficultyById(id) {
   return DIFFICULTIES.find(d => d.id === id) || DIFFICULTIES[1];
@@ -171,6 +232,17 @@ function clampRange() {
 }
 
 function buildPatternSeq() {
+  if (runner.mode === 'sequence') {
+    runner.sequenceError = null;
+    runner.patternSeq = runner.sequence.notes.map(note => note.midi);
+    let min = Infinity;
+    let max = -Infinity;
+    runner.patternSeq.forEach(m => { min = Math.min(min, m); max = Math.max(max, m); });
+    runner.laneMin = Number.isFinite(min) ? min - 2 : 55;
+    runner.laneMax = Number.isFinite(max) ? max + 2 : 67;
+    updateStartState();
+    return;
+  }
   const { root, scale } = getContext();
   const { lo, hi } = clampRange();
   const built = buildSequenceForTask({
@@ -208,7 +280,8 @@ function updateStartState() {
   if (err) {
     setStartDisabled(true, err);
   } else if (!runner.running) {
-    setStartDisabled(false, 'Mic off');
+    // A run that ended leaves its score on the status line. Keep it there.
+    setStartDisabled(false, runner.judged ? '' : 'Mic off');
   } else {
     setStartDisabled(false);
   }
@@ -245,17 +318,19 @@ function getAnalysisDelaySec() {
 // Append notes until the timeline is populated a comfortable margin past the
 // right edge, cycling the pattern endlessly.
 function ensureNotes(playheadBeat) {
-  const horizon = playheadBeat + visibleBeatsAhead() + runner.noteBeats + 4;
-  const dur = Math.max(0.35, runner.noteBeats - NOTE_GAP_BEATS);
+  const horizon = playheadBeat + visibleBeatsAhead() + maxNoteBeats() + 4;
+  const budget = sequenceNoteBudget();
   while (runner.nextBeat < horizon) {
-    const midi = runner.patternSeq[runner.seqIdx % runner.patternSeq.length];
+    if (budget && runner.seqIdx >= budget) break;
+    const step = sequenceStep(runner.seqIdx);
+    if (!step) break;
     const startAudioTime = runner.startAudioTime + runner.nextBeat * runner.secPerBeat;
     runner.notes.push({
       startBeat: runner.nextBeat,
-      dur,
-      midi,
+      dur: step.dur,
+      midi: step.midi,
       startAudioTime,
-      endAudioTime: startAudioTime + dur * runner.secPerBeat,
+      endAudioTime: startAudioTime + step.dur * runner.secPerBeat,
       samples: [],
       judged: false,
       result: null,
@@ -264,8 +339,33 @@ function ensureNotes(playheadBeat) {
       guideScheduled: false,
     });
     runner.seqIdx += 1;
-    runner.nextBeat += runner.noteBeats;
+    runner.nextBeat += step.advance;
   }
+}
+
+/**
+ * The note at one position of the run: its pitch, how long the bar holds, and
+ * how far the timeline moves before the next note starts.
+ */
+function sequenceStep(index) {
+  if (runner.mode === 'sequence') {
+    const notes = runner.sequence.notes;
+    if (!notes.length) return null;
+    const note = notes[index % notes.length];
+    const beats = note.beats;
+    const gap = Math.min(NOTE_GAP_BEATS, beats * 0.2);
+    return {
+      midi: note.midi,
+      dur: Math.max(0.25, beats - gap),
+      advance: beats + runner.sequence.restBeats,
+    };
+  }
+  if (!runner.patternSeq.length) return null;
+  return {
+    midi: runner.patternSeq[index % runner.patternSeq.length],
+    dur: Math.max(0.35, runner.noteBeats - NOTE_GAP_BEATS),
+    advance: runner.noteBeats,
+  };
 }
 
 // ---- Scoring ----------------------------------------------------------------
@@ -529,8 +629,9 @@ function draw(playheadBeat) {
   }
 
   // Count-in cue before the first note reaches the line.
-  if (playheadBeat < LEAD_IN_BEATS) {
-    const remaining = Math.ceil(LEAD_IN_BEATS - playheadBeat);
+  const leadIn = leadInBeats();
+  if (playheadBeat < leadIn) {
+    const remaining = Math.ceil(leadIn - playheadBeat);
     ctx.fillStyle = c.text;
     ctx.globalAlpha = 0.85;
     ctx.textAlign = 'center';
@@ -687,6 +788,15 @@ function step() {
     }
   }
 
+  // A saved run plays a fixed number of notes and then stops on its own.
+  const budget = sequenceNoteBudget();
+  if (budget && !runner.finished && runner.judged >= budget) {
+    runner.finished = true;
+    draw(playheadBeat);
+    finishRun();
+    return;
+  }
+
   // Record the pitch trace and prune notes/trail that scrolled off-screen.
   runner.trail.push({ beat: playheadBeat, midiFloat: midiFloat ?? runner.laneMin, hasPitch, inTune });
   const leftBeats = (runner.cssW * HIT_X_RATIO) / pxPerBeat();
@@ -700,10 +810,11 @@ function step() {
 // ---- Lifecycle --------------------------------------------------------------
 
 function resetTimeline() {
-  runner.secPerBeat = 60 / getContext().tempo;
+  runner.secPerBeat = 60 / currentTempo();
   runner.startAudioTime = audioCtx.currentTime + 0.15;
   runner.seqIdx = 0;
-  runner.nextBeat = LEAD_IN_BEATS;
+  runner.finished = false;
+  runner.nextBeat = leadInBeats();
   runner.nextClickBeat = 0;
   runner.notes = [];
   runner.trail = [];
@@ -768,6 +879,28 @@ async function startRunner() {
   }
 }
 
+/** End a saved run that played every note, and report the result. */
+function finishRun() {
+  const summary = runSummary();
+  stopRunner();
+  if (typeof runner.onFinish === 'function') {
+    try { runner.onFinish(summary); } catch (e) { /* the caller owns its errors */ }
+  }
+}
+
+/** The score of the run that just ended. */
+function runSummary() {
+  const accuracy = runner.noteAccuracies.length
+    ? Math.round(runner.noteAccuracies.reduce((a, b) => a + b, 0) / runner.noteAccuracies.length)
+    : 0;
+  return {
+    score: runner.score,
+    bestCombo: runner.bestCombo,
+    accuracy,
+    judged: runner.judged,
+  };
+}
+
 function stopRunner() {
   if (!runner.running && !runner.stream) {
     setToggleLabel(false);
@@ -783,15 +916,14 @@ function stopRunner() {
   setToggleLabel(false);
   const status = el('pr-status');
   if (status) {
-    const acc = runner.noteAccuracies.length
-      ? Math.round(runner.noteAccuracies.reduce((a, b) => a + b, 0) / runner.noteAccuracies.length)
-      : 0;
+    const summary = runSummary();
+    const lead = runner.finished ? 'Run complete' : 'Stopped';
     status.textContent = runner.judged
-      ? `Stopped \u2014 best combo ${runner.bestCombo}\u00D7, ${acc}% accuracy`
+      ? `${lead} \u2014 best combo ${summary.bestCombo}\u00D7, ${summary.accuracy}% accuracy`
       : 'Mic off';
   }
   updateStartState();
-  setOverlay('Press start to play');
+  setOverlay(runner.finished ? 'Run complete \u2014 press start to run it again' : 'Press start to play');
   drawIdle();
 }
 
@@ -828,11 +960,11 @@ function restartIfRunning() {
 
 function syncTempoLabel() {
   const bpmEl = el('pr-bpm');
-  if (bpmEl) bpmEl.textContent = String(getContext().tempo);
-  runner.secPerBeat = 60 / getContext().tempo;
+  if (bpmEl) bpmEl.textContent = String(currentTempo());
+  runner.secPerBeat = 60 / currentTempo();
 }
 
-function initPitchRunner() {
+function loadFreeSettings() {
   runner.difficulty = getSetting('pitchRunner.difficulty', runner.difficulty, DIFFICULTIES.map(d => d.id));
   runner.pattern = getSetting('pitchRunner.pattern', runner.pattern, SCALE_PATTERNS.map(p => p.id));
   runner.rangeLow = Number(getSetting('pitchRunner.rangeLow', runner.rangeLow));
@@ -843,8 +975,75 @@ function initPitchRunner() {
   if (!(runner.rangeLow >= 36 && runner.rangeLow <= 84)) runner.rangeLow = 48;
   if (!(runner.rangeHigh >= 36 && runner.rangeHigh <= 84)) runner.rangeHigh = 72;
   if (!NOTE_LENGTHS.includes(runner.noteBeats)) runner.noteBeats = 2;
+}
 
-  if (runner.initialized) {
+// The runner keeps one microphone and one timeline, so only one stage plays at
+// a time. `attachRunner` points the engine at the stage that is on screen now.
+let globalsWired = false;
+
+/**
+ * Point the runner at a stage and wire its controls.
+ * @param {{ dom: object, sequence?: object|null, onFinish?: (summary:object)=>void }} options
+ * @returns {{ start: () => void, stop: () => void, toggle: () => void, refresh: () => void, detach: () => void }}
+ */
+function attachRunner({ dom, sequence = null, onFinish = null } = {}) {
+  stopRunner();
+  detachResizeObserver();
+  bindRunnerDom(dom);
+  runner.onFinish = onFinish;
+  runner.finished = false;
+
+  if (sequence) {
+    runner.mode = 'sequence';
+    runner.sequence = sequence;
+    runner.metronome = sequence.metronome !== false;
+    runner.guide = sequence.guide !== false;
+  } else {
+    runner.mode = 'free';
+    runner.sequence = null;
+    loadFreeSettings();
+  }
+
+  wireControls();
+  wireGlobals();
+  observeStage();
+
+  syncControls();
+  syncTempoLabel();
+  readColors();
+  buildPatternSeq();
+  resizeCanvas();
+  updateHud();
+  updateStartState();
+  setOverlay('Press start to play');
+
+  return {
+    start: () => { if (!runner.running) startRunner(); },
+    stop: () => stopRunner(),
+    toggle: () => togglePitchRunner(),
+    refresh: () => {
+      syncControls();
+      syncTempoLabel();
+      readColors();
+      resizeCanvas();
+      if (!runner.running) { buildPatternSeq(); drawIdle(); }
+    },
+    detach: () => {
+      if (runner.dom !== dom) return;
+      stopRunner();
+      detachResizeObserver();
+      bindRunnerDom(null);
+      runner.onFinish = null;
+      runner.mode = 'free';
+      runner.sequence = null;
+    },
+  };
+}
+
+function initPitchRunner() {
+  const dom = sectionRunnerDom();
+  if (runner.dom && runner.dom['pr-canvas'] === dom['pr-canvas'] && runner.mode === 'free') {
+    loadFreeSettings();
     syncControls();
     syncTempoLabel();
     readColors();
@@ -852,8 +1051,10 @@ function initPitchRunner() {
     if (!runner.running) { buildPatternSeq(); drawIdle(); }
     return;
   }
-  runner.initialized = true;
+  attachRunner({ dom });
+}
 
+function wireControls() {
   const diffSel = el('pr-difficulty');
   if (diffSel) {
     diffSel.innerHTML = '';
@@ -930,8 +1131,10 @@ function initPitchRunner() {
   const bpmDown = el('pr-bpm-down');
   const bpmUp = el('pr-bpm-up');
   const changeTempo = (delta) => {
-    const next = Math.max(TEMPO_MIN, Math.min(TEMPO_MAX, getContext().tempo + delta));
-    setContext({ tempo: next }, 'pitchRunner');
+    const next = Math.max(TEMPO_MIN, Math.min(TEMPO_MAX, currentTempo() + delta));
+    // A saved run keeps its own tempo, so it must not move the shared context.
+    if (runner.mode === 'sequence') runner.sequence.bpm = next;
+    else setContext({ tempo: next }, 'pitchRunner');
     syncTempoLabel();
     if (runner.running) { runner.secPerBeat = 60 / next; }
   };
@@ -943,7 +1146,8 @@ function initPitchRunner() {
     metroChk.checked = runner.metronome;
     metroChk.onchange = () => {
       runner.metronome = metroChk.checked;
-      saveSetting('pitchRunner.metronome', runner.metronome);
+      if (runner.mode === 'sequence') runner.sequence.metronome = runner.metronome;
+      else saveSetting('pitchRunner.metronome', runner.metronome);
       if (runner.running) {
         // Re-anchor the click scheduler so toggling on mid-game lines up.
         const playheadBeat = (audioCtx.currentTime - runner.startAudioTime) / runner.secPerBeat;
@@ -957,33 +1161,47 @@ function initPitchRunner() {
     guideChk.checked = runner.guide;
     guideChk.onchange = () => {
       runner.guide = guideChk.checked;
-      saveSetting('pitchRunner.guide', runner.guide);
+      if (runner.mode === 'sequence') runner.sequence.guide = runner.guide;
+      else saveSetting('pitchRunner.guide', runner.guide);
     };
   }
 
+  const toggleBtn = el('pr-toggle');
+  if (toggleBtn && !toggleBtn.getAttribute('onclick')) {
+    toggleBtn.onclick = () => togglePitchRunner();
+  }
+}
+
+function wireGlobals() {
+  if (globalsWired) return;
+  globalsWired = true;
   // Keep tempo label in sync when other tools change the shared context.
   subscribeContext(() => {
+    if (runner.mode === 'sequence') return;
     syncTempoLabel();
     if (!runner.running) { buildPatternSeq(); if (runner.ctx2d) drawIdle(); }
   });
+  registerPitchMicStop('runner', stopRunner);
+}
 
-  // Redraw the idle/live canvas when the stage resizes.
+// Redraw the idle or live canvas when the stage resizes.
+function observeStage() {
   const stage = el('pr-stage');
-  if (stage && 'ResizeObserver' in window) {
+  if (stage && typeof ResizeObserver === 'function') {
     runner.resizeObs = new ResizeObserver(() => resizeCanvas());
     runner.resizeObs.observe(stage);
-  } else {
-    window.addEventListener('resize', resizeCanvas);
+    return;
   }
+  if (typeof window !== 'undefined') window.addEventListener('resize', resizeCanvas);
+}
 
-  syncTempoLabel();
-  readColors();
-  buildPatternSeq();
-  resizeCanvas();
-  updateHud();
-  updateStartState();
-  setOverlay('Press start to play');
-  registerPitchMicStop('runner', stopRunner);
+function detachResizeObserver() {
+  if (runner.resizeObs) {
+    try { runner.resizeObs.disconnect(); } catch (e) { /* already gone */ }
+    runner.resizeObs = null;
+  } else if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', resizeCanvas);
+  }
 }
 
 function matchPreset() {
@@ -1006,6 +1224,6 @@ function syncControls() {
   if (guideChk) guideChk.checked = runner.guide;
 }
 
-window.togglePitchRunner = togglePitchRunner;
+if (typeof window !== 'undefined') window.togglePitchRunner = togglePitchRunner;
 
-export { initPitchRunner, stopRunner as stopPitchRunner, runner };
+export { initPitchRunner, attachRunner, stopRunner as stopPitchRunner, runner };

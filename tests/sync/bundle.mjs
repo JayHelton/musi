@@ -296,6 +296,71 @@ await test('import remaps id on collision and leaves local file untouched', asyn
   assert.ok(await blobBytesEqual(remapped, new Blob([incomingBytes])));
 });
 
+await test('a pitch run and a written exercise carry their extra files', async () => {
+  store.clear();
+  await clearAttachments();
+
+  const scoreId = 'att-run-score';
+  const fileA = 'att-note-a';
+  const fileB = 'att-note-b';
+  await seedAttachment(scoreId, new Uint8Array([1, 1]));
+  await seedAttachment(fileA, new Uint8Array([2, 2]));
+  await seedAttachment(fileB, new Uint8Array([3, 3]));
+
+  store.set('musi.exercises', JSON.stringify({
+    categories: [],
+    items: [
+      {
+        id: 'ex-run',
+        name: 'Run',
+        kind: 'runner',
+        runner: { source: 'gp', bpm: 90, notes: [{ midi: 60, beats: 2 }], attachmentId: scoreId },
+        addedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'ex-note',
+        name: 'Note',
+        kind: 'note',
+        body: 'Long tones.',
+        attachments: [
+          { attachmentId: fileA, name: 'A', fileName: 'a.pdf', type: 'application/pdf', size: 2 },
+          { attachmentId: fileB, name: 'B', fileName: 'b.pdf', type: 'application/pdf', size: 2 },
+        ],
+        addedAt: '2026-01-02T00:00:00.000Z',
+      },
+    ],
+  }));
+
+  const refs = await collectAttachmentRefs({ scopes: ['content'] });
+  const refIds = new Set(refs.ids);
+  assert.ok(refIds.has(scoreId), 'the run ships its Guitar Pro source file');
+  assert.ok(refIds.has(fileA) && refIds.has(fileB), 'a written exercise ships every attached file');
+
+  const { stream, done } = await createBundleStream({ scopes: ['content'] });
+  const zipBlob = await streamToBlob(stream);
+  await done;
+
+  // Import into a device that already holds different files under those ids,
+  // so every id must be remapped on every field that names one.
+  await clearAttachments();
+  await seedAttachment(scoreId, new Uint8Array([9]));
+  await seedAttachment(fileA, new Uint8Array([9]));
+  await seedAttachment(fileB, new Uint8Array([9]));
+
+  const result = await importBundle(zipBlob, { mode: 'replace', scopes: ['content'] });
+  assert.equal(result.errors.length, 0);
+
+  const exercises = JSON.parse(store.get('musi.exercises'));
+  const run = exercises.items.find((it) => it.id === 'ex-run');
+  const note = exercises.items.find((it) => it.id === 'ex-note');
+  assert.notEqual(run.runner.attachmentId, scoreId);
+  assert.ok(await blobBytesEqual(await getFileBlob(run.runner.attachmentId), new Blob([new Uint8Array([1, 1])])));
+  assert.notEqual(note.attachments[0].attachmentId, fileA);
+  assert.notEqual(note.attachments[1].attachmentId, fileB);
+  assert.ok(await blobBytesEqual(await getFileBlob(note.attachments[0].attachmentId), new Blob([new Uint8Array([2, 2])])));
+  assert.ok(await blobBytesEqual(await getFileBlob(note.attachments[1].attachmentId), new Blob([new Uint8Array([3, 3])])));
+});
+
 await test('merge versus replace metadata semantics follow applySnapshot', async () => {
   store.clear();
   await clearAttachments();

@@ -149,6 +149,54 @@ function parseJsonKey(raw) {
   }
 }
 
+/**
+ * Every attachment id one exercise record holds. An exercise keeps its main
+ * file on `attachmentId`; a pitch run keeps its Guitar Pro source file, and a
+ * written exercise keeps a list of extra files.
+ */
+function exerciseAttachmentIds(item) {
+  const ids = [];
+  if (!isPlainObject(item)) return ids;
+  if (typeof item.attachmentId === 'string' && item.attachmentId) ids.push(item.attachmentId);
+  if (isPlainObject(item.runner)
+    && typeof item.runner.attachmentId === 'string'
+    && item.runner.attachmentId) {
+    ids.push(item.runner.attachmentId);
+  }
+  if (Array.isArray(item.attachments)) {
+    item.attachments.forEach((entry) => {
+      if (isPlainObject(entry) && typeof entry.attachmentId === 'string' && entry.attachmentId) {
+        ids.push(entry.attachmentId);
+      }
+    });
+  }
+  return ids;
+}
+
+/** Rewrite every attachment id of one exercise record through the id map. */
+function remapExerciseItem(item, idMap) {
+  if (!isPlainObject(item)) return item;
+  let next = item;
+  const mainId = typeof item.attachmentId === 'string' ? idMap.get(item.attachmentId) : null;
+  if (mainId) next = { ...next, attachmentId: mainId };
+  if (isPlainObject(item.runner) && typeof item.runner.attachmentId === 'string') {
+    const runnerId = idMap.get(item.runner.attachmentId);
+    if (runnerId) next = { ...next, runner: { ...item.runner, attachmentId: runnerId } };
+  }
+  if (Array.isArray(item.attachments) && item.attachments.length) {
+    let changed = false;
+    const attachments = item.attachments.map((entry) => {
+      if (!isPlainObject(entry) || typeof entry.attachmentId !== 'string') return entry;
+      const mapped = idMap.get(entry.attachmentId);
+      if (!mapped) return entry;
+      changed = true;
+      return { ...entry, attachmentId: mapped };
+    });
+    if (changed) next = { ...next, attachments };
+  }
+  return next;
+}
+
 function collectAttachmentIdsFromSnapshotData(data) {
   const ids = new Set();
   if (!isPlainObject(data)) return ids;
@@ -158,9 +206,7 @@ function collectAttachmentIdsFromSnapshotData(data) {
     const exercises = parseJsonKey(exercisesRaw);
     if (isPlainObject(exercises) && Array.isArray(exercises.items)) {
       exercises.items.forEach((item) => {
-        if (isPlainObject(item) && typeof item.attachmentId === 'string' && item.attachmentId) {
-          ids.add(item.attachmentId);
-        }
+        exerciseAttachmentIds(item).forEach((id) => ids.add(id));
       });
     }
   }
@@ -204,11 +250,7 @@ function remapAttachmentIdsInSnapshot(snapshot, idMap) {
   if (data['musi.exercises'] != null) {
     const exercises = parseJsonKey(data['musi.exercises']);
     if (isPlainObject(exercises) && Array.isArray(exercises.items)) {
-      exercises.items = exercises.items.map((item) => {
-        if (!isPlainObject(item) || !item.attachmentId) return item;
-        const mapped = idMap.get(item.attachmentId);
-        return mapped ? { ...item, attachmentId: mapped } : item;
-      });
+      exercises.items = exercises.items.map((item) => remapExerciseItem(item, idMap));
       data['musi.exercises'] = JSON.stringify(exercises);
     }
   }

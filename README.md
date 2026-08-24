@@ -73,9 +73,16 @@ Record, write, and keep notes.
 The material you own. Exercises and Workbooks keep separate schemas and separate
 storage; the Library page is the door to both.
 
-- **Exercises** — upload tabs, Guitar Pro files, audio, video, and lesson links.
-  Organize them in folders with a file-browser view. The player has Previous and
-  Next buttons, so you step through a folder without a return to the list.
+- **Exercises** — one **Add exercise** chooser names every kind the library
+  holds: a link, a document, an audio or video recording, a Guitar Pro file, a
+  pitch run, and a written exercise you type. A new exercise joins the folder
+  you have open. Organize them in folders with a file-browser view. The player
+  has Previous and Next buttons, so you step through a folder without a return
+  to the list.
+  - A **pitch run** is a saved run of the vocal Pitch runner game. You type the
+    notes and the hold lengths, or you read them from a Guitar Pro file. The run
+    keeps its own tempo, rest, count-in, and repeat count.
+  - A **written exercise** holds the text you type and any number of files.
 - **Workbooks** — order exercises into a focused practice collection, with
   looping, auto-advance, notes, and companion widgets.
 

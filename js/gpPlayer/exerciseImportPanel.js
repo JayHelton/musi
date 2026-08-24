@@ -202,6 +202,7 @@ export function mountExerciseImportPanel(host, {
   getBpm = () => 120,
   getAnnotations = () => [],
   getFolders = () => [],
+  getDefaultFolder = () => '',
   onCreateFolder = null,
   onPreview = null,
   onStopPreview = null,
@@ -1103,7 +1104,7 @@ export function mountExerciseImportPanel(host, {
     let result = { ok: true, count: payload.length };
     if (typeof onImport === 'function') {
       try {
-        result = await onImport(payload, { categoryId: folderId || null }) || result;
+        result = await onImport(payload, { categoryId: folderId }) || result;
       } catch (err) {
         result = { ok: false, message: err?.message || 'Import failed.' };
       }
@@ -1125,6 +1126,9 @@ export function mountExerciseImportPanel(host, {
     statusText = '';
     statusError = false;
     lastImportedKey = null;
+    // New exercises join the folder the library has open, so the picker starts
+    // there. The user can still choose another folder.
+    folderId = (typeof getDefaultFolder === 'function' ? getDefaultFolder() : '') || '';
     refreshDigests(true);
     paintAll();
     paintOpen();

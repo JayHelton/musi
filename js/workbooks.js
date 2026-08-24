@@ -13,6 +13,7 @@ import {
 } from './exercises.js';
 import { ensureAudio } from './audio.js';
 import { getFileBlob } from './attachments.js';
+import { mountRunnerExercise } from './runnerExerciseView.js';
 import { parseGuitarPro, mountGpPlayer } from './gpPlayerUI.js';
 import { resolveScoreKey } from './gpAnnotations.js';
 import {
@@ -1275,6 +1276,27 @@ function mountNonAdvanceCard(item, host) {
   host.appendChild(card);
 }
 
+/** The written text of a note exercise, inside the workbook player. */
+function mountWorkbookNote(item, host) {
+  const article = el('article', { class: 'ex-note-doc wb-player-note' });
+  const text = typeof item.body === 'string' ? item.body : '';
+  if (text.trim()) {
+    text.split(/\n{2,}/).forEach((block) => {
+      article.appendChild(el('p', { class: 'ex-note-para', text: block }));
+    });
+  } else {
+    article.appendChild(el('p', { class: 'ex-note-empty', text: 'This exercise has no written text yet.' }));
+  }
+  const files = Array.isArray(item.attachments) ? item.attachments : [];
+  if (files.length) {
+    article.appendChild(el('p', {
+      class: 'ex-note-files-title',
+      text: `${files.length} attachment${files.length === 1 ? '' : 's'} — open this exercise in Exercises to read them.`,
+    }));
+  }
+  host.appendChild(article);
+}
+
 function mountInlineArtifact(item, host, objectUrl) {
   const kind = mediaKind(item);
   if (item.url) {
@@ -1743,6 +1765,22 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
     }
 
     setDetailGpChrome(false);
+
+    if (kind === 'runner') {
+      detailGpMountEl.innerHTML = '';
+      // The run ends when the singer finishes it, so that end advances the
+      // workbook the same way the end of a recording does.
+      detailMountHandle = mountRunnerExercise(detailGpMountEl, exercise.runner, {
+        onFinish: onPlaybackEnd,
+      });
+      return;
+    }
+
+    if (kind === 'note') {
+      detailGpMountEl.innerHTML = '';
+      mountWorkbookNote(exercise, detailGpMountEl);
+      return;
+    }
 
     if (kind === 'audio' || kind === 'video') {
       const blob = exercise.attachmentId ? await getFileBlob(exercise.attachmentId) : null;

@@ -22,6 +22,7 @@ import {
   updateExercisePracticeSettings,
   getCategories,
   addCategory,
+  defaultExerciseFolder,
   isTabModelItem,
 } from './exercises.js';
 import { resolveScoreKey, migrateAnnotations, copyAnnotations } from './gpAnnotations.js';
@@ -235,6 +236,7 @@ function mountCurrent() {
       }),
       exerciseImport: state.gp ? {
         getFolders: () => getCategories(),
+        getDefaultFolder: () => defaultExerciseFolder(),
         createFolder: (name) => addCategory(name),
         importSegments: (segments, opts) => importSegmentsAsExercises(segments, opts),
       } : null,

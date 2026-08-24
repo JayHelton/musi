@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v271-scale-boxes";
+const CACHE_VERSION = "v272-runner-exercises";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -132,6 +132,7 @@ const PRECACHE_URLS = [
   "js/exerciseCompanions/triadRef.js",
   "js/exerciseCompanions/types.js",
   "js/exercises.js",
+  "js/exerciseAddUI.js",
   "js/exercisesBulk.js",
   "js/exercisesBulkUI.js",
   "js/folderTree.js",
@@ -204,6 +205,8 @@ const PRECACHE_URLS = [
   "js/pitchMic.js",
   "js/pitchProgress.js",
   "js/pitchRunner.js",
+  "js/runnerExerciseModel.js",
+  "js/runnerExerciseView.js",
   "js/pitchTrainer.js",
   "js/progressHeader.js",
   "js/qr/qrDecode.js",

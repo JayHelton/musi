@@ -45,6 +45,17 @@ import {
   findSiblingByName,
   nextParentAfterDelete,
 } from './folderTree.js';
+import { normalizeRunnerConfig } from './runnerExerciseModel.js';
+import { mountRunnerExercise } from './runnerExerciseView.js';
+import {
+  DOC_ACCEPT_ATTR,
+  GP_ACCEPT_ATTR,
+  MEDIA_ACCEPT_ATTR,
+  closeAddExerciseDialog,
+  openAddExerciseChooser,
+  openNoteDialog,
+  openRunnerDialog,
+} from './exerciseAddUI.js';
 import { createDriveBrowser, closeDriveMenu } from './library/driveBrowser.js';
 import { neighborIds, formatPosition, sortEntries } from './library/driveModel.js';
 import { showAppToast } from './appToast.js';
@@ -54,6 +65,8 @@ const NAME_LIMIT = 120;
 const CAT_LIMIT = 40;
 const URL_LIMIT = 2000;
 const MAX_FILE_BYTES = 250 * 1024 * 1024; // 250 MB upload guard for video.
+const BODY_LIMIT = 20000;   // characters of a written exercise
+const MAX_ATTACHMENTS = 20; // extra files on a written exercise
 const UPLOAD_ACCEPT_MSG = 'Only PDF, documents (doc, docx, txt, rtf, odt, md, pages, csv), images, audio, video, and Guitar Pro (.gp/.gp5) files up to 250 MB can be uploaded.';
 
 // --- storage helpers (defensive) -------------------------------------------
@@ -150,7 +163,9 @@ function deriveInstrument(type, fileName) {
   return '';
 }
 
-function deriveMaterialType(type, fileName, url) {
+function deriveMaterialType(type, fileName, url, kind) {
+  if (kind === 'runner') return 'runner';
+  if (kind === 'note') return 'note';
   if (url) return 'link';
   const t = typeof type === 'string' ? type.toLowerCase() : '';
   const ext = extensionFromName(fileName);
@@ -217,12 +232,68 @@ function collectLegacyTakes(raw) {
   });
 }
 
+// Every exercise has one kind. The kind decides which player opens it and
+// which form edits it.
+//
+//   file   — an uploaded document, image, audio, video, or Guitar Pro score
+//   link   — an external lesson page
+//   runner — a saved pitch-runner run
+//   note   — a written exercise the user typed, with optional attachments
+export const EXERCISE_KINDS = ['file', 'link', 'runner', 'note'];
+
+function deriveKind(raw) {
+  const kind = typeof raw.kind === 'string' ? raw.kind : '';
+  if (EXERCISE_KINDS.includes(kind)) return kind;
+  if (raw.runner && typeof raw.runner === 'object') return 'runner';
+  if (raw.url) return 'link';
+  return 'file';
+}
+
+/** Extra files on a written exercise. The first file stays on attachmentId. */
+function normalizeAttachments(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const entry of raw) {
+    if (out.length >= MAX_ATTACHMENTS) break;
+    const id = typeof entry?.attachmentId === 'string' ? entry.attachmentId : '';
+    if (!id) continue;
+    out.push({
+      attachmentId: id,
+      name: clampText(typeof entry.name === 'string' ? entry.name : '', NAME_LIMIT),
+      fileName: typeof entry.fileName === 'string' ? entry.fileName : '',
+      type: typeof entry.type === 'string' ? entry.type : '',
+      size: Number.isFinite(Number(entry.size)) ? Number(entry.size) : 0,
+    });
+  }
+  return out;
+}
+
+/** Every attachment id one exercise holds, including its extra files. */
+function itemAttachmentIds(item) {
+  const ids = [];
+  if (item?.attachmentId) ids.push(item.attachmentId);
+  if (item?.runner?.attachmentId) ids.push(item.runner.attachmentId);
+  (Array.isArray(item?.attachments) ? item.attachments : []).forEach((entry) => {
+    if (entry?.attachmentId) ids.push(entry.attachmentId);
+  });
+  return [...new Set(ids)];
+}
+
 function normalizeItem(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const attachmentId = typeof raw.attachmentId === 'string' && raw.attachmentId ? raw.attachmentId : '';
   const url = safeExternalUrl(raw.url);
-  if (!attachmentId && !url) return null;
-  const defaultName = url ? titleFromUrl(url) : 'Exercise';
+  const kind = deriveKind(raw);
+  const runnerConfig = kind === 'runner' ? normalizeRunnerConfig(raw.runner) : null;
+  // A run with no notes cannot play, and a file or link record with neither a
+  // file nor a link points at nothing. Both are dropped.
+  if (kind === 'runner' && !runnerConfig) return null;
+  if (kind !== 'runner' && kind !== 'note' && !attachmentId && !url) return null;
+  const defaultName = kind === 'runner'
+    ? 'Pitch run'
+    : kind === 'note'
+      ? 'Written exercise'
+      : (url ? titleFromUrl(url) : 'Exercise');
   // null must survive as "unset" — Number(null) is 0, which would silently turn
   // an absent bar range into a zero-length one at bar 0.
   const num = (v) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
@@ -239,6 +310,10 @@ function normalizeItem(raw) {
     id: typeof raw.id === 'string' && raw.id ? raw.id : uid('ex'),
     name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : defaultName, NAME_LIMIT),
     categoryId: typeof raw.categoryId === 'string' ? raw.categoryId : '',
+    kind,
+    runner: runnerConfig,
+    body: kind === 'note' ? clampText(typeof raw.body === 'string' ? raw.body : '', BODY_LIMIT) : '',
+    attachments: normalizeAttachments(raw.attachments),
     attachmentId,
     url,
     fileName,
@@ -262,7 +337,7 @@ function normalizeItem(raw) {
     tuning: typeof raw.tuning === 'string' && raw.tuning ? raw.tuning : null,
     retuneMode: raw.retuneMode === 'pitches' ? 'pitches' : 'fingerings',
     instrument: instrumentRaw || deriveInstrument(type, fileName),
-    materialType: materialTypeRaw || deriveMaterialType(type, fileName, url),
+    materialType: materialTypeRaw || deriveMaterialType(type, fileName, url, kind),
     technique: typeof raw.technique === 'string' ? raw.technique : '',
     difficulty: typeof raw.difficulty === 'string' ? raw.difficulty : '',
     tags: normalizeTags(raw.tags),
@@ -571,12 +646,13 @@ function moveExercise(id, categoryId) {
 
 function attachmentStillReferenced(attachmentId) {
   if (!attachmentId) return false;
-  return getStore().items.some((it) => it.attachmentId === attachmentId);
+  return getStore().items.some((it) => itemAttachmentIds(it).includes(attachmentId));
 }
 
 async function releaseAttachmentsForItem(item) {
-  if (!item?.attachmentId) return;
-  try { await releaseAttachment(item.attachmentId); } catch (e) { /* ignore */ }
+  for (const attachmentId of itemAttachmentIds(item)) {
+    try { await releaseAttachment(attachmentId); } catch (e) { /* keep releasing */ }
+  }
 }
 
 async function releaseAttachment(attachmentId) {
@@ -614,7 +690,7 @@ async function deleteExercises(ids) {
   persist();
   const attachmentIds = new Set();
   removed.forEach((it) => {
-    if (it.attachmentId) attachmentIds.add(it.attachmentId);
+    itemAttachmentIds(it).forEach((id) => attachmentIds.add(id));
   });
   for (const attachmentId of attachmentIds) {
     try {
@@ -767,6 +843,8 @@ function youtubeEmbedUrl(url) {
 }
 
 export function mediaKind(item) {
+  if (item && item.kind === 'runner') return 'runner';
+  if (item && item.kind === 'note') return 'note';
   if (item && item.url) return youtubeEmbedUrl(item.url) ? 'youtube' : 'link';
   if (isGpItem(item)) return 'gp';
   if (isVideoItem(item)) return 'video';
@@ -787,6 +865,8 @@ export function mediaKindLabel(item) {
     youtube: 'YouTube',
     link: 'Link',
     gp: 'Guitar Pro',
+    runner: 'Pitch run',
+    note: 'Written',
     file: 'File',
   };
   return labels[mediaKind(item)] || 'File';
@@ -825,6 +905,9 @@ let playerStepEl, playerPrevBtn, playerNextBtn, playerPosEl;
 let activeExerciseId = null;
 let viewerURL = null;
 let viewerGpMount = null;
+let viewerRunnerMount = null;
+// Object URLs the note viewer made for attached files, revoked on teardown.
+let viewerExtraURLs = [];
 let escapeWired = false;
 let openGeneration = 0;
 const exerciseViewerChangeHandlers = new Set();
@@ -880,14 +963,20 @@ function describeExerciseRow(item) {
     id: item.id,
     name: item.name,
     typeLabel: mediaKindLabel(item),
-    size: item.url ? null : (Number(item.size) || null),
+    size: (item.url || item.kind === 'runner' || item.kind === 'note')
+      ? null
+      : (Number(item.size) || null),
     modifiedAt: item.addedAt,
     iconHtml: exerciseIconSvg(item),
   };
 }
 
 function exerciseRowMenuExtras(item) {
-  if (!item || !item.url) return [];
+  if (!item) return [];
+  if (item.kind === 'runner' || item.kind === 'note') {
+    return [{ label: 'Edit', onClick: () => openEditForm(item.id) }];
+  }
+  if (!item.url) return [];
   return [{
     label: 'Open link in a new tab',
     onClick: () => {
@@ -900,14 +989,102 @@ function exerciseRowMenuExtras(item) {
   }];
 }
 
-function newMenuExtrasForExercises() {
-  const entries = [];
-  if (fileInput && attachmentsSupported()) {
-    entries.push({ label: 'Upload file', onClick: () => fileInput.click() });
-    entries.push({ label: 'Bulk upload', onClick: () => (bulkFileInput || fileInput).click() });
+function newMenuExtrasForExercises(folderId) {
+  return [
+    { label: 'Add exercise\u2026', onClick: () => openAddFlow(folderId) },
+    { label: 'Bulk upload', onClick: () => startBulkUpload() },
+  ];
+}
+
+function startBulkUpload() {
+  if (!attachmentsSupported()) {
+    setStatus('Uploading needs browser storage, which is unavailable here.', true);
+    return;
   }
-  entries.push({ label: 'Add link', onClick: () => openLinkDialog() });
-  return entries;
+  (bulkFileInput || fileInput)?.click();
+}
+
+/** The label of the folder a new exercise joins, for the chooser. */
+function folderLabelFor(folderId) {
+  const target = resolveTargetFolder(folderId);
+  if (!target) return 'My Exercises';
+  return folderPathLabel(getStore().categories, target, FOLDER_PATH_SEPARATOR)
+    || categoryName(target);
+}
+
+/**
+ * The one place a new exercise starts. The chooser names every kind, then the
+ * kind decides which form or file picker opens next.
+ */
+export function openAddFlow(folderId) {
+  const target = resolveTargetFolder(folderId);
+  openAddExerciseChooser({
+    folderLabel: folderLabelFor(target),
+    onBulkUpload: () => startBulkUpload(),
+    onPick: (typeId) => {
+      if (typeId === 'link') { openLinkDialog(target); return; }
+      if (typeId === 'runner') { openRunnerForm({ categoryId: target }); return; }
+      if (typeId === 'note') { openNoteForm({ categoryId: target }); return; }
+      const accept = typeId === 'document' ? DOC_ACCEPT_ATTR
+        : typeId === 'media' ? MEDIA_ACCEPT_ATTR
+          : typeId === 'gp' ? GP_ACCEPT_ATTR
+            : '';
+      if (!attachmentsSupported()) {
+        setStatus('Uploading needs browser storage, which is unavailable here.', true);
+        return;
+      }
+      pickExerciseFiles({ accept, folderId: target });
+    },
+  });
+}
+
+/** Open the pitch-run form, either for a new run or for one that exists. */
+function openRunnerForm({ categoryId, item = null } = {}) {
+  openRunnerDialog({
+    title: item ? 'Edit pitch run' : 'New pitch run',
+    confirmLabel: item ? 'Save changes' : 'Save exercise',
+    name: item ? item.name : '',
+    config: item ? item.runner : null,
+    onSave: ({ name, config }) => {
+      if (item) {
+        const next = updateExerciseContent(item.id, { name: name || item.name, runner: config });
+        if (next) {
+          setStatus(`Saved "${next.name}".`);
+          if (activeExerciseId === item.id) void openExerciseViewer(item.id);
+        }
+        return;
+      }
+      const added = addRunnerExercise({ name, config, categoryId });
+      setStatus(added ? `Added "${added.name}".` : 'Could not save that run.', !added);
+    },
+  });
+}
+
+/** Open the written-exercise form, either for a new one or for one that exists. */
+function openNoteForm({ categoryId, item = null } = {}) {
+  openNoteDialog({
+    title: item ? 'Edit written exercise' : 'New written exercise',
+    confirmLabel: item ? 'Save changes' : 'Save exercise',
+    name: item ? item.name : '',
+    body: item ? item.body : '',
+    attachments: item ? item.attachments : [],
+    onSave: ({ name, body, attachments }) => {
+      if (item) {
+        const next = updateExerciseContent(item.id, {
+          name: name || item.name,
+          body,
+          attachments,
+        });
+        if (next) {
+          setStatus(`Saved "${next.name}".`);
+          if (activeExerciseId === item.id) void openExerciseViewer(item.id);
+        }
+        return;
+      }
+      const added = addNoteExercise({ name, body, attachments, categoryId });
+      setStatus(added ? `Added "${added.name}".` : 'Could not save that exercise.', !added);
+    },
+  });
 }
 
 function buildBrowser() {
@@ -948,7 +1125,7 @@ function buildBrowser() {
     newMenuExtras: newMenuExtrasForExercises,
     onExternalFiles: (files, folderId) => uploadFiles(files, folderId),
     emptyRootTitle: 'No exercises yet',
-    emptyHint: 'Use + New to upload a file or add a lesson link. You can also drop files straight onto this pane.',
+    emptyHint: 'Use + New \u2192 Add exercise to add a link, a file, a Guitar Pro score, a pitch run, or a written exercise. You can also drop files straight onto this pane.',
     prompt: promptForName,
     toast: setStatus,
     onNavigate: (folderId) => {
@@ -992,6 +1169,8 @@ export function exerciseIconSvg(item) {
   if (kind === 'audio') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
   if (kind === 'video' || kind === 'youtube') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>';
   if (kind === 'link') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4.93"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19.07"/></svg>';
+  if (kind === 'runner') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h4l3-9 3 13 3-8h5"/></svg>';
+  if (kind === 'note') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
   if (kind === 'gp') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9v6l5-3-5-3z"/><path d="M15 9h2M15 12h3M15 15h1"/></svg>';
   if (kind === 'doc' || kind === 'pdf') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>';
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>';
@@ -1001,8 +1180,30 @@ export function exerciseIconSvg(item) {
 
 async function onUploadFiles() {
   const files = Array.from(fileInput.files || []);
+  const folderId = pendingUploadFolderId;
+  pendingUploadFolderId = undefined;
+  const accept = pendingUploadAccept;
+  pendingUploadAccept = '';
   fileInput.value = '';
-  await uploadFiles(files, selectedCategory);
+  if (accept) fileInput.setAttribute('accept', UPLOAD_ACCEPT_ATTR);
+  await uploadFiles(files, folderId);
+}
+
+// The chooser can ask for one kind of file. These hold the folder and the
+// accept list of the pick that is open, because a file input reports back later.
+let pendingUploadFolderId;
+let pendingUploadAccept = '';
+
+/**
+ * Open the file picker for one exercise type.
+ * @param {{ accept?: string, folderId?: string }} [options]
+ */
+export function pickExerciseFiles({ accept = '', folderId } = {}) {
+  if (!fileInput) return;
+  pendingUploadFolderId = folderId;
+  pendingUploadAccept = accept;
+  fileInput.setAttribute('accept', accept || UPLOAD_ACCEPT_ATTR);
+  fileInput.click();
 }
 
 /** Saves files into a folder. The file picker and a drag-and-drop both use this. */
@@ -1014,7 +1215,7 @@ async function uploadFiles(files, folderId) {
     return;
   }
 
-  const targetCategory = folderId && folderById(getStore().categories, folderId) ? folderId : '';
+  const targetCategory = resolveTargetFolder(folderId);
 
   let added = 0;
   let rejected = 0;
@@ -1038,6 +1239,7 @@ async function uploadFiles(files, folderId) {
       id: uid('ex'),
       name: clampText(base || 'Exercise', NAME_LIMIT),
       categoryId: targetCategory,
+      kind: 'file',
       attachmentId: meta.id,
       fileName: file.name,
       type: fileType,
@@ -1064,7 +1266,7 @@ async function onBulkUploadFiles() {
     return;
   }
 
-  const defaultCategoryId = selectedCategory || '';
+  const defaultCategoryId = defaultExerciseFolder();
 
   openBulkUploadDialog({
     files,
@@ -1090,7 +1292,7 @@ export function addExerciseFromAttachment({
   fileName,
   type,
   size,
-  categoryId = '',
+  categoryId,
   preferredTrackIndex = 0,
   measureStart = null,
   measureEnd = null,
@@ -1111,7 +1313,8 @@ export function addExerciseFromAttachment({
   const item = normalizeItem({
     id: uid('ex'),
     name: clampText(name || defaultName, NAME_LIMIT),
-    categoryId: typeof categoryId === 'string' ? categoryId : '',
+    // No folder named means the folder the library has open, not the root.
+    categoryId: resolveTargetFolder(categoryId),
     attachmentId,
     url: '',
     fileName: fileName || '',
@@ -1206,20 +1409,42 @@ export function updateExercisePracticeSettings(id, patch = {}) {
   return next;
 }
 
-// --- URL exercise creation --------------------------------------------------
+// --- new exercises ----------------------------------------------------------
 
-function addLinkExercise(name, url) {
+/**
+ * The folder a new exercise belongs to. A new exercise joins the folder the
+ * user has open, the same way a new file joins the open folder in Google Drive.
+ */
+export function defaultExerciseFolder() {
+  const open = browser ? browser.getFolderId() : selectedCategory;
+  return open && folderById(getStore().categories, open) ? open : '';
+}
+
+function resolveTargetFolder(folderId) {
+  if (folderId === undefined || folderId === null) return defaultExerciseFolder();
+  return folderId && folderById(getStore().categories, folderId) ? folderId : '';
+}
+
+function insertItem(raw) {
+  const item = normalizeItem(raw);
+  if (!item) return null;
+  getStore().items.unshift(item);
+  persist();
+  if (wired) render();
+  return item;
+}
+
+function addLinkExercise(name, url, folderId) {
   const safe = safeExternalUrl(url);
   if (!safe) {
     setStatus('Enter a valid http(s) link.', true);
     return false;
   }
-  const targetCategory = selectedCategory || '';
-  const store = getStore();
-  store.items.unshift({
+  const item = insertItem({
     id: uid('ex'),
     name: clampText((name || '').trim() || titleFromUrl(safe), NAME_LIMIT),
-    categoryId: targetCategory,
+    categoryId: resolveTargetFolder(folderId),
+    kind: 'link',
     attachmentId: '',
     url: safe,
     fileName: '',
@@ -1227,10 +1452,69 @@ function addLinkExercise(name, url) {
     size: 0,
     addedAt: nowISO(),
   });
-  persist();
-  render();
+  if (!item) {
+    setStatus('Could not add that link.', true);
+    return false;
+  }
   setStatus('Added link.');
   return true;
+}
+
+/**
+ * Save a pitch-runner run as an exercise.
+ * @param {{ name?: string, config: object, categoryId?: string }} options
+ */
+export function addRunnerExercise({ name, config, categoryId } = {}) {
+  const runner = normalizeRunnerConfig(config);
+  if (!runner) return null;
+  return insertItem({
+    id: uid('ex'),
+    name: clampText((name || '').trim() || 'Pitch run', NAME_LIMIT),
+    categoryId: resolveTargetFolder(categoryId),
+    kind: 'runner',
+    runner,
+    addedAt: nowISO(),
+  });
+}
+
+/**
+ * Save a written exercise the user typed, with any files it carries.
+ * @param {{ name?: string, body?: string, attachments?: object[], categoryId?: string }} options
+ */
+export function addNoteExercise({ name, body, attachments, categoryId } = {}) {
+  return insertItem({
+    id: uid('ex'),
+    name: clampText((name || '').trim() || 'Written exercise', NAME_LIMIT),
+    categoryId: resolveTargetFolder(categoryId),
+    kind: 'note',
+    body: clampText(typeof body === 'string' ? body : '', BODY_LIMIT),
+    attachments: Array.isArray(attachments) ? attachments : [],
+    addedAt: nowISO(),
+  });
+}
+
+/** Replace the stored fields of a runner or a written exercise. */
+export function updateExerciseContent(id, patch = {}) {
+  const store = getStore();
+  const idx = store.items.findIndex((it) => it.id === id);
+  if (idx < 0) return null;
+  const previous = store.items[idx];
+  const next = normalizeItem({ ...previous, ...patch });
+  if (!next) return null;
+  store.items[idx] = next;
+  persist();
+  // A file the edit dropped is no longer referenced, so free its Blob.
+  const keptIds = new Set(itemAttachmentIds(next));
+  const orphans = itemAttachmentIds(previous).filter((attachmentId) => !keptIds.has(attachmentId));
+  if (orphans.length) {
+    (async () => {
+      for (const attachmentId of orphans) {
+        try { await releaseAttachment(attachmentId); } catch (e) { /* keep releasing */ }
+      }
+    })();
+  }
+  if (wired) render();
+  return next;
 }
 
 // --- inline player ---------------------------------------------------------
@@ -1406,10 +1690,36 @@ function stepExercise(delta) {
   void openExerciseViewer(target);
 }
 
+/** Open the form that edits an exercise the user wrote or configured. */
+function openEditForm(id) {
+  const item = getExercise(id);
+  if (!item) return;
+  if (item.kind === 'runner') openRunnerForm({ item });
+  else if (item.kind === 'note') openNoteForm({ item });
+}
+
 function fillPlayerHead(item, kind, blob) {
   playerTitleEl.textContent = item.name;
   playerTitleEl.title = item.fileName || item.name;
   playerActionsEl.innerHTML = '';
+
+  if (item.kind === 'runner' || item.kind === 'note') {
+    playerActionsEl.appendChild(el('button', {
+      class: 'btn sm', type: 'button', text: 'Edit',
+      onClick: () => openEditForm(item.id),
+    }));
+  }
+
+  // A run read from a Guitar Pro file keeps that file, so offer it back.
+  if (item.kind === 'runner' && item.runner?.attachmentId) {
+    playerActionsEl.appendChild(el('button', {
+      class: 'btn sm', type: 'button', text: 'Open score',
+      onClick: () => openAttachmentInTab({
+        attachmentId: item.runner.attachmentId,
+        fileName: item.runner.fileName,
+      }),
+    }));
+  }
 
   if (item.url) {
     playerActionsEl.appendChild(el('a', {
@@ -1461,9 +1771,72 @@ function mountDocFallbackCard(item) {
   playerBodyEl.appendChild(el('div', { class: 'ex-player-doc-fallback' }, card));
 }
 
+/** The written body of a note exercise, plus its attached files. */
+function mountNoteBody(item) {
+  const text = typeof item.body === 'string' ? item.body : '';
+  const article = el('article', { class: 'ex-note-doc' });
+  if (text.trim()) {
+    text.split(/\n{2,}/).forEach((block) => {
+      article.appendChild(el('p', { class: 'ex-note-para', text: block }));
+    });
+  } else {
+    article.appendChild(el('p', {
+      class: 'ex-note-empty',
+      text: 'This exercise has no written text yet. Use Edit to add some.',
+    }));
+  }
+
+  const files = Array.isArray(item.attachments) ? item.attachments : [];
+  if (files.length) {
+    article.appendChild(el('h4', { class: 'ex-note-files-title', text: `Attachments (${files.length})` }));
+    const list = el('ul', { class: 'ex-note-files' });
+    files.forEach((file) => {
+      const row = el('li', { class: 'ex-note-file' }, [
+        el('span', { class: 'ex-note-file-icon', 'aria-hidden': 'true', html: exerciseIconSvg(file) }),
+        el('span', { class: 'ex-note-file-name', text: file.name || file.fileName || 'Attachment' }),
+        el('span', { class: 'ex-note-file-meta', text: fmtSize(file.size) }),
+      ]);
+      row.appendChild(el('button', {
+        class: 'btn sm', type: 'button', text: 'Open',
+        onClick: () => openAttachmentInTab(file),
+      }));
+      list.appendChild(row);
+    });
+    article.appendChild(list);
+  }
+  playerBodyEl.appendChild(article);
+}
+
+/** Open one attached file in a new tab. The Blob lives in IndexedDB. */
+async function openAttachmentInTab(file) {
+  if (!file?.attachmentId) return;
+  try {
+    const blob = await getFileBlob(file.attachmentId);
+    if (!blob) {
+      setStatus('That file is missing from storage.', true);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    viewerExtraURLs.push(url);
+    window.open(url, '_blank', 'noopener');
+  } catch (e) {
+    setStatus('Could not open that file.', true);
+  }
+}
+
 function mountPlayerBody(item, kind, blob) {
   playerBodyEl.className = `ex-player-body ex-player-body-${kind}`;
   playerBodyEl.innerHTML = '';
+
+  if (kind === 'runner') {
+    viewerRunnerMount = mountRunnerExercise(playerBodyEl, item.runner);
+    return null;
+  }
+
+  if (kind === 'note') {
+    mountNoteBody(item);
+    return null;
+  }
 
   if (item.url) {
     const embedUrl = youtubeEmbedUrl(item.url) || item.url;
@@ -1583,6 +1956,14 @@ function teardownPlayer() {
   if (viewerGpMount) {
     try { viewerGpMount.destroy(); } catch (e) { /* ignore */ }
     viewerGpMount = null;
+  }
+  if (viewerRunnerMount) {
+    try { viewerRunnerMount.destroy(); } catch (e) { /* ignore */ }
+    viewerRunnerMount = null;
+  }
+  if (viewerExtraURLs.length) {
+    viewerExtraURLs.forEach((url) => { try { URL.revokeObjectURL(url); } catch (e) {} });
+    viewerExtraURLs = [];
   }
   if (viewerURL) { try { URL.revokeObjectURL(viewerURL); } catch (e) {} viewerURL = null; }
   activeExerciseId = null;
@@ -1819,7 +2200,7 @@ function openPrompt(title, initialValue, confirmLabel, onConfirm, { onCancel, ma
   setTimeout(() => { input.focus(); input.select(); }, 40);
 }
 
-function openLinkDialog() {
+function openLinkDialog(folderId) {
   ensureDialogRoot();
   dialogRoot.innerHTML = '';
   const overlay = el('div', { class: 'modal-overlay' });
@@ -1851,7 +2232,7 @@ function openLinkDialog() {
       return;
     }
     closeDialog();
-    addLinkExercise(nameInput.value, safe);
+    addLinkExercise(nameInput.value, safe, folderId);
   };
 
   const actions = el('div', { class: 'modal-actions' });
@@ -1978,6 +2359,7 @@ export function initExercises() {
 // Close the viewer when navigating away from the Exercises section.
 export function stopExercises() {
   closeBulkUploadDialog();
+  closeAddExerciseDialog();
   closeExerciseViewer();
   closeDriveMenu();
   if (browser) browser.clearSelection();
