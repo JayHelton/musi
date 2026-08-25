@@ -98,6 +98,21 @@ export const TOOLS = [
     holdRecord: true,
   },
   {
+    id: 'practicelab',
+    label: 'Practice Lab',
+    short: 'Practice Lab',
+    area: 'train',
+    description: 'Run one practice session: a timer, a click, ratios, a tempo ladder, a camera, and a log.',
+    title: 'Practice Lab',
+    modes: [
+      { id: 'session', label: 'Session' },
+      { id: 'history', label: 'History' },
+    ],
+    defaultMode: 'session',
+    context: [],
+    holdRecord: false,
+  },
+  {
     id: 'scaleref',
     label: 'Scale Reference',
     short: 'Scales',

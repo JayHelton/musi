@@ -95,9 +95,9 @@ test('Utilities are not a primary area', () => {
 });
 
 console.log('Tool classification');
-test('Train holds the four drills', () => {
+test('Train holds the four drills and the Practice Lab', () => {
   assert.deepEqual(ids(toolsInArea('train')),
-    ['intervals', 'sightreading', 'chordworkout', 'pitchear']);
+    ['intervals', 'sightreading', 'chordworkout', 'pitchear', 'practicelab']);
 });
 
 test('Study holds the references', () => {
@@ -143,6 +143,11 @@ test('the tempo plan lives inside the Metronome', () => {
   assert.deepEqual(getTool('metronome').modes.map(m => m.id), ['metronome', 'plan']);
 });
 
+test('the Practice Lab holds a session mode and a history mode', () => {
+  assert.deepEqual(getTool('practicelab').modes.map(m => m.id), ['session', 'history']);
+  assert.equal(getTool('practicelab').defaultMode, 'session');
+});
+
 test('transcription lives inside Audio Studio', () => {
   assert.equal(getTool('tracktosheet'), null);
   assert.deepEqual(getTool('audiostudio').modes.map(m => m.id),
@@ -185,6 +190,7 @@ test('each tool declares the context fields it reads', () => {
   assert.deepEqual(toolContextFields('chordfinder'), ['tuning']);
   assert.deepEqual(toolContextFields('metronome'), ['tempo']);
   assert.deepEqual(toolContextFields('notes'), []);
+  assert.deepEqual(toolContextFields('practicelab'), []);
 });
 
 test('no tool depends on every context field by default', () => {

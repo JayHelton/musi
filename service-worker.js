@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v272-runner-exercises";
+const CACHE_VERSION = "v273-practice-lab";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -54,6 +54,7 @@ const PRECACHE_URLS = [
   "css/context-quick.css",
   "css/tool-page.css",
   "css/audio-dock.css",
+  "css/practice-lab.css",
   "css/landscape.css",
   "chord-cards/",
   "chord-cards/index.html",
@@ -208,6 +209,33 @@ const PRECACHE_URLS = [
   "js/runnerExerciseModel.js",
   "js/runnerExerciseView.js",
   "js/pitchTrainer.js",
+  "js/practiceLab/index.js",
+  "js/practiceLab/container.js",
+  "js/practiceLab/ports.js",
+  "js/practiceLab/adapters/idbStore.js",
+  "js/practiceLab/adapters/mediaVideo.js",
+  "js/practiceLab/adapters/memoryStore.js",
+  "js/practiceLab/adapters/musiAudioSession.js",
+  "js/practiceLab/adapters/musiClick.js",
+  "js/practiceLab/adapters/musiToast.js",
+  "js/practiceLab/adapters/realClock.js",
+  "js/practiceLab/engine/countdown.js",
+  "js/practiceLab/engine/expand.js",
+  "js/practiceLab/engine/scheduler.js",
+  "js/practiceLab/engine/timeline.js",
+  "js/practiceLab/model/catalog.js",
+  "js/practiceLab/model/session.js",
+  "js/practiceLab/ui/cameraPanel.js",
+  "js/practiceLab/ui/dom.js",
+  "js/practiceLab/ui/historyView.js",
+  "js/practiceLab/ui/logPanel.js",
+  "js/practiceLab/ui/metronomeBar.js",
+  "js/practiceLab/ui/ratiosPanel.js",
+  "js/practiceLab/ui/sessionView.js",
+  "js/practiceLab/ui/setupView.js",
+  "js/practiceLab/ui/speedPanel.js",
+  "js/practiceLab/ui/timerPanel.js",
+  "js/practiceLab/ui/trainerTabs.js",
   "js/progressHeader.js",
   "js/qr/qrDecode.js",
   "js/qr/qrEncode.js",

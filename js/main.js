@@ -41,6 +41,7 @@ import { initScaleRef, stopScaleRef } from './scaleReference.js';
 import { initTriadRef, stopTriadRef } from './triadReference.js';
 import { initChordFinder, stopChordFinder } from './chordFinder.js';
 import { initDrumTabReference, stopDrumTabReference } from './drumTabReference.js';
+import { initPracticeLab, stopPracticeLab } from './practiceLab/index.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
@@ -109,6 +110,7 @@ const TOOL_STOPPERS = {
   notes: () => stopNotes(),
   scoreplayer: () => stopGpPlayer(),
   drumtab: () => stopDrumTabReference(),
+  practicelab: () => stopPracticeLab(),
 };
 
 const TOOL_INITS = {
@@ -122,6 +124,7 @@ const TOOL_INITS = {
   chordworkout: initChordWorkout,
   pitchear: () => { initTuner(); initPitchTrainer(); initPitchRunner(); initEarTrainer(); },
   sightreading: initSightReading,
+  practicelab: () => initPracticeLab({ mode: currentRouteParams.mode }),
   audiostudio: () => { initRecorder(); initTrackToSheet(); },
   songstudio: initSongwriter,
   exercises: initExercises,
