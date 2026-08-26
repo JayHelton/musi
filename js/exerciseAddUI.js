@@ -17,6 +17,7 @@
 import { saveFile, attachmentsSupported, ensurePersistentStorage } from './attachments.js';
 import { parseGuitarPro, isGuitarProName } from './tab/guitarPro.js';
 import {
+  RUNNER_MAX_BEATS,
   RUNNER_MAX_BPM,
   RUNNER_MAX_REPEATS,
   RUNNER_MIN_BPM,
@@ -230,6 +231,7 @@ export function openRunnerDialog({
     source: start.source,
     notes: start.notes.slice(),
     bpm: start.bpm,
+    noteBeats: start.noteBeats,
     restBeats: start.restBeats,
     repeats: start.repeats,
     countInBeats: start.countInBeats,
@@ -316,6 +318,9 @@ export function openRunnerDialog({
   const bpmInput = numberInput({
     value: state.bpm, min: RUNNER_MIN_BPM, max: RUNNER_MAX_BPM, ariaLabel: 'Tempo in BPM',
   });
+  const noteLengthInput = numberInput({
+    value: state.noteBeats, min: 0, max: RUNNER_MAX_BEATS, step: 0.25, ariaLabel: 'Note length in beats',
+  });
   const restInput = numberInput({
     value: state.restBeats, min: 0, max: 8, step: 0.25, ariaLabel: 'Rest between notes',
   });
@@ -327,6 +332,7 @@ export function openRunnerDialog({
   });
   dialog.appendChild(el('div', { class: 'ex-form-grid' }, [
     labelledField('Tempo (BPM)', bpmInput),
+    labelledField('Note length', noteLengthInput, 'In beats. 0 holds each note as long as it is written.'),
     labelledField('Rest between notes', restInput, 'In beats.'),
     labelledField('Repeat', repeatInput, '0 runs until you stop it.'),
     labelledField('Count-in', countInInput, 'In beats.'),
@@ -355,6 +361,7 @@ export function openRunnerDialog({
       source: state.source,
       notes: state.source === 'manual' ? readManualNotes().notes : state.notes,
       bpm: Number(bpmInput.value),
+      noteBeats: Number(noteLengthInput.value),
       restBeats: Number(restInput.value),
       repeats: Number(repeatInput.value),
       countInBeats: Number(countInInput.value),
@@ -458,7 +465,7 @@ export function openRunnerDialog({
     importFromTrack();
   });
   notesInput.addEventListener('input', syncPreview);
-  [bpmInput, restInput, repeatInput, countInInput].forEach((input) => {
+  [bpmInput, noteLengthInput, restInput, repeatInput, countInInput].forEach((input) => {
     input.addEventListener('input', syncPreview);
   });
   [metronomeChk, guideChk].forEach((box) => box.addEventListener('change', syncPreview));

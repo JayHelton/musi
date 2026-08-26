@@ -153,6 +153,13 @@
 .pr-tempo b{font-size:1.05rem;color:var(--text);min-width:38px;text-align:center;font-variant-numeric:tabular-nums}
 .pr-bpm-btn{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:1.1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .pr-bpm-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pr-delay-input{
+  width:100%;min-width:min(120px,100%);padding:6px 10px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  color:var(--text);font-family:var(--font-ui,inherit);font-size:1rem;
+  font-variant-numeric:tabular-nums;text-align:center
+}
+.pr-delay-input:focus{outline:none;border-color:var(--accent)}
 .pr-toggles{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
 .pr-check{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted);cursor:pointer}
 .pr-hud{display:flex;justify-content:center;gap:26px;margin-bottom:12px}

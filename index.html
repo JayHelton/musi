@@ -881,7 +881,7 @@
       </div>
       <div class="quiz-card pr-card" style="margin-top:16px">
         <div class="field-label">Pitch runner <span class="pr-tag">beta</span></div>
-        <p class="pr-intro">Sing and sustain each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left. Use Note length (1&ndash;4 beats) to practice longer holds. The melody guide is a short cue only and does not count toward hits.</p>
+        <p class="pr-intro">Sing and sustain each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left. Use Note length (1&ndash;4 beats) to practice longer holds. The melody guide is a short cue only and does not count toward hits. Bluetooth headphones play the sound late, so raise Audio delay until the click lands on the beat you see.</p>
         <div class="pt-controls">
           <label class="pt-field">
             <span>Challenge</span>
@@ -906,6 +906,10 @@
               <b id="pr-bpm">120</b>
               <button type="button" class="pr-bpm-btn" id="pr-bpm-up" aria-label="Faster">+</button>
             </span>
+          </label>
+          <label class="pt-field">
+            <span>Audio delay (ms)</span>
+            <input type="number" class="pr-delay-input" id="pr-audio-delay" min="0" max="500" step="10" value="0" aria-label="Audio delay in milliseconds">
           </label>
         </div>
         <div class="pr-toggles">

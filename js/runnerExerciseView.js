@@ -10,6 +10,7 @@ import {
   describeRunnerConfig,
   midiToNoteName,
   normalizeRunnerConfig,
+  runnerNoteBeats,
   runnerRunBeats,
 } from './runnerExerciseModel.js';
 
@@ -36,16 +37,25 @@ function formatDuration(seconds) {
   return mins ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`;
 }
 
-/** One chip per note, so the singer reads the run before it starts. */
-function buildNoteStrip(notes) {
-  const strip = el('div', { class: 'rx-notes', 'aria-label': 'Notes of this run' });
-  notes.forEach((note) => {
+/**
+ * One chip per note, so the singer can read the run.
+ *
+ * A long run holds many notes, so the list stays closed and sits under the
+ * game. An open list at the top pushes the stage off the screen.
+ */
+function buildNoteList(config) {
+  const strip = el('div', { class: 'rx-notes' });
+  config.notes.forEach((note) => {
     strip.appendChild(el('span', { class: 'rx-note' }, [
       el('b', { text: midiToNoteName(note.midi) }),
-      el('i', { text: `${note.beats}` }),
+      el('i', { text: `${runnerNoteBeats(config, note)}` }),
     ]));
   });
-  return strip;
+  const count = config.notes.length;
+  return el('details', { class: 'rx-notes-box' }, [
+    el('summary', { class: 'rx-notes-summary', text: `Notes (${count})` }),
+    strip,
+  ]);
 }
 
 /**
@@ -83,7 +93,6 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
   if (config.source === 'gp' && config.fileName) {
     root.appendChild(el('p', { class: 'rx-source', text: `From ${config.fileName}` }));
   }
-  root.appendChild(buildNoteStrip(config.notes));
 
   const bpmDown = el('button', {
     type: 'button', class: 'pr-bpm-btn', 'aria-label': 'Slower', text: '−',
@@ -96,7 +105,15 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
     el('span', { text: 'Tempo' }),
     el('span', { class: 'pr-tempo' }, [bpmDown, bpmValue, bpmUp]),
   ]);
-  root.appendChild(el('div', { class: 'pt-controls rx-controls' }, [tempoField]));
+  const audioDelay = el('input', {
+    type: 'number', class: 'pr-delay-input', min: '0', max: '500', step: '10',
+    'aria-label': 'Audio delay in milliseconds',
+  });
+  const delayField = el('label', { class: 'pt-field' }, [
+    el('span', { text: 'Audio delay (ms)' }),
+    audioDelay,
+  ]);
+  root.appendChild(el('div', { class: 'pt-controls rx-controls' }, [tempoField, delayField]));
 
   const metronome = el('input', { type: 'checkbox' });
   const guide = el('input', { type: 'checkbox' });
@@ -127,8 +144,11 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
   root.appendChild(status);
   root.appendChild(el('p', {
     class: 'rx-hint',
-    text: `The run plays ${passes}. Sing each note as its bar crosses the line.`,
+    text: `The run plays ${passes}. Sing each note as its bar crosses the line.`
+      + ' Bluetooth headphones play the sound late. Raise the audio delay until the'
+      + ' click lands on the beat you see.',
   }));
+  root.appendChild(buildNoteList(config));
 
   host.appendChild(root);
 
@@ -150,6 +170,7 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
       'pr-bpm-up': bpmUp,
       'pr-metronome': metronome,
       'pr-guide': guide,
+      'pr-audio-delay': audioDelay,
     },
     sequence: config,
     onFinish,

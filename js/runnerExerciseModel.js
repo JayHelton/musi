@@ -43,6 +43,23 @@ export function clampRunnerBeats(value) {
   return Math.min(RUNNER_MAX_BEATS, Math.max(RUNNER_MIN_BEATS, quarters));
 }
 
+/**
+ * Read the fixed hold length of a run. 0 means "as written": every note keeps
+ * the hold length it carries. Any other value holds every note that long.
+ */
+export function clampRunnerNoteBeats(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return clampRunnerBeats(n);
+}
+
+/** The hold length one note plays for, in beats. */
+export function runnerNoteBeats(config, note) {
+  const fixed = clampRunnerNoteBeats(config && config.noteBeats);
+  if (fixed > 0) return fixed;
+  return clampRunnerBeats(note && note.beats);
+}
+
 export function clampRunnerBpm(value) {
   const n = clampNumber(value, RUNNER_MIN_BPM, RUNNER_MAX_BPM, RUNNER_DEFAULT_BPM);
   return Math.round(n);
@@ -184,7 +201,7 @@ export function runnerNoteRange(notes) {
 export function runnerRunBeats(config) {
   const notes = Array.isArray(config?.notes) ? config.notes : [];
   const rest = clampNumber(config?.restBeats, 0, 8, 0);
-  return notes.reduce((total, note) => total + clampRunnerBeats(note.beats) + rest, 0);
+  return notes.reduce((total, note) => total + runnerNoteBeats(config, note) + rest, 0);
 }
 
 export function defaultRunnerConfig() {
@@ -192,6 +209,7 @@ export function defaultRunnerConfig() {
     source: 'manual',
     bpm: RUNNER_DEFAULT_BPM,
     notes: [],
+    noteBeats: 0,
     restBeats: 0,
     repeats: 2,
     countInBeats: 4,
@@ -217,6 +235,7 @@ export function normalizeRunnerConfig(raw) {
     source,
     bpm: clampRunnerBpm(raw.bpm),
     notes,
+    noteBeats: clampRunnerNoteBeats(raw.noteBeats),
     restBeats: Math.round(clampNumber(raw.restBeats, 0, 8, 0) * 4) / 4,
     repeats: Math.round(clampNumber(raw.repeats, 0, RUNNER_MAX_REPEATS, 2)),
     countInBeats: Math.round(clampNumber(raw.countInBeats, 0, 8, 4)),

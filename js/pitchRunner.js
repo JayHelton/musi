@@ -14,6 +14,7 @@ import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.j
 import { scoreRunnerNote } from './pitchMetrics.js';
 import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
 import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
+import { runnerNoteBeats } from './runnerExerciseModel.js';
 
 // "Pitch runner" — a Guitar-Hero / Yousician-style scrolling pitch game that
 // lives in the Pitch section. Note bars stream in from the right in strict 4/4
@@ -51,6 +52,14 @@ const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
 // Short cue length for the optional melody guide. Kept brief so the singer —
 // not the app's own speakers — must sustain the note for the hit.
 const GUIDE_CUE_BEATS = 0.35;
+// Output delay compensation, in milliseconds. Bluetooth headphones play a
+// sound long after the app schedules it, so the runner sends every click and
+// every melody-guide cue out early by this much. The bars on screen then cross
+// the line at the moment the player hears the note.
+const AUDIO_DELAY_MIN_MS = 0;
+const AUDIO_DELAY_MAX_MS = 500;
+const AUDIO_DELAY_STEP_MS = 10;
+const AUDIO_DELAY_DEFAULT_MS = 0;
 
 // The element names the runner reads. The Pitch section holds elements with
 // these ids; a saved runner exercise builds its own stage and binds the same
@@ -59,14 +68,18 @@ const RUNNER_ELEMENT_NAMES = [
   'pr-toggle', 'pr-status', 'pr-judge', 'pr-score', 'pr-combo', 'pr-accuracy',
   'pr-canvas', 'pr-stage', 'pr-overlay', 'pr-difficulty', 'pr-pattern',
   'pr-range-preset', 'pr-length', 'pr-bpm', 'pr-bpm-down', 'pr-bpm-up',
-  'pr-metronome', 'pr-guide',
+  'pr-metronome', 'pr-guide', 'pr-audio-delay',
 ];
 
 // The longest hold in the run. A free run holds every note for the same
-// length; a saved run gives each note its own length.
+// length. A saved run gives each note its own length, or holds every note for
+// the fixed length the run carries.
 function maxNoteBeats() {
   if (runner.mode === 'sequence') {
-    return runner.sequence.notes.reduce((max, note) => Math.max(max, note.beats), 1);
+    return runner.sequence.notes.reduce(
+      (max, note) => Math.max(max, runnerNoteBeats(runner.sequence, note)),
+      1,
+    );
   }
   return runner.noteBeats;
 }
@@ -125,6 +138,8 @@ const runner = {
   noteBeats: 2,
   metronome: true,
   guide: false,
+  // Milliseconds between a scheduled sound and the moment the player hears it.
+  audioDelayMs: AUDIO_DELAY_DEFAULT_MS,
 
   // Timeline / scoring state.
   startAudioTime: 0,
@@ -310,6 +325,33 @@ function getInputLatencySec() {
   return 0;
 }
 
+/** The output delay the player set, in seconds. */
+function audioDelaySec() {
+  const ms = Number(runner.audioDelayMs);
+  if (!Number.isFinite(ms)) return 0;
+  return Math.min(AUDIO_DELAY_MAX_MS, Math.max(AUDIO_DELAY_MIN_MS, ms)) / 1000;
+}
+
+/**
+ * The AudioContext time to start a cue that the player must hear at
+ * `heardTime`. The cue leaves early by the output delay. Returns null when
+ * that moment already passed, so the runner drops the cue instead of
+ * playing it late.
+ */
+function cuePlayTime(heardTime) {
+  const playAt = heardTime - audioDelaySec();
+  if (playAt < audioCtx.currentTime - 0.05) return null;
+  return Math.max(playAt, audioCtx.currentTime);
+}
+
+/**
+ * The delay before the first beat of a run. It holds the whole output delay,
+ * so even the first cue has time to leave early.
+ */
+function startLeadSec() {
+  return 0.15 + audioDelaySec();
+}
+
 function getAnalysisDelaySec() {
   if (runner.capture) return runner.capture.windowSize / audioCtx.sampleRate / 2;
   return 4096 / audioCtx.sampleRate / 2;
@@ -352,7 +394,7 @@ function sequenceStep(index) {
     const notes = runner.sequence.notes;
     if (!notes.length) return null;
     const note = notes[index % notes.length];
-    const beats = note.beats;
+    const beats = runnerNoteBeats(runner.sequence, note);
     const gap = Math.min(NOTE_GAP_BEATS, beats * 0.2);
     return {
       midi: note.midi,
@@ -666,13 +708,17 @@ function currentTargetMidi(playheadBeat) {
 
 function scheduleAudio(playheadBeat) {
   const ahead = 0.2; // seconds of look-ahead for click/guide scheduling
-  const horizonBeat = playheadBeat + ahead / runner.secPerBeat;
+  const delay = audioDelaySec();
+  // Every cue leaves the app early by the output delay, so the look-ahead
+  // window grows by the same amount.
+  const horizonBeat = playheadBeat + (ahead + delay) / runner.secPerBeat;
   // Metronome clicks on every beat.
   while (runner.metronome && runner.nextClickBeat < horizonBeat) {
     if (runner.nextClickBeat >= 0) {
-      const t = runner.startAudioTime + runner.nextClickBeat * runner.secPerBeat;
-      if (t > audioCtx.currentTime - 0.05) {
-        scheduleClick(t, ((runner.nextClickBeat % 4) + 4) % 4 === 0);
+      const heardAt = runner.startAudioTime + runner.nextClickBeat * runner.secPerBeat;
+      const playAt = cuePlayTime(heardAt);
+      if (playAt != null) {
+        scheduleClick(playAt, ((runner.nextClickBeat % 4) + 4) % 4 === 0);
       }
     }
     runner.nextClickBeat += 1;
@@ -683,10 +729,12 @@ function scheduleAudio(playheadBeat) {
     for (const note of runner.notes) {
       if (note.guideScheduled) continue;
       if (note.startBeat <= horizonBeat) {
-        const t = runner.startAudioTime + note.startBeat * runner.secPerBeat;
-        if (t > audioCtx.currentTime - 0.05) {
-          const cueSec = scheduleGuideTone(note.midi, t);
-          note.guideMuteUntil = lockoutUntil(t + cueSec);
+        const heardAt = runner.startAudioTime + note.startBeat * runner.secPerBeat;
+        const playAt = cuePlayTime(heardAt);
+        if (playAt != null) {
+          const cueSec = scheduleGuideTone(note.midi, playAt);
+          // The microphone hears the cue only after the output delay.
+          note.guideMuteUntil = lockoutUntil(playAt + delay + cueSec);
         }
         note.guideScheduled = true;
       }
@@ -811,7 +859,7 @@ function step() {
 
 function resetTimeline() {
   runner.secPerBeat = 60 / currentTempo();
-  runner.startAudioTime = audioCtx.currentTime + 0.15;
+  runner.startAudioTime = audioCtx.currentTime + startLeadSec();
   runner.seqIdx = 0;
   runner.finished = false;
   runner.nextBeat = leadInBeats();
@@ -866,7 +914,7 @@ async function startRunner() {
     setOverlay('');
     const status = el('pr-status');
     if (status) status.textContent = 'Listening\u2026 sing the notes as they cross the line';
-    runner.startAudioTime = audioCtx.currentTime + 0.15;
+    runner.startAudioTime = audioCtx.currentTime + startLeadSec();
     runner.nextClickBeat = 0;
     syncNoteAudioTimes();
     loop();
@@ -947,7 +995,7 @@ function restartIfRunning() {
   if (runner.running) {
     resetScore();
     resetTimeline();
-    runner.startAudioTime = audioCtx.currentTime + 0.15;
+    runner.startAudioTime = audioCtx.currentTime + startLeadSec();
     runner.nextClickBeat = 0;
     syncNoteAudioTimes();
   } else {
@@ -962,6 +1010,17 @@ function syncTempoLabel() {
   const bpmEl = el('pr-bpm');
   if (bpmEl) bpmEl.textContent = String(currentTempo());
   runner.secPerBeat = 60 / currentTempo();
+}
+
+/**
+ * Read the output delay. It belongs to the headphones the player uses, not to
+ * one run, so both modes share the same saved value.
+ */
+function loadAudioDelay() {
+  const stored = Number(getSetting('pitchRunner.audioDelayMs', AUDIO_DELAY_DEFAULT_MS));
+  runner.audioDelayMs = Number.isFinite(stored)
+    ? Math.min(AUDIO_DELAY_MAX_MS, Math.max(AUDIO_DELAY_MIN_MS, Math.round(stored)))
+    : AUDIO_DELAY_DEFAULT_MS;
 }
 
 function loadFreeSettings() {
@@ -1003,6 +1062,7 @@ function attachRunner({ dom, sequence = null, onFinish = null } = {}) {
     runner.sequence = null;
     loadFreeSettings();
   }
+  loadAudioDelay();
 
   wireControls();
   wireGlobals();
@@ -1044,6 +1104,7 @@ function initPitchRunner() {
   const dom = sectionRunnerDom();
   if (runner.dom && runner.dom['pr-canvas'] === dom['pr-canvas'] && runner.mode === 'free') {
     loadFreeSettings();
+    loadAudioDelay();
     syncControls();
     syncTempoLabel();
     readColors();
@@ -1166,6 +1227,22 @@ function wireControls() {
     };
   }
 
+  const delayInput = el('pr-audio-delay');
+  if (delayInput) {
+    delayInput.min = String(AUDIO_DELAY_MIN_MS);
+    delayInput.max = String(AUDIO_DELAY_MAX_MS);
+    delayInput.step = String(AUDIO_DELAY_STEP_MS);
+    delayInput.value = String(runner.audioDelayMs);
+    delayInput.onchange = () => {
+      const next = Number(delayInput.value);
+      runner.audioDelayMs = Number.isFinite(next)
+        ? Math.min(AUDIO_DELAY_MAX_MS, Math.max(AUDIO_DELAY_MIN_MS, Math.round(next)))
+        : AUDIO_DELAY_DEFAULT_MS;
+      delayInput.value = String(runner.audioDelayMs);
+      saveSetting('pitchRunner.audioDelayMs', runner.audioDelayMs);
+    };
+  }
+
   const toggleBtn = el('pr-toggle');
   if (toggleBtn && !toggleBtn.getAttribute('onclick')) {
     toggleBtn.onclick = () => togglePitchRunner();
@@ -1216,12 +1293,14 @@ function syncControls() {
   const lengthSel = el('pr-length');
   const metroChk = el('pr-metronome');
   const guideChk = el('pr-guide');
+  const delayInput = el('pr-audio-delay');
   if (diffSel) diffSel.value = runner.difficulty;
   if (patternSel) patternSel.value = runner.pattern;
   if (presetSel) presetSel.value = matchPreset();
   if (lengthSel) lengthSel.value = String(runner.noteBeats);
   if (metroChk) metroChk.checked = runner.metronome;
   if (guideChk) guideChk.checked = runner.guide;
+  if (delayInput) delayInput.value = String(runner.audioDelayMs);
 }
 
 if (typeof window !== 'undefined') window.togglePitchRunner = togglePitchRunner;

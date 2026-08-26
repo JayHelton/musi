@@ -15,6 +15,7 @@ import {
   noteNameToMidi,
   normalizeRunnerConfig,
   parseRunnerNotes,
+  runnerNoteBeats,
   runnerNoteRange,
   runnerNotesFromTabModel,
   runnerRunBeats,
@@ -112,6 +113,38 @@ await test('a run reports its range, its length, and a summary', () => {
   assert.deepEqual(runnerNoteRange(config.notes), { low: 60, high: 67 });
   assert.equal(runnerRunBeats(config), 8, '2 + 4 beats of notes plus 2 beats of rest');
   assert.equal(describeRunnerConfig(config), '2 notes · C4–G4 · 90 BPM · 2×');
+});
+
+await test('a fixed note length holds every note the same', () => {
+  const written = normalizeRunnerConfig({
+    bpm: 90, repeats: 1, restBeats: 0,
+    notes: [{ midi: 60, beats: 1 }, { midi: 67, beats: 4 }],
+  });
+  assert.equal(written.noteBeats, 0, 'a run with no fixed length keeps what it holds');
+  assert.equal(runnerNoteBeats(written, written.notes[0]), 1);
+  assert.equal(runnerNoteBeats(written, written.notes[1]), 4);
+  assert.equal(runnerRunBeats(written), 5);
+
+  const fixed = normalizeRunnerConfig({
+    bpm: 90, repeats: 1, restBeats: 0, noteBeats: 2,
+    notes: [{ midi: 60, beats: 1 }, { midi: 67, beats: 4 }],
+  });
+  assert.equal(fixed.noteBeats, 2);
+  assert.equal(runnerNoteBeats(fixed, fixed.notes[0]), 2);
+  assert.equal(runnerNoteBeats(fixed, fixed.notes[1]), 2);
+  assert.equal(runnerRunBeats(fixed), 4);
+  assert.deepEqual(
+    fixed.notes,
+    [{ midi: 60, beats: 1 }, { midi: 67, beats: 4 }],
+    'the fixed length does not overwrite the written lengths',
+  );
+});
+
+await test('a fixed note length stays in range', () => {
+  assert.equal(normalizeRunnerConfig({ noteBeats: -3, notes: [{ midi: 60 }] }).noteBeats, 0);
+  assert.equal(normalizeRunnerConfig({ noteBeats: 99, notes: [{ midi: 60 }] }).noteBeats, 16);
+  assert.equal(normalizeRunnerConfig({ noteBeats: 1.1, notes: [{ midi: 60 }] }).noteBeats, 1);
+  assert.equal(normalizeRunnerConfig({ notes: [{ midi: 60 }] }).noteBeats, 0);
 });
 
 // --- Guitar Pro import ------------------------------------------------------

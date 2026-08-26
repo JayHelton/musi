@@ -38,7 +38,9 @@ Drills that build your ear, your reading, and your hands.
   - *Tuner* — note, frequency, and cents offset, with noise rejection.
   - *Reference tone* — sound any note, and play a segment of the context scale.
   - *Pitch match* — sing and hold a target note, with live feedback.
-  - *Pitch runner* — a scrolling pitch game in 4/4 at the context tempo.
+  - *Pitch runner* — a scrolling pitch game in 4/4 at the context tempo. An
+    audio delay setting sends the click and the melody guide out early, so a
+    Bluetooth headset hears each note as its bar crosses the line.
   - *Ear training* — identify a pitch, a degree, or an interval by ear.
 
 ## Study
@@ -81,7 +83,10 @@ storage; the Library page is the door to both.
   to the list.
   - A **pitch run** is a saved run of the vocal Pitch runner game. You type the
     notes and the hold lengths, or you read them from a Guitar Pro file. The run
-    keeps its own tempo, rest, count-in, and repeat count.
+    keeps its own tempo, note length, rest, count-in, and repeat count. A note
+    length of 0 holds each note as long as it is written. The player keeps the
+    note list closed below the game, so a long run does not push the game off
+    the screen.
   - A **written exercise** holds the text you type and any number of files.
 - **Workbooks** — order exercises into a focused practice collection, with
   looping, auto-advance, notes, and companion widgets.
