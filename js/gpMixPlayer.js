@@ -12,7 +12,15 @@ import {
 } from './audio/mixBus.js';
 import { canUsePackOnNextStart, getLoadState, packBufferKey } from './audio/sampleLoader.js';
 import { getPack, packsForPrograms } from './audio/samplePackRegistry.js';
-import { getScoreVoice, scoreVoiceUsesPacks, voiceUserSoundId, voiceWave } from './audio/soundPrefs.js';
+import {
+  DRUM_CORE_PACK_ID,
+  drumVoiceUsesPacks,
+  getDrumVoice,
+  getScoreVoice,
+  scoreVoiceUsesPacks,
+  voiceUserSoundId,
+  voiceWave,
+} from './audio/soundPrefs.js';
 import { userPackManifestId } from './audio/userSounds.js';
 import { pickPitchedSample, playDrumSample, pickDrumSample } from './audio/sampleVoice.js';
 import { createVoiceFactory } from './gpPlayer/instrumentVoices.js';
@@ -208,6 +216,7 @@ export function createGpMixPlayer(opts = {}) {
     trackMixInitialized: false,
     scoreId: '',
     playbackSource: 'synth',
+    drumSource: 'synth',
     audioHandle: null,
     ownerCallbackActive: false,
     metronomeEnabled: false,
@@ -249,7 +258,7 @@ export function createGpMixPlayer(opts = {}) {
    * sound starts to break up during a long session.
    */
   function packSessionReady() {
-    if (state.playbackSource !== 'pack' || !state.scoreId) return null;
+    if (!state.scoreId) return null;
     const session = getLoadState(state.scoreId);
     if (session.status !== 'ready' || !session.buffers) return null;
     return session;
@@ -261,7 +270,7 @@ export function createGpMixPlayer(opts = {}) {
     const family = factory.familyForProgram(program);
 
     let pack = null;
-    const session = packSessionReady();
+    const session = state.playbackSource === 'pack' ? packSessionReady() : null;
     if (session) {
       // A pack the user chose plays every pitched track. Otherwise the track
       // program picks the pack.
@@ -298,10 +307,24 @@ export function createGpMixPlayer(opts = {}) {
     });
   }
 
+  /**
+   * The kit the percussion tracks play.
+   *
+   * The percussion voice is its own setting: a score plays drums on their own
+   * tracks, so the kit never follows the instrument the pitched tracks use.
+   */
+  function drumPackId() {
+    const voice = getDrumVoice();
+    if (!drumVoiceUsesPacks(voice)) return '';
+    const chosen = userPackManifestId(voiceUserSoundId(voice) || '');
+    return chosen || DRUM_CORE_PACK_ID;
+  }
+
   function scheduleDrumVoice(ev, when, velocity, destination) {
+    if (state.drumSource !== 'pack') return null;
     const session = packSessionReady();
     if (!session) return null;
-    const manifest = getPack('core-drums');
+    const manifest = getPack(drumPackId());
     if (!manifest) return null;
     const midiOrArt = ev.midi != null ? ev.midi : drumInstrument(ev);
     const sample = pickDrumSample(manifest, midiOrArt);
@@ -1087,10 +1110,12 @@ export function createGpMixPlayer(opts = {}) {
     if (!handle) return;
 
     state.audioHandle = handle;
-    // The user can ask for the modeled synth or a basic wave instead of samples.
-    state.playbackSource = (scoreVoiceUsesPacks() && canUsePackOnNextStart(state.scoreId))
-      ? 'pack'
-      : 'synth';
+    // The user can ask for the modeled synth or a basic wave instead of
+    // samples. The pitched tracks and the percussion tracks answer to their
+    // own setting, so one can play samples while the other plays the model.
+    const packReady = canUsePackOnNextStart(state.scoreId);
+    state.playbackSource = (scoreVoiceUsesPacks() && packReady) ? 'pack' : 'synth';
+    state.drumSource = (drumVoiceUsesPacks() && packReady) ? 'pack' : 'synth';
 
     initEngine();
     ensureTrackGains();
@@ -1523,6 +1548,7 @@ export function createGpMixPlayer(opts = {}) {
     get enabledGuitars() { return [...state.enabledGuitars]; },
     get enabledDrums() { return [...state.enabledDrums]; },
     get playbackSource() { return state.playbackSource; },
+    get drumSource() { return state.drumSource; },
     get guitarNotes() { return state.allGuitarNotes; },
     get events() { return state.events; },
     get range() { return { ...state.range }; },

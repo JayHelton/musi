@@ -36,9 +36,14 @@ function isDrumPack(json) {
   return json.drumNoteMap != null && typeof json.drumNoteMap === 'object';
 }
 
+/**
+ * A pitched pack states the MIDI programs it covers.
+ * An empty array is legal: the pack claims no program, so it plays only when
+ * the user picks it by name. A pack the user imports arrives that way.
+ */
 function validateMidiProgram(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return true;
-  if (Array.isArray(value) && value.length > 0 && value.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+  if (Array.isArray(value) && value.every((n) => typeof n === 'number' && Number.isFinite(n))) {
     return true;
   }
   return false;
@@ -116,8 +121,17 @@ export function listPacks() {
   return [...packs.keys()];
 }
 
+/**
+ * A pack with `pickOnly` never matches by itself. The user names it in
+ * Settings. A pack imported from an SFZ or a .multisample file arrives that
+ * way, because those formats state no MIDI program.
+ */
+function isPickOnly(pack) {
+  return pack?.pickOnly === true;
+}
+
 function packCoversProgram(pack, program) {
-  if (isDrumPack(pack)) return false;
+  if (isDrumPack(pack) || isPickOnly(pack)) return false;
   const mp = pack.midiProgram;
   if (typeof mp === 'number') return mp === program;
   if (Array.isArray(mp)) return mp.includes(program);
@@ -141,7 +155,7 @@ export function packsForDrumMap(noteNumbers) {
   if (!Array.isArray(noteNumbers) || noteNumbers.length === 0) return [];
   const ids = [];
   for (const pack of packs.values()) {
-    if (!isDrumPack(pack)) continue;
+    if (!isDrumPack(pack) || isPickOnly(pack)) continue;
     const map = pack.drumNoteMap;
     const hit = noteNumbers.some((n) => map[String(n)] != null || map[n] != null);
     if (hit) ids.push(pack.id);

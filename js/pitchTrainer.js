@@ -34,6 +34,7 @@ import {
   getRegisterBounds,
 } from './pitchProgress.js';
 import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
+import { preparePitchVoice, playPitchNote, pitchVoiceWave } from './audio/pitchVoice.js';
 
 const WINDOW_CENTS = 50;
 const DISPLAY_SMOOTH_MS = 120;
@@ -265,8 +266,35 @@ function stopGuideTone(release = 0.08) {
   setReplayButtonActive(false);
 }
 
+/** How long a sample voice sounds when the user holds the note. */
+const GUIDE_SAMPLE_HOLD_SEC = 8;
+
+/**
+ * Play the target note from the pitch voice samples, when they are ready.
+ * Returns a voice in the same shape as the oscillator one, so the release
+ * path stays the same.
+ */
+function startSampledGuideTone(midi) {
+  const handle = playPitchNote({
+    audioCtx,
+    midi,
+    durSec: GUIDE_SAMPLE_HOLD_SEC,
+    velocity: 0.85,
+    destination: getAnalyserDestination(),
+  });
+  if (!handle) return null;
+  const voice = { sources: [handle.source], gain: handle.gain, releaseTimer: null, releasing: false };
+  pt.voices.push(voice);
+  handle.source.onended = () => cleanupVoice(voice);
+  return voice;
+}
+
 function startGuideTone(midi) {
   ensureAudio();
+  const sampled = startSampledGuideTone(midi);
+  if (sampled) return sampled;
+
+  const wave = pitchVoiceWave();
   const freq = midiFreq(midi);
   const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
@@ -283,7 +311,7 @@ function startGuideTone(midi) {
   const sources = GUIDE_DRONE_LAYERS.map(layer => {
     const osc = audioCtx.createOscillator();
     const layerGain = audioCtx.createGain();
-    osc.type = layer.type;
+    osc.type = wave || layer.type;
     osc.frequency.value = freq;
     osc.detune.value = layer.detune;
     layerGain.gain.value = layer.level;
@@ -972,6 +1000,9 @@ async function startPitchTrainer() {
   }
 
   ensureAudio();
+  // The samples of the pitch voice load in the background. Until they are
+  // ready, the guide tone plays the built-in oscillator.
+  void preparePitchVoice(audioCtx);
   rebuildMatcher();
   pt.stageIdx = 0;
   pt.completed = 0;

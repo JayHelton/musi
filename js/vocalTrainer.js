@@ -9,6 +9,7 @@ import {
   registerPitchMicStop,
   stopOtherPitchMicTools,
 } from './pitchMic.js';
+import { preparePitchVoice, playPitchNote, pitchVoiceWave } from './audio/pitchVoice.js';
 
 // Ensure the other mic-driven tools in this section release the microphone
 // before the tuner grabs it.
@@ -25,6 +26,7 @@ const tuner = {
   tracker: null,
   refOsc: null,
   refGain: null,
+  refSample: null,
   scalePlaying: false,
   scaleVoices: [],
   scaleTimers: [],
@@ -126,12 +128,32 @@ function toggleTuner() {
   if (tuner.running) stopTuner(); else startTuner();
 }
 
+const REF_TONE_SEC = 2.2;
+
 function playRefTone(noteStr, oct) {
   stopRefTone();
   ensureAudio();
+  // The first press plays the built-in tone while the samples load. The next
+  // press plays the samples.
+  void preparePitchVoice(audioCtx);
   const p = parseNote(noteStr);
   if (!p) return;
   const midi = 12 * (oct + 1) + p.semi;
+
+  const sampled = playPitchNote({
+    audioCtx,
+    midi,
+    durSec: REF_TONE_SEC,
+    velocity: 0.85,
+    destination: getAnalyserDestination(),
+  });
+  if (sampled) {
+    tuner.refSample = sampled;
+    setTimeout(() => stopRefTone(), (REF_TONE_SEC + 0.2) * 1000);
+    return;
+  }
+
+  const wave = pitchVoiceWave();
   const freq = midiFreq(midi);
   const osc = audioCtx.createOscillator();
   const osc2 = audioCtx.createOscillator();
@@ -139,8 +161,8 @@ function playRefTone(noteStr, oct) {
   const gain = audioCtx.createGain();
   const t = audioCtx.currentTime;
 
-  osc.type = 'sine';
-  osc2.type = 'triangle';
+  osc.type = wave || 'sine';
+  osc2.type = wave || 'triangle';
   osc.frequency.value = freq;
   osc2.frequency.value = freq;
 
@@ -166,6 +188,10 @@ function playRefTone(noteStr, oct) {
 }
 
 function stopRefTone() {
+  if (tuner.refSample) {
+    try { tuner.refSample.release(audioCtx.currentTime); } catch (e) { /* ignore */ }
+    tuner.refSample = null;
+  }
   if (tuner.refOsc) {
     try {
       const t = audioCtx.currentTime;
@@ -180,14 +206,31 @@ function stopRefTone() {
 // Schedule a single scale tone at an absolute AudioContext time. Voices are
 // tracked so an in-progress scale can be stopped cleanly.
 function playScaleTone(midi, startTime, duration) {
+  const sampled = playPitchNote({
+    audioCtx,
+    midi,
+    when: startTime,
+    durSec: duration,
+    velocity: 0.8,
+    destination: getAnalyserDestination(),
+  });
+  if (sampled) {
+    tuner.scaleVoices.push(sampled.source);
+    sampled.source.onended = () => {
+      tuner.scaleVoices = tuner.scaleVoices.filter(v => v !== sampled.source);
+    };
+    return;
+  }
+
+  const wave = pitchVoiceWave();
   const freq = midiFreq(midi);
   const osc = audioCtx.createOscillator();
   const osc2 = audioCtx.createOscillator();
   const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
 
-  osc.type = 'sine';
-  osc2.type = 'triangle';
+  osc.type = wave || 'sine';
+  osc2.type = wave || 'triangle';
   osc.frequency.value = freq;
   osc2.frequency.value = freq;
 
@@ -263,6 +306,9 @@ function scaleIdleStatus() {
 // segmented runs can be drilled. Each note gets one beat at the context tempo.
 function playContextScale() {
   ensureAudio();
+  // The samples of the pitch voice load in the background. Until they are
+  // ready, the scale plays the built-in oscillator.
+  void preparePitchVoice(audioCtx);
   stopContextScale();
   stopRefTone();
 

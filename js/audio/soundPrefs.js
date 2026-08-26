@@ -1,10 +1,19 @@
 // Which voice each surface plays.
 //
-// Two surfaces read this file. The score player picks the voice for pitched
-// notes, and the metronome picks the voice for its click. Both keep one id in
-// settings. An id is one of:
+// Four surfaces read this file, and each one keeps its own id in settings:
 //
-//   - a built-in id, e.g. `packs`, `synth`, `woodblock`
+//   - the score player, for the pitched tracks of a score
+//   - the score player, for the percussion tracks of a score
+//   - the pitch training tools, for the tone they sound
+//   - the metronome, for its click
+//
+// A percussion track needs a kit, and a pitched track needs an instrument, so
+// the two never share one setting. The pitch tools sound one long tone for the
+// ear, so they hold a third setting of their own.
+//
+// An id is one of:
+//
+//   - a built-in id, e.g. `packs`, `synth`, `tone`, `woodblock`
 //   - `wave-<type>`, one of the four basic oscillator waves the Keyboard uses
 //   - `user:<soundId>`, a pack or a sample the user installed
 //
@@ -13,6 +22,8 @@
 import { getSetting, saveSetting } from '../persistence.js';
 
 export const SCORE_VOICE_KEY = 'sound.scoreVoice';
+export const DRUM_VOICE_KEY = 'sound.drumVoice';
+export const PITCH_VOICE_KEY = 'sound.pitchVoice';
 export const METRO_VOICE_KEY = 'sound.metroVoice';
 
 export const USER_VOICE_PREFIX = 'user:';
@@ -52,6 +63,45 @@ export const SCORE_VOICES = [
 
 export const DEFAULT_SCORE_VOICE = 'packs';
 
+/** Built-in percussion voices for the score player. */
+export const DRUM_VOICES = [
+  {
+    id: 'packs',
+    label: 'Sample kit',
+    help: 'The recorded drum kit. Falls back to the modeled kit while it loads.',
+  },
+  {
+    id: 'synth',
+    label: 'Modeled kit',
+    help: 'The built-in drum model. It starts at once and needs no download.',
+  },
+];
+
+export const DEFAULT_DRUM_VOICE = 'packs';
+
+/** Built-in voices for the pitch training tools. */
+export const PITCH_VOICES = [
+  {
+    id: 'tone',
+    label: 'Trainer tone',
+    help: 'The built-in blend of a sine and a triangle. It holds a steady pitch.',
+  },
+  {
+    id: 'packs',
+    label: 'Sample piano',
+    help: 'The recorded piano. It downloads once, then it plays every target note.',
+  },
+  ...waveVoices('tone'),
+];
+
+export const DEFAULT_PITCH_VOICE = 'tone';
+
+/** The core pack the pitch tools play when the voice is `packs`. */
+export const PITCH_CORE_PACK_ID = 'core-keys';
+
+/** The core pack the score player plays for percussion when no pack is picked. */
+export const DRUM_CORE_PACK_ID = 'core-drums';
+
 /** Built-in metronome voices, in the order the picker shows them. */
 export const METRO_VOICES = [
   { id: 'woodblock', label: 'Wood block', help: 'The default click.' },
@@ -66,6 +116,8 @@ export const METRO_VOICES = [
 export const DEFAULT_METRO_VOICE = 'woodblock';
 
 const SCORE_BUILT_IN_IDS = SCORE_VOICES.map((v) => v.id);
+const DRUM_BUILT_IN_IDS = DRUM_VOICES.map((v) => v.id);
+const PITCH_BUILT_IN_IDS = PITCH_VOICES.map((v) => v.id);
 const METRO_BUILT_IN_IDS = METRO_VOICES.map((v) => v.id);
 
 function normalizeVoice(raw, builtInIds, fallback) {
@@ -80,6 +132,14 @@ export function normalizeScoreVoice(raw) {
   return normalizeVoice(raw, SCORE_BUILT_IN_IDS, DEFAULT_SCORE_VOICE);
 }
 
+export function normalizeDrumVoice(raw) {
+  return normalizeVoice(raw, DRUM_BUILT_IN_IDS, DEFAULT_DRUM_VOICE);
+}
+
+export function normalizePitchVoice(raw) {
+  return normalizeVoice(raw, PITCH_BUILT_IN_IDS, DEFAULT_PITCH_VOICE);
+}
+
 export function normalizeMetroVoice(raw) {
   return normalizeVoice(raw, METRO_BUILT_IN_IDS, DEFAULT_METRO_VOICE);
 }
@@ -91,6 +151,26 @@ export function getScoreVoice() {
 export function setScoreVoice(id) {
   const next = normalizeScoreVoice(id);
   saveSetting(SCORE_VOICE_KEY, next);
+  return next;
+}
+
+export function getDrumVoice() {
+  return normalizeDrumVoice(getSetting(DRUM_VOICE_KEY, DEFAULT_DRUM_VOICE));
+}
+
+export function setDrumVoice(id) {
+  const next = normalizeDrumVoice(id);
+  saveSetting(DRUM_VOICE_KEY, next);
+  return next;
+}
+
+export function getPitchVoice() {
+  return normalizePitchVoice(getSetting(PITCH_VOICE_KEY, DEFAULT_PITCH_VOICE));
+}
+
+export function setPitchVoice(id) {
+  const next = normalizePitchVoice(id);
+  saveSetting(PITCH_VOICE_KEY, next);
   return next;
 }
 
@@ -130,6 +210,16 @@ export function voiceUserSoundId(voiceId) {
 
 /** True while the score player should download and play recorded samples. */
 export function scoreVoiceUsesPacks(voiceId = getScoreVoice()) {
+  return voiceId === 'packs' || !!voiceUserSoundId(voiceId);
+}
+
+/** True while the percussion tracks should play recorded samples. */
+export function drumVoiceUsesPacks(voiceId = getDrumVoice()) {
+  return voiceId === 'packs' || !!voiceUserSoundId(voiceId);
+}
+
+/** True while the pitch training tools should play recorded samples. */
+export function pitchVoiceUsesPacks(voiceId = getPitchVoice()) {
   return voiceId === 'packs' || !!voiceUserSoundId(voiceId);
 }
 

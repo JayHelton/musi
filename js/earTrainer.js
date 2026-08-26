@@ -4,6 +4,7 @@ import { SCALES, getScaleNotes } from './scales.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, subscribeContext, advanceContext } from './musicalContext.js';
 import { recordAttempt } from './stats.js';
+import { preparePitchVoice, playPitchNote, pitchVoiceWave } from './audio/pitchVoice.js';
 
 const EAR_FADE_START_MS = 1100;
 const CONTEXTS = [
@@ -41,7 +42,7 @@ const ear = {
   targetInterval: null,
   answered: false,
   right: 0, total: 0, streak: 0,
-  _osc: null, _osc2: null, _gain: null, _stopTimer: null,
+  _osc: null, _osc2: null, _gain: null, _stopTimer: null, _sampleVoice: null,
   _fadeTimer: null,
   _sequence: null, _seqTimers: [],
 };
@@ -133,6 +134,10 @@ function clearAnswerState() {
 
 function playEarQuestion() {
   earClearTimers();
+  // The samples of the pitch voice load in the background. Until they are
+  // ready, the question plays the built-in oscillator.
+  ensureAudio();
+  void preparePitchVoice(audioCtx);
   if (ear.targetSemi !== null || ear.total > 0) advanceContext();
   const ctx = getContext();
   ear.key = ctx.root;
@@ -218,6 +223,21 @@ function playEarTone(midi, duration) {
   ensureAudio();
   triggerPulse();
   const dur = duration || 1.2;
+
+  const sampled = playPitchNote({
+    audioCtx,
+    midi,
+    durSec: dur,
+    velocity: 0.85,
+    destination: getAnalyserDestination(),
+  });
+  if (sampled) {
+    ear._sampleVoice = sampled;
+    ear._stopTimer = setTimeout(() => stopEarTone(), (dur + 0.2) * 1000);
+    return;
+  }
+
+  const wave = pitchVoiceWave();
   const freq = midiFreq(midi);
   const osc = audioCtx.createOscillator();
   const osc2 = audioCtx.createOscillator();
@@ -225,8 +245,8 @@ function playEarTone(midi, duration) {
   const gain = audioCtx.createGain();
   const t = audioCtx.currentTime;
 
-  osc.type = 'sine';
-  osc2.type = 'triangle';
+  osc.type = wave || 'sine';
+  osc2.type = wave || 'triangle';
   osc.frequency.value = freq;
   osc2.frequency.value = freq;
 
@@ -256,6 +276,10 @@ function playEarTone(midi, duration) {
 function stopEarTone() {
   earClearTimers();
   if (ear._stopTimer) { clearTimeout(ear._stopTimer); ear._stopTimer = null; }
+  if (ear._sampleVoice) {
+    try { ear._sampleVoice.release(audioCtx.currentTime); } catch (e) { /* ignore */ }
+    ear._sampleVoice = null;
+  }
   if (ear._osc) {
     try {
       const t = audioCtx.currentTime;

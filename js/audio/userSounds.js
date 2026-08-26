@@ -4,9 +4,23 @@
 //
 //   - `metronome`: one audio file. The metronome plays it on every click. The
 //     accent plays the same file a little louder and a little higher.
-//   - `instrument`: a sample pack for the score player. The pack is a ZIP with
-//     a `manifest.json` in the format `js/audio/samplePackRegistry.js` reads,
-//     plus the audio files the manifest names.
+//   - `instrument`: a sample pack for the score player and the pitch tools.
+//
+// An instrument pack arrives in one of three formats. All three are one
+// archive that holds the audio files and one description file:
+//
+//   - `manifest.json` — the Musi format that `js/audio/samplePackRegistry.js`
+//     reads.
+//   - `multisample.xml` — a `.multisample` file, the format Bitwig Studio and
+//     other programs write.
+//   - a `.sfz` file — the SFZ format, a text file of `<region>` blocks.
+//
+// The last two formats convert to a Musi manifest at import time. See
+// `js/audio/packImport.js`.
+//
+// Every pack carries a `packKind`: `pitched` for an instrument, and
+// `percussion` for a kit. The two kinds never share one setting, because a
+// score plays them on different tracks.
 //
 // A record keeps the file ids only. The audio bytes stay in the attachment
 // store (IndexedDB), the same place exercise files use.
@@ -16,6 +30,7 @@ import { saveFile, getFileBlob, deleteFile, attachmentsSupported } from '../atta
 import { parsePackManifest, registerPack } from './samplePackRegistry.js';
 import { registerPackFileSource, clearPackFileSource } from './sampleLoader.js';
 import { readZipEntries, extractZipEntry } from '../sync/zip.js';
+import { buildManifestFromSfz, buildManifestFromMultisample } from './packImport.js';
 
 const STORE_KEY = 'sound.userSounds';
 const NAME_LIMIT = 64;
@@ -62,11 +77,25 @@ function normalizeRecord(raw) {
   return {
     id,
     kind,
+    packKind: manifestPackKind(manifest),
+    format: typeof raw.format === 'string' ? raw.format : 'manifest',
     name: clampName(raw.name, manifest.name || 'Sound pack'),
     manifest,
     files: { ...files },
     addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : new Date().toISOString(),
   };
+}
+
+/**
+ * `percussion` when the manifest maps note numbers onto kit sounds, and
+ * `pitched` when it does not.
+ * @param {object} manifest
+ * @returns {'percussion'|'pitched'}
+ */
+export function manifestPackKind(manifest) {
+  return manifest && typeof manifest.drumNoteMap === 'object' && manifest.drumNoteMap !== null
+    ? 'percussion'
+    : 'pitched';
 }
 
 function readRecords() {
@@ -91,6 +120,16 @@ export function listUserSounds(kind) {
 
 export function getUserSound(id) {
   return readRecords().find((r) => r.id === id) || null;
+}
+
+/**
+ * Every installed pack of one kind, newest first.
+ * @param {'pitched'|'percussion'} packKind
+ */
+export function listInstrumentPacks(packKind) {
+  const all = listUserSounds('instrument');
+  if (packKind !== 'pitched' && packKind !== 'percussion') return all;
+  return all.filter((r) => r.packKind === packKind);
 }
 
 /** True when this device can hold uploaded sounds at all. */
@@ -142,17 +181,148 @@ export async function addMetronomeSound(file, { name } = {}) {
   return { ok: true, sound: record };
 }
 
+/** Every archive extension the pack importer opens. */
+export const PACK_FILE_ACCEPT = '.zip,.multisample,.sfz,application/zip';
+
+function entryLookup(entries) {
+  const byPath = new Map();
+  const byBase = new Map();
+  for (const entry of entries) {
+    const path = String(entry.name || '').replace(/\\/g, '/');
+    byPath.set(path.toLowerCase(), entry);
+    const base = path.split('/').pop() || '';
+    if (base && !byBase.has(base.toLowerCase())) byBase.set(base.toLowerCase(), entry);
+  }
+  return { byPath, byBase };
+}
+
 /**
- * Install a ZIP sample pack for the score player.
+ * Find one file in the archive. A pack folder inside the archive, a Windows
+ * path separator, and a different letter case all still resolve.
+ */
+function findEntry(lookup, prefix, relPath) {
+  const wanted = String(relPath || '').replace(/\\/g, '/').toLowerCase();
+  if (!wanted) return null;
+  return lookup.byPath.get(`${prefix}${wanted}`)
+    || lookup.byPath.get(wanted)
+    || lookup.byBase.get(wanted.split('/').pop() || '')
+    || null;
+}
+
+/**
+ * The description file the archive holds, and the format it names.
+ * @param {Array<{name: string}>} entries
+ * @returns {{ format: 'manifest'|'multisample'|'sfz', entry: object, all?: object[] }|null}
+ */
+export function detectPackFormat(entries) {
+  const manifest = entries.find((e) => /(^|\/)manifest\.json$/i.test(e.name));
+  if (manifest) return { format: 'manifest', entry: manifest };
+
+  const multisample = entries.find((e) => /(^|\/)multisample\.xml$/i.test(e.name));
+  if (multisample) return { format: 'multisample', entry: multisample };
+
+  const sfzEntries = entries.filter((e) => /\.sfz$/i.test(e.name));
+  if (sfzEntries.length) {
+    // The instrument sits at the top of the archive. A deeper file is a part
+    // that the top file includes.
+    const shallow = sfzEntries.slice().sort((a, b) => (
+      a.name.split('/').length - b.name.split('/').length || a.name.length - b.name.length
+    ));
+    return { format: 'sfz', entry: shallow[0], all: sfzEntries };
+  }
+  return null;
+}
+
+async function readEntryText(file, entry) {
+  const blob = await extractZipEntry(file, entry);
+  return blob.text();
+}
+
+/**
+ * Read the description file of the archive and return the pack manifest.
+ * @returns {Promise<{ ok: true, manifest: object, format: string, prefix: string } | { ok: false, error: string }>}
+ */
+async function readPackManifest(file, entries, { kind, name } = {}) {
+  const source = detectPackFormat(entries);
+  if (!source) {
+    return {
+      ok: false,
+      error: 'The pack has no manifest.json, no multisample.xml, and no .sfz file.',
+    };
+  }
+
+  const path = String(source.entry.name || '').replace(/\\/g, '/');
+  const folder = path.slice(0, path.lastIndexOf('/') + 1);
+  const label = name || path.split('/').pop() || 'Sound pack';
+
+  if (source.format === 'manifest') {
+    let json;
+    try {
+      json = JSON.parse(await readEntryText(file, source.entry));
+    } catch (err) {
+      return { ok: false, error: err?.message || 'The manifest.json could not be read.' };
+    }
+    const parsed = parsePackManifest(json);
+    if (!parsed.ok) return { ok: false, error: parsed.error };
+    return { ok: true, manifest: parsed.manifest, format: 'manifest', prefix: folder.toLowerCase() };
+  }
+
+  let built;
+  try {
+    if (source.format === 'multisample') {
+      built = buildManifestFromMultisample({
+        xml: await readEntryText(file, source.entry),
+        name: name || file.name || label,
+        kind,
+        source: file.name || label,
+      });
+    } else {
+      const includes = new Map();
+      for (const entry of source.all || []) {
+        if (entry === source.entry) continue;
+        const rel = String(entry.name || '').replace(/\\/g, '/').slice(folder.length);
+        includes.set(rel.toLowerCase(), await readEntryText(file, entry));
+      }
+      built = buildManifestFromSfz({
+        text: await readEntryText(file, source.entry),
+        name: name || label,
+        kind,
+        includes,
+        source: file.name || label,
+      });
+    }
+  } catch (err) {
+    return { ok: false, error: err?.message || 'That file could not be read.' };
+  }
+
+  if (!built.ok) return built;
+  const parsed = parsePackManifest(built.manifest);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  return { ok: true, manifest: parsed.manifest, format: source.format, prefix: folder.toLowerCase() };
+}
+
+/**
+ * Install a sample pack for the score player and the pitch tools.
+ *
+ * The file is a ZIP, a `.multisample` file, or a ZIP of an SFZ instrument. See
+ * the module comment for the three formats.
  * @param {File|Blob} file
+ * @param {{ kind?: 'pitched'|'percussion', name?: string }} [options] `kind`
+ *   forces the pack kind. Without it the importer reads the key layout.
  * @returns {Promise<{ ok: true, sound: object } | { ok: false, error: string }>}
  */
-export async function addInstrumentPack(file) {
+export async function addInstrumentPack(file, { kind, name } = {}) {
   if (!file || typeof file.size !== 'number') {
     return { ok: false, error: 'Choose a pack file.' };
   }
   if (file.size > MAX_PACK_BYTES) {
     return { ok: false, error: 'That pack is too large.' };
+  }
+  if (/\.sfz$/i.test(file.name || '')) {
+    return {
+      ok: false,
+      error: 'An SFZ file needs its samples. Put the .sfz file and its audio files in one ZIP, then add the ZIP.',
+    };
   }
 
   let entries;
@@ -162,40 +332,27 @@ export async function addInstrumentPack(file) {
     return { ok: false, error: err?.message || 'That file is not a ZIP archive.' };
   }
 
-  const manifestEntry = entries.find((e) => /(^|\/)manifest\.json$/i.test(e.name));
-  if (!manifestEntry) {
-    return { ok: false, error: 'The pack has no manifest.json.' };
-  }
-  // Files sit next to the manifest, so a pack folder inside the ZIP still works.
-  const prefix = manifestEntry.name.slice(0, manifestEntry.name.length - 'manifest.json'.length);
-
-  let manifest;
-  try {
-    const blob = await extractZipEntry(file, manifestEntry);
-    manifest = JSON.parse(await blob.text());
-  } catch (err) {
-    return { ok: false, error: err?.message || 'The manifest.json could not be read.' };
-  }
-
-  const parsed = parsePackManifest(manifest);
-  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const read = await readPackManifest(file, entries, { kind, name });
+  if (!read.ok) return read;
+  const { manifest, format, prefix } = read;
 
   const wanted = new Set();
-  for (const sample of parsed.manifest.samples) {
+  for (const sample of manifest.samples) {
     if (typeof sample.file === 'string' && sample.file) wanted.add(sample.file);
   }
   if (!wanted.size) {
-    return { ok: false, error: 'The manifest names no sample files.' };
+    return { ok: false, error: 'The pack names no sample files.' };
   }
   if (wanted.size > MAX_SAMPLE_FILES) {
     return { ok: false, error: 'The pack has too many sample files.' };
   }
 
+  const lookup = entryLookup(entries);
   const files = {};
   const stored = [];
   try {
     for (const relPath of wanted) {
-      const entry = entries.find((e) => e.name === `${prefix}${relPath}` || e.name === relPath);
+      const entry = findEntry(lookup, prefix, relPath);
       if (!entry) throw new Error(`The pack is missing ${relPath}.`);
       const blob = await extractZipEntry(file, entry);
       const meta = await saveFile({
@@ -221,8 +378,10 @@ export async function addInstrumentPack(file) {
   const record = {
     id: uid('pack'),
     kind: 'instrument',
-    name: clampName(parsed.manifest.name || parsed.manifest.id, 'Sound pack'),
-    manifest: parsed.manifest,
+    packKind: manifestPackKind(manifest),
+    format,
+    name: clampName(name || manifest.name || manifest.instrument || manifest.id, 'Sound pack'),
+    manifest,
     files,
     addedAt: new Date().toISOString(),
   };

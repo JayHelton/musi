@@ -111,6 +111,10 @@
   gap: 16px;
 }
 
+.mp-sound-group .mp-sound-select {
+  margin-bottom: 2px;
+}
+
 .mp-sound-group-title {
   font-family: var(--font-ui, VT323, monospace);
   font-size: 1rem;
@@ -145,6 +149,19 @@
   white-space: nowrap;
   font-size: 0.9rem;
   color: var(--text);
+}
+
+.mp-sound-tag {
+  flex: none;
+  font-family: var(--font-ui, VT323, monospace);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent2, var(--accent));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill, 999px);
+  padding: 1px 8px;
+  background: var(--card, var(--bg));
 }
 
 .mp-sound-empty {

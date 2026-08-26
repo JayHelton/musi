@@ -20,9 +20,15 @@ import {
 import { getSetting, saveSetting } from './persistence.js';
 import {
   SCORE_VOICES,
+  DRUM_VOICES,
+  PITCH_VOICES,
   METRO_VOICES,
   getScoreVoice,
   setScoreVoice,
+  getDrumVoice,
+  setDrumVoice,
+  getPitchVoice,
+  setPitchVoice,
   getMetroVoice,
   setMetroVoice,
   userVoiceId,
@@ -30,12 +36,15 @@ import {
 } from './audio/soundPrefs.js';
 import {
   listUserSounds,
+  listInstrumentPacks,
   addMetronomeSound,
   addInstrumentPack,
   removeUserSound,
   userSoundsSupported,
   registerUserPacks,
+  PACK_FILE_ACCEPT,
 } from './audio/userSounds.js';
+import { resetPitchVoice } from './audio/pitchVoice.js';
 import { audioCtx, ensureAudio, getAnalyserDestination } from './audio.js';
 import {
   CLICK_TONE,
@@ -645,15 +654,57 @@ function voiceOptionsHtml(presets, sounds, current) {
   return rows.join('');
 }
 
-function soundListHtml(sounds, emptyText) {
+const PACK_KIND_LABELS = { percussion: 'Kit', pitched: 'Instrument' };
+
+function soundListHtml(sounds, emptyText, { showKind = false } = {}) {
   if (!sounds.length) return `<p class="mp-sound-empty">${escapeHtml(emptyText)}</p>`;
-  const rows = sounds.map((snd) => `
+  const rows = sounds.map((snd) => {
+    const kind = showKind ? PACK_KIND_LABELS[snd.packKind] || 'Instrument' : '';
+    const tag = kind ? `<span class="mp-sound-tag">${escapeHtml(kind)}</span>` : '';
+    return `
     <li class="mp-sound-row">
       <span class="mp-sound-name">${escapeHtml(snd.name)}</span>
+      ${tag}
       <button type="button" class="btn sm mp-sound-remove" data-sound-id="${escapeHtml(snd.id)}">Remove</button>
     </li>
-  `);
+  `;
+  });
   return `<ul class="mp-sound-list">${rows.join('')}</ul>`;
+}
+
+function voiceHelpText(presets, current, fallback) {
+  const preset = presets.find((v) => v.id === current);
+  return preset?.help || fallback;
+}
+
+/** Wire one voice picker: paint the help line and save every choice. */
+function wireVoiceField(root, {
+  selectId, helpId, presets, get, set, fallbackHelp, onChange,
+}) {
+  const select = root.querySelector(`#${selectId}`);
+  const help = root.querySelector(`#${helpId}`);
+  if (!select) return;
+  const syncHelp = () => {
+    if (help) help.textContent = voiceHelpText(presets, get(), fallbackHelp);
+  };
+  select.onchange = () => {
+    set(select.value);
+    syncHelp();
+    if (typeof onChange === 'function') onChange(get());
+  };
+  syncHelp();
+}
+
+/**
+ * Put a surface back on its default when its voice names a sound the list no
+ * longer offers. A pack the user removed, and a kit on a pitched surface, both
+ * land here.
+ */
+function pruneMissingVoice(get, set, sounds, fallback) {
+  const soundId = voiceUserSoundId(get());
+  if (!soundId) return;
+  if (sounds.some((snd) => snd.id === soundId)) return;
+  set(fallback);
 }
 
 function paintSounds() {
@@ -661,26 +712,47 @@ function paintSounds() {
   if (!root) return;
 
   registerUserPacks();
+  const instruments = listInstrumentPacks('pitched');
+  const kits = listInstrumentPacks('percussion');
   const packs = listUserSounds('instrument');
   const clicks = listUserSounds('metronome');
-  const scoreVoice = getScoreVoice();
-  const metroVoice = getMetroVoice();
   const canInstall = userSoundsSupported();
+
+  pruneMissingVoice(getScoreVoice, setScoreVoice, instruments, 'packs');
+  pruneMissingVoice(getDrumVoice, setDrumVoice, kits, 'packs');
+  pruneMissingVoice(getPitchVoice, setPitchVoice, instruments, 'tone');
+  pruneMissingVoice(getMetroVoice, setMetroVoice, clicks, 'woodblock');
 
   root.innerHTML = `
     <div class="mp-sound-field">
-      <label class="mp-sound-label" for="mp-score-voice">Score player</label>
+      <label class="mp-sound-label" for="mp-score-voice">Score player — pitched tracks</label>
       <select id="mp-score-voice" class="mp-sound-select">
-        ${voiceOptionsHtml(SCORE_VOICES, packs, scoreVoice)}
+        ${voiceOptionsHtml(SCORE_VOICES, instruments, getScoreVoice())}
       </select>
       <p class="mp-sound-help" id="mp-score-voice-help"></p>
+    </div>
+
+    <div class="mp-sound-field">
+      <label class="mp-sound-label" for="mp-drum-voice">Score player — percussion tracks</label>
+      <select id="mp-drum-voice" class="mp-sound-select">
+        ${voiceOptionsHtml(DRUM_VOICES, kits, getDrumVoice())}
+      </select>
+      <p class="mp-sound-help" id="mp-drum-voice-help"></p>
+    </div>
+
+    <div class="mp-sound-field">
+      <label class="mp-sound-label" for="mp-pitch-voice">Pitch training</label>
+      <select id="mp-pitch-voice" class="mp-sound-select">
+        ${voiceOptionsHtml(PITCH_VOICES, instruments, getPitchVoice())}
+      </select>
+      <p class="mp-sound-help" id="mp-pitch-voice-help"></p>
     </div>
 
     <div class="mp-sound-field">
       <label class="mp-sound-label" for="mp-metro-voice">Metronome</label>
       <div class="mp-sound-row-inline">
         <select id="mp-metro-voice" class="mp-sound-select">
-          ${voiceOptionsHtml(METRO_VOICES, clicks, metroVoice)}
+          ${voiceOptionsHtml(METRO_VOICES, clicks, getMetroVoice())}
         </select>
         <button type="button" class="btn sm" id="mp-metro-preview">Play</button>
       </div>
@@ -691,11 +763,18 @@ function paintSounds() {
       <summary><span class="adv-gear">⚙</span> Your own sounds</summary>
       <div class="mp-sound-install-body">
         <div class="mp-sound-group">
-          <div class="mp-sound-group-title">Score player packs</div>
-          <p class="mp-sound-help">A pack is a ZIP with a <code>manifest.json</code> and the audio files it names. See <code>assets/audio/packs/README.md</code> for the format.</p>
-          ${soundListHtml(packs, 'No packs installed.')}
+          <div class="mp-sound-group-title">Instrument packs</div>
+          <p class="mp-sound-help">Add a ZIP with a <code>manifest.json</code>, a <code>.multisample</code> file, or a ZIP with an <code>.sfz</code> file and its audio files. See <code>assets/audio/packs/README.md</code> for the formats.</p>
+          <label class="mp-sound-label" for="mp-pack-kind">This pack is</label>
+          <select id="mp-pack-kind" class="mp-sound-select">
+            <option value="auto" selected>Read the file</option>
+            <option value="pitched">An instrument</option>
+            <option value="percussion">A drum kit</option>
+          </select>
+          <p class="mp-sound-help">An instrument plays the pitched tracks and the pitch tools. A kit plays the percussion tracks.</p>
+          ${soundListHtml(packs, 'No packs installed.', { showKind: true })}
           <button type="button" class="btn sm" id="mp-add-pack"${canInstall ? '' : ' disabled'}>Add a pack…</button>
-          <input type="file" id="mp-add-pack-input" accept=".zip,application/zip" hidden>
+          <input type="file" id="mp-add-pack-input" accept="${PACK_FILE_ACCEPT}" hidden>
         </div>
         <div class="mp-sound-group">
           <div class="mp-sound-group-title">Metronome sounds</div>
@@ -709,34 +788,54 @@ function paintSounds() {
     </details>
   `;
 
-  const scoreSelect = root.querySelector('#mp-score-voice');
-  const scoreHelp = root.querySelector('#mp-score-voice-help');
-  const syncScoreHelp = () => {
-    const preset = SCORE_VOICES.find((v) => v.id === getScoreVoice());
-    scoreHelp.textContent = preset?.help
-      || 'Plays the samples of the pack you installed. A new choice takes effect on the next score you open.';
-  };
-  scoreSelect.onchange = () => {
-    setScoreVoice(scoreSelect.value);
-    syncScoreHelp();
-    showAppToast('Score player sound saved. Reopen the score to hear it.');
-  };
-  syncScoreHelp();
+  wireVoiceField(root, {
+    selectId: 'mp-score-voice',
+    helpId: 'mp-score-voice-help',
+    presets: SCORE_VOICES,
+    get: getScoreVoice,
+    set: setScoreVoice,
+    fallbackHelp: 'Plays the samples of the pack you installed. A new choice takes effect on the next score you open.',
+    onChange: () => showAppToast('Score player sound saved. Reopen the score to hear it.'),
+  });
 
-  const metroSelect = root.querySelector('#mp-metro-voice');
-  const metroHelp = root.querySelector('#mp-metro-voice-help');
-  const syncMetroHelp = () => {
-    const current = getMetroVoice();
-    const preset = METRO_VOICES.find((v) => v.id === current);
-    metroHelp.textContent = preset?.help || 'Plays the sound you installed.';
-  };
-  metroSelect.onchange = () => {
-    setMetroVoice(metroSelect.value);
-    syncMetroHelp();
-    if (audioCtx) void prepareClickVoice(audioCtx).then(() => previewMetronomeVoice());
-    else previewMetronomeVoice();
-  };
-  syncMetroHelp();
+  wireVoiceField(root, {
+    selectId: 'mp-drum-voice',
+    helpId: 'mp-drum-voice-help',
+    presets: DRUM_VOICES,
+    get: getDrumVoice,
+    set: setDrumVoice,
+    fallbackHelp: 'Plays the kit you installed. A new choice takes effect on the next score you open.',
+    onChange: () => showAppToast('Percussion sound saved. Reopen the score to hear it.'),
+  });
+
+  wireVoiceField(root, {
+    selectId: 'mp-pitch-voice',
+    helpId: 'mp-pitch-voice-help',
+    presets: PITCH_VOICES,
+    get: getPitchVoice,
+    set: setPitchVoice,
+    fallbackHelp: 'Plays the samples of the pack you installed in the tuner, the pitch trainer, the runner, and the ear trainer.',
+    onChange: () => {
+      // The tools hold the samples of the voice that went. Drop them, so the
+      // next note loads the new voice.
+      resetPitchVoice();
+      showAppToast('Pitch training sound saved.');
+    },
+  });
+
+  wireVoiceField(root, {
+    selectId: 'mp-metro-voice',
+    helpId: 'mp-metro-voice-help',
+    presets: METRO_VOICES,
+    get: getMetroVoice,
+    set: setMetroVoice,
+    fallbackHelp: 'Plays the sound you installed.',
+    onChange: () => {
+      if (audioCtx) void prepareClickVoice(audioCtx).then(() => previewMetronomeVoice());
+      else previewMetronomeVoice();
+    },
+  });
+
   root.querySelector('#mp-metro-preview').onclick = () => {
     if (audioCtx) void prepareClickVoice(audioCtx).then(() => previewMetronomeVoice());
     else previewMetronomeVoice();
@@ -745,7 +844,11 @@ function paintSounds() {
   wireSoundInstall(root, {
     buttonId: 'mp-add-pack',
     inputId: 'mp-add-pack-input',
-    install: (file) => addInstrumentPack(file),
+    install: (file) => {
+      const choice = root.querySelector('#mp-pack-kind')?.value || 'auto';
+      const kind = choice === 'auto' ? undefined : choice;
+      return addInstrumentPack(file, { kind });
+    },
     okText: 'Pack installed.',
   });
   wireSoundInstall(root, {
@@ -761,10 +864,11 @@ function paintSounds() {
       const id = btn.dataset.soundId;
       const result = await removeUserSound(id);
       forgetClickVoice(id);
-      // Fall back to the default when the chosen sound is the one that went.
-      if (voiceUserSoundId(getScoreVoice()) === id) setScoreVoice('packs');
-      if (voiceUserSoundId(getMetroVoice()) === id) setMetroVoice('woodblock');
+      // The pitch tools hold the samples of the sound that went.
+      resetPitchVoice();
       if (!result.ok) showAppToast(result.error);
+      // The repaint puts every surface that named this sound back on its
+      // default.
       paintSounds();
     };
   });

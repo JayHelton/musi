@@ -15,6 +15,7 @@ import { scoreRunnerNote } from './pitchMetrics.js';
 import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
 import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
 import { runnerNoteBeats } from './runnerExerciseModel.js';
+import { preparePitchVoice, playPitchNote, pitchVoiceWave } from './audio/pitchVoice.js';
 
 // "Pitch runner" — a Guitar-Hero / Yousician-style scrolling pitch game that
 // lives in the Pitch section. Note bars stream in from the right in strict 4/4
@@ -209,9 +210,21 @@ function scheduleClick(time, accented) {
 // enough to hint the pitch — so speaker bleed can't sustain the hit for the
 // singer. Returns the cue's audible duration in seconds (including release).
 function scheduleGuideTone(midi, time) {
-  const freq = midiFreq(midi);
   const dur = Math.max(0.16, Math.min(0.55, GUIDE_CUE_BEATS * runner.secPerBeat));
   const release = 0.12;
+
+  const sampled = playPitchNote({
+    audioCtx,
+    midi,
+    when: time,
+    durSec: dur,
+    velocity: 0.7,
+    destination: getAnalyserDestination(),
+  });
+  if (sampled) return dur + release;
+
+  const wave = pitchVoiceWave();
+  const freq = midiFreq(midi);
   const filter = audioCtx.createBiquadFilter();
   const gain = audioCtx.createGain();
   filter.type = 'lowpass';
@@ -224,7 +237,7 @@ function scheduleGuideTone(midi, time) {
   const oscs = GUIDE_LAYERS.map(layer => {
     const osc = audioCtx.createOscillator();
     const lg = audioCtx.createGain();
-    osc.type = layer.type;
+    osc.type = wave || layer.type;
     osc.frequency.value = freq;
     osc.detune.value = layer.detune;
     lg.gain.value = layer.level;
@@ -874,6 +887,9 @@ async function startRunner() {
   stopOtherPitchMicTools('runner');
 
   ensureAudio();
+  // The samples of the pitch voice load in the background. Until they are
+  // ready, the guide cue plays the built-in oscillator.
+  void preparePitchVoice(audioCtx);
   readColors();
   resizeCanvas();
   resetScore();

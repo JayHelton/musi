@@ -104,8 +104,37 @@ and Settings also opens from the gear beside any page heading.
 - **Keyboard** — play notes from the screen or the QWERTY keys, and hold drones.
 - **Score Player** — open a `.gp` or `.gp5` score, mix tracks, mark a loop range,
   and save that range as an exercise.
-- **Settings** — the shared musical context, volume, device and cloud sync,
-  import and export, and library cleanup.
+- **Settings** — the shared musical context, volume, sounds, device and cloud
+  sync, import and export, and library cleanup.
+
+## Sounds
+
+The Sounds block in Settings holds one voice for each surface. Each surface has
+its own job, so it keeps its own setting:
+
+- **Score player — pitched tracks** — the instrument the guitar, bass, and key
+  tracks of a score play.
+- **Score player — percussion tracks** — the kit the drum tracks play.
+- **Pitch training** — the tone the tuner, the pitch trainer, the pitch runner,
+  and the ear trainer sound. The default is the built-in trainer tone, which
+  holds one steady pitch.
+- **Metronome** — the click.
+
+You can add your own instrument packs on this device. Musi reads three formats,
+and all three are one archive that holds the audio files:
+
+- a ZIP with a `manifest.json`, the Musi pack format
+- a `.multisample` file, the format Bitwig Studio and other programs write
+- a ZIP with an `.sfz` file and the audio files it names
+
+Musi reads the key layout of the file and marks the pack as an instrument or as
+a drum kit. You can also state the kind yourself before you add the file. An
+instrument shows in the pitched score list and in the pitch training list. A kit
+shows in the percussion list only.
+
+The audio stays on this device in the browser file store. It does not sync and
+it does not reach the network. See `assets/audio/packs/README.md` for the pack
+format and the import rules.
 
 ## Shared musical context
 

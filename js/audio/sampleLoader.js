@@ -128,6 +128,52 @@ async function fetchSample(pack, file) {
   return response;
 }
 
+/**
+ * Decode every sample of one pack on its own, with no score session.
+ *
+ * The pitch tools play one pack and hold no score, so they load it here. The
+ * decoded buffers share the cache of the score loader, so a pack that a score
+ * already loaded costs nothing.
+ * @param {{ packId: string, audioCtx: BaseAudioContext, onProgress?: Function }} options
+ * @returns {Promise<{ ok: boolean, buffers: Record<string, AudioBuffer>, error: string|null }>}
+ */
+export async function loadPackBuffers({ packId, audioCtx, onProgress }) {
+  const pack = getPack(packId);
+  if (!pack) return { ok: false, buffers: {}, error: 'No registered pack.' };
+  if (!audioCtx || typeof audioCtx.decodeAudioData !== 'function') {
+    return { ok: false, buffers: {}, error: 'This browser cannot decode audio.' };
+  }
+
+  const files = (pack.samples || []).map((s) => s?.file).filter(Boolean);
+  if (!files.length) return { ok: false, buffers: {}, error: 'Pack has no sample files.' };
+
+  const bufferMap = getContextBufferMap(audioCtx);
+  const buffers = {};
+  let loaded = 0;
+
+  for (const file of files) {
+    try {
+      const key = packBufferKey(pack.id, file);
+      let buffer = bufferMap.get(key);
+      if (!buffer) {
+        const response = await fetchSample(pack, file);
+        const arrayBuffer = await response.arrayBuffer();
+        buffer = await audioCtx.decodeAudioData(arrayBuffer);
+        bufferMap.set(key, buffer);
+      }
+      buffers[key] = buffer;
+      loaded += 1;
+      if (typeof onProgress === 'function') {
+        onProgress({ loaded, total: files.length, fraction: loaded / files.length });
+      }
+    } catch (e) {
+      return { ok: false, buffers: {}, error: e?.message || String(e) };
+    }
+  }
+
+  return { ok: true, buffers, error: null };
+}
+
 function setSession(scoreId, patch) {
   const prev = sessions.get(scoreId) || { scoreId, status: 'idle', packIds: [], progress: 0, buffers: {}, error: null };
   const next = { ...prev, ...patch };

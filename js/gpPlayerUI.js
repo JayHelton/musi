@@ -13,7 +13,10 @@ import { audioCtx, ensureAudio } from './audio.js';
 import { loadPacksForScore, cancelLoad, getPlaybackSourceState } from './audio/sampleLoader.js';
 import { registerCorePacks } from './audio/packCatalog.js';
 import {
+  DRUM_CORE_PACK_ID,
   SCORE_VOICES,
+  drumVoiceUsesPacks,
+  getDrumVoice,
   getScoreVoice,
   scoreVoiceUsesPacks,
   voiceUserSoundId,
@@ -264,8 +267,11 @@ export function mountGpPlayer(host, {
     (async () => {
       try {
         // The user can play the modeled synth or a basic wave instead. Neither
-        // needs a download, so skip the pack load in that case.
-        if (!scoreVoiceUsesPacks()) {
+        // needs a download, so skip the pack load in that case. The pitched
+        // tracks and the percussion tracks each answer to their own setting.
+        const wantPitched = scoreVoiceUsesPacks();
+        const wantDrums = drumVoiceUsesPacks();
+        if (!wantPitched && !wantDrums) {
           updateSourceLabel();
           return;
         }
@@ -283,13 +289,21 @@ export function mountGpPlayer(host, {
         await registerCorePacks();
         registerUserPacks();
         if (!isAlive()) return;
-        const chosenPackId = userPackManifestId(voiceUserSoundId(getScoreVoice()) || '');
+        const extraPackIds = [];
+        if (wantPitched) {
+          const chosen = userPackManifestId(voiceUserSoundId(getScoreVoice()) || '');
+          if (chosen) extraPackIds.push(chosen);
+        }
+        if (wantDrums) {
+          const chosenKit = userPackManifestId(voiceUserSoundId(getDrumVoice()) || '');
+          extraPackIds.push(chosenKit || DRUM_CORE_PACK_ID);
+        }
         await loadPacksForScore({
           scoreId: packScoreId,
-          programs,
-          drumNotes,
+          programs: wantPitched ? programs : [],
+          drumNotes: wantDrums ? drumNotes : [],
           audioCtx,
-          extraPackIds: chosenPackId ? [chosenPackId] : [],
+          extraPackIds,
           onProgress: () => updateSourceLabel(),
         });
         if (!isAlive()) return;
