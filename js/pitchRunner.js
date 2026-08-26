@@ -56,11 +56,19 @@ const GUIDE_CUE_BEATS = 0.35;
 // Output delay compensation, in milliseconds. Bluetooth headphones play a
 // sound long after the app schedules it, so the runner sends every click and
 // every melody-guide cue out early by this much. The bars on screen then cross
-// the line at the moment the player hears the note.
+// the line at the moment the player hears the note. The delay has no upper
+// limit: a slow link only makes the run start later, because the start waits
+// for the whole delay.
 const AUDIO_DELAY_MIN_MS = 0;
-const AUDIO_DELAY_MAX_MS = 500;
 const AUDIO_DELAY_STEP_MS = 10;
 const AUDIO_DELAY_DEFAULT_MS = 0;
+
+/** Read a delay in milliseconds. It keeps any number of 0 or more. */
+function clampAudioDelayMs(value) {
+  const ms = Number(value);
+  if (!Number.isFinite(ms)) return AUDIO_DELAY_DEFAULT_MS;
+  return Math.max(AUDIO_DELAY_MIN_MS, Math.round(ms));
+}
 
 // The element names the runner reads. The Pitch section holds elements with
 // these ids; a saved runner exercise builds its own stage and binds the same
@@ -340,9 +348,7 @@ function getInputLatencySec() {
 
 /** The output delay the player set, in seconds. */
 function audioDelaySec() {
-  const ms = Number(runner.audioDelayMs);
-  if (!Number.isFinite(ms)) return 0;
-  return Math.min(AUDIO_DELAY_MAX_MS, Math.max(AUDIO_DELAY_MIN_MS, ms)) / 1000;
+  return clampAudioDelayMs(runner.audioDelayMs) / 1000;
 }
 
 /**
@@ -1033,10 +1039,9 @@ function syncTempoLabel() {
  * one run, so both modes share the same saved value.
  */
 function loadAudioDelay() {
-  const stored = Number(getSetting('pitchRunner.audioDelayMs', AUDIO_DELAY_DEFAULT_MS));
-  runner.audioDelayMs = Number.isFinite(stored)
-    ? Math.min(AUDIO_DELAY_MAX_MS, Math.max(AUDIO_DELAY_MIN_MS, Math.round(stored)))
-    : AUDIO_DELAY_DEFAULT_MS;
+  runner.audioDelayMs = clampAudioDelayMs(
+    getSetting('pitchRunner.audioDelayMs', AUDIO_DELAY_DEFAULT_MS),
+  );
 }
 
 function loadFreeSettings() {
@@ -1246,14 +1251,12 @@ function wireControls() {
   const delayInput = el('pr-audio-delay');
   if (delayInput) {
     delayInput.min = String(AUDIO_DELAY_MIN_MS);
-    delayInput.max = String(AUDIO_DELAY_MAX_MS);
+    // No maximum: a headset with a long link needs whatever the player measures.
+    delayInput.removeAttribute('max');
     delayInput.step = String(AUDIO_DELAY_STEP_MS);
     delayInput.value = String(runner.audioDelayMs);
     delayInput.onchange = () => {
-      const next = Number(delayInput.value);
-      runner.audioDelayMs = Number.isFinite(next)
-        ? Math.min(AUDIO_DELAY_MAX_MS, Math.max(AUDIO_DELAY_MIN_MS, Math.round(next)))
-        : AUDIO_DELAY_DEFAULT_MS;
+      runner.audioDelayMs = clampAudioDelayMs(delayInput.value);
       delayInput.value = String(runner.audioDelayMs);
       saveSetting('pitchRunner.audioDelayMs', runner.audioDelayMs);
     };

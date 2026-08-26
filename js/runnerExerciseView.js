@@ -106,7 +106,7 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
     el('span', { class: 'pr-tempo' }, [bpmDown, bpmValue, bpmUp]),
   ]);
   const audioDelay = el('input', {
-    type: 'number', class: 'pr-delay-input', min: '0', max: '500', step: '10',
+    type: 'number', class: 'pr-delay-input', min: '0', step: '10',
     'aria-label': 'Audio delay in milliseconds',
   });
   const delayField = el('label', { class: 'pt-field' }, [
