@@ -137,6 +137,60 @@ export async function requestMicStreamRaw() {
   }
 }
 
+/**
+ * Mic constraints for a pitch tool that plays a guide tone out loud.
+ *
+ * The browser echo canceller takes the output of the app back out of the mic
+ * feed. A guide tone that plays through the speakers therefore does not reach
+ * the pitch detector, and the tool can score the voice while the tone sounds.
+ * Noise suppression and auto gain control stay off, because they change the
+ * voice that the detector must read.
+ */
+export function echoCancelledMonoAudioConstraints() {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getSupportedConstraints) {
+    return { audio: true };
+  }
+  const supported = navigator.mediaDevices.getSupportedConstraints();
+  const audio = {};
+  if (supported.echoCancellation) audio.echoCancellation = true;
+  if (supported.noiseSuppression) audio.noiseSuppression = false;
+  if (supported.autoGainControl) audio.autoGainControl = false;
+  if (supported.channelCount) audio.channelCount = 1;
+  return Object.keys(audio).length ? { audio } : { audio: true };
+}
+
+/** Open the mic with echo cancellation. It falls back to the raw mic. */
+export async function requestMicStreamEchoCancelled() {
+  try {
+    return await requestMicStream(echoCancelledMonoAudioConstraints());
+  } catch (e) {
+    return requestMicStreamRaw();
+  }
+}
+
+/** True when the open mic track cancels the output of the app. */
+export function micEchoCancellationOn(settings) {
+  return settings?.echoCancellation === true;
+}
+
+/**
+ * Turn echo cancellation on or off on an open mic track.
+ *
+ * A tool calls this when the player turns a guide tone on or off in the middle
+ * of a run. The browser can refuse the change, so the caller must read the
+ * settings this returns.
+ *
+ * @returns {Promise<object>} the settings of the track after the attempt
+ */
+export async function applyMicEchoCancellation(stream, on) {
+  const track = stream?.getAudioTracks?.()[0];
+  if (!track?.applyConstraints) return inspectTrackSettings(stream);
+  try {
+    await track.applyConstraints({ echoCancellation: !!on });
+  } catch (e) { /* the browser keeps the constraints it has */ }
+  return inspectTrackSettings(stream);
+}
+
 export function inspectTrackSettings(stream) {
   const tracks = stream?.getAudioTracks?.();
   if (!tracks?.length) return {};

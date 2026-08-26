@@ -145,6 +145,8 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
   root.appendChild(el('p', {
     class: 'rx-hint',
     text: `The run plays ${passes}. Sing each note as its bar crosses the line.`
+      + ' The melody guide holds each note for its full length. Use headphones, or'
+      + ' the mic can also hear the guide.'
       + ' Bluetooth headphones play the sound late. Raise the audio delay until the'
       + ' click lands on the beat you see.',
   }));

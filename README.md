@@ -40,7 +40,9 @@ Drills that build your ear, your reading, and your hands.
   - *Pitch match* — sing and hold a target note, with live feedback.
   - *Pitch runner* — a scrolling pitch game in 4/4 at the context tempo. An
     audio delay setting sends the click and the melody guide out early, so a
-    Bluetooth headset hears each note as its bar crosses the line.
+    Bluetooth headset hears each note as its bar crosses the line. The melody
+    guide holds each note for its full length. The mic cancels the output of
+    the app, so the guide does not stop the pitch detection.
   - *Ear training* — identify a pitch, a degree, or an interval by ear.
 
 ## Study

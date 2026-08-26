@@ -1,4 +1,12 @@
-import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
+import {
+  audioCtx,
+  ensureAudio,
+  midiFreq,
+  getAnalyserDestination,
+  requestMicStreamEchoCancelled,
+  micEchoCancellationOn,
+  applyMicEchoCancellation,
+} from './audio.js';
 import { CLICK_TONE, STANDALONE_CLICK_GAIN, scheduleClickSound } from './audio/clickSynth.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { getContext, setContext, subscribeContext, TEMPO_MIN, TEMPO_MAX } from './musicalContext.js';
@@ -13,7 +21,7 @@ import {
 import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.js';
 import { scoreRunnerNote } from './pitchMetrics.js';
 import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
-import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
+import { guidePlayWindow, guideSoundsAt, GUIDE_MIN_SEC } from './runnerGuide.js';
 import { runnerNoteBeats } from './runnerExerciseModel.js';
 import { preparePitchVoice, playPitchNote, pitchVoiceWave } from './audio/pitchVoice.js';
 
@@ -50,12 +58,21 @@ const HIT_X_RATIO = 0.28;      // hit line position, fraction of width from left
 const LEAD_IN_BEATS = 4;       // one 4/4 measure of count-in before the first note
 const NOTE_GAP_BEATS = 0.18;   // silent gap (beats) between adjacent notes
 const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
-// Short cue length for the optional melody guide. Kept brief so the singer —
-// not the app's own speakers — must sustain the note for the hit.
-const GUIDE_CUE_BEATS = 0.35;
+// The melody guide holds each note for the whole length of the note, so the
+// singer keeps a pitch reference under the voice from the first beat to the
+// last. The guide must not become the hit itself: the runner opens the mic with
+// echo cancellation while the guide plays, which takes the output of the app
+// back out of the mic feed. The tone also stays quiet, well under a voice that
+// sings into the same mic. Scoring runs for the whole note, so the guide never
+// stops the pitch detection.
+const GUIDE_ATTACK_SEC = 0.04;   // soft start, so the tone does not click
+const GUIDE_RELEASE_SEC = 0.12;  // fade out inside the note, before the next one
+const GUIDE_PEAK_GAIN = 0.075;   // level of the attack
+const GUIDE_HOLD_GAIN = 0.05;    // level of the held part of the tone
+const GUIDE_VELOCITY = 0.55;     // velocity of the sampled pitch voice
 // Output delay compensation, in milliseconds. Bluetooth headphones play a
 // sound long after the app schedules it, so the runner sends every click and
-// every melody-guide cue out early by this much. The bars on screen then cross
+// every melody-guide tone out early by this much. The bars on screen then cross
 // the line at the moment the player hears the note. The delay has no upper
 // limit: a slow link only makes the run start later, because the start waits
 // for the whole delay.
@@ -129,7 +146,9 @@ const runner = {
   noiseFloor: null,
   trackSettings: null,
   lastPitchFrame: null,
-  guideLockActive: false,
+  // True when the open mic track cancels the output of the app. The melody
+  // guide needs it, because the mic hears the speakers of the player.
+  echoCancelled: false,
   rafId: null,
 
   // 'free' follows the shared root / scale / tempo and cycles a pattern for as
@@ -159,10 +178,10 @@ const runner = {
   nextBeat: LEAD_IN_BEATS,
   notes: [],
   nextClickBeat: 0,
-  guideBeat: 0,
   laneMin: 55,
   laneMax: 67,
   trail: [],
+  // The guide tones that are scheduled or still sounding, so a stop can end them.
   guideVoices: [],
 
   score: 0,
@@ -214,22 +233,33 @@ function scheduleClick(time, accented) {
   });
 }
 
-// A short, soft melody-guide cue at a note's start. Intentionally brief — just
-// enough to hint the pitch — so speaker bleed can't sustain the hit for the
-// singer. Returns the cue's audible duration in seconds (including release).
-function scheduleGuideTone(midi, time) {
-  const dur = Math.max(0.16, Math.min(0.55, GUIDE_CUE_BEATS * runner.secPerBeat));
-  const release = 0.12;
+/**
+ * Play the melody guide for one note.
+ *
+ * The tone starts with the note and holds until the note ends, so the player
+ * hears the pitch under the whole hold. It stays quiet, and it fades out before
+ * the next note starts. Scoring keeps running while it sounds.
+ *
+ * @param {number} midi the pitch of the note
+ * @param {number} time the AudioContext time the tone starts
+ * @param {number} durSec how long the tone sounds, in seconds
+ * @returns {{ endTime: number, stop: () => void }} a handle the runner can stop
+ */
+function scheduleGuideTone(midi, time, durSec) {
+  const dur = Math.max(GUIDE_MIN_SEC, durSec);
+  const endTime = time + dur;
 
   const sampled = playPitchNote({
     audioCtx,
     midi,
     when: time,
     durSec: dur,
-    velocity: 0.7,
+    velocity: GUIDE_VELOCITY,
     destination: getAnalyserDestination(),
   });
-  if (sampled) return dur + release;
+  if (sampled) {
+    return { endTime, stop: () => { try { sampled.stopNow(); } catch (e) { /* gone */ } } };
+  }
 
   const wave = pitchVoiceWave();
   const freq = midiFreq(midi);
@@ -238,10 +268,17 @@ function scheduleGuideTone(midi, time) {
   filter.type = 'lowpass';
   filter.frequency.value = Math.min(Math.max(freq * 6, 1800), 6000);
   filter.Q.value = 0.4;
+
+  const attack = Math.min(GUIDE_ATTACK_SEC, dur * 0.2);
+  const release = Math.min(GUIDE_RELEASE_SEC, dur * 0.25);
+  const holdStart = time + attack;
+  const holdEnd = Math.max(holdStart, endTime - release);
   gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.linearRampToValueAtTime(0.1, time + 0.025);
-  gain.gain.setValueAtTime(0.08, time + dur * 0.55);
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + dur + release);
+  gain.gain.linearRampToValueAtTime(GUIDE_PEAK_GAIN, holdStart);
+  gain.gain.linearRampToValueAtTime(GUIDE_HOLD_GAIN, Math.min(holdStart + 0.12, holdEnd));
+  gain.gain.setValueAtTime(GUIDE_HOLD_GAIN, holdEnd);
+  gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
   const oscs = GUIDE_LAYERS.map(layer => {
     const osc = audioCtx.createOscillator();
     const lg = audioCtx.createGain();
@@ -255,8 +292,34 @@ function scheduleGuideTone(midi, time) {
   });
   filter.connect(gain);
   gain.connect(getAnalyserDestination());
-  oscs.forEach(o => { o.start(time); o.stop(time + dur + release + 0.05); });
-  return dur + release;
+  const stopAt = endTime + 0.05;
+  oscs.forEach(o => { o.start(time); o.stop(stopAt); });
+
+  let stopped = false;
+  function stop() {
+    if (stopped) return;
+    stopped = true;
+    const now = audioCtx.currentTime;
+    try {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), now);
+      gain.gain.linearRampToValueAtTime(0.0001, now + 0.03);
+    } catch (e) { /* the ramp is gone */ }
+    oscs.forEach(o => { try { o.stop(now + 0.04); } catch (e) { /* already stopped */ } });
+  }
+  return { endTime, stop };
+}
+
+/** Stop every guide tone the runner scheduled, and forget them. */
+function stopGuideVoices() {
+  runner.guideVoices.forEach(voice => voice.stop());
+  runner.guideVoices = [];
+}
+
+/** Drop the guide tones that already finished. */
+function pruneGuideVoices() {
+  const now = audioCtx.currentTime;
+  runner.guideVoices = runner.guideVoices.filter(voice => voice.endTime > now);
 }
 
 // ---- Sequence building ------------------------------------------------------
@@ -396,7 +459,6 @@ function ensureNotes(playheadBeat) {
       judged: false,
       result: null,
       noteAccuracy: 0,
-      guideMuteUntil: 0,
       guideScheduled: false,
     });
     runner.seqIdx += 1;
@@ -742,43 +804,49 @@ function scheduleAudio(playheadBeat) {
     }
     runner.nextClickBeat += 1;
   }
-  // Optional short melody-guide cues at each upcoming note's start. Scoring is
-  // muted for the cue's audible life so speaker bleed can't count as a hit.
+  // The optional melody guide holds each upcoming note for its whole length.
+  // Scoring runs through it, so the tone never blocks a hit.
   if (runner.guide) {
     for (const note of runner.notes) {
       if (note.guideScheduled) continue;
-      if (note.startBeat <= horizonBeat) {
-        const heardAt = runner.startAudioTime + note.startBeat * runner.secPerBeat;
-        const playAt = cuePlayTime(heardAt);
-        if (playAt != null) {
-          const cueSec = scheduleGuideTone(note.midi, playAt);
-          // The microphone hears the cue only after the output delay.
-          note.guideMuteUntil = lockoutUntil(playAt + delay + cueSec);
-        }
-        note.guideScheduled = true;
+      if (note.startBeat > horizonBeat) continue;
+      const cue = guidePlayWindow({
+        heardStart: note.startAudioTime,
+        heardEnd: note.endAudioTime,
+        delaySec: delay,
+        now: audioCtx.currentTime,
+      });
+      if (cue) {
+        runner.guideVoices.push(scheduleGuideTone(note.midi, cue.playAt, cue.durSec));
       }
+      note.guideScheduled = true;
     }
+    pruneGuideVoices();
   }
+}
+
+/**
+ * True when the mic can hear the melody guide at `audioTime`.
+ *
+ * The guide sounds for the whole note, so the runner keeps those frames out of
+ * the noise-floor picture. The floor must stay a picture of the quiet room.
+ */
+function guideAudibleAt(audioTime) {
+  if (!runner.guide) return false;
+  return guideSoundsAt(runner.notes, audioTime);
+}
+
+/** The time a frame belongs to, with the input delay of the mic removed. */
+function correctedFrameTime(frame) {
+  if (frame?.audioTime != null) return frame.audioTime - getInputLatencySec();
+  return audioCtx.currentTime - getAnalysisDelaySec() - getInputLatencySec();
 }
 
 function handleRunnerPitchFrame(frame) {
   if (!runner.running) return;
-  const audioTime = frame.audioTime;
-  let anyLockActive = false;
-  for (const note of runner.notes) {
-    if (note.guideMuteUntil > 0 && !isScoringWindowClear(audioTime, note.guideMuteUntil, runner.capture)) {
-      anyLockActive = true;
-      break;
-    }
-  }
-  if (anyLockActive && !runner.guideLockActive) {
-    if (runner.capture) runner.capture.reset();
-    runner.guideLockActive = true;
-  } else if (!anyLockActive && runner.guideLockActive) {
-    if (runner.capture) runner.capture.reset();
-    runner.guideLockActive = false;
-  }
-  if (!anyLockActive) {
+  // The detector keeps reading while the guide sounds. Only the noise floor
+  // steps aside, because the mic can also hear the guide in those frames.
+  if (!guideAudibleAt(correctedFrameTime(frame))) {
     const activeMinRms = runner.noiseFloor ? runner.noiseFloor.ingest(frame.rms) : frame.rms;
     if (runner.capture) runner.capture.setMinRms(activeMinRms);
   }
@@ -817,9 +885,7 @@ function step() {
   const hasPitch = displayFreq > 0;
   const midiFloat = hasPitch ? freqToMidiFloat(displayFreq) : null;
 
-  const correctedAudioTime = frame?.audioTime != null
-    ? frame.audioTime - getInputLatencySec()
-    : now - getAnalysisDelaySec() - getInputLatencySec();
+  const correctedAudioTime = correctedFrameTime(frame);
   const sampleTimestampMs = frame?.timestampMs ?? correctedAudioTime * 1000;
 
   const target = currentTargetMidi(playheadBeat);
@@ -835,21 +901,20 @@ function step() {
     const inNoteWindow = correctedAudioTime >= note.startAudioTime
       && correctedAudioTime < note.endAudioTime;
     if (inNoteWindow) {
-      const scoring = isScoringWindowClear(correctedAudioTime, note.guideMuteUntil, runner.capture);
-      if (scoring) {
-        const cents = voiced && frequencyHz > 0
-          ? centsOffFromTarget(frequencyHz, note.midi)
-          : null;
-        note.samples.push({
-          timestampMs: sampleTimestampMs,
-          audioTime: correctedAudioTime,
-          frequencyHz: voiced ? frequencyHz : -1,
-          centsFromTarget: cents,
-          clarity,
-          rms,
-          voiced: !!voiced,
-        });
-      }
+      // The whole note counts. The melody guide plays under it and takes no
+      // samples away, because the mic cancels the output of the app.
+      const cents = voiced && frequencyHz > 0
+        ? centsOffFromTarget(frequencyHz, note.midi)
+        : null;
+      note.samples.push({
+        timestampMs: sampleTimestampMs,
+        audioTime: correctedAudioTime,
+        frequencyHz: voiced ? frequencyHz : -1,
+        centsFromTarget: cents,
+        clarity,
+        rms,
+        voiced: !!voiced,
+      });
     } else if (playheadBeat >= end) {
       finalizeNote(note);
     }
@@ -877,6 +942,7 @@ function step() {
 // ---- Lifecycle --------------------------------------------------------------
 
 function resetTimeline() {
+  stopGuideVoices();
   runner.secPerBeat = 60 / currentTempo();
   runner.startAudioTime = audioCtx.currentTime + startLeadSec();
   runner.seqIdx = 0;
@@ -894,7 +960,7 @@ async function startRunner() {
 
   ensureAudio();
   // The samples of the pitch voice load in the background. Until they are
-  // ready, the guide cue plays the built-in oscillator.
+  // ready, the melody guide plays the built-in oscillator.
   void preparePitchVoice(audioCtx);
   readColors();
   resizeCanvas();
@@ -905,7 +971,11 @@ async function startRunner() {
     return;
   }
 
-  const mic = await openPitchMic();
+  // The melody guide plays for the whole note, so the mic must cancel the
+  // output of the app. Without that, the speakers of the player would sing the
+  // note for them. A run without the guide keeps the raw mic, which reads a
+  // voice best.
+  const mic = await openPitchMic(runner.guide ? requestMicStreamEchoCancelled : undefined);
   if (!mic.ok) {
     const status = el('pr-status');
     if (status) status.textContent = 'Mic access denied or unavailable';
@@ -917,10 +987,10 @@ async function startRunner() {
   try {
     runner.stream = mic.stream;
     runner.trackSettings = mic.settings;
+    runner.echoCancelled = micEchoCancellationOn(mic.settings);
     runner.noiseFloor = createAdaptiveNoiseFloor(0.003);
     runner.noiseFloor.startCollection();
     runner.lastPitchFrame = null;
-    runner.guideLockActive = false;
 
     runner.capture = await createPitchCapture({
       audioCtx,
@@ -934,8 +1004,7 @@ async function startRunner() {
     runner.running = true;
     setToggleLabel(true);
     setOverlay('');
-    const status = el('pr-status');
-    if (status) status.textContent = 'Listening\u2026 sing the notes as they cross the line';
+    setListeningStatus();
     runner.startAudioTime = audioCtx.currentTime + startLeadSec();
     runner.nextClickBeat = 0;
     syncNoteAudioTimes();
@@ -947,6 +1016,25 @@ async function startRunner() {
     setOverlay('Mic unavailable');
     updateStartState();
   }
+}
+
+/**
+ * Match the mic to the melody guide in the middle of a run.
+ *
+ * The guide needs echo cancellation. A run without the guide reads a voice best
+ * from the raw mic. The browser can refuse the change, so the runner reads the
+ * settings back and tells the player what it got.
+ */
+function syncMicEchoCancellation() {
+  if (!runner.running || !runner.stream) return;
+  if (runner.echoCancelled === runner.guide) return;
+  const stream = runner.stream;
+  void applyMicEchoCancellation(stream, runner.guide).then((settings) => {
+    if (runner.stream !== stream) return;
+    runner.trackSettings = settings;
+    runner.echoCancelled = micEchoCancellationOn(settings);
+    if (runner.running) setListeningStatus();
+  });
 }
 
 /** End a saved run that played every note, and report the result. */
@@ -979,8 +1067,9 @@ function stopRunner() {
   runner.running = false;
   if (runner.rafId) { cancelAnimationFrame(runner.rafId); runner.rafId = null; }
   if (runner.capture) { runner.capture.stop(); runner.capture = null; }
+  stopGuideVoices();
   runner.lastPitchFrame = null;
-  runner.guideLockActive = false;
+  runner.echoCancelled = false;
   if (runner.noiseFloor) runner.noiseFloor = null;
   if (runner.stream) { releaseMicStream(runner.stream); runner.stream = null; }
   setToggleLabel(false);
@@ -1004,6 +1093,21 @@ function togglePitchRunner() {
 function setToggleLabel(on) {
   const btn = el('pr-toggle');
   if (btn) btn.textContent = on ? 'Stop game' : 'Start game';
+}
+
+/**
+ * Show what the runner listens to now.
+ *
+ * The melody guide holds every note. The mic cancels the output of the app, so
+ * the guide stays out of the score. A mic that cannot cancel hears the guide,
+ * and then the player needs headphones. The status line says so.
+ */
+function setListeningStatus() {
+  const status = el('pr-status');
+  if (!status) return;
+  status.textContent = (runner.guide && !runner.echoCancelled)
+    ? 'Listening\u2026 use headphones, because the mic can hear the melody guide'
+    : 'Listening\u2026 sing the notes as they cross the line';
 }
 
 function setOverlay(text) {
@@ -1245,6 +1349,8 @@ function wireControls() {
       runner.guide = guideChk.checked;
       if (runner.mode === 'sequence') runner.sequence.guide = runner.guide;
       else saveSetting('pitchRunner.guide', runner.guide);
+      if (!runner.guide) stopGuideVoices();
+      syncMicEchoCancellation();
     };
   }
 

@@ -11,6 +11,7 @@ import { runTaskTests } from './tasks.mjs';
 import { runProgressTests } from './progress.mjs';
 import { runMicTests } from './mic.mjs';
 import { runLockoutTests } from './lockout.mjs';
+import { runGuideTests } from './guide.mjs';
 
 runMetricsTests();
 runDetectorTests();
@@ -19,6 +20,7 @@ runTaskTests();
 runRunnerTests();
 runProgressTests();
 runLockoutTests();
+runGuideTests();
 await runMicTests();
 
 console.log('pitch tests: ok');
