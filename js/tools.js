@@ -102,14 +102,16 @@ export const TOOLS = [
     label: 'Practice Lab',
     short: 'Practice Lab',
     area: 'train',
-    description: 'Run one practice session: a timer, a click, ratios, a tempo ladder, a camera, and a log.',
+    description: 'Run one practice session: a timer, a click, ratios, a tempo ladder, a camera, and a log. '
+      + 'The Theory tab maps the key you are working in.',
     title: 'Practice Lab',
     modes: [
       { id: 'session', label: 'Session' },
+      { id: 'theory', label: 'Theory' },
       { id: 'history', label: 'History' },
     ],
     defaultMode: 'session',
-    context: [],
+    context: ['root', 'scale', 'tuning'],
     holdRecord: false,
   },
   {

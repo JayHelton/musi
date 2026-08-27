@@ -42,6 +42,21 @@ Drills that build your ear, your reading, and your hands.
     audio delay setting sends the click and the melody guide out early, so a
     Bluetooth headset hears each note as its bar crosses the line.
   - *Ear training* — identify a pitch, a degree, or an interval by ear.
+- **Practice Lab** — one screen for one practice session, in three tabs:
+  - *Session* — pick an instrument, a technique, and a target, then run timers,
+    click patterns, ratio drills, a tempo ladder, and camera takes. Every action
+    goes in the session log.
+  - *Theory* — map the key you are working in. Pick a root, a mode, and a
+    tuning, and the neck lights every note of the scale. The Chords view stacks
+    the triads, the 7th chords, and the 9th chords of the mode, finds every
+    chord of one quality, and shows each shape the tuning gives you at its real
+    fret. A compare picker puts a second mode beside the first, so a switch from
+    Natural Minor to Harmonic Minor shows which chords move and which note moved
+    them. The Outside view bends a chord you already hold and lists the
+    secondary dominants, the tritone substitutes, the leading-tone diminished
+    7ths, and the chords borrowed from every parallel mode, and it names the
+    note each one takes outside the key.
+  - *History* — every past session with its log and its clips.
 
 ## Study
 
@@ -211,6 +226,7 @@ node tests/shell/run.mjs           # nav stack, shared context, tool page
 node tests/workbooks/run.mjs       # workbook model and playthrough
 node tests/exercises/run.mjs       # exercise library
 node tests/chord-match/run.mjs     # multi-answer chord identification
+node tests/practice-lab/run.mjs    # session timing, the chord set of a key, voicings
 ```
 
 `tests/appcheck/run.mjs` boots the app in headless Chrome and fails on any

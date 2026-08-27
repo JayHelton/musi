@@ -48,6 +48,30 @@ import {
   plural,
   ENTRY_KINDS,
 } from '../../js/practiceLab/model/session.js';
+import {
+  keyNotes,
+  keyChords,
+  chordLadder,
+  compareKeys,
+  qualityIndex,
+  describeStack,
+  buildChord,
+  isHeptatonic,
+} from '../../js/practiceLab/model/theoryChords.js';
+import {
+  findVoicings,
+  fretsForPitchClass,
+  groupByPosition,
+  VOICING_DEFAULTS,
+} from '../../js/practiceLab/model/theoryVoicings.js';
+import {
+  alterationsFor,
+  borrowedChords,
+  secondaryDominants,
+  tritoneSubs,
+  leadingToneDiminished,
+  outsideTones,
+} from '../../js/practiceLab/model/theoryOutside.js';
 import { createMemoryStore } from '../../js/practiceLab/adapters/memoryStore.js';
 import { createPracticeLab } from '../../js/practiceLab/container.js';
 import { portProblems, PORT_CONTRACT, PORT_NAMES } from '../../js/practiceLab/ports.js';
@@ -760,6 +784,281 @@ await test('the history reads one session with its log and its clips', async () 
 
   await lab.deleteSession(two.id);
   assert.equal((await lab.listSessions()).length, 1);
+});
+
+
+/* ------------------------------------------------------------------ */
+console.log('Theory — the chords of a key');
+
+/** Open-string MIDI notes of E standard, low string first. */
+const E_STANDARD = [40, 45, 50, 55, 59, 64];
+
+function symbols(chords) {
+  return chords.map(c => c.symbol);
+}
+
+await test('a major key stacks the seven triads every player knows', () => {
+  assert.deepEqual(
+    symbols(keyChords('C', 'Major (Ionian)', 3)),
+    ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bdim'],
+  );
+  assert.deepEqual(
+    keyChords('C', 'Major (Ionian)', 3).map(c => c.roman),
+    ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
+  );
+});
+
+await test('a major key stacks the seven 7th chords', () => {
+  assert.deepEqual(
+    symbols(keyChords('C', 'Major (Ionian)', 4)),
+    ['Cmaj7', 'Dm7', 'Em7', 'Fmaj7', 'G7', 'Am7', 'Bm7b5'],
+  );
+});
+
+await test('harmonic minor gives the augmented III and the diminished 7', () => {
+  assert.deepEqual(
+    symbols(keyChords('A', 'Harmonic Minor', 4)),
+    ['AmMaj7', 'Bm7b5', 'Cmaj7#5', 'Dm7', 'E7', 'Fmaj7', 'G#dim7'],
+  );
+});
+
+await test('melodic minor gives two half-diminished chords and two dominants', () => {
+  assert.deepEqual(
+    symbols(keyChords('A', 'Melodic Minor (Asc)', 4)),
+    ['AmMaj7', 'Bm7', 'Cmaj7#5', 'D7', 'E7', 'F#m7b5', 'G#m7b5'],
+  );
+});
+
+await test('an altered extension never folds into the stacked symbol', () => {
+  // The 9th of E in C major is F, a flat ninth. The chord must not read "Em9".
+  const chords = keyChords('C', 'Major (Ionian)', 5);
+  assert.equal(chords[2].symbol, 'Em7(b9)');
+  assert.equal(chords[0].symbol, 'Cmaj9');
+});
+
+await test('a #11 with no ninth under it stays an alteration', () => {
+  const chord = buildChord('C', [
+    { slot: 0, semi: 0 }, { slot: 1, semi: 4 }, { slot: 2, semi: 7 },
+    { slot: 3, semi: 11 }, { slot: 5, semi: 6 },
+  ]);
+  assert.equal(chord.symbol, 'Cmaj7(#11)');
+});
+
+await test('a suspension spells its tone as a second or a fourth', () => {
+  const sus4 = buildChord('C', [{ slot: 0, semi: 0 }, { slot: 1, semi: 5 }, { slot: 2, semi: 7 }]);
+  const sus2 = buildChord('C', [{ slot: 0, semi: 0 }, { slot: 1, semi: 2 }, { slot: 2, semi: 7 }]);
+  assert.deepEqual(sus4.notes, ['C', 'F', 'G']);
+  assert.deepEqual(sus2.notes, ['C', 'D', 'G']);
+});
+
+await test('a stack with no third and no fifth is named an interval', () => {
+  assert.equal(describeStack([{ slot: 0, semi: 0, label: 'R' }]).name, 'Interval');
+});
+
+await test('the ladder stacks one degree from the triad to the 13th', () => {
+  assert.deepEqual(
+    symbols(chordLadder('C', 'Major (Ionian)', 0)),
+    ['C', 'Cmaj7', 'Cmaj9', 'Cmaj11', 'Cmaj13'],
+  );
+});
+
+await test('a scale that is not seven notes builds no chord set', () => {
+  assert.equal(isHeptatonic('Minor Pentatonic'), false);
+  assert.deepEqual(keyChords('C', 'Minor Pentatonic', 4), []);
+  assert.deepEqual(chordLadder('C', 'Blues', 0), []);
+  // The notes still read, so the neck can still draw the scale.
+  assert.equal(keyNotes('C', 'Minor Pentatonic').size, 5);
+});
+
+await test('an unknown root or scale returns nothing instead of throwing', () => {
+  assert.equal(keyNotes('H', 'Major (Ionian)'), null);
+  assert.equal(keyNotes('C', 'No Such Scale'), null);
+  assert.deepEqual(keyChords('H', 'Major (Ionian)'), []);
+});
+
+/* ------------------------------------------------------------------ */
+console.log('Theory — comparing two modes');
+
+await test('natural minor and harmonic minor differ on four chords', () => {
+  const result = compareKeys('A', 'Natural Minor (Aeolian)', 'Harmonic Minor', 4);
+  assert.equal(result.changed, 4);
+  const moved = result.rows.filter(r => r.changed).map(r => `${r.left.symbol}>${r.right.symbol}`);
+  assert.deepEqual(moved, ['Am7>AmMaj7', 'Cmaj7>Cmaj7#5', 'Em7>E7', 'G7>G#dim7']);
+});
+
+await test('the compare rows mark the tone that moves', () => {
+  const result = compareKeys('A', 'Natural Minor (Aeolian)', 'Harmonic Minor', 4);
+  // The i chord keeps its root, third, and fifth, and moves only its seventh.
+  assert.deepEqual(result.rows[0].changedTones, [false, false, false, true]);
+});
+
+await test('a comparison needs two seven-note modes', () => {
+  assert.equal(compareKeys('A', 'Minor Pentatonic', 'Harmonic Minor', 4), null);
+});
+
+await test('the quality index finds every chord of one quality', () => {
+  const groups = qualityIndex('A', 'Harmonic Minor', [3, 4]);
+  const dim7 = groups.find(g => g.quality === 'dim7');
+  assert.deepEqual(symbols(dim7.chords), ['G#dim7']);
+  const major7 = groups.find(g => g.quality === 'major7');
+  assert.deepEqual(symbols(major7.chords), ['Fmaj7']);
+});
+
+/* ------------------------------------------------------------------ */
+console.log('Theory — voicings on the neck');
+
+await test('a pitch class repeats every twelve frets on one string', () => {
+  // The low E string sounds A at fret 5 and again at fret 17.
+  assert.deepEqual(fretsForPitchClass(40, 9, 0, 20), [5, 17]);
+  assert.deepEqual(fretsForPitchClass(40, 4, 0, 15), [0, 12]);
+});
+
+await test('every chord of a key has at least one shape in standard tuning', () => {
+  for (const scale of ['Major (Ionian)', 'Natural Minor (Aeolian)', 'Harmonic Minor', 'Melodic Minor (Asc)']) {
+    for (const chord of keyChords('A', scale, 4)) {
+      const found = findVoicings({ openMidis: E_STANDARD, tones: chord.tones });
+      assert.ok(found.length > 0, `${chord.symbol} of ${scale} has no shape`);
+    }
+  }
+});
+
+await test('a voicing stays inside the hand it claims', () => {
+  const chord = keyChords('A', 'Harmonic Minor', 4)[6];
+  for (const voicing of findVoicings({ openMidis: E_STANDARD, tones: chord.tones })) {
+    assert.ok(voicing.span <= VOICING_DEFAULTS.maxSpan, `span ${voicing.span}`);
+    assert.ok(voicing.fingers <= VOICING_DEFAULTS.maxFingers, `fingers ${voicing.fingers}`);
+    assert.ok(voicing.voices >= VOICING_DEFAULTS.minVoices, `voices ${voicing.voices}`);
+    assert.ok(voicing.innerMutes <= VOICING_DEFAULTS.maxInnerMutes, `mutes ${voicing.innerMutes}`);
+  }
+});
+
+await test('a voicing sounds only the notes of its chord', () => {
+  const chord = keyChords('C', 'Major (Ionian)', 4)[4];
+  const wanted = new Set(chord.pcs);
+  for (const voicing of findVoicings({ openMidis: E_STANDARD, tones: chord.tones })) {
+    voicing.midis.forEach((midi) => {
+      if (midi == null) return;
+      assert.ok(wanted.has(((midi % 12) + 12) % 12), `${voicing.id} sounds a note outside ${chord.symbol}`);
+    });
+  }
+});
+
+await test('a voicing carries the root, the third, and the seventh', () => {
+  const chord = keyChords('C', 'Major (Ionian)', 4)[1];
+  for (const voicing of findVoicings({ openMidis: E_STANDARD, tones: chord.tones })) {
+    const labels = new Set(voicing.labels.filter(Boolean));
+    assert.ok(labels.has('R') && labels.has('b3') && labels.has('b7'), voicing.id);
+  }
+});
+
+await test('the root sits in the bass unless the search allows an inversion', () => {
+  const chord = keyChords('C', 'Major (Ionian)', 0 + 4)[0];
+  const rooted = findVoicings({ openMidis: E_STANDARD, tones: chord.tones });
+  assert.ok(rooted.every(v => v.bassLabel === 'R'));
+  // The search ranks a root in the bass first, so read the whole list.
+  const inverted = findVoicings({
+    openMidis: E_STANDARD, tones: chord.tones, limits: { rootInBass: false, limit: 500 },
+  });
+  assert.ok(inverted.some(v => v.bassLabel !== 'R'));
+});
+
+await test('turning open strings off leaves only movable shapes', () => {
+  const chord = keyChords('E', 'Major (Ionian)', 4)[0];
+  const found = findVoicings({ openMidis: E_STANDARD, tones: chord.tones, limits: { allowOpen: false } });
+  assert.ok(found.length > 0);
+  assert.ok(found.every(v => v.frets.every(f => f == null || f > 0)));
+});
+
+await test('a seven-string tuning finds shapes of its own', () => {
+  const dropC7 = [36, 43, 48, 53, 58, 62, 67];
+  const chord = keyChords('C', 'Natural Minor (Aeolian)', 4)[0];
+  const found = findVoicings({ openMidis: dropC7, tones: chord.tones });
+  assert.ok(found.length > 0);
+  assert.ok(found.every(v => v.frets.length === 7));
+});
+
+await test('the voicings group into regions of the neck', () => {
+  const chord = keyChords('C', 'Major (Ionian)', 4)[0];
+  const groups = groupByPosition(findVoicings({ openMidis: E_STANDARD, tones: chord.tones }));
+  assert.ok(groups.length > 0);
+  for (const group of groups) {
+    assert.ok(group.voicings.every(v => v.lowFret >= group.from && v.lowFret <= group.to));
+  }
+});
+
+/* ------------------------------------------------------------------ */
+console.log('Theory — the ways out of a key');
+
+await test('a secondary dominant sits a fifth over its target', () => {
+  const list = secondaryDominants('C', 'Major (Ionian)');
+  const roles = list.map(c => `${c.role} ${c.symbol}`);
+  assert.deepEqual(roles, ['V7/ii A7', 'V7/iii B7', 'V7/IV C7', 'V7/V D7', 'V7/vi E7']);
+  // The V7 of the tonic is the plain V of a major key, so it is not a way out.
+  assert.ok(!roles.some(r => r.startsWith('V7/I ')));
+});
+
+await test('a tritone substitute sits a semitone over its target', () => {
+  const list = tritoneSubs('C', 'Major (Ionian)');
+  const sub = list.find(c => c.target === 'Dm7');
+  assert.equal(sub.symbol, 'Eb7');
+});
+
+await test('a leading-tone diminished 7 sits a semitone under its target', () => {
+  const list = leadingToneDiminished('C', 'Major (Ionian)');
+  const chord = list.find(c => c.target === 'Dm7');
+  assert.equal(chord.symbol, 'C#dim7');
+  assert.deepEqual(chord.notes, ['C#', 'E', 'G', 'Bb']);
+  assert.deepEqual(chord.outsideNotes, ['C#', 'Bb']);
+});
+
+await test('a borrowed chord names the note it borrows', () => {
+  const groups = borrowedChords('C', 'Major (Ionian)');
+  const minor = groups.find(g => g.source === 'Natural Minor (Aeolian)');
+  const four = minor.chords.find(c => c.root === 'F');
+  assert.equal(four.symbol, 'Fm7');
+  assert.deepEqual(four.outsideNotes, ['Ab', 'Eb']);
+});
+
+await test('a borrowed list holds no chord the key already has', () => {
+  const inKey = new Set(keyChords('C', 'Major (Ionian)', 4).map(c => c.pcs.slice().sort((a, b) => a - b).join('.')));
+  for (const group of borrowedChords('C', 'Major (Ionian)')) {
+    for (const chord of group.chords) {
+      assert.ok(chord.outside.length > 0, `${chord.symbol} borrows nothing`);
+      assert.ok(!inKey.has(chord.pcs.slice().sort((a, b) => a - b).join('.')), chord.symbol);
+    }
+  }
+});
+
+await test('bending a chord names the new chord and the tone that left', () => {
+  const key = keyNotes('C', 'Major (Ionian)');
+  const moves = alterationsFor(keyChords('C', 'Major (Ionian)', 4)[0], key.pcs);
+  const byMove = new Map(moves.map(m => [m.move, m]));
+  assert.equal(byMove.get('aug5').symbol, 'Cmaj7#5');
+  assert.deepEqual(byMove.get('aug5').outsideNotes, ['G#']);
+  assert.equal(byMove.get('dim7').symbol, 'Cdim7');
+  // A 6th chord on the tonic of a major key borrows nothing.
+  assert.equal(byMove.get('sixth').symbol, 'C6');
+  assert.deepEqual(byMove.get('sixth').outsideNotes, []);
+});
+
+await test('two moves that land on one chord appear once', () => {
+  const key = keyNotes('A', 'Natural Minor (Aeolian)');
+  const moves = alterationsFor(keyChords('A', 'Natural Minor (Aeolian)', 4)[0], key.pcs);
+  const seen = moves.map(m => m.symbol);
+  assert.equal(new Set(seen).size, seen.length, `repeated chord in ${seen.join(', ')}`);
+  assert.ok(seen.includes('A7'));
+});
+
+await test('a chord of the key reports no outside tone', () => {
+  const key = keyNotes('C', 'Major (Ionian)');
+  const tonic = keyChords('C', 'Major (Ionian)', 4)[0];
+  assert.deepEqual(outsideTones(tonic, key.pcs), []);
+});
+
+await test('the out-of-key moves need a seven-note mode', () => {
+  assert.deepEqual(secondaryDominants('C', 'Blues'), []);
+  assert.deepEqual(borrowedChords('C', 'Blues'), []);
+  assert.deepEqual(alterationsFor(null, []), []);
 });
 
 /* ------------------------------------------------------------------ */

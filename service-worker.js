@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v276-audio-delay";
+const CACHE_VERSION = "v277-theory-tab";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -55,6 +55,7 @@ const PRECACHE_URLS = [
   "css/tool-page.css",
   "css/audio-dock.css",
   "css/practice-lab.css",
+  "css/practice-lab-theory.css",
   "css/landscape.css",
   "chord-cards/",
   "chord-cards/index.html",
@@ -218,7 +219,11 @@ const PRECACHE_URLS = [
   "js/practiceLab/adapters/mediaVideo.js",
   "js/practiceLab/adapters/memoryStore.js",
   "js/practiceLab/adapters/musiAudioSession.js",
+  "js/practiceLab/adapters/musiChordVoice.js",
   "js/practiceLab/adapters/musiClick.js",
+  "js/practiceLab/adapters/musiNeck.js",
+  "js/practiceLab/adapters/musiPrefs.js",
+  "js/practiceLab/adapters/musiTheory.js",
   "js/practiceLab/adapters/musiToast.js",
   "js/practiceLab/adapters/realClock.js",
   "js/practiceLab/engine/countdown.js",
@@ -227,6 +232,9 @@ const PRECACHE_URLS = [
   "js/practiceLab/engine/timeline.js",
   "js/practiceLab/model/catalog.js",
   "js/practiceLab/model/session.js",
+  "js/practiceLab/model/theoryChords.js",
+  "js/practiceLab/model/theoryOutside.js",
+  "js/practiceLab/model/theoryVoicings.js",
   "js/practiceLab/ui/cameraPanel.js",
   "js/practiceLab/ui/dom.js",
   "js/practiceLab/ui/historyView.js",
@@ -236,6 +244,12 @@ const PRECACHE_URLS = [
   "js/practiceLab/ui/sessionView.js",
   "js/practiceLab/ui/setupView.js",
   "js/practiceLab/ui/speedPanel.js",
+  "js/practiceLab/ui/theoryChordDetail.js",
+  "js/practiceLab/ui/theoryChordsView.js",
+  "js/practiceLab/ui/theoryNeck.js",
+  "js/practiceLab/ui/theoryOutsideView.js",
+  "js/practiceLab/ui/theoryView.js",
+  "js/practiceLab/ui/theoryVoicingCard.js",
   "js/practiceLab/ui/timerPanel.js",
   "js/practiceLab/ui/trainerTabs.js",
   "js/progressHeader.js",

@@ -17,8 +17,12 @@ import { el, clear, notice } from './ui/dom.js';
 import { createSetupView } from './ui/setupView.js';
 import { createSessionView } from './ui/sessionView.js';
 import { createHistoryView } from './ui/historyView.js';
+import { createTheoryView } from './ui/theoryView.js';
 
 const SECTION_ID = 'sec-practicelab';
+
+/** The tabs the tool page offers. They match the `modes` list in js/tools.js. */
+const MODES = new Set(['session', 'history', 'theory']);
 
 /**
  * The default ports of the web app.
@@ -81,6 +85,15 @@ function paintHistory() {
   mounted = view;
 }
 
+// The Theory tab is a reference screen. It keeps no session and needs no port,
+// so it mounts on its own and never waits for the store.
+function paintTheory() {
+  const view = createTheoryView();
+  clear(rootEl);
+  rootEl.appendChild(view.root);
+  mounted = view;
+}
+
 function paintLoading() {
   clear(rootEl);
   rootEl.appendChild(el('p', { class: 'pl-loading', text: 'Loading…' }));
@@ -94,6 +107,10 @@ function paintFailure(message) {
 function paint() {
   if (!rootEl || !lab) return;
   stopMounted();
+  if (currentMode === 'theory') {
+    paintTheory();
+    return;
+  }
   if (currentMode === 'history') {
     paintHistory();
     return;
@@ -111,7 +128,16 @@ export function initPracticeLab({ mode } = {}) {
   const host = hostElement();
   if (!host) return;
   rootEl = host;
-  currentMode = mode === 'history' ? 'history' : 'session';
+  currentMode = MODES.has(mode) ? mode : 'session';
+
+  // The Theory tab reads no saved session, so it opens at once even when the
+  // store is still loading or blocked.
+  if (currentMode === 'theory') {
+    stopMounted();
+    paintTheory();
+    if (!lab) startLab({ paintAfter: false });
+    return;
+  }
 
   if (lab) {
     paint();
@@ -119,17 +145,27 @@ export function initPracticeLab({ mode } = {}) {
   }
 
   paintLoading();
+  startLab({ paintAfter: true });
+}
+
+/**
+ * Build the service and read its saved sessions.
+ * @param {{paintAfter: boolean}} options paint the screen once the store answers
+ */
+function startLab({ paintAfter }) {
   const ports = defaultPorts();
   let created;
   try {
     created = createPracticeLab(ports);
   } catch (error) {
-    paintFailure(error.message || 'Practice Lab could not start.');
+    if (paintAfter) paintFailure(error.message || 'Practice Lab could not start.');
     return;
   }
   lab = created;
-  lab.init().then(() => paint()).catch(() => {
-    paintFailure('Practice Lab could not read its saved sessions.');
+  lab.init().then(() => {
+    if (paintAfter) paint();
+  }).catch(() => {
+    if (paintAfter) paintFailure('Practice Lab could not read its saved sessions.');
   });
 }
 

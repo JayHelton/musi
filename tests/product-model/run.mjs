@@ -143,8 +143,8 @@ test('the tempo plan lives inside the Metronome', () => {
   assert.deepEqual(getTool('metronome').modes.map(m => m.id), ['metronome', 'plan']);
 });
 
-test('the Practice Lab holds a session mode and a history mode', () => {
-  assert.deepEqual(getTool('practicelab').modes.map(m => m.id), ['session', 'history']);
+test('the Practice Lab holds a session mode, a theory mode, and a history mode', () => {
+  assert.deepEqual(getTool('practicelab').modes.map(m => m.id), ['session', 'theory', 'history']);
   assert.equal(getTool('practicelab').defaultMode, 'session');
 });
 
@@ -190,7 +190,7 @@ test('each tool declares the context fields it reads', () => {
   assert.deepEqual(toolContextFields('chordfinder'), ['tuning']);
   assert.deepEqual(toolContextFields('metronome'), ['tempo']);
   assert.deepEqual(toolContextFields('notes'), []);
-  assert.deepEqual(toolContextFields('practicelab'), []);
+  assert.deepEqual(toolContextFields('practicelab'), ['root', 'scale', 'tuning']);
 });
 
 test('no tool depends on every context field by default', () => {
