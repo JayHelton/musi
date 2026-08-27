@@ -1054,21 +1054,28 @@ function addDrumStaffGlyphs(
           });
         }
 
+        // One grace stroke makes a flam and two make a drag, so the row of
+        // small heads is as long as the ornament the reader must play.
         if (note.flam) {
-          pushGlyph(glyphs, {
-            kind: 'drumHit',
-            lane: 'tabStaff',
-            x: x - headW * 1.9,
-            y: y - headH * 0.32,
-            w: headW * 0.64,
-            h: headH * 0.64,
-            text: '',
-            aria: `${NOTATION_LABELS[note.name] || note.name} grace stroke`,
-            beatStart,
-            head: place.head,
-            grace: true,
-            voice: voiceName,
-          });
+          const graceCount = Math.max(1, Math.round(note.graces || 1));
+          for (let g = 0; g < graceCount; g += 1) {
+            pushGlyph(glyphs, {
+              kind: 'drumHit',
+              lane: 'tabStaff',
+              x: x - headW * (1.9 + (graceCount - 1 - g) * 0.78),
+              y: y - headH * 0.32,
+              w: headW * 0.64,
+              h: headH * 0.64,
+              text: '',
+              aria: graceCount > 1
+                ? `${NOTATION_LABELS[note.name] || note.name} drag stroke ${g + 1} of ${graceCount}`
+                : `${NOTATION_LABELS[note.name] || note.name} grace stroke`,
+              beatStart,
+              head: place.head,
+              grace: true,
+              voice: voiceName,
+            });
+          }
         }
 
         if (note.ghost || place.ghost) {

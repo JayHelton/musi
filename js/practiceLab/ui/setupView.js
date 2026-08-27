@@ -4,6 +4,15 @@
 // Each chip carries a remove control, and a text field adds a custom entry.
 
 import { el, clear, chip, pressable, notice } from './dom.js';
+import { createWarmUpPanel } from './warmUpPanel.js';
+
+/**
+ * True when an instrument label names a drum kit. A player can add "Drum Kit"
+ * or "Drums" to the catalog, and both must open the warm-up.
+ */
+function isDrumKit(label) {
+  return /drum/i.test(String(label || ''));
+}
 
 /**
  * @param {Object} lab the Practice Lab service
@@ -13,6 +22,10 @@ import { el, clear, chip, pressable, notice } from './dom.js';
 export function createSetupView(lab, { onStarted } = {}) {
   let instrumentId = '';
   let techniqueId = '';
+
+  const warmUp = createWarmUpPanel(lab, { mode: 'setup' });
+  const warmUpBlock = el('div', { class: 'pl-setup-block pl-setup-warmup' }, [warmUp.root]);
+  warmUpBlock.hidden = true;
 
   const instrumentRow = el('div', { class: 'pl-chip-row' });
   const techniqueRow = el('div', { class: 'pl-chip-row' });
@@ -119,9 +132,20 @@ export function createSetupView(lab, { onStarted } = {}) {
     }
   }
 
+  // The warm-up is a drum warm-up, so it opens only when the session is a drum
+  // session. Picking one costs a read of the saved sessions, so it waits for
+  // the player to choose the instrument.
+  function paintWarmUp() {
+    const drums = isDrumKit(labelOf(lab.instruments(), instrumentId));
+    warmUpBlock.hidden = !drums;
+    if (drums) warmUp.ensure();
+    else lab.clearWarmUp();
+  }
+
   function paint() {
     paintInstruments();
     paintTechniques();
+    paintWarmUp();
   }
 
   function labelOf(list, id) {
@@ -138,7 +162,12 @@ export function createSetupView(lab, { onStarted } = {}) {
     setProblem('');
     startBtn.disabled = true;
     try {
-      const session = await lab.startSession({ instrument, technique, target });
+      const session = await lab.startSession({
+        instrument,
+        technique,
+        target,
+        warmUp: warmUpBlock.hidden ? null : warmUp.choice(),
+      });
       onStarted?.(session);
     } finally {
       startBtn.disabled = false;
@@ -170,6 +199,7 @@ export function createSetupView(lab, { onStarted } = {}) {
       el('span', { class: 'pl-field-label', text: '3 · Target' }),
       targetInput,
     ]),
+    warmUpBlock,
     problem,
     el('div', { class: 'pl-setup-actions' }, [startBtn]),
   ]);
@@ -182,5 +212,10 @@ export function createSetupView(lab, { onStarted } = {}) {
   });
 
   paint();
-  return { root, refresh: paint };
+  return {
+    root,
+    refresh: paint,
+    /** Drop the score players of the warm-up cards. */
+    stop() { warmUp.stop(); },
+  };
 }

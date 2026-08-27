@@ -445,10 +445,14 @@ function addNotehead(ctx, { x, note, place, entry, up }) {
     });
   }
 
+  // One grace stroke makes a flam and two make a drag.
   if (note.flam || place.flam) {
-    addGraceNote(elements, {
-      x: x - headRx * 3.4, y, space, headRx, headRy, up,
-    });
+    const graceCount = Math.max(1, Math.round(note.graces || 1));
+    for (let g = 0; g < graceCount; g += 1) {
+      addGraceNote(elements, {
+        x: x - headRx * (3.4 + (graceCount - 1 - g) * 2.2), y, space, headRx, headRy, up,
+      });
+    }
   }
 }
 

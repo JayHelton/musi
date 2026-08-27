@@ -458,11 +458,13 @@ export function barsToPattern(bars, id = 'drum-staff') {
 export function voicesFromEvents(events, barStart, quarters) {
   const byVoice = { up: new Map(), down: new Map() };
   // A grace stroke shares the start of the note it leans on, so it never gets
-  // a column of its own. It marks that note as a flam instead.
-  const graceAt = new Set();
+  // a column of its own. It marks that note as a flam instead. A note can
+  // carry more than one grace stroke: one makes a flam, and two make a drag.
+  const graceAt = new Map();
   for (const ev of events || []) {
     if (ev?.grace !== true) continue;
-    graceAt.add(`${Math.round((Number(ev.start) - barStart) * 48)}:${notationNameFor(ev)}`);
+    const key = `${Math.round((Number(ev.start) - barStart) * 48)}:${notationNameFor(ev)}`;
+    graceAt.set(key, (graceAt.get(key) || 0) + 1);
   }
   for (const ev of events || []) {
     if (ev?.grace === true) continue;
@@ -474,11 +476,14 @@ export function voicesFromEvents(events, barStart, quarters) {
     if (at < -1e-6 || at > quarters - 1e-6) continue;
     const slot = byVoice[place.voice];
     const list = slot.get(at) || [];
+    const graces = graceAt.get(`${ticks}:${name}`) || 0;
+    const flam = ev.flam === true || name === 'snareFlam' || graces > 0;
     list.push({
       name,
       accent: ev.accent === true,
       ghost: name === 'snareGhost',
-      flam: ev.flam === true || name === 'snareFlam' || graceAt.has(`${ticks}:${name}`),
+      flam,
+      graces: graces || (flam ? 1 : 0),
       hand: stickingOf(ev),
       duration: Number(ev.duration) || 0,
     });

@@ -7,6 +7,7 @@
 import { el, clear, pressable, notice } from './dom.js';
 import { buildLogList } from './logPanel.js';
 import { formatDuration, rollUpTotals, plural } from '../model/session.js';
+import { warmUpLabel } from '../adapters/musiDrumLibrary.js';
 
 function dateOf(iso) {
   const date = new Date(iso);
@@ -44,6 +45,11 @@ export function createHistoryView(lab) {
           class: 'pl-history-meta',
           text: `${formatDuration(totals.timerMs)} on the clock · ${plural(totals.clips, 'clip')}${totals.topBpm ? ` · top ${totals.topBpm} BPM` : ''}`,
         }),
+        // The warm-up is on the record, so the history shows what this session
+        // covered and the picker keeps its cooldown honest.
+        session.warmUp
+          ? el('p', { class: 'pl-history-warmup', text: `Warm-up — ${warmUpLabel(session.warmUp)}` })
+          : null,
       ]),
       buildLogList({
         entries,

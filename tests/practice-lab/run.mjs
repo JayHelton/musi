@@ -269,7 +269,8 @@ await test('the log entry kinds match the data model', () => {
   assert.deepEqual(ENTRY_KINDS, [
     'session-start', 'timer-start', 'timer-stop', 'timer-complete',
     'metronome-start', 'metronome-stop', 'ratio-start', 'ratio-stop',
-    'speed-start', 'speed-complete', 'clip-saved', 'note', 'session-end',
+    'speed-start', 'speed-complete', 'clip-saved', 'note', 'warm-up-done',
+    'session-end',
   ]);
 });
 
@@ -662,6 +663,70 @@ await test('ending a session closes it and writes the totals', async () => {
   assert.equal(stored.status, 'ended');
   const entries = await ports.store.listEntries(started.id);
   assert.equal(entries.at(-1).kind, 'session-end');
+});
+
+await test('a drum session carries its warm-up onto the record and into the log', async () => {
+  const ports = fakePorts();
+  const lab = createPracticeLab(ports);
+  await lab.init();
+
+  const picked = await lab.rollWarmUp({ random: () => 0 });
+  assert.ok(picked.beatId, 'the picker names a groove');
+  assert.ok(picked.rudimentId, 'the picker names a rudiment');
+  assert.equal(lab.warmUp().beatId, picked.beatId);
+
+  const started = await lab.startSession({
+    instrument: 'Drums',
+    technique: 'Paradiddles',
+    target: 'Clean at 90 BPM',
+    warmUp: picked,
+  });
+  assert.deepEqual(started.warmUp, { beatId: picked.beatId, rudimentId: picked.rudimentId });
+  // The offer is spent, so the next session picks again.
+  assert.equal(lab.warmUp(), null);
+
+  await lab.completeWarmUp();
+  const entries = await ports.store.listEntries(started.id);
+  assert.deepEqual(entries.map(e => e.kind), ['session-start', 'warm-up-done']);
+  assert.equal(entries[1].data.beatId, picked.beatId);
+  assert.ok(entries[0].data.warmUp, 'the start line names the warm-up');
+});
+
+await test('a session with no warm-up keeps no warm-up field', async () => {
+  const ports = fakePorts();
+  const lab = createPracticeLab(ports);
+  await lab.init();
+  const started = await lab.startSession({
+    instrument: 'Guitar', technique: 'Legato', target: 'Even trills',
+  });
+  assert.equal('warmUp' in started, false);
+  assert.equal(await lab.completeWarmUp(), null);
+});
+
+await test('the picker skips what the last three sessions warmed up with', async () => {
+  const store = createMemoryStore();
+  const seen = [];
+  let idCount = 0;
+  for (let round = 0; round < 6; round += 1) {
+    // Each round is its own mount, with its own hour and its own id prefix, so
+    // the saved sessions sort the way real ones do.
+    const lab = createPracticeLab(fakePorts({
+      store,
+      clock: fakeClock(round * 3600000),
+      ids: { newId: (prefix) => `${prefix}-r${round}-${(idCount += 1)}` },
+    }));
+    await lab.init();
+    const picked = await lab.rollWarmUp();
+    for (const before of seen.slice(-3)) {
+      assert.notEqual(picked.beatId, before.beatId, `round ${round} repeats a groove`);
+      assert.notEqual(picked.rudimentId, before.rudimentId, `round ${round} repeats a rudiment`);
+    }
+    await lab.startSession({
+      instrument: 'Drums', technique: 'Paradiddles', target: `round ${round}`, warmUp: picked,
+    });
+    await lab.endSession();
+    seen.push(picked);
+  }
 });
 
 await test('one trainer runs at a time', async () => {

@@ -144,7 +144,7 @@ test('the tempo plan lives inside the Metronome', () => {
 });
 
 test('the Practice Lab holds a session mode, a theory mode, and a history mode', () => {
-  assert.deepEqual(getTool('practicelab').modes.map(m => m.id), ['session', 'theory', 'history']);
+  assert.deepEqual(getTool('practicelab').modes.map(m => m.id), ['session', 'drums', 'theory', 'history']);
   assert.equal(getTool('practicelab').defaultMode, 'session');
 });
 

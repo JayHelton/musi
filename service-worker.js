@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v278-runner-vibrato";
+const CACHE_VERSION = "v279-drum-library";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -56,6 +56,7 @@ const PRECACHE_URLS = [
   "css/audio-dock.css",
   "css/practice-lab.css",
   "css/practice-lab-theory.css",
+  "css/practice-lab-drums.css",
   "css/landscape.css",
   "chord-cards/",
   "chord-cards/index.html",
@@ -116,12 +117,16 @@ const PRECACHE_URLS = [
   "js/drums/drumEngine.js",
   "js/drums/drumPatternDb.js",
   "js/drums/kitMapSvg.js",
+  "js/drums/beatLibrary.js",
   "js/drums/notation.js",
+  "js/drums/patternScore.js",
+  "js/drums/rudimentLibrary.js",
   "js/drums/staffLayout.js",
   "js/drums/staffNotation.js",
   "js/drums/staffSvg.js",
   "js/drums/tabReferenceModel.js",
   "js/drums/types.js",
+  "js/drums/warmUp.js",
   "js/earTrainer.js",
   "js/exerciseCompanions/diagram.js",
   "js/exerciseCompanions/earTrain.js",
@@ -221,9 +226,11 @@ const PRECACHE_URLS = [
   "js/practiceLab/adapters/musiAudioSession.js",
   "js/practiceLab/adapters/musiChordVoice.js",
   "js/practiceLab/adapters/musiClick.js",
+  "js/practiceLab/adapters/musiDrumLibrary.js",
   "js/practiceLab/adapters/musiNeck.js",
   "js/practiceLab/adapters/musiPrefs.js",
   "js/practiceLab/adapters/musiTheory.js",
+  "js/practiceLab/adapters/musiScoreMount.js",
   "js/practiceLab/adapters/musiToast.js",
   "js/practiceLab/adapters/realClock.js",
   "js/practiceLab/engine/countdown.js",
@@ -237,6 +244,8 @@ const PRECACHE_URLS = [
   "js/practiceLab/model/theoryVoicings.js",
   "js/practiceLab/ui/cameraPanel.js",
   "js/practiceLab/ui/dom.js",
+  "js/practiceLab/ui/drumScoreCard.js",
+  "js/practiceLab/ui/drumsView.js",
   "js/practiceLab/ui/historyView.js",
   "js/practiceLab/ui/logPanel.js",
   "js/practiceLab/ui/metronomeBar.js",
@@ -252,6 +261,7 @@ const PRECACHE_URLS = [
   "js/practiceLab/ui/theoryVoicingCard.js",
   "js/practiceLab/ui/timerPanel.js",
   "js/practiceLab/ui/trainerTabs.js",
+  "js/practiceLab/ui/warmUpPanel.js",
   "js/progressHeader.js",
   "js/qr/qrDecode.js",
   "js/qr/qrEncode.js",

@@ -18,11 +18,12 @@ import { createSetupView } from './ui/setupView.js';
 import { createSessionView } from './ui/sessionView.js';
 import { createHistoryView } from './ui/historyView.js';
 import { createTheoryView } from './ui/theoryView.js';
+import { createDrumsView } from './ui/drumsView.js';
 
 const SECTION_ID = 'sec-practicelab';
 
 /** The tabs the tool page offers. They match the `modes` list in js/tools.js. */
-const MODES = new Set(['session', 'history', 'theory']);
+const MODES = new Set(['session', 'drums', 'history', 'theory']);
 
 /**
  * The default ports of the web app.
@@ -94,6 +95,15 @@ function paintTheory() {
   mounted = view;
 }
 
+// The Drums tab is a reference screen too. It reads the beat library and the
+// rudiment library, and it keeps no session.
+function paintDrums() {
+  const view = createDrumsView();
+  clear(rootEl);
+  rootEl.appendChild(view.root);
+  mounted = view;
+}
+
 function paintLoading() {
   clear(rootEl);
   rootEl.appendChild(el('p', { class: 'pl-loading', text: 'Loading…' }));
@@ -109,6 +119,10 @@ function paint() {
   stopMounted();
   if (currentMode === 'theory') {
     paintTheory();
+    return;
+  }
+  if (currentMode === 'drums') {
+    paintDrums();
     return;
   }
   if (currentMode === 'history') {
@@ -130,11 +144,12 @@ export function initPracticeLab({ mode } = {}) {
   rootEl = host;
   currentMode = MODES.has(mode) ? mode : 'session';
 
-  // The Theory tab reads no saved session, so it opens at once even when the
-  // store is still loading or blocked.
-  if (currentMode === 'theory') {
+  // The Theory tab and the Drums tab read no saved session, so they open at
+  // once even when the store is still loading or blocked.
+  if (currentMode === 'theory' || currentMode === 'drums') {
     stopMounted();
-    paintTheory();
+    if (currentMode === 'theory') paintTheory();
+    else paintDrums();
     if (!lab) startLab({ paintAfter: false });
     return;
   }

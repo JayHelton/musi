@@ -22,10 +22,12 @@ import {
 import {
   newSession,
   newEntry,
+  newWarmUp,
   rollUpTotals,
   sortEntries,
   SESSION_ENDED,
 } from './model/session.js';
+import { pickWarmUp, warmUpHistory, warmUpLabel } from './adapters/musiDrumLibrary.js';
 
 /** The recorder caps. The recorder stops itself at either one. */
 export const CLIP_CAPS = { durationMs: 5 * 60 * 1000, bytes: 128 * 1024 * 1024 };
@@ -54,6 +56,8 @@ export function createPracticeLab(ports) {
     activeTrainer: '',
     /** True when the open session comes from an earlier visit. */
     resumed: false,
+    /** The warm-up the setup screen offers, before a session opens. */
+    warmUp: null,
   };
 
   const scheduler = createScheduler({ click, clock });
@@ -248,27 +252,72 @@ export function createPracticeLab(ports) {
       await persistCatalog();
     },
 
+    /**
+     * Offer the warm-up of the next session: one groove and one rudiment that
+     * the last three sessions did not use.
+     *
+     * The picker reads the saved sessions, so the cooldown survives a reload.
+     * Call it again to re-roll.
+     *
+     * @param {{ random?: () => number }} [options]
+     * @returns {Promise<Object>} the picked warm-up, with both records
+     */
+    async rollWarmUp({ random } = {}) {
+      const sessions = await store.listSessions();
+      const picked = pickWarmUp({
+        history: warmUpHistory(sessions),
+        ...(typeof random === 'function' ? { random } : {}),
+      });
+      state.warmUp = picked;
+      emit('warmup', picked);
+      return picked;
+    },
+
+    /** The warm-up on offer, or null when none is picked yet. */
+    warmUp() { return state.warmUp; },
+
+    /** Drop the warm-up on offer. The next session picks a fresh one. */
+    clearWarmUp() {
+      state.warmUp = null;
+      emit('warmup', null);
+    },
+
     /** Write the session record at the start, not at the end. */
-    async startSession({ instrument, technique, target }) {
+    async startSession({ instrument, technique, target, warmUp }) {
+      const picked = newWarmUp(warmUp);
       const session = newSession({
         id: ids.newId('pl-sess'),
         at: nowIso(),
         instrument,
         technique,
         target,
+        warmUp: picked,
       });
       await store.createSession(session);
       state.resumed = false;
       state.session = session;
       state.entries = [];
       state.clips = [];
+      state.warmUp = null;
       emit('session', state.session);
       await appendEntry('session-start', {
         instrument: session.instrument,
         technique: session.technique,
         target: session.target,
+        ...(picked ? { warmUp: warmUpLabel(picked) } : {}),
       });
       return session;
+    },
+
+    /** Log that the warm-up of the open session is done. */
+    async completeWarmUp() {
+      const picked = state.session?.warmUp;
+      if (!picked) return null;
+      return appendEntry('warm-up-done', {
+        beatId: picked.beatId,
+        rudimentId: picked.rudimentId,
+        label: warmUpLabel(picked),
+      });
     },
 
     /** End the open session. The click, the timer, and the camera stop first. */

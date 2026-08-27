@@ -103,10 +103,12 @@ export const TOOLS = [
     short: 'Practice Lab',
     area: 'train',
     description: 'Run one practice session: a timer, a click, ratios, a tempo ladder, a camera, and a log. '
-      + 'The Theory tab maps the key you are working in.',
+      + 'The Theory tab maps the key you are working in, and the Drums tab holds the beat '
+      + 'and rudiment library.',
     title: 'Practice Lab',
     modes: [
       { id: 'session', label: 'Session' },
+      { id: 'drums', label: 'Drums' },
       { id: 'theory', label: 'Theory' },
       { id: 'history', label: 'History' },
     ],

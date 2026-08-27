@@ -8,6 +8,7 @@ import { createTrainerTabs } from './trainerTabs.js';
 import { createCameraPanel } from './cameraPanel.js';
 import { createLogPanel } from './logPanel.js';
 import { createMetronomeBar } from './metronomeBar.js';
+import { createWarmUpPanel } from './warmUpPanel.js';
 import { formatDuration, plural } from '../model/session.js';
 
 /**
@@ -23,6 +24,9 @@ export function createSessionView(lab, { onEnded } = {}) {
   const camera = createCameraPanel(lab);
   const log = createLogPanel(lab);
   const metro = createMetronomeBar(lab);
+  // A session that picked a warm-up keeps it on screen, so the player reads the
+  // groove and the rudiment without leaving the session.
+  const warmUp = session.warmUp ? createWarmUpPanel(lab, { mode: 'session' }) : null;
 
   const totalsLine = el('p', { class: 'pl-session-totals', text: '' });
 
@@ -73,6 +77,7 @@ export function createSessionView(lab, { onEnded } = {}) {
       'warn',
     ));
   }
+  if (warmUp) children.push(warmUp.root);
   children.push(grid, metro.root);
 
   const root = el('div', { class: 'pl-session' }, children);
@@ -92,6 +97,7 @@ export function createSessionView(lab, { onEnded } = {}) {
       trainers.stop();
       metro.stop();
       camera.stop();
+      warmUp?.stop();
     },
   };
 }

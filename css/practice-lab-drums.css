@@ -1,0 +1,152 @@
+/* Practice Lab — the drum library and the warm-up.
+   The cards read as screen tiles, the same as every other Practice Lab panel.
+   Colours come from the theme tokens, so the tab stays on the handheld look. */
+
+.pl-drums { display: flex; flex-direction: column; gap: 14px; }
+
+.pl-drums-head { display: flex; flex-direction: column; gap: 6px; }
+
+.pl-drums-title {
+  font-family: var(--font-pixel);
+  font-size: .82rem;
+  color: var(--accent);
+  margin: 0;
+}
+
+.pl-drums-lead {
+  font-family: var(--font-body);
+  font-size: .92rem;
+  color: var(--muted);
+  max-width: 68ch;
+  margin: 0;
+}
+
+.pl-drums-filter { margin: 0; }
+
+.pl-drums-list { display: flex; flex-direction: column; gap: 12px; }
+
+/* ---- one pattern ---- */
+
+.pl-drum-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-screen);
+}
+
+.pl-drum-card.compact { padding: 12px 14px; gap: 8px; }
+
+.pl-drum-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.pl-drum-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+.pl-drum-kicker {
+  font-family: var(--font-pixel);
+  font-size: .52rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent2);
+}
+
+.pl-drum-name {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  color: var(--text);
+  margin: 0;
+}
+
+.pl-drum-facts {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.pl-drum-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.pl-drum-notes { display: flex; flex-direction: column; gap: 6px; }
+
+.pl-drum-about,
+.pl-drum-line {
+  font-family: var(--font-body);
+  font-size: .9rem;
+  color: var(--text);
+  max-width: 72ch;
+  margin: 0;
+}
+
+.pl-drum-line { color: var(--muted); }
+
+.pl-drum-focus { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+
+.pl-drum-tag {
+  font-family: var(--font-pixel);
+  font-size: .5rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.pl-drum-sticking { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 0; }
+
+.pl-drum-sticking-text {
+  font-family: var(--font-ui);
+  font-size: 1.1rem;
+  letter-spacing: .06em;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+}
+
+.pl-drum-stage {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  min-width: 0;
+}
+
+.pl-drum-stage[hidden] { display: none; }
+
+/* ---- the warm-up ---- */
+
+.pl-setup-warmup { display: block; }
+
+.pl-warmup .pl-panel-head { align-items: center; }
+
+.pl-warmup-lead {
+  font-family: var(--font-body);
+  font-size: .92rem;
+  color: var(--text);
+  margin: 0 0 10px;
+}
+
+.pl-warmup-list { display: flex; flex-direction: column; gap: 10px; }
+
+.pl-warmup-rule {
+  font-family: var(--font-ui);
+  font-size: .95rem;
+  color: var(--muted);
+  margin: 10px 0 0;
+}
+
+.pl-history-warmup {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--accent2);
+  margin: 6px 0 0;
+}
+
+@media (max-width: 560px) {
+  .pl-drum-head { flex-direction: column; align-items: stretch; }
+  .pl-drum-actions { justify-content: flex-start; }
+}

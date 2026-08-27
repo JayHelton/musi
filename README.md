@@ -42,10 +42,20 @@ Drills that build your ear, your reading, and your hands.
     audio delay setting sends the click and the melody guide out early, so a
     Bluetooth headset hears each note as its bar crosses the line.
   - *Ear training* — identify a pitch, a degree, or an interval by ear.
-- **Practice Lab** — one screen for one practice session, in three tabs:
+- **Practice Lab** — one screen for one practice session, in four tabs:
   - *Session* — pick an instrument, a technique, and a target, then run timers,
     click patterns, ratio drills, a tempo ladder, and camera takes. Every action
-    goes in the session log.
+    goes in the session log. A drum session opens with a warm-up: the tool picks
+    one groove and one rudiment for you, and it never picks what the last three
+    sessions used. The pick rides on the session record, so the History tab
+    shows what each session warmed up with.
+  - *Drums* — the drum library. Beats holds grooves from ten genres — rock,
+    punk, metal, jazz, blues, funk, latin, reggae, country, and hip-hop. Each
+    one runs three bars of the groove and one bar of a fill that belongs to the
+    genre, and no entry is longer than eight bars. Rudiments holds the flams,
+    the paradiddles, the rolls, and the drags, each with a full R and L
+    sticking under the staff and a left-hand-lead bar. Every entry opens in the
+    Guitar Pro player, so you can loop it, slow it down, and hear it.
   - *Theory* — map the key you are working in. Pick a root, a mode, and a
     tuning, and the neck lights every note of the scale. The Chords view stacks
     the triads, the 7th chords, and the 9th chords of the mode, finds every

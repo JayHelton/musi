@@ -19,6 +19,7 @@ export const ENTRY_KINDS = [
   'speed-complete',
   'clip-saved',
   'note',
+  'warm-up-done',
   'session-end',
 ];
 
@@ -29,12 +30,26 @@ export const SESSION_ACTIVE = 'active';
 export const SESSION_ENDED = 'ended';
 
 /**
+ * The warm-up of a session: one groove and one rudiment from the drum library.
+ * A session that warmed up on nothing keeps an empty record, so the history
+ * still reads it and the cooldown still counts it out.
+ * @param {{ beatId?: string, rudimentId?: string }} [input]
+ * @returns {{ beatId: string, rudimentId: string }|null}
+ */
+export function newWarmUp(input) {
+  const beatId = String(input?.beatId || '').trim();
+  const rudimentId = String(input?.rudimentId || '').trim();
+  if (!beatId && !rudimentId) return null;
+  return { beatId, rudimentId };
+}
+
+/**
  * Build a session record.
- * @param {{ id: string, at: string, instrument: string, technique: string, target: string }} input
+ * @param {{ id: string, at: string, instrument: string, technique: string, target: string, warmUp?: Object }} input
  * @returns {Object}
  */
-export function newSession({ id, at, instrument, technique, target }) {
-  return {
+export function newSession({ id, at, instrument, technique, target, warmUp }) {
+  const record = {
     id,
     startedAt: at,
     endedAt: '',
@@ -44,6 +59,9 @@ export function newSession({ id, at, instrument, technique, target }) {
     target: String(target || '').trim(),
     totals: { timerMs: 0, clips: 0, topBpm: 0 },
   };
+  const picked = newWarmUp(warmUp);
+  if (picked) record.warmUp = picked;
+  return record;
 }
 
 /**
@@ -151,6 +169,8 @@ export function describeEntry(entry) {
       return `Clip saved — ${formatDuration(data.durationMs)}`;
     case 'note':
       return data.text || '';
+    case 'warm-up-done':
+      return `Warm-up done — ${data.label || 'the picked groove and rudiment'}`;
     case 'session-end':
       return `Session ended — ${formatDuration(data.timerMs)} on the clock`;
     default:
