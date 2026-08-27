@@ -593,10 +593,20 @@ export function createScoringWindow(opts = {}) {
   };
 }
 
+// Centered is the strict goal. The median pitch must sit on the target, and the
+// tone must stay near the target for the full note.
 const RUNNER_CENTER_CENTS = 10;
-const RUNNER_CLOSE_CENTER_CENTS = 20;
 const RUNNER_CENTER_MAE = 15;
-const RUNNER_CLOSE_MAE = 25;
+
+// Close and Miss use wide limits. The mean absolute error measures the distance
+// from the target, so vibrato increases it even when the singer holds the correct
+// note. A vibrato of plus or minus E cents gives a mean absolute error near
+// 0.64 * E. The previous limit of 25 cents made a plus or minus 40-cent vibrato a
+// Miss. Close now tests the median pitch first. The mean absolute error limit only
+// rejects a tone that moves across most of a semitone.
+const RUNNER_CLOSE_CENTER_CENTS = 30;
+const RUNNER_CLOSE_MAE = 45;
+
 const RUNNER_IN_TUNE_BAND = 20;
 const RUNNER_ERROR_SCALE = 50;
 

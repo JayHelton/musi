@@ -5,7 +5,7 @@ import {
   midiInRange,
   SCALE_PATTERNS,
 } from '../../js/pitchExercises.js';
-import { samplesForTone } from './helpers.mjs';
+import { samplesForTone, samplesForVibrato } from './helpers.mjs';
 
 const TARGET_MIDI = 69;
 
@@ -40,6 +40,36 @@ export function runRunnerTests() {
     const scored = scoreRunnerNote(samples, TARGET_MIDI);
     assert.ok(scored.result === 'close' || scored.result === 'miss', '+18 cents should be Close or Miss');
     assert.notEqual(scored.result, 'centered', '+18 cents must not be Centered');
+  }
+
+  console.log('test: wide vibrato centered on the target is not a Miss');
+  {
+    for (const extentCents of [40, 50, 60]) {
+      const samples = samplesForVibrato({ fps: 60, durationMs: 1000, extentCents, targetMidi: TARGET_MIDI });
+      const scored = scoreRunnerNote(samples, TARGET_MIDI);
+      assert.notEqual(scored.result, 'miss', `+/-${extentCents}-cent vibrato on pitch must not be a Miss`);
+      assert.ok(Math.abs(scored.centerErrorCents) < 2, 'vibrato center should sit on the target');
+    }
+  }
+
+  console.log('test: vibrato does not earn Centered');
+  {
+    const samples = samplesForVibrato({ fps: 60, durationMs: 1000, extentCents: 30, targetMidi: TARGET_MIDI });
+    const scored = scoreRunnerNote(samples, TARGET_MIDI);
+    assert.equal(scored.result, 'close', '+/-30-cent vibrato should be Close, not Centered');
+  }
+
+  console.log('test: vibrato around an off-pitch center is still a Miss');
+  {
+    const samples = samplesForVibrato({
+      fps: 60,
+      durationMs: 1000,
+      extentCents: 30,
+      centerCents: 45,
+      targetMidi: TARGET_MIDI,
+    });
+    const scored = scoreRunnerNote(samples, TARGET_MIDI);
+    assert.equal(scored.result, 'miss', 'vibrato centered 45 cents sharp should be a Miss');
   }
 
   console.log('test: Runner pattern sequences stay inside range');

@@ -261,9 +261,13 @@ Result rules:
 
 - Centered: pitch center within ±10 cents and mean absolute error at most 15
   cents.
-- Close: pitch center within ±20 cents and mean absolute error at most 25
+- Close: pitch center within ±30 cents and mean absolute error at most 45
   cents.
 - Miss: all other results.
+
+Centered is the only strict result. Close and Miss use wide limits, because
+vibrato increases the mean absolute error. A vibrato that stays on the correct
+note must not receive a Miss.
 
 A constant note at +29 cents must never receive Perfect or Centered. Overall
 accuracy is the mean note accuracy. Combo is consecutive Centered notes only.
