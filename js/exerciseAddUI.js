@@ -237,6 +237,7 @@ export function openRunnerDialog({
     countInBeats: start.countInBeats,
     metronome: start.metronome,
     guide: start.guide,
+    preview: start.preview,
     attachmentId: start.attachmentId,
     fileName: start.fileName,
     trackIndex: start.trackIndex,
@@ -340,11 +341,14 @@ export function openRunnerDialog({
 
   const metronomeChk = el('input', { type: 'checkbox' });
   const guideChk = el('input', { type: 'checkbox' });
+  const previewChk = el('input', { type: 'checkbox' });
   metronomeChk.checked = state.metronome;
   guideChk.checked = state.guide;
+  previewChk.checked = state.preview;
   dialog.appendChild(el('div', { class: 'pr-toggles ex-form-toggles' }, [
     el('label', { class: 'pr-check' }, [metronomeChk, el('span', { text: 'Metronome click' })]),
     el('label', { class: 'pr-check' }, [guideChk, el('span', { text: 'Play melody guide' })]),
+    el('label', { class: 'pr-check' }, [previewChk, el('span', { text: 'Preview each pass' })]),
   ]));
 
   const preview = el('p', { class: 'ex-form-preview' });
@@ -367,6 +371,7 @@ export function openRunnerDialog({
       countInBeats: Number(countInInput.value),
       metronome: metronomeChk.checked,
       guide: guideChk.checked,
+      preview: previewChk.checked,
       attachmentId: state.attachmentId,
       fileName: state.fileName,
       trackIndex: state.trackIndex,
@@ -468,7 +473,7 @@ export function openRunnerDialog({
   [bpmInput, noteLengthInput, restInput, repeatInput, countInInput].forEach((input) => {
     input.addEventListener('input', syncPreview);
   });
-  [metronomeChk, guideChk].forEach((box) => box.addEventListener('change', syncPreview));
+  [metronomeChk, guideChk, previewChk].forEach((box) => box.addEventListener('change', syncPreview));
 
   const actions = el('div', { class: 'modal-actions' });
   actions.appendChild(el('button', {

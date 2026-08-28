@@ -13,8 +13,15 @@ import {
 import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.js';
 import { scoreRunnerNote } from './pitchMetrics.js';
 import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
-import { lockoutUntil, isScoringWindowClear } from './pitchGuideLock.js';
+import { lockoutUntil, isScoringWindowClear, ROOM_TAIL_SEC } from './pitchGuideLock.js';
 import { runnerNoteBeats } from './runnerExerciseModel.js';
+import {
+  nextPassStartBeat,
+  runnerPassPosition,
+  runnerScoredBudget,
+  runnerStepBudget,
+  PASS_GAP_MIN_BEATS,
+} from './runnerTimeline.js';
 import { preparePitchVoice, playPitchNote, pitchVoiceWave } from './audio/pitchVoice.js';
 
 // "Pitch runner" — a Guitar-Hero / Yousician-style scrolling pitch game that
@@ -77,7 +84,7 @@ const RUNNER_ELEMENT_NAMES = [
   'pr-toggle', 'pr-status', 'pr-judge', 'pr-score', 'pr-combo', 'pr-accuracy',
   'pr-canvas', 'pr-stage', 'pr-overlay', 'pr-difficulty', 'pr-pattern',
   'pr-range-preset', 'pr-length', 'pr-bpm', 'pr-bpm-down', 'pr-bpm-up',
-  'pr-metronome', 'pr-guide', 'pr-audio-delay',
+  'pr-metronome', 'pr-guide', 'pr-preview', 'pr-audio-delay',
 ];
 
 // The longest hold in the run. A free run holds every note for the same
@@ -111,10 +118,34 @@ function leadInBeats() {
   return LEAD_IN_BEATS;
 }
 
-/** The number of notes one full run plays, or 0 for an endless run. */
-function sequenceNoteBudget() {
-  if (runner.mode !== 'sequence' || !runner.sequence.repeats) return 0;
-  return runner.sequence.notes.length * runner.sequence.repeats;
+/**
+ * The silence a preview pass leaves before the answer, in beats. It outlasts
+ * the room tail of the last preview note, so the lockout does not eat the
+ * first note the singer sings.
+ */
+function passGapBeats() {
+  return Math.max(PASS_GAP_MIN_BEATS, ROOM_TAIL_SEC / runner.secPerBeat);
+}
+
+/** The number of notes in one pass of the phrase. */
+function passLength() {
+  if (runner.mode === 'sequence') return runner.sequence.notes.length;
+  return runner.patternSeq.length;
+}
+
+/**
+ * The number of notes the run puts on the timeline, preview notes included.
+ * Returns 0 for an endless run.
+ */
+function stepBudget() {
+  if (runner.mode !== 'sequence') return 0;
+  return runnerStepBudget(passLength(), runner.sequence.repeats, runner.preview);
+}
+
+/** The number of notes the run scores, or 0 for an endless run. */
+function scoredNoteBudget() {
+  if (runner.mode !== 'sequence') return 0;
+  return runnerScoredBudget(passLength(), runner.sequence.repeats);
 }
 
 const GUIDE_LAYERS = [
@@ -147,6 +178,9 @@ const runner = {
   noteBeats: 2,
   metronome: true,
   guide: false,
+  // Preview mode plays each pass twice: the app sings it, then the player
+  // does. It gives a musician with little singing practice the target notes.
+  preview: false,
   // Milliseconds between a scheduled sound and the moment the player hears it.
   audioDelayMs: AUDIO_DELAY_DEFAULT_MS,
 
@@ -164,6 +198,9 @@ const runner = {
   laneMax: 67,
   trail: [],
   guideVoices: [],
+  // The moment the room is quiet again after the last preview note. A preview
+  // note sounds over the whole run, so its tail mutes every note, not one.
+  previewMuteUntil: 0,
 
   score: 0,
   combo: 0,
@@ -218,7 +255,24 @@ function scheduleClick(time, accented) {
 // enough to hint the pitch — so speaker bleed can't sustain the hit for the
 // singer. Returns the cue's audible duration in seconds (including release).
 function scheduleGuideTone(midi, time) {
-  const dur = Math.max(0.16, Math.min(0.55, GUIDE_CUE_BEATS * runner.secPerBeat));
+  return scheduleCueTone(midi, time, Math.max(0.16, Math.min(0.55, GUIDE_CUE_BEATS * runner.secPerBeat)));
+}
+
+// The length a preview note sounds for. A preview note holds its whole written
+// length, because the singer must hear the target as a note, not as a hint.
+function previewToneSec(note) {
+  return Math.max(0.18, Math.min(3, note.dur * runner.secPerBeat));
+}
+
+// Sound one preview note. It plays louder than a guide cue, because it must
+// carry the melody on its own. Returns the audible duration in seconds.
+function schedulePreviewTone(note, time) {
+  return scheduleCueTone(note.midi, time, previewToneSec(note), { velocity: 0.85, peak: 0.14 });
+}
+
+// Play one target note for the ear. Returns the audible duration in seconds
+// (including the release), so the caller can mute scoring for that long.
+function scheduleCueTone(midi, time, dur, { velocity = 0.7, peak = 0.1 } = {}) {
   const release = 0.12;
 
   const sampled = playPitchNote({
@@ -226,7 +280,7 @@ function scheduleGuideTone(midi, time) {
     midi,
     when: time,
     durSec: dur,
-    velocity: 0.7,
+    velocity,
     destination: getAnalyserDestination(),
   });
   if (sampled) return dur + release;
@@ -239,8 +293,8 @@ function scheduleGuideTone(midi, time) {
   filter.frequency.value = Math.min(Math.max(freq * 6, 1800), 6000);
   filter.Q.value = 0.4;
   gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.linearRampToValueAtTime(0.1, time + 0.025);
-  gain.gain.setValueAtTime(0.08, time + dur * 0.55);
+  gain.gain.linearRampToValueAtTime(peak, time + 0.025);
+  gain.gain.setValueAtTime(peak * 0.8, time + dur * 0.55);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + dur + release);
   const oscs = GUIDE_LAYERS.map(layer => {
     const osc = audioCtx.createOscillator();
@@ -380,16 +434,24 @@ function getAnalysisDelaySec() {
 // right edge, cycling the pattern endlessly.
 function ensureNotes(playheadBeat) {
   const horizon = playheadBeat + visibleBeatsAhead() + maxNoteBeats() + 4;
-  const budget = sequenceNoteBudget();
+  const budget = stepBudget();
   while (runner.nextBeat < horizon) {
     if (budget && runner.seqIdx >= budget) break;
     const step = sequenceStep(runner.seqIdx);
     if (!step) break;
+    // Preview mode starts every pass on a bar line. The preview and the answer
+    // then begin on the same beat of the click, and a short silence separates
+    // the app's voice from the singer's.
+    if (runner.preview && step.passStart && runner.seqIdx > 0) {
+      runner.nextBeat = nextPassStartBeat(runner.nextBeat, { minGapBeats: passGapBeats() });
+    }
     const startAudioTime = runner.startAudioTime + runner.nextBeat * runner.secPerBeat;
     runner.notes.push({
       startBeat: runner.nextBeat,
       dur: step.dur,
       midi: step.midi,
+      preview: step.preview,
+      pass: step.pass,
       startAudioTime,
       endAudioTime: startAudioTime + step.dur * runner.secPerBeat,
       samples: [],
@@ -409,21 +471,23 @@ function ensureNotes(playheadBeat) {
  * how far the timeline moves before the next note starts.
  */
 function sequenceStep(index) {
+  const pos = runnerPassPosition(index, passLength(), runner.preview);
+  if (!pos) return null;
+  const place = { preview: pos.preview, pass: pos.pass, passStart: pos.passStart };
   if (runner.mode === 'sequence') {
-    const notes = runner.sequence.notes;
-    if (!notes.length) return null;
-    const note = notes[index % notes.length];
+    const note = runner.sequence.notes[pos.step];
     const beats = runnerNoteBeats(runner.sequence, note);
     const gap = Math.min(NOTE_GAP_BEATS, beats * 0.2);
     return {
+      ...place,
       midi: note.midi,
       dur: Math.max(0.25, beats - gap),
       advance: beats + runner.sequence.restBeats,
     };
   }
-  if (!runner.patternSeq.length) return null;
   return {
-    midi: runner.patternSeq[index % runner.patternSeq.length],
+    ...place,
+    midi: runner.patternSeq[pos.step],
     dur: Math.max(0.35, runner.noteBeats - NOTE_GAP_BEATS),
     advance: runner.noteBeats,
   };
@@ -618,6 +682,19 @@ function draw(playheadBeat) {
     if (x + w < 0 || x > W) continue;
     const y = midiToY(note.midi);
     const barH = Math.max(10, lh * 0.72);
+    if (note.preview) {
+      // A preview bar is hollow. The app sings it, so the player must wait.
+      roundRect(ctx, x, y - barH / 2, Math.max(6, w), barH, Math.min(8, barH / 2));
+      ctx.fillStyle = c.accent;
+      ctx.globalAlpha = 0.16;
+      ctx.fill();
+      ctx.strokeStyle = c.accent;
+      ctx.globalAlpha = 0.75;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      continue;
+    }
     let fill;
     if (note.judged) {
       fill = note.result === 'miss' ? c.err : note.result === 'centered' ? c.ok : c.warn;
@@ -689,6 +766,9 @@ function draw(playheadBeat) {
     ctx.fill();
   }
 
+  // Preview mode says whose turn it is: the app's or the player's.
+  if (runner.preview) drawTurnBadge(ctx, playheadBeat);
+
   // Count-in cue before the first note reaches the line.
   const leadIn = leadInBeats();
   if (playheadBeat < leadIn) {
@@ -701,6 +781,51 @@ function draw(playheadBeat) {
     ctx.textAlign = 'left';
     ctx.globalAlpha = 1;
   }
+}
+
+/**
+ * The label for the pass that plays now: the app's preview, or the player's
+ * turn to sing. Returns null before the first note.
+ */
+function turnLabel(playheadBeat) {
+  let active = null;
+  let next = null;
+  for (const note of runner.notes) {
+    if (playheadBeat >= note.startBeat && playheadBeat < note.startBeat + note.dur) {
+      active = note;
+      break;
+    }
+    if (note.startBeat > playheadBeat && (!next || note.startBeat < next.startBeat)) next = note;
+  }
+  const note = active || next;
+  if (!note) return null;
+  return note.preview ? 'Listen' : 'Your turn \u2014 sing';
+}
+
+/** Draw the preview-mode turn label at the top of the stage. */
+function drawTurnBadge(ctx, playheadBeat) {
+  const label = turnLabel(playheadBeat);
+  if (!label) return;
+  const c = runner.colors;
+  ctx.save();
+  ctx.font = '600 13px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(label).width;
+  const boxW = tw + 22;
+  const boxH = 22;
+  const x = runner.cssW / 2 - boxW / 2;
+  roundRect(ctx, x, 8, boxW, boxH, 11);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fill();
+  ctx.strokeStyle = c.accent;
+  ctx.globalAlpha = 0.7;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = c.text;
+  ctx.fillText(label, runner.cssW / 2, 8 + boxH / 2 + 0.5);
+  ctx.restore();
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -742,33 +867,52 @@ function scheduleAudio(playheadBeat) {
     }
     runner.nextClickBeat += 1;
   }
-  // Optional short melody-guide cues at each upcoming note's start. Scoring is
+  // Target notes the app sounds for the ear: a preview note holds its whole
+  // length, and an optional melody-guide cue only hints the pitch. Scoring is
   // muted for the cue's audible life so speaker bleed can't count as a hit.
-  if (runner.guide) {
-    for (const note of runner.notes) {
-      if (note.guideScheduled) continue;
-      if (note.startBeat <= horizonBeat) {
-        const heardAt = runner.startAudioTime + note.startBeat * runner.secPerBeat;
-        const playAt = cuePlayTime(heardAt);
-        if (playAt != null) {
-          const cueSec = scheduleGuideTone(note.midi, playAt);
-          // The microphone hears the cue only after the output delay.
-          note.guideMuteUntil = lockoutUntil(playAt + delay + cueSec);
-        }
-        note.guideScheduled = true;
+  for (const note of runner.notes) {
+    if (note.guideScheduled) continue;
+    if (!note.preview && !runner.guide) continue;
+    if (note.startBeat > horizonBeat) continue;
+    const heardAt = runner.startAudioTime + note.startBeat * runner.secPerBeat;
+    const playAt = cuePlayTime(heardAt);
+    if (playAt != null) {
+      const cueSec = note.preview
+        ? schedulePreviewTone(note, playAt)
+        : scheduleGuideTone(note.midi, playAt);
+      // The microphone hears the cue only after the output delay.
+      const muteUntil = lockoutUntil(playAt + delay + cueSec);
+      note.guideMuteUntil = muteUntil;
+      // A preview note sounds while the notes after it wait their turn, so its
+      // tail must mute the whole run and not only its own bar.
+      if (note.preview) {
+        runner.previewMuteUntil = Math.max(runner.previewMuteUntil, muteUntil);
       }
     }
+    note.guideScheduled = true;
   }
+}
+
+/**
+ * The moment scoring may start again for one note. It holds the note's own
+ * guide cue and the tail of the last preview note the app played.
+ */
+function cueMuteUntil(note) {
+  return Math.max(note.guideMuteUntil, runner.previewMuteUntil);
 }
 
 function handleRunnerPitchFrame(frame) {
   if (!runner.running) return;
   const audioTime = frame.audioTime;
-  let anyLockActive = false;
-  for (const note of runner.notes) {
-    if (note.guideMuteUntil > 0 && !isScoringWindowClear(audioTime, note.guideMuteUntil, runner.capture)) {
-      anyLockActive = true;
-      break;
+  // The app plays the preview notes, so the room is not quiet until the last
+  // preview tone dies away.
+  let anyLockActive = !isScoringWindowClear(audioTime, runner.previewMuteUntil, runner.capture);
+  if (!anyLockActive) {
+    for (const note of runner.notes) {
+      if (note.guideMuteUntil > 0 && !isScoringWindowClear(audioTime, note.guideMuteUntil, runner.capture)) {
+        anyLockActive = true;
+        break;
+      }
     }
   }
   if (anyLockActive && !runner.guideLockActive) {
@@ -832,10 +976,16 @@ function step() {
   for (const note of runner.notes) {
     if (note.judged) continue;
     const end = note.startBeat + note.dur;
+    if (note.preview) {
+      // The app sings a preview note. The game does not listen for it and it
+      // never reaches the score.
+      if (playheadBeat >= end) note.judged = true;
+      continue;
+    }
     const inNoteWindow = correctedAudioTime >= note.startAudioTime
       && correctedAudioTime < note.endAudioTime;
     if (inNoteWindow) {
-      const scoring = isScoringWindowClear(correctedAudioTime, note.guideMuteUntil, runner.capture);
+      const scoring = isScoringWindowClear(correctedAudioTime, cueMuteUntil(note), runner.capture);
       if (scoring) {
         const cents = voiced && frequencyHz > 0
           ? centsOffFromTarget(frequencyHz, note.midi)
@@ -856,7 +1006,8 @@ function step() {
   }
 
   // A saved run plays a fixed number of notes and then stops on its own.
-  const budget = sequenceNoteBudget();
+  // Preview notes carry no score, so only the sung notes end the run.
+  const budget = scoredNoteBudget();
   if (budget && !runner.finished && runner.judged >= budget) {
     runner.finished = true;
     draw(playheadBeat);
@@ -885,6 +1036,7 @@ function resetTimeline() {
   runner.nextClickBeat = 0;
   runner.notes = [];
   runner.trail = [];
+  runner.previewMuteUntil = 0;
   buildPatternSeq();
   ensureNotes(0);
 }
@@ -935,7 +1087,11 @@ async function startRunner() {
     setToggleLabel(true);
     setOverlay('');
     const status = el('pr-status');
-    if (status) status.textContent = 'Listening\u2026 sing the notes as they cross the line';
+    if (status) {
+      status.textContent = runner.preview
+        ? 'Listen to each pass, then sing the same notes back'
+        : 'Listening\u2026 sing the notes as they cross the line';
+    }
     runner.startAudioTime = audioCtx.currentTime + startLeadSec();
     runner.nextClickBeat = 0;
     syncNoteAudioTimes();
@@ -1052,6 +1208,7 @@ function loadFreeSettings() {
   runner.noteBeats = Number(getSetting('pitchRunner.noteBeats', runner.noteBeats));
   runner.metronome = getSetting('pitchRunner.metronome', runner.metronome) !== false;
   runner.guide = getSetting('pitchRunner.guide', runner.guide) === true;
+  runner.preview = getSetting('pitchRunner.preview', runner.preview) === true;
   if (!(runner.rangeLow >= 36 && runner.rangeLow <= 84)) runner.rangeLow = 48;
   if (!(runner.rangeHigh >= 36 && runner.rangeHigh <= 84)) runner.rangeHigh = 72;
   if (!NOTE_LENGTHS.includes(runner.noteBeats)) runner.noteBeats = 2;
@@ -1078,6 +1235,7 @@ function attachRunner({ dom, sequence = null, onFinish = null } = {}) {
     runner.sequence = sequence;
     runner.metronome = sequence.metronome !== false;
     runner.guide = sequence.guide !== false;
+    runner.preview = sequence.preview === true;
   } else {
     runner.mode = 'free';
     runner.sequence = null;
@@ -1117,6 +1275,7 @@ function attachRunner({ dom, sequence = null, onFinish = null } = {}) {
       runner.onFinish = null;
       runner.mode = 'free';
       runner.sequence = null;
+      runner.preview = false;
     },
   };
 }
@@ -1248,6 +1407,18 @@ function wireControls() {
     };
   }
 
+  const previewChk = el('pr-preview');
+  if (previewChk) {
+    previewChk.checked = runner.preview;
+    previewChk.onchange = () => {
+      runner.preview = previewChk.checked;
+      if (runner.mode === 'sequence') runner.sequence.preview = runner.preview;
+      else saveSetting('pitchRunner.preview', runner.preview);
+      // The pass plan changes, so the timeline must be built again.
+      restartIfRunning();
+    };
+  }
+
   const delayInput = el('pr-audio-delay');
   if (delayInput) {
     delayInput.min = String(AUDIO_DELAY_MIN_MS);
@@ -1312,6 +1483,7 @@ function syncControls() {
   const lengthSel = el('pr-length');
   const metroChk = el('pr-metronome');
   const guideChk = el('pr-guide');
+  const previewChk = el('pr-preview');
   const delayInput = el('pr-audio-delay');
   if (diffSel) diffSel.value = runner.difficulty;
   if (patternSel) patternSel.value = runner.pattern;
@@ -1319,6 +1491,7 @@ function syncControls() {
   if (lengthSel) lengthSel.value = String(runner.noteBeats);
   if (metroChk) metroChk.checked = runner.metronome;
   if (guideChk) guideChk.checked = runner.guide;
+  if (previewChk) previewChk.checked = runner.preview;
   if (delayInput) delayInput.value = String(runner.audioDelayMs);
 }
 

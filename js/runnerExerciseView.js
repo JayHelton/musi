@@ -83,8 +83,10 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
   const passes = config.repeats === 0
     ? 'endless'
     : `${config.repeats} time${config.repeats === 1 ? '' : 's'}`;
+  // Preview mode plays every pass twice, so the run takes twice as long.
   const runSeconds = runnerRunBeats(config) * (60 / config.bpm)
-    * (config.repeats === 0 ? 1 : config.repeats);
+    * (config.repeats === 0 ? 1 : config.repeats)
+    * (config.preview ? 2 : 1);
   const summaryText = config.repeats === 0
     ? describeRunnerConfig(config)
     : `${describeRunnerConfig(config)} · about ${formatDuration(runSeconds)}`;
@@ -117,9 +119,11 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
 
   const metronome = el('input', { type: 'checkbox' });
   const guide = el('input', { type: 'checkbox' });
+  const preview = el('input', { type: 'checkbox' });
   root.appendChild(el('div', { class: 'pr-toggles' }, [
     el('label', { class: 'pr-check' }, [metronome, el('span', { text: 'Metronome click' })]),
     el('label', { class: 'pr-check' }, [guide, el('span', { text: 'Play melody guide' })]),
+    el('label', { class: 'pr-check' }, [preview, el('span', { text: 'Preview each pass' })]),
   ]));
 
   const score = el('span', { class: 'pr-stat-val', text: '0' });
@@ -145,6 +149,8 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
   root.appendChild(el('p', {
     class: 'rx-hint',
     text: `The run plays ${passes}. Sing each note as its bar crosses the line.`
+      + ' Preview each pass plays the notes to you first. The hollow bars are the'
+      + ' preview, and the solid bars are your turn to sing.'
       + ' Bluetooth headphones play the sound late. Raise the audio delay until the'
       + ' click lands on the beat you see.',
   }));
@@ -170,6 +176,7 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
       'pr-bpm-up': bpmUp,
       'pr-metronome': metronome,
       'pr-guide': guide,
+      'pr-preview': preview,
       'pr-audio-delay': audioDelay,
     },
     sequence: config,

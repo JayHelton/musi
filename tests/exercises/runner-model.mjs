@@ -100,6 +100,7 @@ await test('a stored config normalizes and a config without notes is dropped', (
   assert.equal(config.repeats, 3);
   assert.equal(config.metronome, false);
   assert.equal(config.guide, true, 'guide stays on unless the record turns it off');
+  assert.equal(config.preview, false, 'preview stays off unless the record turns it on');
   assert.deepEqual(config.notes, [{ midi: 60, beats: 2 }, { midi: 62, beats: 16 }]);
   assert.equal(normalizeRunnerConfig({ notes: [] }), null);
   assert.equal(normalizeRunnerConfig(null), null);
@@ -113,6 +114,15 @@ await test('a run reports its range, its length, and a summary', () => {
   assert.deepEqual(runnerNoteRange(config.notes), { low: 60, high: 67 });
   assert.equal(runnerRunBeats(config), 8, '2 + 4 beats of notes plus 2 beats of rest');
   assert.equal(describeRunnerConfig(config), '2 notes · C4–G4 · 90 BPM · 2×');
+});
+
+await test('a run in preview mode says so and keeps the flag', () => {
+  const config = normalizeRunnerConfig({
+    bpm: 90, repeats: 2, restBeats: 1, preview: true,
+    notes: [{ midi: 60, beats: 2 }, { midi: 67, beats: 4 }],
+  });
+  assert.equal(config.preview, true);
+  assert.equal(describeRunnerConfig(config), '2 notes · C4–G4 · 90 BPM · 2× · preview');
 });
 
 await test('a fixed note length holds every note the same', () => {

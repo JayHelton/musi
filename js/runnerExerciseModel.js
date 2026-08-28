@@ -215,6 +215,7 @@ export function defaultRunnerConfig() {
     countInBeats: 4,
     metronome: true,
     guide: true,
+    preview: false,
     attachmentId: '',
     fileName: '',
     trackIndex: 0,
@@ -241,6 +242,9 @@ export function normalizeRunnerConfig(raw) {
     countInBeats: Math.round(clampNumber(raw.countInBeats, 0, 8, 4)),
     metronome: raw.metronome !== false,
     guide: raw.guide !== false,
+    // Preview mode plays every pass twice, so a saved run keeps it off until
+    // the user asks for it.
+    preview: raw.preview === true,
     attachmentId: typeof raw.attachmentId === 'string' ? raw.attachmentId : '',
     fileName: typeof raw.fileName === 'string' ? raw.fileName : '',
     trackIndex: Math.max(0, Math.round(clampNumber(raw.trackIndex, 0, 64, 0))),
@@ -256,7 +260,8 @@ export function describeRunnerConfig(config) {
   const passes = cfg.repeats === 0 ? 'endless' : `${cfg.repeats}×`;
   const count = `${cfg.notes.length} note${cfg.notes.length === 1 ? '' : 's'}`;
   const span = `${midiToNoteName(range.low)}–${midiToNoteName(range.high)}`;
-  return `${count} · ${span} · ${cfg.bpm} BPM · ${passes}`;
+  const line = `${count} · ${span} · ${cfg.bpm} BPM · ${passes}`;
+  return cfg.preview ? `${line} · preview` : line;
 }
 
 // --- Guitar Pro import -----------------------------------------------------
