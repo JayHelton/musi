@@ -29,6 +29,7 @@ import {
 } from './gpExerciseScore.js';
 import { BULK_ACCEPT_ATTR, UPLOAD_ACCEPT_ATTR, classifyUploadFile } from './exercisesBulk.js';
 import { openBulkUploadDialog, closeBulkUploadDialog } from './exercisesBulkUI.js';
+import { openCourseImportDialog, closeCourseImportDialog } from './courseImportUI.js';
 import { emitDataChanged } from './dataEvents.js';
 import {
   MAX_FOLDER_DEPTH,
@@ -56,6 +57,10 @@ import {
   openNoteDialog,
   openRunnerDialog,
 } from './exerciseAddUI.js';
+import {
+  createWorkbookFolder,
+  createWorkbook,
+} from './workbookModel.js';
 import { createDriveBrowser, closeDriveMenu } from './library/driveBrowser.js';
 import { neighborIds, formatPosition, sortEntries } from './library/driveModel.js';
 import { showAppToast } from './appToast.js';
@@ -899,7 +904,8 @@ let selectedCategory = '';
 // The shared Drive-style browser. Workbooks builds an identical one.
 let browser = null;
 
-let listEl, catListEl, crumbsEl, toolsEl, statusEl, bulkBarEl, fileInput, bulkFileInput;
+let listEl, catListEl, crumbsEl, toolsEl, statusEl, bulkBarEl, fileInput, bulkFileInput,
+  courseFileInput;
 let sectionEl, workspaceEl, playerPaneEl, playerBodyEl, playerTitleEl, playerActionsEl, playerBackBtn;
 let playerStepEl, playerPrevBtn, playerNextBtn, playerPosEl;
 let activeExerciseId = null;
@@ -990,10 +996,14 @@ function exerciseRowMenuExtras(item) {
 }
 
 function newMenuExtrasForExercises(folderId) {
-  return [
+  const extras = [
     { label: 'Add exercise\u2026', onClick: () => openAddFlow(folderId) },
     { label: 'Bulk upload', onClick: () => startBulkUpload() },
   ];
+  if (courseImportSupported()) {
+    extras.push({ label: 'Import course\u2026', onClick: () => startCourseImport() });
+  }
+  return extras;
 }
 
 function startBulkUpload() {
@@ -1002,6 +1012,22 @@ function startBulkUpload() {
     return;
   }
   (bulkFileInput || fileInput)?.click();
+}
+
+/**
+ * Open the folder picker for a course. The browser reports every file inside
+ * the folder, and each file carries the path it sits at.
+ */
+function startCourseImport() {
+  if (!attachmentsSupported()) {
+    setStatus('Importing a course needs browser storage, which is unavailable here.', true);
+    return;
+  }
+  if (!courseFileInput) {
+    setStatus('This browser cannot pick a folder. Use Bulk upload instead.', true);
+    return;
+  }
+  courseFileInput.click();
 }
 
 /** The label of the folder a new exercise joins, for the chooser. */
@@ -1021,6 +1047,7 @@ export function openAddFlow(folderId) {
   openAddExerciseChooser({
     folderLabel: folderLabelFor(target),
     onBulkUpload: () => startBulkUpload(),
+    onImportCourse: courseImportSupported() ? () => startCourseImport() : null,
     onPick: (typeId) => {
       if (typeId === 'link') { openLinkDialog(target); return; }
       if (typeId === 'runner') { openRunnerForm({ categoryId: target }); return; }
@@ -1125,7 +1152,7 @@ function buildBrowser() {
     newMenuExtras: newMenuExtrasForExercises,
     onExternalFiles: (files, folderId) => uploadFiles(files, folderId),
     emptyRootTitle: 'No exercises yet',
-    emptyHint: 'Use + New \u2192 Add exercise to add a link, a file, a Guitar Pro score, a pitch run, or a written exercise. You can also drop files straight onto this pane.',
+    emptyHint: 'Use + New \u2192 Add exercise to add a link, a file, a Guitar Pro score, a pitch run, or a written exercise. Use + New \u2192 Import course to bring in a whole course folder. You can also drop files straight onto this pane.',
     prompt: promptForName,
     toast: setStatus,
     onNavigate: (folderId) => {
@@ -1275,6 +1302,42 @@ async function onBulkUploadFiles() {
     createFolder: addCategory,
     addGpExercise: addGpExerciseFromAttachment,
     addMediaExercise: addExerciseFromAttachment,
+    onDone: (result) => {
+      render();
+      setStatus(result.message, !result.ok);
+    },
+  });
+}
+
+/** True when the browser can pick a whole folder at once. */
+function courseImportSupported() {
+  try {
+    return typeof document !== 'undefined'
+      && 'webkitdirectory' in document.createElement('input');
+  } catch (e) {
+    return false;
+  }
+}
+
+async function onCourseFiles() {
+  const files = Array.from(courseFileInput?.files || []);
+  if (courseFileInput) courseFileInput.value = '';
+  if (!files.length) return;
+
+  if (!attachmentsSupported()) {
+    setStatus('Importing a course needs browser storage, which is unavailable here.', true);
+    return;
+  }
+
+  openCourseImportDialog({
+    files,
+    folders: getCategories(),
+    defaultCategoryId: defaultExerciseFolder(),
+    createExerciseFolder: (name, parentId) => addCategory(name, parentId),
+    addGpExercise: addGpExerciseFromAttachment,
+    addMediaExercise: addExerciseFromAttachment,
+    createWorkbookFolder: (name, parentId) => createWorkbookFolder(name, parentId),
+    createWorkbook,
     onDone: (result) => {
       render();
       setStatus(result.message, !result.ok);
@@ -2322,6 +2385,7 @@ export function initExercises() {
   bulkBarEl = document.getElementById('ex-bulk-bar');
   fileInput = document.getElementById('ex-file-input');
   bulkFileInput = document.getElementById('ex-bulk-file-input');
+  courseFileInput = document.getElementById('ex-course-file-input');
   sectionEl = document.getElementById('sec-exercises');
   workspaceEl = document.getElementById('ex-workspace');
   playerPaneEl = document.getElementById('ex-player-pane');
@@ -2346,6 +2410,11 @@ export function initExercises() {
       bulkFileInput.setAttribute('accept', BULK_ACCEPT_ATTR);
       bulkFileInput.addEventListener('change', onBulkUploadFiles);
     }
+    if (courseFileInput) {
+      // A folder picker reports every file it holds. The import engine decides
+      // which of them it can use, so the input takes no accept list.
+      courseFileInput.addEventListener('change', onCourseFiles);
+    }
     if (attachmentsSupported()) ensurePersistentStorage();
     wirePlayerControls();
     browser = buildBrowser();
@@ -2359,6 +2428,7 @@ export function initExercises() {
 // Close the viewer when navigating away from the Exercises section.
 export function stopExercises() {
   closeBulkUploadDialog();
+  closeCourseImportDialog();
   closeAddExerciseDialog();
   closeExerciseViewer();
   closeDriveMenu();

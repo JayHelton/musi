@@ -115,6 +115,14 @@ storage; the Library page is the door to both.
     player keeps the note list closed below the game, so a long run does not
     push the game off the screen.
   - A **written exercise** holds the text you type and any number of files.
+  - **Import course** takes a whole course folder at once. Pick the top folder
+    and Musi mirrors the folder tree into Exercises. Every supported file
+    becomes an exercise in the folder that holds it. Musi mirrors the same tree
+    into Workbooks, and each folder that holds files becomes one workbook with
+    those exercises, in course order. The dialog shows the tree before the
+    import, so you can rename the course, choose where it goes, turn a folder
+    off, or leave the workbooks out. Guitar Pro scores stay whole; use **Bulk
+    upload** to split a score into sections.
 - **Workbooks** — order exercises into a focused practice collection, with
   looping, auto-advance, notes, and companion widgets.
 

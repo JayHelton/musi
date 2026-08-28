@@ -166,9 +166,15 @@ function numberInput({ value, min, max, step = 1, ariaLabel }) {
 
 /**
  * Ask which kind of exercise to add.
- * @param {{ folderLabel?: string, onPick: (typeId: string) => void, onBulkUpload?: () => void }} options
+ * @param {{ folderLabel?: string, onPick: (typeId: string) => void,
+ *           onBulkUpload?: () => void, onImportCourse?: () => void }} options
  */
-export function openAddExerciseChooser({ folderLabel = '', onPick, onBulkUpload } = {}) {
+export function openAddExerciseChooser({
+  folderLabel = '',
+  onPick,
+  onBulkUpload,
+  onImportCourse,
+} = {}) {
   const dialog = el('div', { class: 'modal-dialog ex-add-dialog' });
   dialog.appendChild(el('h3', { class: 'modal-title', text: 'Add an exercise' }));
   dialog.appendChild(el('p', {
@@ -198,6 +204,13 @@ export function openAddExerciseChooser({ folderLabel = '', onPick, onBulkUpload 
   dialog.appendChild(grid);
 
   const actions = el('div', { class: 'modal-actions' });
+  if (typeof onImportCourse === 'function') {
+    actions.appendChild(el('button', {
+      class: 'btn sm', type: 'button', text: 'Import course',
+      title: 'Pick a course folder. Musi mirrors the folders and makes a workbook for each one.',
+      onClick: () => { closeAddExerciseDialog(); onImportCourse(); },
+    }));
+  }
   if (typeof onBulkUpload === 'function') {
     actions.appendChild(el('button', {
       class: 'btn sm', type: 'button', text: 'Bulk upload',

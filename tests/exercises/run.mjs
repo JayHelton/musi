@@ -5,6 +5,8 @@
 
 await import('./bulk-import.mjs');
 await import('./bulk-upload-ui.mjs');
+await import('./course-import.mjs');
+await import('./course-import-ui.mjs');
 await import('./video-classification.mjs');
 await import('./folder-delete.mjs');
 await import('./nested-folders.mjs');
