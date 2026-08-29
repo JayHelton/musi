@@ -23,6 +23,15 @@ import {
   PASS_GAP_MIN_BEATS,
 } from './runnerTimeline.js';
 import { preparePitchVoice, playPitchNote, pitchVoiceWave } from './audio/pitchVoice.js';
+import {
+  clampViewCenter,
+  easeViewCenter,
+  shouldLabelLane,
+  targetViewCenter,
+  visibleLaneRange,
+  visibleLaneSpan,
+  VIEW_EDGE_LANES,
+} from './runnerPitchView.js';
 
 // "Pitch runner" — a Guitar-Hero / Yousician-style scrolling pitch game that
 // lives in the Pitch section. Note bars stream in from the right in strict 4/4
@@ -54,6 +63,9 @@ const RANGE_PRESETS = [
 
 // How the timeline maps to the canvas.
 const HIT_X_RATIO = 0.28;      // hit line position, fraction of width from left
+// How far back of the hit line the pitch window still holds a note, in beats.
+// The window leads the melody, so it looks only a short way back.
+const VIEW_BEHIND_BEATS = 1.5;
 const LEAD_IN_BEATS = 4;       // one 4/4 measure of count-in before the first note
 const NOTE_GAP_BEATS = 0.18;   // silent gap (beats) between adjacent notes
 const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
@@ -196,6 +208,11 @@ const runner = {
   guideBeat: 0,
   laneMin: 55,
   laneMax: 67,
+  // The pitch window: the lanes the canvas shows now. A run with a wide range
+  // shows a part of the range and slides the window as the melody moves.
+  viewSpan: 13,
+  viewCenter: null,
+  lastViewTick: 0,
   trail: [],
   guideVoices: [],
   // The moment the room is quiet again after the last preview note. A preview
@@ -328,8 +345,7 @@ function buildPatternSeq() {
     let min = Infinity;
     let max = -Infinity;
     runner.patternSeq.forEach(m => { min = Math.min(min, m); max = Math.max(max, m); });
-    runner.laneMin = Number.isFinite(min) ? min - 2 : 55;
-    runner.laneMax = Number.isFinite(max) ? max + 2 : 67;
+    setLaneBounds(Number.isFinite(min) ? min - 2 : 55, Number.isFinite(max) ? max + 2 : 67);
     updateStartState();
     return;
   }
@@ -353,9 +369,19 @@ function buildPatternSeq() {
     min = lo;
     max = hi;
   }
-  runner.laneMin = min - 2;
-  runner.laneMax = max + 2;
+  setLaneBounds(min - 2, max + 2);
   updateStartState();
+}
+
+/**
+ * Hold the pitch range of the whole run, and then size the visible window for
+ * that range. A run of a few notes shows every lane. A run of three octaves
+ * shows one part and slides through the rest.
+ */
+function setLaneBounds(min, max) {
+  runner.laneMin = Math.round(min);
+  runner.laneMax = Math.round(max);
+  refreshViewSpan();
 }
 
 function setStartDisabled(disabled, message) {
@@ -595,6 +621,7 @@ function resizeCanvas() {
   // makes the card wider than a phone screen.
   runner.cssW = cssW;
   runner.cssH = cssH;
+  refreshViewSpan();
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   runner.ctx2d = ctx;
@@ -606,17 +633,79 @@ function pxPerBeat() {
   return (runner.cssW - hitX) / visibleBeatsAhead();
 }
 
+// The lanes fill the canvas between a margin at the top and at the bottom.
+const VIEW_PAD_PX = 14;
+
+/** The height the pitch lanes fill, in CSS pixels. */
+function laneAreaHeight() {
+  return Math.max(1, runner.cssH - VIEW_PAD_PX * 2);
+}
+
+/** The number of lanes the whole run covers. */
+function contentLaneCount() {
+  return runner.laneMax - runner.laneMin + 1;
+}
+
+/** The middle lane of the whole run, in MIDI numbers. */
+function contentCenter() {
+  return (runner.laneMin + runner.laneMax) / 2;
+}
+
+/** The middle lane of the window now. */
+function viewCenter() {
+  return runner.viewCenter == null ? contentCenter() : runner.viewCenter;
+}
+
+/**
+ * Size the window for the canvas and for the range of the run, and then hold
+ * the window inside that range. The canvas calls this on every resize.
+ */
+function refreshViewSpan() {
+  runner.viewSpan = visibleLaneSpan(laneAreaHeight(), contentLaneCount());
+  if (runner.viewCenter != null) {
+    runner.viewCenter = clampViewCenter(
+      runner.viewCenter, runner.viewSpan, runner.laneMin, runner.laneMax,
+    );
+  }
+}
+
+/** The pitch the window must show for the notes at one beat. */
+function viewTargetAt(playheadBeat) {
+  const target = targetViewCenter(runner.notes, playheadBeat, {
+    span: runner.viewSpan,
+    aheadBeats: visibleBeatsAhead(),
+    behindBeats: VIEW_BEHIND_BEATS,
+    edgeLanes: VIEW_EDGE_LANES,
+    fallbackCenter: viewCenter(),
+  });
+  return clampViewCenter(target, runner.viewSpan, runner.laneMin, runner.laneMax);
+}
+
+/**
+ * Move the window toward the notes that play now. `snap` puts the window on
+ * the target at once, for the first frame of a run.
+ */
+function updateView(playheadBeat, { snap = false } = {}) {
+  const target = viewTargetAt(playheadBeat);
+  if (snap || runner.viewCenter == null) {
+    runner.viewCenter = target;
+    runner.lastViewTick = 0;
+    return;
+  }
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+  const dt = runner.lastViewTick ? now - runner.lastViewTick : 0;
+  runner.lastViewTick = now;
+  runner.viewCenter = easeViewCenter(runner.viewCenter, target, dt);
+}
+
 function midiToY(midiFloat) {
-  const pad = 14;
-  const top = runner.laneMax + 0.5;
-  const bottom = runner.laneMin - 0.5;
-  const span = top - bottom || 1;
-  const usable = runner.cssH - pad * 2;
-  return pad + ((top - midiFloat) / span) * usable;
+  const top = viewCenter() + runner.viewSpan / 2;
+  const span = runner.viewSpan || 1;
+  return VIEW_PAD_PX + ((top - midiFloat) / span) * laneAreaHeight();
 }
 
 function laneHeight() {
-  return Math.abs(midiToY(runner.laneMin + 1) - midiToY(runner.laneMin));
+  return laneAreaHeight() / (runner.viewSpan || 1);
 }
 
 function drawIdle() {
@@ -641,11 +730,13 @@ function draw(playheadBeat) {
   ctx.fillStyle = c.card;
   ctx.fillRect(0, 0, W, H);
 
-  // Pitch lanes (one per semitone), scale tones subtly highlighted.
+  // Pitch lanes (one per semitone), scale tones subtly highlighted. Only the
+  // lanes of the window get drawn, so a wide run keeps readable lanes.
   ctx.textBaseline = 'middle';
   ctx.font = '11px system-ui, sans-serif';
+  const lanes = visibleLaneRange(viewCenter(), runner.viewSpan, runner.laneMin, runner.laneMax);
   const inSeq = new Set(runner.patternSeq);
-  for (let m = runner.laneMin; m <= runner.laneMax; m++) {
+  for (let m = lanes.lo; m <= lanes.hi; m++) {
     const y = midiToY(m);
     if (inSeq.has(m)) {
       ctx.fillStyle = 'rgba(255,255,255,0.05)';
@@ -727,10 +818,12 @@ function draw(playheadBeat) {
   }
 
   // Note-name labels in the left gutter, drawn last so bars never hide them.
+  // A short lane prints only the names that matter, so no two names overlap.
   const inSeqLbl = new Set(runner.patternSeq);
-  for (let m = runner.laneMin; m <= runner.laneMax; m++) {
-    const y = midiToY(m);
+  for (let m = lanes.lo; m <= lanes.hi; m++) {
+    if (!shouldLabelLane(m, { lanePx: lh })) continue;
     const isTarget = inSeqLbl.has(m);
+    const y = midiToY(m);
     const lbl = midiToLabel(m);
     const tw = ctx.measureText(lbl.full).width;
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -741,6 +834,9 @@ function draw(playheadBeat) {
     ctx.fillText(lbl.full, 7, y);
     ctx.globalAlpha = 1;
   }
+
+  // A rail on the right edge shows where the window sits in the whole range.
+  drawRangeRail(ctx);
 
   // Hit line.
   ctx.strokeStyle = c.accent;
@@ -755,7 +851,8 @@ function draw(playheadBeat) {
   // Live pitch puck on the hit line.
   const last = runner.trail[runner.trail.length - 1];
   if (last && last.hasPitch) {
-    const y = midiToY(last.midiFloat);
+    // A voice above or below the window still shows, held at the edge.
+    const y = Math.max(8, Math.min(H - 8, midiToY(last.midiFloat)));
     ctx.fillStyle = last.inTune ? c.ok : c.warn;
     ctx.beginPath();
     ctx.arc(hitX, y, 8, 0, Math.PI * 2);
@@ -781,6 +878,48 @@ function draw(playheadBeat) {
     ctx.textAlign = 'left';
     ctx.globalAlpha = 1;
   }
+}
+
+/**
+ * A rail on the right edge that shows the whole range of the run and the part
+ * of it the window holds now. It appears only when the range is too wide for
+ * one screen, so a short run keeps a clean canvas.
+ */
+function drawRangeRail(ctx) {
+  if (runner.viewSpan >= contentLaneCount()) return;
+  const c = runner.colors;
+  const H = runner.cssH;
+  const x = runner.cssW - 9;
+  const top = VIEW_PAD_PX;
+  const bottom = H - VIEW_PAD_PX;
+  const height = bottom - top;
+  if (height <= 8) return;
+  const low = runner.laneMin - 0.5;
+  const high = runner.laneMax + 0.5;
+  const spanAll = high - low;
+  const yFor = midi => top + ((high - midi) / spanAll) * height;
+
+  ctx.fillStyle = c.border;
+  ctx.globalAlpha = 0.5;
+  roundRect(ctx, x - 2, top, 4, height, 2);
+  ctx.fill();
+
+  // A dot for every pitch of the run, so the singer sees the whole shape.
+  ctx.fillStyle = c.muted;
+  ctx.globalAlpha = 0.55;
+  new Set(runner.patternSeq).forEach((midi) => {
+    ctx.fillRect(x - 3.5, yFor(midi) - 0.75, 7, 1.5);
+  });
+
+  // The window.
+  const center = viewCenter();
+  const thumbTop = yFor(center + runner.viewSpan / 2);
+  const thumbBottom = yFor(center - runner.viewSpan / 2);
+  ctx.fillStyle = c.accent;
+  ctx.globalAlpha = 0.55;
+  roundRect(ctx, x - 3, thumbTop, 6, Math.max(6, thumbBottom - thumbTop), 3);
+  ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 /**
@@ -1010,18 +1149,20 @@ function step() {
   const budget = scoredNoteBudget();
   if (budget && !runner.finished && runner.judged >= budget) {
     runner.finished = true;
+    updateView(playheadBeat);
     draw(playheadBeat);
     finishRun();
     return;
   }
 
   // Record the pitch trace and prune notes/trail that scrolled off-screen.
-  runner.trail.push({ beat: playheadBeat, midiFloat: midiFloat ?? runner.laneMin, hasPitch, inTune });
+  runner.trail.push({ beat: playheadBeat, midiFloat: midiFloat ?? viewCenter(), hasPitch, inTune });
   const leftBeats = (runner.cssW * HIT_X_RATIO) / pxPerBeat();
   const cutoff = playheadBeat - leftBeats - 1;
   while (runner.trail.length && runner.trail[0].beat < cutoff) runner.trail.shift();
   runner.notes = runner.notes.filter(n => n.startBeat + n.dur >= cutoff);
 
+  updateView(playheadBeat);
   draw(playheadBeat);
 }
 
@@ -1037,8 +1178,13 @@ function resetTimeline() {
   runner.notes = [];
   runner.trail = [];
   runner.previewMuteUntil = 0;
+  runner.viewCenter = null;
+  runner.lastViewTick = 0;
   buildPatternSeq();
   ensureNotes(0);
+  // The window starts on the first notes, so the run does not scroll in from
+  // the middle of the range.
+  updateView(0, { snap: true });
 }
 
 async function startRunner() {
