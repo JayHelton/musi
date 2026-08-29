@@ -1297,6 +1297,20 @@ function mountWorkbookNote(item, host) {
   host.appendChild(article);
 }
 
+// The reader chrome of the browser costs the page a third of a small screen.
+// The workbook shows the page itself, at the fit the shape of the frame asks
+// for. See pdfFrameSrc in js/exercises.js.
+const PDF_CHROME_PARAMS = 'toolbar=0&navpanes=0&statusbar=0&messages=0';
+
+function pdfFrameSrc(url, host) {
+  const box = host && typeof host.getBoundingClientRect === 'function'
+    ? host.getBoundingClientRect()
+    : null;
+  const wide = box && box.height > 0 ? (box.width / box.height) > 0.9 : true;
+  const fit = wide ? 'view=Fit&zoom=page-fit' : 'view=FitH&zoom=page-width';
+  return `${url}#${PDF_CHROME_PARAMS}&${fit}`;
+}
+
 function mountInlineArtifact(item, host, objectUrl) {
   const kind = mediaKind(item);
   if (item.url) {
@@ -1334,7 +1348,9 @@ function mountInlineArtifact(item, host, objectUrl) {
     }));
   } else if (kind === 'pdf' || isInlineDocExercise(item)) {
     host.appendChild(el('iframe', {
-      class: 'wb-player-frame', src: objectUrl, title: item.name,
+      class: 'wb-player-frame',
+      src: kind === 'pdf' ? pdfFrameSrc(objectUrl, host) : objectUrl,
+      title: item.name,
     }));
   } else if (isOfficeDocExercise(item)) {
     mountNonAdvanceCard(item, host);

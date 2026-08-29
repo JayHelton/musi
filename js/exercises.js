@@ -1597,11 +1597,28 @@ function ensurePlayerElements() {
   return !!(workspaceEl && playerPaneEl && playerBodyEl && playerTitleEl && playerActionsEl);
 }
 
-// The viewer takes the screen, so the section must know where it starts. The
-// CSS in css/exercises.css turns this offset into a height for the pane. Without
-// it the pane holds only its content, and a PDF frame shows a short band.
+// The viewer takes the screen, so the section must know where it starts and
+// where it must stop. The CSS in css/exercises.css turns these numbers into a
+// height for the pane. Without them the pane holds only its content, and a PDF
+// frame shows a short band.
+//
+// The numbers come from the live boxes, not from --dock-h. That token is only
+// the smallest height of the bottom bar; the bar is taller than that on a
+// phone, and it does not exist at all on a wide screen, where the rail carries
+// the navigation. A guess either cuts the page off or leaves a dead strip.
 const VIEWER_GUTTER_PX = 8;
+const VIEWER_MIN_HEIGHT_PX = 240;
 let viewerMetricsHandle = null;
+
+/** The first pixel row the viewer must stay above: the dock, or the screen. */
+function viewerBottomLimit() {
+  const viewportH = Math.round(window.innerHeight || 0);
+  const dock = document.querySelector?.('.app-bottom');
+  if (!dock || typeof dock.getBoundingClientRect !== 'function') return viewportH;
+  const box = dock.getBoundingClientRect();
+  const onScreen = box.height > 0 && box.top < viewportH && box.bottom > viewportH - 2;
+  return onScreen ? Math.round(box.top) : viewportH;
+}
 
 function installViewerMetrics(section) {
   if (viewerMetricsHandle) {
@@ -1613,8 +1630,21 @@ function installViewerMetrics(section) {
   function measure() {
     if (!section?.isConnected || !section.classList.contains('ex-viewing')) return;
     const top = Math.max(0, Math.round(section.getBoundingClientRect().top));
+    const height = Math.max(
+      VIEWER_MIN_HEIGHT_PX,
+      viewerBottomLimit() - top - VIEWER_GUTTER_PX,
+    );
+    // The column below the section keeps a pad for the dock. The viewer already
+    // stops above the dock, so the section pulls that pad back and the screen
+    // gets no scroll bar.
+    const holder = section.parentElement;
+    const pad = holder && typeof getComputedStyle === 'function'
+      ? parseFloat(getComputedStyle(holder).paddingBottom)
+      : 0;
     section.style.setProperty('--ex-viewer-top', `${top}px`);
     section.style.setProperty('--ex-viewer-gutter', `${VIEWER_GUTTER_PX}px`);
+    section.style.setProperty('--ex-viewer-h', `${height}px`);
+    section.style.setProperty('--ex-viewer-shift', `${Math.max(0, Math.round(pad || 0))}px`);
   }
 
   function schedule() {
@@ -1641,6 +1671,8 @@ function installViewerMetrics(section) {
       window.visualViewport?.removeEventListener('resize', schedule);
       section.style.removeProperty('--ex-viewer-top');
       section.style.removeProperty('--ex-viewer-gutter');
+      section.style.removeProperty('--ex-viewer-h');
+      section.style.removeProperty('--ex-viewer-shift');
       viewerMetricsHandle = null;
     },
   };
@@ -1655,6 +1687,11 @@ function refreshViewerMetrics() {
 }
 
 function setViewerLayoutActive(on) {
+  // The shell keeps a band above the content and a pad at each side. The open
+  // exercise needs that space more than the empty band does, so the class lets
+  // css/exercises.css take it, the same way the Score Player does with
+  // .gpp-player-locked. The class comes off first, so a close always clears it.
+  document.documentElement?.classList?.toggle('ex-viewer-locked', on && !!sectionEl);
   if (!sectionEl) return;
   sectionEl.classList.toggle('ex-viewing', on);
   if (on) installViewerMetrics(sectionEl);
@@ -1887,6 +1924,27 @@ async function openAttachmentInTab(file) {
   }
 }
 
+// Open parameters for the PDF reader of the browser. The exercise wants the
+// page, not the reader chrome: the toolbar and the thumbnail panel take a third
+// of a small screen, and the head of the viewer already carries Open in tab and
+// Download. A browser that does not read these parameters ignores them.
+const PDF_CHROME_PARAMS = 'toolbar=0&navpanes=0&statusbar=0&messages=0';
+
+/**
+ * The source of a PDF frame, with the fit the shape of the frame asks for.
+ * A wide frame shows the whole page (Fit). A tall frame, which is a phone in
+ * portrait, gives the page the full width and scrolls down it (FitH). The
+ * zoom name beside it says the same thing to a reader that reads that name.
+ */
+function pdfFrameSrc(url, host) {
+  const box = host && typeof host.getBoundingClientRect === 'function'
+    ? host.getBoundingClientRect()
+    : null;
+  const wide = box && box.height > 0 ? (box.width / box.height) > 0.9 : true;
+  const fit = wide ? 'view=Fit&zoom=page-fit' : 'view=FitH&zoom=page-width';
+  return `${url}#${PDF_CHROME_PARAMS}&${fit}`;
+}
+
 function mountPlayerBody(item, kind, blob) {
   playerBodyEl.className = `ex-player-body ex-player-body-${kind}`;
   playerBodyEl.innerHTML = '';
@@ -1948,7 +2006,9 @@ function mountPlayerBody(item, kind, blob) {
       mountDocFallbackCard(item);
     } else {
       playerBodyEl.appendChild(el('iframe', {
-        class: 'ex-player-frame', src: viewerURL, title: item.name,
+        class: 'ex-player-frame',
+        src: kind === 'pdf' ? pdfFrameSrc(viewerURL, playerBodyEl) : viewerURL,
+        title: item.name,
       }));
     }
     return null;

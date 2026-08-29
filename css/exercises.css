@@ -147,15 +147,57 @@
    css/gpplayer.css, so this one steps aside for it. */
 #sec-exercises.ex-viewing.active:not(.gpp-score-loaded){
   display:flex;flex-direction:column;min-height:0;
-  height:calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 96px) - var(--ex-viewer-gutter, 8px));
-  max-height:calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 96px) - var(--ex-viewer-gutter, 8px));
-  margin-bottom:calc(-1 * (var(--dock-h) + 18px));
+  height:var(--ex-viewer-h, calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 96px) - var(--ex-viewer-gutter, 8px)));
+  max-height:var(--ex-viewer-h, calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 96px) - var(--ex-viewer-gutter, 8px)));
+  margin-bottom:calc(-1 * var(--ex-viewer-shift, calc(var(--dock-h) + 18px)));
   overflow:hidden;max-width:100vw;box-sizing:border-box
 }
 /* The pane now gives the body a real height. A minimum on the frame would push
    past that height and cut off the bottom of the page. */
 #sec-exercises.ex-viewing .ex-player-frame{min-height:0;height:100%}
 #sec-exercises.ex-viewing .ex-player-doc-fallback{flex:1;min-height:0}
+
+/* ---- The open exercise takes the shell space ----
+   js/exercises.js puts .ex-viewer-locked on <html> while the viewer is open.
+   The band above the content holds only the gear, and the head of the viewer
+   already carries the Back button, so the band steps aside. The page pad at
+   each side goes down to a hairline too. The Score Player does the same with
+   .gpp-player-locked in css/gpplayer.css. */
+html.ex-viewer-locked{--ex-viewer-pad:6px}
+html.ex-viewer-locked body.app-shell:not(.split-mode) .shell-head-actions{display:none!important}
+html.ex-viewer-locked body.app-shell:not(.split-mode) .app-main,
+html.ex-viewer-locked body.app-shell:not(.split-mode) main.app-main{
+  max-width:none;margin-left:0;margin-right:0;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-left:var(--ex-viewer-pad);padding-right:var(--ex-viewer-pad)
+}
+/* A route notice must stay readable, so the band keeps its height there. */
+html.ex-viewer-locked body.app-shell.route-notice-on:not(.split-mode) .app-main,
+html.ex-viewer-locked body.app-shell.route-notice-on:not(.split-mode) main.app-main{
+  padding-top:calc(
+    var(--shell-top-inset) + var(--route-notice-h, 64px) + 10px + var(--shell-actions-h)
+  )
+}
+@media (min-width:769px){
+  html.ex-viewer-locked body.app-shell:not(.split-mode) .app-main,
+  html.ex-viewer-locked body.app-shell:not(.split-mode) main.app-main{
+    padding-left:calc(var(--shell-rail-w) + var(--ex-viewer-pad))
+  }
+}
+/* An image fills the frame it gets. A scan of a page is the exercise itself,
+   and its own pixel size is no reason to show it small in a full screen. */
+#sec-exercises.ex-viewing .ex-player-body-image{padding:6px}
+#sec-exercises.ex-viewing .ex-player-image{width:100%;height:100%;object-fit:contain}
+/* The head is a strip of chrome above the exercise, so it keeps the small
+   size its controls allow. A touch screen keeps a 38px target. */
+#sec-exercises.ex-viewing .ex-player-head{padding:5px 8px;gap:8px}
+#sec-exercises.ex-viewing .ex-player-title{font-size:.88rem}
+#sec-exercises.ex-viewing .ex-player-head .btn{min-height:38px;padding:4px 10px;font-size:.78rem}
+#sec-exercises.ex-viewing .ex-player-step-btn{min-width:32px;min-height:38px}
+@media (hover:hover) and (pointer:fine){
+  #sec-exercises.ex-viewing .ex-player-head .btn{min-height:30px}
+  #sec-exercises.ex-viewing .ex-player-step-btn{min-height:30px}
+}
 
 @media(max-width:900px){
   #sec-exercises{overflow-x:hidden}
@@ -248,8 +290,14 @@
 @media (orientation:landscape) and (max-height:500px){
   #sec-exercises.ex-viewing.active:not(.gpp-score-loaded){
     display:flex;flex-direction:column;min-height:0;
-    height:calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 52px) - var(--ex-viewer-gutter, 8px));
-    max-height:calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 52px) - var(--ex-viewer-gutter, 8px))
+    height:var(--ex-viewer-h, calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 52px) - var(--ex-viewer-gutter, 8px)));
+    max-height:var(--ex-viewer-h, calc(100dvh - var(--dock-h) - var(--ex-viewer-top, 52px) - var(--ex-viewer-gutter, 8px)))
+  }
+  /* The rail is away on a short landscape screen, so the pad it holds goes
+     back to the exercise. */
+  html.ex-viewer-locked body.app-shell:not(.split-mode) .app-main,
+  html.ex-viewer-locked body.app-shell:not(.split-mode) main.app-main{
+    padding-left:var(--ex-viewer-pad)
   }
   #sec-exercises.ex-viewing .ex-layout{
     display:flex!important;flex-direction:column!important;flex:1;min-height:0
@@ -261,6 +309,9 @@
   #sec-exercises.ex-viewing .ex-player-pane{
     flex:1;min-height:0!important;height:auto!important
   }
+  /* The split list above keeps the rows beside the player. The viewer gives
+     the whole short screen to the exercise, so the rows step aside here. */
+  #sec-exercises.ex-viewing .ex-workspace.is-open .ex-list-pane{display:none!important}
 }
 /* ── Bulk upload dialog (Exercises library) ─────────────────────────────── */
 
