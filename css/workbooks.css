@@ -81,6 +81,10 @@
   width:100%;max-width:100%;min-height:200px;height:min(50vh,420px);border:0;border-radius:var(--radius-screen,12px);
   background:var(--bg2)
 }
+/* The app draws a PDF itself (js/pdfDocView.js). Outside practice the drawing
+   keeps the height the frame had; practice gives it the rest of the screen. */
+.wb-gp-mount.pdfv-host{flex:1;min-height:min(50vh,420px);border-radius:var(--radius-screen,12px)}
+#sec-workbooks.wb-practicing .wb-gp-mount.pdfv-host{min-height:0;border-radius:0}
 .wb-player-link-note{font-size:.78rem;color:var(--muted);margin-top:8px;text-align:center}
 .wb-player-doc-fallback{max-width:420px;width:100%;margin:auto}
 .wb-companions-mount{

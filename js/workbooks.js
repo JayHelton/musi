@@ -76,6 +76,7 @@ import {
   boundaryForEntry,
 } from './workbookPlaythrough.js';
 import { showAppToast } from './appToast.js';
+import { mountPdfDoc } from './pdfDocView.js';
 
 const NAME_LIMIT = 120;
 const FOLDER_LIMIT = 40;
@@ -126,6 +127,8 @@ let detailRenderedWorkbookId = null;
 let detailRenderedView = null;
 let detailLoadToken = 0;
 let detailMountHandle = null;
+// The in-app PDF view of the open exercise, when that exercise is a PDF.
+let detailPdfMount = null;
 let detailPlaythrough = null;
 let detailObjectURL = null;
 let detailMediaEl = null;
@@ -389,6 +392,10 @@ function teardownDetailPlayer() {
   if (detailMountHandle) {
     try { detailMountHandle.destroy(); } catch (e) { /* ignore */ }
     detailMountHandle = null;
+  }
+  if (detailPdfMount) {
+    try { detailPdfMount.destroy(); } catch (e) { /* ignore */ }
+    detailPdfMount = null;
   }
   detailPlaythrough = null;
   if (detailObjectURL) {
@@ -1311,7 +1318,7 @@ function pdfFrameSrc(url, host) {
   return `${url}#${PDF_CHROME_PARAMS}&${fit}`;
 }
 
-function mountInlineArtifact(item, host, objectUrl) {
+async function mountInlineArtifact(item, host, objectUrl, blob) {
   const kind = mediaKind(item);
   if (item.url) {
     const embedUrl = youtubeEmbedUrl(item.url) || safeExternalUrl(item.url);
@@ -1346,11 +1353,20 @@ function mountInlineArtifact(item, host, objectUrl) {
     host.appendChild(el('img', {
       class: 'wb-player-image', src: objectUrl, alt: item.name,
     }));
-  } else if (kind === 'pdf' || isInlineDocExercise(item)) {
+  } else if (kind === 'pdf') {
+    // The browser of a phone shows nothing for a PDF in a frame, so the app
+    // draws the pages itself. The frame stays as the fallback.
+    try {
+      return await mountPdfDoc(host, blob);
+    } catch (err) {
+      host.innerHTML = '';
+      host.appendChild(el('iframe', {
+        class: 'wb-player-frame', src: pdfFrameSrc(objectUrl, host), title: item.name,
+      }));
+    }
+  } else if (isInlineDocExercise(item)) {
     host.appendChild(el('iframe', {
-      class: 'wb-player-frame',
-      src: kind === 'pdf' ? pdfFrameSrc(objectUrl, host) : objectUrl,
-      title: item.name,
+      class: 'wb-player-frame', src: objectUrl, title: item.name,
     }));
   } else if (isOfficeDocExercise(item)) {
     mountNonAdvanceCard(item, host);
@@ -1842,7 +1858,14 @@ async function loadCurrentExercise({ autoPlay = false } = {}) {
           if (isDetailLoadStale(loadToken, workbookId)) return;
         }
         if (blob) detailObjectURL = URL.createObjectURL(blob);
-        mountInlineArtifact(exercise, detailGpMountEl, detailObjectURL);
+        const inlineMount = await mountInlineArtifact(
+          exercise, detailGpMountEl, detailObjectURL, blob,
+        );
+        if (isDetailLoadStale(loadToken, workbookId)) {
+          try { inlineMount?.destroy(); } catch (e) { /* ignore */ }
+          return;
+        }
+        detailPdfMount = inlineMount || null;
         return;
       }
     }

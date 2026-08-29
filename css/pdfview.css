@@ -1,0 +1,131 @@
+/* In-app PDF view (js/pdfDocView.js). The app draws the pages of a PDF on a
+   canvas, because the browser of a phone does not draw a PDF in a frame. The
+   view fills the box it gets: the pages scroll in one column, and the small
+   control at the corner zooms. The page area keeps the neutral grey of a
+   reader, so the white page stands out from it. */
+
+.pdfv-host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #525659;
+}
+
+.pdfv-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* Two fingers zoom the page in js/pdfDocView.js, so the browser must not
+     take the gesture for its own zoom. */
+  touch-action: pan-x pan-y;
+  outline: none;
+}
+
+.pdfv-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px;
+  min-width: min-content;
+}
+
+/* The page keeps the middle while it is smaller than the frame. The margin
+   does the centring, because a centred flex item hides its left edge once it
+   is wider than the frame. */
+.pdfv-page {
+  position: relative;
+  flex: 0 0 auto;
+  margin-inline: auto;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+.pdfv-canvas {
+  display: block;
+}
+
+.pdfv-page.is-failed::after {
+  content: "This page did not draw.";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  color: #333;
+  font-family: var(--font-body, inherit);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.pdfv-status {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-family: var(--font-ui, inherit);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.pdfv-status[hidden] {
+  display: none !important;
+}
+
+.pdfv-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.pdfv-zoom-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(11, 16, 32, 0.82);
+  color: var(--text);
+  font-family: var(--font-body, inherit);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.pdfv-zoom-btn:hover,
+.pdfv-zoom-btn:focus-visible {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pdfv-zoom-fit {
+  font-size: 0.85rem;
+}
+
+@media (pointer: coarse) {
+  .pdfv-zoom-btn {
+    width: var(--tap-min, 40px);
+    height: var(--tap-min, 40px);
+  }
+}

@@ -76,6 +76,10 @@
 .ex-player-body-gp .gpp-score-actions{
   min-width:0;max-width:100%
 }
+/* The app draws a PDF itself (js/pdfDocView.js), so the body holds the drawing
+   and the drawing keeps its own scroll. */
+.ex-player-body-pdf{display:flex;flex-direction:column;overflow:hidden;padding:0}
+.ex-pdf-mount{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column}
 .ex-player-frame{width:100%;height:100%;min-height:360px;border:none;display:block}
 .ex-player-image{max-width:100%;max-height:100%;object-fit:contain;margin:auto;display:block}
 .ex-player-media{width:100%;max-width:860px;max-height:100%;display:block}

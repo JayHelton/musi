@@ -64,6 +64,7 @@ import {
 import { createDriveBrowser, closeDriveMenu } from './library/driveBrowser.js';
 import { neighborIds, formatPosition, sortEntries } from './library/driveModel.js';
 import { showAppToast } from './appToast.js';
+import { mountPdfDoc, warmPdfLib } from './pdfDocView.js';
 
 const STORAGE_KEY = 'musi.exercises';
 const NAME_LIMIT = 120;
@@ -912,6 +913,7 @@ let activeExerciseId = null;
 let viewerURL = null;
 let viewerGpMount = null;
 let viewerRunnerMount = null;
+let viewerPdfMount = null;
 // Object URLs the note viewer made for attached files, revoked on teardown.
 let viewerExtraURLs = [];
 let escapeWired = false;
@@ -1798,6 +1800,14 @@ function openEditForm(id) {
   else if (item.kind === 'note') openNoteForm({ item });
 }
 
+/** Add the button that opens the open file in a new tab of the browser. */
+function addOpenInTabAction() {
+  if (!playerActionsEl || !viewerURL) return;
+  playerActionsEl.appendChild(el('a', {
+    class: 'btn sm', href: viewerURL, target: '_blank', rel: 'noopener', text: 'Open in tab',
+  }));
+}
+
 function fillPlayerHead(item, kind, blob) {
   playerTitleEl.textContent = item.name;
   playerTitleEl.title = item.fileName || item.name;
@@ -1828,11 +1838,10 @@ function fillPlayerHead(item, kind, blob) {
   }
   if (blob) {
     viewerURL = URL.createObjectURL(blob);
-    if (kind !== 'gp') {
-      playerActionsEl.appendChild(el('a', {
-        class: 'btn sm', href: viewerURL, target: '_blank', rel: 'noopener', text: 'Open in tab',
-      }));
-    }
+    // The app draws a PDF itself, so the page is already on screen. A new tab
+    // adds nothing, and an installed app on a phone often refuses to open one.
+    // mountPdfExercise puts the button back if the drawing fails.
+    if (kind !== 'gp' && kind !== 'pdf') addOpenInTabAction();
     const ext = fileExt(item) || (kind === 'pdf' ? 'pdf' : (kind === 'gp' ? 'gp' : ''));
     const downloadName = item.fileName || (ext ? `${item.name}.${ext}` : item.name);
     playerActionsEl.appendChild(el('a', {
@@ -2004,11 +2013,14 @@ function mountPlayerBody(item, kind, blob) {
       }));
     } else if (kind === 'doc' && !isInlineDocItem(item)) {
       mountDocFallbackCard(item);
+    } else if (kind === 'pdf') {
+      // The app draws the pages itself. openExerciseViewer fills this box.
+      const mountHost = el('div', { class: 'ex-pdf-mount' });
+      playerBodyEl.appendChild(mountHost);
+      return mountHost;
     } else {
       playerBodyEl.appendChild(el('iframe', {
-        class: 'ex-player-frame',
-        src: kind === 'pdf' ? pdfFrameSrc(viewerURL, playerBodyEl) : viewerURL,
-        title: item.name,
+        class: 'ex-player-frame', src: viewerURL, title: item.name,
       }));
     }
     return null;
@@ -2019,6 +2031,30 @@ function mountPlayerBody(item, kind, blob) {
     text: 'This file is missing from storage. It may have been cleared by the browser.',
   }));
   return null;
+}
+
+/**
+ * Draw the pages of a PDF in the viewer.
+ *
+ * The browser of a phone shows nothing for a PDF in a frame, so the app draws
+ * the pages with pdf.js. If pdf.js cannot open the file, the frame of the
+ * browser takes over: it still works on a desktop browser.
+ */
+async function mountPdfExercise(item, mountHost, blob) {
+  if (!blob) return null;
+  try {
+    return await mountPdfDoc(mountHost, blob);
+  } catch (err) {
+    mountHost.innerHTML = '';
+    mountHost.appendChild(el('iframe', {
+      class: 'ex-player-frame',
+      src: pdfFrameSrc(viewerURL, playerBodyEl),
+      title: item.name,
+    }));
+    // The frame shows nothing on a phone, so the learner needs the way out.
+    addOpenInTabAction();
+    return null;
+  }
 }
 
 async function mountGpExercise(item, mountHost, blob) {
@@ -2084,6 +2120,10 @@ function teardownPlayer() {
     try { viewerRunnerMount.destroy(); } catch (e) { /* ignore */ }
     viewerRunnerMount = null;
   }
+  if (viewerPdfMount) {
+    try { viewerPdfMount.destroy(); } catch (e) { /* ignore */ }
+    viewerPdfMount = null;
+  }
   if (viewerExtraURLs.length) {
     viewerExtraURLs.forEach((url) => { try { URL.revokeObjectURL(url); } catch (e) {} });
     viewerExtraURLs = [];
@@ -2127,14 +2167,23 @@ export async function openExerciseViewer(id) {
   playerPaneEl.hidden = false;
   fillPlayerHead(item, kind, blob);
   updatePlayerStep();
-  const gpMount = mountPlayerBody(item, kind, blob);
+  const mountHost = mountPlayerBody(item, kind, blob);
   applyActiveRowHighlight();
   exerciseViewerChangeHandlers.forEach((handler) => {
     try { handler({ open: true, exerciseId: id }); } catch (e) { /* ignore */ }
   });
 
-  if (gpMount) {
-    const mounted = await mountGpExercise(item, gpMount, blob);
+  if (mountHost && kind === 'pdf') {
+    const mounted = await mountPdfExercise(item, mountHost, blob);
+    if (gen !== openGeneration) {
+      if (mounted) {
+        try { mounted.destroy(); } catch (e) { /* ignore */ }
+      }
+      return;
+    }
+    viewerPdfMount = mounted;
+  } else if (mountHost) {
+    const mounted = await mountGpExercise(item, mountHost, blob);
     if (gen !== openGeneration) {
       if (mounted) {
         try { mounted.destroy(); } catch (e) { /* ignore */ }
@@ -2483,6 +2532,9 @@ export function initExercises() {
 
   setStatus('');
   render();
+  // A library with a PDF in it will open a PDF. The reader loads now, in the
+  // background, so the first one appears at once and works offline later.
+  if (getExercises().some(isPdfItem)) warmPdfLib();
 }
 
 // Close the viewer when navigating away from the Exercises section.
