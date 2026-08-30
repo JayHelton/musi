@@ -103,11 +103,13 @@ export const TOOLS = [
     short: 'Practice Lab',
     area: 'train',
     description: 'Run one practice session: a timer, a click, ratios, a tempo ladder, a camera, and a log. '
+      + 'The Vocal tab runs clean and harsh vocal exercises from the Practice Library. '
       + 'Composition Lab trains you to hear, map, write, and explain your own ideas, and the '
       + 'Drums tab holds the beat and rudiment library.',
     title: 'Practice Lab',
     modes: [
       { id: 'session', label: 'Session' },
+      { id: 'vocal', label: 'Vocal' },
       { id: 'drums', label: 'Drums' },
       { id: 'composition', label: 'Composition' },
       { id: 'history', label: 'History' },

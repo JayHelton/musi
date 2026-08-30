@@ -44,13 +44,26 @@ Drills that build your ear, your reading, and your hands.
     pass plays the phrase to you first, and then you sing the same phrase back
     for the score. A hollow bar is the preview, and a solid bar is your turn.
   - *Ear training* — identify a pitch, a degree, or an interval by ear.
-- **Practice Lab** — one screen for one practice session, in four tabs:
+- **Practice Lab** — one screen for one practice session, in five tabs:
   - *Session* — pick an instrument, a technique, and a target, then run timers,
     click patterns, ratio drills, a tempo ladder, and camera takes. Every action
     goes in the session log. A drum session opens with a warm-up: the tool picks
     one groove and one rudiment for you, and it never picks what the last three
     sessions used. The pick rides on the session record, so the History tab
     shows what each session warmed up with.
+  - *Vocal* — clean and harsh vocal practice. Clean has Chest, Mix, and Head,
+    and it runs on the same Pitch Runner the rest of the app uses. Harsh has
+    Low, Mid, and High, and it runs on the Cue Runner: timed instructions,
+    timed rest, register changes, phrases, and manual checkpoints. Musi never
+    scores a harsh vocal; you report each repetition as Immediate, Searched,
+    or Missed, or as Clean, Unstable, or Stopped, and the tab shows the counts
+    of the last ten reps. Clean and Harsh each read a Practice Library folder
+    you choose. The tab saves the folder id, so a rename does not break it, and
+    it reads every folder inside it. A folder that is gone asks for a new one
+    and never falls back to the whole library. An empty folder offers the
+    starter exercises, which Musi writes into that folder as normal library
+    exercises. Effort is optional: Easy, Working, or Strained. Musi records
+    Strained and never rewards it.
   - *Drums* — the drum library. Beats holds grooves from ten genres — rock,
     punk, metal, jazz, blues, funk, latin, reggae, country, and hip-hop. Each
     one runs three bars of the groove and one bar of a fill that belongs to the
@@ -112,16 +125,22 @@ storage; the Library page is the door to both.
 
 - **Exercises** — one **Add exercise** chooser names every kind the library
   holds: a link, a document, an audio or video recording, a Guitar Pro file, a
-  pitch run, and a written exercise you type. A new exercise joins the folder
-  you have open. Organize them in folders with a file-browser view. The player
-  has Previous and Next buttons, so you step through a folder without a return
-  to the list.
+  pitch run, a cue exercise, and a written exercise you type. A new exercise
+  joins the folder you have open. Organize them in folders with a file-browser
+  view. The player has Previous and Next buttons, so you step through a folder
+  without a return to the list.
   - A **pitch run** is a saved run of the vocal Pitch runner game. You type the
     notes and the hold lengths, or you read them from a Guitar Pro file. The run
     keeps its own tempo, note length, rest, count-in, repeat count, and preview
     mode. A note length of 0 holds each note as long as it is written. The
     player keeps the note list closed below the game, so a long run does not
-    push the game off the screen.
+    push the game off the screen. A pitch run can carry clean vocal tags, and
+    then the Vocal tab of Practice Lab plays it.
+  - A **cue exercise** is a timed instruction list for harsh vocals. You write
+    one step per line: perform, rest, transition, phrase, or checkpoint, with
+    the seconds and the text. The exercise carries its repetition count, its
+    registers, and its focus. The Cue Runner of Practice Lab plays it, and it
+    judges nothing.
   - A **written exercise** holds the text you type and any number of files.
   - **Import course** takes a whole course folder at once. Pick the top folder
     and Musi mirrors the folder tree into Exercises. Every supported file
@@ -255,7 +274,8 @@ node tests/shell/run.mjs           # nav stack, shared context, tool page
 node tests/workbooks/run.mjs       # workbook model and playthrough
 node tests/exercises/run.mjs       # exercise library
 node tests/chord-match/run.mjs     # multi-answer chord identification
-node tests/practice-lab/run.mjs    # session timing, the chord set of a key, voicings
+node tests/practice-lab/run.mjs    # session timing, the vocal model, the cue run
+node tests/vocal/run.mjs           # the cue model, the vocal tags, the starter set
 node tests/composition-lab/run.mjs # Composition Lab and the shared references
 ```
 

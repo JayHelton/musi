@@ -2,10 +2,11 @@
 // audio and video) or add external lesson links, organize them into folders
 // (category tags), and view/play them in a built-in viewer.
 //
-// Storage mirrors the rest of the app:
-//   - exercise metadata + categories live in localStorage (musi.exercises)
-//   - uploaded file Blobs live in IndexedDB (attachments.js) keyed by an
-//     attachment id, with source 'exercise'.
+// This file is the library screen. `js/exerciseStore.js` holds the data layer:
+// the storage, the normalization, and the reads and writes. This file
+// re-exports the public names of that module, so every importer keeps the
+// names it already reads, and a feature that needs only the data imports the
+// store instead of this screen.
 //
 // All storage access is defensive so the feature degrades gracefully when
 // localStorage / IndexedDB are unavailable.
@@ -13,13 +14,11 @@
 import {
   saveFile,
   getFileBlob,
-  deleteFile,
   renameFile,
   attachmentsSupported,
   ensurePersistentStorage,
 } from './attachments.js';
 import { isGuitarProName, parseGuitarPro, mountGpPlayer } from './gpPlayerUI.js';
-import { clampBpm } from './gpPlayer/tempoRange.js';
 import { resolveScoreKey } from './gpAnnotations.js';
 import {
   buildExerciseGpResult,
@@ -30,18 +29,14 @@ import {
 import { BULK_ACCEPT_ATTR, UPLOAD_ACCEPT_ATTR, classifyUploadFile } from './exercisesBulk.js';
 import { openBulkUploadDialog, closeBulkUploadDialog } from './exercisesBulkUI.js';
 import { openCourseImportDialog, closeCourseImportDialog } from './courseImportUI.js';
-import { emitDataChanged } from './dataEvents.js';
 import {
   MAX_FOLDER_DEPTH,
   FOLDER_PATH_SEPARATOR,
   normalizeParentId,
-  sanitizeFolderTree,
   folderById,
   folderChildren,
   folderSubtreeIds,
-  folderDepth,
   folderPathLabel,
-  flattenFolderTree,
   canMoveFolder,
   findSiblingByName,
   nextParentAfterDelete,
@@ -56,7 +51,10 @@ import {
   openAddExerciseChooser,
   openNoteDialog,
   openRunnerDialog,
+  openCueDialog,
 } from './exerciseAddUI.js';
+import { describeCueConfig, normalizeCueConfig } from './cueExerciseModel.js';
+import { readVocalMeta, withVocalTags, VOCAL_INSTRUMENT } from './vocalExerciseModel.js';
 import {
   createWorkbookFolder,
   createWorkbook,
@@ -65,452 +63,45 @@ import { createDriveBrowser, closeDriveMenu } from './library/driveBrowser.js';
 import { neighborIds, formatPosition, sortEntries } from './library/driveModel.js';
 import { showAppToast } from './appToast.js';
 import { mountPdfDoc, warmPdfLib } from './pdfDocView.js';
+import {
+  NAME_LIMIT,
+  CAT_LIMIT,
+  URL_LIMIT,
+  MAX_FILE_BYTES,
+  BODY_LIMIT,
+  UPLOAD_ACCEPT_MSG,
+  uid,
+  nowISO,
+  clampText,
+  safeExternalUrl,
+  titleFromUrl,
+  itemAttachmentIds,
+  normalizeItem,
+  getStore,
+  persist,
+  categoryName,
+  releaseAttachmentsForItem,
+  releaseAttachment,
+  getCategories,
+  getExercises,
+  getExercise,
+  addCategory,
+} from './exerciseStore.js';
 
-const STORAGE_KEY = 'musi.exercises';
-const NAME_LIMIT = 120;
-const CAT_LIMIT = 40;
-const URL_LIMIT = 2000;
-const MAX_FILE_BYTES = 250 * 1024 * 1024; // 250 MB upload guard for video.
-const BODY_LIMIT = 20000;   // characters of a written exercise
-const MAX_ATTACHMENTS = 20; // extra files on a written exercise
-const UPLOAD_ACCEPT_MSG = 'Only PDF, documents (doc, docx, txt, rtf, odt, md, pages, csv), images, audio, video, and Guitar Pro (.gp/.gp5) files up to 250 MB can be uploaded.';
+// The library screen re-exports the data API, so every importer of this file
+// keeps the names it already reads.
+export {
+  EXERCISE_KINDS,
+  normalizeExerciseItem,
+  invalidateExercisesCache,
+  getCategories,
+  getExercises,
+  getExercise,
+  addCategory,
+  getExerciseFolderOptions,
+  getExercisesInFolder,
+} from './exerciseStore.js';
 
-// --- storage helpers (defensive) -------------------------------------------
-
-function canUseStorage() {
-  try {
-    return typeof window !== 'undefined' && !!window.localStorage;
-  } catch (e) {
-    return false;
-  }
-}
-
-function readKey(key) {
-  if (!canUseStorage()) return null;
-  try {
-    return window.localStorage.getItem(key);
-  } catch (e) {
-    return null;
-  }
-}
-
-function writeKey(key, value) {
-  if (!canUseStorage()) return false;
-  try {
-    window.localStorage.setItem(key, value);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function uid(prefix) {
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `${prefix}-${Date.now().toString(36)}-${rand}`;
-}
-
-function nowISO() {
-  return new Date().toISOString();
-}
-
-function clampText(value, limit) {
-  if (typeof value !== 'string') return '';
-  return value.slice(0, limit);
-}
-
-function safeExternalUrl(value) {
-  let raw = clampText(typeof value === 'string' ? value.trim() : '', URL_LIMIT);
-  if (!raw) return '';
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(raw) && /^[\w.-]+\.[a-z]{2,}/i.test(raw)) {
-    raw = `https://${raw}`;
-  }
-  try {
-    const url = new URL(raw);
-    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
-  } catch (e) {
-    /* invalid URL */
-  }
-  return '';
-}
-
-function titleFromUrl(url) {
-  try {
-    const u = new URL(url);
-    return u.hostname.replace(/^www\./, '') || 'Exercise link';
-  } catch (e) {
-    return 'Exercise link';
-  }
-}
-
-function extensionFromName(fileName) {
-  const name = typeof fileName === 'string' ? fileName : '';
-  const dot = name.lastIndexOf('.');
-  if (dot <= 0 || dot === name.length - 1) return '';
-  return name.slice(dot + 1).toLowerCase();
-}
-
-function deriveInstrument(type, fileName) {
-  const t = typeof type === 'string' ? type.toLowerCase() : '';
-  const ext = extensionFromName(fileName);
-  if (
-    t === 'application/x-guitar-pro' ||
-    t.includes('guitar-pro') ||
-    /^(gp|gp5|gpx)$/i.test(ext) ||
-    /\.musi-tab\.json$/i.test(fileName || '')
-  ) {
-    return 'guitar';
-  }
-  if (t.startsWith('audio/') || /^(mp3|m4a|aac|wav|opus|flac|ogg|oga|webm)$/.test(ext)) {
-    return 'guitar';
-  }
-  if (t.startsWith('video/') || /^(mp4|m4v|mov|ogv)$/.test(ext)) {
-    return 'guitar';
-  }
-  return '';
-}
-
-function deriveMaterialType(type, fileName, url, kind) {
-  if (kind === 'runner') return 'runner';
-  if (kind === 'note') return 'note';
-  if (url) return 'link';
-  const t = typeof type === 'string' ? type.toLowerCase() : '';
-  const ext = extensionFromName(fileName);
-  if (t === 'application/pdf' || ext === 'pdf') return 'pdf';
-  if (
-    t === 'application/x-guitar-pro' ||
-    t.includes('guitar-pro') ||
-    /^(gp|gp5|gpx)$/i.test(ext) ||
-    /\.musi-tab\.json$/i.test(fileName || '')
-  ) {
-    return 'tab';
-  }
-  if (t.startsWith('audio/') || /^(mp3|m4a|aac|wav|opus|flac|ogg|oga|webm)$/.test(ext)) {
-    return 'audio';
-  }
-  if (t.startsWith('video/') || /^(mp4|m4v|mov|ogv)$/.test(ext)) {
-    return 'video';
-  }
-  if (t.startsWith('image/') || /^(png|jpe?g|gif|webp|bmp|svg)$/.test(ext)) {
-    return 'image';
-  }
-  if (
-    /^(docx?|txt|rtf|odt|md|pages|csv)$/i.test(ext) ||
-    t === 'application/msword' ||
-    t === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    t === 'text/plain' ||
-    t === 'text/markdown' ||
-    t === 'text/csv'
-  ) {
-    return 'doc';
-  }
-  if (t === 'text/uri-list') return 'link';
-  return '';
-}
-
-function normalizeTags(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((tag) => typeof tag === 'string' && tag.trim())
-    .map((tag) => tag.trim())
-    .slice(0, 50);
-}
-
-// --- normalization ---------------------------------------------------------
-
-function normalizeCategory(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const id = typeof raw.id === 'string' && raw.id ? raw.id : uid('cat');
-  const name = clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : 'Folder', CAT_LIMIT);
-  const parentId = normalizeParentId(raw.parentId);
-  return { id, name, parentId };
-}
-
-// The practice-take recorder is removed. Exercises saved by an older build can
-// still carry a `takes` array. Drop the field and remember the audio blobs it
-// referenced, so getStore() can free them once.
-const legacyTakeAttachmentIds = new Set();
-
-function collectLegacyTakes(raw) {
-  if (!Array.isArray(raw)) return;
-  raw.forEach((take) => {
-    const id = typeof take?.attachmentId === 'string' ? take.attachmentId : '';
-    if (id) legacyTakeAttachmentIds.add(id);
-  });
-}
-
-// Every exercise has one kind. The kind decides which player opens it and
-// which form edits it.
-//
-//   file   — an uploaded document, image, audio, video, or Guitar Pro score
-//   link   — an external lesson page
-//   runner — a saved pitch-runner run
-//   note   — a written exercise the user typed, with optional attachments
-export const EXERCISE_KINDS = ['file', 'link', 'runner', 'note'];
-
-function deriveKind(raw) {
-  const kind = typeof raw.kind === 'string' ? raw.kind : '';
-  if (EXERCISE_KINDS.includes(kind)) return kind;
-  if (raw.runner && typeof raw.runner === 'object') return 'runner';
-  if (raw.url) return 'link';
-  return 'file';
-}
-
-/** Extra files on a written exercise. The first file stays on attachmentId. */
-function normalizeAttachments(raw) {
-  if (!Array.isArray(raw)) return [];
-  const out = [];
-  for (const entry of raw) {
-    if (out.length >= MAX_ATTACHMENTS) break;
-    const id = typeof entry?.attachmentId === 'string' ? entry.attachmentId : '';
-    if (!id) continue;
-    out.push({
-      attachmentId: id,
-      name: clampText(typeof entry.name === 'string' ? entry.name : '', NAME_LIMIT),
-      fileName: typeof entry.fileName === 'string' ? entry.fileName : '',
-      type: typeof entry.type === 'string' ? entry.type : '',
-      size: Number.isFinite(Number(entry.size)) ? Number(entry.size) : 0,
-    });
-  }
-  return out;
-}
-
-/** Every attachment id one exercise holds, including its extra files. */
-function itemAttachmentIds(item) {
-  const ids = [];
-  if (item?.attachmentId) ids.push(item.attachmentId);
-  if (item?.runner?.attachmentId) ids.push(item.runner.attachmentId);
-  (Array.isArray(item?.attachments) ? item.attachments : []).forEach((entry) => {
-    if (entry?.attachmentId) ids.push(entry.attachmentId);
-  });
-  return [...new Set(ids)];
-}
-
-function normalizeItem(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const attachmentId = typeof raw.attachmentId === 'string' && raw.attachmentId ? raw.attachmentId : '';
-  const url = safeExternalUrl(raw.url);
-  const kind = deriveKind(raw);
-  const runnerConfig = kind === 'runner' ? normalizeRunnerConfig(raw.runner) : null;
-  // A run with no notes cannot play, and a file or link record with neither a
-  // file nor a link points at nothing. Both are dropped.
-  if (kind === 'runner' && !runnerConfig) return null;
-  if (kind !== 'runner' && kind !== 'note' && !attachmentId && !url) return null;
-  const defaultName = kind === 'runner'
-    ? 'Pitch run'
-    : kind === 'note'
-      ? 'Written exercise'
-      : (url ? titleFromUrl(url) : 'Exercise');
-  // null must survive as "unset" — Number(null) is 0, which would silently turn
-  // an absent bar range into a zero-length one at bar 0.
-  const num = (v) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
-  const bar = (v) => (num(v) == null ? null : Math.max(0, Math.floor(num(v))));
-  const measureStart = bar(raw.measureStart);
-  const measureEnd = bar(raw.measureEnd);
-  const startBeat = num(raw.startBeat);
-  const endBeat = num(raw.endBeat);
-  const fileName = typeof raw.fileName === 'string' ? raw.fileName : '';
-  const type = typeof raw.type === 'string' ? raw.type : '';
-  const instrumentRaw = typeof raw.instrument === 'string' ? raw.instrument.trim() : '';
-  const materialTypeRaw = typeof raw.materialType === 'string' ? raw.materialType.trim() : '';
-  const core = {
-    id: typeof raw.id === 'string' && raw.id ? raw.id : uid('ex'),
-    name: clampText(typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : defaultName, NAME_LIMIT),
-    categoryId: typeof raw.categoryId === 'string' ? raw.categoryId : '',
-    kind,
-    runner: runnerConfig,
-    body: kind === 'note' ? clampText(typeof raw.body === 'string' ? raw.body : '', BODY_LIMIT) : '',
-    attachments: normalizeAttachments(raw.attachments),
-    attachmentId,
-    url,
-    fileName,
-    type,
-    size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : 0,
-    addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : nowISO(),
-    // Guitar Pro practice settings (optional).
-    preferredTrackIndex: Number.isFinite(Number(raw.preferredTrackIndex))
-      ? Math.max(0, Math.floor(Number(raw.preferredTrackIndex)))
-      : 0,
-    measureStart,
-    measureEnd,
-    startBeat,
-    endBeat,
-    loopEnabled: raw.loopEnabled == null ? false : !!raw.loopEnabled,
-    loopRestSec: Math.max(0, Math.min(30, Number(raw.loopRestSec) || 0)),
-    bpm: (raw.bpm != null && Number(raw.bpm) > 0 && Number.isFinite(Number(raw.bpm)))
-      ? Math.round(clampBpm(Number(raw.bpm)))
-      : null,
-    transpose: Number.isFinite(Number(raw.transpose)) ? Math.round(Number(raw.transpose)) : 0,
-    tuning: typeof raw.tuning === 'string' && raw.tuning ? raw.tuning : null,
-    retuneMode: raw.retuneMode === 'pitches' ? 'pitches' : 'fingerings',
-    instrument: instrumentRaw || deriveInstrument(type, fileName),
-    materialType: materialTypeRaw || deriveMaterialType(type, fileName, url, kind),
-    technique: typeof raw.technique === 'string' ? raw.technique : '',
-    difficulty: typeof raw.difficulty === 'string' ? raw.difficulty : '',
-    tags: normalizeTags(raw.tags),
-    source: typeof raw.source === 'string' ? raw.source : '',
-    contentHash: typeof raw.contentHash === 'string' ? raw.contentHash : '',
-    favorite: raw.favorite === true,
-    sourceRef: typeof raw.sourceRef === 'string' ? raw.sourceRef : '',
-  };
-  const out = { ...raw };
-  Object.assign(out, core);
-  collectLegacyTakes(raw.takes);
-  delete out.takes;
-  return out;
-}
-
-export function normalizeExerciseItem(raw) {
-  return normalizeItem(raw);
-}
-
-function defaultStore() {
-  const t = nowISO();
-  return {
-    categories: [
-      { id: uid('cat'), name: 'Tabs', parentId: '' },
-      { id: uid('cat'), name: 'Etudes', parentId: '' },
-      { id: uid('cat'), name: 'Warm-ups', parentId: '' },
-    ],
-    items: [],
-    seededAt: t,
-  };
-}
-
-let storeCache = null;
-
-function getStore() {
-  if (storeCache) return storeCache;
-  const raw = readKey(STORAGE_KEY);
-  if (raw === null) {
-    storeCache = defaultStore();
-    persist();
-    return storeCache;
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    const normalized = Array.isArray(parsed && parsed.categories)
-      ? parsed.categories.map(normalizeCategory).filter(Boolean)
-      : [];
-    const { folders } = sanitizeFolderTree(normalized);
-    storeCache = {
-      categories: folders,
-      items: Array.isArray(parsed && parsed.items)
-        ? parsed.items.map(normalizeItem).filter(Boolean)
-        : [],
-    };
-  } catch (e) {
-    storeCache = { categories: [], items: [] };
-  }
-  purgeLegacyTakes();
-  return storeCache;
-}
-
-// Free the audio blobs of practice takes that an older build recorded. The
-// takes are already out of storeCache, so the write below also removes the
-// `takes` field from storage.
-function purgeLegacyTakes() {
-  if (!legacyTakeAttachmentIds.size) return;
-  const ids = [...legacyTakeAttachmentIds];
-  legacyTakeAttachmentIds.clear();
-  persist();
-  (async () => {
-    for (const attachmentId of ids) {
-      try { await releaseAttachment(attachmentId); } catch (e) { /* keep releasing */ }
-    }
-  })();
-}
-
-function persist() {
-  if (!storeCache) return;
-  if (writeKey(STORAGE_KEY, JSON.stringify(storeCache))) {
-    emitDataChanged('exercises');
-  }
-}
-
-export function invalidateExercisesCache() {
-  storeCache = null;
-}
-
-// --- public data API (synchronous metadata; Blobs fetched on demand) -------
-
-export function getCategories() {
-  return getStore().categories.slice();
-}
-
-export function getExercises() {
-  return getStore().items.slice();
-}
-
-export function getExercise(id) {
-  return getStore().items.find(it => it.id === id) || null;
-}
-
-function categoryName(categoryId) {
-  if (!categoryId) return 'No folder';
-  const cat = getStore().categories.find(c => c.id === categoryId);
-  return cat ? cat.name : 'No folder';
-}
-
-export function addCategory(name, parentId = '') {
-  const clean = clampText((name || '').trim(), CAT_LIMIT);
-  if (!clean) return null;
-  const store = getStore();
-  let resolvedParent = normalizeParentId(parentId);
-  if (resolvedParent && !folderById(store.categories, resolvedParent)) {
-    resolvedParent = '';
-  }
-  const exists = findSiblingByName(store.categories, resolvedParent, clean);
-  if (exists) return exists;
-  if (resolvedParent && folderDepth(store.categories, resolvedParent) >= MAX_FOLDER_DEPTH) {
-    return null;
-  }
-  const cat = { id: uid('cat'), name: clean, parentId: resolvedParent };
-  store.categories.push(cat);
-  persist();
-  return cat;
-}
-
-/** Options for the folder / tag picker (sidebar + mobile sheet). */
-export function getExerciseFolderOptions() {
-  const store = getStore();
-  const items = getExercises();
-  const uncategorizedCount = items.filter(it => !it.categoryId).length;
-  const opts = [
-    {
-      id: 'all',
-      label: 'All Exercises',
-      count: items.length,
-      totalCount: items.length,
-      depth: 0,
-      parentId: '',
-      path: '',
-    },
-  ];
-  flattenFolderTree(store.categories).forEach((row) => {
-    const subtreeIds = folderSubtreeIds(store.categories, row.id);
-    opts.push({
-      id: row.id,
-      label: row.name,
-      count: items.filter(it => it.categoryId === row.id).length,
-      totalCount: items.filter(it => subtreeIds.has(it.categoryId)).length,
-      depth: row.depth,
-      parentId: row.parentId,
-      path: row.path,
-    });
-  });
-  if (uncategorizedCount > 0) {
-    opts.push({
-      id: 'uncategorized',
-      label: 'No folder',
-      count: uncategorizedCount,
-      totalCount: uncategorizedCount,
-      depth: 0,
-      parentId: '',
-      path: '',
-    });
-  }
-  return opts;
-}
 
 export function getSelectedExerciseFolder() {
   return selectedCategory;
@@ -571,16 +162,6 @@ export function moveExerciseFolder(id, parentId) {
   return { ok: true, reason: '' };
 }
 
-export function getExercisesInFolder(id, { includeDescendants = false } = {}) {
-  const items = getExercises();
-  if (!id || id === 'uncategorized') return items.filter(it => !it.categoryId);
-  if (id === 'all') return items;
-  if (includeDescendants) {
-    const subtreeIds = folderSubtreeIds(getStore().categories, id);
-    return items.filter(it => subtreeIds.has(it.categoryId));
-  }
-  return items.filter(it => it.categoryId === id);
-}
 
 function renameCategory(id, name) {
   const clean = clampText((name || '').trim(), CAT_LIMIT);
@@ -650,22 +231,6 @@ function moveExercise(id, categoryId) {
   return true;
 }
 
-function attachmentStillReferenced(attachmentId) {
-  if (!attachmentId) return false;
-  return getStore().items.some((it) => itemAttachmentIds(it).includes(attachmentId));
-}
-
-async function releaseAttachmentsForItem(item) {
-  for (const attachmentId of itemAttachmentIds(item)) {
-    try { await releaseAttachment(attachmentId); } catch (e) { /* keep releasing */ }
-  }
-}
-
-async function releaseAttachment(attachmentId) {
-  if (!attachmentId || attachmentStillReferenced(attachmentId)) return;
-  // Shared score blobs are referenced by multiple bar-range exercises; delete only when none remain.
-  try { await deleteFile(attachmentId); } catch (e) {}
-}
 
 async function deleteExercise(id) {
   const store = getStore();
@@ -850,6 +415,7 @@ function youtubeEmbedUrl(url) {
 
 export function mediaKind(item) {
   if (item && item.kind === 'runner') return 'runner';
+  if (item && item.kind === 'cue') return 'cue';
   if (item && item.kind === 'note') return 'note';
   if (item && item.url) return youtubeEmbedUrl(item.url) ? 'youtube' : 'link';
   if (isGpItem(item)) return 'gp';
@@ -872,6 +438,7 @@ export function mediaKindLabel(item) {
     link: 'Link',
     gp: 'Guitar Pro',
     runner: 'Pitch run',
+    cue: 'Cue exercise',
     note: 'Written',
     file: 'File',
   };
@@ -971,7 +538,7 @@ function describeExerciseRow(item) {
     id: item.id,
     name: item.name,
     typeLabel: mediaKindLabel(item),
-    size: (item.url || item.kind === 'runner' || item.kind === 'note')
+    size: (item.url || item.kind === 'runner' || item.kind === 'cue' || item.kind === 'note')
       ? null
       : (Number(item.size) || null),
     modifiedAt: item.addedAt,
@@ -981,7 +548,7 @@ function describeExerciseRow(item) {
 
 function exerciseRowMenuExtras(item) {
   if (!item) return [];
-  if (item.kind === 'runner' || item.kind === 'note') {
+  if (item.kind === 'runner' || item.kind === 'cue' || item.kind === 'note') {
     return [{ label: 'Edit', onClick: () => openEditForm(item.id) }];
   }
   if (!item.url) return [];
@@ -1053,6 +620,7 @@ export function openAddFlow(folderId) {
     onPick: (typeId) => {
       if (typeId === 'link') { openLinkDialog(target); return; }
       if (typeId === 'runner') { openRunnerForm({ categoryId: target }); return; }
+      if (typeId === 'cue') { openCueForm({ categoryId: target }); return; }
       if (typeId === 'note') { openNoteForm({ categoryId: target }); return; }
       const accept = typeId === 'document' ? DOC_ACCEPT_ATTR
         : typeId === 'media' ? MEDIA_ACCEPT_ATTR
@@ -1067,6 +635,23 @@ export function openAddFlow(folderId) {
   });
 }
 
+/**
+ * The vocal metadata of an exercise, in the shape the forms read.
+ * @returns {{ style: string, registers: string[], focus: string[] }|null}
+ */
+function vocalFormValue(item) {
+  const meta = readVocalMeta(item);
+  if (!meta) return null;
+  return { style: meta.vocalStyle, registers: meta.registers, focus: meta.focus };
+}
+
+/** The fields a saved vocal choice writes onto an exercise. */
+function vocalPatch(item, vocal) {
+  const patch = { tags: withVocalTags(item?.tags, vocal) };
+  if (vocal && vocal.style) patch.instrument = VOCAL_INSTRUMENT;
+  return patch;
+}
+
 /** Open the pitch-run form, either for a new run or for one that exists. */
 function openRunnerForm({ categoryId, item = null } = {}) {
   openRunnerDialog({
@@ -1074,17 +659,49 @@ function openRunnerForm({ categoryId, item = null } = {}) {
     confirmLabel: item ? 'Save changes' : 'Save exercise',
     name: item ? item.name : '',
     config: item ? item.runner : null,
-    onSave: ({ name, config }) => {
+    vocal: vocalFormValue(item),
+    onSave: ({ name, config, vocal }) => {
       if (item) {
-        const next = updateExerciseContent(item.id, { name: name || item.name, runner: config });
+        const next = updateExerciseContent(item.id, {
+          name: name || item.name,
+          runner: config,
+          ...vocalPatch(item, vocal),
+        });
         if (next) {
           setStatus(`Saved "${next.name}".`);
           if (activeExerciseId === item.id) void openExerciseViewer(item.id);
         }
         return;
       }
-      const added = addRunnerExercise({ name, config, categoryId });
+      const added = addRunnerExercise({ name, config, categoryId, vocal });
       setStatus(added ? `Added "${added.name}".` : 'Could not save that run.', !added);
+    },
+  });
+}
+
+/** Open the cue form, either for a new cue exercise or for one that exists. */
+function openCueForm({ categoryId, item = null } = {}) {
+  openCueDialog({
+    title: item ? 'Edit cue exercise' : 'New cue exercise',
+    confirmLabel: item ? 'Save changes' : 'Save exercise',
+    name: item ? item.name : '',
+    config: item ? item.cue : null,
+    vocal: vocalFormValue(item),
+    onSave: ({ name, config, vocal }) => {
+      if (item) {
+        const next = updateExerciseContent(item.id, {
+          name: name || item.name,
+          cue: config,
+          ...vocalPatch(item, vocal),
+        });
+        if (next) {
+          setStatus(`Saved "${next.name}".`);
+          if (activeExerciseId === item.id) void openExerciseViewer(item.id);
+        }
+        return;
+      }
+      const added = addCueExercise({ name, config, categoryId, vocal });
+      setStatus(added ? `Added "${added.name}".` : 'Could not save that exercise.', !added);
     },
   });
 }
@@ -1199,6 +816,7 @@ export function exerciseIconSvg(item) {
   if (kind === 'video' || kind === 'youtube') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>';
   if (kind === 'link') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4.93"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19.07"/></svg>';
   if (kind === 'runner') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h4l3-9 3 13 3-8h5"/></svg>';
+  if (kind === 'cue') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
   if (kind === 'note') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
   if (kind === 'gp') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9v6l5-3-5-3z"/><path d="M15 9h2M15 12h3M15 15h1"/></svg>';
   if (kind === 'doc' || kind === 'pdf') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>';
@@ -1529,7 +1147,7 @@ function addLinkExercise(name, url, folderId) {
  * Save a pitch-runner run as an exercise.
  * @param {{ name?: string, config: object, categoryId?: string }} options
  */
-export function addRunnerExercise({ name, config, categoryId } = {}) {
+export function addRunnerExercise({ name, config, categoryId, vocal = null } = {}) {
   const runner = normalizeRunnerConfig(config);
   if (!runner) return null;
   return insertItem({
@@ -1539,6 +1157,25 @@ export function addRunnerExercise({ name, config, categoryId } = {}) {
     kind: 'runner',
     runner,
     addedAt: nowISO(),
+    ...vocalPatch(null, vocal),
+  });
+}
+
+/**
+ * Save a cue exercise: a step list the Cue Runner plays.
+ * @param {{ name?: string, config?: object, categoryId?: string, vocal?: object }} options
+ */
+export function addCueExercise({ name, config, categoryId, vocal = null } = {}) {
+  const cue = normalizeCueConfig(config);
+  if (!cue) return null;
+  return insertItem({
+    id: uid('ex'),
+    name: clampText((name || '').trim() || 'Cue exercise', NAME_LIMIT),
+    categoryId: resolveTargetFolder(categoryId),
+    kind: 'cue',
+    cue,
+    addedAt: nowISO(),
+    ...vocalPatch(null, vocal),
   });
 }
 
@@ -1797,6 +1434,7 @@ function openEditForm(id) {
   const item = getExercise(id);
   if (!item) return;
   if (item.kind === 'runner') openRunnerForm({ item });
+  else if (item.kind === 'cue') openCueForm({ item });
   else if (item.kind === 'note') openNoteForm({ item });
 }
 
@@ -1813,7 +1451,7 @@ function fillPlayerHead(item, kind, blob) {
   playerTitleEl.title = item.fileName || item.name;
   playerActionsEl.innerHTML = '';
 
-  if (item.kind === 'runner' || item.kind === 'note') {
+  if (item.kind === 'runner' || item.kind === 'cue' || item.kind === 'note') {
     playerActionsEl.appendChild(el('button', {
       class: 'btn sm', type: 'button', text: 'Edit',
       onClick: () => openEditForm(item.id),
@@ -1881,6 +1519,59 @@ function mountDocFallbackCard(item) {
 }
 
 /** The written body of a note exercise, plus its attached files. */
+/**
+ * Show a cue exercise as a readable step list.
+ *
+ * The library reads the exercise; Practice Lab runs it. The viewer shows the
+ * steps in the order the author wrote them, rest included.
+ */
+function mountCueBody(item) {
+  const config = normalizeCueConfig(item.cue);
+  const article = el('article', { class: 'ex-cue-doc' });
+  if (!config) {
+    article.appendChild(el('p', {
+      class: 'ex-note-empty',
+      text: 'This cue exercise has no steps yet. Use Edit to add some.',
+    }));
+    playerBodyEl.appendChild(article);
+    return;
+  }
+
+  article.appendChild(el('p', { class: 'ex-cue-summary', text: describeCueConfig(config) }));
+  const meta = readVocalMeta(item);
+  if (meta) {
+    article.appendChild(el('p', {
+      class: 'ex-cue-meta',
+      text: `${meta.vocalStyle} · ${meta.registers.join(', ') || 'no register'}`,
+    }));
+  }
+  if (item.technique) {
+    article.appendChild(el('p', { class: 'ex-cue-note', text: item.technique }));
+  }
+
+  const list = el('ol', { class: 'ex-cue-steps' });
+  config.steps.forEach((step) => {
+    // The type already names a rest, so an empty text stays empty here.
+    const label = step.type === 'transition'
+      ? `${step.from} → ${step.to}`
+      : (step.text || '');
+    const seconds = step.type === 'checkpoint' ? 'press Next' : `${step.duration}s`;
+    const row = el('li', { class: `ex-cue-step ex-cue-step-${step.type}` }, [
+      el('span', { class: 'ex-cue-step-type', text: step.type }),
+      el('span', { class: 'ex-cue-step-text', text: label }),
+      el('span', { class: 'ex-cue-step-time', text: seconds }),
+    ]);
+    if (step.detail) row.appendChild(el('span', { class: 'ex-cue-step-detail', text: step.detail }));
+    list.appendChild(row);
+  });
+  article.appendChild(list);
+  article.appendChild(el('p', {
+    class: 'ex-cue-hint',
+    text: 'Practice Lab plays this exercise on the Vocal tab, under Harsh.',
+  }));
+  playerBodyEl.appendChild(article);
+}
+
 function mountNoteBody(item) {
   const text = typeof item.body === 'string' ? item.body : '';
   const article = el('article', { class: 'ex-note-doc' });
@@ -1960,6 +1651,11 @@ function mountPlayerBody(item, kind, blob) {
 
   if (kind === 'runner') {
     viewerRunnerMount = mountRunnerExercise(playerBodyEl, item.runner);
+    return null;
+  }
+
+  if (kind === 'cue') {
+    mountCueBody(item);
     return null;
   }
 

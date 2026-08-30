@@ -208,6 +208,13 @@ export function createIdbStore() {
       const list = Array.isArray(all) ? all : [];
       return list.sort((a, b) => String(a.at).localeCompare(String(b.at)));
     },
+    async listAllEntries({ kind = '' } = {}) {
+      const all = await allByIndex(STORE_ENTRIES, null, undefined);
+      const list = Array.isArray(all) ? all : [];
+      return list
+        .filter(entry => !kind || entry.kind === kind)
+        .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    },
     async updateEntry(id, patch) {
       return run(STORE_ENTRIES, 'readwrite', (tx, done) => {
         const store = tx.objectStore(STORE_ENTRIES);

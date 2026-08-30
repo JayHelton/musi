@@ -19,11 +19,12 @@ import { createSessionView } from './ui/sessionView.js';
 import { createHistoryView } from './ui/historyView.js';
 import { createCompositionView } from './ui/compositionView.js';
 import { createDrumsView } from './ui/drumsView.js';
+import { createVocalView } from './ui/vocalView.js';
 
 const SECTION_ID = 'sec-practicelab';
 
 /** The tabs the tool page offers. They match the `modes` list in js/tools.js. */
-const MODES = new Set(['session', 'drums', 'history', 'composition']);
+const MODES = new Set(['session', 'vocal', 'drums', 'history', 'composition']);
 
 /**
  * The default ports of the web app.
@@ -79,6 +80,15 @@ function paintSession() {
   mounted = view;
 }
 
+// The Vocal tab runs exercises the Practice Library owns. It needs the lab,
+// because every attempt lands in the session log.
+function paintVocal() {
+  const view = createVocalView(lab);
+  clear(rootEl);
+  rootEl.appendChild(view.root);
+  mounted = view;
+}
+
 function paintHistory() {
   const view = createHistoryView(lab);
   clear(rootEl);
@@ -127,6 +137,10 @@ function paint() {
   }
   if (currentMode === 'history') {
     paintHistory();
+    return;
+  }
+  if (currentMode === 'vocal') {
+    paintVocal();
     return;
   }
   if (lab.hasOpenSession()) paintSession();

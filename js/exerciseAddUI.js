@@ -31,6 +31,23 @@ import {
   runnerTrackOptions,
   suggestOctaveShift,
 } from './runnerExerciseModel.js';
+import {
+  normalizeCueConfig,
+  defaultCueConfig,
+  describeCueConfig,
+  parseCueSteps,
+  formatCueSteps,
+  CUE_MIN_REPS,
+  CUE_MAX_REPS,
+  CUE_MAX_SECONDS,
+} from './cueExerciseModel.js';
+import {
+  CLEAN_REGISTERS,
+  HARSH_REGISTERS,
+  FOCUS_BY_MODE,
+  focusLabel,
+  registerLabel,
+} from './vocalExerciseModel.js';
 
 const NAME_LIMIT = 120;
 const BODY_LIMIT = 20000;
@@ -77,6 +94,12 @@ export const ADD_EXERCISE_TYPES = [
     label: 'Pitch run',
     hint: 'Sing a run of notes. Type them, or read them from a Guitar Pro file.',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h4l3-9 3 13 3-8h5"/></svg>',
+  },
+  {
+    id: 'cue',
+    label: 'Cue exercise',
+    hint: 'Timed instructions and rest for harsh vocals. The Cue Runner plays them.',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   },
   {
     id: 'note',
@@ -225,18 +248,239 @@ export function openAddExerciseChooser({
   openDialog(dialog);
 }
 
+// --- the vocal metadata fieldset -------------------------------------------
+
+/**
+ * The vocal tags of an exercise: the style, the registers, and the focus.
+ *
+ * Practice Lab reads these tags to decide which exercises fit a vocal mode.
+ * The tags live on the exercise, so the library stays the source of truth.
+ *
+ * @param {{ style?: string, registers?: string[], focus?: string[], lockStyle?: boolean }} options
+ * @returns {{ root: HTMLElement, value: () => { style: string, registers: string[], focus: string[] } }}
+ */
+function vocalFieldset({ style = '', registers = [], focus = [], lockStyle = false } = {}) {
+  let currentStyle = lockStyle ? style : (style || '');
+  const chosenRegisters = new Set(registers);
+  const chosenFocus = new Set(focus);
+
+  const registerRow = el('div', { class: 'ex-form-chips' });
+  const focusRow = el('div', { class: 'ex-form-chips' });
+
+  function registerList() {
+    if (currentStyle === 'harsh') return HARSH_REGISTERS;
+    if (currentStyle === 'clean') return CLEAN_REGISTERS;
+    return [];
+  }
+
+  function focusList() {
+    const out = [];
+    for (const register of registerList()) {
+      for (const id of (FOCUS_BY_MODE[`${currentStyle}:${register}`] || [])) {
+        if (!out.includes(id)) out.push(id);
+      }
+    }
+    return out;
+  }
+
+  function toggle(row, set, id, label, paint) {
+    const btn = el('button', {
+      type: 'button',
+      class: `ex-form-chip${set.has(id) ? ' on' : ''}`,
+      text: label,
+      'aria-pressed': set.has(id) ? 'true' : 'false',
+      onClick: () => {
+        if (set.has(id)) set.delete(id);
+        else set.add(id);
+        paint();
+      },
+    });
+    row.appendChild(btn);
+  }
+
+  function paint() {
+    registerRow.innerHTML = '';
+    focusRow.innerHTML = '';
+    for (const id of registerList()) {
+      toggle(registerRow, chosenRegisters, id, registerLabel(id), paint);
+    }
+    for (const id of focusList()) {
+      toggle(focusRow, chosenFocus, id, focusLabel(id), paint);
+    }
+    wrap.hidden = !currentStyle;
+  }
+
+  const styleSelect = el('select', { class: 'modal-input', 'aria-label': 'Vocal style' }, [
+    el('option', { value: '', text: 'Not a vocal exercise' }),
+    el('option', { value: 'clean', text: 'Clean vocal' }),
+  ]);
+  styleSelect.value = currentStyle === 'clean' ? 'clean' : '';
+  styleSelect.addEventListener('change', () => {
+    currentStyle = styleSelect.value;
+    chosenRegisters.clear();
+    chosenFocus.clear();
+    paint();
+  });
+
+  const wrap = el('div', { class: 'ex-form-vocal' }, [
+    labelledField('Registers', registerRow, 'Pick every register this exercise trains.'),
+    labelledField('Focus', focusRow, 'Practice Lab shows these under the exercise name.'),
+  ]);
+
+  const root = el('div', {}, lockStyle ? [wrap] : [
+    labelledField('Vocal practice', styleSelect,
+      'A clean vocal exercise appears in the Vocal tab of Practice Lab.'),
+    wrap,
+  ]);
+
+  paint();
+
+  return {
+    root,
+    value() {
+      return {
+        style: currentStyle,
+        registers: [...chosenRegisters],
+        focus: [...chosenFocus],
+      };
+    },
+  };
+}
+
+// --- the cue-exercise form -------------------------------------------------
+
+/**
+ * Create or edit a cue exercise.
+ *
+ * A cue exercise is a step list the Cue Runner plays: what to do, for how
+ * long, and when to rest. Musi judges none of it.
+ *
+ * @param {{ title?: string, confirmLabel?: string, name?: string, config?: object,
+ *           vocal?: object,
+ *           onSave: (result: { name: string, config: object, vocal: object }) => void }} options
+ */
+export function openCueDialog({
+  title = 'New cue exercise',
+  confirmLabel = 'Save exercise',
+  name = '',
+  config = null,
+  vocal = null,
+  onSave,
+} = {}) {
+  const start = normalizeCueConfig(config) || defaultCueConfig();
+
+  const dialog = el('div', { class: 'modal-dialog ex-form-dialog ex-cue-dialog' });
+  dialog.appendChild(el('h3', { class: 'modal-title', text: title }));
+  dialog.appendChild(el('p', {
+    class: 'modal-body',
+    text: 'One step per line: the step type, the seconds, then the text.',
+  }));
+
+  const nameInput = el('input', {
+    type: 'text', class: 'modal-input', value: name,
+    maxlength: String(NAME_LIMIT), placeholder: 'Immediate Low Activation',
+    'aria-label': 'Exercise name',
+  });
+  dialog.appendChild(labelledField('Name', nameInput));
+
+  const repsInput = numberInput({
+    value: start.repetitions, min: CUE_MIN_REPS, max: CUE_MAX_REPS, ariaLabel: 'Repetitions',
+  });
+  dialog.appendChild(labelledField('Repetitions', repsInput));
+
+  const gapInput = numberInput({
+    value: start.restBetweenReps, min: 0, max: CUE_MAX_SECONDS,
+    ariaLabel: 'Rest between repetitions in seconds',
+  });
+  dialog.appendChild(labelledField('Rest between reps (seconds)', gapInput,
+    'Zero starts the next repetition at once.'));
+
+  const stepsInput = el('textarea', {
+    class: 'modal-input ex-form-textarea', rows: '8',
+    'aria-label': 'The steps of the exercise',
+    placeholder: 'perform 4 Neutral false-cord low\nrest 8',
+  });
+  stepsInput.value = formatCueSteps(start.steps);
+  dialog.appendChild(labelledField('Steps', stepsInput,
+    'perform, rest, transition, phrase, checkpoint. A checkpoint waits for Next.'));
+
+  const summary = el('p', { class: 'ex-form-hint ex-cue-summary-line' });
+  dialog.appendChild(summary);
+
+  const meta = vocalFieldset({
+    style: 'harsh',
+    lockStyle: true,
+    registers: Array.isArray(vocal?.registers) ? vocal.registers : [],
+    focus: Array.isArray(vocal?.focus) ? vocal.focus : [],
+  });
+  dialog.appendChild(meta.root);
+
+  const errors = el('div', { class: 'modal-errors' });
+  dialog.appendChild(errors);
+
+  function read() {
+    const parsed = parseCueSteps(stepsInput.value);
+    const normalized = normalizeCueConfig({
+      repetitions: Number(repsInput.value),
+      restBetweenReps: Number(gapInput.value),
+      steps: parsed.steps,
+    });
+    return { parsed, normalized };
+  }
+
+  function syncSummary() {
+    const { parsed, normalized } = read();
+    errors.textContent = parsed.errors.length ? parsed.errors[0] : '';
+    summary.textContent = normalized ? describeCueConfig(normalized) : 'No steps yet';
+  }
+
+  stepsInput.addEventListener('input', syncSummary);
+  repsInput.addEventListener('input', syncSummary);
+  gapInput.addEventListener('input', syncSummary);
+
+  const actions = el('div', { class: 'modal-actions' });
+  actions.appendChild(el('button', {
+    class: 'btn sm', type: 'button', text: 'Cancel', onClick: closeAddExerciseDialog,
+  }));
+  const saveBtn = el('button', { class: 'btn primary', type: 'button', text: confirmLabel });
+  actions.appendChild(saveBtn);
+  dialog.appendChild(actions);
+
+  saveBtn.addEventListener('click', () => {
+    const { parsed, normalized } = read();
+    if (parsed.errors.length) {
+      errors.textContent = parsed.errors[0];
+      return;
+    }
+    if (!normalized) {
+      errors.textContent = 'Write at least one step.';
+      return;
+    }
+    closeAddExerciseDialog();
+    if (typeof onSave === 'function') {
+      onSave({ name: nameInput.value.trim(), config: normalized, vocal: meta.value() });
+    }
+  });
+
+  openDialog(dialog);
+  syncSummary();
+  setTimeout(() => nameInput.focus(), 40);
+}
+
 // --- the pitch-run form -----------------------------------------------------
 
 /**
  * Create or edit a pitch run.
  * @param {{ title?: string, confirmLabel?: string, name?: string, config?: object,
- *           onSave: (result: { name: string, config: object }) => void }} options
+ *           vocal?: object,
+ *           onSave: (result: { name: string, config: object, vocal: object }) => void }} options
  */
 export function openRunnerDialog({
   title = 'New pitch run',
   confirmLabel = 'Save exercise',
   name = '',
   config = null,
+  vocal = null,
   onSave,
 } = {}) {
   const start = normalizeRunnerConfig(config) || defaultRunnerConfig();
@@ -366,6 +610,16 @@ export function openRunnerDialog({
 
   const preview = el('p', { class: 'ex-form-preview' });
   dialog.appendChild(preview);
+
+  // A clean vocal run needs its vocal tags, or the Vocal tab of Practice Lab
+  // cannot tell which register it trains.
+  const vocalMeta = vocalFieldset({
+    style: vocal?.style === 'clean' ? 'clean' : '',
+    registers: Array.isArray(vocal?.registers) ? vocal.registers : [],
+    focus: Array.isArray(vocal?.focus) ? vocal.focus : [],
+  });
+  dialog.appendChild(vocalMeta.root);
+
   const errors = el('div', { class: 'modal-errors' });
   dialog.appendChild(errors);
 
@@ -537,7 +791,7 @@ export function openRunnerDialog({
     }
     closeAddExerciseDialog();
     if (typeof onSave === 'function') {
-      onSave({ name: nameInput.value.trim(), config: normalized });
+      onSave({ name: nameInput.value.trim(), config: normalized, vocal: vocalMeta.value() });
     }
   });
 

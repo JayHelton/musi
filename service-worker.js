@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v285-composition-lab";
+const CACHE_VERSION = "v286-vocal-practice-lab";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -143,6 +143,7 @@ const PRECACHE_URLS = [
   "js/exerciseCompanions/triadRef.js",
   "js/exerciseCompanions/types.js",
   "js/exercises.js",
+  "js/exerciseStore.js",
   "js/exerciseAddUI.js",
   "js/exercisesBulk.js",
   "js/exercisesBulkUI.js",
@@ -220,6 +221,9 @@ const PRECACHE_URLS = [
   "js/pitchProgress.js",
   "js/pitchRunner.js",
   "js/runnerExerciseModel.js",
+  "js/cueExerciseModel.js",
+  "js/vocalExerciseModel.js",
+  "js/vocalStarters.js",
   "js/runnerTimeline.js",
   "js/runnerPitchView.js",
   "js/runnerExerciseView.js",
@@ -234,7 +238,9 @@ const PRECACHE_URLS = [
   "js/practiceLab/adapters/musiClick.js",
   "js/practiceLab/adapters/musiDrone.js",
   "js/practiceLab/adapters/musiDrumLibrary.js",
+  "js/practiceLab/adapters/musiExerciseLibrary.js",
   "js/practiceLab/adapters/musiNeck.js",
+  "js/practiceLab/adapters/musiPitchRunner.js",
   "js/practiceLab/adapters/musiPrefs.js",
   "js/practiceLab/adapters/musiReference.js",
   "js/practiceLab/adapters/musiTheory.js",
@@ -242,6 +248,7 @@ const PRECACHE_URLS = [
   "js/practiceLab/adapters/musiToast.js",
   "js/practiceLab/adapters/realClock.js",
   "js/practiceLab/engine/countdown.js",
+  "js/practiceLab/engine/cueRun.js",
   "js/practiceLab/engine/expand.js",
   "js/practiceLab/engine/scheduler.js",
   "js/practiceLab/engine/timeline.js",
@@ -253,10 +260,12 @@ const PRECACHE_URLS = [
   "js/practiceLab/model/motifLab.js",
   "js/practiceLab/model/rhythmGrid.js",
   "js/practiceLab/model/session.js",
+  "js/practiceLab/model/vocal.js",
   "js/practiceLab/ui/cameraPanel.js",
   "js/practiceLab/ui/compositionContextRow.js",
   "js/practiceLab/ui/compositionFretboard.js",
   "js/practiceLab/ui/compositionView.js",
+  "js/practiceLab/ui/cueRunnerView.js",
   "js/practiceLab/ui/dom.js",
   "js/practiceLab/ui/drumScoreCard.js",
   "js/practiceLab/ui/drumsView.js",
@@ -275,6 +284,8 @@ const PRECACHE_URLS = [
   "js/practiceLab/ui/speedPanel.js",
   "js/practiceLab/ui/timerPanel.js",
   "js/practiceLab/ui/trainerTabs.js",
+  "js/practiceLab/ui/vocalAttemptForm.js",
+  "js/practiceLab/ui/vocalView.js",
   "js/practiceLab/ui/warmUpPanel.js",
   "js/progressHeader.js",
   "js/qr/qrDecode.js",
