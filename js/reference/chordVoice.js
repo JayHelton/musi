@@ -1,16 +1,13 @@
-// Chord playback for the Theory tab.
+// Chord playback for the shared Chord Reference.
 //
-// The tab strums a chord so the player hears the colour before the hand finds
-// the shape. It builds its own voices with the shared audio context, the same
-// way the Scale Reference plays a scale, so it never claims the click slot and
-// never stops the metronome.
-//
-// This is an adapter, because it is the only part of the Theory tab that
-// reaches the shared audio service.
+// The reference strums a chord so the player hears the colour before the hand
+// finds the shape. It builds its own voices with the shared audio context, the
+// same way the Scale Reference plays a scale, so it never claims the click slot
+// and never stops the metronome.
 
-import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from '../../audio.js';
+import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from '../audio.js';
 
-/** The octave a chord plays in when the tab has no voicing to follow. */
+/** The octave a chord plays in when the reference has no voicing to follow. */
 const BASE_OCTAVE = 3;
 /** How long one strum takes from the low string to the high one. */
 const STRUM_MS = 26;

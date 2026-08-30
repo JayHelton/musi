@@ -57,13 +57,13 @@ import {
   describeStack,
   buildChord,
   isHeptatonic,
-} from '../../js/practiceLab/model/theoryChords.js';
+} from '../../js/reference/keyChords.js';
 import {
   findVoicings,
   fretsForPitchClass,
   groupByPosition,
   VOICING_DEFAULTS,
-} from '../../js/practiceLab/model/theoryVoicings.js';
+} from '../../js/reference/voicings.js';
 import {
   alterationsFor,
   borrowedChords,
@@ -71,7 +71,7 @@ import {
   tritoneSubs,
   leadingToneDiminished,
   outsideTones,
-} from '../../js/practiceLab/model/theoryOutside.js';
+} from '../../js/reference/outside.js';
 import { createMemoryStore } from '../../js/practiceLab/adapters/memoryStore.js';
 import { createPracticeLab } from '../../js/practiceLab/container.js';
 import { portProblems, PORT_CONTRACT, PORT_NAMES } from '../../js/practiceLab/ports.js';

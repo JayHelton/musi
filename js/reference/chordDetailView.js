@@ -6,8 +6,8 @@
 // offers for it.
 
 import { el, clear, panel, pressable, notice } from './dom.js';
-import { findVoicings, groupByPosition } from '../model/theoryVoicings.js';
-import { voicingCard } from './theoryVoicingCard.js';
+import { findVoicings, groupByPosition } from './voicings.js';
+import { voicingCard } from './voicingCard.js';
 
 /**
  * @param {{onVoicing: Function, onLadder: Function, onPlay: Function}} handlers

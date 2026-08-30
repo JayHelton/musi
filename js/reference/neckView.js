@@ -1,4 +1,4 @@
-// The neck of the Theory tab.
+// The neck of the shared references.
 //
 // One neck serves every view. What changes is which notes it lights:
 //
@@ -8,10 +8,10 @@
 //   * an out-of-key chord chosen — its outside tones ringed as borrowed notes.
 //
 // The drawing itself comes from `js/scaleFretboard.js`, the same neck the Scale
-// Reference draws, so the two screens read the same way.
+// Reference tool draws, so every screen reads the same way.
 
-import { renderFretboard, MAX_FRET } from '../adapters/musiNeck.js';
-import { INTERVAL_LABELS, NOTE_NAMES_SHARP, parseNote } from '../adapters/musiTheory.js';
+import { renderFretboard, MAX_FRET } from '../scaleFretboard.js';
+import { INTERVAL_LABELS, NOTE_NAMES_SHARP, parseNote } from '../theory.js';
 import { el, panel, stepper, toggle } from './dom.js';
 
 const DEGREE_LABELS = {
@@ -32,7 +32,7 @@ export function openMidisOf(strings) {
  * @param {{onRangeChange: Function, onLabelChange: Function}} handlers
  * @returns {{root: HTMLElement, render: Function, setRange: Function}}
  */
-export function createTheoryNeck({ onRangeChange, onLabelChange } = {}) {
+export function createNeckView({ onRangeChange, onLabelChange } = {}) {
   let start = 0;
   let end = 15;
   let labelMode = 'degree';

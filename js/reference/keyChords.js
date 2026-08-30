@@ -1,6 +1,6 @@
 // The chord set of a key, and the ways out of it.
 //
-// The Theory tab asks three questions, and this module answers all three with
+// The Chord Reference asks three questions, and this module answers all three with
 // pure functions:
 //
 //   1. Which chords does this root and this mode contain?
@@ -15,15 +15,13 @@
 // No function here touches the DOM or the clock, so the test runner reads them
 // directly.
 
-import {
-  parseNote, spellNote, INTERVAL_LABELS, NOTE_NAMES_SHARP,
-  SCALES, getScaleNotes, shortScaleName,
-} from '../adapters/musiTheory.js';
+import { parseNote, spellNote, INTERVAL_LABELS, NOTE_NAMES_SHARP } from '../theory.js';
+import { SCALES, getScaleNotes, shortScaleName } from '../scales.js';
 
 // Roman numerals of the seven scale degrees.
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 
-/** Chord sizes the tab offers, from a plain triad to a ninth chord. */
+/** Chord sizes the reference offers, from a plain triad to a ninth chord. */
 export const CHORD_SIZES = [
   { id: 3, label: 'Triads' },
   { id: 4, label: '7th chords' },
@@ -264,7 +262,7 @@ function scalePitchClasses(root, scale) {
 }
 
 /**
- * Everything the tab needs to know about the notes of one key.
+ * Everything the reference needs to know about the notes of one key.
  * @param {string} root a root note such as "B" or "Eb"
  * @param {string} scale a scale name from SCALES
  * @returns {{root:string, scale:string, notes:string[], pcs:number[], size:number}|null}
@@ -381,7 +379,7 @@ export function chordLadder(root, scale, degree) {
 
 /**
  * Compare the chord set of two scales on the same root.
- * The Theory tab uses this to show how Harmonic Minor changes the chords of
+ * The Chord Reference uses this to show how Harmonic Minor changes the chords of
  * Natural Minor.
  * @returns {{rows:Array, changed:number}|null}
  */

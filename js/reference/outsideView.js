@@ -1,4 +1,4 @@
-// The Outside view of the Theory tab.
+// The Outside view of the shared Chord Reference.
 //
 // Staying in one mode is a starting point, not a rule. This view shows the two
 // normal ways to leave it:
@@ -13,8 +13,8 @@
 // the move is visible and not only a label.
 
 import { el, clear, panel } from './dom.js';
-import { keyChords, keyNotes, scaleLabel } from '../model/theoryChords.js';
-import { alterationsFor, borrowedChords, outsideMoves } from '../model/theoryOutside.js';
+import { keyChords, keyNotes, scaleLabel } from './keyChords.js';
+import { alterationsFor, borrowedChords, outsideMoves } from './outside.js';
 
 /**
  * @param {{onSelectChord: Function}} handlers

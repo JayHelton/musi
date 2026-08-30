@@ -42,7 +42,15 @@ function triadQuality(notes) {
   };
 }
 
-function diatonicTriadsForNotes(notes) {
+/**
+ * The seven triads of a seven-note scale, one per degree.
+ *
+ * The Triads panel draws these, and the shared Chord Reference reads the same
+ * list, so both screens name one chord set for a key.
+ * @param {string[]} notes the seven spelled notes of the scale, tonic first
+ * @returns {Object[]} one entry per degree, or an empty list
+ */
+export function diatonicTriadsForNotes(notes) {
   if (!notes || notes.length !== 7) return [];
   return notes.map((root, i) => {
     const tones = [root, notes[(i + 2) % 7], notes[(i + 4) % 7]];

@@ -1,9 +1,9 @@
 // The shared music-theory engine, seen from inside Practice Lab.
 //
 // Musi keeps one music-theory engine in `js/`, and the web app and the CLI both
-// read it. The Theory tab reads it too, but every other file of this feature
+// read it. Composition Lab reads it too, but every other file of this feature
 // stays inside the folder. So this adapter is the one seam: it re-exports the
-// parts of the engine the tab uses, and nothing else reaches across.
+// parts of the engine the feature uses, and nothing else reaches across.
 //
 // A micro app that mounts this feature on its own replaces this file and keeps
 // the rest of the folder unchanged.
@@ -21,8 +21,12 @@ export {
   SCALES,
   getScaleNotes,
   groupedScaleEntries,
+  orderedScaleNames,
+  scaleIntervalClasses,
   scaleStepPattern,
   shortScaleName,
 } from '../../scales.js';
+
+export { CHORDS, getChordNotes, chordSemitoneFormula } from '../../chords.js';
 
 export { resolveTuningKey } from '../../tunings.js';

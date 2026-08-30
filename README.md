@@ -58,22 +58,30 @@ Drills that build your ear, your reading, and your hands.
     the paradiddles, the rolls, and the drags, each with a full R and L
     sticking under the staff and a left-hand-lead bar. Every entry opens in the
     Guitar Pro player, so you can loop it, slow it down, and hear it.
-  - *Theory* — map the key you are working in. Pick a root, a mode, and a
-    tuning, and the neck lights every note of the scale. The Chords view stacks
-    the triads, the 7th chords, and the 9th chords of the mode, finds every
-    chord of one quality, and shows each shape the tuning gives you at its real
-    fret. A compare picker puts a second mode beside the first, so a switch from
-    Natural Minor to Harmonic Minor shows which chords move and which note moved
-    them. The Outside view bends a chord you already hold and lists the
-    secondary dominants, the tritone substitutes, the leading-tone diminished
-    7ths, and the chords borrowed from every parallel mode, and it names the
-    note each one takes outside the key.
+  - *Composition* — Composition Lab. It trains the loop a writer needs: hear a
+    degree, name it, find it on the neck, write under a constraint, change the
+    idea on purpose, and explain the decision. A context row names the
+    instrument, the tuning, the tonal center, and the collection, and every
+    exercise builds from it, so the work runs in any key and any tuning. Quick
+    Practice gives one exercise, a Guided Session walks Recall, Hear, Map,
+    Write, Transform, and Explain in order, and nine focus areas give a shorter
+    run. The rhythm grid keeps attacks apart from pitches: design the bar first,
+    then assign the degrees. Motif Lab holds one original and five descendants
+    and names what stays and what changes in each. Section Lab, four guided
+    labs, the song study, and the capstone rubric carry the longer work.
+    Intervals, Scales, and Chords stay one tap away in a drawer, and opening one
+    never disturbs the exercise underneath.
   - *History* — every past session with its log and its clips.
 
 ## Study
 
 Look up scales, chords, triads, and key relationships.
 
+- **Interval Reference** — what each degree above the tonic does to a listener
+  and what a writer uses it for. Pick a degree to see its distance in semitones,
+  its note above the current tonal center, where it sits on the neck, the scales
+  that hold it, and two short compositional examples. Composition Lab opens the
+  same component in its reference drawer.
 - **Scale Reference** — scale and mode families, step patterns, key signatures,
   diatonic chords, and three-notes-per-string neck layouts.
 - **Chord Reference** — voicings on the neck, movable chord cards, and CAGED.
@@ -219,6 +227,7 @@ Two ways to move a library between devices:
 +-- js/tools.js             # The tool registry: areas, utilities, and context
 +-- js/routeMap.js          # Route ids: the four areas plus every tool
 +-- js/areaPages.js         # Train / Study / Create / Library landing pages
++-- js/reference/           # Shared Interval, Scale, and Chord references
 +-- js/shell/               # Navigation, the shared tool page, the nav stack
 +-- js/library/             # Shared file-browser for Exercises and Workbooks
 +-- js/cloud/               # Optional Supabase account and library sync
@@ -247,6 +256,7 @@ node tests/workbooks/run.mjs       # workbook model and playthrough
 node tests/exercises/run.mjs       # exercise library
 node tests/chord-match/run.mjs     # multi-answer chord identification
 node tests/practice-lab/run.mjs    # session timing, the chord set of a key, voicings
+node tests/composition-lab/run.mjs # Composition Lab and the shared references
 ```
 
 `tests/appcheck/run.mjs` boots the app in headless Chrome and fails on any

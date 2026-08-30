@@ -1,4 +1,4 @@
-// The Chords view of the Theory tab.
+// The Chords view of the shared Chord Reference.
 //
 // It answers two questions at once. The card row says which chords the mode
 // gives, and the quality filter says where one quality sits inside the key —
@@ -7,7 +7,7 @@
 // Minor shows exactly which chords moved.
 
 import { el, clear, panel, select } from './dom.js';
-import { CHORD_SIZES, keyChords, compareKeys, qualityIndex, scaleLabel } from '../model/theoryChords.js';
+import { CHORD_SIZES, keyChords, compareKeys, qualityIndex, scaleLabel } from './keyChords.js';
 
 const ALL = '__all__';
 

@@ -17,13 +17,13 @@ import { el, clear, notice } from './ui/dom.js';
 import { createSetupView } from './ui/setupView.js';
 import { createSessionView } from './ui/sessionView.js';
 import { createHistoryView } from './ui/historyView.js';
-import { createTheoryView } from './ui/theoryView.js';
+import { createCompositionView } from './ui/compositionView.js';
 import { createDrumsView } from './ui/drumsView.js';
 
 const SECTION_ID = 'sec-practicelab';
 
 /** The tabs the tool page offers. They match the `modes` list in js/tools.js. */
-const MODES = new Set(['session', 'drums', 'history', 'theory']);
+const MODES = new Set(['session', 'drums', 'history', 'composition']);
 
 /**
  * The default ports of the web app.
@@ -86,10 +86,10 @@ function paintHistory() {
   mounted = view;
 }
 
-// The Theory tab is a reference screen. It keeps no session and needs no port,
-// so it mounts on its own and never waits for the store.
-function paintTheory() {
-  const view = createTheoryView();
+// Composition Lab keeps its own state in the shared settings store and needs
+// no port, so it mounts on its own and never waits for the session store.
+function paintComposition() {
+  const view = createCompositionView();
   clear(rootEl);
   rootEl.appendChild(view.root);
   mounted = view;
@@ -117,8 +117,8 @@ function paintFailure(message) {
 function paint() {
   if (!rootEl || !lab) return;
   stopMounted();
-  if (currentMode === 'theory') {
-    paintTheory();
+  if (currentMode === 'composition') {
+    paintComposition();
     return;
   }
   if (currentMode === 'drums') {
@@ -144,11 +144,11 @@ export function initPracticeLab({ mode } = {}) {
   rootEl = host;
   currentMode = MODES.has(mode) ? mode : 'session';
 
-  // The Theory tab and the Drums tab read no saved session, so they open at
+  // Composition Lab and the Drums tab read no saved session, so they open at
   // once even when the store is still loading or blocked.
-  if (currentMode === 'theory' || currentMode === 'drums') {
+  if (currentMode === 'composition' || currentMode === 'drums') {
     stopMounted();
-    if (currentMode === 'theory') paintTheory();
+    if (currentMode === 'composition') paintComposition();
     else paintDrums();
     if (!lab) startLab({ paintAfter: false });
     return;
