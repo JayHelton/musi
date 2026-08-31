@@ -69,9 +69,6 @@ const VIEW_BEHIND_BEATS = 1.5;
 const LEAD_IN_BEATS = 4;       // one 4/4 measure of count-in before the first note
 const NOTE_GAP_BEATS = 0.18;   // silent gap (beats) between adjacent notes
 const NOTE_LENGTHS = [1, 2, 3, 4]; // selectable note durations, in beats
-// Short cue length for the optional melody guide. Kept brief so the singer —
-// not the app's own speakers — must sustain the note for the hit.
-const GUIDE_CUE_BEATS = 0.35;
 // Output delay compensation, in milliseconds. Bluetooth headphones play a
 // sound long after the app schedules it, so the runner sends every click and
 // every melody-guide cue out early by this much. The bars on screen then cross
@@ -268,11 +265,14 @@ function scheduleClick(time, accented) {
   });
 }
 
-// A short, soft melody-guide cue at a note's start. Intentionally brief — just
-// enough to hint the pitch — so speaker bleed can't sustain the hit for the
-// singer. Returns the cue's audible duration in seconds (including release).
-function scheduleGuideTone(midi, time) {
-  return scheduleCueTone(midi, time, Math.max(0.16, Math.min(0.55, GUIDE_CUE_BEATS * runner.secPerBeat)));
+// A melody-guide cue that sounds a note's whole written length, the same
+// duration a preview note holds, so it works as a real pitch reference while
+// the singer sings the note live. Scoring runs against the singer's voice
+// through it rather than waiting out a lockout — see the mute-skip in
+// scheduleAudio(). Returns the cue's audible duration in seconds (including
+// release).
+function scheduleGuideTone(note, time) {
+  return scheduleCueTone(note.midi, time, previewToneSec(note));
 }
 
 // The length a preview note sounds for. A preview note holds its whole written
@@ -1006,9 +1006,11 @@ function scheduleAudio(playheadBeat) {
     }
     runner.nextClickBeat += 1;
   }
-  // Target notes the app sounds for the ear: a preview note holds its whole
-  // length, and an optional melody-guide cue only hints the pitch. Scoring is
-  // muted for the cue's audible life so speaker bleed can't count as a hit.
+  // Target notes the app sounds for the ear: a preview note and an optional
+  // melody-guide cue both hold a note's whole written length. A preview note
+  // plays with nobody singing, so scoring stays muted for its audible life.
+  // The melody guide instead sounds alongside the singer, so scoring is left
+  // running through it rather than muted for the note's whole duration.
   for (const note of runner.notes) {
     if (note.guideScheduled) continue;
     if (!note.preview && !runner.guide) continue;
@@ -1016,16 +1018,16 @@ function scheduleAudio(playheadBeat) {
     const heardAt = runner.startAudioTime + note.startBeat * runner.secPerBeat;
     const playAt = cuePlayTime(heardAt);
     if (playAt != null) {
-      const cueSec = note.preview
-        ? schedulePreviewTone(note, playAt)
-        : scheduleGuideTone(note.midi, playAt);
-      // The microphone hears the cue only after the output delay.
-      const muteUntil = lockoutUntil(playAt + delay + cueSec);
-      note.guideMuteUntil = muteUntil;
-      // A preview note sounds while the notes after it wait their turn, so its
-      // tail must mute the whole run and not only its own bar.
       if (note.preview) {
+        const cueSec = schedulePreviewTone(note, playAt);
+        // The microphone hears the cue only after the output delay.
+        const muteUntil = lockoutUntil(playAt + delay + cueSec);
+        note.guideMuteUntil = muteUntil;
+        // A preview note sounds while the notes after it wait their turn, so
+        // its tail must mute the whole run and not only its own bar.
         runner.previewMuteUntil = Math.max(runner.previewMuteUntil, muteUntil);
+      } else {
+        scheduleGuideTone(note, playAt);
       }
     }
     note.guideScheduled = true;
