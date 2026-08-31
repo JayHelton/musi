@@ -1,0 +1,212 @@
+/* Vocal — the Harsh Vocal Cheat Sheet.
+   A slide-over sheet, the same shape as Composition Lab's reference drawer,
+   so a running Cue Runner underneath stays exactly as the singer left it. */
+
+.pl-vocal-cheat-row { margin: 4px 0 2px; }
+.pl-vocal-cheat-row[hidden] { display: none; }
+
+/* ---- the drawer shell ---- */
+
+.pl-cheat-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+}
+.pl-cheat-drawer[hidden] { display: none; }
+.pl-cheat-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 8, 18, .62);
+  backdrop-filter: blur(2px);
+}
+.pl-cheat-drawer-sheet {
+  position: relative;
+  width: min(680px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  overflow-y: auto;
+  background: var(--bg);
+  border-left: 1px solid var(--accent2);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, .55);
+}
+.pl-cheat-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pl-cheat-drawer-title {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: .68rem;
+  letter-spacing: .04em;
+  color: var(--accent);
+}
+.pl-cheat-drawer-close {
+  min-height: var(--tap-min);
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: .88rem;
+  cursor: pointer;
+}
+.pl-cheat-drawer-close:hover { border-color: var(--accent2); }
+.pl-cheat-drawer-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pl-cheat-drawer-tabrow { display: flex; }
+.pl-cheat-drawer-body { display: flex; flex-direction: column; gap: 14px; }
+.pl-cheat-drawer-sources-label { margin: 4px 0 0; }
+
+.pl-cheat-panel[hidden] { display: none; }
+.pl-cheat-panel { display: flex; flex-direction: column; gap: 12px; }
+.pl-cheat-panel-cards { gap: 14px; }
+
+/* ---- the warm-up ladder ---- */
+
+.pl-cheat-ladder {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pl-cheat-ladder li { padding-left: 4px; }
+.pl-cheat-ladder-step {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  letter-spacing: .02em;
+  color: var(--text);
+}
+.pl-cheat-ladder-detail {
+  display: block;
+  font-family: var(--font-body);
+  font-size: .84rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* ---- the register cards ---- */
+
+.pl-cheat-card {
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 0 var(--radius-screen) var(--radius-screen) 0;
+  background: var(--card);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pl-cheat-card-title {
+  margin: 0 0 2px;
+  font-family: var(--font-pixel);
+  font-size: .62rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.pl-cheat-row {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: .88rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.pl-cheat-row-label { color: var(--muted); font-weight: 600; }
+
+/* A cool-to-hot gradient across the false-cord registers, ending in the
+   app's own danger colour for true-cord highs — the riskiest technique. */
+.pl-cheat-card-low { border-left-color: var(--btn-x); }
+.pl-cheat-card-low .pl-cheat-card-title { color: var(--btn-x); }
+.pl-cheat-card-mid { border-left-color: var(--accent2); }
+.pl-cheat-card-mid .pl-cheat-card-title { color: var(--accent2); }
+.pl-cheat-card-high { border-left-color: var(--accent); }
+.pl-cheat-card-high .pl-cheat-card-title { color: var(--accent); }
+.pl-cheat-card-truecord {
+  border-left-color: var(--btn-a);
+  background: rgba(230, 57, 70, .07);
+}
+.pl-cheat-card-truecord .pl-cheat-card-title { color: var(--btn-a); }
+.pl-cheat-hardstop { color: var(--btn-a); font-weight: 600; }
+.pl-cheat-hardstop .pl-cheat-row-label { color: var(--btn-a); }
+
+/* ---- the tongue-placement table ---- */
+
+.pl-cheat-table-wrap { overflow-x: auto; }
+.pl-cheat-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-family: var(--font-body);
+  font-size: .84rem;
+}
+.pl-cheat-table th,
+.pl-cheat-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.pl-cheat-table th {
+  font-family: var(--font-ui);
+  font-size: .82rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pl-cheat-table tr:last-child td { border-bottom: none; }
+
+.pl-cheat-rules {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: .86rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* ---- the red-flag list ---- */
+
+.pl-cheat-flags {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: .9rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+.pl-cheat-flags li::marker { color: var(--btn-a); }
+
+/* ---- the source list ---- */
+
+.pl-cheat-sources {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .8rem;
+}
+.pl-cheat-sources a {
+  color: var(--accent2);
+  text-decoration: none;
+}
+.pl-cheat-sources a:hover,
+.pl-cheat-sources a:focus-visible { text-decoration: underline; }
+
+@media (max-width: 700px) {
+  .pl-cheat-drawer-sheet { width: 100%; border-left: none; border-top: 1px solid var(--accent2); }
+}

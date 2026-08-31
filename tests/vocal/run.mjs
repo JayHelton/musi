@@ -60,6 +60,16 @@ import {
   starterExerciseRecord,
   starterExerciseRecords,
 } from '../../js/vocalStarters.js';
+import {
+  HARSH_CHEAT_TABS,
+  WARM_UP_LADDER,
+  FALSE_CORD_REGISTERS,
+  TRUE_CORD_HIGHS,
+  TONGUE_TONE_TABLE,
+  TONGUE_RULES,
+  RED_FLAGS,
+  CHEAT_SHEET_SOURCES,
+} from '../../js/practiceLab/model/harshCheatSheet.js';
 
 let passed = 0;
 let failed = 0;
@@ -422,6 +432,67 @@ test('the records of one style all carry that style', () => {
 test('an unknown style has no starters', () => {
   assert.deepEqual(startersOfStyle('nonsense'), []);
   assert.deepEqual(starterExerciseRecords({ style: '', folderId: 'f' }), []);
+});
+
+/* ------------------------------------------------------------------ */
+console.log('Harsh cheat sheet');
+
+test('the cheat sheet names five tabs, in a fixed order', () => {
+  assert.deepEqual(HARSH_CHEAT_TABS.map(t => t.id),
+    ['warmup', 'falsecord', 'truecord', 'tongue', 'redflags']);
+  assert.ok(HARSH_CHEAT_TABS.every(t => t.label));
+});
+
+test('the warm-up ladder ends on false cord, not on distortion', () => {
+  assert.ok(WARM_UP_LADDER.length >= 4);
+  assert.ok(WARM_UP_LADDER.every(row => row.step && row.detail));
+  assert.match(WARM_UP_LADDER[0].step, /Hydrate/i);
+  assert.match(WARM_UP_LADDER.at(-1).step, /false cord/i);
+});
+
+test('the false-cord registers match the Harsh registers of the vocal model', () => {
+  assert.deepEqual(Object.keys(FALSE_CORD_REGISTERS), HARSH_REGISTERS);
+});
+
+test('every false-cord card answers the same five questions', () => {
+  const fields = ['label', 'activation', 'placement', 'mouth', 'breath', 'feelsLike'];
+  for (const register of HARSH_REGISTERS) {
+    const card = FALSE_CORD_REGISTERS[register];
+    for (const field of fields) {
+      assert.ok(typeof card[field] === 'string' && card[field].length > 0, `${register}.${field}`);
+    }
+  }
+});
+
+test('true-cord highs are a distinct technique with a hard stop', () => {
+  const fields = ['label', 'whatItIs', 'warmIntoLast', 'activation', 'ridingIt', 'placement', 'breath', 'hardStop'];
+  for (const field of fields) {
+    assert.ok(typeof TRUE_CORD_HIGHS[field] === 'string' && TRUE_CORD_HIGHS[field].length > 0, field);
+  }
+  assert.match(TRUE_CORD_HIGHS.whatItIs, /true/i);
+});
+
+test('the tongue table pairs every position with an effect and a register', () => {
+  assert.ok(TONGUE_TONE_TABLE.length >= 4);
+  for (const row of TONGUE_TONE_TABLE) {
+    assert.ok(row.position, 'position');
+    assert.ok(row.effect, 'effect');
+    assert.ok(row.pairsWith, 'pairsWith');
+  }
+  assert.ok(TONGUE_RULES.length >= 2);
+});
+
+test('the red flags are non-empty stop-now reminders', () => {
+  assert.ok(RED_FLAGS.length >= 3);
+  assert.ok(RED_FLAGS.every(text => typeof text === 'string' && text.length > 10));
+});
+
+test('every source carries a label and a URL', () => {
+  assert.ok(CHEAT_SHEET_SOURCES.length >= 3);
+  for (const source of CHEAT_SHEET_SOURCES) {
+    assert.ok(source.label, 'label');
+    assert.match(source.url, /^https:\/\//, source.label);
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

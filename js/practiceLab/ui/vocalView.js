@@ -13,6 +13,7 @@
 import { el, clear, chip, pressable, notice, select, panel } from './dom.js';
 import { createCueRunnerView } from './cueRunnerView.js';
 import { createAttemptForm } from './vocalAttemptForm.js';
+import { createHarshCheatSheet } from './harshCheatSheetView.js';
 import {
   VOCAL_SETTINGS,
   sourceFolderKey,
@@ -105,6 +106,7 @@ export function createVocalView(lab) {
           register = readRegister(style);
           exerciseId = '';
           search = '';
+          cheatSheet.close();
           paint();
         },
       }));
@@ -126,6 +128,26 @@ export function createVocalView(lab) {
         },
       }));
     }
+  }
+
+  /* ---- the cheat sheet ---- */
+
+  // Harsh vocals carry more injury risk than clean ones, so the technique
+  // reminder is one tap away for the whole Harsh session and never shown
+  // under Clean.
+  const cheatSheet = createHarshCheatSheet();
+  const cheatButtonWrap = el('div', { class: 'pl-vocal-cheat-row' });
+
+  function paintCheatButton() {
+    clear(cheatButtonWrap);
+    cheatButtonWrap.hidden = style !== 'harsh';
+    if (style !== 'harsh') return;
+    cheatButtonWrap.appendChild(pressable({
+      label: 'Cheat Sheet',
+      className: 'small',
+      ariaLabel: 'Open the harsh vocal cheat sheet',
+      onPress: () => cheatSheet.toggle(),
+    }));
   }
 
   /* ---- the exercise source ---- */
@@ -399,6 +421,7 @@ export function createVocalView(lab) {
   function paint() {
     paintStyles();
     paintRegisters();
+    paintCheatButton();
     const list = paintSource();
     paintPicker(list);
     paintStage();
@@ -411,6 +434,7 @@ export function createVocalView(lab) {
     styleRow,
     el('span', { class: 'pl-field-label', text: 'Register' }),
     registerRow,
+    cheatButtonWrap,
     sourceBody,
     pickerBody,
     metaBody,
@@ -423,13 +447,14 @@ export function createVocalView(lab) {
     el('p', { class: 'pl-vocal-kicker', text: 'PRACTICE LAB · VOCAL' }),
     modePanel.root,
     runPanel.root,
+    cheatSheet.root,
   ]);
 
   paint();
 
   return {
     root,
-    /** Stop the runner and release the microphone. */
-    stop() { stopStage(); },
+    /** Stop the runner, release the microphone, and close the cheat sheet. */
+    stop() { stopStage(); cheatSheet.stop(); },
   };
 }
