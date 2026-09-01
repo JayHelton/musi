@@ -63,6 +63,12 @@ export function createMemoryStore({ seed = {} } = {}) {
         .sort((a, b) => String(a.at).localeCompare(String(b.at)))
         .map(clone);
     },
+    async listAllEntries({ kind = '' } = {}) {
+      return [...entries.values()]
+        .filter(e => !kind || e.kind === kind)
+        .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+        .map(clone);
+    },
     async updateEntry(id, patch) {
       const found = entries.get(id);
       if (!found) return null;

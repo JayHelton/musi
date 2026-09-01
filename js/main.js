@@ -42,6 +42,7 @@ import { initTriadRef, stopTriadRef } from './triadReference.js';
 import { initChordFinder, stopChordFinder } from './chordFinder.js';
 import { initDrumTabReference, stopDrumTabReference } from './drumTabReference.js';
 import { initPracticeLab, stopPracticeLab } from './practiceLab/index.js';
+import { initIntervalReference, stopIntervalReference } from './intervalReference.js';
 import { initVisualizer } from './visualizer.js';
 import { initNowPlaying } from './nowPlaying.js';
 import { getSetting, saveSetting } from './persistence.js';
@@ -88,6 +89,7 @@ const SELF_CHROMED_TOOL_IDS = new Set(['exercises', 'workbooks', 'scoreplayer', 
 const TOOL_STOPPERS = {
   metronome: () => { if (metro.playing) stopMetronome(); },
   keyboard: () => { if (Object.keys(S.kb.drones).length) stopAll(); },
+  intervalref: () => stopIntervalReference(),
   scaleref: () => stopScaleRef(),
   triads: () => stopTriadRef(),
   chordfinder: () => stopChordFinder(),
@@ -117,6 +119,7 @@ const TOOL_INITS = {
   circle: drawCoF,
   keyboard: buildKeyboard,
   metronome: initMetronome,
+  intervalref: initIntervalReference,
   scaleref: initScaleRef,
   triads: initTriadRef,
   chordfinder: initChordFinder,

@@ -18,6 +18,7 @@
  * @property {(options?: Object) => Promise<Object[]>} listSessions
  * @property {(entry: Object) => Promise<Object|null>} appendEntry
  * @property {(sessionId: string) => Promise<Object[]>} listEntries
+ * @property {(options?: Object) => Promise<Object[]>} listAllEntries
  * @property {(id: string, patch: Object) => Promise<Object|null>} updateEntry
  * @property {(clip: Object) => Promise<Object|null>} saveClip
  * @property {(id: string) => Promise<Object|null>} getClip
@@ -88,7 +89,7 @@ export const PORT_CONTRACT = {
   store: [
     'getCatalog', 'saveCatalog',
     'createSession', 'endSession', 'getSession', 'listSessions', 'deleteSession',
-    'appendEntry', 'listEntries', 'updateEntry',
+    'appendEntry', 'listEntries', 'listAllEntries', 'updateEntry',
     'saveClip', 'getClip', 'listClips', 'deleteClip',
     'isAvailable',
   ],

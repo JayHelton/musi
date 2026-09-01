@@ -148,4 +148,47 @@ await test('an old record with no kind still reads as a file or a link', async (
   assert.equal(ex.normalizeExerciseItem({ id: 'old-3', name: 'Nothing' }), null);
 });
 
+await test('a cue exercise keeps its steps and its vocal tags through a reload', async () => {
+  const item = ex.addCueExercise({
+    name: 'Immediate Low Activation',
+    categoryId: 'cat-warm',
+    config: {
+      repetitions: 5,
+      steps: [
+        { type: 'perform', duration: 4, text: 'Neutral false-cord low' },
+        { type: 'rest', duration: 8 },
+      ],
+    },
+    vocal: { style: 'harsh', registers: ['low'], focus: ['activation'] },
+  });
+  assert.equal(item.kind, 'cue');
+  assert.equal(ex.mediaKind(item), 'cue');
+  assert.equal(ex.mediaKindLabel(item), 'Cue exercise');
+  assert.equal(item.instrument, 'voice');
+
+  ex.invalidateExercisesCache();
+  const reloaded = ex.getExercise(item.id);
+  assert.equal(reloaded.kind, 'cue');
+  assert.equal(reloaded.cue.repetitions, 5);
+  assert.equal(reloaded.cue.steps.length, 2);
+  assert.equal(reloaded.cue.steps[1].type, 'rest');
+  assert.equal(reloaded.cue.steps[1].duration, 8, 'the rest keeps the length the author wrote');
+  assert.deepEqual(reloaded.tags, ['vocal:harsh', 'register:low', 'focus:activation']);
+});
+
+await test('a cue exercise with no step is not stored', async () => {
+  assert.equal(ex.addCueExercise({ name: 'Empty', config: { steps: [] } }), null);
+  assert.equal(ex.normalizeExerciseItem({ id: 'x', kind: 'cue', cue: { steps: [] } }), null);
+});
+
+await test('a pitch run can carry clean vocal tags', async () => {
+  const item = ex.addRunnerExercise({
+    name: 'G4 Reliability',
+    config: RUN,
+    vocal: { style: 'clean', registers: ['mix'], focus: ['g4-reliability'] },
+  });
+  assert.equal(item.instrument, 'voice');
+  assert.deepEqual(item.tags, ['vocal:clean', 'register:mix', 'focus:g4-reliability']);
+});
+
 console.log('\nall add-kinds tests passed');

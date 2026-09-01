@@ -5,6 +5,8 @@
 //
 // Every function here is pure. The caller supplies the id and the time.
 
+import { describeVocalAttempt } from './vocal.js';
+
 /** Every log entry kind the tool writes. */
 export const ENTRY_KINDS = [
   'session-start',
@@ -18,6 +20,7 @@ export const ENTRY_KINDS = [
   'speed-start',
   'speed-complete',
   'clip-saved',
+  'vocal-attempt',
   'note',
   'warm-up-done',
   'session-end',
@@ -57,7 +60,7 @@ export function newSession({ id, at, instrument, technique, target, warmUp }) {
     instrument: String(instrument || '').trim(),
     technique: String(technique || '').trim(),
     target: String(target || '').trim(),
-    totals: { timerMs: 0, clips: 0, topBpm: 0 },
+    totals: { timerMs: 0, clips: 0, topBpm: 0, attempts: 0 },
   };
   const picked = newWarmUp(warmUp);
   if (picked) record.warmUp = picked;
@@ -90,16 +93,18 @@ function num(value) {
  *
  * `timerMs` counts a finished timer block at its full length and a stopped
  * block at the time it ran. `clips` skips a clip the player deleted.
- * `topBpm` is the best speed-trainer result of the session.
+ * `topBpm` is the best speed-trainer result of the session. `attempts` counts
+ * the vocal attempts of the session.
  *
  * @param {Object[]} entries
- * @returns {{ timerMs: number, clips: number, topBpm: number }}
+ * @returns {{ timerMs: number, clips: number, topBpm: number, attempts: number }}
  */
 export function rollUpTotals(entries) {
   const list = Array.isArray(entries) ? entries : [];
   let timerMs = 0;
   let clips = 0;
   let topBpm = 0;
+  let attempts = 0;
   for (const entry of list) {
     if (!entry || !entry.kind) continue;
     const data = entry.data || {};
@@ -107,8 +112,9 @@ export function rollUpTotals(entries) {
     else if (entry.kind === 'timer-stop') timerMs += num(data.elapsedMs);
     else if (entry.kind === 'clip-saved' && data.removed !== true) clips += 1;
     else if (entry.kind === 'speed-complete') topBpm = Math.max(topBpm, num(data.topBpm));
+    else if (entry.kind === 'vocal-attempt') attempts += 1;
   }
-  return { timerMs: Math.round(timerMs), clips, topBpm };
+  return { timerMs: Math.round(timerMs), clips, topBpm, attempts };
 }
 
 /** Sort entries oldest first, and keep a stable order inside one millisecond. */
@@ -167,6 +173,8 @@ export function describeEntry(entry) {
         : `Speed stopped — reached ${data.topBpm} BPM`;
     case 'clip-saved':
       return `Clip saved — ${formatDuration(data.durationMs)}`;
+    case 'vocal-attempt':
+      return describeVocalAttempt(data);
     case 'note':
       return data.text || '';
     case 'warm-up-done':

@@ -43,7 +43,9 @@ export function createHistoryView(lab) {
         el('p', { class: 'pl-history-target', text: session.target }),
         el('p', {
           class: 'pl-history-meta',
-          text: `${formatDuration(totals.timerMs)} on the clock · ${plural(totals.clips, 'clip')}${totals.topBpm ? ` · top ${totals.topBpm} BPM` : ''}`,
+          text: `${formatDuration(totals.timerMs)} on the clock · ${plural(totals.clips, 'clip')}`
+            + `${totals.topBpm ? ` · top ${totals.topBpm} BPM` : ''}`
+            + `${totals.attempts ? ` · ${plural(totals.attempts, 'vocal attempt')}` : ''}`,
         }),
         // The warm-up is on the record, so the history shows what this session
         // covered and the picker keeps its cooldown honest.
@@ -89,7 +91,7 @@ export function createHistoryView(lab) {
       return;
     }
     for (const session of sessions) {
-      const totals = session.totals || { timerMs: 0, clips: 0, topBpm: 0 };
+      const totals = session.totals || { timerMs: 0, clips: 0, topBpm: 0, attempts: 0 };
       const row = el('article', { class: `pl-history-row${session.status === 'active' ? ' open' : ''}` }, [
         el('div', { class: 'pl-history-row-main' }, [
           el('p', { class: 'pl-history-meta', text: dateOf(session.startedAt) }),
@@ -100,7 +102,10 @@ export function createHistoryView(lab) {
           el('p', { class: 'pl-history-target', text: session.target }),
           el('p', {
             class: 'pl-history-meta',
-            text: `${formatDuration(totals.timerMs)} · ${plural(totals.clips, 'clip')}${totals.topBpm ? ` · top ${totals.topBpm} BPM` : ''}${session.status === 'active' ? ' · still open' : ''}`,
+            text: `${formatDuration(totals.timerMs)} · ${plural(totals.clips, 'clip')}`
+              + `${totals.topBpm ? ` · top ${totals.topBpm} BPM` : ''}`
+              + `${totals.attempts ? ` · ${plural(totals.attempts, 'vocal attempt')}` : ''}`
+              + `${session.status === 'active' ? ' · still open' : ''}`,
           }),
         ]),
         el('div', { class: 'pl-history-row-actions' }, [

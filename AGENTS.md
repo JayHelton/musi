@@ -73,7 +73,7 @@ distribution.
 - **Verify before push:** there is no CI. Follow the Gotchas definition of verifying
   (run the CLI, exercise the web UI in a browser) and run any relevant ad-hoc Node test
   runners under `tests/` (e.g. `node tests/workbooks/run.mjs`,
-  `node tests/exercises/run.mjs`).
+  `node tests/exercises/run.mjs`, `node tests/composition-lab/run.mjs`).
 - **Harness override:** a cloud-agent harness may still force branch-and-PR delivery. If
   so, say so explicitly — do not silently open a PR against this rule.
 
@@ -123,8 +123,8 @@ Musi has four areas and one set of supporting utilities. `js/tools.js` is the on
 place that classifies every screen:
 
 - **Train** — Intervals, Sight Reading, Chord Workout, Pitch & Ear.
-- **Study** — Scale Reference, Chord Reference, Chord Finder, Triads, Circle of Fifths,
-  Drum Notation.
+- **Study** — Interval Reference, Scale Reference, Chord Reference, Chord Finder,
+  Triads, Circle of Fifths, Drum Notation.
 - **Create** — Audio Studio, Song Studio, Notes.
 - **Library** — Exercises, Workbooks.
 - **Utilities** (`utility: true`) — Metronome, Keyboard, Score Player, Settings.
@@ -136,6 +136,11 @@ Rules to keep:
   (`sec-pitchear`). Do not add alias tables or legacy route maps.
 - Utilities are subordinate. They never join the primary navigation bar.
 - Each tool lists the shared-context fields it reads in `context: [...]`.
+- One theory source of truth. `js/scales.js`, `js/chords.js`, and `js/tunings.js`
+  hold the catalogs. `js/reference/` holds the shared Interval, Scale, and Chord
+  reference components on top of them. Study mounts those components on tool
+  pages and Composition Lab mounts the same components in its reference drawer.
+  Do not write a second scale, chord, or interval table inside a feature folder.
 - `node tests/product-model/run.mjs` enforces all of the above.
 
 ### Gotchas

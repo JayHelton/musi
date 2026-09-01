@@ -101,7 +101,9 @@
 <link rel="stylesheet" href="css/tool-page.css">
 <link rel="stylesheet" href="css/audio-dock.css">
 <link rel="stylesheet" href="css/practice-lab.css">
-<link rel="stylesheet" href="css/practice-lab-theory.css">
+<link rel="stylesheet" href="css/practice-lab-vocal.css">
+<link rel="stylesheet" href="css/reference.css">
+<link rel="stylesheet" href="css/practice-lab-composition.css">
 <link rel="stylesheet" href="css/practice-lab-drums.css">
 <link rel="stylesheet" href="css/landscape.css">
 </head>
@@ -271,6 +273,14 @@
   </section>
 
   <!-- SCALE REFERENCE -->
+  <section id="sec-intervalref" class="section">
+    <div class="section-head">
+      <h2>Interval Reference</h2>
+      <p>What each degree above the tonic does to a listener, and what a writer uses it for. Pick a degree to see its distance, its note, where it sits on the neck, and the scales that hold it.</p>
+    </div>
+    <div class="mref-page" id="intervalref-body"></div>
+  </section>
+
   <section id="sec-scaleref" class="section">
     <div class="section-head">
       <h2>Scale Reference</h2>
@@ -884,7 +894,7 @@
       </div>
       <div class="quiz-card pr-card" style="margin-top:16px">
         <div class="field-label">Pitch runner <span class="pr-tag">beta</span></div>
-        <p class="pr-intro">Sing and sustain each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left. Use Note length (1&ndash;4 beats) to practice longer holds. The melody guide is a short cue only and does not count toward hits. Preview each pass plays the notes to you first, and then you sing the same notes back for the score. Bluetooth headphones play the sound late, so raise Audio delay until the click lands on the beat you see.</p>
+        <p class="pr-intro">Sing and sustain each note as its bar crosses the line, in 4/4 time &mdash; a Guitar Hero&ndash;style pitch game. Pitch runs up the screen; time scrolls right to left. Use Note length (1&ndash;4 beats) to practice longer holds. The melody guide is a short cue only and does not count toward hits. Preview each pass plays the notes to you first, and then you sing the same notes back for the score. Bluetooth headphones play the sound late, so raise Audio delay until the click lands on the beat you see. Pick <b>Harmony</b> under Melody to hold one root note for the whole run and sing the intervals you choose above it, below it, or both. Wear headphones for Harmony: the microphone hears a drone that plays out loud, and the runner then drops every pitch that sits on the root.</p>
         <div class="pt-controls">
           <label class="pt-field">
             <span>Challenge</span>
@@ -919,6 +929,23 @@
           <label class="pr-check"><input type="checkbox" id="pr-metronome" checked><span>Metronome click</span></label>
           <label class="pr-check"><input type="checkbox" id="pr-guide"><span>Play melody guide</span></label>
           <label class="pr-check"><input type="checkbox" id="pr-preview"><span>Preview each pass</span></label>
+        </div>
+        <div class="pr-harmony" id="pr-harmony" hidden>
+          <div class="pr-harmony-row">
+            <span class="pr-harmony-label">Intervals</span>
+            <div class="pr-harmony-chips" id="pr-harmony-intervals"></div>
+          </div>
+          <div class="pr-harmony-row">
+            <label class="pt-field">
+              <span>Direction</span>
+              <select id="pr-harmony-direction"></select>
+            </label>
+            <label class="pt-field pr-drone-field">
+              <span>Drone volume <b id="pr-drone-level-out">18%</b></span>
+              <input type="range" id="pr-drone-level" min="0.05" max="0.5" step="0.01" value="0.18" aria-label="Drone volume">
+            </label>
+          </div>
+          <p class="pr-harmony-note" id="pr-harmony-note" aria-live="polite"></p>
         </div>
         <div class="pr-hud">
           <div class="pr-stat"><span class="pr-stat-val" id="pr-score">0</span><span class="pr-stat-label">Score</span></div>
@@ -991,7 +1018,7 @@
   <section id="sec-practicelab" class="section">
     <div class="section-head">
       <h2>Practice Lab</h2>
-      <p>One screen for one practice session. Pick the instrument, the technique, and the target. Run timers, click patterns, and camera takes. Every action goes in the session log.</p>
+      <p>One screen for one practice session. Pick the instrument, the technique, and the target. Run timers, click patterns, and camera takes. The Vocal tab runs clean and harsh vocal exercises from the Practice Library. Every action goes in the session log.</p>
     </div>
     <div class="pl-root" id="practicelab-body"></div>
   </section>

@@ -43,14 +43,36 @@ Drills that build your ear, your reading, and your hands.
     Bluetooth headset hears each note as its bar crosses the line. Preview each
     pass plays the phrase to you first, and then you sing the same phrase back
     for the score. A hollow bar is the preview, and a solid bar is your turn.
+    The Melody control also holds a *Harmony* drill: Musi holds the context root
+    as a drone for the whole run, and you sing the intervals you picked against
+    it. You choose the intervals from m2 to P8, and you choose whether they sit
+    above the root, below it, or on both sides. A drone volume control sets how
+    loud the root holds. A dashed line on the stage marks the root, and each bar
+    prints its interval. Wear headphones: the microphone hears a drone that
+    plays out loud, and the runner then drops every detected pitch that sits on
+    the root. An interval that does not fit your vocal range is dropped, and the
+    card names it.
   - *Ear training* — identify a pitch, a degree, or an interval by ear.
-- **Practice Lab** — one screen for one practice session, in four tabs:
+- **Practice Lab** — one screen for one practice session, in five tabs:
   - *Session* — pick an instrument, a technique, and a target, then run timers,
     click patterns, ratio drills, a tempo ladder, and camera takes. Every action
     goes in the session log. A drum session opens with a warm-up: the tool picks
     one groove and one rudiment for you, and it never picks what the last three
     sessions used. The pick rides on the session record, so the History tab
     shows what each session warmed up with.
+  - *Vocal* — clean and harsh vocal practice. Clean has Chest, Mix, and Head,
+    and it runs on the same Pitch Runner the rest of the app uses. Harsh has
+    Low, Mid, and High, and it runs on the Cue Runner: timed instructions,
+    timed rest, register changes, phrases, and manual checkpoints. Musi never
+    scores a harsh vocal; you report each repetition as Immediate, Searched,
+    or Missed, or as Clean, Unstable, or Stopped, and the tab shows the counts
+    of the last ten reps. Clean and Harsh each read a Practice Library folder
+    you choose. The tab saves the folder id, so a rename does not break it, and
+    it reads every folder inside it. A folder that is gone asks for a new one
+    and never falls back to the whole library. An empty folder offers the
+    starter exercises, which Musi writes into that folder as normal library
+    exercises. Effort is optional: Easy, Working, or Strained. Musi records
+    Strained and never rewards it.
   - *Drums* — the drum library. Beats holds grooves from ten genres — rock,
     punk, metal, jazz, blues, funk, latin, reggae, country, and hip-hop. Each
     one runs three bars of the groove and one bar of a fill that belongs to the
@@ -58,22 +80,30 @@ Drills that build your ear, your reading, and your hands.
     the paradiddles, the rolls, and the drags, each with a full R and L
     sticking under the staff and a left-hand-lead bar. Every entry opens in the
     Guitar Pro player, so you can loop it, slow it down, and hear it.
-  - *Theory* — map the key you are working in. Pick a root, a mode, and a
-    tuning, and the neck lights every note of the scale. The Chords view stacks
-    the triads, the 7th chords, and the 9th chords of the mode, finds every
-    chord of one quality, and shows each shape the tuning gives you at its real
-    fret. A compare picker puts a second mode beside the first, so a switch from
-    Natural Minor to Harmonic Minor shows which chords move and which note moved
-    them. The Outside view bends a chord you already hold and lists the
-    secondary dominants, the tritone substitutes, the leading-tone diminished
-    7ths, and the chords borrowed from every parallel mode, and it names the
-    note each one takes outside the key.
+  - *Composition* — Composition Lab. It trains the loop a writer needs: hear a
+    degree, name it, find it on the neck, write under a constraint, change the
+    idea on purpose, and explain the decision. A context row names the
+    instrument, the tuning, the tonal center, and the collection, and every
+    exercise builds from it, so the work runs in any key and any tuning. Quick
+    Practice gives one exercise, a Guided Session walks Recall, Hear, Map,
+    Write, Transform, and Explain in order, and nine focus areas give a shorter
+    run. The rhythm grid keeps attacks apart from pitches: design the bar first,
+    then assign the degrees. Motif Lab holds one original and five descendants
+    and names what stays and what changes in each. Section Lab, four guided
+    labs, the song study, and the capstone rubric carry the longer work.
+    Intervals, Scales, and Chords stay one tap away in a drawer, and opening one
+    never disturbs the exercise underneath.
   - *History* — every past session with its log and its clips.
 
 ## Study
 
 Look up scales, chords, triads, and key relationships.
 
+- **Interval Reference** — what each degree above the tonic does to a listener
+  and what a writer uses it for. Pick a degree to see its distance in semitones,
+  its note above the current tonal center, where it sits on the neck, the scales
+  that hold it, and two short compositional examples. Composition Lab opens the
+  same component in its reference drawer.
 - **Scale Reference** — scale and mode families, step patterns, key signatures,
   diatonic chords, and three-notes-per-string neck layouts.
 - **Chord Reference** — voicings on the neck, movable chord cards, and CAGED.
@@ -104,16 +134,22 @@ storage; the Library page is the door to both.
 
 - **Exercises** — one **Add exercise** chooser names every kind the library
   holds: a link, a document, an audio or video recording, a Guitar Pro file, a
-  pitch run, and a written exercise you type. A new exercise joins the folder
-  you have open. Organize them in folders with a file-browser view. The player
-  has Previous and Next buttons, so you step through a folder without a return
-  to the list.
+  pitch run, a cue exercise, and a written exercise you type. A new exercise
+  joins the folder you have open. Organize them in folders with a file-browser
+  view. The player has Previous and Next buttons, so you step through a folder
+  without a return to the list.
   - A **pitch run** is a saved run of the vocal Pitch runner game. You type the
     notes and the hold lengths, or you read them from a Guitar Pro file. The run
     keeps its own tempo, note length, rest, count-in, repeat count, and preview
     mode. A note length of 0 holds each note as long as it is written. The
     player keeps the note list closed below the game, so a long run does not
-    push the game off the screen.
+    push the game off the screen. A pitch run can carry clean vocal tags, and
+    then the Vocal tab of Practice Lab plays it.
+  - A **cue exercise** is a timed instruction list for harsh vocals. You write
+    one step per line: perform, rest, transition, phrase, or checkpoint, with
+    the seconds and the text. The exercise carries its repetition count, its
+    registers, and its focus. The Cue Runner of Practice Lab plays it, and it
+    judges nothing.
   - A **written exercise** holds the text you type and any number of files.
   - **Import course** takes a whole course folder at once. Pick the top folder
     and Musi mirrors the folder tree into Exercises. Every supported file
@@ -219,6 +255,7 @@ Two ways to move a library between devices:
 +-- js/tools.js             # The tool registry: areas, utilities, and context
 +-- js/routeMap.js          # Route ids: the four areas plus every tool
 +-- js/areaPages.js         # Train / Study / Create / Library landing pages
++-- js/reference/           # Shared Interval, Scale, and Chord references
 +-- js/shell/               # Navigation, the shared tool page, the nav stack
 +-- js/library/             # Shared file-browser for Exercises and Workbooks
 +-- js/cloud/               # Optional Supabase account and library sync
@@ -246,7 +283,9 @@ node tests/shell/run.mjs           # nav stack, shared context, tool page
 node tests/workbooks/run.mjs       # workbook model and playthrough
 node tests/exercises/run.mjs       # exercise library
 node tests/chord-match/run.mjs     # multi-answer chord identification
-node tests/practice-lab/run.mjs    # session timing, the chord set of a key, voicings
+node tests/practice-lab/run.mjs    # session timing, the vocal model, the cue run
+node tests/vocal/run.mjs           # the cue model, the vocal tags, the starter set
+node tests/composition-lab/run.mjs # Composition Lab and the shared references
 ```
 
 `tests/appcheck/run.mjs` boots the app in headless Chrome and fails on any

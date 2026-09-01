@@ -57,13 +57,13 @@ import {
   describeStack,
   buildChord,
   isHeptatonic,
-} from '../../js/practiceLab/model/theoryChords.js';
+} from '../../js/reference/keyChords.js';
 import {
   findVoicings,
   fretsForPitchClass,
   groupByPosition,
   VOICING_DEFAULTS,
-} from '../../js/practiceLab/model/theoryVoicings.js';
+} from '../../js/reference/voicings.js';
 import {
   alterationsFor,
   borrowedChords,
@@ -71,7 +71,23 @@ import {
   tritoneSubs,
   leadingToneDiminished,
   outsideTones,
-} from '../../js/practiceLab/model/theoryOutside.js';
+} from '../../js/reference/outside.js';
+import { createCueRun } from '../../js/practiceLab/engine/cueRun.js';
+import {
+  VOCAL_SETTINGS,
+  sourceFolderKey,
+  registerKey,
+  sourceState,
+  newVocalAttempt,
+  describeVocalAttempt,
+  summarizeAttempts,
+  strainWarning,
+  withRepReports,
+  SOURCE_OK,
+  SOURCE_UNSET,
+  SOURCE_MISSING,
+  SOURCE_EMPTY,
+} from '../../js/practiceLab/model/vocal.js';
 import { createMemoryStore } from '../../js/practiceLab/adapters/memoryStore.js';
 import { createPracticeLab } from '../../js/practiceLab/container.js';
 import { portProblems, PORT_CONTRACT, PORT_NAMES } from '../../js/practiceLab/ports.js';
@@ -269,8 +285,8 @@ await test('the log entry kinds match the data model', () => {
   assert.deepEqual(ENTRY_KINDS, [
     'session-start', 'timer-start', 'timer-stop', 'timer-complete',
     'metronome-start', 'metronome-stop', 'ratio-start', 'ratio-stop',
-    'speed-start', 'speed-complete', 'clip-saved', 'note', 'warm-up-done',
-    'session-end',
+    'speed-start', 'speed-complete', 'clip-saved', 'vocal-attempt', 'note',
+    'warm-up-done', 'session-end',
   ]);
 });
 
@@ -288,7 +304,7 @@ await test('a session is active until it ends', () => {
   });
   assert.equal(session.status, 'active');
   assert.equal(session.endedAt, '');
-  assert.deepEqual(session.totals, { timerMs: 0, clips: 0, topBpm: 0 });
+  assert.deepEqual(session.totals, { timerMs: 0, clips: 0, topBpm: 0, attempts: 0 });
 });
 
 await test('the totals roll up from the log', () => {
@@ -302,7 +318,9 @@ await test('the totals roll up from the log', () => {
     { kind: 'speed-complete', data: { topBpm: 95, finished: false } },
     { kind: 'note', data: { text: 'sloppy on the low string' } },
   ];
-  assert.deepEqual(rollUpTotals(entries), { timerMs: 8 * 60000 + 42000, clips: 1, topBpm: 110 });
+  assert.deepEqual(rollUpTotals(entries), {
+    timerMs: 8 * 60000 + 42000, clips: 1, topBpm: 110, attempts: 0,
+  });
 });
 
 await test('entries sort oldest first', () => {
@@ -656,7 +674,7 @@ await test('ending a session closes it and writes the totals', async () => {
 
   assert.equal(ended.status, 'ended');
   assert.notEqual(ended.endedAt, '');
-  assert.deepEqual(ended.totals, { timerMs: 180000, clips: 0, topBpm: 132 });
+  assert.deepEqual(ended.totals, { timerMs: 180000, clips: 0, topBpm: 132, attempts: 0 });
   assert.equal(lab.hasOpenSession(), false);
 
   const stored = await ports.store.getSession(started.id);
@@ -1124,6 +1142,250 @@ await test('the out-of-key moves need a seven-note mode', () => {
   assert.deepEqual(secondaryDominants('C', 'Blues'), []);
   assert.deepEqual(borrowedChords('C', 'Blues'), []);
   assert.deepEqual(alterationsFor(null, []), []);
+});
+
+/* ------------------------------------------------------------------ */
+console.log('Vocal — the source folder');
+
+await test('each style keeps its own settings key', () => {
+  assert.equal(sourceFolderKey('clean'), VOCAL_SETTINGS.cleanFolderId);
+  assert.equal(sourceFolderKey('harsh'), VOCAL_SETTINGS.harshFolderId);
+  assert.notEqual(sourceFolderKey('clean'), sourceFolderKey('harsh'));
+  assert.equal(registerKey('harsh'), VOCAL_SETTINGS.harshRegister);
+});
+
+await test('a folder that is not set asks for one', () => {
+  assert.equal(sourceState({ folderId: '', exists: false, count: 0 }), SOURCE_UNSET);
+});
+
+await test('a folder that is gone never falls back to the whole library', () => {
+  assert.equal(sourceState({ folderId: 'f1', exists: false, count: 0 }), SOURCE_MISSING);
+});
+
+await test('a folder with no compatible exercise says so', () => {
+  assert.equal(sourceState({ folderId: 'f1', exists: true, count: 0 }), SOURCE_EMPTY);
+});
+
+await test('a folder with exercises is ready', () => {
+  assert.equal(sourceState({ folderId: 'f1', exists: true, count: 3 }), SOURCE_OK);
+});
+
+/* ------------------------------------------------------------------ */
+console.log('Vocal — the attempt');
+
+await test('an attempt names the exercise and never copies it', () => {
+  const data = newVocalAttempt({
+    exerciseId: 'ex-1',
+    exerciseName: 'Immediate Low Activation',
+    exerciseSourceFolderId: 'cat-9',
+    vocalStyle: 'Harsh',
+    register: 'Low',
+    focus: ['activation', 'Activation', 'consistency'],
+    reps: 1,
+    completed: true,
+    outcome: 'Immediate',
+  });
+  assert.equal(data.practiceType, 'vocal');
+  assert.equal(data.vocalStyle, 'harsh');
+  assert.equal(data.register, 'low');
+  assert.equal(data.exerciseId, 'ex-1');
+  assert.equal(data.exerciseSourceFolderId, 'cat-9');
+  assert.deepEqual(data.focus, ['activation', 'consistency']);
+  assert.equal(data.outcome, 'immediate');
+  assert.equal(data.cue, undefined);
+  assert.equal(data.runner, undefined);
+});
+
+await test('the optional fields stay out when the singer skips them', () => {
+  const data = newVocalAttempt({ exerciseId: 'ex-1', vocalStyle: 'clean', register: 'mix' });
+  assert.equal('effort' in data, false);
+  assert.equal('issues' in data, false);
+  assert.equal('notes' in data, false);
+  assert.equal('outcome' in data, false);
+  assert.equal('pitch' in data, false);
+});
+
+await test('a clean attempt carries the pitch result of the runner', () => {
+  const data = newVocalAttempt({
+    exerciseId: 'ex-2',
+    vocalStyle: 'clean',
+    register: 'mix',
+    pitch: { score: 120, accuracy: 88, bestCombo: 6, judged: 12 },
+  });
+  assert.deepEqual(data.pitch, { score: 120, accuracy: 88, bestCombo: 6, judged: 12 });
+});
+
+await test('the log line reads the attempt', () => {
+  const line = describeVocalAttempt({
+    exerciseName: 'Low Sustain', vocalStyle: 'harsh', register: 'low',
+    outcome: 'clean', reps: 1, effort: 'working',
+  });
+  assert.match(line, /Low Sustain/);
+  assert.match(line, /harsh · low/);
+  assert.match(line, /clean/);
+});
+
+await test('the summary counts the recent reps and shows no percentage', () => {
+  const entries = [
+    ...Array.from({ length: 7 }, (_, i) => ({ id: `a${i}`, kind: 'vocal-attempt', data: { exerciseId: 'ex-1', outcome: 'immediate' } })),
+    { id: 'b1', kind: 'vocal-attempt', data: { exerciseId: 'ex-1', outcome: 'searched' } },
+    { id: 'b2', kind: 'vocal-attempt', data: { exerciseId: 'ex-1', outcome: 'searched' } },
+    { id: 'c1', kind: 'vocal-attempt', data: { exerciseId: 'ex-1', outcome: 'missed' } },
+    { id: 'd1', kind: 'vocal-attempt', data: { exerciseId: 'ex-2', outcome: 'missed' } },
+    { id: 'e1', kind: 'note', data: {} },
+  ];
+  const summary = summarizeAttempts(entries, {
+    exerciseId: 'ex-1', limit: 10, order: ['immediate', 'searched', 'missed'],
+  });
+  assert.equal(summary.total, 10);
+  assert.deepEqual(summary.counts, [
+    { id: 'immediate', count: 7 },
+    { id: 'searched', count: 2 },
+    { id: 'missed', count: 1 },
+  ]);
+});
+
+await test('an attempt with no reported result stays out of the summary', () => {
+  const entries = [
+    { id: 'a', kind: 'vocal-attempt', data: { exerciseId: 'ex-1', effort: 'easy' } },
+    { id: 'b', kind: 'vocal-attempt', data: { exerciseId: 'ex-1', outcome: 'clean' } },
+  ];
+  const summary = summarizeAttempts(entries, { exerciseId: 'ex-1', order: ['clean'] });
+  assert.equal(summary.total, 1);
+});
+
+await test('strain is recorded and raises a rest note, never a reward', () => {
+  const strained = kind => ({ id: Math.random().toString(), kind: 'vocal-attempt', data: { effort: kind } });
+  assert.equal(strainWarning([strained('working'), strained('easy')]), false);
+  assert.equal(strainWarning([strained('strained')]), false);
+  assert.equal(strainWarning([strained('strained'), strained('easy'), strained('strained')]), true);
+});
+
+await test('a report step closes every repetition', () => {
+  const steps = withRepReports([
+    { rep: 1, reps: 2, index: 0, step: { type: 'perform', duration: 4 }, next: null },
+    { rep: 1, reps: 2, index: 1, step: { type: 'rest', duration: 8 }, next: null },
+    { rep: 2, reps: 2, index: 0, step: { type: 'perform', duration: 4 }, next: null },
+    { rep: 2, reps: 2, index: 1, step: { type: 'rest', duration: 8 }, next: null },
+  ]);
+  assert.deepEqual(steps.map(s => s.step.type),
+    ['perform', 'rest', 'checkpoint', 'perform', 'rest', 'checkpoint']);
+  assert.equal(steps[2].step.report, true);
+  assert.equal(steps[2].rep, 1);
+  assert.equal(steps[0].next.type, 'rest');
+  assert.equal(steps[5].next, null);
+});
+
+/* ------------------------------------------------------------------ */
+console.log('Cue run');
+
+function cueSteps() {
+  return [
+    { rep: 1, reps: 2, index: 0, step: { type: 'perform', duration: 4, text: 'Low' }, next: null },
+    { rep: 1, reps: 2, index: 1, step: { type: 'rest', duration: 8 }, next: null },
+    { rep: 2, reps: 2, index: 0, step: { type: 'checkpoint', text: 'Ready' }, next: null },
+    { rep: 2, reps: 2, index: 1, step: { type: 'perform', duration: 4, text: 'Low' }, next: null },
+  ];
+}
+
+await test('the run walks the steps on the clock', () => {
+  const clock = fakeClock();
+  const run = createCueRun({ clock });
+  assert.equal(run.load(cueSteps()), 4);
+  const seen = [];
+  run.start({ onStep: ({ entry }) => seen.push(entry.step.type) });
+  assert.deepEqual(seen, ['perform']);
+  clock.advance(4000);
+  assert.deepEqual(seen, ['perform', 'rest']);
+});
+
+await test('a rest step keeps its whole length', () => {
+  const clock = fakeClock();
+  const run = createCueRun({ clock });
+  run.load(cueSteps());
+  const seen = [];
+  run.start({ onStep: ({ entry }) => seen.push(entry.step.type) });
+  clock.advance(4000);
+  clock.advance(7800);
+  assert.deepEqual(seen, ['perform', 'rest']);
+  clock.advance(400);
+  assert.deepEqual(seen, ['perform', 'rest', 'checkpoint']);
+});
+
+await test('a checkpoint waits for the singer', () => {
+  const clock = fakeClock();
+  const run = createCueRun({ clock });
+  run.load(cueSteps());
+  const seen = [];
+  run.start({ onStep: ({ entry }) => seen.push(entry.step.type) });
+  clock.advance(12000);
+  assert.deepEqual(seen, ['perform', 'rest', 'checkpoint']);
+  clock.advance(60000);
+  assert.deepEqual(seen, ['perform', 'rest', 'checkpoint']);
+  run.next();
+  assert.deepEqual(seen, ['perform', 'rest', 'checkpoint', 'perform']);
+});
+
+await test('the run ends after the last step', () => {
+  const clock = fakeClock();
+  const run = createCueRun({ clock });
+  run.load(cueSteps());
+  let ended = null;
+  run.start({ onEnd: (result) => { ended = result; } });
+  clock.advance(12000);
+  run.next();
+  clock.advance(4000);
+  assert.deepEqual(ended, { completed: true, steps: 4 });
+  assert.equal(run.isRunning(), false);
+});
+
+await test('a pause holds the time and a resume carries on', () => {
+  const clock = fakeClock();
+  const run = createCueRun({ clock });
+  run.load(cueSteps());
+  const seen = [];
+  run.start({ onStep: ({ entry }) => seen.push(entry.step.type) });
+  clock.advance(1000);
+  run.pause();
+  assert.equal(run.isPaused(), true);
+  clock.advance(30000);
+  assert.deepEqual(seen, ['perform']);
+  run.resume();
+  assert.equal(run.isPaused(), false);
+  clock.advance(2900);
+  assert.deepEqual(seen, ['perform']);
+  clock.advance(200);
+  assert.deepEqual(seen, ['perform', 'rest']);
+});
+
+await test('stop ends the run and reports that it did not finish', () => {
+  const clock = fakeClock();
+  const run = createCueRun({ clock });
+  run.load(cueSteps());
+  let ended = null;
+  run.start({ onEnd: (result) => { ended = result; } });
+  clock.advance(1000);
+  run.stop();
+  assert.deepEqual(ended, { completed: false, steps: 4 });
+  assert.equal(run.isRunning(), false);
+  assert.equal(clock.timerCount(), 0);
+});
+
+await test('a run with no step does not start', () => {
+  const run = createCueRun({ clock: fakeClock() });
+  assert.equal(run.load([]), 0);
+  assert.equal(run.start({}), false);
+});
+
+await test('the countdown also counts seconds, so the cue run needs no second timer', () => {
+  const clock = fakeClock();
+  const countdown = createCountdown({ clock });
+  let done = false;
+  assert.equal(countdown.startSeconds(4, { onComplete: () => { done = true; } }), true);
+  clock.advance(3800);
+  assert.equal(done, false);
+  clock.advance(400);
+  assert.equal(done, true);
 });
 
 /* ------------------------------------------------------------------ */

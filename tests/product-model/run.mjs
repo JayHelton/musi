@@ -102,7 +102,13 @@ test('Train holds the four drills and the Practice Lab', () => {
 
 test('Study holds the references', () => {
   assert.deepEqual(ids(toolsInArea('study')),
-    ['scaleref', 'chordref', 'chordfinder', 'triads', 'circle', 'drumtab']);
+    ['intervalref', 'scaleref', 'chordref', 'chordfinder', 'triads', 'circle', 'drumtab']);
+});
+
+test('the three theory references sit together in Study', () => {
+  for (const id of ['intervalref', 'scaleref', 'chordref']) {
+    assert.equal(getTool(id).area, 'study', `${id} is not in Study`);
+  }
 });
 
 test('Create holds the three writing tools', () => {
@@ -143,9 +149,28 @@ test('the tempo plan lives inside the Metronome', () => {
   assert.deepEqual(getTool('metronome').modes.map(m => m.id), ['metronome', 'plan']);
 });
 
-test('the Practice Lab holds a session mode, a theory mode, and a history mode', () => {
-  assert.deepEqual(getTool('practicelab').modes.map(m => m.id), ['session', 'drums', 'theory', 'history']);
+test('the Practice Lab holds a session, vocal, drums, composition, and history mode', () => {
+  assert.deepEqual(getTool('practicelab').modes.map(m => m.id),
+    ['session', 'vocal', 'drums', 'composition', 'history']);
   assert.equal(getTool('practicelab').defaultMode, 'session');
+});
+
+test('Composition Lab replaced the Chords and Scales tab of the Practice Lab', () => {
+  assert.equal(getTool('practicelab').modes.some(m => m.id === 'theory'), false);
+  assert.equal(existsSync(join(ROOT, 'js/practiceLab/ui/theoryView.js')), false);
+});
+
+test('one theory source of truth serves Study and the Practice Lab', () => {
+  // The shared reference folder holds the components and the data. A feature
+  // folder must not keep a second copy of a chord, scale, or interval table.
+  for (const path of ['js/reference/intervalTable.js', 'js/reference/keyChords.js',
+    'js/reference/voicings.js', 'js/reference/outside.js']) {
+    assert.equal(existsSync(join(ROOT, path)), true, `${path} is missing`);
+  }
+  for (const path of ['js/practiceLab/model/theoryChords.js',
+    'js/practiceLab/model/theoryVoicings.js', 'js/practiceLab/model/theoryOutside.js']) {
+    assert.equal(existsSync(join(ROOT, path)), false, `${path} is a second copy`);
+  }
 });
 
 test('transcription lives inside Audio Studio', () => {

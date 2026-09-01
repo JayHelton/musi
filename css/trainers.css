@@ -162,6 +162,29 @@
 .pr-delay-input:focus{outline:none;border-color:var(--accent)}
 .pr-toggles{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
 .pr-check{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted);cursor:pointer}
+/* Harmony drill controls — shown only when Melody is set to Harmony */
+.pr-harmony{
+  display:flex;flex-direction:column;gap:10px;margin:0 0 14px;padding:12px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-screen,16px)
+}
+.pr-harmony-row{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+.pr-harmony-label{
+  font-family:var(--font-ui,inherit);font-size:.8rem;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--muted)
+}
+.pr-harmony-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.pr-chip{
+  display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+  padding:3px 9px;border:1px solid var(--border);border-radius:var(--radius-pill,999px);
+  background:var(--card);color:var(--muted);
+  font-family:var(--font-ui,inherit);font-size:.85rem;line-height:1.5
+}
+.pr-chip:hover{border-color:var(--accent);color:var(--text)}
+.pr-chip:has(input:checked){border-color:var(--accent);background:var(--accent);color:var(--on-accent,#1a1a24)}
+.pr-chip input{margin:0;accent-color:var(--accent2,var(--accent))}
+.pr-drone-field input[type=range]{width:100%;min-width:140px;accent-color:var(--accent2,var(--accent))}
+.pr-drone-field b{color:var(--accent2,var(--accent));font-variant-numeric:tabular-nums}
+.pr-harmony-note{margin:0;text-align:center;font-size:.8rem;color:var(--muted);min-height:1em}
 .pr-hud{display:flex;justify-content:center;gap:26px;margin-bottom:12px}
 .pr-stat{display:flex;flex-direction:column;align-items:center;min-width:64px}
 .pr-stat-val{font-size:1.4rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
@@ -179,4 +202,7 @@
   .pr-stage{height:260px}
   .pr-hud{gap:16px}
   .pr-toggles{gap:12px}
+  .pr-harmony{padding:10px}
+  .pr-harmony-row{gap:8px}
+  .pr-chip{font-size:.8rem;padding:3px 7px}
 }

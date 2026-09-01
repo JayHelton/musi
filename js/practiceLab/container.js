@@ -206,6 +206,82 @@ export function createPracticeLab(ports) {
     return state.session;
   }
 
+  /** Write the session record at the start, not at the end. */
+  async function startSession({ instrument, technique, target, warmUp }) {
+    const picked = newWarmUp(warmUp);
+    const session = newSession({
+      id: ids.newId('pl-sess'),
+      at: nowIso(),
+      instrument,
+      technique,
+      target,
+      warmUp: picked,
+    });
+    await store.createSession(session);
+    state.resumed = false;
+    state.session = session;
+    state.entries = [];
+    state.clips = [];
+    state.warmUp = null;
+    emit('session', state.session);
+    await appendEntry('session-start', {
+      instrument: session.instrument,
+      technique: session.technique,
+      target: session.target,
+      ...(picked ? { warmUp: warmUpLabel(picked) } : {}),
+    });
+    return session;
+  }
+
+  /* ---- vocal practice ---- */
+
+  /** The session that is opening now, so two fast reports open only one. */
+  let sessionOpening = null;
+
+  /**
+   * Open a session when none is open, so a vocal attempt always lands in the
+   * one history model. The labels describe the vocal mode.
+   * @param {{ instrument: string, technique: string, target: string }} labels
+   */
+  async function ensureSession({ instrument, technique, target }) {
+    if (state.session) return state.session;
+    if (!sessionOpening) {
+      sessionOpening = startSession({ instrument, technique, target })
+        .finally(() => { sessionOpening = null; });
+    }
+    return sessionOpening;
+  }
+
+  /**
+   * Write one vocal attempt into the log of the open session.
+   *
+   * The entry names the exercise by id. It never copies the exercise.
+   *
+   * @param {Object} data the output of `newVocalAttempt`
+   * @param {{ instrument?: string, technique?: string, target?: string }} [labels]
+   *   the session to open when none is open
+   */
+  async function logVocalAttempt(data, labels = {}) {
+    await ensureSession({
+      instrument: labels.instrument || 'Voice',
+      technique: labels.technique || 'Vocal',
+      target: labels.target || 'Vocal practice',
+    });
+    return appendEntry('vocal-attempt', data);
+  }
+
+  /**
+   * The vocal attempts of every session, oldest first.
+   * @param {{ exerciseId?: string, limit?: number }} [query]
+   */
+  async function vocalAttempts({ exerciseId = '', limit = 0 } = {}) {
+    const all = await store.listAllEntries({ kind: 'vocal-attempt' });
+    const list = (Array.isArray(all) ? all : [])
+      .filter(entry => !exerciseId || entry.data?.exerciseId === exerciseId);
+    if (!limit) return list;
+    return list.slice(-Math.max(1, Math.round(limit)));
+  }
+
   return {
     ports,
     state,
@@ -283,31 +359,7 @@ export function createPracticeLab(ports) {
     },
 
     /** Write the session record at the start, not at the end. */
-    async startSession({ instrument, technique, target, warmUp }) {
-      const picked = newWarmUp(warmUp);
-      const session = newSession({
-        id: ids.newId('pl-sess'),
-        at: nowIso(),
-        instrument,
-        technique,
-        target,
-        warmUp: picked,
-      });
-      await store.createSession(session);
-      state.resumed = false;
-      state.session = session;
-      state.entries = [];
-      state.clips = [];
-      state.warmUp = null;
-      emit('session', state.session);
-      await appendEntry('session-start', {
-        instrument: session.instrument,
-        technique: session.technique,
-        target: session.target,
-        ...(picked ? { warmUp: warmUpLabel(picked) } : {}),
-      });
-      return session;
-    },
+    startSession,
 
     /** Log that the warm-up of the open session is done. */
     async completeWarmUp() {
@@ -346,6 +398,9 @@ export function createPracticeLab(ports) {
     clips() { return state.clips; },
 
     appendEntry,
+    logVocalAttempt,
+    vocalAttempts,
+    ensureSession,
     async addNote(text) {
       const clean = String(text || '').trim();
       if (!clean) return null;

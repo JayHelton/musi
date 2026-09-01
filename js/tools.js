@@ -103,17 +103,29 @@ export const TOOLS = [
     short: 'Practice Lab',
     area: 'train',
     description: 'Run one practice session: a timer, a click, ratios, a tempo ladder, a camera, and a log. '
-      + 'The Theory tab maps the key you are working in, and the Drums tab holds the beat '
-      + 'and rudiment library.',
+      + 'The Vocal tab runs clean and harsh vocal exercises from the Practice Library. '
+      + 'Composition Lab trains you to hear, map, write, and explain your own ideas, and the '
+      + 'Drums tab holds the beat and rudiment library.',
     title: 'Practice Lab',
     modes: [
       { id: 'session', label: 'Session' },
+      { id: 'vocal', label: 'Vocal' },
       { id: 'drums', label: 'Drums' },
-      { id: 'theory', label: 'Theory' },
+      { id: 'composition', label: 'Composition' },
       { id: 'history', label: 'History' },
     ],
     defaultMode: 'session',
     context: ['root', 'scale', 'tuning'],
+    holdRecord: false,
+  },
+  {
+    id: 'intervalref',
+    label: 'Interval Reference',
+    short: 'Intervals',
+    area: 'study',
+    description: 'What each degree above the tonic does, and what a writer uses it for.',
+    title: 'Interval Reference',
+    context: ['root', 'tuning'],
     holdRecord: false,
   },
   {
@@ -304,6 +316,7 @@ export const TOOL_ICONS = {
   chordworkout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/><circle cx="17" cy="16" r="2" fill="currentColor" stroke="none"/></svg>',
   pitchear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4m-4 0h8"/></svg>',
   practicelab: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 2h4"/><path d="M12 2v3"/><circle cx="12" cy="13.5" r="8"/><path d="M12 13.5V9"/><path d="m12 13.5 3.2 2.6"/></svg>',
+  intervalref: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 18V6"/><path d="M20 18V6"/><path d="M4 12h16"/><circle cx="4" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="20" cy="12" r="2" fill="currentColor" stroke="none"/></svg>',
   scaleref: AREA_ICONS.study,
   chordref: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg>',
   chordfinder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4v16M9 4v16M14 4v16M19 4v16"/><path d="M4 8h15M4 15h15"/><circle cx="9" cy="8" r="2.1" fill="currentColor" stroke="none"/><circle cx="19" cy="15" r="2.1" fill="currentColor" stroke="none"/></svg>',

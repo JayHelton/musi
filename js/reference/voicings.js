@@ -1,10 +1,10 @@
 // The voicings of one chord on one neck.
 //
-// The Theory tab must answer "which of these chords can I actually play, and
-// where?". A fixed shape library cannot answer that, because the tab must also
-// cover a diminished major 7 in a drop tuning. So this module searches the neck
-// itself: it puts the chord root on a bass string, looks at every chord tone
-// inside a four-fret window above it, and keeps the combinations a hand can
+// The Chord Reference must answer "which of these chords can I actually play,
+// and where?". A fixed shape library cannot answer that, because the reference
+// must also cover a diminished major 7 in a drop tuning. So this module searches
+// the neck itself: it puts the chord root on a bass string, looks at every chord
+// tone inside a four-fret window above it, and keeps the combinations a hand can
 // hold.
 //
 // Every function is pure. It takes the open-string MIDI notes and a set of

@@ -18,7 +18,10 @@ export function createCountdown({ clock, tickMs = TICK_MS }) {
   let startedMs = 0;
 
   function emit(name, payload) {
-    const fn = handlers[name];
+    call(handlers[name], name, payload);
+  }
+
+  function call(fn, name, payload) {
     if (typeof fn !== 'function') return;
     try {
       fn(payload);
@@ -53,9 +56,26 @@ export function createCountdown({ clock, tickMs = TICK_MS }) {
     running = false;
     clearTimer();
     const done = { minutes, totalMs };
-    handlers.__done = true;
-    emit('onComplete', done);
+    // Detach before the callback runs. A handler may start the next block from
+    // inside `onComplete`, and that block must keep its own handlers.
+    const onComplete = handlers.onComplete;
     handlers = {};
+    call(onComplete, 'onComplete', done);
+  }
+
+  /** Start a countdown of `ms` milliseconds. `mins` labels the block. */
+  function begin(ms, mins, nextHandlers, stopFirst) {
+    const span = Math.round(Number(ms));
+    if (!Number.isFinite(span) || span <= 0) return false;
+    if (running) stopFirst();
+    handlers = nextHandlers || {};
+    minutes = mins;
+    totalMs = span;
+    startedMs = clock.nowMs();
+    running = true;
+    emit('onTick', { remainingMs: totalMs, totalMs, minutes });
+    timer = clock.setInterval(tick, tickMs);
+    return true;
   }
 
   return {
@@ -66,15 +86,19 @@ export function createCountdown({ clock, tickMs = TICK_MS }) {
     start(mins, nextHandlers = {}) {
       const value = Math.round(Number(mins));
       if (!Number.isFinite(value) || value <= 0) return false;
-      if (running) this.stop();
-      handlers = nextHandlers;
-      minutes = value;
-      totalMs = value * 60000;
-      startedMs = clock.nowMs();
-      running = true;
-      emit('onTick', { remainingMs: totalMs, totalMs, minutes });
-      timer = clock.setInterval(tick, tickMs);
-      return true;
+      return begin(value * 60000, value, nextHandlers, () => this.stop());
+    },
+
+    /**
+     * Start a countdown of `secs` seconds.
+     *
+     * The Cue Runner times its steps in seconds, so it reads this instead of
+     * building a second timer. The handlers are the same three.
+     */
+    startSeconds(secs, nextHandlers = {}) {
+      const value = Number(secs);
+      if (!Number.isFinite(value) || value <= 0) return false;
+      return begin(value * 1000, value / 60, nextHandlers, () => this.stop());
     },
 
     /** Stop the countdown before zero. */
@@ -84,8 +108,10 @@ export function createCountdown({ clock, tickMs = TICK_MS }) {
       running = false;
       clearTimer();
       const stopped = { minutes, elapsedMs: Math.round(ran), totalMs };
-      emit('onStop', stopped);
+      // Detach first, for the same reason the tick does.
+      const onStop = handlers.onStop;
       handlers = {};
+      call(onStop, 'onStop', stopped);
       return stopped;
     },
 

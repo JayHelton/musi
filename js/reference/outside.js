@@ -14,8 +14,9 @@
 //
 // The module is pure. It reads no DOM and keeps no state.
 
-import { parseNote, spellNote, NOTE_NAMES_SHARP, SCALES } from '../adapters/musiTheory.js';
-import { buildChord, keyChords, keyNotes, scaleLabel } from './theoryChords.js';
+import { parseNote, spellNote, NOTE_NAMES_SHARP } from '../theory.js';
+import { SCALES } from '../scales.js';
+import { buildChord, keyChords, keyNotes, scaleLabel } from './keyChords.js';
 
 /** The parallel modes the borrow list searches, in the order it shows them. */
 export const BORROW_SOURCES = [
@@ -329,7 +330,7 @@ export function alterationsFor(chord, keyPcs) {
 }
 
 /**
- * Every out-of-key group the tab shows, in one call.
+ * Every out-of-key group the reference shows, in one call.
  * @param {string} root
  * @param {string} scale
  * @param {{size?:number}} [options]

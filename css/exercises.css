@@ -927,6 +927,41 @@ html.ex-viewer-locked body.app-shell.route-notice-on:not(.split-mode) main.app-m
 .rx-actions{display:flex;justify-content:center}
 .rx-hint{margin:0;text-align:center;font-size:.78rem;color:var(--muted)}
 
+/* ---- Vocal tags in a form ---- */
+.ex-form-vocal[hidden]{display:none}
+.ex-form-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ex-form-chip{
+  padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-pill);
+  background:var(--bg2);color:var(--muted);font-family:var(--font-body);font-size:.82rem;cursor:pointer
+}
+.ex-form-chip.on{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);font-weight:600}
+.ex-form-chip:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+/* ---- Cue exercise in the viewer ---- */
+.ex-player-body-cue{background:var(--bg);padding:18px;overflow:auto}
+.ex-cue-doc{max-width:680px;margin:0 auto;color:var(--text)}
+.ex-cue-summary{margin:0 0 4px;font-family:var(--font-ui);font-size:1.02rem;color:var(--accent)}
+.ex-cue-meta{margin:0 0 10px;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ex-cue-note{
+  margin:0 0 14px;padding:8px 12px;font-size:.9rem;line-height:1.5;
+  border-left:3px solid var(--accent2);background:var(--bg2);border-radius:0 10px 10px 0
+}
+.ex-cue-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ex-cue-step{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding:8px 12px;
+  border:1px solid var(--border);border-radius:10px;background:var(--bg2)
+}
+.ex-cue-step-type{
+  font-family:var(--font-ui);font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--accent2);min-width:88px
+}
+.ex-cue-step-rest{border-color:var(--accent2)}
+.ex-cue-step-text{flex:1;min-width:0;font-size:.92rem}
+.ex-cue-step-time{font-family:var(--font-ui);font-size:.92rem;color:var(--accent)}
+.ex-cue-step-detail{flex-basis:100%;font-size:.82rem;color:var(--muted)}
+.ex-cue-hint{margin:14px 0 0;font-size:.82rem;color:var(--muted)}
+.ex-cue-summary-line{margin-top:8px;color:var(--accent)}
+
 /* ---- Written exercise in the viewer ---- */
 .ex-player-body-note{background:var(--bg);padding:18px;overflow:auto}
 .ex-note-doc{max-width:680px;margin:0 auto;color:var(--text)}
