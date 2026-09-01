@@ -13,6 +13,23 @@ import {
 import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.js';
 import { scoreRunnerNote } from './pitchMetrics.js';
 import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
+import {
+  buildHarmonySequence,
+  clampDroneLevel,
+  DRONE_LEVEL_DEFAULT,
+  DRONE_LEVEL_MAX,
+  DRONE_LEVEL_MIN,
+  HARMONY_DEFAULT_DIRECTION,
+  HARMONY_DEFAULT_IDS,
+  HARMONY_DIRECTIONS,
+  HARMONY_INTERVALS,
+  harmonyLabelFor,
+  isDroneBleed,
+  parseDirection,
+  parseIntervalIds,
+  serializeIntervalIds,
+} from './pitchHarmony.js';
+import { startToneDrone } from './audio/toneDrone.js';
 import { lockoutUntil, isScoringWindowClear, ROOM_TAIL_SEC } from './pitchGuideLock.js';
 import { runnerNoteBeats } from './runnerExerciseModel.js';
 import {
@@ -46,12 +63,21 @@ import {
 //   - pitchMatch.js   -> cents/label helpers
 // All timing is driven off the AudioContext clock so the visuals stay locked to
 // the metronome clicks.
+//
+// The Melody control also holds one harmony drill. A harmony run holds the
+// context root as a drone for the whole run, and the bars are the intervals the
+// player picked, above the root, below it, or both. See pitchHarmony.js.
 
 const DIFFICULTIES = [
   { id: 'easy',   label: 'Easy',   toleranceCents: 45, hitThreshold: 0.4 },
   { id: 'medium', label: 'Medium', toleranceCents: 30, hitThreshold: 0.5 },
   { id: 'hard',   label: 'Hard',   toleranceCents: 18, hitThreshold: 0.6 },
 ];
+
+// The Melody value that runs the harmony drill instead of a scale pattern.
+// It is not a member of SCALE_PATTERNS, because the Pitch Trainer reads that
+// catalog too and it holds no drone.
+const HARMONY_PATTERN_ID = 'harmony';
 
 const RANGE_PRESETS = [
   { id: 'bass',      label: 'Bass',      low: 40, high: 64 },
@@ -94,6 +120,8 @@ const RUNNER_ELEMENT_NAMES = [
   'pr-canvas', 'pr-stage', 'pr-overlay', 'pr-difficulty', 'pr-pattern',
   'pr-range-preset', 'pr-length', 'pr-bpm', 'pr-bpm-down', 'pr-bpm-up',
   'pr-metronome', 'pr-guide', 'pr-preview', 'pr-audio-delay',
+  'pr-harmony', 'pr-harmony-intervals', 'pr-harmony-direction',
+  'pr-drone-level', 'pr-drone-level-out', 'pr-harmony-note',
 ];
 
 // The longest hold in the run. A free run holds every note for the same
@@ -192,6 +220,19 @@ const runner = {
   preview: false,
   // Milliseconds between a scheduled sound and the moment the player hears it.
   audioDelayMs: AUDIO_DELAY_DEFAULT_MS,
+
+  // Harmony drill. The bars are the intervals the player picked, and the drone
+  // holds the root under them for the whole run.
+  harmonyIntervals: [...HARMONY_DEFAULT_IDS],
+  harmonyDirection: HARMONY_DEFAULT_DIRECTION,
+  droneLevel: DRONE_LEVEL_DEFAULT,
+  // The root the drone holds, in MIDI numbers, or null outside harmony mode.
+  droneMidi: null,
+  // The signed interval of every step of the harmony pass, in semitones.
+  harmonyOffsets: [],
+  // The intervals that did not fit the vocal range, for the status line.
+  harmonyDropped: [],
+  droneHandle: null,
 
   // Timeline / scoring state.
   startAudioTime: 0,
@@ -330,6 +371,32 @@ function scheduleCueTone(midi, time, dur, { velocity = 0.7, peak = 0.1 } = {}) {
   return dur + release;
 }
 
+// ---- Harmony drone ----------------------------------------------------------
+
+// The drone holds the root of a harmony run for the whole run. It is not a
+// cue: the runner never puts a scoring lockout on it, because a lockout for a
+// tone that never stops would mute every note. The runner drops the frames
+// that sit on the root instead — see the bleed test in step().
+
+/** Start the root drone. It does nothing outside a harmony run. */
+function startDrone() {
+  stopDrone();
+  if (!isHarmonyRun() || runner.droneMidi == null) return;
+  runner.droneHandle = startToneDrone({
+    audioCtx,
+    midi: runner.droneMidi,
+    destination: getAnalyserDestination(),
+    level: clampDroneLevel(runner.droneLevel),
+  });
+}
+
+/** Stop the root drone and free its nodes. */
+function stopDrone() {
+  if (!runner.droneHandle) return;
+  try { runner.droneHandle.stop(); } catch (e) { /* the nodes are already gone */ }
+  runner.droneHandle = null;
+}
+
 // ---- Sequence building ------------------------------------------------------
 
 function clampRange() {
@@ -338,7 +405,53 @@ function clampRange() {
   return { lo, hi };
 }
 
+/** True when the free run plays the harmony drill. */
+function isHarmonyRun() {
+  return runner.mode !== 'sequence' && runner.pattern === HARMONY_PATTERN_ID;
+}
+
+/**
+ * Build the harmony pass: one bar for every interval the player picked, and
+ * one root for the drone to hold. It reports the intervals it had to drop,
+ * so the status line can name them.
+ */
+function buildHarmonySeq() {
+  const { root } = getContext();
+  const { lo, hi } = clampRange();
+  const built = buildHarmonySequence({
+    rootName: root,
+    intervalIds: runner.harmonyIntervals,
+    direction: runner.harmonyDirection,
+    low: lo,
+    high: hi,
+  });
+  runner.sequenceError = built.ok ? null : built.error;
+  runner.patternSeq = built.ok ? built.midis : [];
+  runner.harmonyOffsets = built.ok ? built.offsets : [];
+  runner.harmonyDropped = built.dropped || [];
+  runner.droneMidi = built.ok ? built.rootMidi : null;
+  if (!built.ok) {
+    setLaneBounds(lo, hi);
+    updateStartState();
+    return;
+  }
+  // The root line must stay on screen, so the lanes hold the drone as well as
+  // the notes the singer sings.
+  const lanes = [built.rootMidi, ...built.midis];
+  setLaneBounds(Math.min(...lanes) - 2, Math.max(...lanes) + 2);
+  if (runner.droneHandle) runner.droneHandle.setMidi(built.rootMidi);
+  updateStartState();
+  updateHarmonyNote();
+}
+
 function buildPatternSeq() {
+  if (isHarmonyRun()) {
+    buildHarmonySeq();
+    return;
+  }
+  runner.droneMidi = null;
+  runner.harmonyOffsets = [];
+  runner.harmonyDropped = [];
   if (runner.mode === 'sequence') {
     runner.sequenceError = null;
     runner.patternSeq = runner.sequence.notes.map(note => note.midi);
@@ -476,6 +589,7 @@ function ensureNotes(playheadBeat) {
       startBeat: runner.nextBeat,
       dur: step.dur,
       midi: step.midi,
+      offset: step.offset ?? null,
       preview: step.preview,
       pass: step.pass,
       startAudioTime,
@@ -514,6 +628,9 @@ function sequenceStep(index) {
   return {
     ...place,
     midi: runner.patternSeq[pos.step],
+    // A harmony bar names its interval, so the singer reads the target as an
+    // interval and not only as a note.
+    offset: isHarmonyRun() ? runner.harmonyOffsets[pos.step] : null,
     dur: Math.max(0.35, runner.noteBeats - NOTE_GAP_BEATS),
     advance: runner.noteBeats,
   };
@@ -590,6 +707,7 @@ function readColors() {
   const get = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
   runner.colors = {
     accent: get('--accent', '#7c9cff'),
+    accent2: get('--accent2', '#b45eff'),
     ok: get('--ok', '#4ade80'),
     warn: get('--warn', '#fbbf24'),
     err: get('--err', '#f87171'),
@@ -765,6 +883,9 @@ function draw(playheadBeat) {
     ctx.stroke();
   }
 
+  // The root a harmony run holds, under the note bars.
+  drawRootLine(ctx);
+
   // Note bars.
   const activeMidi = currentTargetMidi(playheadBeat);
   for (const note of runner.notes) {
@@ -797,6 +918,28 @@ function draw(playheadBeat) {
     ctx.fillStyle = fill;
     roundRect(ctx, x, y - barH / 2, Math.max(6, w), barH, Math.min(8, barH / 2));
     ctx.fill();
+    // A harmony bar prints its interval, so the singer reads the target as an
+    // interval and not only as a note. A tall bar holds the name inside. A
+    // short bar carries it above, on a dark plate, so it stays readable.
+    const intervalLabel = note.offset == null ? '' : harmonyLabelFor(note.offset);
+    if (intervalLabel && w >= 26) {
+      ctx.save();
+      ctx.font = '600 10px system-ui, sans-serif';
+      ctx.textBaseline = 'middle';
+      if (barH >= 14) {
+        ctx.fillStyle = c.card;
+        ctx.fillText(intervalLabel, x + 7, y);
+      } else {
+        const tw = ctx.measureText(intervalLabel).width;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        roundRect(ctx, x + 1, y - barH / 2 - 14, tw + 8, 13, 4);
+        ctx.fill();
+        ctx.fillStyle = c.text;
+        ctx.globalAlpha = 0.9;
+        ctx.fillText(intervalLabel, x + 5, y - barH / 2 - 7.5);
+      }
+      ctx.restore();
+    }
   }
 
   // Pitch trail (recent detected pitch) scrolling left from the hit line.
@@ -878,6 +1021,39 @@ function draw(playheadBeat) {
     ctx.textAlign = 'left';
     ctx.globalAlpha = 1;
   }
+}
+
+/**
+ * The root line of a harmony run. The drone holds this pitch for the whole
+ * run, so the line shows the singer what every interval is measured from.
+ */
+function drawRootLine(ctx) {
+  if (runner.droneMidi == null) return;
+  const c = runner.colors;
+  const y = midiToY(runner.droneMidi);
+  if (y < 0 || y > runner.cssH) return;
+  ctx.save();
+  ctx.strokeStyle = c.accent2;
+  ctx.globalAlpha = 0.8;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([7, 5]);
+  ctx.beginPath();
+  ctx.moveTo(0, y);
+  ctx.lineTo(runner.cssW, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '600 10px system-ui, sans-serif';
+  ctx.textBaseline = 'bottom';
+  const label = `${midiToLabel(runner.droneMidi).full} root`;
+  const tw = ctx.measureText(label).width;
+  const x = runner.cssW * HIT_X_RATIO + 8;
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  roundRect(ctx, x - 4, y - 17, tw + 8, 14, 4);
+  ctx.fill();
+  ctx.fillStyle = c.accent2;
+  ctx.fillText(label, x, y - 5);
+  ctx.restore();
 }
 
 /**
@@ -1094,12 +1270,19 @@ function step() {
   scheduleAudio(playheadBeat);
 
   const frame = runner.lastPitchFrame;
-  const voiced = frame?.voiced ?? false;
   const frequencyHz = frame?.frequencyHz ?? -1;
   const clarity = frame?.clarity ?? 0;
   const rms = frame?.rms ?? 0;
   const displayFreq = frame?.displayFrequencyHz > 0 ? frame.displayFrequencyHz : frequencyHz;
-  const hasPitch = displayFreq > 0;
+  // The drone sounds for the whole harmony run, so the microphone hears the
+  // root as well as the voice. A detected pitch on the root is the drone. The
+  // runner drops that frame, so a quiet singer never scores a hit off the
+  // drone. The test uses the exact root note, so an octave harmony still
+  // scores.
+  const bleed = isDroneBleed(displayFreq, runner.droneMidi)
+    || isDroneBleed(frequencyHz, runner.droneMidi);
+  const voiced = (frame?.voiced ?? false) && !bleed;
+  const hasPitch = displayFreq > 0 && !bleed;
   const midiFloat = hasPitch ? freqToMidiFloat(displayFreq) : null;
 
   const correctedAudioTime = frame?.audioTime != null
@@ -1234,11 +1417,19 @@ async function startRunner() {
     runner.running = true;
     setToggleLabel(true);
     setOverlay('');
+    // The drone starts before the count-in, so the singer hears the root from
+    // the first beat and holds it in the ear for the whole run.
+    startDrone();
     const status = el('pr-status');
     if (status) {
-      status.textContent = runner.preview
-        ? 'Listen to each pass, then sing the same notes back'
-        : 'Listening\u2026 sing the notes as they cross the line';
+      if (isHarmonyRun() && runner.droneMidi != null) {
+        status.textContent =
+          `Root ${midiToLabel(runner.droneMidi).full} holds \u2014 sing each harmony as it crosses the line`;
+      } else {
+        status.textContent = runner.preview
+          ? 'Listen to each pass, then sing the same notes back'
+          : 'Listening\u2026 sing the notes as they cross the line';
+      }
     }
     runner.startAudioTime = audioCtx.currentTime + startLeadSec();
     runner.nextClickBeat = 0;
@@ -1281,6 +1472,7 @@ function stopRunner() {
     return;
   }
   runner.running = false;
+  stopDrone();
   if (runner.rafId) { cancelAnimationFrame(runner.rafId); runner.rafId = null; }
   if (runner.capture) { runner.capture.stop(); runner.capture = null; }
   runner.lastPitchFrame = null;
@@ -1324,6 +1516,10 @@ function restartIfRunning() {
     runner.startAudioTime = audioCtx.currentTime + startLeadSec();
     runner.nextClickBeat = 0;
     syncNoteAudioTimes();
+    // The melody, the root, or the range may have changed. Start, stop, or
+    // retune the drone to match what the run plays now.
+    if (!isHarmonyRun() || runner.droneMidi == null) stopDrone();
+    else if (!runner.droneHandle) startDrone();
   } else {
     buildPatternSeq();
     if (runner.ctx2d) drawIdle();
@@ -1350,7 +1546,16 @@ function loadAudioDelay() {
 
 function loadFreeSettings() {
   runner.difficulty = getSetting('pitchRunner.difficulty', runner.difficulty, DIFFICULTIES.map(d => d.id));
-  runner.pattern = getSetting('pitchRunner.pattern', runner.pattern, SCALE_PATTERNS.map(p => p.id));
+  runner.pattern = getSetting(
+    'pitchRunner.pattern',
+    runner.pattern,
+    [...SCALE_PATTERNS.map(p => p.id), HARMONY_PATTERN_ID],
+  );
+  runner.harmonyIntervals = parseIntervalIds(getSetting('pitchRunner.harmonyIntervals', ''));
+  runner.harmonyDirection = parseDirection(
+    getSetting('pitchRunner.harmonyDirection', HARMONY_DEFAULT_DIRECTION),
+  );
+  runner.droneLevel = clampDroneLevel(getSetting('pitchRunner.droneLevel', DRONE_LEVEL_DEFAULT));
   runner.rangeLow = Number(getSetting('pitchRunner.rangeLow', runner.rangeLow));
   runner.rangeHigh = Number(getSetting('pitchRunner.rangeHigh', runner.rangeHigh));
   runner.noteBeats = Number(getSetting('pitchRunner.noteBeats', runner.noteBeats));
@@ -1464,19 +1669,32 @@ function wireControls() {
   const patternSel = el('pr-pattern');
   if (patternSel) {
     patternSel.innerHTML = '';
+    const scaleGroup = document.createElement('optgroup');
+    scaleGroup.label = 'Scale patterns';
     SCALE_PATTERNS.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = `${p.label} \u00B7 ${p.hint}`;
-      patternSel.appendChild(opt);
+      scaleGroup.appendChild(opt);
     });
+    patternSel.appendChild(scaleGroup);
+    const harmonyGroup = document.createElement('optgroup');
+    harmonyGroup.label = 'Harmony';
+    const harmonyOpt = document.createElement('option');
+    harmonyOpt.value = HARMONY_PATTERN_ID;
+    harmonyOpt.textContent = 'Harmony \u00B7 the root holds, you sing the interval';
+    harmonyGroup.appendChild(harmonyOpt);
+    patternSel.appendChild(harmonyGroup);
     patternSel.value = runner.pattern;
     patternSel.onchange = () => {
       runner.pattern = patternSel.value;
       saveSetting('pitchRunner.pattern', runner.pattern);
+      syncHarmonyRow();
       restartIfRunning();
     };
   }
+
+  wireHarmonyControls();
 
   const presetSel = el('pr-range-preset');
   if (presetSel) {
@@ -1587,6 +1805,106 @@ function wireControls() {
   }
 }
 
+/** Build the interval chips, the direction list, and the drone volume. */
+function wireHarmonyControls() {
+  const intervalBox = el('pr-harmony-intervals');
+  if (intervalBox) {
+    intervalBox.innerHTML = '';
+    HARMONY_INTERVALS.forEach((interval) => {
+      const chip = document.createElement('label');
+      chip.className = 'pr-chip';
+      chip.title = interval.name;
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.value = interval.id;
+      box.checked = runner.harmonyIntervals.includes(interval.id);
+      box.onchange = () => {
+        const picked = Array.from(intervalBox.querySelectorAll('input:checked'))
+          .map(input => input.value);
+        // The drill needs one interval. The last chip stays on.
+        if (!picked.length) { box.checked = true; return; }
+        runner.harmonyIntervals = parseIntervalIds(picked);
+        saveSetting('pitchRunner.harmonyIntervals', serializeIntervalIds(runner.harmonyIntervals));
+        restartIfRunning();
+        updateHarmonyNote();
+      };
+      const text = document.createElement('span');
+      text.textContent = interval.label;
+      chip.appendChild(box);
+      chip.appendChild(text);
+      intervalBox.appendChild(chip);
+    });
+  }
+
+  const dirSel = el('pr-harmony-direction');
+  if (dirSel) {
+    dirSel.innerHTML = '';
+    HARMONY_DIRECTIONS.forEach((d) => {
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = d.label;
+      dirSel.appendChild(opt);
+    });
+    dirSel.value = runner.harmonyDirection;
+    dirSel.onchange = () => {
+      runner.harmonyDirection = parseDirection(dirSel.value);
+      saveSetting('pitchRunner.harmonyDirection', runner.harmonyDirection);
+      restartIfRunning();
+      updateHarmonyNote();
+    };
+  }
+
+  const droneInput = el('pr-drone-level');
+  if (droneInput) {
+    droneInput.min = String(DRONE_LEVEL_MIN);
+    droneInput.max = String(DRONE_LEVEL_MAX);
+    droneInput.step = '0.01';
+    droneInput.value = String(runner.droneLevel);
+    // The drone changes as the player drags, so the level is easy to set
+    // against a live voice.
+    droneInput.oninput = () => {
+      runner.droneLevel = clampDroneLevel(droneInput.value);
+      syncDroneLevelLabel();
+      if (runner.droneHandle) runner.droneHandle.setLevel(runner.droneLevel);
+    };
+    droneInput.onchange = () => saveSetting('pitchRunner.droneLevel', runner.droneLevel);
+  }
+
+  syncHarmonyRow();
+}
+
+/** Show the harmony controls only for a harmony run. */
+function syncHarmonyRow() {
+  const row = el('pr-harmony');
+  if (row) row.hidden = !isHarmonyRun();
+  syncDroneLevelLabel();
+  updateHarmonyNote();
+}
+
+/** Print the drone level as a percentage. */
+function syncDroneLevelLabel() {
+  const out = el('pr-drone-level-out');
+  if (out) out.textContent = `${Math.round(clampDroneLevel(runner.droneLevel) * 100)}%`;
+}
+
+/** Name the root the drone holds, and any interval that did not fit. */
+function updateHarmonyNote() {
+  const out = el('pr-harmony-note');
+  if (!out) return;
+  if (!isHarmonyRun()) { out.textContent = ''; return; }
+  if (runner.droneMidi == null) {
+    out.textContent = runner.sequenceError || '';
+    return;
+  }
+  const sung = runner.harmonyOffsets.map(harmonyLabelFor).filter(Boolean).join(', ');
+  let text = `Root ${midiToLabel(runner.droneMidi).full} holds. Sing ${sung}.`;
+  if (runner.harmonyDropped.length) {
+    const dropped = runner.harmonyDropped.map(harmonyLabelFor).filter(Boolean).join(', ');
+    text += ` The vocal range has no room for ${dropped}.`;
+  }
+  out.textContent = text;
+}
+
 function wireGlobals() {
   if (globalsWired) return;
   globalsWired = true;
@@ -1641,6 +1959,18 @@ function syncControls() {
   if (guideChk) guideChk.checked = runner.guide;
   if (previewChk) previewChk.checked = runner.preview;
   if (delayInput) delayInput.value = String(runner.audioDelayMs);
+
+  const intervalBox = el('pr-harmony-intervals');
+  if (intervalBox) {
+    intervalBox.querySelectorAll('input').forEach((input) => {
+      input.checked = runner.harmonyIntervals.includes(input.value);
+    });
+  }
+  const dirSel = el('pr-harmony-direction');
+  if (dirSel) dirSel.value = runner.harmonyDirection;
+  const droneInput = el('pr-drone-level');
+  if (droneInput) droneInput.value = String(runner.droneLevel);
+  syncHarmonyRow();
 }
 
 if (typeof window !== 'undefined') window.togglePitchRunner = togglePitchRunner;

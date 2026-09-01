@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v287-harsh-vocal-cheat-sheet";
+const CACHE_VERSION = "v288-pitch-runner-harmony";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -94,6 +94,7 @@ const PRECACHE_URLS = [
   "js/audio/samplePackRegistry.js",
   "js/audio/sampleVoice.js",
   "js/audio/soundPrefs.js",
+  "js/audio/toneDrone.js",
   "js/audio/userSounds.js",
   "js/audioDock.js",
   "js/audioOwner.js",
@@ -215,6 +216,7 @@ const PRECACHE_URLS = [
   "js/pitchCaptureWorklet.js",
   "js/pitchDetectWorker.js",
   "js/pitchExercises.js",
+  "js/pitchHarmony.js",
   "js/pitchGuideLock.js",
   "js/pitchMatch.js",
   "js/pitchMetrics.js",

@@ -43,6 +43,15 @@ Drills that build your ear, your reading, and your hands.
     Bluetooth headset hears each note as its bar crosses the line. Preview each
     pass plays the phrase to you first, and then you sing the same phrase back
     for the score. A hollow bar is the preview, and a solid bar is your turn.
+    The Melody control also holds a *Harmony* drill: Musi holds the context root
+    as a drone for the whole run, and you sing the intervals you picked against
+    it. You choose the intervals from m2 to P8, and you choose whether they sit
+    above the root, below it, or on both sides. A drone volume control sets how
+    loud the root holds. A dashed line on the stage marks the root, and each bar
+    prints its interval. Wear headphones: the microphone hears a drone that
+    plays out loud, and the runner then drops every detected pitch that sits on
+    the root. An interval that does not fit your vocal range is dropped, and the
+    card names it.
   - *Ear training* — identify a pitch, a degree, or an interval by ear.
 - **Practice Lab** — one screen for one practice session, in five tabs:
   - *Session* — pick an instrument, a technique, and a target, then run timers,
