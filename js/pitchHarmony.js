@@ -10,7 +10,7 @@
  * import it.
  */
 
-import { midiInRange } from './pitchExercises.js';
+import { midiInRange, midiOctave, pickAnchorForOctave } from './pitchExercises.js';
 import { parseNote } from './theory.js';
 
 /**
@@ -123,10 +123,41 @@ function rootCandidates(rootPc, low, high) {
 }
 
 /**
+ * The root the drill holds.
+ *
+ * The singer picks the octave, and the pick takes the nearest octave that
+ * still sings one interval or more. No pick keeps the root that sings the most
+ * intervals. A tie then goes to the root nearest the middle of the range,
+ * because that root is the easiest to sing.
+ *
+ * @param {{rootMidi: number, fits: number[], distance: number}[]} usable
+ * @param {number|null} startOctave
+ */
+function pickHarmonyRoot(usable, startOctave) {
+  // Number(null) is 0, so an empty pick must be rejected before the cast.
+  const want = startOctave == null || startOctave === '' ? NaN : Number(startOctave);
+  if (Number.isFinite(want)) {
+    const rootMidi = pickAnchorForOctave(usable.map(item => item.rootMidi), want);
+    return usable.find(item => item.rootMidi === rootMidi) || usable[0];
+  }
+  let best = usable[0];
+  for (const item of usable) {
+    if (item.fits.length > best.fits.length
+      || (item.fits.length === best.fits.length && item.distance < best.distance)) {
+      best = item;
+    }
+  }
+  return best;
+}
+
+/**
  * Build one pass of a harmony run.
  *
  * The root is placed inside the vocal range, so an interval below the root
  * still has room. The root itself is not sung: the drone holds it.
+ *
+ * `startOctave` names the octave the root sits in. The build takes the nearest
+ * octave that still sings an interval, and null lets the build pick the root.
  *
  * A wide pick does not always fit. A two-octave range holds a fifth each way
  * for most roots, but not for every root. The build then keeps the intervals
@@ -134,9 +165,10 @@ function rootCandidates(rootPc, low, high) {
  * player reads what happened.
  *
  * @param {{ rootName: string, intervalIds: string[], direction: string,
- *           low: number, high: number }} options
+ *           low: number, high: number, startOctave: number|null }} options
  * @returns {{ ok: boolean, midis: number[], offsets: number[],
- *             rootMidi: number|null, dropped: number[], error: string|null }}
+ *             rootMidi: number|null, dropped: number[], octaves: number[],
+ *             error: string|null }}
  */
 export function buildHarmonySequence({
   rootName = 'C',
@@ -144,11 +176,12 @@ export function buildHarmonySequence({
   direction = HARMONY_DEFAULT_DIRECTION,
   low,
   high,
+  startOctave = null,
 } = {}) {
   const wanted = harmonyOffsets(intervalIds, direction);
   if (!wanted.length) {
     return {
-      ok: false, midis: [], offsets: [], rootMidi: null, dropped: [],
+      ok: false, midis: [], offsets: [], rootMidi: null, dropped: [], octaves: [],
       error: 'Pick at least one interval.',
     };
   }
@@ -157,31 +190,27 @@ export function buildHarmonySequence({
   const candidates = rootCandidates(rootPc, low, high);
   if (!candidates.length) {
     return {
-      ok: false, midis: [], offsets: [], rootMidi: null, dropped: [],
+      ok: false, midis: [], offsets: [], rootMidi: null, dropped: [], octaves: [],
       error: 'The root does not fit the selected vocal range.',
     };
   }
 
   const rangeCenter = (Math.min(low, high) + Math.max(low, high)) / 2;
-  let best = null;
+  const usable = [];
   for (const rootMidi of candidates) {
     const fits = wanted.filter(off => midiInRange(rootMidi + off, low, high));
-    // Keep the root that sings the most intervals. A tie goes to the root
-    // nearest the middle of the range, because that is the easiest to sing.
-    const distance = Math.abs(rootMidi - rangeCenter);
-    if (!best || fits.length > best.fits.length
-      || (fits.length === best.fits.length && distance < best.distance)) {
-      best = { rootMidi, fits, distance };
-    }
+    if (!fits.length) continue;
+    usable.push({ rootMidi, fits, distance: Math.abs(rootMidi - rangeCenter) });
   }
 
-  if (!best.fits.length) {
+  if (!usable.length) {
     return {
-      ok: false, midis: [], offsets: [], rootMidi: null, dropped: [...wanted],
+      ok: false, midis: [], offsets: [], rootMidi: null, dropped: [...wanted], octaves: [],
       error: 'These intervals do not fit the selected vocal range.',
     };
   }
 
+  const best = pickHarmonyRoot(usable, startOctave);
   const kept = new Set(best.fits);
   return {
     ok: true,
@@ -189,6 +218,7 @@ export function buildHarmonySequence({
     offsets: best.fits,
     rootMidi: best.rootMidi,
     dropped: wanted.filter(off => !kept.has(off)),
+    octaves: usable.map(item => midiOctave(item.rootMidi)),
     error: null,
   };
 }

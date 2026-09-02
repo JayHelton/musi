@@ -6,6 +6,7 @@
 import { runDetectorTests } from './detector.mjs';
 import { runHarmonyTests } from './harmony.mjs';
 import { runMetricsTests } from './metrics.mjs';
+import { runOctaveTests } from './octave.mjs';
 import { runRangeTests } from './range.mjs';
 import { runRunnerTests } from './runner.mjs';
 import { runTimelineTests } from './timeline.mjs';
@@ -21,6 +22,7 @@ runRangeTests();
 runTaskTests();
 runRunnerTests();
 runHarmonyTests();
+runOctaveTests();
 runTimelineTests();
 runViewTests();
 runProgressTests();

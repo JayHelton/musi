@@ -197,6 +197,29 @@ export function runnerNoteRange(notes) {
   return { low, high };
 }
 
+/**
+ * The whole-octave shifts a saved run can take.
+ *
+ * A run keeps its written pitches. The player moves the whole run into the
+ * octave the voice reaches, and every shift keeps each note inside the MIDI
+ * range the model allows.
+ *
+ * @param {{midi:number}[]} notes
+ * @returns {number[]} the shifts in octaves, low to high
+ */
+export function runnerOctaveShifts(notes) {
+  const list = Array.isArray(notes) ? notes : [];
+  if (!list.length) return [0];
+  const range = runnerNoteRange(list);
+  const shifts = [];
+  for (let octaves = -3; octaves <= 3; octaves++) {
+    const low = range.low + octaves * 12;
+    const high = range.high + octaves * 12;
+    if (low >= RUNNER_MIN_MIDI && high <= RUNNER_MAX_MIDI) shifts.push(octaves);
+  }
+  return shifts.length ? shifts : [0];
+}
+
 /** The length of one pass of the run, in beats. */
 export function runnerRunBeats(config) {
   const notes = Array.isArray(config?.notes) ? config.notes : [];

@@ -43,6 +43,10 @@ Drills that build your ear, your reading, and your hands.
     Bluetooth headset hears each note as its bar crosses the line. Preview each
     pass plays the phrase to you first, and then you sing the same phrase back
     for the score. A hollow bar is the preview, and a solid bar is your turn.
+    Start octave sets the octave the run starts in. The control names the start
+    note of every octave that fits your vocal range, so you move a melody or a
+    harmony drill down when it sits too high for your voice. Auto lets Musi
+    place the run, and the choice holds for the next run.
     The Melody control also holds a *Harmony* drill: Musi holds the context root
     as a drone for the whole run, and you sing the intervals you picked against
     it. You choose the intervals from m2 to P8, and you choose whether they sit
@@ -61,7 +65,8 @@ Drills that build your ear, your reading, and your hands.
     sessions used. The pick rides on the session record, so the History tab
     shows what each session warmed up with.
   - *Vocal* — clean and harsh vocal practice. Clean has Chest, Mix, and Head,
-    and it runs on the same Pitch Runner the rest of the app uses. Harsh has
+    and it runs on the same Pitch Runner the rest of the app uses, with the same
+    Start octave control. Harsh has
     Low, Mid, and High, and it runs on the Cue Runner: timed instructions,
     timed rest, register changes, phrases, and manual checkpoints. Musi never
     scores a harsh vocal; you report each repetition as Immediate, Searched,
@@ -141,7 +146,10 @@ storage; the Library page is the door to both.
   - A **pitch run** is a saved run of the vocal Pitch runner game. You type the
     notes and the hold lengths, or you read them from a Guitar Pro file. The run
     keeps its own tempo, note length, rest, count-in, repeat count, and preview
-    mode. A note length of 0 holds each note as long as it is written. The
+    mode. The player holds a Start octave control that moves the whole run into
+    another octave, so you sing the written intervals where your voice reaches
+    them. The run keeps the pitches you saved, and the note list names the
+    pitches the run plays now. A note length of 0 holds each note as long as it is written. The
     player keeps the note list closed below the game, so a long run does not
     push the game off the screen. A pitch run can carry clean vocal tags, and
     then the Vocal tab of Practice Lab plays it.

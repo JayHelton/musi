@@ -298,33 +298,79 @@ export function chromaticMidisInRange(low, high) {
   return midis;
 }
 
+/** The octave number of a MIDI note. Middle C, MIDI note 60, is C4. */
+export function midiOctave(midi) {
+  return Math.floor(Math.round(Number(midi)) / 12) - 1;
+}
+
+/**
+ * The anchor note the run starts from.
+ *
+ * The list holds one anchor for each octave that fits, low to high. The singer
+ * picks an octave, and the pick takes the nearest octave when that octave
+ * holds no anchor. No pick keeps the lowest anchor.
+ *
+ * @param {number[]} anchors the anchor MIDI notes that fit, low to high
+ * @param {number|null} startOctave the octave the singer picked
+ * @returns {number|null}
+ */
+export function pickAnchorForOctave(anchors, startOctave = null) {
+  if (!anchors.length) return null;
+  // Number(null) is 0, so an empty pick must be rejected before the cast.
+  const want = startOctave == null || startOctave === '' ? NaN : Number(startOctave);
+  if (!Number.isFinite(want)) return anchors[0];
+  let best = anchors[0];
+  let bestGap = Math.abs(midiOctave(best) - want);
+  for (const anchor of anchors) {
+    const gap = Math.abs(midiOctave(anchor) - want);
+    if (gap < bestGap) {
+      best = anchor;
+      bestGap = gap;
+    }
+  }
+  return best;
+}
+
 /**
  * Place offsets (semitones from a root pitch class) into [low, high].
- * Returns { ok, midis, rootMidi, error }.
+ *
+ * `startOctave` names the octave the root sits in. The build takes the nearest
+ * octave that fits, and null keeps the lowest one.
+ *
+ * Returns { ok, midis, rootMidi, octaves, error }. `octaves` names every
+ * octave the root fits in, so a control can offer them.
  */
-export function placeOffsetsInRange(offsets, rootPc, low, high) {
+export function placeOffsetsInRange(offsets, rootPc, low, high, startOctave = null) {
   const lo = Math.min(low, high);
   const hi = Math.max(low, high);
   const pc = ((rootPc % 12) + 12) % 12;
   if (!offsets.length) {
-    return { ok: false, midis: [], rootMidi: null, error: 'No notes in pattern.' };
+    return { ok: false, midis: [], rootMidi: null, octaves: [], error: 'No notes in pattern.' };
   }
-  const span = offsets.reduce((m, o) => Math.max(m, o), 0);
   const first = lo + (((pc - (lo % 12)) % 12) + 12) % 12;
 
+  const roots = [];
   for (let rootMidi = first; rootMidi <= hi; rootMidi += 12) {
-    if (rootMidi + span > hi) break;
-    const midis = offsets.map(off => rootMidi + off);
-    if (midis.every(m => midiInRange(m, lo, hi))) {
-      return { ok: true, midis, rootMidi, error: null };
-    }
+    if (offsets.every(off => midiInRange(rootMidi + off, lo, hi))) roots.push(rootMidi);
   }
 
+  if (!roots.length) {
+    return {
+      ok: false,
+      midis: [],
+      rootMidi: null,
+      octaves: [],
+      error: 'This pattern does not fit the selected range.',
+    };
+  }
+
+  const rootMidi = pickAnchorForOctave(roots, startOctave);
   return {
-    ok: false,
-    midis: [],
-    rootMidi: null,
-    error: 'This pattern does not fit the selected range.',
+    ok: true,
+    midis: offsets.map(off => rootMidi + off),
+    rootMidi,
+    octaves: roots.map(midiOctave),
+    error: null,
   };
 }
 
@@ -387,6 +433,9 @@ function placeIntervalInRange(low, high, intervalSemitones, direction) {
 
 /**
  * Build a validated note sequence for a trainer task.
+ *
+ * A pattern task takes `startOctave`: the octave the root of the pattern sits
+ * in. Null keeps the lowest octave that fits the range.
  */
 export function buildSequenceForTask({
   task = 'pattern',
@@ -397,6 +446,7 @@ export function buildSequenceForTask({
   high,
   intervalSemitones = 'M2',
   intervalDirection = 'ascending',
+  startOctave = null,
 }) {
   const lo = Math.min(low, high);
   const hi = Math.max(low, high);
@@ -416,19 +466,30 @@ export function buildSequenceForTask({
   const parsed = parseNote(rootName);
   const rootPc = parsed ? parsed.semi : 0;
   const offsets = buildPatternOffsets(scaleName, patternId);
-  let placed = placeOffsetsInRange(offsets, rootPc, lo, hi);
+  let placed = placeOffsetsInRange(offsets, rootPc, lo, hi, startOctave);
 
   if (!placed.ok && patternId !== 'five-tone') {
-    placed = placeOffsetsInRange(fiveToneOffsets(scaleName), rootPc, lo, hi);
+    placed = placeOffsetsInRange(fiveToneOffsets(scaleName), rootPc, lo, hi, startOctave);
   }
   if (!placed.ok) {
-    placed = placeOffsetsInRange(triadOffsets(scaleName), rootPc, lo, hi);
+    placed = placeOffsetsInRange(triadOffsets(scaleName), rootPc, lo, hi, startOctave);
   }
 
   if (!placed.ok) {
-    return { ok: false, midis: [], error: placed.error || 'This pattern does not fit the selected range.' };
+    return {
+      ok: false,
+      midis: [],
+      octaves: [],
+      error: placed.error || 'This pattern does not fit the selected range.',
+    };
   }
-  return { ok: true, midis: placed.midis, rootMidi: placed.rootMidi, error: null };
+  return {
+    ok: true,
+    midis: placed.midis,
+    rootMidi: placed.rootMidi,
+    octaves: placed.octaves,
+    error: null,
+  };
 }
 
 /**

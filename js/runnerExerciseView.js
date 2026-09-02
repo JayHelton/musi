@@ -38,24 +38,28 @@ function formatDuration(seconds) {
 }
 
 /**
- * One chip per note, so the singer can read the run.
+ * One chip per note, so the singer can read the run. `shift` moves every chip
+ * by the same number of semitones, so the list names the pitches the run plays
+ * after a change of start octave.
  *
- * A long run holds many notes, so the list stays closed and sits under the
- * game. An open list at the top pushes the stage off the screen.
+ * A long run holds many notes, so the caller keeps the list closed and puts it
+ * under the game. An open list at the top pushes the stage off the screen.
  */
-function buildNoteList(config) {
+function buildNoteList(config, shift = 0) {
   const strip = el('div', { class: 'rx-notes' });
   config.notes.forEach((note) => {
     strip.appendChild(el('span', { class: 'rx-note' }, [
-      el('b', { text: midiToNoteName(note.midi) }),
+      el('b', { text: midiToNoteName(note.midi + shift) }),
       el('i', { text: `${runnerNoteBeats(config, note)}` }),
     ]));
   });
-  const count = config.notes.length;
-  return el('details', { class: 'rx-notes-box' }, [
-    el('summary', { class: 'rx-notes-summary', text: `Notes (${count})` }),
-    strip,
-  ]);
+  return strip;
+}
+
+/** The run with every note moved by the same number of semitones. */
+function transposed(config, shift) {
+  if (!shift) return config;
+  return { ...config, notes: config.notes.map(note => ({ ...note, midi: note.midi + shift })) };
 }
 
 /**
@@ -87,11 +91,13 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
   const runSeconds = runnerRunBeats(config) * (60 / config.bpm)
     * (config.repeats === 0 ? 1 : config.repeats)
     * (config.preview ? 2 : 1);
-  const summaryText = config.repeats === 0
-    ? describeRunnerConfig(config)
-    : `${describeRunnerConfig(config)} · about ${formatDuration(runSeconds)}`;
+  const summaryOf = (shift) => {
+    const line = describeRunnerConfig(transposed(config, shift));
+    return config.repeats === 0 ? line : `${line} · about ${formatDuration(runSeconds)}`;
+  };
 
-  root.appendChild(el('p', { class: 'rx-summary', text: summaryText }));
+  const summary = el('p', { class: 'rx-summary', text: summaryOf(0) });
+  root.appendChild(summary);
   if (config.source === 'gp' && config.fileName) {
     root.appendChild(el('p', { class: 'rx-source', text: `From ${config.fileName}` }));
   }
@@ -107,6 +113,13 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
     el('span', { text: 'Tempo' }),
     el('span', { class: 'pr-tempo' }, [bpmDown, bpmValue, bpmUp]),
   ]);
+  // The run keeps its written pitches. Start octave moves the whole run into
+  // the octave the singer reaches.
+  const octave = el('select', { 'aria-label': 'Start octave' });
+  const octaveField = el('label', { class: 'pt-field' }, [
+    el('span', { text: 'Start octave' }),
+    octave,
+  ]);
   const audioDelay = el('input', {
     type: 'number', class: 'pr-delay-input', min: '0', step: '10',
     'aria-label': 'Audio delay in milliseconds',
@@ -115,7 +128,7 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
     el('span', { text: 'Audio delay (ms)' }),
     audioDelay,
   ]);
-  root.appendChild(el('div', { class: 'pt-controls rx-controls' }, [tempoField, delayField]));
+  root.appendChild(el('div', { class: 'pt-controls rx-controls' }, [tempoField, octaveField, delayField]));
 
   const metronome = el('input', { type: 'checkbox' });
   const guide = el('input', { type: 'checkbox' });
@@ -151,12 +164,30 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
     text: `The run plays ${passes}. Sing each note as its bar crosses the line.`
       + ' Preview each pass plays the notes to you first. The hollow bars are the'
       + ' preview, and the solid bars are your turn to sing.'
+      + ' Start octave moves the whole run into another octave, so you sing the'
+      + ' same intervals where your voice reaches them.'
       + ' Bluetooth headphones play the sound late. Raise the audio delay until the'
       + ' click lands on the beat you see.',
   }));
-  root.appendChild(buildNoteList(config));
+  let noteStrip = buildNoteList(config);
+  root.appendChild(el('details', { class: 'rx-notes-box' }, [
+    el('summary', {
+      class: 'rx-notes-summary',
+      text: `Notes (${config.notes.length})`,
+    }),
+    noteStrip,
+  ]));
 
   host.appendChild(root);
+
+  // The runner reports the octave the singer picks. The summary line and the
+  // note list then name the pitches the run plays now.
+  function showTranspose(shift) {
+    summary.textContent = summaryOf(shift);
+    const next = buildNoteList(config, shift);
+    noteStrip.replaceWith(next);
+    noteStrip = next;
+  }
 
   // The engine reads a fixed set of names. A stage that leaves one out simply
   // loses that control, so this stage binds only what it shows.
@@ -178,9 +209,11 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
       'pr-guide': guide,
       'pr-preview': preview,
       'pr-audio-delay': audioDelay,
+      'pr-octave': octave,
     },
     sequence: config,
     onFinish,
+    onTranspose: showTranspose,
   });
 
   return {

@@ -12,7 +12,12 @@ import {
 } from './pitchMic.js';
 import { centsOffFromTarget, freqToMidiFloat, midiToLabel } from './pitchMatch.js';
 import { scoreRunnerNote } from './pitchMetrics.js';
-import { buildSequenceForTask, SCALE_PATTERNS } from './pitchExercises.js';
+import {
+  buildSequenceForTask,
+  midiOctave,
+  pickAnchorForOctave,
+  SCALE_PATTERNS,
+} from './pitchExercises.js';
 import {
   buildHarmonySequence,
   clampDroneLevel,
@@ -31,7 +36,7 @@ import {
 } from './pitchHarmony.js';
 import { startToneDrone } from './audio/toneDrone.js';
 import { lockoutUntil, isScoringWindowClear, ROOM_TAIL_SEC } from './pitchGuideLock.js';
-import { runnerNoteBeats } from './runnerExerciseModel.js';
+import { runnerNoteBeats, runnerOctaveShifts } from './runnerExerciseModel.js';
 import {
   nextPassStartBeat,
   runnerPassPosition,
@@ -112,13 +117,25 @@ function clampAudioDelayMs(value) {
   return Math.max(AUDIO_DELAY_MIN_MS, Math.round(ms));
 }
 
+// The Start octave value that lets the runner place the run. A free run then
+// takes the lowest octave that fits the vocal range, and a saved run keeps the
+// octave it was written in.
+const START_OCTAVE_AUTO = 'auto';
+
+/** Read a saved start octave. Anything that is not a number means auto. */
+function parseStartOctave(value) {
+  if (value == null || value === '' || value === START_OCTAVE_AUTO) return null;
+  const octave = Number(value);
+  return Number.isFinite(octave) ? Math.round(octave) : null;
+}
+
 // The element names the runner reads. The Pitch section holds elements with
 // these ids; a saved runner exercise builds its own stage and binds the same
 // names to its own nodes.
 const RUNNER_ELEMENT_NAMES = [
   'pr-toggle', 'pr-status', 'pr-judge', 'pr-score', 'pr-combo', 'pr-accuracy',
   'pr-canvas', 'pr-stage', 'pr-overlay', 'pr-difficulty', 'pr-pattern',
-  'pr-range-preset', 'pr-length', 'pr-bpm', 'pr-bpm-down', 'pr-bpm-up',
+  'pr-range-preset', 'pr-octave', 'pr-length', 'pr-bpm', 'pr-bpm-down', 'pr-bpm-up',
   'pr-metronome', 'pr-guide', 'pr-preview', 'pr-audio-delay',
   'pr-harmony', 'pr-harmony-intervals', 'pr-harmony-direction',
   'pr-drone-level', 'pr-drone-level-out', 'pr-harmony-note',
@@ -206,12 +223,27 @@ const runner = {
   sequence: null,
   dom: null,
   onFinish: null,
+  // The stage that shows a note list reads this, so the list names the pitches
+  // the saved run plays now.
+  onTranspose: null,
   finished: false,
 
   difficulty: 'medium',
   pattern: 'five-tone',
   rangeLow: 48,
   rangeHigh: 72,
+  // The octave the run starts in, or null for the octave the runner picks. It
+  // belongs to the voice and not to one run, so both modes read the same value.
+  startOctave: null,
+  // The start octaves the run can take now, for the Start octave control.
+  octaveChoices: [],
+  // The note the start octave counts: the root of a free run, and the first
+  // note of a saved run.
+  octaveAnchor: null,
+  // How far a saved run moves from the octave it was written in, in semitones.
+  octaveShift: 0,
+  // The last shift the stage was told about, or null when it knows none.
+  reportedShift: null,
   noteBeats: 2,
   metronome: true,
   guide: false,
@@ -424,12 +456,16 @@ function buildHarmonySeq() {
     direction: runner.harmonyDirection,
     low: lo,
     high: hi,
+    startOctave: runner.startOctave,
   });
   runner.sequenceError = built.ok ? null : built.error;
   runner.patternSeq = built.ok ? built.midis : [];
   runner.harmonyOffsets = built.ok ? built.offsets : [];
   runner.harmonyDropped = built.dropped || [];
   runner.droneMidi = built.ok ? built.rootMidi : null;
+  // The start octave counts the root, because the drone holds the root and the
+  // singer builds every interval on it.
+  setOctaveChoices(built.octaves, built.rootMidi);
   if (!built.ok) {
     setLaneBounds(lo, hi);
     updateStartState();
@@ -454,7 +490,8 @@ function buildPatternSeq() {
   runner.harmonyDropped = [];
   if (runner.mode === 'sequence') {
     runner.sequenceError = null;
-    runner.patternSeq = runner.sequence.notes.map(note => note.midi);
+    applySequenceOctave();
+    runner.patternSeq = runner.sequence.notes.map(note => note.midi + runner.octaveShift);
     let min = Infinity;
     let max = -Infinity;
     runner.patternSeq.forEach(m => { min = Math.min(min, m); max = Math.max(max, m); });
@@ -471,9 +508,13 @@ function buildPatternSeq() {
     rootName: root,
     low: lo,
     high: hi,
+    startOctave: runner.startOctave,
   });
   runner.sequenceError = built.ok ? null : built.error;
   runner.patternSeq = built.ok ? built.midis : [];
+  // The start octave counts the root of the pattern, and not the first note,
+  // because a pattern such as the descending scale starts above its root.
+  setOctaveChoices(built.octaves, built.rootMidi);
 
   let min = Infinity;
   let max = -Infinity;
@@ -484,6 +525,85 @@ function buildPatternSeq() {
   }
   setLaneBounds(min - 2, max + 2);
   updateStartState();
+}
+
+/**
+ * Move a saved run into the octave the singer picked.
+ *
+ * The run keeps the pitches it was written with. The runner moves every note
+ * by the same number of octaves, so the intervals of the run do not change.
+ * Auto keeps the written octave.
+ */
+function applySequenceOctave() {
+  const notes = (runner.sequence && runner.sequence.notes) || [];
+  const first = Number(notes[0] && notes[0].midi);
+  if (!Number.isFinite(first)) {
+    runner.octaveShift = 0;
+    setOctaveChoices([], null);
+    return;
+  }
+  const anchors = runnerOctaveShifts(notes).map(octaves => first + octaves * 12);
+  const anchor = runner.startOctave == null
+    ? first
+    : (pickAnchorForOctave(anchors, runner.startOctave) ?? first);
+  const shift = anchor - first;
+  runner.octaveShift = shift;
+  setOctaveChoices(anchors.map(midiOctave), anchor);
+  // The stage learns the shift when it changes, so a note list on the stage
+  // names the pitches the run plays now.
+  if (runner.reportedShift !== shift && typeof runner.onTranspose === 'function') {
+    runner.onTranspose(shift);
+  }
+  runner.reportedShift = shift;
+}
+
+/**
+ * Hold the start octaves the run can take, and the note the run starts on.
+ * The control lists one note for each octave, so the singer reads a pitch and
+ * not only a number.
+ */
+function setOctaveChoices(octaves, anchorMidi) {
+  const list = Array.isArray(octaves) ? [...new Set(octaves)] : [];
+  list.sort((a, b) => a - b);
+  runner.octaveChoices = list;
+  runner.octaveAnchor = Number.isFinite(anchorMidi) ? Math.round(anchorMidi) : null;
+  syncOctaveControl();
+}
+
+/** The name of the note the run starts on in one octave, for example "C3". */
+function octaveNoteLabel(octave) {
+  if (runner.octaveAnchor == null) return `Octave ${octave}`;
+  const midi = runner.octaveAnchor + (octave - midiOctave(runner.octaveAnchor)) * 12;
+  return midiToLabel(midi).full;
+}
+
+/** Fill the Start octave control with the octaves the run fits in. */
+function syncOctaveControl() {
+  const sel = el('pr-octave');
+  if (!sel) return;
+  const played = runner.octaveAnchor == null ? null : midiOctave(runner.octaveAnchor);
+  sel.innerHTML = '';
+  const auto = document.createElement('option');
+  auto.value = START_OCTAVE_AUTO;
+  // Auto names its note only while it places the run. A picked octave then
+  // owns the note, so the Auto option must not claim it.
+  auto.textContent = runner.startOctave == null && played != null
+    ? `Auto \u00B7 ${octaveNoteLabel(played)}`
+    : 'Auto';
+  sel.appendChild(auto);
+  runner.octaveChoices.forEach((octave) => {
+    const opt = document.createElement('option');
+    opt.value = String(octave);
+    opt.textContent = octaveNoteLabel(octave);
+    sel.appendChild(opt);
+  });
+  // The picked octave can leave the list, because the vocal range, the root,
+  // or the melody moved. The control then shows the octave the run plays in.
+  if (runner.startOctave == null) sel.value = START_OCTAVE_AUTO;
+  else if (runner.octaveChoices.includes(runner.startOctave)) sel.value = String(runner.startOctave);
+  else if (played != null) sel.value = String(played);
+  else sel.value = START_OCTAVE_AUTO;
+  sel.disabled = runner.octaveChoices.length === 0;
 }
 
 /**
@@ -620,7 +740,9 @@ function sequenceStep(index) {
     const gap = Math.min(NOTE_GAP_BEATS, beats * 0.2);
     return {
       ...place,
-      midi: note.midi,
+      // The pitch comes from the built list, so the run plays in the octave
+      // the singer picked.
+      midi: runner.patternSeq[pos.step],
       dur: Math.max(0.25, beats - gap),
       advance: beats + runner.sequence.restBeats,
     };
@@ -1544,6 +1666,14 @@ function loadAudioDelay() {
   );
 }
 
+/**
+ * Read the start octave. It belongs to the voice of the singer and not to one
+ * run, so a free run and a saved run read the same saved value.
+ */
+function loadStartOctave() {
+  runner.startOctave = parseStartOctave(getSetting('pitchRunner.startOctave', START_OCTAVE_AUTO));
+}
+
 function loadFreeSettings() {
   runner.difficulty = getSetting('pitchRunner.difficulty', runner.difficulty, DIFFICULTIES.map(d => d.id));
   runner.pattern = getSetting(
@@ -1573,14 +1703,16 @@ let globalsWired = false;
 
 /**
  * Point the runner at a stage and wire its controls.
- * @param {{ dom: object, sequence?: object|null, onFinish?: (summary:object)=>void }} options
+ * @param {{ dom: object, sequence?: object|null, onFinish?: (summary:object)=>void,
+ *           onTranspose?: (semitones:number)=>void }} options
  * @returns {{ start: () => void, stop: () => void, toggle: () => void, refresh: () => void, detach: () => void }}
  */
-function attachRunner({ dom, sequence = null, onFinish = null } = {}) {
+function attachRunner({ dom, sequence = null, onFinish = null, onTranspose = null } = {}) {
   stopRunner();
   detachResizeObserver();
   bindRunnerDom(dom);
   runner.onFinish = onFinish;
+  runner.onTranspose = onTranspose;
   runner.finished = false;
 
   if (sequence) {
@@ -1594,7 +1726,10 @@ function attachRunner({ dom, sequence = null, onFinish = null } = {}) {
     runner.sequence = null;
     loadFreeSettings();
   }
+  runner.octaveShift = 0;
+  runner.reportedShift = null;
   loadAudioDelay();
+  loadStartOctave();
 
   wireControls();
   wireGlobals();
@@ -1626,9 +1761,12 @@ function attachRunner({ dom, sequence = null, onFinish = null } = {}) {
       detachResizeObserver();
       bindRunnerDom(null);
       runner.onFinish = null;
+      runner.onTranspose = null;
       runner.mode = 'free';
       runner.sequence = null;
       runner.preview = false;
+      runner.octaveShift = 0;
+      runner.reportedShift = null;
     },
   };
 }
@@ -1638,6 +1776,7 @@ function initPitchRunner() {
   if (runner.dom && runner.dom['pr-canvas'] === dom['pr-canvas'] && runner.mode === 'free') {
     loadFreeSettings();
     loadAudioDelay();
+    loadStartOctave();
     syncControls();
     syncTempoLabel();
     readColors();
@@ -1716,6 +1855,20 @@ function wireControls() {
         restartIfRunning();
       }
     };
+  }
+
+  const octaveSel = el('pr-octave');
+  if (octaveSel) {
+    octaveSel.onchange = () => {
+      runner.startOctave = parseStartOctave(octaveSel.value);
+      saveSetting(
+        'pitchRunner.startOctave',
+        runner.startOctave == null ? START_OCTAVE_AUTO : runner.startOctave,
+      );
+      restartIfRunning();
+      updateHarmonyNote();
+    };
+    syncOctaveControl();
   }
 
   const lengthSel = el('pr-length');
@@ -1955,6 +2108,7 @@ function syncControls() {
   if (patternSel) patternSel.value = runner.pattern;
   if (presetSel) presetSel.value = matchPreset();
   if (lengthSel) lengthSel.value = String(runner.noteBeats);
+  syncOctaveControl();
   if (metroChk) metroChk.checked = runner.metronome;
   if (guideChk) guideChk.checked = runner.guide;
   if (previewChk) previewChk.checked = runner.preview;
