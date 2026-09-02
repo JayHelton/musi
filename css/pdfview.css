@@ -51,6 +51,54 @@
   display: block;
 }
 
+/* The links of a page (js/pdfDocView.js). A canvas holds no links, so the view
+   puts one box over each link of the page. The box keeps its place in percent,
+   so it stays on its text at every zoom step. The box is clear: the page below
+   it already shows the link in the style of the file. The learner sees a soft
+   tint under the pointer, and a full outline with the keyboard. */
+
+.pdfv-links {
+  position: absolute;
+  inset: 0;
+  /* The layer must not stop a scroll or a pinch; only a box takes a tap. */
+  pointer-events: none;
+}
+
+.pdfv-link {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  /* The page below the box shows the text of the link. */
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(255, 225, 74, 0.4);
+  transition: background-color 0.12s ease;
+}
+
+/* A touch screen keeps the hover state after a tap, so only a pointer that can
+   hover gets the tint. */
+@media (hover: hover) {
+  .pdfv-link:hover {
+    background: rgba(255, 225, 74, 0.3);
+  }
+}
+
+/* The page below the box is white, so the outline is the purple of the shell.
+   The yellow accent is too light on a white page. */
+.pdfv-link:focus-visible {
+  outline: 2px solid var(--accent2, #b45eff);
+  outline-offset: 1px;
+  background: rgba(255, 225, 74, 0.3);
+}
+
 .pdfv-page.is-failed::after {
   content: "This page did not draw.";
   position: absolute;

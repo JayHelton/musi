@@ -11,6 +11,11 @@
 // tall frame gives the page the full width. A small control zooms in and out,
 // and two fingers do the same.
 //
+// A canvas holds no links, so the view puts a layer of its own on each page.
+// The layer holds one box for each link annotation of the page. A box that
+// holds a web address opens it in a new tab, and a box that points into the
+// same file scrolls to that place.
+//
 // pdf.js loads only when the learner opens a PDF. The service worker keeps the
 // files after the first use, so the view still works offline.
 
@@ -26,6 +31,15 @@ const MAX_ZOOM = 6;
 // A frame this wide, or wider, shows the whole page. A narrower frame is a
 // phone in portrait, where the full width reads better.
 const WIDE_FRAME_RATIO = 0.9;
+
+// The view opens a link only with one of these protocols. A PDF can hold any
+// string, and a "javascript:" link must not run in the app.
+const LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+// Annotation flags of the PDF standard. The view leaves out a link with one of
+// these flags, because the page does not show it.
+const FLAG_HIDDEN = 0x02;
+const FLAG_NO_VIEW = 0x20;
 
 let libPromise = null;
 
@@ -80,6 +94,102 @@ function el(tag, props = {}, kids = []) {
 function pixelRatio() {
   const dpr = window.devicePixelRatio || 1;
   return Math.min(2, Math.max(1, dpr));
+}
+
+/**
+ * Give back an address the view can open, or an empty string.
+ *
+ * A PDF holds the address as free text, so the view keeps only an absolute
+ * address with a protocol of LINK_PROTOCOLS.
+ *
+ * @param {*} raw   the address pdf.js read from the annotation
+ * @returns {string}
+ */
+export function safeLinkUrl(raw) {
+  if (typeof raw !== 'string') return '';
+  const text = raw.trim();
+  if (!text) return '';
+  try {
+    const url = new URL(text);
+    return LINK_PROTOCOLS.has(url.protocol) ? url.href : '';
+  } catch (err) {
+    return '';
+  }
+}
+
+/** Keep a percentage in the page. */
+function clampPercent(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, value));
+}
+
+/**
+ * Read the rectangles of one link annotation.
+ *
+ * A link on two lines of text has one quadrilateral for each line. The view
+ * uses them, because the single rectangle of the annotation also covers the
+ * text between the two lines. A link without quadrilaterals gives back its
+ * rectangle.
+ *
+ * @param {Object} item   one annotation
+ * @returns {Array<Array<number>>}   rectangles in the units of the PDF
+ */
+function linkRects(item) {
+  const quads = item.quadPoints;
+  const rects = [];
+  if (quads && quads.length >= 8 && quads.length % 8 === 0) {
+    for (let at = 0; at < quads.length; at += 8) {
+      const xs = [quads[at], quads[at + 2], quads[at + 4], quads[at + 6]];
+      const ys = [quads[at + 1], quads[at + 3], quads[at + 5], quads[at + 7]];
+      if (xs.some((v) => !Number.isFinite(v)) || ys.some((v) => !Number.isFinite(v))) continue;
+      rects.push([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]);
+    }
+  }
+  if (rects.length) return rects;
+  const rect = item.rect;
+  if (!Array.isArray(rect) || rect.length < 4 || rect.some((v) => !Number.isFinite(v))) return [];
+  return [rect];
+}
+
+/**
+ * Turn the link annotations of a page into boxes.
+ *
+ * Each box gives its place in percent of the page, so the box stays on its
+ * text at every zoom step. A box holds a web address, or the destination of a
+ * link into the same file.
+ *
+ * @param {Array<Object>} annotations   what pdfPage.getAnnotations gave back
+ * @param {{width: number, height: number, convertToViewportRectangle: Function}} viewport
+ *        the page at scale 1
+ * @returns {Array<{left: number, top: number, width: number, height: number,
+ *                  url: string, dest: *}>}
+ */
+export function linkBoxesFromAnnotations(annotations, viewport) {
+  if (!Array.isArray(annotations)) return [];
+  if (!(viewport?.width > 0) || !(viewport?.height > 0)) return [];
+  if (typeof viewport.convertToViewportRectangle !== 'function') return [];
+  const boxes = [];
+  for (const item of annotations) {
+    if (!item || item.subtype !== 'Link') continue;
+    const flags = Number(item.annotationFlags) || 0;
+    if (item.hidden || (flags & FLAG_HIDDEN) || (flags & FLAG_NO_VIEW)) continue;
+    const url = safeLinkUrl(item.url);
+    const dest = url ? null : (item.dest ?? null);
+    if (!url && dest == null) continue;
+    for (const rect of linkRects(item)) {
+      const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(rect);
+      const left = clampPercent((Math.min(x1, x2) / viewport.width) * 100);
+      const right = clampPercent((Math.max(x1, x2) / viewport.width) * 100);
+      const top = clampPercent((Math.min(y1, y2) / viewport.height) * 100);
+      const bottom = clampPercent((Math.max(y1, y2) / viewport.height) * 100);
+      const width = right - left;
+      const height = bottom - top;
+      // A box of no size holds no text, and a box off the page shows nothing.
+      if (width <= 0 || height <= 0) continue;
+      boxes.push({ left, top, width, height, url, dest });
+    }
+  }
+  return boxes;
 }
 
 /**
@@ -145,8 +255,87 @@ export async function mountPdfDoc(host, blob) {
     });
   }
 
+  /**
+   * Scroll to the place a link points at.
+   *
+   * A destination names a page, and it can also name a height on that page.
+   * The view keeps the top of the page when it finds no height.
+   */
+  async function goToDest(dest) {
+    try {
+      const target = typeof dest === 'string' ? await doc.getDestination(dest) : dest;
+      if (destroyed || !Array.isArray(target) || !target.length) return;
+      const ref = target[0];
+      const index = typeof ref === 'number' ? ref : await doc.getPageIndex(ref);
+      const page = pages[index];
+      if (destroyed || !page) return;
+      const kind = target[1]?.name;
+      // "XYZ" gives a corner, and "FitH" and "FitBH" give a height only.
+      const y = kind === 'XYZ' ? target[3] : target[2];
+      let offset = 0;
+      if ((kind === 'XYZ' || kind === 'FitH' || kind === 'FitBH') && Number.isFinite(y)) {
+        const pdfPage = page.pdfPage || (page.pdfPage = await doc.getPage(page.number));
+        if (destroyed) return;
+        const view = pdfPage.getViewport({ scale: baseScale * zoom });
+        offset = Math.max(0, view.convertToViewportPoint(0, y)[1]);
+      }
+      scroller.scrollTop = Math.max(0, page.holder.offsetTop + offset - 6);
+      drawVisible();
+      reportPosition();
+    } catch (err) { /* the file has no such place */ }
+  }
+
+  /** Build the element of one link box. */
+  function linkNode(box) {
+    const style = `left:${box.left}%;top:${box.top}%;width:${box.width}%;height:${box.height}%`;
+    if (box.url) {
+      // The app stays open in its own tab, so every address opens a new one.
+      return el('a', {
+        class: 'pdfv-link',
+        href: box.url,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        title: box.url,
+        'aria-label': `Open ${box.url}`,
+        style,
+      });
+    }
+    return el('button', {
+      class: 'pdfv-link',
+      type: 'button',
+      title: 'Go to this place in the file',
+      'aria-label': 'Go to this place in the file',
+      style,
+      onClick: () => { void goToDest(box.dest); },
+    });
+  }
+
+  /**
+   * Put the links of a page over the canvas.
+   *
+   * The layer is built one time for each page. A page that gives no links, or
+   * that fails, keeps its canvas and shows no link.
+   */
+  async function ensureLinks(page) {
+    if (destroyed || page.linksDone) return;
+    page.linksDone = true;
+    try {
+      const pdfPage = page.pdfPage || (page.pdfPage = await doc.getPage(page.number));
+      if (destroyed) return;
+      const annotations = await pdfPage.getAnnotations({ intent: 'display' });
+      if (destroyed) return;
+      const boxes = linkBoxesFromAnnotations(annotations, pdfPage.getViewport({ scale: 1 }));
+      if (!boxes.length) return;
+      const layer = el('div', { class: 'pdfv-links' });
+      boxes.forEach((box) => layer.appendChild(linkNode(box)));
+      page.holder.appendChild(layer);
+    } catch (err) { /* the page keeps its canvas without links */ }
+  }
+
   async function drawPage(page) {
-    if (destroyed || page.busy) return;
+    if (destroyed) return;
+    void ensureLinks(page);
+    if (page.busy) return;
     const scale = baseScale * zoom;
     if (page.drawnScale && !page.stale) return;
     page.busy = true;
@@ -299,6 +488,7 @@ export async function mountPdfDoc(host, blob) {
       near: number <= 2,
       busy: false,
       render: null,
+      linksDone: false,
     });
     observer?.observe(holder);
   }
