@@ -63,10 +63,15 @@ import {
 import {
   HARSH_CHEAT_TABS,
   WARM_UP_LADDER,
+  MECHANISM_MAP,
   FALSE_CORD_REGISTERS,
+  SUPRAGLOTTIC_SOURCES,
   TRUE_CORD_HIGHS,
+  HYBRID_SCREAM,
   TONGUE_TONE_TABLE,
   TONGUE_RULES,
+  GUTTURAL_LOWS,
+  GUTTURAL_RULES,
   RED_FLAGS,
   CHEAT_SHEET_SOURCES,
 } from '../../js/practiceLab/model/harshCheatSheet.js';
@@ -437,6 +442,8 @@ test('an unknown style has no starters', () => {
 /* ------------------------------------------------------------------ */
 console.log('Harsh cheat sheet');
 
+const CHEAT_TONES = ['deep', 'warm', 'bright', 'risk'];
+
 test('the cheat sheet names five tabs, in a fixed order', () => {
   assert.deepEqual(HARSH_CHEAT_TABS.map(t => t.id),
     ['warmup', 'falsecord', 'truecord', 'tongue', 'redflags']);
@@ -472,6 +479,73 @@ test('true-cord highs are a distinct technique with a hard stop', () => {
   assert.match(TRUE_CORD_HIGHS.whatItIs, /true/i);
 });
 
+test('the mechanism map names a structure and a home tab for every sound', () => {
+  assert.ok(MECHANISM_MAP.length >= 5);
+  for (const row of MECHANISM_MAP) {
+    assert.ok(row.sound && row.vibrates && row.sits, row.sound);
+  }
+  assert.ok(MECHANISM_MAP.some(row => /arytenoid/i.test(row.vibrates)));
+  assert.ok(MECHANISM_MAP.some(row => /epiglottis/i.test(row.vibrates)));
+});
+
+test('every source above the cords names what vibrates and what to watch for', () => {
+  const fields = ['id', 'label', 'tone', 'whatVibrates', 'soundsLike', 'findIt', 'feelsLike', 'watchFor'];
+  assert.deepEqual(SUPRAGLOTTIC_SOURCES.map(s => s.id), ['rattle', 'growl']);
+  for (const entry of SUPRAGLOTTIC_SOURCES) {
+    for (const field of fields) {
+      assert.ok(typeof entry[field] === 'string' && entry[field].length > 0, `${entry.id}.${field}`);
+    }
+    assert.ok(CHEAT_TONES.includes(entry.tone), entry.id);
+  }
+});
+
+test('the aryepiglottic growl stays gentle and names the knödel cue', () => {
+  const growl = SUPRAGLOTTIC_SOURCES.find(s => s.id === 'growl');
+  assert.match(growl.watchFor, /gentle|quiet/i);
+  assert.match(growl.findIt, /kn.?del/i);
+  assert.match(growl.feelsLike, /cannot tilt the epiglottis/i);
+});
+
+test('the hybrid scream gates itself behind the two techniques it mixes', () => {
+  const fields = ['label', 'tone', 'whatItIs', 'prerequisite', 'soundsLike', 'activation', 'feelsLike', 'watchFor'];
+  for (const field of fields) {
+    assert.ok(typeof HYBRID_SCREAM[field] === 'string' && HYBRID_SCREAM[field].length > 0, field);
+  }
+  assert.match(HYBRID_SCREAM.prerequisite, /fry/i);
+  assert.match(HYBRID_SCREAM.prerequisite, /false cord/i);
+});
+
+test('every guttural entry answers the same five questions', () => {
+  const fields = ['id', 'label', 'tone', 'whatItIs', 'shape', 'activation', 'feelsLike', 'watchFor'];
+  assert.ok(GUTTURAL_LOWS.length >= 4);
+  for (const entry of GUTTURAL_LOWS) {
+    for (const field of fields) {
+      assert.ok(typeof entry[field] === 'string' && entry[field].length > 0, `${entry.id}.${field}`);
+    }
+    assert.ok(CHEAT_TONES.includes(entry.tone), entry.id);
+  }
+  assert.ok(GUTTURAL_RULES.length >= 3);
+});
+
+test('the guttural cards keep control ahead of volume', () => {
+  assert.match(GUTTURAL_RULES[0], /control, not volume/i);
+  const guttural = GUTTURAL_LOWS.find(e => e.id === 'guttural');
+  assert.match(guttural.watchFor, /control, not volume/i);
+});
+
+test('the tunnel throat shape appears in the lows cards and the tongue table', () => {
+  const tunnel = GUTTURAL_LOWS.find(e => e.id === 'tunnelthroat');
+  assert.match(tunnel.shape, /bottom teeth/i);
+  assert.match(tunnel.shape, /up and back/i);
+  assert.ok(TONGUE_TONE_TABLE.some(row => /tunnel throat/i.test(row.position)));
+});
+
+test('the tongue table names the knödel position the growl uses', () => {
+  assert.ok(TONGUE_TONE_TABLE.length >= 7);
+  assert.ok(TONGUE_TONE_TABLE.some(row => /kn.?del/i.test(row.position)));
+  assert.ok(TONGUE_TONE_TABLE.some(row => /roof of the mouth/i.test(row.position)));
+});
+
 test('the tongue table pairs every position with an effect and a register', () => {
   assert.ok(TONGUE_TONE_TABLE.length >= 4);
   for (const row of TONGUE_TONE_TABLE) {
@@ -485,6 +559,7 @@ test('the tongue table pairs every position with an effect and a register', () =
 test('the red flags are non-empty stop-now reminders', () => {
   assert.ok(RED_FLAGS.length >= 3);
   assert.ok(RED_FLAGS.every(text => typeof text === 'string' && text.length > 10));
+  assert.ok(RED_FLAGS.some(text => /aryepiglottic/i.test(text)));
 });
 
 test('every source carries a label and a URL', () => {

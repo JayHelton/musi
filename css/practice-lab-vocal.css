@@ -122,27 +122,48 @@
 .pl-cheat-row-label { color: var(--muted); font-weight: 600; }
 
 /* A cool-to-hot gradient across the false-cord registers, ending in the
-   app's own danger colour for true-cord highs — the riskiest technique. */
-.pl-cheat-card-low { border-left-color: var(--btn-x); }
-.pl-cheat-card-low .pl-cheat-card-title { color: var(--btn-x); }
-.pl-cheat-card-mid { border-left-color: var(--accent2); }
-.pl-cheat-card-mid .pl-cheat-card-title { color: var(--accent2); }
-.pl-cheat-card-high { border-left-color: var(--accent); }
-.pl-cheat-card-high .pl-cheat-card-title { color: var(--accent); }
-.pl-cheat-card-truecord {
+   app's own danger colour for true-cord highs — the riskiest technique.
+   The mechanism cards and the guttural cards ride the same axis under the
+   tone names deep, warm, bright, and risk, so no new colour enters here. */
+.pl-cheat-card-low,
+.pl-cheat-card-deep { border-left-color: var(--btn-x); }
+.pl-cheat-card-low .pl-cheat-card-title,
+.pl-cheat-card-deep .pl-cheat-card-title { color: var(--btn-x); }
+.pl-cheat-card-mid,
+.pl-cheat-card-warm { border-left-color: var(--accent2); }
+.pl-cheat-card-mid .pl-cheat-card-title,
+.pl-cheat-card-warm .pl-cheat-card-title { color: var(--accent2); }
+.pl-cheat-card-high,
+.pl-cheat-card-bright { border-left-color: var(--accent); }
+.pl-cheat-card-high .pl-cheat-card-title,
+.pl-cheat-card-bright .pl-cheat-card-title { color: var(--accent); }
+.pl-cheat-card-truecord,
+.pl-cheat-card-risk {
   border-left-color: var(--btn-a);
   background: rgba(230, 57, 70, .07);
 }
-.pl-cheat-card-truecord .pl-cheat-card-title { color: var(--btn-a); }
-.pl-cheat-hardstop { color: var(--btn-a); font-weight: 600; }
-.pl-cheat-hardstop .pl-cheat-row-label { color: var(--btn-a); }
+.pl-cheat-card-truecord .pl-cheat-card-title,
+.pl-cheat-card-risk .pl-cheat-card-title { color: var(--btn-a); }
+.pl-cheat-hardstop,
+.pl-cheat-caution { color: var(--btn-a); font-weight: 600; }
+.pl-cheat-hardstop .pl-cheat-row-label,
+.pl-cheat-caution .pl-cheat-row-label { color: var(--btn-a); }
 
-/* ---- the tongue-placement table ---- */
+/* One heading between two card groups in the same panel. */
+.pl-cheat-group-title {
+  margin: 6px 0 0;
+  font-family: var(--font-pixel);
+  font-size: .6rem;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+/* ---- the mechanism map and the tongue-placement table ---- */
 
 .pl-cheat-table-wrap { overflow-x: auto; }
 .pl-cheat-table {
   width: 100%;
-  min-width: 480px;
+  min-width: 560px;
   border-collapse: collapse;
   font-family: var(--font-body);
   font-size: .84rem;
