@@ -23,6 +23,8 @@ function ensureFixtures() {
   const needed = [
     'tempo-change.gp5',
     'tempo-change.gp',
+    'vocal-text.gp5',
+    'vocal-text.gp',
     'corrupt.bin',
     'legacy.gpx',
     'legacy.gp3',
@@ -189,6 +191,23 @@ assertTechniques(techGp5.tracks[0].model, 'techniques.gp5');
 
 const techGp = await parseGuitarPro(fixtureBytes('techniques.gp'));
 assertTechniques(techGp.tracks[0].model, 'techniques.gp');
+
+// vocal-text — the free text a writer puts over a beat, and the section
+// marker of the bar that holds no beat text.
+function assertBeatText(model, label) {
+  assert.deepEqual(
+    model.beats.filter((b) => !b.rest).map((b) => b.text || ''),
+    ['mee', 'may', 'mah', ''],
+    `${label}: beat text`,
+  );
+  assert.equal(model.measures[3].marker, 'Lip trills', `${label}: section marker`);
+}
+
+const vocalGp5 = await parseGuitarPro(fixtureBytes('vocal-text.gp5'));
+assertBeatText(vocalGp5.tracks[0].model, 'vocal-text.gp5');
+
+const vocalGp = await parseGuitarPro(fixtureBytes('vocal-text.gp'));
+assertBeatText(vocalGp.tracks[0].model, 'vocal-text.gp');
 
 // large-200bar.gp5 — multi-track mixer metadata
 const largeGp5 = await parseGuitarPro(fixtureBytes('large-200bar.gp5'));

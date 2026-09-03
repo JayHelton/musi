@@ -66,7 +66,8 @@ Drills that build your ear, your reading, and your hands.
     shows what each session warmed up with.
   - *Vocal* — clean and harsh vocal practice. Clean has Chest, Mix, and Head,
     and it runs on the same Pitch Runner the rest of the app uses, with the same
-    Start octave control. Harsh has
+    Start octave control and the same score text: a run from a Guitar Pro file
+    names the vowel or the exercise for the pitch that comes. Harsh has
     Low, Mid, and High, and it runs on the Cue Runner: timed instructions,
     timed rest, register changes, phrases, and manual checkpoints. Musi never
     scores a harsh vocal; you report each repetition as Immediate, Searched,
@@ -151,7 +152,14 @@ storage; the Library page is the door to both.
     them. The run keeps the pitches you saved, and the note list names the
     pitches the run plays now. A note length of 0 holds each note as long as it is written. The
     player keeps the note list closed below the game, so a long run does not
-    push the game off the screen. A pitch run can carry clean vocal tags, and
+    push the game off the screen. A run that came from a Guitar Pro file also
+    keeps the text of the score. A vocal warm-up writes the vowel or the
+    exercise over the note — "mee", "lip trill", "hum" — and the run prints that
+    text on the bar and above the stage. A section marker names the first note
+    of its section when that bar carries no text of its own. The section notes
+    you save on the same score in the Guitar Pro player fill the notes that are
+    still bare. The text holds until the score writes a new one, so a bare note
+    keeps the instruction before it. A pitch run can carry clean vocal tags, and
     then the Vocal tab of Practice Lab plays it.
   - A **cue exercise** is a timed instruction list for harsh vocals. You write
     one step per line: perform, rest, transition, phrase, or checkpoint, with

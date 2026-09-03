@@ -484,7 +484,10 @@ function readBeat(r, ctx, track) {
   const dotted = !!(flags & 0x01);
   const duration = gp5DurationToQuarters(durationByte, tuplet, dotted);
   if (flags & 0x02) readChord(r, track.stringCount);
-  if (flags & 0x04) r.intByteSizeString(); // text
+  // The beat text is the free-text mark a writer puts over a beat. A vocal
+  // warm-up score uses it for the vowel or the syllable of that note.
+  let text = '';
+  if (flags & 0x04) text = r.intByteSizeString() || '';
   let beatTechniques = [];
   if (flags & 0x08) beatTechniques = readBeatEffects(r);
   let mixTempo = null;
@@ -502,6 +505,7 @@ function readBeat(r, ctx, track) {
     tuplet,
     beatTechniques,
     mixTempo,
+    text,
   };
 }
 
@@ -736,6 +740,7 @@ function pushGp5BeatRhythm({
   }
 
   const techs = beatTechniques.length ? beatTechniques.slice() : undefined;
+  const text = typeof beat.text === 'string' ? beat.text.trim() : '';
   const beatEntry = {
     measureIndex,
     voiceIndex,
@@ -745,6 +750,7 @@ function pushGp5BeatRhythm({
     noteIndices: [],
     techniques: techs,
   };
+  if (text) beatEntry.text = text;
 
   if (beat.empty) {
     rests.push({

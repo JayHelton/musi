@@ -2,8 +2,10 @@
 // vocal runner game that lives in the Exercises library.
 //
 // A run is a list of notes. Each note has a pitch (MIDI number) and a hold
-// length in beats. A run also carries the tempo and the play options. Two
-// sources make the note list:
+// length in beats. A note that came from a Guitar Pro file also keeps the text
+// the score writes over it and the beat it sat on, so the runner can print the
+// vowel or the exercise the writer asked for. A run also carries the tempo and
+// the play options. Two sources make the note list:
 //
 //   - manual: the user types the pitches and the hold lengths.
 //   - gp:     a Guitar Pro file gives the pitches and the hold lengths.
@@ -23,6 +25,9 @@ export const RUNNER_DEFAULT_BEATS = 2;
 
 export const RUNNER_MAX_NOTES = 128;
 export const RUNNER_MAX_REPEATS = 20;
+
+/** The longest note text the runner keeps, in characters. */
+export const RUNNER_TEXT_LIMIT = 60;
 
 export const RUNNER_SOURCES = ['manual', 'gp'];
 
@@ -58,6 +63,22 @@ export function runnerNoteBeats(config, note) {
   const fixed = clampRunnerNoteBeats(config && config.noteBeats);
   if (fixed > 0) return fixed;
   return clampRunnerBeats(note && note.beats);
+}
+
+/**
+ * Read one line of note text.
+ *
+ * The text comes from a Guitar Pro file or from a saved section note, so it
+ * can hold line breaks and it can be very long. The runner prints it on one
+ * bar, so this keeps one short line.
+ *
+ * @param {*} value
+ * @returns {string}
+ */
+export function clampRunnerText(value) {
+  if (typeof value !== 'string') return '';
+  const line = value.replace(/\s+/g, ' ').trim();
+  return line.slice(0, RUNNER_TEXT_LIMIT);
 }
 
 export function clampRunnerBpm(value) {
@@ -177,9 +198,20 @@ function normalizeNotes(raw) {
     if (out.length >= RUNNER_MAX_NOTES) break;
     const midi = clampRunnerMidi(entry && entry.midi);
     if (midi == null) continue;
-    out.push({ midi, beats: clampRunnerBeats(entry.beats) });
+    const note = { midi, beats: clampRunnerBeats(entry.beats) };
+    const text = clampRunnerText(entry.text);
+    if (text) note.text = text;
+    const scoreBeat = Number(entry.scoreBeat);
+    if (Number.isFinite(scoreBeat)) note.scoreBeat = scoreBeat;
+    out.push(note);
   }
   return out;
+}
+
+/** The number of notes of a run that carry text. */
+export function runnerTextCount(config) {
+  const notes = Array.isArray(config?.notes) ? config.notes : [];
+  return notes.filter((note) => clampRunnerText(note?.text)).length;
 }
 
 /** The lowest and the highest pitch of a run, for the lane ladder. */
@@ -241,6 +273,7 @@ export function defaultRunnerConfig() {
     preview: false,
     attachmentId: '',
     fileName: '',
+    fileSize: 0,
     trackIndex: 0,
     octaveShift: 0,
   };
@@ -270,6 +303,9 @@ export function normalizeRunnerConfig(raw) {
     preview: raw.preview === true,
     attachmentId: typeof raw.attachmentId === 'string' ? raw.attachmentId : '',
     fileName: typeof raw.fileName === 'string' ? raw.fileName : '',
+    // The byte length of the source file. It names the same score as the GP
+    // player does when the player read the file without the library.
+    fileSize: Math.max(0, Math.round(clampNumber(raw.fileSize, 0, Number.MAX_SAFE_INTEGER, 0))),
     trackIndex: Math.max(0, Math.round(clampNumber(raw.trackIndex, 0, 64, 0))),
     octaveShift: Math.round(clampNumber(raw.octaveShift, -3, 3, 0)),
   };
@@ -284,10 +320,47 @@ export function describeRunnerConfig(config) {
   const count = `${cfg.notes.length} note${cfg.notes.length === 1 ? '' : 's'}`;
   const span = `${midiToNoteName(range.low)}–${midiToNoteName(range.high)}`;
   const line = `${count} · ${span} · ${cfg.bpm} BPM · ${passes}`;
-  return cfg.preview ? `${line} · preview` : line;
+  const parts = [line];
+  if (cfg.preview) parts.push('preview');
+  if (runnerTextCount(cfg)) parts.push('with text');
+  return parts.join(' · ');
 }
 
 // --- Guitar Pro import -----------------------------------------------------
+
+/** The free text one beat of a parsed track carries. */
+function beatTextOf(model, beatIndex) {
+  const beats = Array.isArray(model?.beats) ? model.beats : [];
+  const index = Number(beatIndex);
+  if (!Number.isInteger(index) || index < 0 || index >= beats.length) return '';
+  return clampRunnerText(beats[index]?.text);
+}
+
+/**
+ * The section marker of each note group, by the place of the group.
+ *
+ * A marker names the section: "Lip trills" or "Verse". The first note of the
+ * section carries it, so a run that holds no beat text still tells the singer
+ * which exercise the section asks for.
+ *
+ * @param {object} model a TabModel
+ * @param {{key:number}[]} groups the note groups, in time order
+ * @returns {Map<number,string>} the group place, and the marker it carries
+ */
+function markersByGroup(model, groups) {
+  const out = new Map();
+  const measures = Array.isArray(model?.measures) ? model.measures : [];
+  for (const measure of measures) {
+    const marker = clampRunnerText(measure?.marker);
+    if (!marker) continue;
+    const start = Number(measure?.startBeat);
+    const end = Number(measure?.endBeat);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    const at = groups.findIndex((group) => group.key >= start - 1e-6 && group.key < end - 1e-6);
+    if (at >= 0 && !out.has(at)) out.set(at, marker);
+  }
+  return out;
+}
 
 /**
  * Turn one parsed Guitar Pro track model into a runner note list.
@@ -295,9 +368,13 @@ export function describeRunnerConfig(config) {
  * A vocal run is one voice, so this keeps the highest pitch of each chord and
  * drops dead notes and grace notes. A tied note extends the note before it.
  *
+ * Each note keeps the text the score writes over its beat, and the beat it
+ * started on. A vocal warm-up score writes the vowel or the exercise there, so
+ * the runner prints that text on the bar the singer sings.
+ *
  * @param {object} model a TabModel from js/tab/tabModel.js
  * @param {{ octaveShift?: number, maxNotes?: number }} [options]
- * @returns {{ ok: boolean, notes: {midi:number, beats:number}[], bpm: number, skipped: number, error: string|null }}
+ * @returns {{ ok: boolean, notes: {midi:number, beats:number, text?:string, scoreBeat?:number}[], bpm: number, skipped: number, error: string|null }}
  */
 export function runnerNotesFromTabModel(model, { octaveShift = 0, maxNotes = RUNNER_MAX_NOTES } = {}) {
   const events = Array.isArray(model?.events) ? model.events : [];
@@ -313,6 +390,7 @@ export function runnerNotesFromTabModel(model, { octaveShift = 0, maxNotes = RUN
       duration: Number.isFinite(Number(ev.duration)) ? Number(ev.duration) : null,
       tie: !!ev.tie,
       slot: Number(ev.slot) || 0,
+      beatIndex: ev.beatIndex,
       index,
     }));
 
@@ -342,22 +420,32 @@ export function runnerNotesFromTabModel(model, { octaveShift = 0, maxNotes = RUN
     }
   }
 
+  // A marker needs the beat positions of the file. A file that carries none
+  // gets no markers, because the slot order says nothing about the bars.
+  const markers = hasStarts ? markersByGroup(model, groups) : new Map();
+
   const notes = [];
   let skipped = 0;
-  for (const group of groups) {
+  groups.forEach((group, at) => {
     const ev = group.top;
     // A tie carries the pitch of the note before it, so it lengthens that note.
     if (ev.tie && notes.length) {
       const extra = clampRunnerBeats(ev.duration ?? RUNNER_DEFAULT_BEATS);
       const last = notes[notes.length - 1];
       last.beats = clampRunnerBeats(last.beats + extra);
-      continue;
+      return;
     }
-    if (notes.length >= limit) { skipped += 1; continue; }
+    if (notes.length >= limit) { skipped += 1; return; }
     const midi = clampRunnerMidi(ev.midi + shift);
-    if (midi == null) { skipped += 1; continue; }
-    notes.push({ midi, beats: clampRunnerBeats(ev.duration ?? RUNNER_DEFAULT_BEATS) });
-  }
+    if (midi == null) { skipped += 1; return; }
+    const note = { midi, beats: clampRunnerBeats(ev.duration ?? RUNNER_DEFAULT_BEATS) };
+    // The beat text wins over the marker: it speaks about this note, and the
+    // marker speaks about the whole section.
+    const text = beatTextOf(model, ev.beatIndex) || markers.get(at) || '';
+    if (text) note.text = text;
+    if (hasStarts && ev.start != null) note.scoreBeat = ev.start;
+    notes.push(note);
+  });
 
   if (!notes.length) {
     return {
@@ -386,6 +474,52 @@ export function runnerTrackOptions(gpResult) {
     name: (track && (track.name || track.shortName)) || `Track ${index + 1}`,
     noteCount: (track?.model?.events || []).filter((ev) => ev && !ev.dead && ev.midi != null).length,
   })).filter((option) => option.noteCount > 0);
+}
+
+// --- Saved section notes ---------------------------------------------------
+
+/**
+ * Fill the empty note text of a run from the section notes of the score.
+ *
+ * A section note covers a beat range of the source score. Musi keeps those
+ * notes next to the Guitar Pro file, so a singer who wrote "hum, then ee" on
+ * bars 5 to 8 reads it again in the runner. A note of the run that starts
+ * inside the range, and that carries no text of its own, takes the title of
+ * the section note. The narrowest range wins, so a note about one bar beats a
+ * note about the whole score.
+ *
+ * @param {object} config a normalized runner config
+ * @param {Array<{title?:string, text?:string, startBeat?:number, endBeat?:number}>} annotations
+ * @returns {object} the same config, or a copy whose notes carry the text
+ */
+export function fillRunnerTextFromAnnotations(config, annotations) {
+  const notes = Array.isArray(config?.notes) ? config.notes : [];
+  const list = Array.isArray(annotations) ? annotations : [];
+  if (!notes.length || !list.length) return config;
+
+  const ranges = [];
+  for (const anno of list) {
+    const startBeat = Number(anno?.startBeat);
+    const endBeat = Number(anno?.endBeat);
+    if (!Number.isFinite(startBeat) || !Number.isFinite(endBeat) || endBeat <= startBeat) continue;
+    const text = clampRunnerText(anno?.title) || clampRunnerText(anno?.text);
+    if (!text) continue;
+    ranges.push({ startBeat, endBeat, text });
+  }
+  if (!ranges.length) return config;
+  ranges.sort((a, b) => (a.endBeat - a.startBeat) - (b.endBeat - b.startBeat));
+
+  let changed = false;
+  const filled = notes.map((note) => {
+    if (clampRunnerText(note?.text)) return note;
+    const beat = Number(note?.scoreBeat);
+    if (!Number.isFinite(beat)) return note;
+    const hit = ranges.find((range) => beat >= range.startBeat - 1e-6 && beat < range.endBeat - 1e-6);
+    if (!hit) return note;
+    changed = true;
+    return { ...note, text: hit.text };
+  });
+  return changed ? { ...config, notes: filled } : config;
 }
 
 /**

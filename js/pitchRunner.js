@@ -54,6 +54,7 @@ import {
   visibleLaneSpan,
   VIEW_EDGE_LANES,
 } from './runnerPitchView.js';
+import { fitNoteText, heldNoteText } from './runnerNoteText.js';
 
 // "Pitch runner" — a Guitar-Hero / Yousician-style scrolling pitch game that
 // lives in the Pitch section. Note bars stream in from the right in strict 4/4
@@ -244,6 +245,9 @@ const runner = {
   octaveShift: 0,
   // The last shift the stage was told about, or null when it knows none.
   reportedShift: null,
+  // The text the stage prints above the canvas now. A note with no text of its
+  // own keeps it, because the instruction of the score still holds.
+  noteTextShown: '',
   noteBeats: 2,
   metronome: true,
   guide: false,
@@ -710,6 +714,8 @@ function ensureNotes(playheadBeat) {
       dur: step.dur,
       midi: step.midi,
       offset: step.offset ?? null,
+      // The text the score writes over this note, for example a vowel.
+      text: step.text || '',
       preview: step.preview,
       pass: step.pass,
       startAudioTime,
@@ -743,6 +749,9 @@ function sequenceStep(index) {
       // The pitch comes from the built list, so the run plays in the octave
       // the singer picked.
       midi: runner.patternSeq[pos.step],
+      // A run from a Guitar Pro file carries the text of the score. It names
+      // the vowel or the exercise the writer asked for on that note.
+      text: typeof note?.text === 'string' ? note.text : '',
       dur: Math.max(0.25, beats - gap),
       advance: beats + runner.sequence.restBeats,
     };
@@ -956,6 +965,50 @@ function drawIdle() {
   ctx.fillRect(0, 0, runner.cssW, runner.cssH);
 }
 
+/**
+ * The line one note bar prints.
+ *
+ * A run from a Guitar Pro file prints the text of the score, for example the
+ * vowel to sing. A harmony bar prints its interval, so the singer reads the
+ * target as an interval and not only as a note. No run holds both.
+ */
+function barLabelFor(note) {
+  if (note.text) return note.text;
+  return note.offset == null ? '' : harmonyLabelFor(note.offset);
+}
+
+/**
+ * Print the label of one bar. A tall bar holds the label inside. A short bar
+ * carries it above, on a dark plate, so it stays readable.
+ */
+function drawBarLabel(ctx, note, { x, w, y, barH, hollow }) {
+  const label = barLabelFor(note);
+  if (!label || w < 26) return;
+  const c = runner.colors;
+  ctx.save();
+  ctx.font = '600 10px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  const inside = barH >= 14 && !hollow;
+  // A bar that already crossed the line starts left of the canvas, so the room
+  // above it counts from the left edge and not from the start of the bar.
+  const room = Math.max(0, inside ? w - 12 : runner.cssW - Math.max(0, x) - 12);
+  const shown = fitNoteText(label, room, (t) => ctx.measureText(t).width);
+  if (!shown) { ctx.restore(); return; }
+  if (inside) {
+    ctx.fillStyle = c.card;
+    ctx.fillText(shown, x + 7, y);
+  } else {
+    const tw = ctx.measureText(shown).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    roundRect(ctx, x + 1, y - barH / 2 - 14, tw + 8, 13, 4);
+    ctx.fill();
+    ctx.fillStyle = c.text;
+    ctx.globalAlpha = 0.9;
+    ctx.fillText(shown, x + 5, y - barH / 2 - 7.5);
+  }
+  ctx.restore();
+}
+
 function draw(playheadBeat) {
   const ctx = runner.ctx2d;
   if (!ctx) return;
@@ -1027,6 +1080,7 @@ function draw(playheadBeat) {
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.globalAlpha = 1;
+      drawBarLabel(ctx, note, { x, w, y, barH, hollow: true });
       continue;
     }
     let fill;
@@ -1040,28 +1094,7 @@ function draw(playheadBeat) {
     ctx.fillStyle = fill;
     roundRect(ctx, x, y - barH / 2, Math.max(6, w), barH, Math.min(8, barH / 2));
     ctx.fill();
-    // A harmony bar prints its interval, so the singer reads the target as an
-    // interval and not only as a note. A tall bar holds the name inside. A
-    // short bar carries it above, on a dark plate, so it stays readable.
-    const intervalLabel = note.offset == null ? '' : harmonyLabelFor(note.offset);
-    if (intervalLabel && w >= 26) {
-      ctx.save();
-      ctx.font = '600 10px system-ui, sans-serif';
-      ctx.textBaseline = 'middle';
-      if (barH >= 14) {
-        ctx.fillStyle = c.card;
-        ctx.fillText(intervalLabel, x + 7, y);
-      } else {
-        const tw = ctx.measureText(intervalLabel).width;
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        roundRect(ctx, x + 1, y - barH / 2 - 14, tw + 8, 13, 4);
-        ctx.fill();
-        ctx.fillStyle = c.text;
-        ctx.globalAlpha = 0.9;
-        ctx.fillText(intervalLabel, x + 5, y - barH / 2 - 7.5);
-      }
-      ctx.restore();
-    }
+    drawBarLabel(ctx, note, { x, w, y, barH, hollow: false });
   }
 
   // Pitch trail (recent detected pitch) scrolling left from the hit line.
@@ -1276,6 +1309,24 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+/**
+ * Print the text of the note at the line above the stage.
+ *
+ * A run from a Guitar Pro file carries the text of the score. It names the
+ * vowel or the exercise for that pitch, so the singer reads it while the bar
+ * comes. A stage that shows no text field simply loses the readout.
+ */
+function updateNoteText(playheadBeat) {
+  runner.noteTextShown = playheadBeat == null
+    ? ''
+    : heldNoteText(runner.notes, playheadBeat, runner.noteTextShown);
+  const out = el('pr-note-text');
+  if (!out) return;
+  const text = runner.noteTextShown;
+  if (out.textContent !== text) out.textContent = text;
+  out.classList.toggle('is-on', !!text);
+}
+
 function currentTargetMidi(playheadBeat) {
   for (const note of runner.notes) {
     if (playheadBeat >= note.startBeat && playheadBeat < note.startBeat + note.dur) {
@@ -1470,6 +1521,7 @@ function step() {
   runner.notes = runner.notes.filter(n => n.startBeat + n.dur >= cutoff);
 
   updateView(playheadBeat);
+  updateNoteText(playheadBeat);
   draw(playheadBeat);
 }
 
@@ -1484,6 +1536,7 @@ function resetTimeline() {
   runner.nextClickBeat = 0;
   runner.notes = [];
   runner.trail = [];
+  runner.noteTextShown = '';
   runner.previewMuteUntil = 0;
   runner.viewCenter = null;
   runner.lastViewTick = 0;
@@ -1492,6 +1545,9 @@ function resetTimeline() {
   // The window starts on the first notes, so the run does not scroll in from
   // the middle of the range.
   updateView(0, { snap: true });
+  // The first note is already on the timeline, so the stage names it before
+  // the count-in ends.
+  updateNoteText(0);
 }
 
 async function startRunner() {
@@ -1515,6 +1571,7 @@ async function startRunner() {
     const status = el('pr-status');
     if (status) status.textContent = 'Mic access denied or unavailable';
     setOverlay('Mic unavailable');
+    updateNoteText(null);
     updateStartState();
     return;
   }
@@ -1562,6 +1619,7 @@ async function startRunner() {
     const status = el('pr-status');
     if (status) status.textContent = 'Mic access denied or unavailable';
     setOverlay('Mic unavailable');
+    updateNoteText(null);
     updateStartState();
   }
 }
@@ -1612,6 +1670,7 @@ function stopRunner() {
   }
   updateStartState();
   setOverlay(runner.finished ? 'Run complete \u2014 press start to run it again' : 'Press start to play');
+  updateNoteText(null);
   drawIdle();
 }
 

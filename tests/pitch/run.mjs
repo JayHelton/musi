@@ -6,6 +6,7 @@
 import { runDetectorTests } from './detector.mjs';
 import { runHarmonyTests } from './harmony.mjs';
 import { runMetricsTests } from './metrics.mjs';
+import { runNoteTextTests } from './notetext.mjs';
 import { runOctaveTests } from './octave.mjs';
 import { runRangeTests } from './range.mjs';
 import { runRunnerTests } from './runner.mjs';
@@ -25,6 +26,7 @@ runHarmonyTests();
 runOctaveTests();
 runTimelineTests();
 runViewTests();
+runNoteTextTests();
 runProgressTests();
 runLockoutTests();
 await runMicTests();

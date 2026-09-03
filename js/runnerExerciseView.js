@@ -8,11 +8,18 @@
 import { attachRunner } from './pitchRunner.js';
 import {
   describeRunnerConfig,
+  fillRunnerTextFromAnnotations,
   midiToNoteName,
   normalizeRunnerConfig,
   runnerNoteBeats,
   runnerRunBeats,
+  runnerTextCount,
 } from './runnerExerciseModel.js';
+import {
+  listAnnotations,
+  scoreKeyFromAttachmentId,
+  scoreKeyFromSession,
+} from './gpAnnotations.js';
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -38,9 +45,36 @@ function formatDuration(seconds) {
 }
 
 /**
+ * The section notes Musi holds for the score a run came from.
+ *
+ * The GP player names a score by its attachment, or by the file name and the
+ * byte length when it read the file without the library. A run keeps both, so
+ * this reads the notes under either name.
+ */
+function annotationsOfSource(config) {
+  const keys = [
+    scoreKeyFromAttachmentId(config.attachmentId),
+    scoreKeyFromSession({ fileName: config.fileName, byteLength: config.fileSize }),
+  ].filter(Boolean);
+  const out = [];
+  const seen = new Set();
+  for (const key of keys) {
+    for (const anno of listAnnotations(key)) {
+      if (seen.has(anno.id)) continue;
+      seen.add(anno.id);
+      out.push(anno);
+    }
+  }
+  return out;
+}
+
+/**
  * One chip per note, so the singer can read the run. `shift` moves every chip
  * by the same number of semitones, so the list names the pitches the run plays
  * after a change of start octave.
+ *
+ * A note that carries the text of the score prints it under the pitch, so the
+ * singer reads the whole plan before the run starts.
  *
  * A long run holds many notes, so the caller keeps the list closed and puts it
  * under the game. An open list at the top pushes the stage off the screen.
@@ -48,10 +82,12 @@ function formatDuration(seconds) {
 function buildNoteList(config, shift = 0) {
   const strip = el('div', { class: 'rx-notes' });
   config.notes.forEach((note) => {
-    strip.appendChild(el('span', { class: 'rx-note' }, [
+    const chip = el('span', { class: 'rx-note' }, [
       el('b', { text: midiToNoteName(note.midi + shift) }),
       el('i', { text: `${runnerNoteBeats(config, note)}` }),
-    ]));
+    ]);
+    if (note.text) chip.appendChild(el('em', { class: 'rx-note-text', text: note.text }));
+    strip.appendChild(chip);
   });
   return strip;
 }
@@ -71,7 +107,7 @@ function transposed(config, shift) {
  * @returns {{ destroy: () => void, stop: () => void }}
  */
 export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
-  const config = normalizeRunnerConfig(rawConfig);
+  let config = normalizeRunnerConfig(rawConfig);
   if (!host) return { destroy() {}, stop() {} };
 
   if (!config) {
@@ -81,6 +117,12 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
     }));
     return { destroy() {}, stop() {} };
   }
+
+  // The score can say what to sing on each pitch. The text of the file comes
+  // first, and the section notes of the same score fill the notes it leaves
+  // empty.
+  config = fillRunnerTextFromAnnotations(config, annotationsOfSource(config));
+  const hasNoteText = runnerTextCount(config) > 0;
 
   const root = el('div', { class: 'rx-root' });
 
@@ -148,6 +190,13 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
     el('div', { class: 'pr-stat' }, [accuracy, el('span', { class: 'pr-stat-label', text: 'Accuracy' })]),
   ]));
 
+  // The text of the score for the note at the line. It names the vowel or the
+  // exercise to do on that pitch. A run without text shows no field.
+  const noteText = hasNoteText
+    ? el('p', { class: 'pr-note-text', role: 'status', 'aria-live': 'polite' })
+    : null;
+  if (noteText) root.appendChild(noteText);
+
   const canvas = el('canvas');
   const judge = el('div', { class: 'pr-judge' });
   const overlay = el('div', { class: 'pr-overlay', text: 'Press start to play' });
@@ -167,7 +216,11 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
       + ' Start octave moves the whole run into another octave, so you sing the'
       + ' same intervals where your voice reaches them.'
       + ' Bluetooth headphones play the sound late. Raise the audio delay until the'
-      + ' click lands on the beat you see.',
+      + ' click lands on the beat you see.'
+      + (hasNoteText
+        ? ' The Guitar Pro file names a vowel or an exercise for some notes.'
+          + ' That text prints on the bar and above the stage.'
+        : ''),
   }));
   let noteStrip = buildNoteList(config);
   root.appendChild(el('details', { class: 'rx-notes-box' }, [
@@ -210,6 +263,7 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
       'pr-preview': preview,
       'pr-audio-delay': audioDelay,
       'pr-octave': octave,
+      'pr-note-text': noteText,
     },
     sequence: config,
     onFinish,

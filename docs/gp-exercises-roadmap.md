@@ -308,6 +308,18 @@ The note dynamics set the peak gain and the filter cutoff. A bend, a slide,
 and a vibrato drive pitch automation. A palm mute and a dead note shorten the
 decay.
 
+### The score text layer
+
+The parse layer used to drop the free text a writer puts over a beat. Both
+readers now keep it on `model.beats[].text`: the GP5 reader stops skipping the
+beat text bytes, and the GPIF reader reads `<FreeText>`.
+
+A vocal warm-up uses that field for the vowel and the exercise of each pitch.
+`runnerNotesFromTabModel` copies the text onto the note of the run, with the
+beat the note came from. The Pitch Runner prints it on the bar and above the
+stage, so the singer reads the instruction as the pitch arrives. See the
+decision record `20260903-1000-runner-score-text`.
+
 ### Verification
 
 The repository still has no test framework, but this feature adds plain Node

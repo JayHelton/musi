@@ -9,7 +9,9 @@ import { parseGuitarPro } from '../../js/tab/guitarPro.js';
 import { makeFixtures } from '../gp-player/fixtures/makeFixtures.mjs';
 import {
   clampRunnerBeats,
+  clampRunnerText,
   describeRunnerConfig,
+  fillRunnerTextFromAnnotations,
   formatRunnerNotes,
   midiToNoteName,
   noteNameToMidi,
@@ -19,9 +21,11 @@ import {
   runnerNoteRange,
   runnerNotesFromTabModel,
   runnerRunBeats,
+  runnerTextCount,
   runnerTrackOptions,
   suggestOctaveShift,
   RUNNER_MAX_NOTES,
+  RUNNER_TEXT_LIMIT,
 } from '../../js/runnerExerciseModel.js';
 
 async function test(name, fn) {
@@ -175,10 +179,11 @@ await test('a Guitar Pro track becomes a run of single notes', () => {
   const result = runnerNotesFromTabModel(model);
   assert.equal(result.ok, true);
   assert.equal(result.bpm, 96);
+  // Each note keeps the beat it sat on, so a section note can find it again.
   assert.deepEqual(result.notes, [
-    { midi: 59, beats: 1 },
-    { midi: 62, beats: 2 },
-    { midi: 67, beats: 1 },
+    { midi: 59, beats: 1, scoreBeat: 0 },
+    { midi: 62, beats: 2, scoreBeat: 1 },
+    { midi: 67, beats: 1, scoreBeat: 5 },
   ]);
 });
 
@@ -188,13 +193,13 @@ await test('a tie lengthens the note before it', () => {
     { midi: 60, start: 2, duration: 2, tie: true },
   ]);
   const result = runnerNotesFromTabModel(model);
-  assert.deepEqual(result.notes, [{ midi: 60, beats: 4 }]);
+  assert.deepEqual(result.notes, [{ midi: 60, beats: 4, scoreBeat: 0 }]);
 });
 
 await test('an octave shift moves the whole run', () => {
   const model = tabModel([{ midi: 48, start: 0, duration: 1 }]);
-  assert.deepEqual(runnerNotesFromTabModel(model, { octaveShift: 1 }).notes, [{ midi: 60, beats: 1 }]);
-  assert.deepEqual(runnerNotesFromTabModel(model, { octaveShift: -1 }).notes, [{ midi: 36, beats: 1 }]);
+  assert.deepEqual(runnerNotesFromTabModel(model, { octaveShift: 1 }).notes, [{ midi: 60, beats: 1, scoreBeat: 0 }]);
+  assert.deepEqual(runnerNotesFromTabModel(model, { octaveShift: -1 }).notes, [{ midi: 36, beats: 1, scoreBeat: 0 }]);
 });
 
 await test('a note the shift pushes out of the singable range is reported', () => {
@@ -247,6 +252,104 @@ await test('a real Guitar Pro file converts to a run', () => {
       });
       // The fixture holds a tie, so the run holds fewer notes than the track.
       assert.ok(result.notes.length < options[0].noteCount);
+    });
+});
+
+// --- the text the score writes over a note ----------------------------------
+
+await test('note text keeps one short line', () => {
+  assert.equal(clampRunnerText('  mee \n may  '), 'mee may');
+  assert.equal(clampRunnerText(''), '');
+  assert.equal(clampRunnerText(null), '');
+  assert.equal(clampRunnerText('x'.repeat(200)).length, RUNNER_TEXT_LIMIT);
+});
+
+await test('a beat text of the file lands on the note it sits over', () => {
+  const model = {
+    ...tabModel([
+      { midi: 60, start: 0, duration: 1, beatIndex: 0 },
+      { midi: 62, start: 1, duration: 1, beatIndex: 1 },
+    ]),
+    beats: [{ start: 0, text: 'mee' }, { start: 1 }],
+  };
+  const result = runnerNotesFromTabModel(model);
+  assert.equal(result.notes[0].text, 'mee');
+  assert.equal(result.notes[1].text, undefined);
+  assert.equal(runnerTextCount({ notes: result.notes }), 1);
+});
+
+await test('a section marker names the first note of a bar with no beat text', () => {
+  const model = {
+    ...tabModel([
+      { midi: 60, start: 0, duration: 1, beatIndex: 0 },
+      { midi: 62, start: 4, duration: 1, beatIndex: 1 },
+      { midi: 64, start: 5, duration: 1, beatIndex: 2 },
+    ]),
+    beats: [{ start: 0, text: 'mee' }, { start: 4 }, { start: 5 }],
+    measures: [
+      { startBeat: 0, endBeat: 4, marker: 'Sirens' },
+      { startBeat: 4, endBeat: 8, marker: 'Lip trills' },
+    ],
+  };
+  const result = runnerNotesFromTabModel(model);
+  // The beat text wins over the marker of its own bar.
+  assert.equal(result.notes[0].text, 'mee');
+  assert.equal(result.notes[1].text, 'Lip trills');
+  // Only the first note of the section carries the marker.
+  assert.equal(result.notes[2].text, undefined);
+});
+
+await test('a section note of the score fills the notes that hold no text', () => {
+  const config = normalizeRunnerConfig({
+    notes: [
+      { midi: 60, beats: 1, scoreBeat: 0, text: 'mee' },
+      { midi: 62, beats: 1, scoreBeat: 4 },
+      { midi: 64, beats: 1, scoreBeat: 12 },
+    ],
+  });
+  const filled = fillRunnerTextFromAnnotations(config, [
+    { id: 'a', startBeat: 0, endBeat: 16, title: 'Whole warm-up' },
+    { id: 'b', startBeat: 4, endBeat: 8, title: 'Hum, then ee' },
+  ]);
+  assert.equal(filled.notes[0].text, 'mee', 'the text of the file wins');
+  assert.equal(filled.notes[1].text, 'Hum, then ee', 'the narrowest section note wins');
+  assert.equal(filled.notes[2].text, 'Whole warm-up');
+  assert.equal(runnerTextCount(filled), 3);
+});
+
+await test('a run with no section note and no beat text stays as it is', () => {
+  const config = normalizeRunnerConfig({ notes: [{ midi: 60, beats: 1 }] });
+  assert.equal(fillRunnerTextFromAnnotations(config, []), config);
+  assert.equal(fillRunnerTextFromAnnotations(config, [{ startBeat: 0, endBeat: 4, title: 'Ah' }]), config);
+});
+
+await test('a stored run keeps the note text, the beat, and the file size', () => {
+  const config = normalizeRunnerConfig({
+    notes: [{ midi: 60, beats: 1, text: '  mee  ', scoreBeat: 2.5 }],
+    fileSize: 4096,
+  });
+  assert.deepEqual(config.notes, [{ midi: 60, beats: 1, text: 'mee', scoreBeat: 2.5 }]);
+  assert.equal(config.fileSize, 4096);
+  assert.equal(normalizeRunnerConfig({ notes: [{ midi: 60 }] }).fileSize, 0);
+});
+
+await test('the summary line says when a run carries text', () => {
+  const config = normalizeRunnerConfig({
+    notes: [{ midi: 60, beats: 2, text: 'mee' }, { midi: 67, beats: 2 }],
+  });
+  assert.equal(describeRunnerConfig(config), '2 notes · C4–G4 · 90 BPM · 2× · with text');
+});
+
+await test('a Guitar Pro warm-up file carries its text into the run', () => {
+  const fixture = join(dirname(fileURLToPath(import.meta.url)), '..', 'gp-player', 'fixtures', 'vocal-text.gp5');
+  if (!existsSync(fixture)) makeFixtures();
+  const bytes = readFileSync(fixture);
+  return parseGuitarPro(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+    .then((gp) => {
+      const result = runnerNotesFromTabModel(gp.tracks[0].model, { octaveShift: 1 });
+      assert.equal(result.ok, true);
+      assert.deepEqual(result.notes.map((n) => n.text), ['mee', 'may', 'mah', 'Lip trills']);
+      assert.deepEqual(result.notes.map((n) => n.scoreBeat), [0, 1, 2, 3]);
     });
 });
 

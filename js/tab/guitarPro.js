@@ -798,6 +798,8 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
         const beatStart = voiceCursor;
         const beatDyn = childText(beat, 'Dynamic');
         const beatTechniques = beatTechniquesFromNode(beat);
+        // The free text of a beat is the mark a writer puts over that beat.
+        const beatText = childText(beat, 'FreeText');
         const noteRefs = childText(beat, 'Notes').split(/\s+/).filter(Boolean);
         const isRest = noteRefs.length === 0;
         const beatIndex = modelBeats.length;
@@ -825,6 +827,7 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
             rest: true,
             techniques: beatTechniques,
             noteIndices: [],
+            ...(beatText ? { text: beatText } : {}),
           });
         } else {
           const noteIndices = [];
@@ -881,6 +884,7 @@ function buildGpifPercussionModel(trackNode, trackIndex, shared, name) {
             rest: false,
             techniques: beatTechniques,
             noteIndices,
+            ...(beatText ? { text: beatText } : {}),
           });
         }
         voiceCursor += duration;
@@ -1043,6 +1047,8 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
         const beatStart = voiceCursor;
         const beatTechniques = beatTechniquesFromNode(beat);
         const beatDyn = childText(beat, 'Dynamic');
+        // The free text of a beat is the mark a writer puts over that beat.
+        const beatText = childText(beat, 'FreeText');
         const noteRefs = childText(beat, 'Notes').split(/\s+/).filter(Boolean);
         const isRest = noteRefs.length === 0;
         const beatIndex = modelBeats.length;
@@ -1081,6 +1087,7 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
             rest: true,
             techniques: beatTechniques,
             noteIndices: [],
+            ...(beatText ? { text: beatText } : {}),
           });
         } else {
           const noteIndices = [];
@@ -1177,6 +1184,7 @@ function buildGpifTrackModel(trackNode, trackIndex, openMidis, shared) {
             rest: false,
             techniques: beatTechniques,
             noteIndices,
+            ...(beatText ? { text: beatText } : {}),
           });
         }
 

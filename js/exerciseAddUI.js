@@ -28,6 +28,7 @@ import {
   normalizeRunnerConfig,
   parseRunnerNotes,
   runnerNotesFromTabModel,
+  runnerTextCount,
   runnerTrackOptions,
   suggestOctaveShift,
 } from './runnerExerciseModel.js';
@@ -497,6 +498,7 @@ export function openRunnerDialog({
     preview: start.preview,
     attachmentId: start.attachmentId,
     fileName: start.fileName,
+    fileSize: start.fileSize,
     trackIndex: start.trackIndex,
     octaveShift: start.octaveShift,
     gpFile: null,
@@ -641,6 +643,7 @@ export function openRunnerDialog({
       preview: previewChk.checked,
       attachmentId: state.attachmentId,
       fileName: state.fileName,
+      fileSize: state.fileSize,
       trackIndex: state.trackIndex,
       octaveShift: Number(octaveSelect.value),
     };
@@ -693,7 +696,11 @@ export function openRunnerDialog({
     state.bpm = result.bpm;
     bpmInput.value = String(clampRunnerBpm(result.bpm));
     const skipped = result.skipped ? ` ${result.skipped} note${result.skipped === 1 ? '' : 's'} did not fit.` : '';
-    gpStatus.textContent = `Read ${result.notes.length} notes from ${state.fileName}.${skipped}`;
+    // The file can write a vowel or an exercise over a note. The runner prints
+    // that text, so the status line says how many notes carry it.
+    const withText = runnerTextCount({ notes: result.notes });
+    const texts = withText ? ` ${withText} note${withText === 1 ? '' : 's'} carry text from the score.` : '';
+    gpStatus.textContent = `Read ${result.notes.length} notes from ${state.fileName}.${skipped}${texts}`;
     syncPreview();
   }
 
@@ -716,6 +723,9 @@ export function openRunnerDialog({
       state.gpFile = file;
       state.gpResult = gp;
       state.fileName = file.name;
+      // The byte length names the same score as the GP player does when it
+      // read the file without the library, so both share the section notes.
+      state.fileSize = file.size;
       state.trackIndex = options[0].index;
       fillTrackSelect(options);
       // A guitar part sits below a singer, so start at a shift that fits.

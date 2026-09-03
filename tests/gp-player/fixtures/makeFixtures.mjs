@@ -358,6 +358,7 @@ function writeNote(w, track, note) {
 function writeBeat(w, track, beat) {
   let flags = 0;
   if (beat.dotted) flags |= 0x01;
+  if (beat.text) flags |= 0x04;
   if (beat.tuplet) flags |= 0x20;
   if (beat.empty || beat.rest) flags |= 0x40;
   if (beat.beatEffects) flags |= 0x08;
@@ -366,6 +367,8 @@ function writeBeat(w, track, beat) {
   if (flags & 0x40) w.u8(beat.rest ? 2 : 0);
   w.i8(beat.duration != null ? beat.duration : 0);
   if (flags & 0x20) w.i32(beat.tuplet);
+  // The free text a writer puts over the beat, for example a vowel to sing.
+  if (flags & 0x04) w.intByteSizeString(beat.text);
   if (flags & 0x08) writeBeatEffects(w, beat.beatEffects);
   if (flags & 0x10) writeMixTableChange(w, beat.mixTable || {});
   const notes = beat.notes || [];
@@ -593,6 +596,7 @@ function buildSimpleGpif({
   noteString = 0,
   tempoAutomations = '',
   masterBarExtras = () => '',
+  beatText = () => '',
   barVoiceBuilder = null,
 }) {
   const rhythms = [
@@ -630,7 +634,9 @@ function buildSimpleGpif({
     voiceId += 1;
     bars.push(`    <Bar id="${b}"><Voices>${vId}</Voices></Bar>`);
     voices.push(`    <Voice id="${vId}"><Beats>${beatId}</Beats></Voice>`);
-    beats.push(`    <Beat id="${beatId}"><Rhythm ref="0"/><Notes>${noteId}</Notes></Beat>`);
+    const free = beatText(b);
+    const freeText = free ? `<FreeText>${free}</FreeText>` : '';
+    beats.push(`    <Beat id="${beatId}"><Rhythm ref="0"/>${freeText}<Notes>${noteId}</Notes></Beat>`);
     notes.push(gpifNote(noteId, { fret: noteFret, stringIndex: noteString }));
     beatId += 1;
     noteId += 1;
@@ -1093,6 +1099,33 @@ function writeAllFixtures() {
     },
   });
   writeGpZip(techniquesGpif, join(OUT_DIR, 'techniques.gp'));
+
+  // Feature: a vocal warm-up. Each beat carries the vowel to sing. Bar 4 holds
+  // no beat text, and it opens a section that names the exercise instead.
+  const VOWELS = ['mee', 'may', 'mah', ''];
+  writeGp5({
+    tempo: 80,
+    measureHeaders: [
+      { timeSig: [4, 4] },
+      { timeSig: [4, 4] },
+      { timeSig: [4, 4] },
+      { timeSig: [4, 4], marker: 'Lip trills' },
+    ],
+    tracks: [{
+      name: 'Voice',
+      measures: VOWELS.map((vowel, i) => ({
+        voices: [[{ ...quarterBeat(6, i), text: vowel }], []],
+      })),
+    }],
+  }, join(OUT_DIR, 'vocal-text.gp5'));
+
+  const vocalTextGpif = buildSimpleGpif({
+    barCount: 4,
+    trackName: 'Voice',
+    beatText: (b) => VOWELS[b] || '',
+    masterBarExtras: (b) => (b === 3 ? '<Section><Text>Lip trills</Text></Section>' : ''),
+  });
+  writeGpZip(vocalTextGpif, join(OUT_DIR, 'vocal-text.gp'));
 }
 
 export function makeFixtures() {

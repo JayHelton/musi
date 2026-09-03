@@ -922,6 +922,11 @@ html.ex-viewer-locked body.app-shell.route-notice-on:not(.split-mode) main.app-m
 }
 .rx-note b{font-size:.82rem;color:var(--text);font-weight:650}
 .rx-note i{font-size:.7rem;color:var(--muted);font-style:normal}
+/* The text the Guitar Pro file writes over the note: a vowel or an exercise. */
+.rx-note-text{
+  font-size:.7rem;color:var(--accent);font-style:normal;font-weight:600;
+  max-width:14ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
 .rx-controls{justify-content:center;margin:0}
 .rx-stage{height:min(46vh,320px)}
 .rx-actions{display:flex;justify-content:center}

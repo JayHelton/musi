@@ -29,6 +29,7 @@
 //     measureIndex, voiceIndex, start, duration, noteValue, dots,
 //     tuplet?: { num, den } | null, rest, techniques?: string[],
 //     noteIndices?: number[],         // indexes into model.events
+//     text?: string,                  // the free text written over the beat
 //   }
 //
 // A `Rest` entry (`model.rests[]`):
