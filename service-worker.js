@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v292-harsh-cheat-expand";
+const CACHE_VERSION = "v293-in-key-chord-quality";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -189,6 +189,7 @@ const PRECACHE_URLS = [
   "js/gpPlayer/transportDock.js",
   "js/gpPlayer/viewModes.js",
   "js/gpPlayerUI.js",
+  "js/inKeyChords.js",
   "js/interval-map/model.js",
   "js/interval-map/questions.js",
   "js/intervalQuiz.js",

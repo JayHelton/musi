@@ -5,6 +5,7 @@ import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { resolveTuningKey } from './tunings.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import { renderMovableChordCards } from './movableChordCards.js';
+import { initInKeyChords } from './inKeyChords.js';
 
 // Short interval labels keyed by semitones-from-root within one octave. Used to
 // colour every chord tone on the neck by its interval (matches the Scale ref).
@@ -180,6 +181,13 @@ function initChordRef() {
 
   buildChordList();
   buildTuningList();
+  initInKeyChords({
+    onSelectChord: (pick) => {
+      applyChordRefSelection(pick);
+      // The neck lives in the Map subview, so open it to show the chord.
+      document.getElementById('chords-tabs-tab-map')?.click();
+    },
+  });
   wireFretboardControls();
   wireChordSwipe();
   wireChordFbPlay();

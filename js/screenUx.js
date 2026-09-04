@@ -279,8 +279,13 @@ function setupChords() {
   const mapEls = [layout];
   const mcc = document.getElementById('mcc-block');
   const caged = document.getElementById('caged-block');
+  // The in-key panel starts above the layout in the markup. Move it below the
+  // tab row first, or its subview panel draws above the tabs that control it.
+  const inkey = document.getElementById('inkey-block');
+  if (inkey && layout) layout.parentNode.insertBefore(inkey, layout);
 
   wrapAsSubview(mapEls.filter(Boolean), { id: 'map', forTabs: 'chords-tabs', active: true });
+  if (inkey) wrapAsSubview([inkey], { id: 'inkey', forTabs: 'chords-tabs', active: false });
   if (mcc) wrapAsSubview([mcc], { id: 'cards', forTabs: 'chords-tabs', active: false });
   if (caged) {
     const intro = caged.querySelector('.caged-head p');
@@ -300,6 +305,7 @@ function setupChords() {
 
   initSubviewTabs(tabs, [
     { id: 'map', label: 'Map' },
+    { id: 'inkey', label: 'In key' },
     { id: 'cards', label: 'Cards' },
     { id: 'caged', label: 'CAGED' },
   ], {

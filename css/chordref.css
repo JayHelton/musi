@@ -17,3 +17,127 @@
   top: 0;
   background: rgba(14, 14, 14, 0.94);
 }
+
+/* In-key chord qualities — the quick reference above the neck.
+   Quality colours reuse the --triad-* tokens, so a theme re-tokens them once. */
+.inkey-block {
+  margin: 0 0 24px;
+  padding: 16px 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.inkey-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.inkey-head h3 { margin: 0 0 6px; color: var(--accent); font-size: 1.05rem; }
+.inkey-head p { margin: 0; max-width: 74ch; color: var(--muted); font-size: .85rem; line-height: 1.5; }
+.inkey-head p strong { color: var(--text); font-weight: 700; }
+.inkey-pickers { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.inkey-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.inkey-field select {
+  font: inherit;
+  font-size: .85rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  min-width: 7rem;
+}
+.inkey-key-notes { gap: 5px; }
+.inkey-key-label {
+  color: var(--accent);
+  font-family: var(--font-ui, 'VT323', monospace);
+  font-size: .95rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: none;
+  padding: 6px 0;
+}
+
+.inkey-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.inkey-sum-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--inkey-color, var(--border));
+}
+.inkey-sum-item.empty { opacity: .55; }
+.inkey-sum-name {
+  font-size: .66rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 800;
+  color: var(--inkey-color, var(--muted));
+}
+.inkey-sum-chords { font-size: .82rem; color: var(--text); font-weight: 650; }
+
+.inkey-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; }
+.inkey-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--inkey-color, var(--border));
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+  min-width: 0;
+}
+.inkey-card:hover:not(:disabled) { border-color: var(--inkey-color, var(--accent)); transform: translateY(-1px); }
+.inkey-card:disabled { cursor: default; opacity: .7; }
+.inkey-roman {
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--inkey-color, var(--text));
+}
+.inkey-symbol { font-size: .95rem; font-weight: 700; color: var(--text); }
+.inkey-quality {
+  font-size: .6rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 800;
+  color: var(--inkey-color, var(--muted));
+}
+.inkey-notes { font-size: .72rem; color: var(--muted); font-family: var(--font-ui, 'VT323', monospace); }
+.inkey-empty { grid-column: 1/-1; margin: 0; padding: 16px; color: var(--muted); font-size: .85rem; }
+
+.inkey-card.q-major, .inkey-sum-item.q-major { --inkey-color: var(--triad-major); }
+.inkey-card.q-minor, .inkey-sum-item.q-minor { --inkey-color: var(--triad-minor); }
+.inkey-card.q-diminished, .inkey-sum-item.q-diminished { --inkey-color: var(--triad-diminished); }
+.inkey-card.q-augmented, .inkey-sum-item.q-augmented { --inkey-color: var(--triad-augmented); }
+.inkey-card.other, .inkey-sum-item.q-other { --inkey-color: var(--muted); }
+
+@media (max-width: 600px) {
+  .inkey-block { padding: 14px 12px; }
+  .inkey-grid { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; }
+  .inkey-head p { font-size: .8rem; }
+}

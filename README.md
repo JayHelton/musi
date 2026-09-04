@@ -112,7 +112,8 @@ Look up scales, chords, triads, and key relationships.
   same component in its reference drawer.
 - **Scale Reference** — scale and mode families, step patterns, key signatures,
   diatonic chords, and three-notes-per-string neck layouts.
-- **Chord Reference** — voicings on the neck, movable chord cards, and CAGED.
+- **Chord Reference** — voicings on the neck, the chord quality of every degree
+  of a key, movable chord cards, and CAGED.
 - **Triads** — closed triad voicings and sweep-picking shapes on any string set.
 - **Circle of Fifths** — key relationships, drawn.
 - **Drum Notation** — where each piece of the kit sits on the staff, what each
