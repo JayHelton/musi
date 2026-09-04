@@ -14,6 +14,7 @@ import { el, clear, chip, pressable, notice, select, panel } from './dom.js';
 import { createCueRunnerView } from './cueRunnerView.js';
 import { createAttemptForm } from './vocalAttemptForm.js';
 import { createHarshCheatSheet } from './harshCheatSheetView.js';
+import { createCleanCheatSheet } from './cleanCheatSheetView.js';
 import {
   VOCAL_SETTINGS,
   sourceFolderKey,
@@ -106,7 +107,7 @@ export function createVocalView(lab) {
           register = readRegister(style);
           exerciseId = '';
           search = '';
-          cheatSheet.close();
+          closeCheatSheets();
           paint();
         },
       }));
@@ -132,21 +133,31 @@ export function createVocalView(lab) {
 
   /* ---- the cheat sheet ---- */
 
-  // Harsh vocals carry more injury risk than clean ones, so the technique
-  // reminder is one tap away for the whole Harsh session and never shown
-  // under Clean.
-  const cheatSheet = createHarshCheatSheet();
+  // Each style has its own technique reminder, one tap away for the whole
+  // session. The harsh sheet covers distortion and its injury risk. The clean
+  // sheet covers the registers, resonance, and the myths that keep singers
+  // stuck. Only the sheet of the current style opens.
+  const cheatSheets = {
+    harsh: createHarshCheatSheet(),
+    clean: createCleanCheatSheet(),
+  };
   const cheatButtonWrap = el('div', { class: 'pl-vocal-cheat-row' });
+
+  /** Close both sheets. The style switch and the view stop both use this. */
+  function closeCheatSheets() {
+    for (const sheet of Object.values(cheatSheets)) sheet.close();
+  }
 
   function paintCheatButton() {
     clear(cheatButtonWrap);
-    cheatButtonWrap.hidden = style !== 'harsh';
-    if (style !== 'harsh') return;
+    const sheet = cheatSheets[style];
+    cheatButtonWrap.hidden = !sheet;
+    if (!sheet) return;
     cheatButtonWrap.appendChild(pressable({
       label: 'Cheat Sheet',
       className: 'small',
-      ariaLabel: 'Open the harsh vocal cheat sheet',
-      onPress: () => cheatSheet.toggle(),
+      ariaLabel: `Open the ${STYLE_LABELS[style].toLowerCase()} vocal cheat sheet`,
+      onPress: () => sheet.toggle(),
     }));
   }
 
@@ -447,14 +458,15 @@ export function createVocalView(lab) {
     el('p', { class: 'pl-vocal-kicker', text: 'PRACTICE LAB · VOCAL' }),
     modePanel.root,
     runPanel.root,
-    cheatSheet.root,
+    cheatSheets.harsh.root,
+    cheatSheets.clean.root,
   ]);
 
   paint();
 
   return {
     root,
-    /** Stop the runner, release the microphone, and close the cheat sheet. */
-    stop() { stopStage(); cheatSheet.stop(); },
+    /** Stop the runner, release the microphone, and close both cheat sheets. */
+    stop() { stopStage(); for (const sheet of Object.values(cheatSheets)) sheet.stop(); },
   };
 }

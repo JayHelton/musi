@@ -11,18 +11,29 @@
 
 import { el, tabBar } from './dom.js';
 
-/** One label/text row of a card. */
-function cheatRow(label, text, className = 'pl-cheat-row') {
+/**
+ * One label/text row of a card. When the value is an array, the row becomes a
+ * label and a list under it. Activation cues come in sets, and a set reads
+ * better as a list than as one long sentence.
+ */
+function cheatRow(label, value, className = 'pl-cheat-row') {
+  if (Array.isArray(value)) {
+    return el('div', { class: `${className} pl-cheat-row-list` }, [
+      el('b', { class: 'pl-cheat-row-label', text: `${label}:` }),
+      el('ul', { class: 'pl-cheat-cues' }, value.map(text => el('li', { text }))),
+    ]);
+  }
   return el('p', { class: className }, [
     el('b', { class: 'pl-cheat-row-label', text: `${label}: ` }),
-    text,
+    value,
   ]);
 }
 
 /**
- * One technique card: a title, a fixed ordered list of label/text rows, and an
- * optional last row that the caution colour marks.
- * @param {{ tone: string, title: string, rows: Array<[string, string]>,
+ * One technique card: a title, a fixed ordered list of label/value rows, and an
+ * optional last row that the caution colour marks. A row value is a string, or
+ * an array of strings that renders as a list.
+ * @param {{ tone: string, title: string, rows: Array<[string, string|string[]]>,
  *   caution?: [string, string]|null }} options
  * @returns {HTMLElement}
  */
@@ -35,13 +46,20 @@ export function cheatCard({ tone, title, rows, caution = null }) {
 }
 
 /**
- * Build the rows of one card from a field order and a model entry.
+ * Build the rows of one card from a field order and a model entry. A field the
+ * entry does not carry is left out, so one field order serves cards that answer
+ * a different number of questions.
  * @param {Array<[string, string]>} fields Pairs of model key and row label.
  * @param {Object} data
  * @returns {Array<[string, string]>}
  */
 export function rowsOf(fields, data) {
-  return fields.map(([key, label]) => [label, data[key]]);
+  return fields
+    .filter(([key]) => {
+      const value = data[key];
+      return Array.isArray(value) ? value.length > 0 : !!value;
+    })
+    .map(([key, label]) => [label, data[key]]);
 }
 
 /** One heading that separates two card groups inside one panel. */

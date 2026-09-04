@@ -121,6 +121,23 @@
 }
 .pl-cheat-row-label { color: var(--muted); font-weight: 600; }
 
+/* A cue set. One card row holds several cues, so the list sits under its
+   label instead of running on as one sentence. */
+.pl-cheat-row-list { margin: 0 0 6px; }
+.pl-cheat-cues {
+  margin: 3px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pl-cheat-cues li {
+  font-size: .88rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.pl-cheat-cues li::marker { color: var(--accent2); }
+
 /* A cool-to-hot gradient across the false-cord registers, ending in the
    app's own danger colour for true-cord highs — the riskiest technique.
    The mechanism cards, the guttural cards, and the clean registers ride the

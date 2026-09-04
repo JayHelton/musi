@@ -31,12 +31,14 @@ import {
   TONGUE_RULES,
   GUTTURAL_LOWS,
   GUTTURAL_RULES,
+  TROUBLESHOOTING,
   RED_FLAGS,
   CHEAT_SHEET_SOURCES,
 } from '../model/harshCheatSheet.js';
 
 const REGISTER_FIELDS = [
   ['activation', 'Activation'],
+  ['cues', 'Try these'],
   ['placement', 'Placement'],
   ['mouth', 'Mouth & tongue'],
   ['breath', 'Breath'],
@@ -47,6 +49,7 @@ const TRUE_CORD_FIELDS = [
   ['whatItIs', 'What it is'],
   ['warmIntoLast', 'Warm into this last'],
   ['activation', 'Activation'],
+  ['cues', 'Try these'],
   ['ridingIt', 'Riding it'],
   ['placement', 'Placement'],
   ['breath', 'Breath'],
@@ -56,6 +59,7 @@ const SUPRAGLOTTIC_FIELDS = [
   ['whatVibrates', 'What vibrates'],
   ['soundsLike', 'Sounds like'],
   ['findIt', 'Find it'],
+  ['cues', 'Try these'],
   ['feelsLike', 'Feels like'],
 ];
 
@@ -64,6 +68,7 @@ const HYBRID_FIELDS = [
   ['prerequisite', 'Learn these first'],
   ['soundsLike', 'Sounds like'],
   ['activation', 'Activation'],
+  ['cues', 'Try these'],
   ['feelsLike', 'Feels like'],
 ];
 
@@ -71,6 +76,7 @@ const GUTTURAL_FIELDS = [
   ['whatItIs', 'What it is'],
   ['shape', 'Shape'],
   ['activation', 'Activation'],
+  ['cues', 'Try these'],
   ['feelsLike', 'Feels like'],
 ];
 
@@ -148,6 +154,14 @@ export function createHarshCheatSheet() {
         caution: ['Watch for', entry.watchFor],
       })),
       rulesList(GUTTURAL_RULES),
+    ]),
+    fixit: el('div', { class: 'pl-cheat-panel pl-cheat-panel-cards' }, [
+      notice('Every card above teaches one sound. This tab covers what applies to all of them, and it is the part most singers skip.'),
+      ...TROUBLESHOOTING.map(entry => cheatCard({
+        tone: entry.tone,
+        title: entry.label,
+        rows: [['Problem', entry.problem], ['Do this', entry.fix]],
+      })),
     ]),
     redflags: el('div', { class: 'pl-cheat-panel' }, [
       flagList(RED_FLAGS),

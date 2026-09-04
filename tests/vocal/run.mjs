@@ -72,9 +72,27 @@ import {
   TONGUE_RULES,
   GUTTURAL_LOWS,
   GUTTURAL_RULES,
+  TROUBLESHOOTING,
   RED_FLAGS,
   CHEAT_SHEET_SOURCES,
 } from '../../js/practiceLab/model/harshCheatSheet.js';
+import {
+  CLEAN_CHEAT_TABS,
+  CLEAN_WARM_UP,
+  CLEAN_REGISTER_CARDS,
+  HEAD_VS_FALSETTO,
+  TWANG,
+  NOSE_PINCH_TEST,
+  BELTING,
+  RESONANCE_CONTROLS,
+  RESONANCE_WORK,
+  SOVT_NOTES,
+  CLEAN_FRY,
+  LOW_NOTES,
+  VOICE_MYTHS,
+  CLEAN_RED_FLAGS,
+  CLEAN_CHEAT_SOURCES,
+} from '../../js/practiceLab/model/cleanCheatSheet.js';
 
 let passed = 0;
 let failed = 0;
@@ -444,9 +462,9 @@ console.log('Harsh cheat sheet');
 
 const CHEAT_TONES = ['deep', 'warm', 'bright', 'risk'];
 
-test('the cheat sheet names five tabs, in a fixed order', () => {
+test('the harsh cheat sheet names six tabs, in a fixed order', () => {
   assert.deepEqual(HARSH_CHEAT_TABS.map(t => t.id),
-    ['warmup', 'falsecord', 'truecord', 'tongue', 'redflags']);
+    ['warmup', 'falsecord', 'truecord', 'tongue', 'fixit', 'redflags']);
   assert.ok(HARSH_CHEAT_TABS.every(t => t.label));
 });
 
@@ -568,6 +586,134 @@ test('every source carries a label and a URL', () => {
     assert.ok(source.label, 'label');
     assert.match(source.url, /^https:\/\//, source.label);
   }
+});
+
+
+test('every harsh technique offers a set of activation cues', () => {
+  const cued = [
+    ...Object.values(FALSE_CORD_REGISTERS),
+    ...SUPRAGLOTTIC_SOURCES,
+    TRUE_CORD_HIGHS,
+    HYBRID_SCREAM,
+  ];
+  for (const card of cued) {
+    assert.ok(Array.isArray(card.cues) && card.cues.length >= 3, card.label);
+    assert.ok(card.cues.every(c => typeof c === 'string' && c.length > 20), card.label);
+  }
+});
+
+test('the guttural baseline and tunnel throat both carry cues', () => {
+  for (const id of ['guttural', 'tunnelthroat']) {
+    const card = GUTTURAL_LOWS.find(e => e.id === id);
+    assert.ok(Array.isArray(card.cues) && card.cues.length >= 2, id);
+  }
+});
+
+test('troubleshooting names a problem and a fix list for each entry', () => {
+  assert.ok(TROUBLESHOOTING.length >= 5);
+  for (const entry of TROUBLESHOOTING) {
+    assert.ok(entry.id && entry.label && entry.tone, entry.id);
+    assert.ok(typeof entry.problem === 'string' && entry.problem.length > 10, entry.id);
+    assert.ok(Array.isArray(entry.fix) && entry.fix.length >= 2, entry.id);
+  }
+  const ids = TROUBLESHOOTING.map(e => e.id);
+  assert.ok(ids.includes('dose'));
+  assert.ok(ids.includes('reset'));
+  assert.ok(ids.includes('dizzy'));
+});
+
+/* ------------------------------------------------------------------ */
+console.log('Clean cheat sheet');
+
+test('the clean cheat sheet names seven tabs, in a fixed order', () => {
+  assert.deepEqual(CLEAN_CHEAT_TABS.map(t => t.id),
+    ['warmup', 'registers', 'power', 'resonance', 'edges', 'myths', 'redflags']);
+  assert.ok(CLEAN_CHEAT_TABS.every(t => t.label));
+});
+
+test('the clean register cards match the Clean registers of the vocal model', () => {
+  assert.deepEqual(Object.keys(CLEAN_REGISTER_CARDS), CLEAN_REGISTERS);
+});
+
+test('every clean register answers the same questions and offers cues', () => {
+  const fields = ['label', 'tone', 'whatItIs', 'feelsLike', 'watchFor'];
+  for (const key of CLEAN_REGISTERS) {
+    const card = CLEAN_REGISTER_CARDS[key];
+    for (const field of fields) {
+      assert.ok(typeof card[field] === 'string' && card[field].length > 0, `${key}.${field}`);
+    }
+    assert.ok(Array.isArray(card.cues) && card.cues.length >= 4, key);
+    assert.ok(CHEAT_TONES.includes(card.tone) || card.tone === key, key);
+  }
+});
+
+test('mix is described as a balance, not as a third register', () => {
+  assert.match(CLEAN_REGISTER_CARDS.mix.whatItIs, /not a third register/i);
+});
+
+test('head voice and falsetto are named as the same mechanism', () => {
+  assert.match(HEAD_VS_FALSETTO.whatItIs, /same thin-fold mechanism/i);
+});
+
+test('every clean technique card carries cues and a caution', () => {
+  for (const card of [TWANG, NOSE_PINCH_TEST, BELTING, RESONANCE_WORK, SOVT_NOTES, CLEAN_FRY, LOW_NOTES]) {
+    assert.ok(card.label && card.tone, card.label);
+    assert.ok(Array.isArray(card.cues) && card.cues.length >= 3, card.label);
+    assert.ok(typeof card.watchFor === 'string' && card.watchFor.length > 10, card.label);
+  }
+});
+
+test('twang is separated from nasality, with a test the singer can run', () => {
+  assert.match(TWANG.whatItIs, /aryepiglottic|above the folds/i);
+  assert.ok(NOSE_PINCH_TEST.cues.some(c => /pinch/i.test(c)));
+});
+
+test('the low notes card says lows need less pressure, not more', () => {
+  assert.match(LOW_NOTES.whatItIs, /less pressure/i);
+});
+
+test('the resonance table pairs a control with what it changes', () => {
+  assert.ok(RESONANCE_CONTROLS.length >= 5);
+  for (const row of RESONANCE_CONTROLS) {
+    assert.ok(row.control && row.changes && row.result, row.control);
+  }
+});
+
+test('the myth table answers every myth it raises', () => {
+  assert.ok(VOICE_MYTHS.length >= 8);
+  for (const row of VOICE_MYTHS) {
+    assert.ok(typeof row.myth === 'string' && row.myth.length > 5, row.myth);
+    assert.ok(typeof row.truth === 'string' && row.truth.length > 30, row.myth);
+  }
+  assert.ok(VOICE_MYTHS.some(r => /vocal fry/i.test(r.myth)));
+  assert.ok(VOICE_MYTHS.some(r => /mix/i.test(r.myth)));
+});
+
+test('the clean warm-up starts on hydration and ends on belting', () => {
+  assert.ok(CLEAN_WARM_UP.length >= 5);
+  assert.ok(CLEAN_WARM_UP.every(row => row.step && row.detail));
+  assert.match(CLEAN_WARM_UP[0].step, /hydrate/i);
+  assert.match(CLEAN_WARM_UP.at(-1).detail, /belt/i);
+});
+
+test('the clean red flags are stop-now reminders', () => {
+  assert.ok(CLEAN_RED_FLAGS.length >= 4);
+  assert.ok(CLEAN_RED_FLAGS.every(text => typeof text === 'string' && text.length > 10));
+  assert.ok(CLEAN_RED_FLAGS.some(text => /overnight|next morning/i.test(text)));
+});
+
+test('every clean source carries a label and an https URL', () => {
+  assert.ok(CLEAN_CHEAT_SOURCES.length >= 10);
+  for (const source of CLEAN_CHEAT_SOURCES) {
+    assert.ok(source.label, 'label');
+    assert.match(source.url, /^https:\/\//, source.label);
+  }
+});
+
+test('the two sheets do not share a tab id space by accident', () => {
+  const harsh = new Set(HARSH_CHEAT_TABS.map(t => t.id));
+  const shared = CLEAN_CHEAT_TABS.filter(t => harsh.has(t.id)).map(t => t.id);
+  assert.deepEqual(shared, ['warmup', 'redflags']);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

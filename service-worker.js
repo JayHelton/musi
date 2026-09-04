@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v294-cheat-drawer-shared";
+const CACHE_VERSION = "v295-clean-cheat-sheet";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -264,11 +264,13 @@ const PRECACHE_URLS = [
   "js/practiceLab/model/guidedLabs.js",
   "js/practiceLab/model/motifLab.js",
   "js/practiceLab/model/rhythmGrid.js",
+  "js/practiceLab/model/cleanCheatSheet.js",
   "js/practiceLab/model/harshCheatSheet.js",
   "js/practiceLab/model/session.js",
   "js/practiceLab/model/vocal.js",
   "js/practiceLab/ui/cameraPanel.js",
   "js/practiceLab/ui/cheatSheetDrawer.js",
+  "js/practiceLab/ui/cleanCheatSheetView.js",
   "js/practiceLab/ui/compositionContextRow.js",
   "js/practiceLab/ui/compositionFretboard.js",
   "js/practiceLab/ui/compositionView.js",
