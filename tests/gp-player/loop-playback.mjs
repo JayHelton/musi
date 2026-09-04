@@ -136,7 +136,7 @@ function clickPlay(host, mount) {
   assert.ok(playBtn, 'transport play button should exist');
   playBtn.click();
   assert.equal(mount.player.playing, true, 'play button should start playback');
-  assert.equal(playBtn.textContent, '⏸', 'play button glyph should flip to pause');
+  assert.equal(playBtn.getAttribute('aria-label'), 'Pause', 'play button should flip to pause');
 }
 
 // ---- 1. core regression: loop enabled with mount null beat defaults ----

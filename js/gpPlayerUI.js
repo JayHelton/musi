@@ -1,5 +1,9 @@
-// Shared Guitar Pro practice-player UI (parchment + transport dock).
-// Mounted inside the standalone GP Player screen and the Exercises viewer.
+// Shared Guitar Pro practice-player UI.
+//
+// The player composes four parts: a header (way back, title, track selector,
+// view), the score canvas, the transport, and an overlay host for popovers,
+// drawers, and sheets. Mounted inside the standalone GP Player screen, the
+// Exercises viewer, and the Workbook player.
 
 import { parseGuitarPro, isGuitarProName } from './tab/guitarPro.js';
 import { parseGuitarProWithProgress } from './tab/gpParseClient.js';
@@ -23,8 +27,10 @@ import {
 } from './audio/soundPrefs.js';
 import { getUserSound, registerUserPacks, userPackManifestId } from './audio/userSounds.js';
 import { scheduleMetronomeClick } from './tab/metroClick.js';
+import { getSetting, saveSetting } from './persistence.js';
 
 import { el, uid, fmtTime } from './gpPlayer/dom.js';
+import { icon } from './gpPlayer/icons.js';
 import { createPlayerState, resolveInitialBpm } from './gpPlayer/playerState.js';
 import {
   beatsFromMeasureRange,
@@ -36,13 +42,17 @@ import {
 } from './gpPlayer/rangeUtils.js';
 import { mountParchmentView } from './gpPlayer/parchmentView.js';
 import { createLoopSelectionController } from './gpPlayer/loopSelection.js';
-import { mountMeasureNav } from './gpPlayer/measureNav.js';
 import { mountTransportDock } from './gpPlayer/transportDock.js';
-import { mountPracticeRail } from './gpPlayer/practiceRail.js';
-import { mountTrackTabs } from './gpPlayer/trackTabs.js';
+import { mountTrackSelector } from './gpPlayer/trackSelector.js';
+import { mountSelectionToolbar } from './gpPlayer/selectionToolbar.js';
+import { mountFollowButton } from './gpPlayer/followButton.js';
+import { mountPracticePopover } from './gpPlayer/practicePopover.js';
+import { createPopover } from './gpPlayer/popover.js';
 import { createPanelManager } from './gpPlayer/panelManager.js';
 import { mountShortcutHelp } from './gpPlayer/shortcutHelp.js';
-import { clampBpm, clampTempoPct } from './gpPlayer/tempoRange.js';
+import { clampBpm } from './gpPlayer/tempoRange.js';
+import { clampSpeedPct, speedPctFor } from './gpPlayer/speedPopover.js';
+import { sectionsFromMarkers } from './gpPlayer/goToPopover.js';
 import { mountTrackMixer } from './gpPlayer/trackMixer.js';
 import { mountSettingsDrawer } from './gpPlayer/settingsDrawer.js';
 import { mountPlayerMenu } from './gpPlayer/playerMenu.js';
@@ -71,6 +81,7 @@ import {
   loopRestOverlayLabel,
   clickLevelAt,
 } from './gpPlayer/metronomeState.js';
+import { loadSession, createSessionWriter } from './gpPlayer/playerSessionStore.js';
 import {
   listAnnotations,
   addAnnotation,
@@ -79,6 +90,18 @@ import {
 } from './gpAnnotations.js';
 
 let mountGeneration = 0;
+
+const NOTATION_SETTING = 'gpp.notationView';
+const NOTATION_VIEWS = ['tab', 'both'];
+const FOCUS_CLASS = 'gpp-focus-mode';
+
+function loadNotationView() {
+  return getSetting(NOTATION_SETTING, 'tab', NOTATION_VIEWS);
+}
+
+function persistNotationView(view) {
+  if (NOTATION_VIEWS.includes(view)) saveSetting(NOTATION_SETTING, view);
+}
 
 /**
  * Mount a practice player into `host`.
@@ -97,66 +120,104 @@ let mountGeneration = 0;
  *   stepBpm:(delta:number)=>void,
  * }}
  */
-export function mountGpPlayer(host, {
-  gpResult,
-  title = 'Guitar Pro',
-  fileName = '',
-  preferredTrackIndex = 0,
-  onAnalyze = null,
-  headerExtra = null,
-  transportExtra = null,
-  hideTitle = false,
-  initialLoopEnabled = false,
-  initialLoopStart = null,
-  initialLoopEnd = null,
-  initialLoopStartBeat = null,
-  initialLoopEndBeat = null,
-  loopRestSec = 0,
-  onPracticeSettingsChange = null,
-  onPlaybackEnd = null,
-  onPlaybackTick = null,
-  skipCountIn = false,
-  autoPlay = false,
-  exerciseScope = false,
-  initialBpm = null,
-  onOpenFile = null,
-  onCloseScore = null,
-  initialTranspose = null,
-  initialTuning = null,
-  initialRetuneMode = null,
-  disabled = false,
-  scoreKey = '',
-  exerciseImport = null,
-  enableHostKeyboard = true,
-  onReadProgress = null,
-  initialTrackVolumes = null,
-  showStandardNotation: initialShowStandardNotation = false,
-  onBack = null,
-  backLabel = 'Back',
-} = {}) {
+export function mountGpPlayer(host, options = {}) {
+  const {
+    gpResult,
+    title = 'Guitar Pro',
+    fileName = '',
+    subtitle = '',
+    preferredTrackIndex = 0,
+    onAnalyze = null,
+    headerExtra = null,
+    transportExtra = null,
+    hideTitle = false,
+    initialLoopEnabled = false,
+    initialLoopStart = null,
+    initialLoopEnd = null,
+    initialLoopStartBeat = null,
+    initialLoopEndBeat = null,
+    loopRestSec = 0,
+    onPracticeSettingsChange = null,
+    onPlaybackEnd = null,
+    onPlaybackTick = null,
+    skipCountIn = false,
+    autoPlay = false,
+    exerciseScope = false,
+    initialBpm = null,
+    onOpenFile = null,
+    onCloseScore = null,
+    initialTranspose = null,
+    initialTuning = null,
+    initialRetuneMode = null,
+    disabled = false,
+    scoreKey = '',
+    exerciseImport = null,
+    enableHostKeyboard = true,
+    initialTrackVolumes = null,
+    showStandardNotation: initialShowStandardNotation = null,
+    onBack = null,
+    backLabel = 'Back',
+    onSaveRange = null,
+    restoreSession = true,
+  } = options;
   if (!host) throw new Error('mountGpPlayer: host required');
 
   ++mountGeneration;
   let alive = true;
   const isAlive = () => alive && !state.destroyed;
 
+  // ---- per-score session restore ----
+  // The caller wins for every field it names. The saved session fills in the
+  // rest, so a score reopens where practice stopped.
+  const session = restoreSession && scoreKey ? loadSession(scoreKey) : null;
+  const has = (key) => Object.prototype.hasOwnProperty.call(options, key) && options[key] !== undefined;
+  const sessionTrack = session && !has('preferredTrackIndex') ? session : null;
+  const sessionLoop = session?.loop && !has('initialLoopEnabled') && !has('initialLoopStart') ? session.loop : null;
+  const sessionSpeed = session?.speedRatio != null && !has('initialBpm') ? session.speedRatio : null;
+  const sessionMixer = session?.mixer && !has('initialTrackVolumes') ? session.mixer : null;
+
   const stateController = createPlayerState(gpResult, {
-    preferredTrackIndex,
-    initialLoopEnabled,
+    preferredTrackIndex: sessionTrack && sessionTrack.trackKind === 'guitar'
+      ? sessionTrack.trackIndex
+      : preferredTrackIndex,
+    initialLoopEnabled: sessionLoop ? sessionLoop.enabled : initialLoopEnabled,
     initialLoopStart,
     initialLoopEnd,
-    initialLoopStartBeat,
-    initialLoopEndBeat,
+    initialLoopStartBeat: sessionLoop ? sessionLoop.startBeat : initialLoopStartBeat,
+    initialLoopEndBeat: sessionLoop ? sessionLoop.endBeat : initialLoopEndBeat,
     loopRestSec,
     exerciseScope,
     initialTranspose,
     initialTuning,
     initialRetuneMode,
     scoreKey,
-    initialTrackVolumes,
+    initialTrackVolumes: sessionMixer?.volumeGuitars
+      ? { guitars: sessionMixer.volumeGuitars, drums: sessionMixer.volumeDrums || [] }
+      : initialTrackVolumes,
   });
   const state = stateController.state;
   syncMetroMirrors();
+
+  if (sessionTrack && sessionTrack.trackKind === 'drum'
+    && (gpResult.drumTracks || []).length > sessionTrack.trackIndex) {
+    stateController.setViewTrack('drum', sessionTrack.trackIndex);
+    stateController.applyTransforms();
+  }
+  if (sessionLoop && sessionLoop.enabled && state.loopEnabled) {
+    state.loopMode = 'range';
+    state.loopSelectMode = true;
+  }
+  if (sessionMixer?.mutedGuitars) {
+    sessionMixer.mutedGuitars.forEach((muted, i) => {
+      if (i < state.enabledGuitars.length) stateController.setTrackEnabled('guitar', i, !muted);
+    });
+  }
+  if (sessionMixer?.mutedDrums) {
+    sessionMixer.mutedDrums.forEach((muted, i) => {
+      if (i < state.enabledDrums.length) stateController.setTrackEnabled('drum', i, !muted);
+    });
+  }
+  if (session?.zoom != null) state.parchmentZoom = session.zoom;
 
   const packScoreId = scoreKey || fileName || title || 'score';
 
@@ -164,6 +225,8 @@ export function mountGpPlayer(host, {
   if (resolvedBpm.apply) {
     state.bpm = resolvedBpm.bpm;
     state.bpmUserOverride = resolvedBpm.bpmUserOverride;
+  } else if (sessionSpeed != null && sessionSpeed !== 1) {
+    stateController.setSpeedRatio(sessionSpeed);
   }
 
   let countInTimer = null;
@@ -182,75 +245,93 @@ export function mountGpPlayer(host, {
   if (disabled) host.classList.add('is-loading');
   host.tabIndex = -1;
 
-  // ---- layout ----
-  const scoreHeader = el('div', { class: 'gpp-score-header' });
-  const titles = el('div', { class: 'gpp-score-header-titles' });
-  const scoreTitle = el('div', { class: 'gpp-score-title', text: hideTitle ? '' : title, title: fileName || title });
-  const scoreTrack = el('div', { class: 'gpp-score-track', text: '' });
-  const sourceStatus = el('div', {
-    class: 'gpp-source-status gpp-status',
-    role: 'status',
-    text: 'Synth fallback',
-  });
-  titles.append(scoreTitle, scoreTrack, sourceStatus);
-  // A loaded score fills the screen and hides the page chrome, so the way back
-  // has to sit on the score itself.
+  // ---- header ----
+  const header = el('div', { class: 'gpp-header gpp-score-header' });
   let backBtn = null;
   if (typeof onBack === 'function') {
     backBtn = el('button', {
-      class: 'btn sm gpp-back-btn',
+      class: 'gpp-icon-btn has-label gpp-back-btn',
       type: 'button',
-      text: `← ${backLabel}`,
       'aria-label': `Back to ${String(backLabel).toLowerCase()}`,
       title: `Back to ${String(backLabel).toLowerCase()}`,
       onClick: () => onBack(),
-    });
-    scoreHeader.appendChild(backBtn);
+    }, [
+      el('span', { class: 'gpp-btn-icon', html: icon('back'), 'aria-hidden': 'true' }),
+      el('span', { class: 'gpp-btn-label', text: String(backLabel) }),
+    ]);
+    header.appendChild(backBtn);
   }
-  // A screen reader reads this region when the text changes. FR-066 needs it
-  // for the bar announcement, and FR-052 needs it for a blocked audio message.
+  const titles = el('div', { class: 'gpp-header-titles gpp-score-header-titles' });
+  const scoreTitle = el('div', { class: 'gpp-score-title', text: hideTitle ? '' : title, title: fileName || title });
+  const scoreSubtitle = el('div', { class: 'gpp-score-subtitle', text: subtitle || '' });
+  if (!subtitle) scoreSubtitle.hidden = true;
+  // The playback source. It shows while playback prepares, then goes away.
+  const sourceStatus = el('div', {
+    class: 'gpp-source-status',
+    role: 'status',
+    text: '',
+    hidden: true,
+  });
+  titles.append(scoreTitle, scoreSubtitle);
+  header.appendChild(titles);
+
+  const trackSelectorHost = el('div', { class: 'gpp-track-selector-host' });
+  const headerActions = el('div', { class: 'gpp-header-actions' });
+  const viewBtn = el('button', {
+    class: 'gpp-icon-btn has-label gpp-view-btn',
+    type: 'button',
+    'aria-label': 'Notation view and zoom',
+    title: 'View',
+    'aria-expanded': 'false',
+  }, [
+    el('span', { class: 'gpp-btn-icon', html: icon('zoomIn'), 'aria-hidden': 'true' }),
+    el('span', { class: 'gpp-btn-label', text: 'View' }),
+  ]);
+  headerActions.append(sourceStatus, viewBtn);
+  let closeScoreBtn = null;
+  if (typeof onCloseScore === 'function') {
+    closeScoreBtn = el('button', {
+      class: 'gpp-icon-btn gpp-close-score',
+      type: 'button',
+      html: icon('close'),
+      'aria-label': 'Close score',
+      title: 'Close score',
+      onClick: () => onCloseScore(),
+    });
+    headerActions.append(closeScoreBtn);
+  }
+  header.append(trackSelectorHost, headerActions);
+
+  // A screen reader reads this region when the text changes. It carries the
+  // bar at a seek and a blocked audio message. It does not carry every beat.
   const liveRegion = el('div', {
     class: 'gpp-live-region',
     role: 'status',
     'aria-live': 'polite',
   });
-  // A visible message for a problem that stops playback.
   const alertBar = el('div', { class: 'gpp-alert-bar', role: 'alert', hidden: true });
-  scoreHeader.append(titles, liveRegion, alertBar);
-  let closeScoreBtn = null;
-  if (typeof onCloseScore === 'function') {
-    closeScoreBtn = el('button', {
-      class: 'btn sm gpp-close-score',
-      type: 'button',
-      text: 'Close score',
-      'aria-label': 'Close score',
-      title: 'Close score',
-      onClick: () => onCloseScore(),
-    });
-    scoreHeader.append(closeScoreBtn);
-  }
+  header.append(liveRegion, alertBar);
 
   let lastAnnouncedText = '';
 
   function updateSourceLabel() {
     if (!isAlive()) return;
     const voice = getScoreVoice();
+    let text = '';
     if (!scoreVoiceUsesPacks(voice)) {
-      const preset = SCORE_VOICES.find((v) => v.id === voice);
-      sourceStatus.textContent = preset ? preset.label : 'Modeled strings';
-      return;
-    }
-    const soundId = voiceUserSoundId(voice);
-    if (soundId) {
-      const sound = getUserSound(soundId);
-      if (sound) {
-        sourceStatus.textContent = getPlaybackSourceState(packScoreId) === 'Studio ready'
-          ? sound.name
-          : getPlaybackSourceState(packScoreId);
-        return;
+      text = '';
+    } else {
+      const soundId = voiceUserSoundId(voice);
+      const sourceState = getPlaybackSourceState(packScoreId);
+      if (soundId && getUserSound(soundId)) {
+        text = sourceState === 'Studio ready' ? '' : sourceState;
+      } else {
+        text = sourceState === 'Studio ready' ? '' : sourceState;
       }
     }
-    sourceStatus.textContent = getPlaybackSourceState(packScoreId);
+    if (/loading|preparing|fetch/i.test(text)) text = 'Preparing playback…';
+    sourceStatus.textContent = text;
+    sourceStatus.hidden = !text;
   }
 
   function beginPackLoad() {
@@ -266,9 +347,6 @@ export function mountGpPlayer(host, {
     }
     (async () => {
       try {
-        // The user can play the modeled synth or a basic wave instead. Neither
-        // needs a download, so skip the pack load in that case. The pitched
-        // tracks and the percussion tracks each answer to their own setting.
         const wantPitched = scoreVoiceUsesPacks();
         const wantDrums = drumVoiceUsesPacks();
         if (!wantPitched && !wantDrums) {
@@ -316,7 +394,6 @@ export function mountGpPlayer(host, {
   }
   beginPackLoad();
 
-  /** Put one short sentence into the live region for a screen reader. */
   function announce(text) {
     const next = String(text || '');
     if (!next || next === lastAnnouncedText) return;
@@ -324,7 +401,6 @@ export function mountGpPlayer(host, {
     liveRegion.textContent = next;
   }
 
-  /** Show or clear the visible alert bar. */
   function showAlert(text) {
     if (!text) {
       alertBar.hidden = true;
@@ -338,15 +414,10 @@ export function mountGpPlayer(host, {
 
   const exerciseImportCapable = exerciseImport && typeof exerciseImport.importSegments === 'function';
 
+  // ---- layout ----
   const scoreBody = el('div', { class: 'gpp-score-body' });
-  const trackTabsHost = el('div', { class: 'gpp-track-tabs-host' });
-  const measureNavHost = el('div', { class: 'gpp-measure-nav-host' });
-  const parchmentHost = el('div', { class: 'gpp-parchment-host' });
-  scoreBody.append(measureNavHost, parchmentHost);
-  // The track selector shares the header row. A separate strip cost a full row
-  // of screen height, and the score needs that height. FR-033 still holds:
-  // the selector stays on screen at all times.
-  scoreHeader.insertBefore(trackTabsHost, closeScoreBtn);
+  const parchmentHost = el('div', { class: 'gpp-parchment-host gpp-canvas-host' });
+  scoreBody.append(parchmentHost);
 
   const scorePane = el('div', { class: 'gpp-score-pane' });
   const drawerRoot = el('div', { class: 'gpp-drawer-root' });
@@ -358,11 +429,14 @@ export function mountGpPlayer(host, {
   const backingDrawerRoot = el('div', { class: 'gpp-drawer-root gpp-backing-drawer-root' });
   const tracksMixerHost = el('div', { class: 'gpp-tracks-drawer-mount' });
   const backingHost = el('div', { class: 'gpp-tracks-drawer-mount gpp-backing-mount' });
+  // Popovers anchor inside this host, so their positions count from the
+  // score pane, and they paint over the transport.
+  const popoverHost = el('div', { class: 'gpp-popover-host' });
   scorePane.append(scoreBody);
 
   const analysisResultsEl = el('div', {
     class: 'gpp-analysis-results ta-results',
-    html: '<div class="quiz-card"><p class="ta-muted">Switch to Analyze or Both to see key, chord, scale, and technique breakdown.</p></div>',
+    html: '<div class="quiz-card"><p class="ta-muted">Open Analysis from the menu to see key, chord, scale, and technique breakdown.</p></div>',
   });
   const rerunAnalysisBtn = el('button', {
     class: 'btn sm gpp-analysis-rerun',
@@ -378,11 +452,13 @@ export function mountGpPlayer(host, {
 
   const stagePane = el('div', { class: 'gpp-stage-pane' });
   const transportHost = el('div', { class: 'gpp-transport-anchor' });
-  const practiceRailHost = el('div', { class: 'gpp-practice-rail-host' });
-  // The drawer roots come after the transport anchor. A drawer must paint over
-  // the dock, so it wins on document order as well as on z-index.
+  const selectionHost = el('div', { class: 'gpp-selection-host' });
+  const followHost = el('div', { class: 'gpp-follow-host' });
   scorePane.append(
+    selectionHost,
+    followHost,
     transportHost,
+    popoverHost,
     drawerRoot,
     menuDrawerRoot,
     tracksDrawerRoot,
@@ -394,7 +470,7 @@ export function mountGpPlayer(host, {
   stagePane.append(stageContent);
 
   const chrome = el('div', { class: 'gpp-chrome' });
-  chrome.append(scoreHeader, stagePane);
+  chrome.append(header, stagePane);
 
   const exerciseImportRoot = exerciseImportCapable ? el('div', { class: 'gpi-mount' }) : null;
   host.append(chrome);
@@ -404,10 +480,12 @@ export function mountGpPlayer(host, {
 
   // ---- sub-mounts (wired after player helpers) ----
   let parchment = null;
-  let measureNav = null;
   let transport = null;
-  let practiceRail = null;
-  let trackTabs = null;
+  let trackSelector = null;
+  let selectionToolbar = null;
+  let followButton = null;
+  let practicePop = null;
+  let displayPop = null;
   let panelManager = null;
   let shortcutHelp = null;
   let trackMixer = null;
@@ -421,8 +499,6 @@ export function mountGpPlayer(host, {
   let importPanel = null;
   let loopSnapshot = null;
   let externalLoopSnapshot = null;
-  // The last span the player marked. The loop button returns to it when the
-  // range mode comes back on.
   let lastRangeLoop = null;
   let loopController = null;
   let layoutMetrics = null;
@@ -431,56 +507,45 @@ export function mountGpPlayer(host, {
   let noteDraftSelection = null;
   let highlightedAnnoId = null;
   let noteSelectActive = false;
-  let showStandardNotation = !!initialShowStandardNotation;
+  let notationView = initialShowStandardNotation == null
+    ? (session?.viewMode === 'both' ? 'both' : loadNotationView())
+    : (initialShowStandardNotation ? 'both' : 'tab');
   let parchmentZoomLimit = Infinity;
   let reducedMotion = false;
   let reducedMotionMq = null;
   let reducedMotionHandler = null;
   let lastAnnouncedBar = -1;
+  let lastKnownBar = 0;
+  let lastKnownBeat = 0;
+  let focusMode = false;
+  let visibilityFlushHandler = null;
+  const sessionWriter = createSessionWriter(scoreKey);
   panelManager = createPanelManager();
   countInDisplay = createCountInDisplay();
+
+  function showStandardNotation() {
+    return notationView === 'both';
+  }
 
   function trackAnalysisKey() {
     return `${state.viewKind}:${state.viewIndex}`;
   }
 
-  function syncHeaderVisibility() {
-    // The header carries the track selector, so it stays on screen. It only
-    // hides when the embed asks for no title and the score has no track name.
-    const hasTitle = !hideTitle && !!(scoreTitle.textContent?.trim());
-    const hasTrack = !!(scoreTrack.textContent?.trim());
-    // The back button lives in this row, so the row has to stay when it is there.
-    scoreHeader.hidden = !backBtn && !hasTitle && !hasTrack && !trackTabsHost.isConnected;
-  }
-
   function closeOtherOverlays(except = null) {
-    const map = {
-      menu: 'menu',
-      settings: 'settings',
-      tracks: 'tracks',
-      notes: 'notes',
-      metro: 'metro',
-      help: 'help',
-      import: 'import',
-      backing: 'backing',
-    };
-    for (const [key, id] of Object.entries(map)) {
-      if (except === key) continue;
+    const ids = ['menu', 'settings', 'tracks', 'notes', 'metro', 'help', 'import', 'backing', 'trackpick', 'display', 'practice'];
+    for (const id of ids) {
+      if (except === id) continue;
       panelManager?.close(id);
     }
+    if (except !== 'transport') transport?.closePopovers?.();
     transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
+    trackSelector?.sync();
   }
 
   function syncReducedMotion() {
     if (typeof window === 'undefined' || !window.matchMedia) return;
     reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     host.classList.toggle('gpp-reduced-motion', reducedMotion);
-  }
-
-  function syncViewPicker() {
-    playerMenu?.sync();
   }
 
   function maybeRunAnalysis({ force = false } = {}) {
@@ -500,13 +565,13 @@ export function mountGpPlayer(host, {
   function setViewMode(mode, { runAnalysis: shouldAnalyze = true } = {}) {
     if (!GPP_VIEW_MODES.includes(mode)) mode = 'score';
     if (viewMode === mode && !shouldAnalyze) {
-      syncViewPicker();
+      playerMenu?.sync();
       return;
     }
     viewMode = mode;
     persistViewMode(mode);
     applyViewModeClasses(host, mode);
-    syncViewPicker();
+    playerMenu?.sync();
     placeTransport();
     if (shouldAnalyze && viewModeNeedsAnalysis(mode)) maybeRunAnalysis({ force: true });
     requestAnimationFrame(() => {
@@ -517,22 +582,50 @@ export function mountGpPlayer(host, {
   }
 
   applyViewModeClasses(host, viewMode);
-  syncViewPicker();
   placeTransport();
 
   function currentTrackLabel() {
     if (state.viewKind === 'drum') {
       const t = state.gp.drumTracks?.[state.viewIndex];
-      return t ? `🥁 ${t.name}` : 'Drums';
+      return t ? t.name : 'Drums';
     }
     const t = state.gp.tracks?.[state.viewIndex];
-    return t ? `🎸 ${t.name}` : 'Track';
+    return t ? t.name : 'Track';
   }
 
   function emitPracticeSettings() {
     if (!isAlive()) return;
     if (typeof onPracticeSettingsChange !== 'function') return;
     onPracticeSettingsChange(stateController.toPersistable());
+  }
+
+  // ---- session persistence ----
+  function sessionRecord() {
+    return {
+      trackKind: state.viewKind,
+      trackIndex: state.viewIndex,
+      beat: lastKnownBeat,
+      viewMode: notationView,
+      zoom: state.parchmentZoom,
+      speedRatio: stateController.getSpeedRatio(),
+      loop: state.loopEnabled && state.loopStartBeat != null && state.loopEndBeat != null
+        ? { enabled: true, startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
+        : (lastRangeLoop ? { enabled: false, ...lastRangeLoop } : null),
+      mixer: {
+        // A solo is temporary: the saved mute states are the ones under it.
+        mutedGuitars: (state.solo ? state.solo.savedGuitars : state.enabledGuitars).map((on) => !on),
+        mutedDrums: (state.solo ? state.solo.savedDrums : state.enabledDrums).map((on) => !on),
+        volumeGuitars: [...state.trackVolumes.guitars],
+        volumeDrums: [...state.trackVolumes.drums],
+      },
+      backingActive: backingPanel?.isActive?.() ?? null,
+    };
+  }
+
+  function persistSession({ now = false } = {}) {
+    if (!scoreKey || !isAlive()) return;
+    sessionWriter.write(sessionRecord());
+    if (now) sessionWriter.flush();
   }
 
   function buildGuitarModels() {
@@ -542,9 +635,7 @@ export function mountGpPlayer(host, {
     });
   }
 
-  // The score shows the selected track only. An earlier version fell back to
-  // the first drum track while the learner had a guitar track selected, so a
-  // score with two drum tracks always drew drum track 1. FR-031 forbids that.
+  // The score shows the selected track only.
   function parchmentModels() {
     const guitar = state.viewKind === 'guitar' ? state.viewModel : null;
     const perc = state.viewKind === 'drum' ? state.viewModel : null;
@@ -603,15 +694,11 @@ export function mountGpPlayer(host, {
       settingsDrawer?.sync();
       metronomePanel?.sync();
       transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
     },
     onFinish: () => {
       if (!isAlive()) return;
       player.pause();
       transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
     },
   });
 
@@ -685,9 +772,6 @@ export function mountGpPlayer(host, {
     playbackTimeline = timeline;
   }
 
-  // withRate() builds a new timeline object. The playhead asks for the
-  // timeline on every animation frame, so cache the result and rebuild it
-  // only when the base timeline or the practice rate changes.
   let ratedTimeline = null;
   let ratedTimelineSource = null;
   let ratedTimelineRate = null;
@@ -705,9 +789,7 @@ export function mountGpPlayer(host, {
 
   // The score view draws on every animation frame, and the audio tick only
   // arrives about every 25 ms. The view therefore reads the audio clock
-  // itself. It must read the clock that the scheduler uses, or the line moves
-  // ahead of the sound: the player starts the sound a short time after the
-  // tap, so a clock that starts at the tap leads the sound by that time.
+  // itself, the same clock the scheduler uses.
   function songSecFromAudioClock() {
     if (!player.playing) return player.currentSec ?? 0;
     const anchor = player.getClockAnchor?.();
@@ -723,9 +805,6 @@ export function mountGpPlayer(host, {
     return timeline.positionAtSeconds(songSecFromAudioClock());
   }
 
-  // listAnnotations() copies and sorts the list on each call. The playhead
-  // asks for it on every frame, so cache the result and clear the cache when
-  // the annotation set changes.
   let annotationCache = null;
 
   function currentAnnotations() {
@@ -738,35 +817,44 @@ export function mountGpPlayer(host, {
     annotationCache = null;
   }
 
-  function syncPlayheadFrame(pos, { resting = lastTickResting } = {}) {
-    if (!isAlive() || !pos) return;
-    const secDisplay = quartersToSeconds(pos.beatInScore, state.bpm);
-    parchment?.update({
-      currentSec: secDisplay,
-      // The score view needs the written beat, not a second count. A score
-      // with a tempo map has no single tempo, so seconds cannot name a beat.
-      beatInScore: pos.beatInScore,
-      bpm: state.bpm,
-      playing: player.playing && !resting,
-      measureIndex: pos.barIndex,
+  function followActive() {
+    return stateController.isFollowing() && !reducedMotion;
+  }
+
+  function rangeDraftForCanvas() {
+    if (!stateController.hasSelection()) return null;
+    return { startBeat: state.selection.startBeat, endBeat: state.selection.endBeat };
+  }
+
+  function canvasFrame(extra = {}) {
+    return {
       selection: parchmentSelection(),
+      rangeDraft: rangeDraftForCanvas(),
       noteDraft: noteDraftSelection
         ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }
         : null,
       loopSelectMode: !!state.loopSelectMode,
       noteSelectMode: noteSelectActive,
       zoom: state.parchmentZoom,
-      autoFollow: state.autoFollow && !reducedMotion,
+      autoFollow: followActive(),
       annotations: currentAnnotations(),
       highlightedAnnotationId: highlightedAnnoId,
-    });
-    measureNav?.update({
+      ...extra,
+    };
+  }
+
+  function syncPlayheadFrame(pos, { resting = lastTickResting } = {}) {
+    if (!isAlive() || !pos) return;
+    const secDisplay = quartersToSeconds(pos.beatInScore, state.bpm);
+    lastKnownBeat = pos.beatInScore;
+    if (Number.isFinite(pos.barIndex)) lastKnownBar = pos.barIndex;
+    parchment?.update(canvasFrame({
+      currentSec: secDisplay,
+      beatInScore: pos.beatInScore,
+      bpm: state.bpm,
+      playing: player.playing && !resting,
       measureIndex: pos.barIndex,
-      navBar: state.navBar,
-      loopEnabled: state.loopEnabled,
-      loopStart: state.loopStart,
-      loopEnd: state.loopEnd,
-    });
+    }));
   }
 
   function applyPlayheadFrame() {
@@ -774,8 +862,6 @@ export function mountGpPlayer(host, {
     if (pos) syncPlayheadFrame(pos);
   }
 
-  // The tab can sleep and the audio context can stop. Draw one frame from the
-  // player clock when the page wakes, so the line does not stay where it was.
   function reanchorPlayheadFromAudio() {
     if (!isAlive() || !player.playing) return;
     applyPlayheadFrame();
@@ -788,6 +874,8 @@ export function mountGpPlayer(host, {
     }
   }
 
+  let framesSinceTransportSync = 0;
+
   function startPlayheadFrameLoop() {
     if (!activePlaybackTimeline() || playheadFrameId != null) return;
     if (typeof requestAnimationFrame !== 'function') return;
@@ -797,6 +885,13 @@ export function mountGpPlayer(host, {
         return;
       }
       applyPlayheadFrame();
+      // The bar readout on the transport follows the score at a low rate.
+      framesSinceTransportSync += 1;
+      if (framesSinceTransportSync >= 15) {
+        framesSinceTransportSync = 0;
+        transport?.sync();
+        persistSession();
+      }
       playheadFrameId = requestAnimationFrame(tick);
     };
     playheadFrameId = requestAnimationFrame(tick);
@@ -831,7 +926,6 @@ export function mountGpPlayer(host, {
   }
 
   const player = createGpMixPlayer({
-    // The browser can refuse to start audio. Name the cause and one next step.
     onAudioBlocked: ({ cause, nextStep } = {}) => {
       if (!isAlive()) return;
       const parts = [cause, nextStep].filter(Boolean);
@@ -926,9 +1020,8 @@ export function mountGpPlayer(host, {
     trackMixer?.sync();
     metronomePanel?.sync();
     transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
     emitPracticeSettings();
+    persistSession();
   }
 
   function reloadModel() {
@@ -958,8 +1051,6 @@ export function mountGpPlayer(host, {
       buildPlaybackTimeline();
       const newSec = secFromPreservedBeat(beat);
       if (was) player.play({ fromSec: newSec });
-      // A fresh mount has no position to keep, and seeking to zero would override
-      // the loop start load() just picked.
       else if (beat > 0) player.seek(newSec);
 
       refreshScoreSurface();
@@ -975,7 +1066,6 @@ export function mountGpPlayer(host, {
 
   function refreshScoreSurface() {
     if (!isAlive()) return;
-    const model = state.viewModel;
     const { guitar, perc } = parchmentModels();
     parchment?.setModel(guitar, perc);
     parchment?.setZoom(state.parchmentZoom);
@@ -1038,8 +1128,26 @@ export function mountGpPlayer(host, {
     parchment?.setNoteSelectMode?.(active);
   }
 
+  function selectionWithMeasures() {
+    if (!stateController.hasSelection()) return null;
+    const measures = state.viewModel?.measures || [];
+    const { startIdx, endIdx } = measureIndicesForBeats(
+      measures,
+      state.selection.startBeat,
+      state.selection.endBeat,
+    );
+    return {
+      startBeat: state.selection.startBeat,
+      endBeat: state.selection.endBeat,
+      measureStart: startIdx,
+      measureEnd: endIdx,
+    };
+  }
+
   function getCurrentSelection() {
     if (noteDraftSelection) return { ...noteDraftSelection };
+    const marked = selectionWithMeasures();
+    if (marked) return marked;
     const measures = state.viewModel?.measures || [];
     if (state.loopEnabled) {
       if (state.loopStartBeat == null || state.loopEndBeat == null) return null;
@@ -1095,53 +1203,31 @@ export function mountGpPlayer(host, {
     resting = false,
     restRemaining = 0,
   } = {}) {
-    scoreTrack.textContent = currentTrackLabel();
-    syncHeaderVisibility();
     if (playing && Number.isFinite(measureIndex) && measureIndex !== lastAnnouncedBar) {
       lastAnnouncedBar = measureIndex;
-      announce(`Bar ${measureIndex + 1}`);
     }
     if (!playing) lastAnnouncedBar = -1;
     lastTickResting = !!resting;
     lastRestRemaining = Number(restRemaining) || 0;
-    // The frame loop owns the score view while playback runs. Without this
-    // guard the view repaints on the audio tick and on the animation frame,
-    // about 100 times each second, and that work delays the audio scheduler.
+    // The frame loop owns the score view while playback runs.
     if (playheadFrameId == null) {
-      // The audio tick reports seconds. Ask the score timeline for the written
-      // beat that belongs to those seconds, so the line stops at the note it
-      // plays. The timeline is absent for a score without a rhythm, and the
-      // view then falls back to a plain seconds to beats step.
       const tickPos = activePlaybackTimeline()?.positionAtSeconds(currentSec) ?? null;
-      parchment?.update({
+      if (tickPos) {
+        lastKnownBeat = tickPos.beatInScore;
+        lastKnownBar = tickPos.barIndex;
+      } else if (Number.isFinite(measureIndex)) {
+        lastKnownBar = measureIndex;
+      }
+      parchment?.update(canvasFrame({
         currentSec,
         beatInScore: tickPos?.beatInScore,
         bpm: state.bpm,
         playing: playing && !resting,
         measureIndex: tickPos ? tickPos.barIndex : measureIndex,
-        selection: parchmentSelection(),
-        noteDraft: noteDraftSelection
-          ? { startBeat: noteDraftSelection.startBeat, endBeat: noteDraftSelection.endBeat }
-          : null,
-        loopSelectMode: !!state.loopSelectMode,
-        noteSelectMode: noteSelectActive,
-        zoom: state.parchmentZoom,
-        autoFollow: state.autoFollow && !reducedMotion,
-        annotations: currentAnnotations(),
-        highlightedAnnotationId: highlightedAnnoId,
-      });
-      measureNav?.update({
-        measureIndex,
-        navBar: state.navBar,
-        loopEnabled: state.loopEnabled,
-        loopStart: state.loopStart,
-        loopEnd: state.loopEnd,
-      });
+      }));
     }
     transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
-    // Per-tick playback UI must not rebuild the metronome panel — use syncStatus only.
+    syncFollowButton();
     metronomePanel?.syncStatus?.();
   }
 
@@ -1166,7 +1252,6 @@ export function mountGpPlayer(host, {
     const curDur = cur.durationSec || prevDur;
     const prevNearEnd = prevDur > 0 && prevPlaybackTick.currentSec >= prevDur - PLAYBACK_END_EPSILON;
     const curNearEnd = curDur > 0 && cur.currentSec >= curDur - PLAYBACK_END_EPSILON;
-    // Ignore stop edges shortly after user pause/stop — same tick signature as natural end.
     const naturalEnd = prevPlaybackTick.playing
       && !cur.playing
       && !cur.resting
@@ -1189,10 +1274,57 @@ export function mountGpPlayer(host, {
     return state.navBar == null ? scope.start : state.navBar;
   }
 
+  function currentBarIndex() {
+    if (player.playing) return lastKnownBar;
+    return navMeasureIndex();
+  }
+
   function isPendingPlayback() {
     return countInTimer != null
       || autoPlayTimer != null
       || (countInDisplay != null && countInDisplay.remaining > 0);
+  }
+
+  // ---- follow ----
+  function syncFollowButton() {
+    const show = !!state.follow.enabled && !!state.follow.suspended;
+    followButton?.setVisible(show);
+  }
+
+  function resumeFollow({ scroll = true } = {}) {
+    stateController.resumeFollow();
+    parchment?.resumeAutoFollow?.();
+    if (scroll) parchment?.scrollToBeat?.(lastKnownBeat);
+    syncFollowButton();
+  }
+
+  function onCanvasFollowChange(suspended) {
+    if (!isAlive()) return;
+    if (suspended) {
+      // A scroll while paused is plain reading. Only a scroll during playback
+      // suspends follow, and the pill offers the way back.
+      if (!player.playing) {
+        parchment?.resumeAutoFollow?.();
+        return;
+      }
+      stateController.suspendFollow('user-scroll');
+    } else {
+      stateController.resumeFollow();
+    }
+    syncFollowButton();
+  }
+
+  // ---- seeking ----
+  function afterSeek(beat, measureIndex) {
+    lastKnownBeat = beat;
+    lastKnownBar = measureIndex;
+    announce(`Bar ${measureIndex + 1}`);
+    // A seek is a request to read there, so follow comes back.
+    stateController.resumeFollow();
+    parchment?.resumeAutoFollow?.();
+    parchment?.scrollToBeat?.(beat);
+    syncFollowButton();
+    persistSession();
   }
 
   function seekToBar(barIndex, { autoplay = false } = {}) {
@@ -1208,19 +1340,18 @@ export function mountGpPlayer(host, {
       if (autoplay || player.playing) {
         clearCountIn();
         ensureAudio();
+        bindPlayheadClockListeners();
         player.play({ fromSec: startSec });
-      }
-      else player.seek(startSec);
+      } else player.seek(startSec);
       syncPlaybackUi({
         playing: player.playing,
         currentSec: startSec,
         durationSec: player.durationSec,
         measureIndex: i,
       });
+      afterSeek(beats.startBeat, i);
     } catch (err) {
-      if (typeof showAlert === 'function') {
-        showAlert(err?.message || 'Playback failed.');
-      }
+      showAlert(err?.message || 'Playback failed.');
       console.error(err);
     }
   }
@@ -1245,6 +1376,7 @@ export function mountGpPlayer(host, {
       if (autoplay || player.playing) {
         clearCountIn();
         ensureAudio();
+        bindPlayheadClockListeners();
         player.play({ fromSec });
       } else player.seek(fromSec);
       syncPlaybackUi({
@@ -1253,12 +1385,37 @@ export function mountGpPlayer(host, {
         durationSec: player.durationSec,
         measureIndex,
       });
+      afterSeek(quarterBeat, measureIndex);
     } catch (err) {
-      if (typeof showAlert === 'function') {
-        showAlert(err?.message || 'Playback failed.');
-      }
+      showAlert(err?.message || 'Playback failed.');
       console.error(err);
     }
+  }
+
+  /** The beat columns of the viewed track, sorted and unique. */
+  function beatColumns() {
+    const starts = new Set();
+    for (const ev of state.viewModel?.events || []) {
+      const b = Number(ev.start);
+      if (Number.isFinite(b)) starts.add(Math.round(b * 1000) / 1000);
+    }
+    for (const m of state.viewModel?.measures || []) {
+      if (Number.isFinite(m.startBeat)) starts.add(Math.round(m.startBeat * 1000) / 1000);
+    }
+    return [...starts].sort((a, b) => a - b);
+  }
+
+  function stepBeat(dir) {
+    const cols = beatColumns();
+    if (!cols.length) return;
+    const cur = Math.round(lastKnownBeat * 1000) / 1000;
+    let target = null;
+    if (dir > 0) target = cols.find((b) => b > cur + 1e-6);
+    else {
+      for (const b of cols) if (b < cur - 1e-6) target = b;
+    }
+    if (target == null) return;
+    seekToBeat(target, { autoplay: player.playing });
   }
 
   function onSettingsChange(patch = {}) {
@@ -1269,30 +1426,53 @@ export function mountGpPlayer(host, {
       applyLoopToPlayer();
     } else if (patch.metronome) {
       syncMetroToPlayer();
-    } else if (patch.zoom || patch.autoFollow || patch.notation) {
-      if (patch.notation != null) {
-        showStandardNotation = !!patch.notation;
-        parchment?.setShowStandardNotation?.(showStandardNotation);
-      }
-      parchment?.update({
-        selection: parchmentSelection(),
-        zoom: state.parchmentZoom,
-        autoFollow: state.autoFollow && !reducedMotion,
-      });
+    } else if (patch.zoom || patch.autoFollow || patch.notation != null) {
+      if (patch.notation != null) setNotationView(patch.notation ? 'both' : 'tab', { fromSettings: true });
+      if (patch.autoFollow) syncFollowButton();
+      parchment?.update(canvasFrame());
+      if (patch.zoom) restoreReadingPosition();
     }
     settingsDrawer?.sync();
     trackMixer?.sync();
     metronomePanel?.sync();
     transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
+    displayPop?.sync?.();
     emitPracticeSettings();
+    persistSession();
+  }
+
+  function restoreReadingPosition() {
+    requestAnimationFrame(() => {
+      if (!isAlive()) return;
+      parchment?.scrollToBeat?.(lastKnownBeat);
+    });
+  }
+
+  function setZoom(z) {
+    stateController.setParchmentZoom(z);
+    parchment?.update(canvasFrame());
+    restoreReadingPosition();
+    settingsDrawer?.sync();
+    displayPop?.sync?.();
+    persistSession();
+  }
+
+  function setNotationView(view, { fromSettings = false } = {}) {
+    const next = view === 'both' ? 'both' : 'tab';
+    if (next === notationView && !fromSettings) return;
+    notationView = next;
+    if (initialShowStandardNotation == null) persistNotationView(next);
+    parchment?.setShowStandardNotation?.(next === 'both');
+    restoreReadingPosition();
+    displayPop?.sync?.();
+    if (!fromSettings) settingsDrawer?.sync();
+    persistSession();
   }
 
   function runAnalysis(resultsEl) {
     if (!resultsEl) return;
     if (state.viewKind !== 'guitar' || !state.viewModel?.strings) {
-      resultsEl.innerHTML = '<div class="quiz-card"><p class="ta-muted">Switch to a guitar or bass track to analyze. Drum parts can\u2019t be analyzed as tab.</p></div>';
+      resultsEl.innerHTML = '<div class="quiz-card"><p class="ta-muted">Switch to a guitar or bass track to analyze. Drum parts can’t be analyzed as tab.</p></div>';
       if (typeof onAnalyze === 'function') onAnalyze({ gp: state.gp, trackIndex: state.trackIndex, model: null, report: null });
       return;
     }
@@ -1310,6 +1490,8 @@ export function mountGpPlayer(host, {
 
   function setViewTrack(kind, index) {
     if (!isAlive()) return;
+    // A track switch keeps the beat, the loop, the speed, the play state, and
+    // the follow state. It never restarts the song.
     withPreservedPosition(() => {
       stateController.setViewTrack(kind, index);
       stateController.applyTransforms();
@@ -1328,25 +1510,29 @@ export function mountGpPlayer(host, {
       buildPlaybackTimeline();
     });
     refreshScoreSurface();
-    const measures = state.viewModel?.measures || [];
-    measureNav?.setMeasureCount(
-      measures.length,
-      measures.map((m) => m.marker || null),
-    );
     settingsDrawer?.sync();
     trackMixer?.sync();
+    trackSelector?.sync();
+    displayPop?.sync?.();
     loopController?.syncFromState();
     maybeRunAnalysis();
     emitPracticeSettings();
+    syncPlaybackUi({
+      playing: player.playing,
+      currentSec: player.currentSec,
+      durationSec: player.durationSec,
+      measureIndex: player.measureIndex,
+    });
+    restoreReadingPosition();
+    persistSession();
   }
 
+  // ---- loop ----
   function onLoopChanged() {
     if (!isAlive()) return;
     if (state.loopStartBeat != null && state.loopEndBeat != null) {
       stateController.setLoopRange(state.loopStartBeat, state.loopEndBeat);
       state.loopEnabled = true;
-      // A drag on the score or on the measure strip marks a span, so the loop
-      // is in the range mode from now on.
       if (state.loopMode !== 'song') {
         state.loopMode = 'range';
         state.loopSelectMode = true;
@@ -1357,6 +1543,7 @@ export function mountGpPlayer(host, {
     settingsDrawer?.sync();
     parchment?.setLoopSelectMode?.(!!state.loopSelectMode);
     transport?.sync();
+    persistSession();
   }
 
   function snapshotLoopState() {
@@ -1402,6 +1589,57 @@ export function mountGpPlayer(host, {
     });
   }
 
+  // ---- selection ----
+  function syncSelectionUi() {
+    const marked = selectionWithMeasures();
+    selectionToolbar?.sync(marked);
+    parchment?.setRangeDraft?.(marked ? { startBeat: marked.startBeat, endBeat: marked.endBeat } : null);
+    transport?.sync();
+  }
+
+  function setSelection(startBeat, endBeat) {
+    if (!stateController.setSelection(startBeat, endBeat)) return;
+    syncSelectionUi();
+  }
+
+  function clearSelection() {
+    if (!stateController.clearSelection()) return;
+    practicePop?.close?.();
+    syncSelectionUi();
+  }
+
+  /** Turn the marked range into the loop. */
+  function loopSelection() {
+    const marked = selectionWithMeasures();
+    if (!marked) return false;
+    stateController.clearSelection();
+    externalLoopSnapshot = null;
+    stateController.setLoopRange(marked.startBeat, marked.endBeat);
+    state.loopEnabled = true;
+    state.loopMode = 'range';
+    state.loopSelectMode = true;
+    rememberRangeLoop();
+    reloadModel();
+    if (!isAlive()) return true;
+    settingsDrawer?.sync();
+    loopController?.syncFromState();
+    syncLoopSelectMode();
+    syncSelectionUi();
+    announce(`Loop bars ${marked.measureStart + 1} to ${marked.measureEnd + 1}`);
+    return true;
+  }
+
+  function loopRangeLabel() {
+    if (!state.loopEnabled || state.loopMode === 'song') {
+      if (stateController.hasSelection()) {
+        const marked = selectionWithMeasures();
+        if (marked) return `${marked.measureStart + 1}–${marked.measureEnd + 1}`;
+      }
+      return '';
+    }
+    return `${state.loopStart + 1}–${state.loopEnd + 1}`;
+  }
+
   // ---- mount UI modules ----
   const { guitar, perc } = parchmentModels();
   try {
@@ -1414,7 +1652,8 @@ export function mountGpPlayer(host, {
       selection: state.loopEnabled
         ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat }
         : null,
-      onMeasureClick: (mi) => seekToBar(mi, { autoplay: player.playing }),
+      onBeatClick: (beat) => seekToBeat(beat, { autoplay: false }),
+      onBeatDoubleClick: (beat) => seekToBeat(beat, { autoplay: true }),
       onAnnotationClick: (anno) => openNoteEditorForAnno(anno),
       onNoteSelectionChange: (sel) => {
         if (!scoreKey || !sel) return;
@@ -1429,12 +1668,22 @@ export function mountGpPlayer(host, {
         annoDrawer?.showEditor({ ...noteDraftSelection });
       },
       onSelectionChange: (sel) => {
-        loopController?.handleSelectionChange(sel);
+        if (!sel) {
+          clearSelection();
+          return;
+        }
+        setSelection(sel.startBeat, sel.endBeat);
       },
+      onLoopChange: (range) => {
+        if (!range) return;
+        loopController?.handleSelectionChange(range);
+      },
+      onFollowChange: (suspended) => onCanvasFollowChange(suspended),
       onZoomLimit: (limit) => {
         if (limit === parchmentZoomLimit) return;
         parchmentZoomLimit = limit;
         settingsDrawer?.sync?.();
+        displayPop?.sync?.();
       },
     });
     if (typeof parchment?.getZoomLimit === 'function') {
@@ -1463,75 +1712,220 @@ export function mountGpPlayer(host, {
     onLoopChanged,
   });
 
-  const measures = state.viewModel?.measures || [];
-  measureNav = mountMeasureNav(measureNavHost, {
-    measureCount: measures.length,
-    markers: measures.map((m) => m.marker || null),
-    onSeek: (i) => seekToBar(i, { autoplay: player.playing }),
-    onLoopRange: (startIdx, endIdx) => {
-      loopController?.applyMeasureRange(startIdx, endIdx);
-      state.loopEnabled = true;
-      state.loopMode = 'range';
-      onLoopChanged();
-    },
-  });
-
-  trackTabs = mountTrackTabs(trackTabsHost, {
+  trackSelector = mountTrackSelector(trackSelectorHost, popoverHost, {
     stateController,
     onSelectTrack: (kind, index) => setViewTrack(kind, index),
   });
 
-  practiceRail = mountPracticeRail(practiceRailHost, {
-    onPrev: () => {
-      const scope = stateController.getScope();
-      const cur = navMeasureIndex();
-      if (canPrevMeasure(cur, scope)) seekToBar(cur - 1, { autoplay: player.playing });
-    },
-    onNext: () => {
-      const scope = stateController.getScope();
-      const cur = navMeasureIndex();
-      if (canNextMeasure(cur, scope)) seekToBar(cur + 1, { autoplay: player.playing });
-    },
-    canPrev: () => canPrevMeasure(navMeasureIndex(), stateController.getScope()),
-    canNext: () => canNextMeasure(navMeasureIndex(), stateController.getScope()),
-    onLoopCycle: () => cycleLoopMode(),
-    onMetroToggle: () => {
-      state.metro.enabled = !state.metro.enabled;
-      syncMetroMirrors();
-      stateController.persistMetroPrefs?.();
-      onSettingsChange({ metronome: true });
-    },
-    getLoopMode: () => currentLoopMode(),
-    getLoopRangeLabel: () => {
-      if (!state.loopEnabled || state.loopMode === 'song') return '';
-      return `${state.loopStart + 1}–${state.loopEnd + 1}`;
-    },
-    getMetroEnabled: () => !!state.metro.enabled,
-    getBackingAvailable: () => !!backingPanel?.hasSource(),
-    getBackingActive: () => !!backingPanel?.isActive(),
-    onBackingToggle: () => backingPanel?.toggleActive(),
-    getOverlayLabel: () => practiceOverlayLabel(lastTickResting, lastRestRemaining),
+  // ---- display popover (view + zoom) ----
+  displayPop = (() => {
+    const pop = createPopover(popoverHost, {
+      id: 'display',
+      title: 'View',
+      getAnchor: () => viewBtn,
+      align: 'end',
+      placement: 'below',
+      width: 300,
+    });
+    if (!pop.body) return { ...pop, sync() {} };
+    const viewGroup = el('div', { class: 'gpp-segmented', role: 'radiogroup', 'aria-label': 'Notation' });
+    const viewBtns = {};
+    for (const [key, label] of [['tab', 'Tab'], ['both', 'Tab + Standard']]) {
+      const b = el('button', {
+        class: 'gpp-segment',
+        type: 'button',
+        role: 'radio',
+        'aria-checked': 'false',
+        text: label,
+        onClick: () => setNotationView(key),
+      });
+      viewBtns[key] = b;
+      viewGroup.appendChild(b);
+    }
+    const notationRow = el('div', { class: 'gpp-popover-section' }, [
+      el('div', { class: 'gpp-popover-subtitle', text: 'Notation' }),
+      viewGroup,
+    ]);
+    const zoomOut = el('button', { class: 'gpp-icon-btn', type: 'button', html: icon('zoomOut'), 'aria-label': 'Zoom out', title: 'Zoom out' });
+    const zoom100 = el('button', { class: 'gpp-chip', type: 'button', text: '100%', 'aria-label': 'Zoom 100 percent' });
+    const zoomIn = el('button', { class: 'gpp-icon-btn', type: 'button', html: icon('zoomIn'), 'aria-label': 'Zoom in', title: 'Zoom in' });
+    const zoomFit = el('button', { class: 'gpp-chip', type: 'button', text: 'Fit width', 'aria-label': 'Fit the widest bar to the width' });
+    const zoomOutText = el('span', { class: 'gpp-zoom-readout' });
+    const zoomRow = el('div', { class: 'gpp-popover-section' }, [
+      el('div', { class: 'gpp-popover-subtitle', text: 'Zoom' }),
+      el('div', { class: 'gpp-zoom-row' }, [zoomOut, zoomOutText, zoomIn, zoom100, zoomFit]),
+    ]);
+    const stepZoom = (delta) => setZoom(Math.round((state.parchmentZoom + delta) * 100) / 100);
+    zoomOut.addEventListener('click', () => stepZoom(-0.1));
+    zoomIn.addEventListener('click', () => stepZoom(0.1));
+    zoom100.addEventListener('click', () => setZoom(1));
+    zoomFit.addEventListener('click', () => {
+      const limit = Number.isFinite(parchmentZoomLimit) ? parchmentZoomLimit : 1;
+      setZoom(Math.max(0.75, Math.min(2.5, Math.floor(limit * 100) / 100)));
+    });
+    pop.body.append(notationRow, zoomRow);
+    function sync() {
+      const drums = state.viewKind === 'drum';
+      notationRow.hidden = drums;
+      for (const [key, b] of Object.entries(viewBtns)) {
+        const on = key === notationView;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+      }
+      const pct = Math.round(state.parchmentZoom * 100);
+      zoomOutText.textContent = `${pct}%`;
+      zoomOut.disabled = state.parchmentZoom <= 0.75;
+      const limit = Number.isFinite(parchmentZoomLimit) ? parchmentZoomLimit : 2.5;
+      zoomIn.disabled = state.parchmentZoom >= Math.min(2.5, limit);
+      viewBtn.setAttribute('aria-expanded', pop.isOpen() ? 'true' : 'false');
+    }
+    return { ...pop, sync, open: (o) => { sync(); pop.open(o); }, toggle: (o) => { sync(); pop.toggle(o); } };
+  })();
+  viewBtn.addEventListener('click', () => {
+    if (displayPop.isOpen()) {
+      displayPop.close();
+    } else {
+      closeOtherOverlays('display');
+      displayPop.open(viewBtn);
+    }
   });
+
+  selectionToolbar = mountSelectionToolbar(selectionHost, {
+    onLoop: () => loopSelection(),
+    onPractice: () => {
+      closeOtherOverlays('practice');
+      practicePop?.open?.(selectionToolbar.element.querySelector('.gpp-selection-practice'));
+    },
+    onNote: scoreKey ? () => {
+      const marked = selectionWithMeasures();
+      if (!marked) return;
+      noteDraftSelection = marked;
+      highlightedAnnoId = null;
+      closeOtherOverlays('notes');
+      annoDrawer?.open();
+      annoDrawer?.showEditor({ ...marked });
+      syncNoteSelectMode();
+    } : null,
+    onClear: () => clearSelection(),
+  });
+
+  practicePop = mountPracticePopover(popoverHost, {
+    getAnchor: () => selectionToolbar?.element?.querySelector?.('.gpp-selection-practice') || transport?.elements?.loopBtn || null,
+    getRange: () => selectionWithMeasures() || getCurrentSelection(),
+    getScoreBpm: () => state.scoreBpm,
+    getSpeedPct: () => speedPctFor(state.bpm, state.scoreBpm),
+    onStart: (plan) => startPracticeBlock(plan),
+    onSaveExercise: typeof onSaveRange === 'function' ? () => {
+      loopSelection();
+      onSaveRange(getCurrentSelection());
+    } : null,
+  });
+
+  function startPracticeBlock(plan) {
+    if (!isAlive()) return;
+    if (stateController.hasSelection()) loopSelection();
+    if (!state.loopEnabled) return;
+    tempoRamp.stopSession();
+    setSpeedPct(plan.startPct);
+    if (plan.ramp) {
+      const score = Number(state.scoreBpm) || 120;
+      state.tempoRamp = {
+        ...state.tempoRamp,
+        enabled: true,
+        startBpm: state.bpm,
+        targetBpm: clampBpm(Math.round(score * plan.ramp.targetPct / 100)),
+        stepBpm: Math.max(1, Math.round(score * plan.ramp.stepPct / 100)),
+        intervalMode: 'loops',
+        intervalValue: plan.ramp.everyLoops,
+        holdAtTarget: true,
+      };
+    } else if (state.tempoRamp.enabled) {
+      state.tempoRamp = { ...state.tempoRamp, enabled: false };
+    }
+    stateController.persistMetroPrefs?.();
+    metronomePanel?.sync();
+    seekToBar(state.loopStart, { autoplay: true });
+  }
+
+  followButton = mountFollowButton(followHost, {
+    onFollow: () => resumeFollow(),
+  });
+
+  function setSpeedPct(pct) {
+    tempoRamp.stopSession();
+    state.bpmUserOverride = true;
+    const clamped = clampSpeedPct(pct);
+    state.bpm = clampBpm(Math.round(state.scoreBpm * (clamped / 100)));
+    state.bpmUserOverride = Math.round(state.bpm) !== Math.round(state.scoreBpm);
+    applyBpmChange();
+  }
 
   transport = mountTransportDock(transportHost, {
     extraNode: transportExtra,
-    practiceRailNode: practiceRailHost,
-    syncPracticeRail: () => practiceRail?.sync(),
+    overlayHost: popoverHost,
     onPlayPause: () => togglePlayPause(),
     onRestart: () => restartPlayback(),
-    onBpmStep: (delta) => stepBpm(delta),
+    onPrevBar: () => {
+      const scope = stateController.getScope();
+      const cur = currentBarIndex();
+      if (canPrevMeasure(cur, scope)) seekToBar(cur - 1, { autoplay: player.playing });
+    },
+    onNextBar: () => {
+      const scope = stateController.getScope();
+      const cur = currentBarIndex();
+      if (canNextMeasure(cur, scope)) seekToBar(cur + 1, { autoplay: player.playing });
+    },
+    canPrev: () => canPrevMeasure(currentBarIndex(), stateController.getScope()),
+    canNext: () => canNextMeasure(currentBarIndex(), stateController.getScope()),
+    getCurrentBar: () => currentBarIndex(),
+    getMeasureCount: () => (state.viewModel?.measures || []).length,
+    getSections: () => sectionsFromMarkers((state.viewModel?.measures || []).map((m) => m.marker || null)),
+    onGoToBar: (i) => seekToBar(i, { autoplay: player.playing }),
     onBpmInput: (value) => {
       tempoRamp.stopSession();
       state.bpmUserOverride = true;
       state.bpm = clampBpm(Number(value) || state.scoreBpm);
+      state.bpmUserOverride = Math.round(state.bpm) !== Math.round(state.scoreBpm);
       applyBpmChange();
+    },
+    onSpeedPct: (pct) => setSpeedPct(pct),
+    onTempoReset: () => {
+      tempoRamp.stopSession();
+      stateController.resetBpm();
+      applyBpmChange();
+    },
+    onOpenTempoRamp: () => {
+      closeOtherOverlays('metro');
+      panelManager.open('metro');
     },
     getBpm: () => state.bpm,
     getScoreBpm: () => state.scoreBpm,
     getPlaying: () => player.playing,
+    getPending: () => isPendingPlayback(),
     getTimeLabel: () => `${fmtTime(player.currentSec)} / ${fmtTime(player.durationSec)}`,
     getRampStatusLabel: () => rampStatusLabel(),
-    onExpandedChange: () => layoutMetrics?.refresh?.(),
+    getOverlayLabel: () => practiceOverlayLabel(lastTickResting, lastRestRemaining),
+    getLoopMode: () => currentLoopMode(),
+    getLoopRangeLabel: () => loopRangeLabel(),
+    hasLoopRange: () => stateController.hasSelection()
+      || !!lastRangeLoop
+      || (state.loopEnabled && state.loopMode !== 'song'),
+    onLoopToggle: () => toggleLoop(),
+    onLoopRange: () => setLoopMode('range'),
+    onLoopSong: () => setLoopMode('song'),
+    onLoopOff: () => setLoopMode('off'),
+    getMetroEnabled: () => !!state.metro.enabled,
+    onMetroToggle: () => toggleMetronome(),
+    onOpenMetronome: () => {
+      closeOtherOverlays('metro');
+      panelManager.open('metro');
+    },
+    getCountInEnabled: () => !!state.metro.countInEnabled,
+    getBackingAvailable: () => !!backingPanel?.hasSource(),
+    getBackingActive: () => !!backingPanel?.isActive(),
+    onBackingToggle: () => backingPanel?.toggleActive(),
+    onOpenMixer: () => toggleMixer(),
+    isMixerOpen: () => panelManager.isOpen('tracks'),
     onOpenMenu: () => {
       if (panelManager.isOpen('menu')) panelManager.close('menu');
       else {
@@ -1543,21 +1937,50 @@ export function mountGpPlayer(host, {
     isMenuOpen: () => panelManager.isOpen('menu'),
   });
 
+  function toggleMixer() {
+    if (panelManager.isOpen('tracks')) {
+      panelManager.close('tracks');
+    } else {
+      closeOtherOverlays('tracks');
+      panelManager.open('tracks');
+    }
+    scorePane.classList.toggle('has-mixer-open', panelManager.isOpen('tracks'));
+    transport?.sync();
+  }
+
+  function toggleMetronome() {
+    state.metro.enabled = !state.metro.enabled;
+    syncMetroMirrors();
+    stateController.persistMetroPrefs?.();
+    onSettingsChange({ metronome: true });
+    announce(state.metro.enabled ? 'Metronome on' : 'Metronome off');
+  }
+
+  function toggleCountIn() {
+    state.metro.countInEnabled = !state.metro.countInEnabled;
+    syncMetroMirrors();
+    stateController.persistMetroPrefs?.();
+    onSettingsChange({ metronome: true });
+    announce(state.metro.countInEnabled ? 'Count-in on' : 'Count-in off');
+  }
+
   tracksDrawer = mountTracksDrawerShell(tracksDrawerRoot, {
-    title: 'Tracks',
+    title: 'Mixer',
     bodyEl: tracksMixerHost,
+    onClose: () => {
+      scorePane.classList.remove('has-mixer-open');
+      transport?.sync();
+    },
   });
 
   backingDrawer = mountTracksDrawerShell(backingDrawerRoot, {
-    title: 'Backing track',
+    title: 'Original recording',
     bodyEl: backingHost,
   });
 
   try {
     backingPanel = mountBackingPanel(backingHost, {
       getScoreKey: () => scoreKey,
-      // The follower must read the clock that the note scheduler reads, or the
-      // recording leads the sound by the start delay that play() adds.
       getClock: () => {
         const anchor = player.getClockAnchor?.();
         return {
@@ -1571,11 +1994,11 @@ export function mountGpPlayer(host, {
         player.setNotesMuted?.(mute);
       },
       onChange: () => {
-        practiceRail?.sync();
+        transport?.sync();
+        persistSession();
       },
     });
-    // The rail mounts first, so it has not seen the saved source yet.
-    practiceRail?.sync();
+    transport?.sync();
   } catch (e) {
     console.error(e);
   }
@@ -1595,6 +2018,7 @@ export function mountGpPlayer(host, {
           applyTrackVolumesToPlayer();
         }
         emitPracticeSettings();
+        persistSession();
       },
       onViewTrack: (kind, index) => setViewTrack(kind, index),
     });
@@ -1607,15 +2031,9 @@ export function mountGpPlayer(host, {
       stateController,
       uidPrefix,
       onChange: onSettingsChange,
-      getShowNotation: () => showStandardNotation,
+      getShowNotation: () => showStandardNotation(),
       getZoomLimit: () => parchmentZoomLimit,
-      onSpeedPct: (value) => {
-        tempoRamp.stopSession();
-        state.bpmUserOverride = true;
-        const pct = clampTempoPct(Number(value) || 100);
-        state.bpm = clampBpm(Math.round(state.scoreBpm * (pct / 100)));
-        applyBpmChange();
-      },
+      onSpeedPct: (value) => setSpeedPct(value),
       onTempoReset: () => {
         tempoRamp.stopSession();
         stateController.resetBpm();
@@ -1711,10 +2129,6 @@ export function mountGpPlayer(host, {
         if (!importPanel?.isOpen?.()) loopSnapshot = snapshotLoopState();
         panelManager.open('import');
       } : null,
-      onOpenTracks: () => {
-        closeOtherOverlays('tracks');
-        panelManager.open('tracks');
-      },
       onOpenBacking: () => {
         closeOtherOverlays('backing');
         panelManager.open('backing');
@@ -1731,6 +2145,8 @@ export function mountGpPlayer(host, {
         closeOtherOverlays('help');
         panelManager.open('help');
       },
+      onToggleFocus: () => toggleFocusMode(),
+      isFocusMode: () => focusMode,
       headerExtra,
     });
   } catch (e) {
@@ -1746,6 +2162,9 @@ export function mountGpPlayer(host, {
     panelManager.register('notes', annoDrawer);
     panelManager.register('metro', metronomePanel);
     panelManager.register('backing', backingDrawer);
+    panelManager.register('trackpick', trackSelector);
+    panelManager.register('display', displayPop);
+    panelManager.register('practice', practicePop);
   } catch (e) {
     console.error(e);
   }
@@ -1754,8 +2173,8 @@ export function mountGpPlayer(host, {
     try {
       importPanel = mountExerciseImportPanel(exerciseImportRoot, {
         getDigests: () => {
-          const { guitar, perc } = parchmentModels();
-          return buildMeasureDigests({ guitarModel: guitar, percModel: perc });
+          const models = parchmentModels();
+          return buildMeasureDigests({ guitarModel: models.guitar, percModel: models.perc });
         },
         getScoreTitle: () => title,
         getTrackLabel: () => currentTrackLabel(),
@@ -1790,6 +2209,22 @@ export function mountGpPlayer(host, {
     else maybeRunAnalysis({ force: true });
   });
 
+  // ---- focus mode ----
+  function toggleFocusMode(force) {
+    const next = typeof force === 'boolean' ? force : !focusMode;
+    if (next === focusMode) return;
+    focusMode = next;
+    host.classList.toggle('gpp-focus', focusMode);
+    if (typeof document !== 'undefined') {
+      document.documentElement?.classList?.toggle(FOCUS_CLASS, focusMode);
+    }
+    playerMenu?.sync();
+    requestAnimationFrame(() => {
+      layoutMetrics?.refresh();
+      transport?.publishPad?.();
+    });
+  }
+
   function clearCountIn() {
     if (countInTimer != null) {
       clearTimeout(countInTimer);
@@ -1800,7 +2235,7 @@ export function mountGpPlayer(host, {
       countInOverlayTimer = null;
     }
     countInDisplay?.clear();
-    practiceRail?.sync();
+    transport?.sync();
   }
 
   function startPlayFromNav() {
@@ -1809,16 +2244,18 @@ export function mountGpPlayer(host, {
     const navIdx = state.navBar == null ? scope.start : state.navBar;
     state.navBar = navIdx;
     const beats = beatsFromMeasureRange(measures, navIdx, navIdx);
-    const startSec = quartersToSeconds(beats.startBeat, state.bpm);
+    // A play after a beat seek starts at that beat, not at the bar line.
+    const startBeat = (lastKnownBeat >= beats.startBeat && lastKnownBeat < beats.endBeat)
+      ? lastKnownBeat
+      : beats.startBeat;
+    const startSec = quartersToSeconds(startBeat, state.bpm);
     ensureAudio();
     bindPlayheadClockListeners();
     syncMetroToPlayer();
     try {
       player.play({ fromSec: startSec });
     } catch (err) {
-      if (typeof showAlert === 'function') {
-        showAlert(err?.message || 'Playback failed.');
-      }
+      showAlert(err?.message || 'Playback failed.');
       console.error(err);
     }
   }
@@ -1842,12 +2279,12 @@ export function mountGpPlayer(host, {
       );
     }
     countInDisplay.start(beats);
-    practiceRail?.sync();
+    transport?.sync();
     if (countInOverlayTimer != null) clearInterval(countInOverlayTimer);
     countInOverlayTimer = setInterval(() => {
       if (!isAlive()) return;
       countInDisplay.tick();
-      practiceRail?.sync();
+      transport?.sync();
     }, quarterSec * 1000);
     countInTimer = setTimeout(() => {
       countInTimer = null;
@@ -1856,7 +2293,7 @@ export function mountGpPlayer(host, {
         countInOverlayTimer = null;
       }
       countInDisplay.clear();
-      practiceRail?.sync();
+      transport?.sync();
       if (!isAlive()) return;
       if (!prevMetro) player.setMetronomeEnabled(false);
       onDone?.();
@@ -1875,9 +2312,7 @@ export function mountGpPlayer(host, {
     try {
       startPlayFromNav();
     } catch (err) {
-      if (typeof showAlert === 'function') {
-        showAlert(err?.message || 'Playback failed.');
-      }
+      showAlert(err?.message || 'Playback failed.');
       console.error(err);
     }
   }
@@ -1904,16 +2339,17 @@ export function mountGpPlayer(host, {
       try {
         player.pause();
       } catch (err) {
-        if (typeof showAlert === 'function') {
-          showAlert(err?.message || 'Playback failed.');
-        }
+        showAlert(err?.message || 'Playback failed.');
         console.error(err);
       }
       transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
+      persistSession({ now: true });
       return;
     }
+    // A play resumes follow: the user asked to hear from here.
+    stateController.resumeFollow();
+    parchment?.resumeAutoFollow?.();
+    syncFollowButton();
     if (player.paused) {
       ensureAudio();
       bindPlayheadClockListeners();
@@ -1921,14 +2357,10 @@ export function mountGpPlayer(host, {
       try {
         player.play();
       } catch (err) {
-        if (typeof showAlert === 'function') {
-          showAlert(err?.message || 'Playback failed.');
-        }
+        showAlert(err?.message || 'Playback failed.');
         console.error(err);
       }
       transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
       return;
     }
     if (state.metro.countInEnabled && !skipCountIn) {
@@ -1956,9 +2388,9 @@ export function mountGpPlayer(host, {
     const startSec = quartersToSeconds(beats.startBeat, state.bpm);
     player.stop();
     player.seek(startSec);
+    lastKnownBeat = beats.startBeat;
     transport?.sync();
-    practiceRail?.sync();
-    trackTabs?.sync();
+    persistSession({ now: true });
   }
 
   function restartPlayback() {
@@ -1975,15 +2407,30 @@ export function mountGpPlayer(host, {
     seekToBar(target, { autoplay: player.playing });
   }
 
+  function isEditableTarget(t) {
+    if (!t) return false;
+    const tag = t.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return true;
+    if (t.isContentEditable) return true;
+    const role = t.getAttribute?.('role');
+    return role === 'textbox' || role === 'combobox' || role === 'listbox' || role === 'slider';
+  }
+
+  function anyPanelOpen() {
+    const ids = ['menu', 'settings', 'tracks', 'notes', 'metro', 'help', 'import', 'backing', 'trackpick', 'display', 'practice'];
+    return ids.some((id) => panelManager.isOpen(id)) || !!transport?.isPopoverOpen?.();
+  }
+
   if (enableHostKeyboard) {
     keyHandler = (e) => {
       if (!isAlive()) return;
-      const tag = e.target?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (isEditableTarget(e.target)) return;
       const section = host.closest('.section.active');
       if (!section && !host.contains(document.activeElement)) return;
+      if (e.ctrlKey || e.metaKey) return;
 
-      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+      const key = e.key;
+      if (key === '?' || (key === '/' && e.shiftKey)) {
         e.preventDefault();
         closeOtherOverlays('help');
         panelManager.open('help');
@@ -1993,69 +2440,64 @@ export function mountGpPlayer(host, {
         e.preventDefault();
         togglePlayPause();
       } else if (e.code === 'Escape') {
-        e.preventDefault();
-        stopPlayback();
-      } else if (e.code === 'Home') {
+        if (anyPanelOpen()) {
+          e.preventDefault();
+          closeOtherOverlays();
+        } else if (stateController.hasSelection()) {
+          e.preventDefault();
+          clearSelection();
+        } else if (player.playing) {
+          e.preventDefault();
+          stopPlayback();
+        }
+      } else if (e.code === 'Home' || e.code === 'Backspace') {
         e.preventDefault();
         restartPlayback();
-      } else if (e.code === 'ArrowLeft') {
+      } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
         e.preventDefault();
-        const scope = stateController.getScope();
-        const cur = navMeasureIndex();
-        if (canPrevMeasure(cur, scope)) seekToBar(cur - 1, { autoplay: player.playing });
-      } else if (e.code === 'ArrowRight') {
-        e.preventDefault();
-        const scope = stateController.getScope();
-        const cur = navMeasureIndex();
-        if (canNextMeasure(cur, scope)) seekToBar(cur + 1, { autoplay: player.playing });
-      } else if (e.key === '[' && e.shiftKey) {
-        e.preventDefault();
-        stepBpm(-5);
-      } else if (e.key === ']' && e.shiftKey) {
-        e.preventDefault();
-        stepBpm(5);
-      } else if (e.key === '[') {
-        e.preventDefault();
-        const pct = state.scoreBpm ? Math.round((state.bpm / state.scoreBpm) * 100) : 100;
-        tempoRamp.stopSession();
-        state.bpmUserOverride = true;
-        state.bpm = clampBpm(Math.round(state.scoreBpm * (clampTempoPct(pct - 5) / 100)));
-        applyBpmChange();
-      } else if (e.key === ']') {
-        e.preventDefault();
-        const pct = state.scoreBpm ? Math.round((state.bpm / state.scoreBpm) * 100) : 100;
-        tempoRamp.stopSession();
-        state.bpmUserOverride = true;
-        state.bpm = clampBpm(Math.round(state.scoreBpm * (clampTempoPct(pct + 5) / 100)));
-        applyBpmChange();
-      } else if (e.key === 'l' || e.key === 'L') {
+        const dir = e.code === 'ArrowLeft' ? -1 : 1;
         if (e.shiftKey) {
-          e.preventDefault();
-          setLoopMode('off');
+          const scope = stateController.getScope();
+          const cur = currentBarIndex();
+          if (dir < 0 && canPrevMeasure(cur, scope)) seekToBar(cur - 1, { autoplay: player.playing });
+          if (dir > 0 && canNextMeasure(cur, scope)) seekToBar(cur + 1, { autoplay: player.playing });
         } else {
-          e.preventDefault();
-          cycleLoopMode();
+          stepBeat(dir);
         }
-      } else if (e.key === 'm' || e.key === 'M') {
-        if (e.shiftKey) {
-          e.preventDefault();
-          closeOtherOverlays('menu');
-          panelManager.open('menu');
-        } else {
-          e.preventDefault();
-          state.metro.enabled = !state.metro.enabled;
-          syncMetroMirrors();
-          stateController.persistMetroPrefs?.();
-          onSettingsChange({ metronome: true });
-        }
-      } else if (e.key === 'c' || e.key === 'C') {
+      } else if (key === 't' || key === 'T') {
         e.preventDefault();
-        state.metro.countInEnabled = !state.metro.countInEnabled;
-        syncMetroMirrors();
-        stateController.persistMetroPrefs?.();
-        onSettingsChange({ metronome: true });
-      } else if (e.key >= '1' && e.key <= '9') {
-        const idx = Number(e.key) - 1;
+        if (trackSelector?.isOpen()) trackSelector.close();
+        else {
+          closeOtherOverlays('trackpick');
+          trackSelector?.open();
+        }
+      } else if (key === 's' || key === 'S') {
+        e.preventDefault();
+        closeOtherOverlays('transport');
+        transport?.openSpeed?.();
+      } else if (key === 'l' || key === 'L') {
+        e.preventDefault();
+        if (e.shiftKey) setLoopMode('off');
+        else toggleLoop();
+      } else if (key === 'm' || key === 'M' || (e.altKey && (e.code === 'KeyM'))) {
+        e.preventDefault();
+        if (e.altKey) toggleSoloViewed();
+        else toggleMuteViewed();
+      } else if (key === 'c' || key === 'C') {
+        e.preventDefault();
+        toggleCountIn();
+      } else if (key === 'n' || key === 'N') {
+        e.preventDefault();
+        toggleMetronome();
+      } else if (key === 'x' || key === 'X') {
+        e.preventDefault();
+        toggleMixer();
+      } else if (key === 'f' || key === 'F') {
+        e.preventDefault();
+        if (state.follow.suspended) resumeFollow();
+        else toggleFocusMode();
+      } else if (key >= '1' && key <= '9') {
+        const idx = Number(key) - 1;
         const gp = state.gp;
         const total = (gp.tracks?.length || 0) + (gp.drumTracks?.length || 0);
         if (idx < total) {
@@ -2068,30 +2510,76 @@ export function mountGpPlayer(host, {
     host.addEventListener('keydown', keyHandler);
   }
 
+  function toggleMuteViewed() {
+    const kind = state.viewKind;
+    const index = state.viewIndex;
+    const enabled = kind === 'guitar' ? state.enabledGuitars[index] : state.enabledDrums[index];
+    stateController.setTrackEnabled(kind, index, !enabled);
+    applyMixToPlayer();
+    announce(!enabled ? 'Track unmuted' : 'Track muted');
+  }
+
+  function toggleSoloViewed() {
+    stateController.toggleSolo(state.viewKind, state.viewIndex);
+    applyMixToPlayer();
+    announce(state.solo ? 'Solo on' : 'Solo off');
+  }
+
+  function applyMixToPlayer() {
+    withPreservedPosition(() => {
+      const { enabledGuitars, enabledDrums } = stateController.getEffectiveEnabled();
+      enabledGuitars.forEach((on, i) => player.setTrackEnabled('guitar', i, on));
+      enabledDrums.forEach((on, i) => player.setTrackEnabled('drum', i, on));
+    });
+    trackMixer?.sync();
+    emitPracticeSettings();
+    persistSession();
+  }
+
   syncReducedMotion();
   if (typeof window !== 'undefined' && window.matchMedia) {
     reducedMotionMq = window.matchMedia('(prefers-reduced-motion: reduce)');
     reducedMotionHandler = () => syncReducedMotion();
     reducedMotionMq.addEventListener?.('change', reducedMotionHandler);
   }
-  parchment?.setShowStandardNotation?.(showStandardNotation);
+  parchment?.setShowStandardNotation?.(showStandardNotation());
 
   // Initial load
   try {
     host.classList.remove('is-loading');
     reloadModel();
-    scoreTrack.textContent = currentTrackLabel();
-    syncHeaderVisibility();
+    trackSelector?.sync();
     loopController.syncFromState();
+    syncLoopSelectMode();
     if (viewModeNeedsAnalysis(viewMode)) maybeRunAnalysis({ force: true });
     if (immersiveSection) {
       layoutMetrics = installGppLayoutMetrics({ host, chrome, section: immersiveSection });
     }
     layoutMetrics?.refresh();
     transport?.publishPad?.();
+    // A returning score opens where practice stopped: paused, centred, silent.
+    if (session && session.beat > 0 && !autoPlay) {
+      const measures = state.viewModel?.measures || [];
+      const total = state.viewModel?.totalBeats ?? measures[measures.length - 1]?.endBeat ?? 0;
+      if (session.beat < total) {
+        seekToBeat(session.beat, { autoplay: false });
+        requestAnimationFrame(() => {
+          if (!isAlive()) return;
+          parchment?.scrollToBeat?.(session.beat);
+        });
+      }
+    }
+    displayPop?.sync?.();
   } catch (err) {
     showAlert(err?.message || 'Could not load the score view.');
     console.error(err);
+  }
+
+  if (typeof document !== 'undefined' && scoreKey) {
+    visibilityFlushHandler = () => {
+      if (document.visibilityState === 'hidden') persistSession({ now: true });
+    };
+    document.addEventListener('visibilitychange', visibilityFlushHandler);
   }
 
   if (autoPlay) {
@@ -2132,16 +2620,15 @@ export function mountGpPlayer(host, {
     settingsDrawer?.sync();
     loopController?.syncFromState();
     syncLoopSelectMode();
+    persistSession();
   }
 
-  /** Keep the marked span, so the loop button can return to it. */
   function rememberRangeLoop() {
     if (state.loopMode === 'song') return;
     if (state.loopStartBeat == null || state.loopEndBeat == null) return;
     lastRangeLoop = { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat };
   }
 
-  /** The mode the loop button shows: 'off', 'range', or 'song'. */
   function currentLoopMode() {
     if (!state.loopEnabled) return 'off';
     return state.loopMode === 'song' ? 'song' : 'range';
@@ -2154,7 +2641,7 @@ export function mountGpPlayer(host, {
     const scope = stateController.getScope();
     const first = Math.max(0, Math.min(measures.length - 1, scope.start ?? 0));
     const last = Math.max(first, Math.min(measures.length - 1, scope.end ?? measures.length - 1));
-    const start = Math.max(first, Math.min(last, navMeasureIndex() ?? first));
+    const start = Math.max(first, Math.min(last, currentBarIndex() ?? first));
     const end = Math.min(last, start + 3);
     const startBeat = measures[start]?.startBeat;
     const endBeat = measures[end]?.endBeat;
@@ -2162,7 +2649,6 @@ export function mountGpPlayer(host, {
     return { startBeat, endBeat };
   }
 
-  /** The span of the whole score. */
   function songBeats() {
     const measures = state.viewModel?.measures || [];
     if (!measures.length) return null;
@@ -2173,15 +2659,19 @@ export function mountGpPlayer(host, {
   }
 
   /**
-   * Put the loop in one mode.
-   * 'range' keeps a span the player already marked, or marks a new one.
-   * 'song' loops the whole score. 'off' clears the loop.
+   * Put the loop in one mode. 'range' loops the marked range, or the last
+   * range, or the bars at the play position. 'song' repeats the whole score.
+   * 'off' clears the loop and keeps the range as a mark on the score.
    */
   function setLoopMode(mode) {
     if (!isAlive()) return;
     if (mode === 'off') {
+      const wasRange = state.loopEnabled && state.loopMode !== 'song'
+        && state.loopStartBeat != null && state.loopEndBeat != null;
+      const keep = wasRange ? { startBeat: state.loopStartBeat, endBeat: state.loopEndBeat } : null;
       externalLoopSnapshot = snapshotLoopState();
       stateController.clearLoop();
+      if (keep) stateController.setSelection(keep.startBeat, keep.endBeat);
     } else if (mode === 'song') {
       const span = songBeats();
       if (!span) return;
@@ -2190,8 +2680,10 @@ export function mountGpPlayer(host, {
       state.loopMode = 'song';
       state.loopSelectMode = false;
     } else {
-      // A range already on the score keeps its span. The markers come on, so
-      // the player can drag them.
+      if (stateController.hasSelection()) {
+        loopSelection();
+        return;
+      }
       let span = null;
       if (state.loopEnabled && state.loopMode !== 'song'
         && state.loopStartBeat != null && state.loopEndBeat != null) {
@@ -2211,48 +2703,32 @@ export function mountGpPlayer(host, {
     settingsDrawer?.sync();
     loopController?.syncFromState();
     syncLoopSelectMode();
+    syncSelectionUi();
+    persistSession();
   }
 
-  /** One press of the loop button: range, then song, then off. */
-  function cycleLoopMode() {
-    const mode = currentLoopMode();
-    if (mode === 'song') {
-      setLoopMode('off');
-    } else if (mode === 'range' && state.loopSelectMode) {
-      setLoopMode('song');
-    } else {
-      // Off, or a range the host set up without markers. Either way the first
-      // press marks a range and puts the markers on the score.
-      setLoopMode('range');
-    }
+  /** The transport loop button: the marked range loop on or off. */
+  function toggleLoop() {
+    if (currentLoopMode() !== 'off') setLoopMode('off');
+    else setLoopMode('range');
   }
 
-  // The score shows drag markers only while the range mode holds the loop.
   function syncLoopSelectMode() {
     parchment?.setLoopSelectMode?.(!!state.loopSelectMode);
-    measureNav?.update({
-      measureIndex: player.measureIndex,
-      navBar: state.navBar,
-      loopEnabled: state.loopEnabled,
-      loopStart: state.loopStart,
-      loopEnd: state.loopEnd,
-    });
     transport?.sync();
   }
 
-  /** Rename the back button, e.g. when the workbook player changes level. */
   function setBackLabel(label) {
     if (!backBtn) return;
     const text = String(label || 'Back');
-    backBtn.textContent = `← ${text}`;
+    const labelEl = backBtn.querySelector('.gpp-btn-label');
+    if (labelEl) labelEl.textContent = text;
     backBtn.setAttribute('aria-label', `Back to ${text.toLowerCase()}`);
     backBtn.title = `Back to ${text.toLowerCase()}`;
   }
 
   return {
     player,
-    // The backing track panel, so an embedder can read its state and a test
-    // can measure how well the recording holds the score.
     get backing() { return backingPanel; },
     setBackLabel,
     isLoopEnabled: () => !!state.loopEnabled,
@@ -2264,15 +2740,35 @@ export function mountGpPlayer(host, {
     seekToBeat,
     isPendingPlayback,
     stepBpm,
+    setSpeedRatio: (ratio) => setSpeedPct(Math.round(Number(ratio) * 100)),
+    setLoop: (startBeat, endBeat) => {
+      if (!stateController.setSelection(startBeat, endBeat)) return false;
+      return loopSelection();
+    },
+    clearSelection,
+    setViewedTrack: setViewTrack,
+    setFollow: (on) => {
+      stateController.setAutoFollow(!!on);
+      if (on) resumeFollow();
+      syncFollowButton();
+      settingsDrawer?.sync();
+    },
+    setFocusMode: (on) => toggleFocusMode(!!on),
     getState: () => ({
       ...state,
       viewModel: state.viewModel,
       enabledGuitars: [...state.enabledGuitars],
       enabledDrums: [...state.enabledDrums],
       metronomeEnabled: state.metronomeEnabled,
+      follow: { ...state.follow },
+      selection: { ...state.selection },
+      speedRatio: stateController.getSpeedRatio(),
+      notationView,
+      focusMode,
     }),
     destroy() {
       if (!alive) return;
+      try { persistSession({ now: true }); } catch (e) { /* ignore */ }
       alive = false;
       try {
         try { cancelLoad(packScoreId); } catch (e) { console.error(e); }
@@ -2284,14 +2780,17 @@ export function mountGpPlayer(host, {
           autoPlayTimer = null;
         }
         try { clearCountIn(); } catch (e) { console.error(e); }
+        try { sessionWriter.destroy(); } catch (e) { console.error(e); }
         try { stateController.destroy(); } catch (e) { console.error(e); }
         try { player.destroy(); } catch (e) { console.error(e); }
         try { parchment?.destroy(); } catch (e) { console.error(e); }
         parchmentZoomLimit = Infinity;
-        try { measureNav?.destroy(); } catch (e) { console.error(e); }
         try { transport?.destroy(); } catch (e) { console.error(e); }
-        try { practiceRail?.destroy(); } catch (e) { console.error(e); }
-        try { trackTabs?.destroy(); } catch (e) { console.error(e); }
+        try { trackSelector?.destroy(); } catch (e) { console.error(e); }
+        try { selectionToolbar?.destroy(); } catch (e) { console.error(e); }
+        try { followButton?.destroy(); } catch (e) { console.error(e); }
+        try { practicePop?.destroy(); } catch (e) { console.error(e); }
+        try { displayPop?.destroy(); } catch (e) { console.error(e); }
         try { trackMixer?.destroy(); } catch (e) { console.error(e); }
         try { panelManager?.destroy(); } catch (e) { console.error(e); }
         try { shortcutHelp?.destroy(); } catch (e) { console.error(e); }
@@ -2306,8 +2805,6 @@ export function mountGpPlayer(host, {
           }
         } catch (e) { console.error(e); }
         try { tracksDrawer?.destroy(); } catch (e) { console.error(e); }
-        // The backing panel holds a media element or an iframe. It must go
-        // before the host detaches, or the sound keeps playing.
         try { backingPanel?.destroy(); } catch (e) { console.error(e); }
         try { backingDrawer?.destroy(); } catch (e) { console.error(e); }
         try { layoutMetrics?.destroy(); } catch (e) { console.error(e); }
@@ -2316,13 +2813,19 @@ export function mountGpPlayer(host, {
           if (keyHandler) host.removeEventListener('keydown', keyHandler);
         } catch (e) { console.error(e); }
         try {
+          if (visibilityFlushHandler && typeof document !== 'undefined') {
+            document.removeEventListener('visibilitychange', visibilityFlushHandler);
+          }
+        } catch (e) { console.error(e); }
+        try {
           if (reducedMotionMq && reducedMotionHandler) {
             reducedMotionMq.removeEventListener?.('change', reducedMotionHandler);
           }
         } catch (e) { console.error(e); }
+        try { if (focusMode) toggleFocusMode(false); } catch (e) { console.error(e); }
       } finally {
         releaseGpPlayerShell({ host, section: immersiveSection });
-        host.classList.remove('gpp-reduced-motion');
+        host.classList.remove('gpp-reduced-motion', 'gpp-focus');
         host.innerHTML = '';
         host.classList.remove('gpp-root', 'is-loading');
       }
@@ -2330,8 +2833,8 @@ export function mountGpPlayer(host, {
   };
 }
 
-/** Lightweight drawer shell for the track mixer (desktop drawer / mobile sheet). */
-function mountTracksDrawerShell(host, { title = 'Tracks', bodyEl } = {}) {
+/** Drawer shell for the mixer and the backing panel (desktop drawer / mobile sheet). */
+function mountTracksDrawerShell(host, { title = 'Tracks', bodyEl, onClose = null } = {}) {
   const backdrop = el('div', { class: 'gpp-drawer-backdrop', 'aria-hidden': 'true' });
   const drawer = el('div', { class: 'gpp-drawer', role: 'dialog', 'aria-label': title });
   const sheet = el('div', { class: 'gpp-sheet', role: 'dialog', 'aria-label': title });
@@ -2341,8 +2844,10 @@ function mountTracksDrawerShell(host, { title = 'Tracks', bodyEl } = {}) {
   let sheetMode = false;
 
   function close() {
+    if (!openState) return;
     openState = false;
     paintOpen();
+    onClose?.();
   }
 
   function makeHead() {
@@ -2351,8 +2856,8 @@ function mountTracksDrawerShell(host, { title = 'Tracks', bodyEl } = {}) {
       el('button', {
         class: 'gpp-icon-btn gpp-drawer-close',
         type: 'button',
-        text: '✕',
-        'aria-label': 'Close',
+        html: icon('close'),
+        'aria-label': `Close ${title.toLowerCase()}`,
         onClick: () => close(),
       }),
     ]);
@@ -2366,8 +2871,8 @@ function mountTracksDrawerShell(host, { title = 'Tracks', bodyEl } = {}) {
   sheet.append(makeHead(), sheetBody);
   host.append(backdrop, drawer, sheet);
 
-  // Portrait phone sheet; landscape uses side drawer (must match gpplayer.css)
-  const SHEET_MQ = '(max-width: 768px) and (min-height: 501px)';
+  // A compact screen uses a bottom sheet (must match gpplayer.css).
+  const SHEET_MQ = '(max-width: 599px)';
 
   function detectSheetMode() {
     sheetMode = window.matchMedia(SHEET_MQ).matches;
@@ -2393,12 +2898,13 @@ function mountTracksDrawerShell(host, { title = 'Tracks', bodyEl } = {}) {
 
   backdrop.addEventListener('click', () => close());
   const mq = window.matchMedia(SHEET_MQ);
-  mq.addEventListener?.('change', () => { if (openState) paintOpen(); });
+  const onMq = () => { if (openState) paintOpen(); };
+  mq.addEventListener?.('change', onMq);
 
   return {
     open, close, toggle,
     destroy() {
-      mq.removeEventListener?.('change', () => {});
+      mq.removeEventListener?.('change', onMq);
       host.innerHTML = '';
     },
     isOpen: () => openState,

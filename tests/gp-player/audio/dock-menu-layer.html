@@ -121,12 +121,13 @@
       const rows = [];
       let pass = true;
 
-      const dock = host.querySelector('.gpp-transport-dock');
-      const row = host.querySelector('.gpp-transport-row-primary');
-      const rail = host.querySelector('.gpp-practice-rail');
+      const dock = host.querySelector('.gpp-transport');
+      const row = host.querySelector('.gpp-transport-main');
+      const tools = host.querySelector('.gpp-transport-tools');
       const gear = host.querySelector('.gpp-transport-menu-btn');
 
-      const gearOutOfScroller = !!rail && !rail.contains(gear);
+      // The menu button sits in the tools group, at its end.
+      const gearOutOfScroller = !!tools && tools.contains(gear) && tools.lastElementChild === gear;
       const gearRect = gear.getBoundingClientRect();
       const dockRect = dock.getBoundingClientRect();
       const gearInsideDock = gearRect.right <= dockRect.right + 1
@@ -134,7 +135,7 @@
       const noMeasureText = !host.querySelector('.gpp-transport-measure');
 
       rows.push({
-        check: 'gear out of the scroller',
+        check: 'gear at the end of the tools group',
         value: String(gearOutOfScroller),
         want: 'true',
       });
@@ -160,11 +161,11 @@
       const steps = [
         { name: 'player menu', open: async () => { gear.click(); } },
         {
-          name: 'practice settings',
+          name: 'player settings',
           open: async () => {
             const entry = [...host.querySelectorAll('.gpp-menu-row')]
-              .find((r) => r.textContent.includes('Practice settings'));
-            if (!entry) throw new Error('menu has no Practice settings row');
+              .find((r) => r.textContent.includes('Player settings'));
+            if (!entry) throw new Error('menu has no Player settings row');
             entry.click();
           },
         },

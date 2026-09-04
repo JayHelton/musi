@@ -1,6 +1,7 @@
 // Metronome + tempo-ramp overlay for the GP player.
 
 import { el } from './dom.js';
+import { icon } from './icons.js';
 import {
   GPP_METRO_SUBDIVISIONS,
   GPP_RAMP_INTERVAL_MODES,
@@ -59,7 +60,7 @@ export function mountMetronomePanel(host, {
       el('button', {
         class: 'gpp-icon-btn gpp-drawer-close',
         type: 'button',
-        text: '✕',
+        html: icon('close'),
         'aria-label': 'Close metronome',
         title: 'Close',
         onClick: () => close(),
@@ -73,7 +74,7 @@ export function mountMetronomePanel(host, {
       el('button', {
         class: 'gpp-icon-btn gpp-drawer-close',
         type: 'button',
-        text: '✕',
+        html: icon('close'),
         'aria-label': 'Close metronome',
         title: 'Close',
         onClick: () => close(),
@@ -504,7 +505,7 @@ export function mountMetronomePanel(host, {
     syncRampStatus();
   }
 
-  const SHEET_MQ = '(max-width: 768px) and (min-height: 501px)';
+  const SHEET_MQ = '(max-width: 599px)';
 
   function detectSheetMode() {
     sheetMode = window.matchMedia(SHEET_MQ).matches;

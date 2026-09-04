@@ -1,6 +1,7 @@
 // Player menu drawer / bottom sheet — view mode + score actions.
 
 import { el } from './dom.js';
+import { icon } from './icons.js';
 import { GPP_VIEW_MODES } from './viewModes.js';
 
 const GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
@@ -12,15 +13,16 @@ const ICONS = {
   split: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8.5L20 20"/><path d="M8.5 15.5L20 4"/></svg>',
   tracks: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h14"/></svg>',
   settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>',
-  metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 18v4"/><path d="m19.07 19.07-2.83-2.83"/><path d="M18 12h4"/><path d="m19.07 4.93-2.83 2.83"/><circle cx="12" cy="12" r="4"/></svg>',
+  metronome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3h5l3.5 17H6L9.5 3Z"/><path d="m12 20-.001-8"/><path d="m11.999 12 6.5-6.5"/></svg>',
   help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
+  focus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>',
   backing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>',
 };
 
 function viewLabel(mode) {
-  if (mode === 'score') return 'Score';
-  if (mode === 'analyze') return 'Analyze';
-  return 'Both';
+  if (mode === 'score') return 'Score only';
+  if (mode === 'analyze') return 'Analysis';
+  return 'Split';
 }
 
 function makeMenuRow({ label, ariaLabel, icon, onClick }) {
@@ -50,6 +52,8 @@ export function mountPlayerMenu(host, {
   onOpenMetronome = null,
   onOpenSettings = null,
   onOpenHelp = null,
+  onToggleFocus = null,
+  isFocusMode = () => false,
   headerExtra = null,
 } = {}) {
   const noop = {
@@ -90,7 +94,7 @@ export function mountPlayerMenu(host, {
       el('button', {
         class: 'gpp-icon-btn gpp-drawer-close',
         type: 'button',
-        text: '✕',
+        html: icon('close'),
         'aria-label': 'Close menu',
         title: 'Close',
         onClick: () => close(),
@@ -104,7 +108,7 @@ export function mountPlayerMenu(host, {
       el('button', {
         class: 'gpp-icon-btn gpp-drawer-close',
         type: 'button',
-        text: '✕',
+        html: icon('close'),
         'aria-label': 'Close menu',
         title: 'Close',
         onClick: () => close(),
@@ -144,7 +148,7 @@ export function mountPlayerMenu(host, {
 
   const menuBody = el('div', { class: 'gpp-player-menu-body' }, [
     el('div', { class: 'gpp-menu-group' }, [
-      el('div', { class: 'gpp-menu-group-title', text: 'View' }),
+      el('div', { class: 'gpp-menu-group-title', text: 'Analysis' }),
       viewPicker,
     ]),
     actionsGroup,
@@ -198,21 +202,10 @@ export function mountPlayerMenu(host, {
         },
       }));
     }
-    if (typeof onOpenTracks === 'function') {
-      actionsGroup.appendChild(makeMenuRow({
-        label: 'Track mixer',
-        ariaLabel: 'Track mixer',
-        icon: ICONS.tracks,
-        onClick: () => {
-          close();
-          onOpenTracks();
-        },
-      }));
-    }
     if (typeof onOpenBacking === 'function') {
       actionsGroup.appendChild(makeMenuRow({
-        label: 'Backing track',
-        ariaLabel: 'Backing track and sync delay',
+        label: 'Original recording',
+        ariaLabel: 'Original recording and sync',
         icon: ICONS.backing,
         onClick: () => {
           close();
@@ -233,14 +226,28 @@ export function mountPlayerMenu(host, {
     }
     if (typeof onOpenSettings === 'function') {
       actionsGroup.appendChild(makeMenuRow({
-        label: 'Practice settings',
-        ariaLabel: 'Practice settings',
+        label: 'Player settings',
+        ariaLabel: 'Player settings',
         icon: ICONS.settings,
         onClick: () => {
           close();
           onOpenSettings();
         },
       }));
+    }
+    if (typeof onToggleFocus === 'function') {
+      const on = !!isFocusMode();
+      const row = makeMenuRow({
+        label: on ? 'Leave focus mode' : 'Focus mode',
+        ariaLabel: on ? 'Leave focus mode' : 'Focus mode: hide the app navigation',
+        icon: ICONS.focus,
+        onClick: () => {
+          close();
+          onToggleFocus();
+        },
+      });
+      row.setAttribute('aria-pressed', on ? 'true' : 'false');
+      actionsGroup.appendChild(row);
     }
     if (typeof onOpenHelp === 'function') {
       actionsGroup.appendChild(makeMenuRow({
@@ -284,7 +291,7 @@ export function mountPlayerMenu(host, {
   }
 
   // Portrait phone sheet; landscape uses side drawer (must match gpplayer.css)
-  const SHEET_MQ = '(max-width: 768px) and (min-height: 501px)';
+  const SHEET_MQ = '(max-width: 599px)';
 
   function detectSheetMode() {
     sheetMode = window.matchMedia(SHEET_MQ).matches;

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>gp-player vNext visual</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/theme-gbc.css" />
+  <link rel="stylesheet" href="/css/shell.css" />
+  <link rel="stylesheet" href="/css/gpplayer.css" />
+  <style>
+    html, body { height: 100%; }
+    body { margin: 0; }
+    #sec-scoreplayer { display: flex; flex-direction: column; min-height: 0; height: 100dvh; }
+    #host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #out { position: fixed; left: -9999px; top: 0; white-space: pre; font-family: monospace; font-size: 11px; }
+  </style>
+</head>
+<body class="app-shell">
+  <section id="sec-scoreplayer" class="section active" data-gpp-immersive>
+    <div class="gpp-layout">
+      <div class="gpp-stage" id="host"></div>
+    </div>
+  </section>
+  <pre id="out"></pre>
+  <script type="module">
+    // Mount the real player on a real fixture so a driver can screenshot the
+    // states the spec names: loaded, loop, range, mixer, speed, tracks, and
+    // the drum score. The driver picks the file and the state with the query.
+    import { writeln, runMain, reportResult } from './harness.js';
+    import { parseGuitarProWithProgress } from '/js/tab/gpParseClient.js';
+    import { mountGpPlayer } from '/js/gpPlayerUI.js';
+
+    const params = new URLSearchParams(location.search);
+    const file = params.get('file') || 'many-tracks.gp5';
+    const state = params.get('state') || 'loaded';
+    const track = Number(params.get('track') || 0);
+
+    function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+    const errors = [];
+    window.addEventListener('error', (e) => errors.push(String(e.message || e.error)));
+    window.addEventListener('unhandledrejection', (e) => errors.push(String(e.reason?.message || e.reason)));
+
+    runMain(async () => {
+      const res = await fetch(`/tests/gp-player/fixtures/${file}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const gp = await parseGuitarProWithProgress(bytes);
+      const host = document.getElementById('host');
+      const mount = mountGpPlayer(host, {
+        gpResult: gp,
+        title: file.replace(/\.gp5?$/i, '').replace(/-/g, ' '),
+        subtitle: 'Fixture score',
+        fileName: file,
+        scoreKey: `vnext-visual:${file}:${state}`,
+        restoreSession: false,
+        preferredTrackIndex: track,
+        onBack: () => {},
+        onCloseScore: () => {},
+        onOpenFile: () => {},
+      });
+      window.__mount = mount;
+      await sleep(400);
+
+      const q = (sel) => host.querySelector(sel);
+      if (state === 'loop') {
+        mount.setLoop(4, 16);
+        mount.seekToBeat(6);
+      } else if (state === 'range') {
+        mount.setLoop(8, 16);
+        mount.player; // keep
+        // Turn the loop off so the range stays marked and the toolbar shows.
+        q('.gpp-tbtn--loop')?.click();
+      } else if (state === 'mixer') {
+        q('[aria-label="Mixer"]')?.click();
+      } else if (state === 'speed') {
+        q('.gpp-tbtn--speed')?.click();
+      } else if (state === 'tracks') {
+        q('.gpp-track-selector-btn')?.click();
+      } else if (state === 'goto') {
+        q('.gpp-tbtn--position')?.click();
+      } else if (state === 'metro') {
+        q('[aria-label="Metronome"]')?.click();
+        mount.seekToBeat(12);
+      } else if (state === 'seek') {
+        mount.seekToBeat(20);
+      } else if (state === 'notation') {
+        q('.gpp-view-btn')?.click();
+        await sleep(100);
+        [...host.querySelectorAll('.gpp-segment')].find((b) => b.textContent.includes('Standard'))?.click();
+        await sleep(100);
+        mount.seekToBeat(4);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      } else if (state === 'menu') {
+        q('.gpp-transport-menu-btn')?.click();
+      } else if (state === 'practice') {
+        mount.setLoop(8, 16);
+        q('.gpp-tbtn--loop')?.click();
+        await sleep(50);
+        q('.gpp-selection-practice')?.click();
+      } else if (state === 'focus') {
+        mount.setFocusMode(true);
+      }
+      await sleep(500);
+      writeln(`file: ${file}  state: ${state}`);
+      writeln(`errors: ${errors.length}`);
+      for (const e of errors) writeln(`  ${e}`);
+      reportResult(errors.length === 0);
+    });
+  </script>
+</body>
+</html>

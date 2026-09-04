@@ -49,7 +49,7 @@ const headerCloseBtn = [...closeHost.querySelectorAll('button')].find(
   (b) => b.getAttribute?.('aria-label') === 'Close score',
 );
 assert.ok(headerCloseBtn, 'header Close score button should exist');
-assert.equal(headerCloseBtn.textContent, 'Close score', 'header button text');
+assert.equal(headerCloseBtn.getAttribute('title'), 'Close score', 'header button names itself');
 
 const menuCloseBtn = [...closeHost.querySelectorAll('button')].find(
   (b) => b.classList?.contains('gpp-menu-row')

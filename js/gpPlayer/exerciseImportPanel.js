@@ -1,6 +1,7 @@
 // "Split into exercises" overlay for the Guitar Pro player.
 
 import { el, fmtTime } from './dom.js';
+import { icon } from './icons.js';
 import { formatBarRange, describeMeasure } from './measureDigest.js';
 import {
   addSegment,
@@ -250,7 +251,7 @@ export function mountExerciseImportPanel(host, {
   const closeBtn = el('button', {
     class: 'gpi-close gpp-icon-btn',
     type: 'button',
-    text: '✕',
+    html: icon('close'),
     'aria-label': 'Close split view',
     title: 'Close',
   });
@@ -739,7 +740,7 @@ export function mountExerciseImportPanel(host, {
     const removeBtn = el('button', {
       class: 'gpp-icon-btn gpp-danger gpi-icon-btn gpi-seg-remove',
       type: 'button',
-      text: '✕',
+      html: icon('close'),
       'aria-label': `Remove ${rangeLabel}`,
       title: 'Remove exercise',
       disabled: importing,

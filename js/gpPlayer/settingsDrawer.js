@@ -3,6 +3,7 @@
 import { TUNINGS } from '../theory.js';
 import { TUNING_CATALOG } from '../tunings.js';
 import { el, uid } from './dom.js';
+import { icon } from './icons.js';
 
 function tuningOptionsFor(stringCount) {
   const names = Object.keys(TUNINGS).filter((n) => TUNINGS[n].length === stringCount);
@@ -54,13 +55,13 @@ export function mountSettingsDrawer(host, {
     class: 'gpp-drawer',
     role: 'dialog',
     'aria-modal': 'true',
-    'aria-label': 'Practice settings',
+    'aria-label': 'Player settings',
   });
   const sheet = el('div', {
     class: 'gpp-sheet',
     role: 'dialog',
     'aria-modal': 'true',
-    'aria-label': 'Practice settings',
+    'aria-label': 'Player settings',
   });
   sheet.appendChild(el('div', { class: 'gpp-sheet-handle' }));
 
@@ -69,11 +70,11 @@ export function mountSettingsDrawer(host, {
 
   drawer.append(
     el('div', { class: 'gpp-drawer-head' }, [
-      el('span', { class: 'gpp-drawer-title', text: 'Practice' }),
+      el('span', { class: 'gpp-drawer-title', text: 'Settings' }),
       el('button', {
         class: 'gpp-icon-btn gpp-drawer-close',
         type: 'button',
-        text: '✕',
+        html: icon('close'),
         'aria-label': 'Close settings',
         title: 'Close',
         onClick: () => close(),
@@ -83,11 +84,11 @@ export function mountSettingsDrawer(host, {
   );
   sheet.append(
     el('div', { class: 'gpp-drawer-head' }, [
-      el('span', { class: 'gpp-drawer-title', text: 'Practice' }),
+      el('span', { class: 'gpp-drawer-title', text: 'Settings' }),
       el('button', {
         class: 'gpp-icon-btn gpp-drawer-close',
         type: 'button',
-        text: '✕',
+        html: icon('close'),
         'aria-label': 'Close settings',
         title: 'Close',
         onClick: () => close(),
@@ -185,42 +186,6 @@ export function mountSettingsDrawer(host, {
       type: 'checkbox', id: ids.notation, 'aria-label': 'Show standard notation staff',
     });
 
-    const speedInput = el('input', {
-      type: 'number', class: 'gpp-num', id: ids.speed, min: '25', max: '200', step: '5',
-      'aria-label': 'Playback speed percent',
-    });
-    const speedNote = el('div', { class: 'gpp-settings-note', text: '' });
-    const tempoResetBtn = el('button', {
-      class: 'btn sm', type: 'button', text: 'Reset to score tempo',
-      onClick: () => { onTempoReset?.(); sync(); },
-    });
-
-    // The dock holds the BPM steps. The percent of the score tempo and the
-    // reset live here, where there is room to name both numbers.
-    const tempoSection = el('details', { class: 'gpp-settings-section', open: true }, [
-      el('summary', { class: 'gpp-settings-section-title', text: 'Tempo' }),
-      el('div', { class: 'gpp-settings-section-body' }, [
-        el('div', { class: 'gpp-field' }, [
-          el('span', { class: 'gpp-control-label', text: 'Speed' }),
-          el('div', { class: 'gpp-control-row' }, [
-            el('button', {
-              class: 'btn sm', type: 'button', text: '−',
-              'aria-label': 'Slower by 5 percent',
-              onClick: () => { onSpeedPct?.(Number(speedInput.value) - 5); sync(); },
-            }),
-            speedInput,
-            el('span', { class: 'gpp-unit', text: '%' }),
-            el('button', {
-              class: 'btn sm', type: 'button', text: '+',
-              'aria-label': 'Faster by 5 percent',
-              onClick: () => { onSpeedPct?.(Number(speedInput.value) + 5); sync(); },
-            }),
-          ]),
-          speedNote,
-        ]),
-        el('div', { class: 'gpp-control-row' }, [tempoResetBtn]),
-      ]),
-    ]);
 
     const loopSection = el('details', { class: 'gpp-settings-section', open: true }, [
       el('summary', { class: 'gpp-settings-section-title', text: 'Loop' }),
@@ -242,7 +207,7 @@ export function mountSettingsDrawer(host, {
           zoomLimitNote,
         ]),
         el('label', { class: 'gpp-check', for: ids.autoFollow }, [
-          autoFollowCheck, el('span', { text: 'Auto-follow playback' }),
+          autoFollowCheck, el('span', { text: 'Follow the playhead during playback' }),
         ]),
         el('label', { class: 'gpp-check gpp-fret-only', for: ids.notation }, [
           notationCheck, el('span', { text: 'Standard notation staff' }),
@@ -273,9 +238,7 @@ export function mountSettingsDrawer(host, {
       ]),
     ]);
 
-    controlsBody.append(tempoSection, loopSection, scoreSection, pitchSection);
-
-    speedInput.addEventListener('change', () => { onSpeedPct?.(speedInput.value); sync(); });
+    controlsBody.append(scoreSection, loopSection, pitchSection);
 
     restInput.addEventListener('change', () => {
       stateController.state.loopRestSec = Math.max(0, Math.min(30, Number(restInput.value) || 0));
@@ -316,7 +279,6 @@ export function mountSettingsDrawer(host, {
     return {
       restInput, transposeInput, tuningSelect, retuneFinger, retunePitch,
       zoomInput, zoomPct, zoomLimitNote, autoFollowCheck, notationCheck, pitchSection, scoreSection,
-      speedInput, speedNote, tempoResetBtn,
     };
   }
 
@@ -359,24 +321,9 @@ export function mountSettingsDrawer(host, {
     tuningSelect.value = stateController.state.tuning || '__file__';
   }
 
-  function syncTempo(st) {
-    const bpm = Math.round(Number(st.bpm) || 0);
-    const scoreBpm = Math.round(Number(st.scoreBpm) || 0);
-    const pct = scoreBpm ? Math.round((bpm / scoreBpm) * 100) : 100;
-    if (typeof document === 'undefined' || document.activeElement !== controls.speedInput) {
-      controls.speedInput.value = String(pct);
-    }
-    controls.speedNote.textContent = scoreBpm
-      ? `${pct}% of the score tempo. That is ${bpm} BPM, and the score tempo is ${scoreBpm} BPM.`
-      : `${bpm} BPM.`;
-    const atScore = !st.bpmUserOverride && bpm === scoreBpm;
-    controls.tempoResetBtn.disabled = atScore;
-  }
-
   function sync() {
     if (!controls) return;
     const st = stateController.state;
-    syncTempo(st);
     rebuildTuningSelect(controls.tuningSelect);
     controls.restInput.value = String(st.loopRestSec);
     controls.transposeInput.value = String(st.transpose);
@@ -393,7 +340,7 @@ export function mountSettingsDrawer(host, {
     }
   }
 
-  const SHEET_MQ = '(max-width: 768px) and (min-height: 501px)';
+  const SHEET_MQ = '(max-width: 599px)';
 
   function detectSheetMode() {
     sheetMode = window.matchMedia(SHEET_MQ).matches;

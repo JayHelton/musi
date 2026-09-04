@@ -183,6 +183,19 @@ export function createPlayerState(gpResult, options = {}) {
     loopSelectMode: false,
     exerciseScope: !!options.exerciseScope,
     autoFollow: readBool(AUTO_FOLLOW_KEY, true),
+    // Follow state. `enabled` is the saved preference. `suspended` is set
+    // while the user scrolls away from the playhead; a timer never clears it.
+    follow: {
+      enabled: readBool(AUTO_FOLLOW_KEY, true),
+      suspended: false,
+      suspendedReason: null,
+    },
+    // A range the user marked on the score that is not yet a loop.
+    selection: {
+      kind: null,
+      startBeat: null,
+      endBeat: null,
+    },
     parchmentZoom: readZoom(),
     baseModel: null,
     viewModel: null,
@@ -432,7 +445,75 @@ export function createPlayerState(gpResult, options = {}) {
 
   function setAutoFollow(on) {
     state.autoFollow = !!on;
+    state.follow.enabled = state.autoFollow;
+    if (state.autoFollow) {
+      state.follow.suspended = false;
+      state.follow.suspendedReason = null;
+    }
     writeBool(AUTO_FOLLOW_KEY, state.autoFollow);
+  }
+
+  /** The user scrolled away. Follow waits until resumeFollow(). */
+  function suspendFollow(reason = 'user-scroll') {
+    if (state.follow.suspended && state.follow.suspendedReason === reason) return false;
+    state.follow.suspended = true;
+    state.follow.suspendedReason = reason;
+    return true;
+  }
+
+  /** Follow the playhead again. Returns true when the state changed. */
+  function resumeFollow() {
+    if (!state.follow.suspended) return false;
+    state.follow.suspended = false;
+    state.follow.suspendedReason = null;
+    return true;
+  }
+
+  /** True when the score should move with the playhead right now. */
+  function isFollowing() {
+    return !!state.follow.enabled && !state.follow.suspended;
+  }
+
+  /** Playback speed as a ratio of the score tempo. 1 means the written tempo. */
+  function getSpeedRatio() {
+    const score = Number(state.scoreBpm) || 0;
+    if (score <= 0) return 1;
+    return (Number(state.bpm) || score) / score;
+  }
+
+  /** Set the tempo from a ratio of the score tempo. Returns the new BPM. */
+  function setSpeedRatio(ratio) {
+    const r = Number(ratio);
+    const score = Number(state.scoreBpm) || 120;
+    if (!Number.isFinite(r) || r <= 0) return state.bpm;
+    state.bpm = clampBpm(Math.round(score * r));
+    state.bpmUserOverride = Math.round(state.bpm) !== Math.round(score);
+    return state.bpm;
+  }
+
+  /** Mark a span on the score. It is not a loop until setLoopRange() runs. */
+  function setSelection(startBeat, endBeat, kind = 'range') {
+    const measures = state.viewModel?.measures || initMeasures;
+    const songEnd = state.viewModel?.totalBeats
+      ?? measures[measures.length - 1]?.endBeat
+      ?? endBeat;
+    const norm = normalizeBeatRange(startBeat, endBeat, { minSpan: 1, songEndBeat: songEnd });
+    if (!norm) return false;
+    state.selection = { kind, startBeat: norm.startBeat, endBeat: norm.endBeat };
+    return true;
+  }
+
+  function clearSelection() {
+    const had = state.selection.kind != null;
+    state.selection = { kind: null, startBeat: null, endBeat: null };
+    return had;
+  }
+
+  function hasSelection() {
+    return state.selection.kind != null
+      && Number.isFinite(state.selection.startBeat)
+      && Number.isFinite(state.selection.endBeat)
+      && state.selection.endBeat > state.selection.startBeat;
   }
 
   function setParchmentZoom(z) {
@@ -473,6 +554,9 @@ export function createPlayerState(gpResult, options = {}) {
     state.viewKind = hasFrettedNow ? 'guitar' : 'drum';
     state.viewIndex = 0;
     state.navBar = null;
+    state.selection = { kind: null, startBeat: null, endBeat: null };
+    state.follow.suspended = false;
+    state.follow.suspendedReason = null;
 
     if (Number.isFinite(Number(options.preferredTrackIndex)) && hasFrettedNow) {
       state.trackIndex = Math.max(
@@ -547,6 +631,14 @@ export function createPlayerState(gpResult, options = {}) {
     isAlive,
     destroy,
     setAutoFollow,
+    suspendFollow,
+    resumeFollow,
+    isFollowing,
+    getSpeedRatio,
+    setSpeedRatio,
+    setSelection,
+    clearSelection,
+    hasSelection,
     setParchmentZoom,
     resetForNewScore,
   };

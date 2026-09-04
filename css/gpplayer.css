@@ -1,7 +1,80 @@
-/* Guitar Pro practice player — app-like shell (standalone + Exercises embed).
-   Chrome: Atomic Purple GBC tokens. Score surface: parchment exception. */
+/* Guitar Pro player — vNext.
+   The score is the product. Once a score is open the player takes the whole
+   workspace: a short header, the paper-white score canvas, and one stable
+   transport row. The player keeps Musi's accent and icon language; it does
+   not use the retro pixel fonts or the parchment tint inside the music
+   surface.
 
-/* ── Page shell (drop / status / stage / library) ─────────────────────── */
+   Sections
+   1. Tokens
+   2. Page shell (drop / status / stage / library) — the screen around the player
+   3. Player root and chrome
+   4. Header
+   5. Shared controls (icon buttons, chips, text buttons, rows, inputs)
+   6. Score canvas
+   7. Selection toolbar and follow pill
+   8. Transport
+   9. Popovers
+   10. Drawers and sheets
+   11. Mixer
+   12. Forms, metronome, notes, backing
+   13. Player menu
+   14. Loading and errors
+   15. Analysis pane and view modes
+   16. Full-bleed shell and focus mode
+   17. Responsive
+*/
+
+/* ── 1. Tokens ──────────────────────────────────────────────────────────── */
+
+.gpp-root {
+  --gp-font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --gp-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --gp-shell-bg: var(--bg, #0b1020);
+  --gp-shell-surface: #141a2c;
+  --gp-shell-raised: #1b2238;
+  --gp-toolbar-bg: #12182a;
+  --gp-toolbar-border: rgba(255, 255, 255, 0.08);
+  --gp-text: var(--text, #f4f6ff);
+  --gp-text-muted: var(--muted, #8b93b0);
+
+  --gp-score-bg: #fffefb;
+  --gp-score-ink: #1b1b1f;
+  --gp-score-muted: #6b6f7a;
+  --gp-score-line: rgba(27, 27, 31, 0.42);
+  --gp-score-line-strong: rgba(27, 27, 31, 0.78);
+
+  --gp-accent: var(--accent, #ffe14a);
+  --gp-accent-ink: var(--on-accent, #0b1020);
+  --gp-accent-soft: rgba(255, 225, 74, 0.14);
+  --gp-ink-accent: #6d3bd1;
+  --gp-ink-accent-soft: rgba(109, 59, 209, 0.1);
+
+  --gp-playhead: #6d3bd1;
+  --gp-beat-wash: rgba(109, 59, 209, 0.08);
+  --gp-selection-fill: rgba(109, 59, 209, 0.1);
+  --gp-selection-edge: rgba(109, 59, 209, 0.7);
+  --gp-loop-fill: rgba(255, 214, 66, 0.26);
+  --gp-loop-edge: #c9a300;
+
+  --gp-focus-ring: var(--accent, #ffe14a);
+  --gp-danger: var(--err, #e63946);
+
+  --gp-radius: 10px;
+  --gp-radius-sm: 8px;
+  --gp-tap: var(--tap-min, 44px);
+  --gp-header-h: 52px;
+  --gp-transport-h: 68px;
+  --gp-drawer-w: 340px;
+
+  --gp-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --gp-t-fast: 100ms;
+  --gp-t-pop: 140ms;
+  --gp-t-drawer: 200ms;
+}
+
+/* ── 2. Page shell (the screen around a player) ─────────────────────────── */
 
 .gpp-layout {
   display: flex;
@@ -17,14 +90,12 @@
   padding: 28px 20px;
   text-align: center;
   transition: border-color 0.15s ease, background 0.15s ease;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 .gpp-drop.is-drag {
   border-color: var(--accent);
   background: var(--accent-dim);
 }
 .gpp-drop[hidden] { display: none; }
-
 .gpp-drop-title {
   font-size: 1.05rem;
   font-weight: 650;
@@ -44,12 +115,30 @@
   flex-wrap: wrap;
 }
 
-.gpp-source-status {
-  margin-top: 4px;
+.gpp-read-progress {
+  position: relative;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.gpp-read-progress[hidden] { display: none; }
+.gpp-read-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--accent);
+  opacity: 0.6;
+  transition: width 0.2s ease;
+}
+.gpp-read-progress-label {
+  position: relative;
+  display: block;
+  line-height: 28px;
+  text-align: center;
   font-size: 0.82rem;
-  color: var(--muted);
-  font-family: var(--font-ui, "VT323", monospace);
-  border-radius: var(--radius-screen, 18px);
+  color: var(--text);
 }
 
 .gpp-status {
@@ -59,7 +148,6 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg2);
-  font-family: var(--font-ui, "VT323", monospace);
 }
 .gpp-status[data-kind="error"] {
   color: var(--warn);
@@ -70,26 +158,38 @@
 .gpp-stage {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen, 18px);
-  background: rgba(22, 31, 54, 0.88);
-  padding: 4px 6px 4px;
   min-height: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 .gpp-stage[hidden] { display: none; }
 .gpp-stage .gpp-root { width: 100%; }
 
-/* ── Player root — vertical wrapper; chrome holds bounded column ─────────── */
+/* ── 3. Player root and chrome ──────────────────────────────────────────── */
 
 .gpp-root {
   display: flex;
   flex-direction: column;
   gap: 0;
   min-width: 0;
-  color: var(--text);
+  color: var(--gp-text);
+  font-family: var(--gp-font);
+  letter-spacing: 0;
 }
 
+/* The theme forces the retro body font on every button and input. Inside the
+   player the controls use the player font. */
+.gpp-root button,
+.gpp-root input,
+.gpp-root select,
+.gpp-root textarea,
+.gpp-root .btn,
+.gpp-root kbd {
+  font-family: var(--gp-font) !important;
+  letter-spacing: 0;
+}
+.gpp-root kbd { font-family: var(--gp-font-mono) !important; }
+.gpp-root .btn { font-size: 0.9rem; }
+
+/* The player is one workspace. No outer card, no border, no shadow. */
 .gpp-chrome {
   position: relative;
   display: flex;
@@ -98,14 +198,9 @@
   min-width: 0;
   height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 120px);
   max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 80px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen, 18px);
-  background: rgba(18, 26, 46, 0.94);
+  background: var(--gp-shell-bg);
   overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
 }
-
-/* ── Stage pane (score + transport + drawers, below header) ───────────── */
 
 .gpp-stage-pane {
   position: relative;
@@ -116,131 +211,451 @@
   overflow: hidden;
 }
 
-/* ── Score header ─────────────────────────────────────────────────────── */
+.gpp-live-region {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
-.gpp-score-header {
+.gpp-alert-bar {
+  flex: 1 1 100%;
+  margin: 4px 0 2px;
+  padding: 8px 10px;
+  border-radius: var(--gp-radius-sm);
+  border: 1px solid rgba(255, 225, 74, 0.5);
+  background: rgba(255, 225, 74, 0.12);
+  color: var(--gp-text);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+.gpp-alert-bar[hidden] { display: none; }
+
+/* ── 4. Header ──────────────────────────────────────────────────────────── */
+
+.gpp-header {
   position: relative;
   flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  padding: 3px 8px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(11, 16, 32, 0.72);
+  min-height: var(--gp-header-h);
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--gp-toolbar-border);
+  background: var(--gp-toolbar-bg);
   min-width: 0;
 }
-/* A zero basis keeps the title from pushing the track selector or the close
-   button onto a second header row. The title takes whatever width is left
-   and truncates. */
-.gpp-score-header-titles {
+.gpp-header-titles {
   flex: 1 1 0;
-  min-width: 0;
+  min-width: 3rem;
   display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-}
-/* The way back off a loaded score. It leads the header row, so it sits where
-   a page back button sits on every other screen. */
-.gpp-back-btn {
-  flex-shrink: 0;
-  order: -1;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--font-ui, "VT323", monospace);
-  min-height: 36px;
-  padding: 0 10px;
-  border-radius: var(--radius-screen, 18px);
-  border-color: var(--border);
-  background: var(--bg2);
-  color: var(--text);
-}
-.gpp-back-btn:hover,
-.gpp-back-btn:focus-visible {
-  border-color: var(--accent2);
-  color: var(--accent);
-}
-.gpp-close-score {
-  flex-shrink: 0;
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-ui, "VT323", monospace);
-  min-height: 36px;
-  padding: 0 10px;
-  border-radius: var(--radius-screen, 18px);
-  border-color: var(--border);
-  background: var(--bg2);
-  color: var(--text);
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
 }
 .gpp-score-title,
-.gpp-score-track {
+.gpp-score-subtitle {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .gpp-score-title {
-  font-size: 0.92rem;
-  font-weight: 650;
-  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--gp-text);
   line-height: 1.2;
 }
-/* The track tab strip in the same row already names the track. */
-.gpp-score-track {
-  display: none;
+.gpp-score-subtitle {
+  font-size: 0.78rem;
+  color: var(--gp-text-muted);
+  line-height: 1.2;
 }
+.gpp-score-subtitle[hidden] { display: none; }
+.gpp-back-btn {
+  order: -1;
+}
+.gpp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+.gpp-source-status {
+  font-size: 0.74rem;
+  color: var(--gp-text-muted);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.gpp-source-status[hidden] { display: none; }
+.gpp-close-score {
+  margin-left: 2px;
+}
+
+/* Track selector */
+.gpp-track-selector-host {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 48%;
+}
+.gpp-track-selector-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: var(--gp-tap);
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--gp-toolbar-border);
+  border-radius: 999px;
+  background: var(--gp-shell-raised);
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--gp-t-fast) ease, background var(--gp-t-fast) ease;
+}
+.gpp-track-selector-btn:hover,
+.gpp-track-selector-btn:focus-visible,
+.gpp-track-selector-btn[aria-expanded="true"] {
+  border-color: rgba(255, 225, 74, 0.5);
+  background: var(--gp-shell-raised);
+  outline: none;
+}
+.gpp-track-selector-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--gp-focus-ring);
+}
+.gpp-track-selector-icon,
+.gpp-track-selector-caret {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--gp-text-muted);
+}
+.gpp-track-selector-icon svg,
+.gpp-track-selector-caret svg {
+  width: 18px;
+  height: 18px;
+}
+.gpp-track-selector-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gpp-track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gpp-track-group-title {
+  padding: 8px 8px 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gp-text-muted);
+}
+.gpp-track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--gp-tap);
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--gp-radius-sm);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gpp-track-row:hover,
+.gpp-track-row:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+.gpp-track-row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--gp-focus-ring);
+}
+.gpp-track-row.is-active {
+  background: var(--gp-accent-soft);
+}
+.gpp-track-row-check {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--gp-accent);
+}
+.gpp-track-row-check svg { width: 20px; height: 20px; }
+.gpp-track-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.gpp-track-row-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gpp-track-row-meta {
+  font-size: 0.76rem;
+  color: var(--gp-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gpp-track-row-meta:empty { display: none; }
+
+/* ── 5. Shared controls ─────────────────────────────────────────────────── */
+
 .gpp-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--tap-min, 44px);
-  height: var(--tap-min, 44px);
+  width: var(--gp-tap);
+  height: var(--gp-tap);
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg2);
-  color: var(--text);
+  border: none;
+  border-radius: var(--gp-radius);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  transition: background var(--gp-t-fast) ease, color var(--gp-t-fast) ease;
 }
-.gpp-icon-btn:hover,
+.gpp-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
 .gpp-icon-btn:focus-visible {
-  border-color: var(--accent);
-  color: var(--accent);
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-dim);
+  box-shadow: 0 0 0 2px var(--gp-focus-ring);
 }
-.gpp-icon-btn svg {
+.gpp-icon-btn:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+.gpp-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.gpp-icon-btn svg,
+.gpp-btn-icon svg {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
 }
+.gpp-btn-icon {
+  display: inline-flex;
+}
 .gpp-icon-btn.has-label {
   width: auto;
-  min-width: var(--tap-min, 44px);
-  padding: 0 10px;
+  min-width: var(--gp-tap);
+  padding: 0 12px 0 8px;
   gap: 6px;
 }
 .gpp-btn-label {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.88rem;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 500;
   line-height: 1;
   white-space: nowrap;
 }
 .gpp-icon-btn.is-on {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(255, 225, 74, 0.35);
+  background: var(--gp-accent-soft);
+  color: var(--gp-accent);
 }
 
-/* ── Score body + measure nav + parchment host ────────────────────────── */
+.gpp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--gp-tap);
+  padding: 0 16px;
+  border: 1px solid var(--gp-toolbar-border);
+  border-radius: var(--gp-radius);
+  background: var(--gp-shell-raised);
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gpp-btn:hover { background: rgba(255, 255, 255, 0.1); }
+.gpp-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); }
+.gpp-btn--primary {
+  background: var(--gp-accent);
+  border-color: transparent;
+  color: var(--gp-accent-ink);
+}
+.gpp-btn--primary:hover { background: var(--gp-accent); filter: brightness(1.06); }
+
+.gpp-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--gp-toolbar-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--gp-t-fast) ease, border-color var(--gp-t-fast) ease;
+}
+.gpp-chip:hover { background: rgba(255, 255, 255, 0.08); }
+.gpp-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); }
+.gpp-chip.is-on {
+  background: var(--gp-accent);
+  border-color: var(--gp-accent);
+  color: var(--gp-accent-ink);
+}
+
+.gpp-text-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--gp-radius-sm);
+  background: transparent;
+  color: var(--gp-accent);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gpp-text-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.gpp-text-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); }
+.gpp-text-btn[hidden] { display: none; }
+
+.gpp-row-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--gp-tap);
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--gp-radius-sm);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.gpp-row-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.gpp-row-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--gp-focus-ring); }
+.gpp-row-btn:disabled { opacity: 0.45; cursor: default; }
+.gpp-row-btn.is-on { background: var(--gp-accent-soft); }
+.gpp-row-btn.is-on .gpp-row-btn-label::before {
+  content: "✓ ";
+  color: var(--gp-accent);
+}
+.gpp-row-btn-label { flex: 1; min-width: 0; }
+.gpp-row-btn-value { color: var(--gp-text-muted); font-size: 0.84rem; }
+.gpp-row-btn-chevron { color: var(--gp-text-muted); font-size: 1.1rem; line-height: 1; }
+.gpp-row-btn[hidden] { display: none; }
+
+.gpp-segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  gap: 2px;
+}
+.gpp-segment {
+  min-height: 34px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gpp-segment:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); }
+.gpp-segment.is-on {
+  background: var(--gp-accent);
+  color: var(--gp-accent-ink);
+}
+
+.gpp-step-btn {
+  width: 40px;
+  height: 40px;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.gpp-select,
+.gpp-num {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--gp-toolbar-border);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-shell-bg);
+  color: var(--gp-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.gpp-select:focus-visible,
+.gpp-num:focus-visible {
+  outline: none;
+  border-color: var(--gp-accent);
+  box-shadow: 0 0 0 2px var(--gp-accent-soft);
+}
+.gpp-select { max-width: 100%; min-width: 0; }
+.gpp-num { width: 76px; text-align: center; }
+.gpp-num--sm { width: 64px; }
+.gpp-num::-webkit-outer-spin-button,
+.gpp-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.gpp-num { -moz-appearance: textfield; appearance: textfield; }
+.gpp-slider {
+  flex: 1;
+  min-width: 100px;
+  min-height: var(--gp-tap);
+  accent-color: var(--gp-accent);
+}
+.gpp-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-size: 0.88rem;
+  color: var(--gp-text);
+  cursor: pointer;
+}
+.gpp-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--gp-accent);
+}
+.gpp-unit {
+  font-size: 0.8rem;
+  color: var(--gp-text-muted);
+}
+
+/* ── 6. Score canvas ────────────────────────────────────────────────────── */
 
 .gpp-score-body {
   flex: 1;
@@ -249,318 +664,15 @@
   flex-direction: column;
 }
 
-.gpp-measure-nav-host {
-  flex-shrink: 0;
-}
-
-.gpp-measure-nav {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(11, 16, 32, 0.55);
-  overflow-x: auto;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
-}
-.gpp-measure-nav-label {
-  flex-shrink: 0;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.88rem;
-  color: var(--muted);
-  padding: 0 4px;
-  white-space: nowrap;
-  display: none;
-}
-.gpp-measure-nav-strip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
-}
-.gpp-measure-nav-btn {
-  flex: 0 0 auto;
-  min-width: 36px;
-  min-height: 28px;
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--muted);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.88rem;
-  cursor: pointer;
-  line-height: 1.2;
-  text-align: center;
-}
-.gpp-measure-nav-btn:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-.gpp-measure-nav-btn.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-.gpp-measure-nav-btn.in-loop:not(.is-active) {
-  border-color: var(--accent2);
-  background: rgba(180, 94, 255, 0.14);
-  color: var(--text);
-}
-.gpp-measure-nav-btn.is-nav:not(.is-active) {
-  border-color: var(--accent2);
-  box-shadow: inset 0 0 0 1px var(--accent2);
-}
-.gpp-measure-nav-btn.has-marker {
-  white-space: pre-line;
-  line-height: 1.1;
-  min-height: 32px;
-  font-size: 0.76rem;
-}
-
-.gpp-head-extra-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  flex-wrap: nowrap;
-}
-
-/* ── Player menu (view + actions) ─────────────────────────────────────── */
-
-.gpp-player-menu-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 4px 0 8px;
-}
-.gpp-menu-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.gpp-menu-group-title {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.82rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 0 4px;
-}
-.gpp-menu-view-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.gpp-menu-view-option {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: var(--tap-min, 44px);
-  padding: 8px 12px;
-  border-radius: var(--radius-screen, 12px);
-  border: 1px solid var(--border);
-  background: var(--bg2);
-  color: var(--text);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.92rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-.gpp-menu-view-option:hover,
-.gpp-menu-view-option:focus-visible {
-  border-color: var(--accent2);
-  outline: none;
-}
-.gpp-menu-view-option.is-active {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(255, 225, 74, 0.3);
-}
-.gpp-menu-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: var(--tap-min, 44px);
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen, 12px);
-  background: var(--bg2);
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-.gpp-menu-row:hover,
-.gpp-menu-row:focus-visible {
-  border-color: var(--accent);
-  color: var(--accent);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-dim);
-}
-.gpp-menu-row-icon {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
-  border-radius: 10px;
-  pointer-events: none;
-}
-.gpp-menu-row-label {
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.92rem;
-  line-height: 1.2;
-}
-.gpp-menu-extra {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
-}
-.gpp-menu-extra .gpp-head-extra-wrap,
-.gpp-menu-extra .wb-gpp-head-extra {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  width: 100%;
-}
-.gpp-menu-extra .btn.sm {
-  width: 100%;
-  min-height: var(--tap-min, 44px);
-  justify-content: center;
-}
-
-/* ── Stage content (score + analysis panes) ───────────────────────────── */
-
-.gpp-stage-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.gpp-score-pane {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.gpp-analysis-pane {
-  flex: 1;
-  min-height: 0;
-  display: none;
-  flex-direction: column;
-  overflow: hidden;
-  border-top: 1px solid var(--border);
-  background: rgba(11, 16, 32, 0.55);
-  position: relative;
-}
-
-.gpp-root.gpp-view-analyze .gpp-score-pane {
-  display: none;
-}
-.gpp-root.gpp-view-analyze .gpp-analysis-pane {
-  display: flex;
-  border-top: none;
-}
-.gpp-root.gpp-view-split .gpp-analysis-pane {
-  display: flex;
-}
-
-.gpp-root.gpp-view-split .gpp-stage-content {
-  flex-direction: column;
-}
-.gpp-root.gpp-view-split .gpp-score-pane {
-  flex: 3 1 0;
-  min-height: 120px;
-}
-.gpp-root.gpp-view-split .gpp-analysis-pane {
-  flex: 2 1 0;
-  min-height: 140px;
-  border-top: 1px solid var(--border);
-}
-
-@media (min-width: 769px) and (min-height: 501px) {
-  .gpp-root.gpp-view-split .gpp-stage-content {
-    display: grid;
-    grid-template-rows: minmax(0, 1.6fr) minmax(0, 1fr);
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .gpp-root.gpp-view-split .gpp-score-pane {
-    flex: unset;
-    min-width: 0;
-    min-height: 0;
-    grid-row: 1;
-  }
-  .gpp-root.gpp-view-split .gpp-analysis-pane {
-    flex: unset;
-    min-width: 0;
-    min-height: 0;
-    max-width: none;
-    grid-row: 2;
-    border-top: 1px solid var(--border);
-    border-left: none;
-  }
-}
-
-@media (orientation: landscape) and (max-height: 500px) {
-  .gpp-root.gpp-view-split .gpp-stage-content {
-    display: flex;
-    flex-direction: row;
-  }
-  .gpp-root.gpp-view-split .gpp-score-pane {
-    flex: 1 1 62%;
-    min-width: 0;
-    min-height: 0;
-    grid-row: unset;
-  }
-  .gpp-root.gpp-view-split .gpp-analysis-pane {
-    flex: 0 0 38%;
-    min-width: min(280px, 40%);
-    max-width: 40%;
-    grid-row: unset;
-    border-top: none;
-    border-left: 1px solid var(--border);
-  }
-}
-
 .gpp-parchment-host {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 0;
+  min-height: 140px;
   overflow: hidden;
   position: relative;
-  background: #f4ead4;
-  border-radius: 8px;
-  min-height: 140px;
-}
-@media (min-width: 1280px) and (min-height: 501px) {
-  .gpp-parchment-host {
-    min-height: 220px;
-  }
-}
-@media (min-width: 1800px) and (min-height: 501px) {
-  .gpp-parchment-host {
-    min-height: 280px;
-  }
+  background: var(--gp-score-bg);
+  transition: margin-right var(--gp-t-drawer) var(--gp-ease);
 }
 
 .gpp-parch-root {
@@ -572,7 +684,6 @@
   width: 100%;
 }
 
-/* Parchment score — horizontal systems (matches parchmentView.js DOM) */
 .gpp-parch-viewport {
   position: relative;
   flex: 1;
@@ -581,26 +692,27 @@
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(58, 42, 24, 0.45) transparent;
-  background: #f7efd8;
-  color: #1e1408;
-  padding: 4px 4px calc(var(--gpp-transport-pad, 68px) + 4px);
-  border-radius: 8px;
-  border: 1px solid rgba(26, 20, 32, 0.15);
+  scrollbar-color: rgba(27, 27, 31, 0.3) transparent;
+  background: var(--gp-score-bg);
+  color: var(--gp-score-ink);
+  padding: 14px 14px calc(var(--gp-transport-pad, var(--gpp-transport-pad, 76px)) + 24px);
 }
+.gpp-parch-viewport::-webkit-scrollbar { width: 8px; }
+.gpp-parch-viewport::-webkit-scrollbar-thumb { background: rgba(27, 27, 31, 0.25); border-radius: 4px; }
 
 .gpp-parch-sheet {
   position: relative;
-  color: #1a1420;
-  font-family: var(--font-body, "Pixelify Sans", ui-monospace, monospace);
+  color: var(--gp-score-ink);
+  font-family: var(--gp-font);
+  font-variant-numeric: tabular-nums;
   --gpp-scale: 1;
-  /* The gutter and the measures both align their staff to the bottom of the
-     row, so they must share one bottom pad. When the two drifted apart, the
-     string names sat off the staff rows they name. */
   --gpp-staff-pad-bottom: 3px;
 }
 
+/* One system is one row of measures. Systems keep a clear gap so techniques
+   above one system never touch the rhythm ticks of the one before it. */
 .gpp-parch-system {
   display: flex;
   flex-direction: row;
@@ -609,15 +721,14 @@
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  margin-bottom: 3px;
+  margin-bottom: calc(14px * min(var(--gpp-scale, 1), 1.6));
 }
 
 .gpp-parch-tuning-caption {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: calc(11px * min(var(--gpp-scale, 1), 1.6));
-  line-height: 1.2;
-  color: rgba(58, 42, 24, 0.7);
-  margin: 0 0 2px;
+  font-size: calc(11px * min(var(--gpp-scale, 1), 1.5));
+  line-height: 1.3;
+  color: var(--gp-score-muted);
+  margin: 0 0 6px;
   padding: 0 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -625,7 +736,7 @@
 }
 
 .gpp-parch-gutter {
-  flex: 0 0 calc(20px * var(--gpp-scale, 1));
+  flex: 0 0 calc(22px * var(--gpp-scale, 1));
   min-width: calc(16px * var(--gpp-scale, 1));
   display: flex;
   flex-direction: column;
@@ -637,24 +748,18 @@
   display: flex;
   flex-direction: column;
 }
-.gpp-parch-gutter-spacer {
-  flex: 0 0 auto;
-  pointer-events: none;
-}
-.gpp-parch-gutter-row {
-  pointer-events: none;
-}
+.gpp-parch-gutter-spacer,
+.gpp-parch-gutter-row { pointer-events: none; }
+.gpp-parch-gutter-row { position: relative; }
 .gpp-parch-gutter-label {
   position: absolute;
-  right: 3px;
+  right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: calc(10px * var(--gpp-scale, 1));
-  font-weight: 700;
+  font-size: calc(9.5px * var(--gpp-scale, 1));
+  font-weight: 600;
   line-height: 1;
-  opacity: 0.75;
-  color: rgba(58, 42, 24, 0.85);
+  color: var(--gp-score-muted);
   text-align: right;
   white-space: nowrap;
 }
@@ -666,43 +771,30 @@
   justify-content: flex-end;
   flex: 0 0 auto;
   padding: 2px 0 var(--gpp-staff-pad-bottom, 3px);
-  border-left: 2px solid #1a1420;
-  transition: background 0.12s ease, outline 0.12s ease;
+  border-left: 1px solid var(--gp-score-line-strong);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .gpp-parch-gutter + .gpp-parch-measure,
 .gpp-parch-measure:first-child {
-  border-left-width: 3px;
+  border-left-width: 2px;
 }
 .gpp-parch-measure.is-continuation {
   border-left-width: 1px;
   border-left-style: dashed;
+  border-left-color: var(--gp-score-line);
 }
-.gpp-parch-measure.is-active {
-  outline: 2px solid #6b4c9a;
-  outline-offset: -2px;
-  background: rgba(107, 76, 154, 0.08);
+/* The active measure gets no box. The playhead and the beat wash carry the
+   position; only the bar number gains weight. */
+.gpp-parch-measure.is-active .gpp-parch-bar-num {
+  color: var(--gp-ink-accent);
+  opacity: 1;
 }
-/* The loop measures carry the mark, one measure at a time, so a score that
-   wraps onto several rows shows the right measures. */
-.gpp-parch-measure.in-loop {
-  background: rgba(107, 76, 154, 0.14);
-  box-shadow: inset 0 2px 0 rgba(107, 76, 154, 0.55);
-}
-.gpp-parch-measure.in-loop.is-active {
-  background: rgba(107, 76, 154, 0.2);
-}
-.gpp-parch-measure.is-nav:not(.is-active) {
-  outline: 1px solid rgba(107, 45, 139, 0.55);
-  outline-offset: -1px;
-}
-.gpp-parch-measure.selecting {
-  outline: 1px dashed #6b4c9a;
-  outline-offset: -1px;
+.gpp-parch-measure.selecting,
+.gpp-parch-measure.note-selecting {
+  background: var(--gp-selection-fill);
 }
 
-/* The bar number and the section marker sit in the band that the layout
-   already keeps above the staff. A block row for them cost every system a
-   second band, and the staff lost that height. */
 .gpp-parch-bar-num,
 .gpp-parch-marker {
   position: absolute;
@@ -710,61 +802,37 @@
   z-index: 3;
   line-height: 1.1;
   pointer-events: none;
-  font-family: var(--font-ui, "VT323", monospace);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .gpp-parch-bar-num {
-  left: calc(6px * var(--gpp-scale, 1));
-  font-size: calc(10px * var(--gpp-scale, 1));
-  font-weight: 700;
-  opacity: 0.75;
-  color: rgba(58, 42, 24, 0.85);
+  left: calc(5px * var(--gpp-scale, 1));
+  font-size: calc(9.5px * var(--gpp-scale, 1));
+  font-weight: 600;
+  color: var(--gp-score-muted);
+  font-variant-numeric: tabular-nums;
 }
 .gpp-parch-marker {
-  left: calc(24px * var(--gpp-scale, 1));
-  max-width: calc(100% - 26px * var(--gpp-scale, 1));
-  font-size: calc(9px * var(--gpp-scale, 1));
-  opacity: 0.65;
-  color: rgba(58, 42, 24, 0.75);
+  left: calc(26px * var(--gpp-scale, 1));
+  max-width: calc(100% - 28px * var(--gpp-scale, 1));
+  font-size: calc(10px * var(--gpp-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--gp-score-ink);
 }
 
-.gpp-parch-staff {
-  position: relative;
-}
+.gpp-parch-staff { position: relative; }
 
-/* Score layout lanes (scoreLayout.js + parchmentView.js) */
-.gpp-parch-lane {
-  position: relative;
-  width: 100%;
-}
-.gpp-parch-lane-content {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-.gpp-parch-lane-notationStaff {
-  border-bottom: 1px solid rgba(26, 20, 32, 0.2);
-  background: rgba(255, 252, 244, 0.45);
-}
-.gpp-parch-lane-techniqueAbove,
-.gpp-parch-lane-techniqueBelow {
-  background: rgba(255, 252, 244, 0.25);
-}
-.gpp-parch-lane-rhythm {
-  border-top: 1px solid rgba(26, 20, 32, 0.18);
-  background: rgba(255, 252, 244, 0.35);
-}
-.gpp-parch-lane-tabStaff .gpp-parch-lane-notes {
-  position: absolute;
-  inset: 0;
-}
+/* Lanes: no tinted bands. Spacing and type set the lanes apart. */
+.gpp-parch-lane { position: relative; width: 100%; }
+.gpp-parch-lane-content { position: relative; width: 100%; height: 100%; }
+.gpp-parch-lane-tabStaff .gpp-parch-lane-notes { position: absolute; inset: 0; }
 .gpp-parch-notation-line {
   position: absolute;
   right: 0;
   height: 1px;
-  background: rgba(26, 20, 32, 0.35);
+  background: var(--gp-score-line);
   pointer-events: none;
 }
 .gpp-parch-overlays {
@@ -773,80 +841,64 @@
   top: 0;
   pointer-events: none;
   overflow: visible;
-  /* An arc must draw over the staff lines and under the note text. */
   z-index: 1;
 }
 .gpp-parch-overlay {
   fill: none;
-  stroke: #2a1808;
+  stroke: var(--gp-score-ink);
   stroke-width: 1.2;
 }
-.gpp-parch-overlay--bend { stroke: #5c2d8a; }
-.gpp-parch-overlay--slide { stroke: #2a1808; }
-.gpp-parch-overlay--slur,
-.gpp-parch-overlay--tie { stroke: #2a1808; }
+.gpp-parch-overlay--bend { stroke: var(--gp-ink-accent); }
 
 .gpp-glyph {
   position: absolute;
   pointer-events: none;
   line-height: 1;
-  color: #1a1006;
+  color: var(--gp-score-ink);
 }
-.gpp-glyph-lane--notationStaff { color: #1a1006; }
 .gpp-glyph-lane--techniqueAbove,
 .gpp-glyph-lane--techniqueBelow {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: calc(10px * var(--gpp-scale, 1));
-  font-weight: 700;
-  color: #2a1808;
-}
-.gpp-glyph-lane--rhythm {
-  color: #1a1006;
+  font-size: calc(9.5px * var(--gpp-scale, 1));
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--gp-score-ink);
+  white-space: nowrap;
 }
 .gpp-glyph--stem,
 .gpp-glyph--flag,
 .gpp-glyph--beam {
-  background: #1a1006;
+  background: var(--gp-score-ink);
   border-radius: 1px;
 }
 .gpp-glyph--dot,
 .gpp-glyph--tupletBracket {
-  font-family: var(--font-ui, "VT323", monospace);
   font-size: calc(9px * var(--gpp-scale, 1));
-  color: #1a1006;
+  font-weight: 600;
 }
 .gpp-glyph--timeSig {
-  font-family: var(--font-ui, "VT323", monospace);
   font-weight: 700;
-  color: #1a1006;
+  font-variant-numeric: tabular-nums;
 }
 .gpp-glyph--repeatOpen,
 .gpp-glyph--repeatClose,
 .gpp-glyph--volta {
-  font-family: var(--font-ui, "VT323", monospace);
   font-weight: 700;
-  color: #2a1808;
 }
 .gpp-glyph--bendValue {
-  font-family: var(--font-ui, "VT323", monospace);
   font-weight: 700;
-  color: #4a2870;
+  color: var(--gp-ink-accent);
 }
 .gpp-glyph.is-sounding,
 .gpp-parch-note.is-sounding {
-  color: #4a2870;
-  outline: 1px solid rgba(107, 76, 154, 0.55);
-  border-radius: 2px;
+  color: var(--gp-ink-accent);
 }
 
 .gpp-parch-string {
   position: relative;
   height: var(--gpp-row-h, calc(16px * var(--gpp-scale, 1)));
-  border-bottom: 1px solid rgba(26, 20, 32, 0.35);
+  border-bottom: 1px solid var(--gp-score-line);
 }
-.gpp-parch-string:last-child {
-  border-bottom-width: 2px;
-}
+.gpp-parch-string:last-child { border-bottom-width: 1px; }
 
 .gpp-parch-lane-notes {
   position: absolute;
@@ -856,8 +908,8 @@
   right: var(--gpp-note-pad-end, 7px);
 }
 
-/* The layout gives the top left corner of the box, so the box must not move
-   itself. The text centres inside the box instead. */
+/* Fret numbers. A paper mask behind each number keeps the string line from
+   crossing it, so 1 and 7, 0 and 8 stay clear at phone distance. */
 .gpp-parch-note {
   position: absolute;
   display: flex;
@@ -866,27 +918,26 @@
   white-space: nowrap;
   overflow: visible;
   z-index: 2;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: calc(13px * var(--gpp-scale, 1));
+  font-size: calc(12px * var(--gpp-scale, 1));
   font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1;
-  color: #1a1006;
+  color: var(--gp-score-ink);
+  background: var(--gp-score-bg);
+  border-radius: 2px;
   pointer-events: none;
+  font-variant-numeric: tabular-nums;
 }
-.gpp-parch-note.dead {
-  opacity: 0.55;
-}
-/* A grace note leads the beat, so it draws small and just before the main
-   note. This is the small stroke of a flam on a drum staff. */
+.gpp-parch-note.dead { opacity: 0.6; }
 .gpp-parch-note.grace {
-  font-size: calc(9px * var(--gpp-scale, 1));
-  opacity: 0.8;
+  font-size: calc(8.5px * var(--gpp-scale, 1));
+  opacity: 0.85;
 }
 
 .gpp-parch-drum-lane {
   position: relative;
   height: var(--gpp-row-h, calc(12px * var(--gpp-scale, 1)));
-  border-bottom: 1px dashed rgba(26, 20, 32, 0.2);
+  border-bottom: 1px dashed var(--gp-score-line);
 }
 .gpp-parch-drum-hit {
   position: absolute;
@@ -895,19 +946,12 @@
   justify-content: center;
   white-space: nowrap;
   overflow: visible;
-  font-family: var(--font-ui, "VT323", monospace);
   font-size: calc(10px * var(--gpp-scale, 1));
-  color: #1a1006;
+  font-weight: 600;
+  color: var(--gp-score-ink);
   z-index: 2;
 }
-.gpp-parch-drum-hit[data-glyph="X"],
-.gpp-parch-drum-hit[data-glyph="O"] {
-  font-weight: 700;
-  color: #120a04;
-}
-.gpp-parch-drum-hit[data-glyph="g"] {
-  opacity: 0.45;
-}
+.gpp-parch-drum-hit[data-glyph="g"] { opacity: 0.45; }
 .gpp-parch-drum-hit.grace {
   font-size: calc(7px * var(--gpp-scale, 1));
   opacity: 0.8;
@@ -915,18 +959,15 @@
 .gpp-parch-drum-hit[data-glyph="+"],
 .gpp-parch-drum-hit[data-glyph="b"],
 .gpp-parch-drum-hit[data-glyph="@"] {
-  color: #3d2060;
+  color: var(--gp-ink-accent);
 }
 
-/* ---- Drum staff: five lines, note heads, stems, beams, and rests ---- */
+/* Drum staff: five lines, note heads, stems, beams, and rests. */
 .gpp-parch-ledger {
   right: auto;
-  background: rgba(26, 20, 32, 0.5);
+  background: var(--gp-score-line-strong);
 }
-.gpp-parch-gutter-drums {
-  display: flex;
-  align-items: center;
-}
+.gpp-parch-gutter-drums { display: flex; align-items: center; }
 .gpp-parch-drum-note {
   position: absolute;
   box-sizing: border-box;
@@ -934,13 +975,13 @@
   pointer-events: none;
 }
 .gpp-parch-drum-note[data-head="normal"] {
-  background: #1a1006;
+  background: var(--gp-score-ink);
   border-radius: 50%;
   transform: rotate(-18deg);
 }
 .gpp-parch-drum-note[data-head="normal"][data-hollow="1"] {
   background: transparent;
-  border: calc(1.4px * var(--gpp-scale, 1)) solid #1a1006;
+  border: calc(1.4px * var(--gpp-scale, 1)) solid var(--gp-score-ink);
 }
 .gpp-parch-drum-note[data-head="x"]::before,
 .gpp-parch-drum-note[data-head="x"]::after,
@@ -951,78 +992,53 @@
   top: 50%;
   width: 116%;
   height: calc(1.6px * var(--gpp-scale, 1));
-  background: #1a1006;
+  background: var(--gp-score-ink);
   border-radius: 1px;
 }
-.gpp-parch-drum-note[data-head="x"]::before {
-  transform: translateY(-50%) rotate(38deg);
-}
-.gpp-parch-drum-note[data-head="x"]::after {
-  transform: translateY(-50%) rotate(-38deg);
-}
+.gpp-parch-drum-note[data-head="x"]::before { transform: translateY(-50%) rotate(38deg); }
+.gpp-parch-drum-note[data-head="x"]::after { transform: translateY(-50%) rotate(-38deg); }
 .gpp-parch-drum-note[data-head="cross"] {
-  background: #1a1006;
+  background: var(--gp-score-ink);
   border-radius: 50%;
 }
 .gpp-parch-drum-note[data-head="cross"]::before {
   transform: translateY(-50%) rotate(38deg);
-  background: rgba(255, 252, 244, 0.9);
+  background: var(--gp-score-bg);
 }
 .gpp-parch-drum-note[data-head="diamond"] {
-  border: calc(1.4px * var(--gpp-scale, 1)) solid #1a1006;
+  border: calc(1.4px * var(--gpp-scale, 1)) solid var(--gp-score-ink);
   transform: rotate(45deg);
 }
 .gpp-parch-drum-note[data-open="1"] {
-  border: calc(1.3px * var(--gpp-scale, 1)) solid #1a1006;
+  border: calc(1.3px * var(--gpp-scale, 1)) solid var(--gp-score-ink);
   border-radius: 50%;
   padding: 0;
 }
-.gpp-parch-drum-note[data-ghost="1"] {
-  opacity: 0.5;
-}
-.gpp-parch-drum-note.grace {
-  opacity: 0.75;
-}
-.gpp-glyph-lane--tabStaff.gpp-glyph--rest,
+.gpp-parch-drum-note[data-ghost="1"] { opacity: 0.5; }
+.gpp-parch-drum-note.grace { opacity: 0.75; }
 .gpp-glyph--rest {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: calc(15px * var(--gpp-scale, 1));
+  font-size: calc(14px * var(--gpp-scale, 1));
   line-height: 1;
-  color: #1a1006;
 }
-.gpp-glyph--rest[data-voice="down"] {
-  opacity: 0.62;
-}
-/* A flag curls off the end of a stem, so it must not read as a black box. */
-.gpp-glyph--drumFlag {
-  background: #1a1006;
-}
-.gpp-glyph--drumFlag[data-voice="up"] {
-  border-radius: 0 96% 82% 6% / 0 40% 96% 10%;
-}
-.gpp-glyph--drumFlag[data-voice="down"] {
-  border-radius: 6% 82% 96% 0 / 10% 96% 40% 0;
-}
+.gpp-glyph--rest[data-voice="down"] { opacity: 0.62; }
+.gpp-glyph--drumFlag { background: var(--gp-score-ink); }
+.gpp-glyph--drumFlag[data-voice="up"] { border-radius: 0 96% 82% 6% / 0 40% 96% 10%; }
+.gpp-glyph--drumFlag[data-voice="down"] { border-radius: 6% 82% 96% 0 / 10% 96% 40% 0; }
 .gpp-glyph--ghostParen {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: calc(13px * var(--gpp-scale, 1));
+  font-size: calc(12px * var(--gpp-scale, 1));
   line-height: 1;
-  color: #4a3a2a;
+  color: var(--gp-score-muted);
 }
 .gpp-glyph--accent {
-  font-family: var(--font-ui, "VT323", monospace);
   font-weight: 700;
-  font-size: calc(12px * var(--gpp-scale, 1));
-  color: #2a1808;
+  font-size: calc(11px * var(--gpp-scale, 1));
 }
-/* The R or the L of a sticking, in a row under the drum staff. */
 .gpp-glyph--sticking {
-  font-family: var(--font-ui, "VT323", monospace);
   font-weight: 700;
-  font-size: calc(12px * var(--gpp-scale, 1));
+  font-size: calc(11px * var(--gpp-scale, 1));
   line-height: 1;
   text-align: center;
-  color: #3a2410;
+  color: var(--gp-score-muted);
 }
 
 .gpp-parch-drum-legend {
@@ -1030,54 +1046,78 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px 6px;
-  margin: 6px 2px 0;
+  margin: 8px 2px 0;
   padding: 4px 4px 2px;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: calc(9px * min(var(--gpp-scale, 1), 1.6));
+  font-size: calc(9.5px * min(var(--gpp-scale, 1), 1.6));
   line-height: 1.3;
-  color: rgba(26, 20, 32, 0.55);
+  color: var(--gp-score-muted);
 }
 .gpp-parch-legend-item {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px;
-  border-radius: var(--radius-pill, 999px);
-  background: rgba(26, 20, 32, 0.06);
-  border: 1px solid rgba(26, 20, 32, 0.1);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 27, 31, 0.14);
 }
 .gpp-parch-legend-glyph {
   font-weight: 700;
-  color: #1e1408;
+  color: var(--gp-score-ink);
   min-width: 0.6em;
   text-align: center;
 }
-.gpp-parch-legend-text {
-  opacity: 0.85;
-}
 
+/* The playhead: a strong line, exact, no easing. */
 .gpp-parch-playhead {
   position: absolute;
   top: 0;
-  /* The view sets `left` to the position of the note. The line must straddle
-     that position, or it stands half its own width to the right of it. */
   transform: translateX(-50%);
-  width: 2px;
-  background: #6b4c9a;
-  box-shadow: 0 0 8px rgba(107, 76, 154, 0.45);
+  width: 2.5px;
+  border-radius: 2px;
+  background: var(--gp-playhead);
   pointer-events: none;
-  z-index: 3;
-  opacity: 0.85;
+  /* Under the fret numbers, over the wash: the line never covers a number. */
+  z-index: 1;
+}
+.gpp-parch-playhead[hidden] { display: none; }
+
+/* A faint wash under the sounding beat column. */
+.gpp-parch-beat-wash {
+  position: absolute;
+  top: 0;
+  background: var(--gp-beat-wash);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 0;
+}
+.gpp-parch-beat-wash[hidden] { display: none; }
+
+/* The loop: one translucent band per system row with a clear start and end. */
+.gpp-parch-loop-band {
+  position: absolute;
+  top: 0;
+  background: var(--gp-loop-fill);
+  box-shadow: inset 2px 0 0 var(--gp-loop-edge), inset -2px 0 0 var(--gp-loop-edge);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 0;
+}
+/* A marked range that is not yet a loop: dashed, in the ink accent. */
+.gpp-parch-range-band {
+  position: absolute;
+  top: 0;
+  background: var(--gp-selection-fill);
+  border: 1px dashed var(--gp-selection-edge);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* The two loop markers. The player drags them across the measures to set the
-   range, the way a tab site marks a practice loop. They are wide enough for a
-   finger, and they stand out against the parchment. */
+/* Range and loop markers. Wide enough for a finger. */
 .gpp-parch-handle {
   position: absolute;
   top: 0;
-  bottom: 0;
-  width: 16px;
+  width: 24px;
   cursor: ew-resize;
   z-index: 6;
   touch-action: none;
@@ -1085,32 +1125,34 @@
 .gpp-parch-handle::after {
   content: "";
   position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 5px;
-  width: 6px;
-  border-radius: 3px;
-  background: #6b4c9a;
-  border: 1px solid rgba(255, 252, 240, 0.75);
-  box-shadow: 0 1px 4px rgba(26, 20, 32, 0.45);
+  top: 0;
+  bottom: 0;
+  left: 11px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--gp-ink-accent);
 }
+/* The knob sits under the staff, clear of the bar number above it. */
 .gpp-parch-handle::before {
   content: "";
   position: absolute;
-  top: 2px;
-  left: 1px;
-  width: 14px;
-  height: 14px;
+  bottom: -7px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: #6b4c9a;
-  border: 2px solid rgba(255, 252, 240, 0.9);
-  box-shadow: 0 1px 4px rgba(26, 20, 32, 0.45);
+  background: var(--gp-ink-accent);
+  border: 2px solid var(--gp-score-bg);
+  box-shadow: 0 1px 4px rgba(27, 27, 31, 0.35);
 }
-.gpp-parch-handle:hover::after,
-.gpp-parch-handle:hover::before {
-  background: #8a63c4;
+.gpp-parch-handle.is-loop::after { background: var(--gp-loop-edge); }
+.gpp-parch-handle.is-loop::before { background: var(--gp-loop-edge); }
+.gpp-parch-handle:hover::before,
+.gpp-parch-handle:focus-visible::before {
+  transform: scale(1.15);
 }
 
+/* Annotations: a small marker beside the bar number; a callout on tap. */
 .gpp-parch-notes-rail {
   display: flex;
   flex-direction: column;
@@ -1121,16 +1163,7 @@
   position: relative;
   z-index: 2;
 }
-
-.gpp-parch-measure.has-anno-start {
-  padding-top: 2px;
-}
-
-.gpp-parch-measure.has-anno-start .gpp-parch-bar-num,
-.gpp-parch-measure.has-anno-start .gpp-parch-marker {
-  margin-top: 0;
-}
-
+.gpp-parch-measure.has-anno-start { padding-top: 2px; }
 .gpp-parch-anno-callout {
   display: flex;
   flex-direction: column;
@@ -1138,168 +1171,147 @@
   gap: 1px;
   width: 100%;
   max-width: 100%;
-  padding: 3px 6px;
-  border: 1px solid rgba(58, 42, 24, 0.45);
+  padding: 3px 8px;
+  border: 1px solid rgba(109, 59, 209, 0.35);
   border-radius: 6px;
-  background: rgba(255, 252, 240, 0.95);
-  box-shadow: 0 1px 3px rgba(26, 20, 32, 0.12);
-  color: #1e1408;
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
+  background: #fff;
+  color: var(--gp-score-ink);
+  font-family: var(--gp-font);
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
-  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 .gpp-parch-anno-callout:hover,
 .gpp-parch-anno-callout:focus-visible {
-  border-color: #6b4c9a;
-  background: #fffef8;
+  border-color: var(--gp-ink-accent);
   outline: none;
-  box-shadow: 0 2px 6px rgba(107, 76, 154, 0.2);
 }
 .gpp-parch-anno-callout.is-highlighted {
-  border-color: #6b4c9a;
-  background: rgba(107, 76, 154, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(107, 76, 154, 0.35);
+  border-color: var(--gp-ink-accent);
+  background: var(--gp-ink-accent-soft);
 }
-.gpp-parch-anno-callout.is-stacked {
-  margin-top: 0;
-}
-
 .gpp-parch-anno-title {
-  font-family: var(--font-ui, "VT323", monospace);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
-  color: #1e1408;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
 }
-
 .gpp-parch-anno-preview {
-  font-size: 9px;
+  font-size: 9.5px;
   line-height: 1.3;
-  color: rgba(30, 20, 8, 0.78);
+  color: var(--gp-score-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   max-width: 100%;
 }
-
 .gpp-parch-anno-range {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 8px;
+  font-size: 8.5px;
   letter-spacing: 0.04em;
-  color: rgba(107, 76, 154, 0.9);
+  color: var(--gp-ink-accent);
   text-transform: uppercase;
 }
-
 .gpp-parch-anno-span {
   position: absolute;
   top: 0;
-  height: 3px;
-  background: linear-gradient(
-    90deg,
-    rgba(107, 76, 154, 0.55),
-    rgba(107, 76, 154, 0.25) 60%,
-    rgba(107, 76, 154, 0.55)
-  );
+  height: 2px;
+  background: var(--gp-ink-accent);
+  opacity: 0.45;
   border-radius: 2px;
   pointer-events: none;
   z-index: 1;
 }
-.gpp-parch-anno-span.is-highlighted {
-  height: 4px;
-  background: linear-gradient(
-    90deg,
-    rgba(107, 76, 154, 0.75),
-    rgba(107, 76, 154, 0.4) 60%,
-    rgba(107, 76, 154, 0.75)
-  );
-}
-
-.gpp-parch-measure.in-anno-span {
-  background: rgba(107, 76, 154, 0.04);
-}
-.gpp-parch-measure.in-anno-span.is-active {
-  background: rgba(107, 76, 154, 0.1);
-}
-.gpp-parch-measure.in-anno-span.in-loop.is-active {
-  background: rgba(107, 76, 154, 0.12);
-}
-
+.gpp-parch-anno-span.is-highlighted { opacity: 0.85; height: 3px; }
 .gpp-parch-note-draft {
   position: absolute;
   top: 0;
   bottom: 0;
-  border: 1px dashed rgba(107, 76, 154, 0.65);
-  background: rgba(107, 76, 154, 0.08);
+  border: 1px dashed var(--gp-selection-edge);
+  background: var(--gp-selection-fill);
   pointer-events: none;
   z-index: 2;
   border-radius: 4px;
 }
 
-.gpp-parch-measure.note-selecting {
-  outline: 1px dashed rgba(107, 76, 154, 0.7);
-  outline-offset: -1px;
-  background: rgba(107, 76, 154, 0.06);
+.gpp-parch-error {
+  padding: 24px;
+  text-align: center;
+  color: var(--gp-danger);
+  font-size: 0.95rem;
 }
 
-.gpp-parch-measure.is-active .gpp-parch-anno-callout {
-  border-color: rgba(107, 76, 154, 0.65);
+/* ── 7. Selection toolbar and follow pill ───────────────────────────────── */
+
+.gpp-selection-host,
+.gpp-follow-host {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--gp-transport-pad, var(--gpp-transport-pad, 76px)) + 8px);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 40;
 }
-.gpp-parch-measure.in-loop .gpp-parch-anno-callout {
-  background: rgba(255, 252, 240, 0.92);
+.gpp-follow-host {
+  justify-content: flex-end;
+  padding-right: 14px;
+}
+.gpp-selection-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 16px);
+  padding: 4px 6px 4px 12px;
+  border-radius: 999px;
+  background: var(--gp-toolbar-bg);
+  border: 1px solid var(--gp-toolbar-border);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  animation: gpp-pop-in var(--gp-t-pop) var(--gp-ease);
+}
+.gpp-selection-toolbar[hidden] { display: none; }
+.gpp-selection-label {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--gp-text);
+  white-space: nowrap;
+  padding-right: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
-@media (orientation: landscape) and (max-height: 500px) {
-  .gpp-parch-tuning-caption {
-    display: none;
-  }
-  .gpp-parch-gutter {
-    flex-basis: calc(16px * var(--gpp-scale, 1));
-    min-width: calc(14px * var(--gpp-scale, 1));
-  }
-  .gpp-parch-gutter-label {
-    font-size: calc(9px * var(--gpp-scale, 1));
-    right: 2px;
-  }
-  .gpp-parch-notes-rail {
-    gap: 2px;
-    margin-bottom: 2px;
-  }
-  .gpp-parch-anno-callout {
-    padding: 2px 5px;
-    border-radius: 4px;
-  }
-  .gpp-parch-anno-callout:not(.is-expanded) .gpp-parch-anno-preview {
-    display: none;
-  }
-  .gpp-parch-anno-callout:not(.is-expanded) .gpp-parch-anno-range {
-    display: none;
-  }
-  .gpp-parch-anno-callout:not(.is-expanded) .gpp-parch-anno-title {
-    font-size: 9px;
-    max-width: 72px;
-  }
-  .gpp-parch-anno-callout.is-expanded {
-    position: relative;
-    z-index: 5;
-    box-shadow: 0 3px 10px rgba(26, 20, 32, 0.2);
-  }
-  .gpp-parch-anno-callout.is-expanded .gpp-parch-anno-preview {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-  }
-  .gpp-parch-anno-span {
-    height: 2px;
-  }
+.gpp-follow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--gp-toolbar-border);
+  border-radius: 999px;
+  background: var(--gp-accent);
+  color: var(--gp-accent-ink);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+  animation: gpp-pop-in var(--gp-t-pop) var(--gp-ease);
+}
+.gpp-follow-btn[hidden] { display: none; }
+.gpp-follow-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6); }
+.gpp-follow-btn svg { width: 18px; height: 18px; }
+
+@keyframes gpp-pop-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 
-/* ── Floating transport (over parchment / analysis) ───────────────────── */
+/* ── 8. Transport ───────────────────────────────────────────────────────── */
 
 .gpp-transport-anchor {
   position: absolute;
@@ -1308,245 +1320,414 @@
   bottom: 0;
   z-index: 55;
   display: flex;
-  justify-content: center;
+  justify-content: stretch;
   align-items: flex-end;
-  padding: 0 8px max(6px, env(safe-area-inset-bottom, 0px));
   pointer-events: none;
 }
 
-.gpp-transport-dock {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  max-width: min(100%, 520px);
-  padding: 4px 10px 5px;
-  border-radius: 16px;
-  border: 1px solid rgba(58, 42, 24, 0.38);
-  /* An opaque dock, with no backdrop filter. A backdrop filter makes Safari
-     paint the dock over the drawers and sheets, which hides Practice
-     settings behind the transport buttons. */
-  background: rgb(253, 249, 236);
-  box-shadow:
-    0 4px 18px rgba(26, 20, 32, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  pointer-events: auto;
-}
-
-.gpp-transport-row-primary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  flex-wrap: nowrap;
-}
-
-/* The transport buttons and the readout scroll sideways when they do not fit.
-   The menu button sits outside this scroller, so the gear keeps one place and
-   the player never scrolls the row to find it. */
-.gpp-transport-scroll {
+.gpp-transport {
   flex: 1 1 auto;
-  min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  padding-right: 6px;
-  border-right: 1px solid rgba(58, 42, 24, 0.28);
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--gp-transport-h);
+  padding: 8px 12px max(8px, env(safe-area-inset-bottom, 0px));
+  background: var(--gp-toolbar-bg);
+  border-top: 1px solid var(--gp-toolbar-border);
+  pointer-events: auto;
+  min-width: 0;
 }
-.gpp-transport-scroll::-webkit-scrollbar {
-  display: none;
-}
-.gpp-transport-scroll > * {
-  flex: 0 0 auto;
-}
-
-.gpp-transport-time {
-  padding: 0 4px;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.82rem;
-  color: rgba(30, 20, 8, 0.78);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.gpp-transport-menu-btn,
-.gpp-transport-expand-btn {
-  flex: 0 0 auto;
-  margin-left: 6px;
-  min-width: var(--tap-min, 44px);
-}
-
-.gpp-transport-expand-btn svg {
-  width: 20px;
-  height: 20px;
-  transition: transform 0.18s ease;
-}
-
-.gpp-transport-dock.is-expanded .gpp-transport-expand-btn svg {
-  transform: rotate(180deg);
-}
-
-.gpp-transport-row-practice[hidden] {
-  display: none;
-}
-
-/* The tempo group names its own number. "120" beside a play button says
-   nothing on its own, so the unit stays in the field. */
-.gpp-transport-tempo {
-  display: inline-flex;
+.gpp-transport-main,
+.gpp-transport-tools {
+  display: flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
+  min-width: 0;
 }
-
-.gpp-tempo-step {
-  min-width: 38px;
-  padding: 0 6px;
-  font-size: 1.05rem;
-}
-
-.gpp-tempo-field {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-  min-height: var(--tap-min, 44px);
-  padding: 0 10px;
-  border: 1px solid rgba(58, 42, 24, 0.35);
-  border-radius: 11px;
-  background: rgba(255, 252, 240, 0.96);
-}
-
-.gpp-transport-tempo.is-changed .gpp-tempo-field {
-  border-color: #6b4c9a;
-  background: rgba(107, 76, 154, 0.12);
-}
-
-.gpp-transport-dock .gpp-tempo-input {
-  width: 3.4ch;
-  padding: 0;
-  border: none;
-  background: none;
-  color: #1e1408;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 1.15rem;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  line-height: var(--tap-min, 44px);
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-.gpp-transport-dock .gpp-tempo-input::-webkit-outer-spin-button,
-.gpp-transport-dock .gpp-tempo-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.gpp-transport-dock .gpp-tempo-input:focus-visible {
-  outline: 2px solid #6b4c9a;
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.gpp-tempo-unit {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
-  color: rgba(30, 20, 8, 0.62);
-}
-
+.gpp-transport-main { flex: 1 1 auto; }
+.gpp-transport-tools { flex: 0 1 auto; justify-content: flex-end; }
 .gpp-transport-extra {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
   padding-right: 6px;
-  margin-right: 2px;
-  border-right: 1px solid rgba(58, 42, 24, 0.35);
+  margin-right: 4px;
+  border-right: 1px solid var(--gp-toolbar-border);
 }
 
-.gpp-transport-btn {
+/* Transport buttons: three classes. Play is the primary; loop, metronome,
+   solo, and mute are toggles; the rest are utilities with no container until
+   hover, focus, or an on state. */
+.gpp-tbtn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--tap-min, 44px);
-  min-height: var(--tap-min, 44px);
+  gap: 6px;
+  min-width: var(--gp-tap);
+  min-height: var(--gp-tap);
   padding: 0 10px;
-  border: 1px solid rgba(58, 42, 24, 0.35);
-  border-radius: 11px;
-  background: rgba(255, 252, 240, 0.96);
-  color: #1e1408;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
+  border: none;
+  border-radius: var(--gp-radius);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition: background var(--gp-t-fast) ease, color var(--gp-t-fast) ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.gpp-transport-btn:hover,
-.gpp-transport-btn:focus-visible {
-  border-color: #6b4c9a;
-  color: #6b2d8b;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(107, 76, 154, 0.22);
-}
-.gpp-transport-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.gpp-transport-btn.is-primary {
-  background: var(--accent);
-  border-color: rgba(58, 42, 24, 0.45);
-  color: var(--on-accent);
-  font-weight: 650;
+.gpp-tbtn:hover { background: rgba(255, 255, 255, 0.08); }
+.gpp-tbtn:active { background: rgba(255, 255, 255, 0.14); }
+.gpp-tbtn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); }
+.gpp-tbtn:disabled { opacity: 0.4; cursor: default; }
+.gpp-tbtn svg { width: 22px; height: 22px; flex-shrink: 0; }
+.gpp-tbtn-icon { display: inline-flex; }
+.gpp-tbtn-icon svg { width: 20px; height: 20px; }
+.gpp-tbtn-text { font-variant-numeric: tabular-nums; }
+
+.gpp-tbtn--play {
+  width: 48px;
+  height: 48px;
   min-width: 48px;
-  min-height: 44px;
-  font-size: 1.1rem;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--gp-accent);
+  color: var(--gp-accent-ink);
+  box-shadow: 0 2px 10px rgba(255, 225, 74, 0.25);
 }
-.gpp-transport-btn.is-primary:hover,
-.gpp-transport-btn.is-primary:focus-visible {
-  color: var(--on-accent);
-  border-color: rgba(58, 42, 24, 0.55);
-  box-shadow: 0 0 14px var(--accent-dim);
-}
-.gpp-transport-menu-btn svg {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-.gpp-transport-menu-btn.is-on {
-  border-color: #6b4c9a;
-  background: rgba(107, 76, 154, 0.14);
-  color: #6b2d8b;
-  box-shadow: inset 0 0 0 1px rgba(107, 76, 154, 0.35);
+.gpp-tbtn--play:hover { background: var(--gp-accent); filter: brightness(1.06); }
+.gpp-tbtn--play:active { filter: brightness(0.96); }
+.gpp-tbtn--play svg { width: 26px; height: 26px; }
+.gpp-tbtn--play.is-pending { animation: gpp-pulse 0.8s ease-in-out infinite; }
+@keyframes gpp-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 225, 74, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 225, 74, 0); }
 }
 
+/* Toggles: low chrome when off, clearly filled when on. The on state also
+   carries aria-pressed, so it never depends on color alone. */
+.gpp-tbtn--toggle.is-on {
+  background: var(--gp-accent);
+  color: var(--gp-accent-ink);
+}
+.gpp-tbtn--toggle.is-on:hover { background: var(--gp-accent); filter: brightness(1.06); }
+.gpp-tbtn--loop[data-loop-mode="song"] .gpp-tbtn-icon { transform: scaleX(-1); }
+
+.gpp-tbtn--position {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 0 10px;
+  min-width: 0;
+}
+.gpp-transport-bar {
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.gpp-transport-time {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--gp-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.gpp-transport-overlay {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--gp-accent);
+  color: var(--gp-accent-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.gpp-transport-overlay[hidden] { display: none; }
+
+.gpp-tbtn--speed {
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 64px;
+}
+.gpp-speed-pct {
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.gpp-speed-bpm {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--gp-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.gpp-tbtn--speed.is-changed .gpp-speed-pct { color: var(--gp-accent); }
+.gpp-tbtn[aria-expanded="true"],
+.gpp-tbtn.is-open { background: rgba(255, 255, 255, 0.1); }
+
+.gpp-count-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--gp-accent-soft);
+  color: var(--gp-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.gpp-count-badge[hidden] { display: none; }
 .gpp-ramp-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  background: rgba(255, 230, 109, 0.18);
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 0.78rem;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--gp-toolbar-border);
+  color: var(--gp-text);
+  font-size: 0.76rem;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-/* The chip keeps no width while it is hidden, so the dock row stays short. */
-.gpp-ramp-chip[hidden] {
-  display: none;
+.gpp-ramp-chip[hidden] { display: none; }
+.gpp-tbtn--backing[hidden] { display: none; }
+
+/* ── 9. Popovers ────────────────────────────────────────────────────────── */
+
+.gpp-popover-host {
+  position: absolute;
+  inset: 0;
+  z-index: 120;
+  pointer-events: none;
+}
+.gpp-popover-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.gpp-popover-root[hidden] { display: none; }
+.gpp-popover-backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  pointer-events: none;
+}
+.gpp-popover-root.is-sheet .gpp-popover-backdrop {
+  background: rgba(0, 0, 0, 0.42);
+  pointer-events: auto;
+}
+.gpp-popover {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  max-height: min(70%, 520px);
+  width: 300px;
+  border-radius: 14px;
+  background: var(--gp-shell-surface);
+  border: 1px solid var(--gp-toolbar-border);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  color: var(--gp-text);
+  pointer-events: auto;
+  animation: gpp-pop-in var(--gp-t-pop) var(--gp-ease);
+  overflow: hidden;
+}
+.gpp-popover:focus { outline: none; }
+.gpp-popover-handle { display: none; }
+.gpp-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 6px 4px 14px;
+}
+.gpp-popover-head.is-untitled { padding-top: 4px; }
+.gpp-popover-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gp-text-muted);
+}
+.gpp-popover-close { width: 36px; height: 36px; }
+.gpp-popover-close svg { width: 18px; height: 18px; }
+.gpp-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 14px 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+}
+.gpp-popover-note {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--gp-text-muted);
+  margin: 0;
+}
+.gpp-popover-subtitle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gp-text-muted);
+}
+.gpp-popover-subtitle[hidden] { display: none; }
+.gpp-popover-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gpp-popover-section[hidden] { display: none; }
+
+/* On a compact screen every popover is a bottom sheet. */
+.gpp-popover-root.is-sheet .gpp-popover {
+  left: 0 !important;
+  right: 0;
+  bottom: 0 !important;
+  top: auto !important;
+  width: auto !important;
+  max-height: min(78%, 640px);
+  border-radius: 18px 18px 0 0;
+  border-bottom: none;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: gpp-sheet-in var(--gp-t-drawer) var(--gp-ease);
+}
+.gpp-popover-root.is-sheet .gpp-popover-handle {
+  display: block;
+  flex-shrink: 0;
+  width: 40px;
+  height: 4px;
+  margin: 10px auto 0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.2);
+}
+@keyframes gpp-sheet-in {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: none; opacity: 1; }
 }
 
-/* ── Drawers (desktop) / sheets (mobile) ──────────────────────────────── */
+/* Speed panel */
+.gpp-speed-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.gpp-speed-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gpp-speed-bound {
+  font-size: 0.72rem;
+  color: var(--gp-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.gpp-speed-readout {
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.gpp-speed-bpm-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.gpp-speed-bpm-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.gpp-bpm-input { width: 80px; }
+
+/* Go to panel */
+.gpp-goto-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gpp-goto-label { font-size: 0.9rem; font-weight: 600; }
+.gpp-goto-input { width: 72px; }
+.gpp-goto-total { font-size: 0.8rem; color: var(--gp-text-muted); flex: 1; }
+.gpp-goto-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gpp-goto-sections[hidden] { display: none; }
+.gpp-goto-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--gp-radius-sm);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.gpp-goto-section:hover { background: rgba(255, 255, 255, 0.06); }
+.gpp-goto-section:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--gp-focus-ring); }
+.gpp-goto-section.is-current { background: var(--gp-accent-soft); }
+.gpp-goto-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gpp-goto-section-bar { color: var(--gp-text-muted); font-variant-numeric: tabular-nums; }
+
+/* View panel */
+.gpp-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gpp-zoom-readout {
+  min-width: 3.2em;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Practice panel */
+.gpp-practice-range { font-size: 1rem; font-weight: 700; }
+.gpp-practice-ramp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--gp-radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+.gpp-practice-ramp-body[hidden] { display: none; }
+.gpp-practice-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gpp-practice-field-label { flex: 1; font-size: 0.86rem; }
+.gpp-practice-start { margin-top: 4px; }
+
+/* ── 10. Drawers and sheets ─────────────────────────────────────────────── */
 
 .gpp-drawer-root {
   position: absolute;
@@ -1559,9 +1740,7 @@
 .gpp-drawer-root .gpp-sheet.is-open {
   pointer-events: auto;
 }
-
-/* An open drawer or sheet owns the screen. The dock drops below it, so the
-   panel cannot appear behind the transport buttons. */
+/* An open drawer or sheet owns the screen. The transport drops below it. */
 .gpp-score-pane:has(.gpp-drawer.is-open, .gpp-sheet.is-open) .gpp-transport-anchor {
   z-index: 1;
 }
@@ -1573,33 +1752,33 @@
   background: rgba(0, 0, 0, 0.38);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
-  border-radius: inherit;
+  transition: opacity var(--gp-t-drawer) ease;
 }
-.gpp-drawer-backdrop.is-open {
-  opacity: 1;
-}
+.gpp-drawer-backdrop.is-open { opacity: 1; }
 
 .gpp-drawer {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  bottom: 10px;
+  top: 0;
+  right: 0;
+  bottom: 0;
   z-index: 2;
-  width: min(320px, 58%);
+  width: min(var(--gp-drawer-w), 82%);
   display: flex;
   flex-direction: column;
-  background: rgba(18, 26, 46, 0.98);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen, 14px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(180, 94, 255, 0.12);
+  background: var(--gp-shell-surface);
+  border-left: 1px solid var(--gp-toolbar-border);
   transform: translateX(calc(100% + 16px));
-  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  visibility: hidden;
+  transition: transform var(--gp-t-drawer) var(--gp-ease), visibility 0s linear var(--gp-t-drawer);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   overflow: hidden;
+  color: var(--gp-text);
 }
 .gpp-drawer.is-open {
   transform: translateX(0);
+  visibility: visible;
+  transition-delay: 0s;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.4);
 }
 
 .gpp-drawer-head {
@@ -1608,15 +1787,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
+  min-height: var(--gp-header-h);
+  padding: 6px 8px 6px 16px;
+  border-bottom: 1px solid var(--gp-toolbar-border);
 }
 .gpp-drawer-title {
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.58rem;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gp-text);
 }
 .gpp-drawer-body {
   flex: 1;
@@ -1626,123 +1804,21 @@
   scrollbar-width: thin;
   padding: 12px 14px 18px;
 }
-
 .gpp-drawer-section {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--gp-toolbar-border);
 }
-.gpp-drawer-section:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
+.gpp-drawer-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 .gpp-drawer-section-title {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-  letter-spacing: 0.06em;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--accent2);
-}
-
-/* ── Settings accordion sections (collapsible details) ─────────────────── */
-
-.gpp-settings-section {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-}
-.gpp-settings-section:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-.gpp-settings-section-title {
-  cursor: pointer;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 1.05rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent2);
-  list-style: none;
-  user-select: none;
-  padding: 4px 0 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.gpp-settings-section-title::-webkit-details-marker { display: none; }
-.gpp-settings-section-title::before {
-  content: "▸";
-  font-size: 0.85rem;
-  color: var(--accent);
-  transition: transform 0.15s ease;
-}
-.gpp-settings-section[open] > .gpp-settings-section-title::before {
-  transform: rotate(90deg);
-}
-.gpp-settings-section-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-bottom: 4px;
-}
-
-.gpp-metro-subdiv-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.gpp-metro-subdiv-btn {
-  min-height: var(--tap-min, 44px);
-  min-width: 64px;
-  padding: 6px 10px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.gpp-metro-subdiv-btn.is-active,
-.gpp-metro-subdiv-btn[aria-checked="true"] {
-  border-color: var(--accent);
-  background: rgba(255, 230, 109, 0.16);
-  color: var(--accent);
-}
-.gpp-accent-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.gpp-accent-btn {
-  min-width: var(--tap-min, 44px);
-  min-height: var(--tap-min, 44px);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  background: var(--bg2);
-  color: var(--muted);
-  font-family: var(--font-ui);
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-.gpp-accent-btn.is-on {
-  border-color: var(--accent);
-  background: rgba(255, 230, 109, 0.2);
-  color: var(--accent);
-}
-.gpp-ramp-status {
-  padding: 8px 10px;
-  border-radius: var(--radius-screen);
-  border: 1px solid var(--border);
-  background: var(--bg2);
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 0.9rem;
+  color: var(--gp-text-muted);
 }
 
 .gpp-sheet {
@@ -1754,151 +1830,212 @@
   display: none;
   flex-direction: column;
   max-height: min(88%, 720px);
-  background: rgba(18, 26, 46, 0.98);
-  border: 1px solid var(--border);
-  border-bottom: none;
+  background: var(--gp-shell-surface);
+  border-top: 1px solid var(--gp-toolbar-border);
   border-radius: 18px 18px 0 0;
-  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
   transform: translateY(100%);
-  transition: transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+  visibility: hidden;
+  transition: transform var(--gp-t-drawer) var(--gp-ease), visibility 0s linear var(--gp-t-drawer);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  color: var(--gp-text);
 }
 .gpp-sheet.is-open {
   transform: translateY(0);
+  visibility: visible;
+  transition-delay: 0s;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
 }
 .gpp-sheet-handle {
   flex-shrink: 0;
   width: 40px;
   height: 4px;
-  margin: 10px auto 4px;
+  margin: 10px auto 2px;
   border-radius: 3px;
-  background: var(--border);
+  background: rgba(255, 255, 255, 0.2);
 }
 
-@media (max-width: 768px) and (min-height: 501px) {
-  .gpp-drawer {
+/* On a large screen the mixer drawer shrinks the score rather than covering it. */
+@media (min-width: 1025px) {
+  .gpp-score-pane.has-mixer-open .gpp-parchment-host {
+    margin-right: min(var(--gp-drawer-w), 40%);
+  }
+  .gpp-score-pane.has-mixer-open .gpp-tracks-drawer-root .gpp-drawer-backdrop {
     display: none;
   }
-  .gpp-sheet {
-    display: flex;
-  }
 }
 
-@media (min-width: 769px), (orientation: landscape) and (max-height: 500px) {
-  .gpp-sheet {
-    display: none !important;
-  }
+/* ── 11. Mixer ──────────────────────────────────────────────────────────── */
+
+.gpp-mixer-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
 }
-
-/* ── Mixer rows (drawer / sheet) ──────────────────────────────────────── */
-
 .gpp-mix-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-
 .gpp-mix-row {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(11, 16, 32, 0.55);
-  font-size: 0.85rem;
-}
-.gpp-mix-row:hover {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--gp-radius);
   background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  transition: background var(--gp-t-fast) ease, opacity var(--gp-t-fast) ease;
 }
-.gpp-mix-row.is-muted {
-  opacity: 0.62;
-}
-.gpp-mix-row.is-muted .gpp-mix-name {
-  text-decoration: line-through;
-}
-.gpp-mix-row.is-solo {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(255, 225, 74, 0.25);
-}
-.gpp-mix-row.is-viewing {
-  border-color: var(--accent2);
-}
-
+.gpp-mix-row.is-viewing { border-color: rgba(255, 225, 74, 0.35); }
+.gpp-mix-row.is-muted .gpp-mix-title { text-decoration: line-through; color: var(--gp-text-muted); }
+.gpp-mix-row.is-dimmed { opacity: 0.55; }
+.gpp-mix-row.is-solo { opacity: 1; background: var(--gp-accent-soft); }
 .gpp-mix-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gpp-mix-name:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); border-radius: 6px; }
+.gpp-mix-name[aria-pressed="true"] { cursor: default; }
+.gpp-mix-icon { display: inline-flex; color: var(--gp-text-muted); flex-shrink: 0; }
+.gpp-mix-icon svg { width: 20px; height: 20px; }
+.gpp-mix-text {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+.gpp-mix-title {
+  font-size: 0.92rem;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.92rem;
-  color: var(--text);
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  text-align: left;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
 }
-.gpp-mix-name:hover,
-.gpp-mix-name:focus-visible {
-  color: var(--accent);
-  outline: none;
-  text-decoration: underline;
-  text-decoration-color: var(--accent2);
+.gpp-mix-meta {
+  font-size: 0.76rem;
+  color: var(--gp-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.gpp-mix-type {
-  flex-shrink: 0;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.78rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+.gpp-mix-meta:empty { display: none; }
 .gpp-mix-viewing {
   flex-shrink: 0;
-  font-family: var(--font-ui, "VT323", monospace);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gp-accent);
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 225, 74, 0.4);
+  border-radius: 999px;
+}
+.gpp-mix-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gpp-mix-toggle {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--gp-toolbar-border);
+  border-radius: var(--gp-radius-sm);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.gpp-mix-toggle:hover { background: rgba(255, 255, 255, 0.08); }
+.gpp-mix-toggle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); }
+.gpp-mix-mute.is-on {
+  background: var(--gp-danger);
+  border-color: var(--gp-danger);
+  color: #fff;
+}
+.gpp-mix-solo.is-on {
+  background: var(--gp-accent);
+  border-color: var(--gp-accent);
+  color: var(--gp-accent-ink);
+}
+.gpp-mix-volume { flex: 1; min-width: 80px; }
+
+/* ── 12. Forms, metronome, notes, backing ───────────────────────────────── */
+
+.gpp-settings-body,
+.gpp-metronome-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gpp-settings-section {
+  border-bottom: 1px solid var(--gp-toolbar-border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+.gpp-settings-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.gpp-settings-section-title {
+  cursor: pointer;
   font-size: 0.82rem;
+  font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--accent2);
-  padding: 3px 8px;
-  border: 1px solid rgba(180, 94, 255, 0.35);
-  border-radius: 6px;
+  color: var(--gp-text);
+  list-style: none;
+  user-select: none;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.gpp-mix-solo,
-.gpp-mix-mute {
-  accent-color: var(--accent);
+.gpp-settings-section-title::-webkit-details-marker { display: none; }
+.gpp-settings-section-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--gp-text-muted);
+  border-bottom: 2px solid var(--gp-text-muted);
+  transform: rotate(-45deg);
+  transition: transform var(--gp-t-fast) ease;
+  margin-right: 2px;
 }
-
-/* ── Settings / form controls inside drawers ──────────────────────────── */
-
+.gpp-settings-section[open] > .gpp-settings-section-title::before { transform: rotate(45deg); }
+.gpp-settings-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
 .gpp-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 0.8rem;
-  color: var(--muted);
+  font-size: 0.84rem;
+  color: var(--gp-text-muted);
 }
 .gpp-control-label {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.92rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gp-text);
 }
 .gpp-zoom-limit-note,
 .gpp-settings-note {
-  font-family: var(--font-ui, "VT323", monospace);
   font-size: 0.78rem;
   line-height: 1.35;
-  color: var(--muted);
+  color: var(--gp-text-muted);
 }
 .gpp-control-row {
   display: flex;
@@ -1906,142 +2043,89 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-.gpp-tempo-reset-row {
-  margin-top: 2px;
-}
-.gpp-tempo-reset-row .gpp-reset-bpm[disabled] {
-  opacity: 0.55;
-  cursor: default;
-}
-.gpp-select,
-.gpp-num {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 0.85rem;
-  font-family: inherit;
-}
-.gpp-select { max-width: 100%; min-width: 0; }
-.gpp-num { width: 72px; }
-.gpp-slider {
-  flex: 1;
-  min-width: 100px;
-  accent-color: var(--accent);
-}
-.gpp-check {
-  display: inline-flex;
-  align-items: center;
+.gpp-pct { font-variant-numeric: tabular-nums; font-size: 0.86rem; }
+
+.gpp-metro-subdiv-picker,
+.gpp-accent-grid {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  font-size: 0.8rem;
-  color: var(--text);
+}
+.gpp-metro-subdiv-btn,
+.gpp-accent-btn {
+  min-height: var(--gp-tap);
+  min-width: var(--gp-tap);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gp-toolbar-border);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
   cursor: pointer;
 }
-.gpp-check input { accent-color: var(--accent); }
+.gpp-metro-subdiv-btn.is-active,
+.gpp-metro-subdiv-btn[aria-checked="true"],
+.gpp-accent-btn.is-on {
+  border-color: var(--gp-accent);
+  background: var(--gp-accent);
+  color: var(--gp-accent-ink);
+}
+.gpp-ramp-status {
+  padding: 8px 10px;
+  border-radius: var(--gp-radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--gp-text);
+  font-size: 0.86rem;
+}
 
-/* ── Section notes drawer ─────────────────────────────────────────────── */
-
-.gpp-anno-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 0;
-}
-.gpp-anno-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.gpp-anno-hint {
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: var(--muted);
-  margin: 0;
-}
-.gpp-anno-no-key {
-  color: var(--accent2);
-}
-.gpp-anno-select-hint {
-  color: var(--accent);
-}
-.gpp-anno-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-}
+.gpp-anno-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.gpp-anno-toolbar { display: flex; align-items: center; gap: 8px; }
+.gpp-anno-hint { font-size: 0.84rem; line-height: 1.45; color: var(--gp-text-muted); margin: 0; }
+.gpp-anno-no-key { color: var(--gp-accent); }
+.gpp-anno-select-hint { color: var(--gp-accent); }
+.gpp-anno-list { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .gpp-anno-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   align-items: flex-start;
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen, 12px);
-  background: var(--bg2);
-  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: var(--gp-radius);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--gp-text);
+  font-family: inherit;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease;
 }
-.gpp-anno-item:hover,
-.gpp-anno-item:focus-visible {
-  border-color: var(--accent2);
-  outline: none;
-}
-.gpp-anno-item.is-selected {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-  box-shadow: inset 0 0 0 1px rgba(255, 225, 74, 0.25);
-}
-.gpp-anno-item-title {
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-}
-.gpp-anno-item-meta {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-}
-.gpp-anno-item-preview {
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.78rem;
-  line-height: 1.4;
-  color: var(--muted);
-  max-width: 100%;
-}
+.gpp-anno-item:hover { background: rgba(255, 255, 255, 0.08); }
+.gpp-anno-item:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); }
+.gpp-anno-item.is-selected { border-color: rgba(255, 225, 74, 0.5); background: var(--gp-accent-soft); }
+.gpp-anno-item-title { font-size: 0.92rem; font-weight: 600; }
+.gpp-anno-item-meta { font-size: 0.76rem; color: var(--gp-accent); }
+.gpp-anno-item-preview { font-size: 0.8rem; line-height: 1.4; color: var(--gp-text-muted); max-width: 100%; }
 .gpp-anno-editor {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen, 12px);
-  background: var(--card);
+  border-radius: var(--gp-radius);
+  background: rgba(255, 255, 255, 0.04);
 }
-.gpp-anno-editor-meta {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.9rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--accent2);
-}
+.gpp-anno-editor-meta { font-size: 0.76rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gp-text-muted); }
 .gpp-anno-title-input,
 .gpp-anno-text-input {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.85rem;
+  border: 1px solid var(--gp-toolbar-border);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-shell-bg);
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.9rem;
   line-height: 1.4;
   resize: vertical;
   min-height: 0;
@@ -2049,20 +2133,180 @@
 .gpp-anno-title-input:focus-visible,
 .gpp-anno-text-input:focus-visible {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-dim);
+  border-color: var(--gp-accent);
+  box-shadow: 0 0 0 2px var(--gp-accent-soft);
 }
-.gpp-anno-text-input {
-  min-height: 96px;
-}
-.gpp-anno-actions {
+.gpp-anno-text-input { min-height: 96px; }
+.gpp-anno-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.gpp-backing-body { display: flex; flex-direction: column; gap: 14px; font-size: 0.9rem; }
+.gpp-backing-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
+  padding: 10px;
+  border-radius: var(--gp-radius);
+  background: rgba(255, 255, 255, 0.04);
+}
+.gpp-backing-group-title { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gp-text-muted); }
+.gpp-backing-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gpp-backing-label { flex: 0 0 6.5rem; font-size: 0.88rem; color: var(--gp-text); }
+.gpp-backing-readout { min-width: 5rem; font-size: 0.88rem; color: var(--gp-accent); text-align: right; font-variant-numeric: tabular-nums; }
+.gpp-backing-hint { font-size: 0.8rem; color: var(--gp-text-muted); }
+.gpp-backing-source-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
+.gpp-backing-url,
+.gpp-backing-anchor {
+  min-height: var(--gp-tap);
+  padding: 0 8px;
+  border: 1px solid var(--gp-toolbar-border);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-shell-bg);
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+.gpp-backing-url { flex: 1 1 10rem; min-width: 0; }
+.gpp-backing-anchor { width: 6rem; }
+.gpp-backing-volume,
+.gpp-backing-trim { flex: 1 1 6rem; min-width: 0; min-height: var(--gp-tap); accent-color: var(--gp-accent); }
+.gpp-backing-toggle { display: flex; align-items: center; gap: 8px; min-height: var(--gp-tap); cursor: pointer; }
+.gpp-backing-active { width: 20px; height: 20px; accent-color: var(--gp-accent); }
+.gpp-backing-yt { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--gp-radius); overflow: hidden; background: #000; }
+.gpp-backing-yt iframe,
+.gpp-backing-yt .gpp-backing-yt-frame { width: 100%; height: 100%; border: 0; }
+.gpp-backing-status { font-size: 0.86rem; color: var(--gp-text-muted); }
+.gpp-backing-notice {
+  padding: 8px 10px;
+  border-radius: var(--gp-radius-sm);
+  border: 1px solid rgba(255, 225, 74, 0.4);
+  background: var(--gp-accent-soft);
+  font-size: 0.84rem;
+  color: var(--gp-text);
+}
+.gpp-danger { color: var(--gp-danger); }
+
+.gpp-shortcut-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.gpp-shortcut-table th,
+.gpp-shortcut-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--gp-toolbar-border);
+  text-align: left;
+  font-weight: 500;
+}
+.gpp-shortcut-table td { text-align: right; white-space: nowrap; }
+.gpp-shortcut-table kbd {
+  font-family: var(--gp-font-mono);
+  font-size: 0.8rem;
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--gp-toolbar-border);
+  background: rgba(255, 255, 255, 0.06);
+}
+.gpp-help-body { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── 13. Player menu ────────────────────────────────────────────────────── */
+
+.gpp-player-menu-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 0 8px;
+}
+.gpp-menu-group { display: flex; flex-direction: column; gap: 4px; }
+.gpp-menu-group-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gp-text-muted);
+  padding: 0 6px 2px;
+}
+.gpp-menu-view-picker { display: flex; flex-direction: row; gap: 4px; flex-wrap: wrap; }
+.gpp-menu-view-option {
+  display: flex;
   align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--gp-toolbar-border);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gpp-menu-view-option:hover { background: rgba(255, 255, 255, 0.06); }
+.gpp-menu-view-option:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gp-focus-ring); }
+.gpp-menu-view-option.is-active {
+  border-color: var(--gp-accent);
+  background: var(--gp-accent);
+  color: var(--gp-accent-ink);
+}
+.gpp-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--gp-tap);
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--gp-radius-sm);
+  background: transparent;
+  color: var(--gp-text);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.gpp-menu-row:hover { background: rgba(255, 255, 255, 0.06); }
+.gpp-menu-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--gp-focus-ring); }
+.gpp-menu-row[aria-pressed="true"] { background: var(--gp-accent-soft); }
+.gpp-menu-row-icon {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 8px;
+  pointer-events: none;
+  color: var(--gp-text-muted);
+}
+.gpp-menu-row-label { font-size: 0.92rem; line-height: 1.2; }
+.gpp-menu-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--gp-toolbar-border);
+}
+.gpp-menu-extra .gpp-head-extra-wrap,
+.gpp-menu-extra .wb-gpp-head-extra {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+.gpp-menu-extra .btn.sm {
+  width: 100%;
+  min-height: var(--gp-tap);
+  justify-content: center;
+}
+.gpp-head-extra-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
 }
 
-/* ── Loading / error overlays ─────────────────────────────────────────── */
+/* ── 14. Loading and errors ─────────────────────────────────────────────── */
 
 .gpp-loading,
 .gpp-error {
@@ -2078,54 +2322,39 @@
   z-index: 6;
 }
 .gpp-loading {
-  background: rgba(244, 234, 212, 0.82);
-  color: #3a2a18;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 1rem;
+  background: rgba(255, 254, 251, 0.85);
+  color: var(--gp-score-muted);
+  font-size: 0.95rem;
 }
 .gpp-error {
-  background: rgba(18, 26, 46, 0.94);
-  color: var(--warn);
-  font-family: var(--font-ui, "VT323", monospace);
+  background: rgba(18, 24, 42, 0.96);
+  color: var(--gp-text);
   font-size: 0.95rem;
-  border: 1px solid rgba(255, 225, 74, 0.35);
 }
 .gpp-loading[hidden],
-.gpp-error[hidden] {
-  display: none;
-}
-
+.gpp-error[hidden] { display: none; }
 .gpp-loading-spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid rgba(58, 42, 24, 0.2);
-  border-top-color: #6b2d8b;
+  border: 3px solid rgba(27, 27, 31, 0.15);
+  border-top-color: var(--gp-ink-accent);
   border-radius: 50%;
   animation: gpp-spin 0.8s linear infinite;
 }
-@keyframes gpp-spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes gpp-spin { to { transform: rotate(360deg); } }
 
-/* ── Saved scores library ─────────────────────────────────────────────── */
+/* ── 15. Saved scores library (standalone screen) ───────────────────────── */
 
 .gpp-library {
   border: 1px solid var(--border);
   border-radius: var(--radius-screen, 18px);
   background: rgba(22, 31, 54, 0.88);
   padding: 14px 16px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-.gpp-library-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+.gpp-library-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .gpp-library-title {
   font-family: var(--font-pixel, "Press Start 2P", monospace);
   font-size: 0.58rem;
@@ -2134,11 +2363,7 @@
   text-transform: uppercase;
   color: var(--accent);
 }
-.gpp-library-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+.gpp-library-list { display: flex; flex-direction: column; gap: 10px; }
 .gpp-library-empty {
   padding: 18px 12px;
   border: 1px dashed var(--border);
@@ -2146,7 +2371,6 @@
   text-align: center;
   color: var(--muted);
   font-size: 0.82rem;
-  background: rgba(18, 26, 46, 0.5);
 }
 .gpp-library-card {
   border: 1px solid var(--border);
@@ -2157,46 +2381,74 @@
   flex-direction: column;
   gap: 10px;
 }
-.gpp-library-card.is-active {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-.gpp-library-card-head {
+.gpp-library-card.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.gpp-library-card-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.gpp-library-card-title { font-size: 0.95rem; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gpp-library-card-meta { font-size: 0.78rem; color: var(--muted); }
+.gpp-library-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.gpp-danger:hover { background: rgba(230, 57, 70, 0.12); color: var(--err); }
+
+/* ── 16. Analysis pane and view modes ───────────────────────────────────── */
+
+.gpp-stage-content {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.gpp-library-card-title {
-  font-size: 0.95rem;
-  font-weight: 650;
-  color: var(--text);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.gpp-library-card-meta {
-  font-size: 0.78rem;
-  color: var(--muted);
-  font-family: var(--font-ui, "VT323", monospace);
-}
-.gpp-library-card-actions {
+.gpp-score-pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  overflow: hidden;
 }
-.gpp-danger { color: var(--err); }
-.gpp-danger:hover {
-  background: rgba(230, 57, 70, 0.12);
-  color: var(--err);
+.gpp-analysis-pane {
+  flex: 1;
+  min-height: 0;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--gp-toolbar-border);
+  background: var(--gp-shell-bg);
+  position: relative;
 }
-
-/* ── Analysis pane (tab analyzer report) ───────────────────────────────── */
-
+.gpp-root.gpp-view-analyze .gpp-score-pane { display: none; }
+.gpp-root.gpp-view-analyze .gpp-analysis-pane { display: flex; border-top: none; }
+.gpp-root.gpp-view-split .gpp-analysis-pane { display: flex; }
+.gpp-root.gpp-view-split .gpp-stage-content { flex-direction: column; }
+.gpp-root.gpp-view-split .gpp-score-pane { flex: 3 1 0; min-height: 120px; }
+.gpp-root.gpp-view-split .gpp-analysis-pane { flex: 2 1 0; min-height: 140px; }
+@media (min-width: 1025px) {
+  .gpp-root.gpp-view-split .gpp-stage-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .gpp-root.gpp-view-split .gpp-score-pane { flex: unset; min-width: 0; min-height: 0; }
+  .gpp-root.gpp-view-split .gpp-analysis-pane {
+    flex: unset;
+    min-width: 0;
+    min-height: 0;
+    border-top: none;
+    border-left: 1px solid var(--gp-toolbar-border);
+  }
+}
+.gpp-analysis-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--gp-toolbar-border);
+}
 .gpp-analysis-results {
   flex: 1;
   min-height: 0;
-  padding: 8px 10px calc(var(--gpp-transport-pad, 68px) + 8px);
+  padding: 8px 10px calc(var(--gp-transport-pad, var(--gpp-transport-pad, 76px)) + 8px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2207,202 +2459,9 @@
 .gpp-analysis-results .ta-card { margin: 0; }
 .gpp-analysis-results .ta-fb-wrap { overflow-x: auto; }
 
-/* ── Legacy follow view (transition compat) ─────────────────────────────── */
+/* ── 17. Full-bleed shell and focus mode ────────────────────────────────── */
 
-.sln-follow-host { margin: 0; min-width: 0; }
-.sln-follow {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen, 18px);
-  background: rgba(22, 31, 54, 0.88);
-  overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
-}
-.sln-follow-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(18, 26, 46, 0.9);
-  font-size: 0.95rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  font-family: var(--font-ui, "VT323", monospace);
-}
-.sln-follow-stage {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  overflow: hidden;
-  background: var(--bg);
-}
-.sln-follow-viewport {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent) transparent;
-}
-.sln-follow-playhead {
-  position: absolute;
-  left: 28%;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--accent);
-  box-shadow: 0 0 10px var(--accent-glow);
-  z-index: 3;
-  pointer-events: none;
-}
-.sln-follow-scroll { display: inline-flex; align-items: stretch; min-width: 100%; }
-.sln-follow-labels {
-  flex: 0 0 42px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 0;
-  padding: 32px 6px 10px;
-  background: var(--screen-bezel, rgba(10, 8, 22, 0.55));
-  border-right: 1px solid var(--border);
-  z-index: 4;
-  flex-shrink: 0;
-}
-.sln-follow-label {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  height: 22px;
-  line-height: 22px;
-  font-size: 0.92rem;
-  color: var(--muted);
-  text-align: right;
-  padding-right: 4px;
-  font-family: var(--font-ui, "VT323", monospace);
-}
-.sln-follow-label.drum { color: var(--accent2); }
-.sln-follow-gap { height: 12px; }
-.sln-follow-grid {
-  display: flex;
-  align-items: stretch;
-  padding: 32px 40vw 10px 0;
-  touch-action: none;
-  user-select: none;
-}
-.sln-follow-col {
-  position: relative;
-  flex: 0 0 36px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  border-left: 1px solid transparent;
-}
-.sln-follow-col.bar-start {
-  border-left: 3px solid var(--accent2);
-  box-shadow: -1px 0 8px rgba(180, 94, 255, 0.22);
-}
-.sln-follow-col.beat-start { border-left-color: rgba(180, 140, 255, 0.14); }
-.sln-follow-col.in-selection { background: var(--accent-dim); }
-.sln-follow-col.active .sln-follow-cell.hit {
-  color: var(--on-accent);
-  background: var(--accent);
-}
-.sln-follow-col.active .sln-follow-cell.drum.hit {
-  background: var(--accent2);
-  color: var(--on-accent);
-}
-.sln-follow-bar-num {
-  position: absolute;
-  top: -20px;
-  left: 4px;
-  font-size: 0.72rem;
-  color: var(--accent2);
-  font-weight: 700;
-  font-family: var(--font-ui, "VT323", monospace);
-  line-height: 1;
-  pointer-events: none;
-}
-.sln-follow-marker {
-  position: absolute;
-  top: -24px;
-  left: 2px;
-  font-size: 0.78rem;
-  color: var(--accent);
-  font-weight: 700;
-  white-space: nowrap;
-  max-width: 96px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-ui, "VT323", monospace);
-}
-.sln-follow-col.bar-start .sln-follow-marker { left: 6px; }
-.sln-follow-cell {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 22px;
-  line-height: 22px;
-  text-align: center;
-  font-size: 0.95rem;
-  font-family: var(--font-ui, "VT323", monospace);
-  color: transparent;
-}
-.sln-follow-cell.guitar::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 1px;
-  background: rgba(180, 140, 255, 0.32);
-  z-index: 0;
-  pointer-events: none;
-}
-.sln-follow-cell.drum::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 1px;
-  background: rgba(180, 140, 255, 0.16);
-  z-index: 0;
-  pointer-events: none;
-}
-.sln-follow-cell.guitar.hit {
-  z-index: 1;
-  color: var(--text);
-  font-weight: 650;
-  text-shadow: 0 1px 2px rgba(11, 16, 32, 0.85);
-}
-.sln-follow-cell.drum.hit {
-  z-index: 1;
-  color: var(--accent2);
-  font-family: var(--font-ui, "VT323", monospace);
-}
-.sln-follow-cell.drum.hit[data-glyph="X"],
-.sln-follow-cell.drum.hit[data-glyph="O"] {
-  font-weight: 700;
-  color: var(--accent);
-}
-.sln-follow-cell.drum.hit[data-glyph="g"] {
-  opacity: 0.5;
-}
-.sln-follow-cell.drum.hit[data-glyph="+"],
-.sln-follow-cell.drum.hit[data-glyph="b"],
-.sln-follow-cell.drum.hit[data-glyph="@"] {
-  color: var(--accent2);
-}
-.sln-follow-cell.gap { height: 12px; }
-
-/* ── Standalone GP screen: full-bleed score when loaded ─────────────────── */
-
+/* A loaded score escapes the content card width and takes the screen. */
 #sec-scoreplayer.gpp-score-loaded {
   display: flex;
   flex-direction: column;
@@ -2410,10 +2469,9 @@
   max-height: var(--avail-h, calc(100dvh - var(--dock-h)));
   overflow: hidden;
 }
-#sec-scoreplayer.gpp-score-loaded .section-head {
-  display: none;
-}
-#sec-scoreplayer.gpp-score-loaded #gpp-library {
+#sec-scoreplayer.gpp-score-loaded .section-head,
+#sec-scoreplayer.gpp-score-loaded #gpp-library,
+#sec-scoreplayer.gpp-score-loaded .gpp-status:not([data-kind="error"]) {
   display: none;
 }
 #sec-scoreplayer.gpp-score-loaded .gpp-layout {
@@ -2421,21 +2479,14 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   max-width: none;
   max-height: none;
-}
-#sec-scoreplayer.gpp-score-loaded .gpp-status:not([data-kind="error"]) {
-  display: none;
 }
 #sec-scoreplayer.gpp-score-loaded .gpp-stage {
   flex: 1;
   min-height: 0;
-  padding: 0 2px 2px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: 0;
 }
 #sec-scoreplayer.gpp-score-loaded .gpp-stage .gpp-root {
   flex: 1;
@@ -2447,15 +2498,9 @@
   min-height: 0;
   height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
   max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
-  border-radius: var(--radius-screen, 14px);
 }
 
-/* ── Exercises viewer: a loaded score takes the screen too ───────────────
-   The viewer used to keep the library chrome above the staff, so the score
-   got about half the height it gets on the GP Player screen. These rules
-   give it the same view. They carry the section id, because the base rules
-   in exercises.css carry it too. */
-
+/* The Exercises viewer gives a loaded score the same screen. */
 #sec-exercises.gpp-score-loaded {
   display: flex;
   flex-direction: column;
@@ -2463,11 +2508,6 @@
   max-height: var(--avail-h, calc(100dvh - var(--dock-h)));
   overflow: hidden;
 }
-/* Only the score and its way back stay on screen. This walks the path down
-   to the player pane and hides every sibling on the way, so the section head,
-   the Exercises/Workbooks tab bar, the folder tree, the breadcrumb row and the
-   list all go. A named list missed the tab bar, because a script inserts that
-   bar after the section head. */
 #sec-exercises.gpp-score-loaded > *:not(.ex-layout),
 #sec-exercises.gpp-score-loaded .ex-layout > *:not(.ex-main),
 #sec-exercises.gpp-score-loaded .ex-main > *:not(.ex-workspace),
@@ -2495,7 +2535,6 @@
   background: transparent;
   box-shadow: none;
 }
-/* The score carries its own title, so this row only needs the way back. */
 #sec-exercises.gpp-score-loaded .ex-player-head {
   padding: 2px 6px;
   gap: 6px;
@@ -2503,21 +2542,10 @@
   border-bottom: none;
   background: transparent;
 }
-#sec-exercises.gpp-score-loaded .ex-player-head .btn {
-  min-height: 36px;
-  padding: 4px 10px;
-  font-size: 0.8rem;
-}
-#sec-exercises.gpp-score-loaded .ex-player-title {
-  font-size: 0.85rem;
-}
-#sec-exercises.gpp-score-loaded .ex-player-body {
-  overflow: hidden;
-  background: transparent;
-}
-#sec-exercises.gpp-score-loaded .ex-player-body-gp {
-  padding: 0 2px 2px;
-}
+#sec-exercises.gpp-score-loaded .ex-player-head .btn { min-height: 36px; padding: 4px 10px; font-size: 0.8rem; }
+#sec-exercises.gpp-score-loaded .ex-player-title { font-size: 0.85rem; }
+#sec-exercises.gpp-score-loaded .ex-player-body { overflow: hidden; background: transparent; }
+#sec-exercises.gpp-score-loaded .ex-player-body-gp { padding: 0; }
 #sec-exercises.gpp-score-loaded .ex-gp-mount,
 #sec-exercises.gpp-score-loaded .ex-player-body-gp .gpp-root {
   flex: 1;
@@ -2525,24 +2553,13 @@
   height: 100%;
   gap: 0;
 }
-/* The measured height drives this box. A flex basis would win over the
-   height in a column, and the chrome would shrink back to its content. */
 #sec-exercises.gpp-score-loaded .ex-player-body-gp .gpp-root.gpp-has-layout-metrics .gpp-chrome {
   flex: 0 0 auto;
   min-height: 0;
   height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
   max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
 }
-/* The playback source chip repeats what the track pill already says, and it
-   costs a line of the header. */
-#sec-exercises.gpp-score-loaded .gpp-source-status {
-  display: none;
-}
-/* The row above already carries the score name, so the title box here is
-   empty. Let it collapse instead of pushing the track selector to the edge. */
-#sec-exercises.gpp-score-loaded .gpp-score-header-titles {
-  flex: 0 0 auto;
-}
+#sec-exercises.gpp-score-loaded .gpp-header-titles { flex: 0 1 auto; }
 
 html.gpp-player-locked,
 html.gpp-player-locked body {
@@ -2550,248 +2567,177 @@ html.gpp-player-locked body {
   height: 100%;
   overscroll-behavior: none;
 }
-
-/* A loaded score owns the screen. The top inset drops while the player holds
-   the view, and the staff gets that height. The bottom dock still carries
-   navigation, and "Close score" returns to the library. A route notice keeps
-   the inset, because the learner must read the notice. */
 html.gpp-player-locked body.app-shell:not(.route-notice-on) .app-main,
 html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   padding-top: 0;
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
 }
-
-.gpp-analysis-toolbar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(11, 16, 32, 0.55);
-}
-.gpp-analysis-rerun {
-  font-family: var(--font-ui, "VT323", monospace);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-/* ── Responsive ───────────────────────────────────────────────────────── */
-
-@media (max-width: 768px) {
-  .gpp-drop { padding: 22px 14px; }
-  .gpp-stage { padding: 4px 4px 4px; }
-  .gpp-score-header {
-    gap: 6px;
+/* The rail stays beside the score on a wide screen, so the content keeps the
+   rail inset and nothing else. */
+@media (min-width: 769px) {
+  html.gpp-player-locked body.app-shell:not(.route-notice-on) .app-main,
+  html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
+    padding-left: var(--shell-rail-w, 88px);
   }
-  .gpp-transport-btn {
-    min-width: var(--tap-min, 44px);
-    min-height: var(--tap-min, 44px);
-    padding: 0 8px;
-  }
-  .gpp-transport-btn.is-primary {
-    min-width: 48px;
-    min-height: var(--tap-min, 44px);
-  }
-  .gpp-chrome {
-    height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 100px);
-    max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 80px);
-  }
-  #sec-scoreplayer.gpp-score-loaded .gpp-chrome,
-  .gpp-root.gpp-has-layout-metrics .gpp-chrome {
-    min-height: 0;
-    height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
-    max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 72px) - var(--gpp-bottom-gutter, 8px));
+  html.gpp-focus-mode body.app-shell .app-main,
+  html.gpp-focus-mode body.app-shell main.app-main {
+    padding-left: 0;
   }
 }
 
-/* Landscape phone — full-height score view */
-@media (orientation: landscape) and (max-height: 500px) {
-  #sec-scoreplayer .section-head {
-    display: none;
+/* Focus mode hides the app navigation. The score keeps the whole screen. */
+html.gpp-focus-mode {
+  --dock-h: 0px;
+}
+html.gpp-focus-mode .app-rail,
+html.gpp-focus-mode .app-bottom,
+html.gpp-focus-mode .shell-head-actions {
+  display: none !important;
+}
+html.gpp-focus-mode body.app-shell .app-main,
+html.gpp-focus-mode body.app-shell main.app-main {
+  margin-left: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+  max-width: none;
+}
+
+/* ── 18. Responsive ─────────────────────────────────────────────────────── */
+
+/* Medium: 600–1024px. */
+@media (max-width: 1024px) {
+  .gpp-header { padding: 4px 8px; }
+  .gpp-track-selector-host { max-width: 52%; }
+  .gpp-tbtn--speed .gpp-speed-bpm { display: none; }
+  .gpp-drawer { width: min(360px, 88%); }
+}
+
+/* Compact: under 600px. The transport wraps into two lines, the tools row
+   under the main row, and every panel becomes a bottom sheet. */
+@media (max-width: 599px) {
+  .gpp-root {
+    --gp-header-h: 48px;
   }
-  #sec-scoreplayer.gpp-score-loaded .gpp-layout {
+  .gpp-header {
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 2px 6px;
+  }
+  .gpp-header-titles { min-width: 2rem; }
+  .gpp-score-title { font-size: 0.86rem; }
+  .gpp-score-subtitle { display: none; }
+  .gpp-source-status { display: none; }
+  .gpp-track-selector-host { max-width: 46%; }
+  .gpp-track-selector-btn { padding: 0 8px 0 10px; font-size: 0.84rem; }
+  .gpp-icon-btn.has-label .gpp-btn-label { display: none; }
+  .gpp-icon-btn.has-label { padding: 0; width: var(--gp-tap); }
+  .gpp-view-btn { display: none; }
+
+  .gpp-parch-viewport { padding: 10px 8px calc(var(--gp-transport-pad, var(--gpp-transport-pad, 100px)) + 16px); }
+
+  .gpp-transport {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px 4px;
+    padding: 6px 8px max(6px, env(safe-area-inset-bottom, 0px));
+  }
+  .gpp-transport-main {
+    flex: 1 1 100%;
+    justify-content: center;
     gap: 2px;
-    max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 4px);
+  }
+  .gpp-transport-tools {
+    flex: 1 1 100%;
+    justify-content: center;
+    gap: 2px;
+  }
+  .gpp-tbtn { padding: 0 8px; }
+  .gpp-tbtn--play { width: 54px; height: 54px; min-width: 54px; min-height: 54px; }
+  .gpp-tbtn--position { padding: 0 8px; }
+  .gpp-transport-time { display: none; }
+  .gpp-tbtn--speed { min-width: var(--gp-tap); }
+  .gpp-tbtn--speed .gpp-speed-bpm { display: none; }
+  .gpp-tbtn--mix .gpp-tbtn-text,
+  .gpp-tbtn--metro .gpp-tbtn-text,
+  .gpp-tbtn--backing .gpp-tbtn-text { display: none; }
+  .gpp-ramp-chip { display: none; }
+
+  .gpp-selection-toolbar { padding: 4px 4px 4px 10px; gap: 2px; }
+  .gpp-selection-toolbar .gpp-tbtn-text { display: none; }
+  .gpp-selection-toolbar .gpp-selection-loop .gpp-tbtn-text { display: inline; }
+  .gpp-follow-host { padding-right: 8px; }
+  .gpp-follow-btn .gpp-tbtn-text { display: none; }
+  .gpp-follow-btn { padding: 0 10px; }
+
+  .gpp-drawer { display: none; }
+  .gpp-sheet { display: flex; }
+  .gpp-drawer-head { padding: 4px 6px 4px 14px; }
+  .gpp-drawer-body { padding: 10px 12px 16px; }
+}
+
+@media (min-width: 600px) {
+  .gpp-sheet { display: none !important; }
+}
+
+/* Wide: over 1440px. The score gets the room; the transport stays centred. */
+@media (min-width: 1441px) {
+  .gpp-parch-viewport { padding-left: 24px; padding-right: 24px; }
+  .gpp-transport { padding-left: 20px; padding-right: 20px; }
+  .gpp-root { --gp-drawer-w: 380px; }
+}
+
+/* Landscape phone: a music stand. Reduced chrome, tall score. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .gpp-root {
+    --gp-header-h: 40px;
+    --gp-transport-h: 52px;
+  }
+  #sec-scoreplayer .section-head { display: none; }
+  #sec-scoreplayer.gpp-score-loaded .gpp-layout {
+    gap: 0;
+    max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 2px);
   }
   #sec-scoreplayer.gpp-score-loaded .gpp-chrome,
   .gpp-root.gpp-has-layout-metrics .gpp-chrome {
     min-height: 0;
     height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 48px) - var(--gpp-bottom-gutter, 6px));
     max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - var(--gpp-top-offset, 48px) - var(--gpp-bottom-gutter, 6px));
-    border-radius: 12px;
   }
-
-  .gpp-icon-btn.has-label {
-    min-width: 36px;
-    width: 36px;
-    padding: 0;
-    gap: 0;
-  }
-
-  .gpp-chrome {
-    min-height: 0;
-    height: 100%;
-    max-height: 100%;
-    flex: 1;
-  }
-
-  .gpp-score-header {
-    flex-wrap: nowrap;
-    gap: 6px;
-    padding: 4px 8px;
-  }
-  .gpp-score-header-titles {
-    flex: 1 1 auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-  }
-  .gpp-score-title {
-    font-size: 0.82rem;
-  }
-  .gpp-score-track {
-    display: none;
-  }
-
-  .gpp-measure-nav {
-    padding: 2px 6px;
-    gap: 4px;
-  }
-  .gpp-measure-nav-label {
-    display: none;
-  }
-  .gpp-measure-nav-btn {
-    min-width: 32px;
-    min-height: 28px;
-    padding: 2px 6px;
-    font-size: 0.82rem;
-    border-radius: 6px;
-  }
-  .gpp-measure-nav-btn.has-marker {
-    min-height: 32px;
-    font-size: 0.72rem;
-  }
-
-  .gpp-parchment-host {
-    min-height: 100px;
-  }
-  .gpp-parch-viewport {
-    padding: 6px 6px calc(var(--gpp-transport-pad, 60px) + 4px);
-  }
-
-  .gpp-transport-anchor {
-    padding: 0 6px max(4px, env(safe-area-inset-bottom, 0px));
-  }
-  .gpp-transport-dock {
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 8px;
-    border-radius: 14px;
-    max-width: calc(100% - 8px);
-  }
-  .gpp-transport-btn {
-    min-width: var(--tap-min, 44px);
-    min-height: var(--tap-min, 44px);
-    padding: 0 6px;
-    border-radius: 10px;
-    font-size: 0.88rem;
-  }
-  .gpp-transport-btn.is-primary {
-    min-width: 48px;
-    min-height: var(--tap-min, 44px);
-    font-size: 1rem;
-  }
-  .gpp-transport-extra {
-    gap: 3px;
-    padding-right: 5px;
-    margin-right: 1px;
-  }
-
-  .gpp-drawer {
-    top: 6px;
-    right: 6px;
-    bottom: 6px;
-    width: min(300px, 62%);
-    border-radius: 12px;
-  }
-  .gpp-sheet {
-    max-height: 100%;
-  }
-  .gpp-drawer-head {
-    padding: 8px 12px;
-    gap: 8px;
-  }
-  .gpp-drawer-body {
-    padding: 8px 10px 12px;
-  }
-  .gpp-drawer-section {
-    gap: 6px;
-    padding-bottom: 10px;
-    margin-bottom: 10px;
-  }
-  .gpp-settings-section {
-    padding-bottom: 8px;
-    margin-bottom: 8px;
-  }
-  .gpp-settings-section-title {
-    font-size: 0.92rem;
-    padding: 2px 0 4px;
-  }
-  .gpp-field {
-    gap: 4px;
-    font-size: 0.75rem;
-  }
-  .gpp-control-row {
-    gap: 6px;
-  }
-  .gpp-mix-row {
-    padding: 5px 8px;
-    gap: 6px;
-    font-size: 0.8rem;
-  }
-  .gpp-anno-text-input {
-    min-height: 48px;
-  }
+  .gpp-chrome { min-height: 0; height: 100%; max-height: 100%; flex: 1; }
+  .gpp-header { flex-wrap: nowrap; gap: 4px; padding: 2px 6px; }
+  .gpp-score-subtitle,
+  .gpp-source-status { display: none; }
+  .gpp-icon-btn.has-label .gpp-btn-label { display: none; }
+  .gpp-icon-btn.has-label { padding: 0; width: 40px; }
+  .gpp-icon-btn { width: 40px; height: 40px; }
+  .gpp-track-selector-btn { min-height: 40px; font-size: 0.82rem; }
+  .gpp-parch-tuning-caption { display: none; }
+  .gpp-parch-viewport { padding: 6px 8px calc(var(--gp-transport-pad, var(--gpp-transport-pad, 60px)) + 8px); }
+  .gpp-parch-system { margin-bottom: calc(8px * min(var(--gpp-scale, 1), 1.4)); }
+  .gpp-transport { min-height: 52px; padding: 4px 8px max(4px, env(safe-area-inset-bottom, 0px)); gap: 4px; }
+  .gpp-tbtn { min-height: var(--gp-tap); }
+  .gpp-tbtn--play { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  .gpp-tbtn--play svg { width: 22px; height: 22px; }
+  .gpp-transport-time { display: none; }
+  .gpp-tbtn--speed .gpp-speed-bpm { display: none; }
+  .gpp-tbtn--mix .gpp-tbtn-text,
+  .gpp-tbtn--metro .gpp-tbtn-text,
+  .gpp-tbtn--backing .gpp-tbtn-text { display: none; }
+  .gpp-ramp-chip { display: none; }
+  .gpp-drawer { width: min(320px, 62%); }
+  .gpp-drawer-head { min-height: 40px; padding: 4px 6px 4px 12px; }
+  .gpp-drawer-body { padding: 8px 10px 12px; }
+  .gpp-popover { max-height: 88%; }
 }
 
 @media (orientation: landscape) and (max-height: 380px) {
-  #sec-scoreplayer .gpp-layout {
-    max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 2px);
-  }
-  .gpp-score-header {
-    padding: 2px 6px;
-  }
-  .gpp-icon-btn {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-    min-height: 34px;
-  }
-  .gpp-icon-btn.has-label {
-    min-width: 34px;
-  }
-  .gpp-measure-nav-btn {
-    min-height: 26px;
-    min-width: 28px;
-  }
-  .gpp-transport-btn {
-    min-width: var(--tap-min, 44px);
-    min-height: var(--tap-min, 44px);
-  }
-  .gpp-transport-anchor {
-    padding: 0 4px max(2px, env(safe-area-inset-bottom, 0px));
-  }
-  .gpp-transport-dock {
-    padding: 4px 6px;
-  }
-  .gpp-parchment-host {
-    min-height: 80px;
-  }
-  .gpp-parch-tuning-caption {
-    display: none;
-  }
+  #sec-scoreplayer .gpp-layout { max-height: calc(var(--avail-h, calc(100dvh - var(--dock-h))) - 2px); }
+  .gpp-header { padding: 1px 4px; }
+  .gpp-icon-btn { width: 36px; height: 36px; }
+  .gpp-parch-viewport { padding-top: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2799,509 +2745,29 @@ html.gpp-player-locked body.app-shell:not(.route-notice-on) main.app-main {
   .gpp-sheet,
   .gpp-drawer-backdrop,
   .gpp-loading-spinner,
-  .gpp-parch-viewport {
+  .gpp-parch-viewport,
+  .gpp-parchment-host,
+  .gpp-popover,
+  .gpp-selection-toolbar,
+  .gpp-follow-btn,
+  .gpp-tbtn,
+  .gpp-icon-btn {
     transition: none;
     animation: none;
     scroll-behavior: auto;
   }
+  .gpp-tbtn--play.is-pending { animation: none; }
 }
+.gpp-reduced-motion .gpp-parch-viewport { scroll-behavior: auto; }
 
-/* ---- User Story 3: track tabs, practice rail, a11y ---- */
-
-.gpp-live-region {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.gpp-alert-bar {
-  margin-top: 6px;
-  padding: 8px 10px;
-  border-radius: var(--radius-screen, 12px);
-  border: 1px solid var(--accent2, #6b4c9a);
-  background: rgba(107, 76, 154, 0.18);
-  color: #f4f0ff;
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.9rem;
-}
-
-.gpp-alert-bar[hidden] {
-  display: none;
-}
-
-/* The strip rides in the score header row, so it must not claim a row of its
-   own and it must not push the title out of the header. */
-.gpp-track-tabs-host {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 62%;
-}
-
-.gpp-track-tabs {
-  padding: 0;
-}
-
-.gpp-track-tabs-strip {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding-bottom: 0;
-}
-.gpp-track-tabs-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.gpp-track-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--tap-min, 44px);
-  min-height: 36px;
-  padding: 4px 10px;
-  border: 1px solid var(--border, rgba(107, 76, 154, 0.45));
-  border-radius: var(--radius-pill, 999px);
-  background: var(--card, rgba(30, 24, 48, 0.72));
-  color: var(--text, #f4f0ff);
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.82rem;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.gpp-track-tab.is-active {
-  background: var(--accent, #f5d300);
-  color: var(--on-accent, #1e1408);
-  border-color: var(--accent, #f5d300);
-}
-
-/* The rail scrolls sideways when the buttons do not fit. The player menu
-   button sits beside the rail, outside that scroller, so the gear keeps one
-   place at the end of row two. */
-.gpp-practice-rail-host {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.gpp-practice-rail {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: nowrap;
-  gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.gpp-practice-rail::-webkit-scrollbar {
-  display: none;
-}
-
-.gpp-practice-rail > * {
-  flex: 0 0 auto;
-}
-
-/* Every rail button carries an icon and a word, so the player can read what
-   the button does without a guess. */
-.gpp-practice-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: var(--tap-min, 44px);
-  padding: 0 12px;
-  border: 1px solid rgba(58, 42, 24, 0.35);
-  border-radius: 11px;
-  background: rgba(255, 252, 240, 0.96);
-  color: #1e1408;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-
-.gpp-practice-btn:hover,
-.gpp-practice-btn:focus-visible {
-  border-color: #6b4c9a;
-  color: #6b2d8b;
-  outline: none;
-}
-
-.gpp-practice-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.gpp-practice-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-.gpp-practice-icon svg {
-  width: 17px;
-  height: 17px;
-}
-
-.gpp-practice-label {
-  font-variant-numeric: tabular-nums;
-}
-
-.gpp-practice-btn.is-on {
-  border-color: #6b4c9a;
-  background: rgba(107, 76, 154, 0.14);
-  color: #6b2d8b;
-}
-
-/* The whole song loop reads as the wider of the two loop modes. */
-.gpp-practice-loop-btn[data-loop-mode="song"] {
-  border-color: #6b4c9a;
-  background: rgba(107, 76, 154, 0.24);
-}
-
-.gpp-practice-hint {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.8rem;
-  color: rgba(30, 20, 8, 0.7);
-  white-space: nowrap;
-}
-
-.gpp-practice-hint[hidden] {
-  display: none;
-}
-
-.gpp-practice-overlay {
-  min-width: var(--tap-min, 44px);
-  min-height: var(--tap-min, 44px);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 11px;
-  background: var(--accent, #f5d300);
-  color: var(--on-accent, #1e1408);
-  font-family: var(--font-pixel, "Press Start 2P", monospace);
-  font-size: 0.72rem;
-  padding: 0 10px;
-}
-
-.gpp-practice-overlay[hidden] {
-  display: none;
-}
-
-.gpp-transport-row-practice {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  flex-wrap: nowrap;
-  width: 100%;
-  padding-top: 4px;
-  margin-top: 2px;
-  border-top: 1px solid rgba(58, 42, 24, 0.2);
-}
-
-.gpp-measure-nav-btn.in-loop-drag {
-  background: rgba(107, 76, 154, 0.28);
-  border-color: #6b4c9a;
-}
-
-.gpp-mix-volume {
-  width: 5rem;
-  min-height: var(--tap-min, 44px);
-}
-
-.gpp-shortcut-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.9rem;
-}
-
-.gpp-shortcut-table th,
-.gpp-shortcut-table td {
-  padding: 8px 6px;
-  border-bottom: 1px solid rgba(107, 76, 154, 0.25);
-  text-align: left;
-}
-
-.gpp-shortcut-table kbd {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-  padding: 2px 6px;
-  border-radius: 6px;
-  border: 1px solid rgba(58, 42, 24, 0.35);
-  background: rgba(255, 252, 240, 0.9);
-}
-
-.gpp-reduced-motion .gpp-parch-viewport {
-  scroll-behavior: auto;
-}
-
-@media (max-width: 768px) {
-  .gpp-practice-rail {
-    gap: 4px;
-  }
-  .gpp-track-tabs-strip {
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* The header row also holds the title and the track selector, so this
-     button keeps its text small. */
-  .gpp-close-score,
-  .gpp-back-btn {
-    padding: 0 8px;
-    font-size: 0.82rem;
-  }
-  /* Share the narrow row: the track strip scrolls inside its share, and the
-     title keeps enough width to read the first word of the score name. */
-  .gpp-track-tabs-host {
-    max-width: 46%;
-  }
-  .gpp-score-header-titles {
-    min-width: 3rem;
-  }
-
-  /* The dock floats over the score, so every pixel of dock height hides a
-     pixel of tablature. Row one keeps the full 44 pixel tap size for the
-     transport. Row two holds the practice steppers at a smaller size. */
-  .gpp-practice-btn,
-  .gpp-practice-overlay {
-    min-height: 36px;
-  }
-
-  /* The dock must fit the screen. Row one held nine controls at a fixed
-     44 CSS pixel size, which needed more width than a phone has, so the row
-     ran off both edges. The transport buttons now scroll sideways, and the
-     menu button keeps its place at the end of the row. */
-  .gpp-transport-dock {
-    width: calc(100% - 8px);
-    align-items: stretch;
-  }
-  .gpp-transport-row-primary,
-  .gpp-transport-dock.has-extra .gpp-transport-row-primary {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    max-width: 100%;
-  }
-  .gpp-transport-scroll {
-    justify-content: flex-start;
-    gap: 3px;
-  }
-  /* A phone row holds five 44 pixel buttons and the gear. There is no width
-     left for the clock, so row one drops it. The measure strip above the
-     score still shows the position in the score. */
-  .gpp-transport-time {
-    display: none;
-  }
-  /* Row two keeps the practice controls on one line that scrolls, so the
-     dock cannot grow tall enough to cover the score. */
-  .gpp-transport-row-practice {
-    width: 100%;
-    max-width: 100%;
-  }
-  .gpp-practice-rail {
-    justify-content: flex-start;
-  }
-}
-
-/* A landscape phone has very little height, so the two dock rows sit side by
-   side instead of stacked. Stacked rows covered nearly the whole score. */
-@media (orientation: landscape) and (max-height: 500px) {
-  .gpp-transport-dock {
-    max-width: min(100%, 760px);
-  }
-  .gpp-transport-row-primary {
-    gap: 3px;
-    flex-shrink: 0;
-  }
-  .gpp-transport-row-practice {
-    flex: 1 1 auto;
-    width: auto;
-    max-width: none;
-    min-width: 0;
-    padding-top: 0;
-    margin-top: 0;
-    padding-left: 6px;
-    border-top: none;
-    border-left: 1px solid rgba(58, 42, 24, 0.2);
-  }
-  .gpp-practice-rail {
-    justify-content: flex-start;
-  }
-  .gpp-practice-btn,
-  .gpp-practice-overlay {
-    min-height: 36px;
-  }
-}
-
-/* A wide screen has room for the practice rail on one line. A 520 pixel dock
-   wrapped that rail onto three lines, and the dock then covered a third of
-   the score. */
-@media (min-width: 769px) and (min-height: 501px) {
-  .gpp-transport-dock {
-    max-width: min(100%, 900px);
-  }
-  .gpp-transport-row-practice {
-    justify-content: center;
-  }
-}
-
-/* ── Backing track drawer ─────────────────────────────────────────────── */
-
-/* .gpp-practice-btn sets display, so it beats the [hidden] default. */
-.gpp-practice-btn[hidden] {
-  display: none;
-}
-
-.gpp-backing-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  font-family: var(--font-body, "Pixelify Sans", sans-serif);
-  font-size: 0.9rem;
-}
-
-.gpp-backing-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(11, 16, 32, 0.55);
-}
-
-.gpp-backing-group-title {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-
-.gpp-backing-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.gpp-backing-label {
-  flex: 0 0 6.5rem;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-  color: var(--text);
-}
-
-.gpp-backing-readout {
-  min-width: 5rem;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-  color: var(--accent);
-  text-align: right;
-}
-
-.gpp-backing-hint {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.gpp-backing-source-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-  color: var(--text);
-}
-
-.gpp-backing-url {
-  flex: 1 1 10rem;
-  min-width: 0;
-  min-height: var(--tap-min, 44px);
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: rgba(11, 16, 32, 0.75);
-  color: var(--text);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-}
-
-.gpp-backing-anchor {
-  width: 6rem;
-  min-height: var(--tap-min, 44px);
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: rgba(11, 16, 32, 0.75);
-  color: var(--text);
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-}
-
-.gpp-backing-volume,
-.gpp-backing-trim {
-  flex: 1 1 6rem;
-  min-width: 0;
-  min-height: var(--tap-min, 44px);
-  accent-color: var(--accent);
-}
-
-.gpp-backing-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: var(--tap-min, 44px);
-  cursor: pointer;
-}
-
-.gpp-backing-active {
-  width: 20px;
-  height: 20px;
-  accent-color: var(--accent);
-}
-
-.gpp-backing-yt {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: #000;
-}
-
-.gpp-backing-yt iframe,
-.gpp-backing-yt .gpp-backing-yt-frame {
-  width: 100%;
-  height: 100%;
-  border: 0;
-}
-
-.gpp-backing-status {
-  font-family: var(--font-ui, "VT323", monospace);
-  font-size: 0.95rem;
-  color: var(--muted);
-}
-
-.gpp-backing-notice {
-  padding: 8px 10px;
-  border: 1px solid var(--accent2);
-  border-radius: 10px;
-  background: rgba(107, 76, 154, 0.18);
-  font-size: 0.84rem;
-  color: var(--text);
+/* Print: the score alone, on paper. */
+@media print {
+  .gpp-header,
+  .gpp-transport-anchor,
+  .gpp-selection-host,
+  .gpp-follow-host,
+  .gpp-popover-host,
+  .gpp-drawer-root { display: none !important; }
+  .gpp-chrome { height: auto !important; max-height: none !important; overflow: visible; }
+  .gpp-parch-viewport { overflow: visible; padding: 0; }
 }

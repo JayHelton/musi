@@ -1,25 +1,26 @@
 // Single shortcut table and help panel for the GP player.
 
 import { el } from './dom.js';
+import { icon } from './icons.js';
 
 /** @type {{ action: string, keys: string }[]} */
 export const GPP_SHORTCUTS = [
   { action: 'Play or pause', keys: 'Space' },
-  { action: 'Stop', keys: 'Escape' },
-  { action: 'Restart', keys: 'Home' },
-  { action: 'Previous bar', keys: '←' },
-  { action: 'Next bar', keys: '→' },
-  { action: 'Decrease speed', keys: '[' },
-  { action: 'Increase speed', keys: ']' },
-  { action: 'Decrease tempo by 5 BPM', keys: 'Shift + [' },
-  { action: 'Increase tempo by 5 BPM', keys: 'Shift + ]' },
-  { action: 'Loop: range, song, off', keys: 'L' },
-  { action: 'Turn the loop off', keys: 'Shift + L' },
-  { action: 'Toggle metronome', keys: 'M' },
-  { action: 'Toggle count-in', keys: 'C' },
+  { action: 'Go to the beginning', keys: 'Home / Backspace' },
+  { action: 'Previous or next beat', keys: '← / →' },
+  { action: 'Previous or next bar', keys: 'Shift + ← / →' },
+  { action: 'Tracks', keys: 'T' },
+  { action: 'Speed', keys: 'S' },
+  { action: 'Loop the marked range on or off', keys: 'L' },
+  { action: 'Mute the viewed track', keys: 'M' },
+  { action: 'Solo the viewed track', keys: 'Alt + M' },
+  { action: 'Count-in on or off', keys: 'C' },
+  { action: 'Metronome on or off', keys: 'N' },
+  { action: 'Mixer', keys: 'X' },
+  { action: 'Follow the playhead / focus mode', keys: 'F' },
   { action: 'Select track 1–9', keys: '1 – 9' },
-  { action: 'Open help', keys: '?' },
-  { action: 'Open menu', keys: 'Shift + M' },
+  { action: 'Close a panel or clear the range', keys: 'Esc' },
+  { action: 'This help', keys: '?' },
 ];
 
 /**
@@ -70,39 +71,30 @@ export function mountShortcutHelp(host, { onClose } = {}) {
   }
   table.appendChild(tbody);
 
-  const helpBody = el('div', { class: 'gpp-help-body' }, [table]);
+  const helpBody = el('div', { class: 'gpp-help-body' }, [
+    el('p', { class: 'gpp-popover-note', text: 'Click a beat to move there. Double-click a beat to play from it. Drag across the score to mark a range.' }),
+    table,
+  ]);
 
-  drawer.append(
-    el('div', { class: 'gpp-drawer-head' }, [
+  function makeHead() {
+    return el('div', { class: 'gpp-drawer-head' }, [
       el('span', { class: 'gpp-drawer-title', text: 'Keyboard shortcuts' }),
       el('button', {
         class: 'gpp-icon-btn gpp-drawer-close',
         type: 'button',
-        text: '✕',
+        html: icon('close'),
         'aria-label': 'Close help',
         title: 'Close',
         onClick: () => close(),
       }),
-    ]),
-    drawerBody,
-  );
-  sheet.append(
-    el('div', { class: 'gpp-drawer-head' }, [
-      el('span', { class: 'gpp-drawer-title', text: 'Keyboard shortcuts' }),
-      el('button', {
-        class: 'gpp-icon-btn gpp-drawer-close',
-        type: 'button',
-        text: '✕',
-        'aria-label': 'Close help',
-        title: 'Close',
-        onClick: () => close(),
-      }),
-    ]),
-    sheetBody,
-  );
+    ]);
+  }
+
+  drawer.append(makeHead(), drawerBody);
+  sheet.append(makeHead(), sheetBody);
   host.append(backdrop, drawer, sheet);
 
-  const SHEET_MQ = '(max-width: 768px) and (min-height: 501px)';
+  const SHEET_MQ = '(max-width: 599px)';
 
   function detectSheetMode() {
     sheetMode = typeof window !== 'undefined' && window.matchMedia(SHEET_MQ).matches;

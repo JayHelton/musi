@@ -1,40 +1,71 @@
-// Transport dock — a collapsible container over the score.
+// Transport — one stable row of the controls a musician touches every
+// session.
 //
-// Row one always shows: the tempo in BPM, one play and pause button, and
-// restart. That is the set a player needs while the hands are on the
-// instrument. A toggle at the end of row one opens row two.
-//
-// Row two holds the extra controls the host adds (the workbook puts the
-// previous and next exercise buttons there), and then the practice rail:
-// previous measure, next measure, the loop button, the metronome, and the
-// player menu. The menu button sits outside the scrolling part of the row, so
-// it keeps one place.
+// Left: restart, previous bar, play, next bar, and the position. Right: speed,
+// loop, metronome, and the mixer, then the overflow menu. Nothing sits in a
+// collapsible second row. Speed opens a panel with presets and a slider. The
+// loop button toggles the marked range. A long press on the metronome opens
+// its settings. On a compact screen the row wraps into two lines, and every
+// control keeps a 44 pixel target.
 
-import { el } from './dom.js';
-import { GPP_MIN_BPM, GPP_MAX_BPM } from './tempoRange.js';
+import { el, fmtTime } from './dom.js';
+import { icon } from './icons.js';
+import { mountSpeedPopover, speedPctFor } from './speedPopover.js';
+import { mountGoToPopover } from './goToPopover.js';
+import { createPopover } from './popover.js';
 
+const LONG_PRESS_MS = 500;
+
+/** The BPM step a host uses for its own tempo buttons. */
 export const GPP_TRANSPORT_BPM_STEP = 5;
 
-const CHEVRON_DOWN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
-const GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
-
-const EXPANDED_KEY = 'gpp:dock:expanded';
-
-/** Read the saved open state of row two. The dock opens by default. */
-function readExpanded() {
-  try {
-    const raw = localStorage.getItem(EXPANDED_KEY);
-    if (raw === '0') return false;
-    return true;
-  } catch (e) {
-    return true;
-  }
+function iconButton({ cls = '', name, label, title = label, pressed = null }) {
+  const btn = el('button', {
+    class: `gpp-tbtn${cls ? ` ${cls}` : ''}`,
+    type: 'button',
+    'aria-label': label,
+    title,
+    html: icon(name),
+  });
+  if (pressed != null) btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+  return btn;
 }
 
-function writeExpanded(on) {
-  try {
-    localStorage.setItem(EXPANDED_KEY, on ? '1' : '0');
-  } catch (e) { /* storage is off */ }
+/**
+ * Attach a long press to a button. A long press or a right click opens a
+ * secondary action, and a plain tap keeps its normal click.
+ */
+function attachLongPress(btn, onLong) {
+  let timer = null;
+  let fired = false;
+  const clear = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  btn.addEventListener('pointerdown', (e) => {
+    if (e.button != null && e.button !== 0) return;
+    fired = false;
+    clear();
+    timer = setTimeout(() => {
+      timer = null;
+      fired = true;
+      onLong();
+    }, LONG_PRESS_MS);
+  });
+  btn.addEventListener('pointerup', clear);
+  btn.addEventListener('pointerleave', clear);
+  btn.addEventListener('pointercancel', clear);
+  btn.addEventListener('click', (e) => {
+    if (fired) {
+      fired = false;
+      e.stopImmediatePropagation?.();
+      e.preventDefault?.();
+    }
+  }, true);
+  btn.addEventListener('contextmenu', (e) => {
+    e.preventDefault?.();
+    onLong();
+  });
 }
 
 /**
@@ -42,188 +73,324 @@ function writeExpanded(on) {
  * @param {object} api
  */
 export function mountTransportDock(host, api = {}) {
-  const noop = { sync() {}, publishPad() {}, destroy() {}, isExpanded: () => false };
+  const noop = {
+    sync() {}, publishPad() {}, destroy() {}, closePopovers() {},
+    isPopoverOpen: () => false, openSpeed() {}, openLoop() {}, openGoTo() {},
+  };
   if (!host) return noop;
 
   host.innerHTML = '';
   host.classList.add('gpp-transport-anchor');
+  const overlayHost = api.overlayHost || host;
 
-  let expanded = readExpanded();
-
-  const dock = el('div', { class: 'gpp-transport-dock' });
+  const dock = el('div', { class: 'gpp-transport', role: 'toolbar', 'aria-label': 'Transport' });
   host.appendChild(dock);
 
-  const rowPrimary = el('div', { class: 'gpp-transport-row-primary' });
-  const rowPractice = el('div', { class: 'gpp-transport-row-practice' });
-
-  const playBtn = el('button', {
-    class: 'gpp-transport-btn is-primary',
-    type: 'button',
-    text: '▶',
-    'aria-label': 'Play',
-    title: 'Play',
-  });
-  const restartBtn = el('button', {
-    class: 'gpp-transport-btn',
-    type: 'button',
-    text: '↺',
-    'aria-label': 'Restart',
-    title: 'Restart from the top',
-  });
-
-  // The tempo group names its own number. A bare number in a row of buttons
-  // does not say what it counts.
-  const bpmDownBtn = el('button', {
-    class: 'gpp-transport-btn gpp-tempo-step',
-    type: 'button',
-    text: '−',
-    'aria-label': `Decrease tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
-    title: `Slower by ${GPP_TRANSPORT_BPM_STEP} BPM`,
-  });
-  const bpmInput = el('input', {
-    class: 'gpp-tempo-input',
-    type: 'number',
-    inputmode: 'numeric',
-    min: String(GPP_MIN_BPM),
-    max: String(GPP_MAX_BPM),
-    step: '1',
-    'aria-label': 'Tempo in BPM',
-  });
-  const bpmUpBtn = el('button', {
-    class: 'gpp-transport-btn gpp-tempo-step',
-    type: 'button',
-    text: '+',
-    'aria-label': `Increase tempo by ${GPP_TRANSPORT_BPM_STEP} BPM`,
-    title: `Faster by ${GPP_TRANSPORT_BPM_STEP} BPM`,
-  });
-  const bpmField = el('div', { class: 'gpp-tempo-field' }, [
-    bpmInput,
-    el('span', { class: 'gpp-tempo-unit', text: 'BPM', 'aria-hidden': 'true' }),
-  ]);
-  const tempoGroup = el('div', { class: 'gpp-transport-tempo' }, [bpmDownBtn, bpmField, bpmUpBtn]);
+  // ---- main group ----
+  const restartBtn = iconButton({ name: 'restart', label: 'Restart', title: 'Restart (Home)' });
+  const prevBtn = iconButton({ name: 'prevBar', label: 'Previous bar', title: 'Previous bar (Shift + ←)' });
+  const playBtn = iconButton({ cls: 'gpp-tbtn--play', name: 'play', label: 'Play', title: 'Play (Space)' });
+  const nextBtn = iconButton({ name: 'nextBar', label: 'Next bar', title: 'Next bar (Shift + →)' });
 
   const timeEl = el('span', { class: 'gpp-transport-time', text: '0:00 / 0:00' });
-  const rampChip = el('span', { class: 'gpp-ramp-chip', text: '', hidden: true });
-
-  const expandBtn = el('button', {
-    class: 'gpp-transport-btn gpp-transport-expand-btn',
+  const barEl = el('span', { class: 'gpp-transport-bar', text: 'Bar 1' });
+  const positionBtn = el('button', {
+    class: 'gpp-tbtn gpp-tbtn--position',
     type: 'button',
-    'aria-label': 'More controls',
-    title: 'More controls',
+    'aria-label': 'Position. Go to a bar or a section',
+    title: 'Go to bar or section',
     'aria-expanded': 'false',
-    html: CHEVRON_DOWN,
-  });
+  }, [barEl, timeEl]);
 
+  const overlayEl = el('span', { class: 'gpp-transport-overlay', role: 'status', hidden: true });
+
+  const main = el('div', { class: 'gpp-transport-main' }, [
+    restartBtn, prevBtn, playBtn, nextBtn, positionBtn, overlayEl,
+  ]);
+
+  // ---- tools group ----
+  const speedBtn = el('button', {
+    class: 'gpp-tbtn gpp-tbtn--speed',
+    type: 'button',
+    'aria-label': 'Playback speed',
+    title: 'Playback speed (S)',
+    'aria-expanded': 'false',
+  }, [
+    el('span', { class: 'gpp-speed-pct', text: '100%' }),
+    el('span', { class: 'gpp-speed-bpm', text: '' }),
+  ]);
+  const loopBtn = el('button', {
+    class: 'gpp-tbtn gpp-tbtn--toggle gpp-tbtn--loop',
+    type: 'button',
+    'aria-label': 'Loop',
+    title: 'Loop the marked range (L). Long press for loop options',
+    'aria-pressed': 'false',
+  }, [
+    el('span', { class: 'gpp-tbtn-icon', html: icon('loop'), 'aria-hidden': 'true' }),
+    el('span', { class: 'gpp-tbtn-text gpp-loop-label', text: 'Loop' }),
+  ]);
+  const metroBtn = el('button', {
+    class: 'gpp-tbtn gpp-tbtn--toggle gpp-tbtn--metro',
+    type: 'button',
+    'aria-label': 'Metronome',
+    title: 'Metronome (N). Long press for settings',
+    'aria-pressed': 'false',
+  }, [
+    el('span', { class: 'gpp-tbtn-icon', html: icon('metronome'), 'aria-hidden': 'true' }),
+    el('span', { class: 'gpp-tbtn-text', text: 'Metro' }),
+  ]);
+  const countBadge = el('span', { class: 'gpp-count-badge', text: 'Count', hidden: true, title: 'Count-in on (C)' });
+  const backingBtn = el('button', {
+    class: 'gpp-tbtn gpp-tbtn--toggle gpp-tbtn--backing',
+    type: 'button',
+    'aria-label': 'Play the original recording instead of the synth',
+    title: 'Original recording',
+    'aria-pressed': 'false',
+    hidden: true,
+  }, [
+    el('span', { class: 'gpp-tbtn-icon', html: icon('backing'), 'aria-hidden': 'true' }),
+    el('span', { class: 'gpp-tbtn-text', text: 'Original' }),
+  ]);
+  const mixBtn = el('button', {
+    class: 'gpp-tbtn gpp-tbtn--mix',
+    type: 'button',
+    'aria-label': 'Mixer',
+    title: 'Mixer (X)',
+    'aria-expanded': 'false',
+  }, [
+    el('span', { class: 'gpp-tbtn-icon', html: icon('mixer'), 'aria-hidden': 'true' }),
+    el('span', { class: 'gpp-tbtn-text', text: 'Mix' }),
+  ]);
   const menuBtn = el('button', {
-    class: 'gpp-transport-btn gpp-transport-menu-btn',
+    class: 'gpp-tbtn gpp-tbtn--more gpp-transport-menu-btn',
     type: 'button',
     'aria-label': 'Player menu',
-    title: 'Player menu',
+    title: 'More',
     'aria-expanded': 'false',
-    html: GEAR_SVG,
+    html: icon('more'),
   });
+  const rampChip = el('span', { class: 'gpp-ramp-chip', text: '', hidden: true });
 
-  // The row one controls scroll sideways when they do not fit. The toggle
-  // stays out of that scroller, so it keeps one place at the end of the row.
-  const controlScroll = el('div', { class: 'gpp-transport-scroll' });
-  controlScroll.append(restartBtn, playBtn, tempoGroup, timeEl, rampChip);
-  rowPrimary.append(controlScroll, expandBtn);
+  const tools = el('div', { class: 'gpp-transport-tools' }, [
+    speedBtn, loopBtn, metroBtn, countBadge, backingBtn, mixBtn, rampChip, menuBtn,
+  ]);
 
   if (api.extraNode) {
     dock.classList.add('has-extra');
     const extraGroup = el('div', { class: 'gpp-transport-extra' });
     extraGroup.appendChild(api.extraNode);
-    rowPractice.appendChild(extraGroup);
+    main.insertBefore(extraGroup, restartBtn);
   }
 
-  if (api.practiceRailNode) {
-    rowPractice.appendChild(api.practiceRailNode);
-  }
-  // The menu button sits outside the practice rail for the same reason.
-  rowPractice.appendChild(menuBtn);
+  dock.append(main, tools);
 
-  dock.append(rowPrimary, rowPractice);
+  // ---- popovers ----
+  const speedPop = mountSpeedPopover(overlayHost, {
+    getAnchor: () => speedBtn,
+    getBpm: () => api.getBpm?.(),
+    getScoreBpm: () => api.getScoreBpm?.(),
+    onSpeedPct: (pct) => { api.onSpeedPct?.(pct); sync(); },
+    onBpm: (bpm) => { api.onBpmInput?.(bpm); sync(); },
+    onReset: () => { api.onTempoReset?.(); sync(); },
+    onOpenRamp: typeof api.onOpenTempoRamp === 'function' ? () => api.onOpenTempoRamp() : null,
+    getRampLabel: () => api.getRampStatusLabel?.() || '',
+  });
 
+  const goToPop = mountGoToPopover(overlayHost, {
+    getAnchor: () => positionBtn,
+    getMeasureCount: () => api.getMeasureCount?.() || 0,
+    getCurrentBar: () => api.getCurrentBar?.() || 0,
+    getSections: () => api.getSections?.() || [],
+    onGoTo: (i) => api.onGoToBar?.(i),
+  });
+
+  const loopPop = createPopover(overlayHost, {
+    id: 'loop',
+    title: 'Loop',
+    getAnchor: () => loopBtn,
+    align: 'center',
+    placement: 'above',
+    width: 300,
+  });
+  const loopStatus = el('div', { class: 'gpp-popover-note gpp-loop-status' });
+  const loopRangeBtn = el('button', {
+    class: 'gpp-row-btn',
+    type: 'button',
+    'aria-label': 'Loop the marked range',
+    onClick: () => { api.onLoopRange?.(); sync(); },
+  }, [el('span', { class: 'gpp-row-btn-label', text: 'Loop marked range' })]);
+  const loopSongBtn = el('button', {
+    class: 'gpp-row-btn',
+    type: 'button',
+    'aria-label': 'Repeat the whole song',
+    onClick: () => { api.onLoopSong?.(); sync(); },
+  }, [el('span', { class: 'gpp-row-btn-label', text: 'Repeat whole song' })]);
+  const loopOffBtn = el('button', {
+    class: 'gpp-row-btn',
+    type: 'button',
+    'aria-label': 'Turn the loop off',
+    onClick: () => { api.onLoopOff?.(); sync(); loopPop.close(); },
+  }, [el('span', { class: 'gpp-row-btn-label', text: 'Loop off' })]);
+  const loopHint = el('div', { class: 'gpp-popover-note', text: 'Drag across the score to mark a range. On a phone, press and hold.' });
+  loopPop.body?.append(loopStatus, loopRangeBtn, loopSongBtn, loopOffBtn, loopHint);
+
+  // ---- events ----
   playBtn.addEventListener('click', () => api.onPlayPause?.());
   restartBtn.addEventListener('click', () => api.onRestart?.());
-  bpmDownBtn.addEventListener('click', () => api.onBpmStep?.(-GPP_TRANSPORT_BPM_STEP));
-  bpmUpBtn.addEventListener('click', () => api.onBpmStep?.(GPP_TRANSPORT_BPM_STEP));
-  bpmInput.addEventListener('change', () => api.onBpmInput?.(bpmInput.value));
+  prevBtn.addEventListener('click', () => api.onPrevBar?.());
+  nextBtn.addEventListener('click', () => api.onNextBar?.());
+  positionBtn.addEventListener('click', () => {
+    closePopovers('goto');
+    goToPop.toggle(positionBtn);
+    sync();
+  });
+  speedBtn.addEventListener('click', () => {
+    closePopovers('speed');
+    speedPop.toggle(speedBtn);
+    sync();
+  });
+  loopBtn.addEventListener('click', () => {
+    api.onLoopToggle?.();
+    sync();
+  });
+  attachLongPress(loopBtn, () => {
+    closePopovers('loop');
+    loopPop.toggle(loopBtn);
+    sync();
+  });
+  metroBtn.addEventListener('click', () => {
+    api.onMetroToggle?.();
+    sync();
+  });
+  attachLongPress(metroBtn, () => api.onOpenMetronome?.());
+  backingBtn.addEventListener('click', () => {
+    api.onBackingToggle?.();
+    sync();
+  });
+  mixBtn.addEventListener('click', () => api.onOpenMixer?.());
   menuBtn.addEventListener('click', () => api.onOpenMenu?.());
-  expandBtn.addEventListener('click', () => setExpanded(!expanded));
 
   let ro = null;
 
-  function paintExpanded() {
-    dock.classList.toggle('is-expanded', expanded);
-    rowPractice.hidden = !expanded;
-    expandBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    expandBtn.classList.toggle('is-on', expanded);
-    const label = expanded ? 'Fewer controls' : 'More controls';
-    expandBtn.setAttribute('aria-label', label);
-    expandBtn.title = label;
+  function closePopovers(except = null) {
+    if (except !== 'speed') speedPop.close();
+    if (except !== 'goto') goToPop.close();
+    if (except !== 'loop') loopPop.close();
   }
 
-  function setExpanded(on) {
-    const want = !!on;
-    if (want === expanded) return;
-    expanded = want;
-    writeExpanded(expanded);
-    paintExpanded();
-    publishPad();
-    api.onExpandedChange?.(expanded);
+  function isPopoverOpen() {
+    return speedPop.isOpen() || goToPop.isOpen() || loopPop.isOpen();
   }
 
   function publishPad() {
     const root = host.closest('.gpp-root');
     if (!root) return;
     const h = Math.ceil(dock.getBoundingClientRect().height);
-    const gap = 10;
-    root.style.setProperty('--gpp-transport-pad', `${h + gap}px`);
+    root.style.setProperty('--gpp-transport-pad', `${h + 8}px`);
   }
 
-  function syncTempo() {
+  function syncSpeed() {
     const bpm = Math.round(Number(api.getBpm?.()) || 0);
-    const scoreBpm = Math.round(Number(api.getScoreBpm?.()) || 0);
-    if (typeof document !== 'undefined' && document.activeElement !== bpmInput) {
-      bpmInput.value = String(bpm);
-    }
-    const pct = scoreBpm ? Math.round((bpm / scoreBpm) * 100) : 100;
-    bpmInput.title = scoreBpm
-      ? `Tempo: ${bpm} BPM · ${pct}% of the score tempo ${scoreBpm} BPM`
-      : `Tempo: ${bpm} BPM`;
-    tempoGroup.classList.toggle('is-changed', !!scoreBpm && bpm !== scoreBpm);
+    const score = Math.round(Number(api.getScoreBpm?.()) || 0);
+    const pct = speedPctFor(bpm, score);
+    speedBtn.querySelector('.gpp-speed-pct').textContent = `${pct}%`;
+    speedBtn.querySelector('.gpp-speed-bpm').textContent = bpm ? `${bpm} BPM` : '';
+    speedBtn.title = score
+      ? `Speed ${pct}% · ${bpm} BPM of ${score} (S)`
+      : `Tempo ${bpm} BPM (S)`;
+    speedBtn.classList.toggle('is-changed', !!score && bpm !== score);
+    speedBtn.setAttribute('aria-expanded', speedPop.isOpen() ? 'true' : 'false');
+    speedPop.sync();
+  }
+
+  function syncLoop() {
+    const mode = api.getLoopMode?.() || 'off';
+    const on = mode !== 'off';
+    const label = api.getLoopRangeLabel?.() || '';
+    const textEl = loopBtn.querySelector('.gpp-loop-label');
+    if (mode === 'song') textEl.textContent = 'Song';
+    else textEl.textContent = on && label ? label : 'Loop';
+    loopBtn.classList.toggle('is-on', on);
+    loopBtn.dataset.loopMode = mode;
+    loopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    loopBtn.setAttribute('aria-label', mode === 'song'
+      ? 'Loop: whole song. Press to turn off'
+      : (on ? `Loop bars ${label}. Press to turn off` : 'Loop the marked range'));
+    const hasRange = !!api.hasLoopRange?.();
+    loopStatus.textContent = mode === 'song'
+      ? 'The whole song repeats.'
+      : (on ? `Bars ${label} repeat.` : (hasRange ? `Range ${label} marked.` : 'No range marked.'));
+    loopRangeBtn.disabled = !hasRange;
+    loopRangeBtn.classList.toggle('is-on', mode === 'range');
+    loopSongBtn.classList.toggle('is-on', mode === 'song');
+    loopOffBtn.disabled = !on;
+  }
+
+  function syncMetro() {
+    const metroOn = !!api.getMetroEnabled?.();
+    metroBtn.classList.toggle('is-on', metroOn);
+    metroBtn.setAttribute('aria-pressed', metroOn ? 'true' : 'false');
+    const countOn = !!api.getCountInEnabled?.();
+    countBadge.hidden = !countOn;
+  }
+
+  function syncBacking() {
+    const hasBacking = !!api.getBackingAvailable?.();
+    backingBtn.hidden = !hasBacking;
+    if (!hasBacking) return;
+    const on = !!api.getBackingActive?.();
+    backingBtn.classList.toggle('is-on', on);
+    backingBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    backingBtn.title = on ? 'The original recording plays. Press for the synth.' : 'Play the original recording';
   }
 
   function sync() {
     const playing = !!api.getPlaying?.();
-    playBtn.textContent = playing ? '⏸' : '▶';
+    const pending = !!api.getPending?.();
+    playBtn.innerHTML = icon(playing ? 'pause' : 'play');
     playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
-    playBtn.title = playing ? 'Pause' : 'Play';
+    playBtn.title = playing ? 'Pause (Space)' : 'Play (Space)';
+    playBtn.classList.toggle('is-playing', playing);
+    playBtn.classList.toggle('is-pending', pending);
+    playBtn.disabled = api.getPlayReady?.() === false;
+
+    prevBtn.disabled = api.canPrev?.() === false;
+    nextBtn.disabled = api.canNext?.() === false;
 
     timeEl.textContent = api.getTimeLabel?.() || '0:00 / 0:00';
+    const bar = Number(api.getCurrentBar?.());
+    const count = Number(api.getMeasureCount?.()) || 0;
+    barEl.textContent = Number.isFinite(bar) ? `Bar ${bar + 1}${count ? ` / ${count}` : ''}` : '';
+    positionBtn.setAttribute('aria-expanded', goToPop.isOpen() ? 'true' : 'false');
 
-    const rampTxt = api.getRampStatusLabel?.();
-    if (rampTxt) {
-      rampChip.textContent = rampTxt;
-      rampChip.hidden = false;
-    } else {
-      rampChip.textContent = '';
-      rampChip.hidden = true;
-    }
+    const overlayTxt = api.getOverlayLabel?.() || '';
+    overlayEl.textContent = overlayTxt;
+    overlayEl.hidden = !overlayTxt;
 
+    const rampTxt = api.getRampStatusLabel?.() || '';
+    rampChip.textContent = rampTxt;
+    rampChip.hidden = !rampTxt;
+
+    const mixOpen = !!api.isMixerOpen?.();
+    mixBtn.setAttribute('aria-expanded', mixOpen ? 'true' : 'false');
+    mixBtn.classList.toggle('is-open', mixOpen);
     const menuOpen = !!api.isMenuOpen?.();
     menuBtn.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
-    menuBtn.classList.toggle('is-on', menuOpen);
+    menuBtn.classList.toggle('is-open', menuOpen);
 
-    syncTempo();
-    api.syncPracticeRail?.();
+    syncSpeed();
+    syncLoop();
+    syncMetro();
+    syncBacking();
     publishPad();
   }
 
   function destroy() {
     ro?.disconnect();
     ro = null;
+    speedPop.destroy();
+    goToPop.destroy();
+    loopPop.destroy();
     const root = host.closest('.gpp-root');
     root?.style.removeProperty('--gpp-transport-pad');
     host.innerHTML = '';
@@ -235,15 +402,20 @@ export function mountTransportDock(host, api = {}) {
     ro.observe(dock);
   }
 
-  paintExpanded();
   sync();
-  requestAnimationFrame(publishPad);
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(publishPad);
 
   return {
     sync,
     publishPad,
     destroy,
-    isExpanded: () => expanded,
-    setExpanded,
+    closePopovers,
+    isPopoverOpen,
+    openSpeed: () => { closePopovers('speed'); speedPop.toggle(speedBtn); sync(); },
+    openLoop: () => { closePopovers('loop'); loopPop.toggle(loopBtn); sync(); },
+    openGoTo: () => { closePopovers('goto'); goToPop.toggle(positionBtn); sync(); },
+    elements: { playBtn, loopBtn, metroBtn, speedBtn, mixBtn, menuBtn, positionBtn },
   };
 }
+
+export { fmtTime };

@@ -1,37 +1,41 @@
-// Auto-follow scroll guard checks for the GP parchment player.
+// Follow guard checks for the GP score viewport.
 // Run: node tests/gp-player/follow-scroll.mjs
 
 import assert from 'node:assert/strict';
-import { createFollowScrollGuard } from '../../js/gpPlayer/followScroll.js';
+import {
+  createFollowScrollGuard,
+  readingZoneMove,
+  FOLLOW_ACTIVE,
+  FOLLOW_SUSPENDED_BY_USER,
+} from '../../js/gpPlayer/followScroll.js';
 
 let clock = 0;
 const now = () => clock;
 
 function makeGuard(opts = {}) {
-  return createFollowScrollGuard({
-    cooldownMs: 2500,
-    ownScrollWindowMs: 200,
-    now,
-    ...opts,
-  });
+  return createFollowScrollGuard({ ownScrollWindowMs: 200, now, ...opts });
 }
 
 clock = 1000;
 const guard = makeGuard();
-
-assert.equal(guard.isPaused(), false, 'guard starts unpaused');
+assert.equal(guard.isSuspended(), false, 'guard starts active');
+assert.equal(guard.getState(), FOLLOW_ACTIVE);
 
 guard.noteOwnScroll();
 assert.equal(guard.noteScroll(), false, 'own scroll then scroll returns false');
-assert.equal(guard.isPaused(), false, 'own scroll does not pause auto-follow');
+assert.equal(guard.isSuspended(), false, 'own scroll does not suspend follow');
 
 clock = 2000;
 const userScrollGuard = makeGuard();
 assert.equal(userScrollGuard.noteScroll(), true, 'scroll without own scroll returns true');
-assert.equal(userScrollGuard.isPaused(), true, 'user scroll pauses auto-follow');
+assert.equal(userScrollGuard.isSuspended(), true, 'user scroll suspends follow');
+assert.equal(userScrollGuard.getState(), FOLLOW_SUSPENDED_BY_USER);
 
-clock = 4500;
-assert.equal(userScrollGuard.isPaused(), false, 'pause ends after cooldownMs');
+// A timer never ends the suspension. GP-AC-032.
+clock = 2000 + 60 * 60 * 1000;
+assert.equal(userScrollGuard.isSuspended(), true, 'suspension holds until resume()');
+userScrollGuard.resume();
+assert.equal(userScrollGuard.isSuspended(), false, 'resume clears the suspension');
 
 clock = 5000;
 const staleGuard = makeGuard();
@@ -49,13 +53,27 @@ clock = 7000;
 const gestureGuard = makeGuard();
 gestureGuard.noteOwnScroll();
 gestureGuard.noteUserGesture();
-assert.equal(gestureGuard.isPaused(), true, 'user gesture pauses even when own-scroll window is open');
+assert.equal(gestureGuard.isSuspended(), true, 'user gesture suspends even inside own-scroll window');
 
-clock = 8000;
-const resumeGuard = makeGuard();
-resumeGuard.noteScroll();
-assert.equal(resumeGuard.isPaused(), true, 'scroll pauses guard before resume');
-resumeGuard.resume();
-assert.equal(resumeGuard.isPaused(), false, 'resume clears pause');
+const changes = [];
+const watched = makeGuard({ onChange: (s) => changes.push(s) });
+watched.suspend();
+watched.suspend();
+watched.resume();
+assert.deepEqual(changes, [FOLLOW_SUSPENDED_BY_USER, FOLLOW_ACTIVE], 'onChange fires once per transition');
+
+// ---- reading zone ----
+const inZone = readingZoneMove({ viewportHeight: 1000, systemTop: 200, systemBottom: 320 });
+assert.equal(inZone.move, false, 'a system inside the zone does not move the sheet');
+
+const below = readingZoneMove({ viewportHeight: 1000, systemTop: 700, systemBottom: 820 });
+assert.equal(below.move, true, 'a system below the zone moves the sheet');
+assert.equal(below.targetTop, 180, 'the system rests at the top of the zone');
+
+const above = readingZoneMove({ viewportHeight: 1000, systemTop: -50, systemBottom: 60 });
+assert.equal(above.move, true, 'a system above the viewport moves the sheet');
+
+const tall = readingZoneMove({ viewportHeight: 400, systemTop: 30, systemBottom: 380 });
+assert.equal(tall.move, false, 'a tall system that shows its top stays put');
 
 console.log('gp-player follow-scroll: ok');

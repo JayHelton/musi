@@ -176,7 +176,7 @@ function clickPlay(host, mount) {
   mount.stepBpm(120);
   assert.equal(mount.getState().bpm, 240, 'stepBpm should double tempo to 240');
   assert.ok(host.classList.contains('gpp-root'), 'mount host must stay alive');
-  assert.ok(host.querySelector('.gpp-practice-rail'), 'practice rail must remain mounted');
+  assert.ok(host.querySelector('.gpp-transport'), 'transport must remain mounted');
   assert.equal(playbackEndCount, 0, 'onPlaybackEnd must not fire on tempo change');
   const beatAfter = mount.player.getPosition().beatInScore;
   assert.ok(

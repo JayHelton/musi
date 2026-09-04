@@ -6,7 +6,11 @@ import {
   drumHitLabel,
   drumTabLegendFor,
 } from '../drums/notation.js';
-import { createFollowScrollGuard } from './followScroll.js';
+import {
+  createFollowScrollGuard,
+  readingZoneMove,
+  FOLLOW_SUSPENDED_BY_USER,
+} from './followScroll.js';
 import { pinnedScrollTop } from './layoutMetrics.js';
 import {
   beatFromXUnits,
@@ -21,6 +25,10 @@ import {
 import { snapBeat, normalizeBeatRange, measureSpan, measureIndexAtBeat } from './rangeUtils.js';
 
 const LONG_PRESS_MS = 450;
+// A mouse drag becomes a range selection after this many pixels.
+const DRAG_START_PX = 6;
+// A double click on a beat starts playback there.
+const DOUBLE_CLICK_MS = 350;
 const NOTE_PAD_START = 9;
 const NOTE_PAD_END = 7;
 const BEAT_EPS = 1e-4;
@@ -154,8 +162,11 @@ export function mountParchmentView(host, {
   zoom = 1,
   selection = null,
   onMeasureClick = null,
-  onMeasureLongPress = null,
+  onBeatClick = null,
+  onBeatDoubleClick = null,
   onSelectionChange = null,
+  onLoopChange = null,
+  onFollowChange = null,
   onNoteSelectionChange = null,
   onAnnotationClick = null,
   loopSelectMode = false,
@@ -174,6 +185,10 @@ export function mountParchmentView(host, {
     setShowStandardNotation() {},
     setActivePosition() {},
     resumeAutoFollow() {},
+    suspendAutoFollow() {},
+    isFollowSuspended() { return false; },
+    setRangeDraft() {},
+    scrollToBeat() {},
     getZoomLimit() { return 1; },
     destroy() {},
   };
@@ -198,7 +213,14 @@ export function mountParchmentView(host, {
   let lastActiveBeatKey = '';
   let scoreLayout = null;
   let unitPx = 1;
-  const followGuard = createFollowScrollGuard({ cooldownMs: 2500 });
+  // A span the user marked but has not yet turned into a loop.
+  let rangeDraft = null;
+  let lastFollowSystem = -1;
+  const followGuard = createFollowScrollGuard({
+    onChange: (state) => {
+      if (typeof onFollowChange === 'function') onFollowChange(state === FOLLOW_SUSPENDED_BY_USER);
+    },
+  });
   let destroyed = false;
 
   let measureEls = [];
@@ -206,11 +228,18 @@ export function mountParchmentView(host, {
   let measurePartInfo = [];
   let systemEls = [];
   let playheadEl = null;
+  let beatWashEl = null;
   let legendEl = null;
   let noteOverlayEl = null;
   let annoSpanEls = [];
+  let loopBandEls = [];
+  let draftBandEls = [];
   let handleStart = null;
   let handleEnd = null;
+  // The span the two markers belong to: 'draft' or 'loop'.
+  let handleTarget = null;
+  let pendingDrag = null;
+  let lastClick = { at: 0, beat: null, mi: -1 };
   let lastActive = -1;
   let lastBeat = 0;
   let rafId = 0;
@@ -699,14 +728,14 @@ export function mountParchmentView(host, {
       if (Date.now() < suppressClickUntil) return;
       if (e.target.closest('.gpp-parch-anno-callout')) return;
       if (resizeDrag || drag || noteDrag) return;
-      if (typeof onMeasureClick === 'function') onMeasureClick(mi);
+      onMeasureTap(mi, e);
     });
 
-    if (noteMode) {
-      wrap.style.touchAction = 'pan-y';
-      wrap.addEventListener('pointerdown', onPointerDown);
-    }
-
+    // The whole measure is the hit area, so a tap does not need to land on a
+    // fret number. The pointer handlers cover the mouse drag that marks a
+    // range, and the long press that does the same on a touch screen.
+    wrap.style.touchAction = 'pan-y';
+    wrap.addEventListener('pointerdown', onPointerDown);
     if (typeof onSelectionChange === 'function') {
       wrap.addEventListener('pointerdown', onLongPressDown);
       wrap.addEventListener('pointerup', onLongPressUp);
@@ -751,9 +780,13 @@ export function mountParchmentView(host, {
         measureSystemIndex = [];
         measureGeom = [];
         playheadEl = null;
+        beatWashEl = null;
+        loopBandEls = [];
+        draftBandEls = [];
         handleStart = null;
         handleEnd = null;
         lastActiveBeatKey = '';
+        lastFollowSystem = -1;
         scoreLayout = null;
         lastBuildHostW = hostW;
         lastBuildLayoutWidthPx = layoutWidthRawPx;
@@ -847,9 +880,13 @@ export function mountParchmentView(host, {
       measureSystemIndex = [];
       measureGeom = [];
       playheadEl = null;
+      beatWashEl = null;
+      loopBandEls = [];
+      draftBandEls = [];
       handleStart = null;
       handleEnd = null;
       lastActiveBeatKey = '';
+      lastFollowSystem = -1;
 
       const {
         hostW,
@@ -918,6 +955,11 @@ export function mountParchmentView(host, {
         systemEls.push(system);
       });
 
+      beatWashEl = document.createElement('div');
+      beatWashEl.className = 'gpp-parch-beat-wash';
+      beatWashEl.hidden = true;
+      sheet.appendChild(beatWashEl);
+
       playheadEl = document.createElement('div');
       playheadEl.className = 'gpp-parch-playhead';
       playheadEl.hidden = true;
@@ -945,10 +987,12 @@ export function mountParchmentView(host, {
       }
 
       paintSelection(sel);
+      paintRangeDraft(rangeDraft);
       paintNoteDraft(noteSel);
       paintAnnotations(annotations, highlightedAnnoId);
       paintActive(lastActive);
       paintActiveBeat(activePosition);
+      if (lastActive >= 0) positionPlayhead(lastBeat, lastActive);
       scheduleResizeQuiet();
     } catch (err) {
       if (!hadContent) {
@@ -989,8 +1033,57 @@ export function mountParchmentView(host, {
     return snapBeat(start + frac * len);
   }
 
+  /**
+   * The beat column nearest to a pointer, for a tap. A tap between two notes
+   * lands on the closer note, so the user never needs a pixel-exact hit.
+   */
+  function nearestColumnBeat(clientX, clientY) {
+    const el = document.elementFromPoint(clientX, clientY)?.closest?.('.gpp-parch-measure');
+    if (!el) return null;
+    const mi = Number(el.dataset.index);
+    const m = measures()[mi];
+    if (!m) return null;
+    const notesRect = measureNotesRect(el);
+    if (!notesRect) return null;
+    const colStart = Number(el.dataset.fragment || 0);
+    const part = measurePartInfo[mi]?.find((p) => p.colStart === colStart);
+    const bar = part?.layout ?? scoreLayout?.bars?.[mi];
+    const cols = bar?.columns;
+    if (!cols?.length || !(unitPx > 0)) {
+      const beat = beatFromPointer(clientX, clientY);
+      return beat == null ? null : { beat, mi };
+    }
+    const xUnits = (clientX - notesRect.left) / unitPx;
+    let best = null;
+    for (const col of cols) {
+      const d = Math.abs(col.x - xUnits);
+      if (!best || d < best.d) best = { d, beat: col.beat };
+    }
+    return best ? { beat: best.beat, mi } : null;
+  }
+
+  function onMeasureTap(mi, e) {
+    const hit = (Number.isFinite(e?.clientX) && Number.isFinite(e?.clientY))
+      ? nearestColumnBeat(e.clientX, e.clientY)
+      : null;
+    const m = measures()[mi];
+    const beat = hit?.beat ?? (m ? measureSpan(m).start : null);
+    const now = Date.now();
+    const isDouble = lastClick.mi === mi
+      && lastClick.beat === beat
+      && now - lastClick.at < DOUBLE_CLICK_MS;
+    lastClick = { at: isDouble ? 0 : now, beat, mi };
+    if (isDouble) {
+      if (typeof onBeatDoubleClick === 'function') onBeatDoubleClick(beat, mi);
+      return;
+    }
+    if (typeof onBeatClick === 'function' && beat != null) onBeatClick(beat, mi);
+    else if (typeof onMeasureClick === 'function') onMeasureClick(mi);
+  }
+
   function onLongPressDown(e) {
     if (e.button !== 0 || noteMode || resizeDrag || drag) return;
+    if (e.pointerType === 'mouse') return;
     if (e.target.closest('.gpp-parch-anno-callout')) return;
     clearLongPress();
     longPressTarget = e.currentTarget;
@@ -1002,6 +1095,12 @@ export function mountParchmentView(host, {
       if (beat == null) return;
       drag = { anchorBeat: beat, pointerId: startEvent.pointerId, moved: false };
       longPressTarget?.setPointerCapture?.(startEvent.pointerId);
+      // The press marks one beat at once, so the user sees the range start.
+      const norm = normalizeBeatRange(beat, beat + 1, { minSpan: 1, songEndBeat: totalBeats() });
+      if (norm) {
+        rangeDraft = norm;
+        paintRangeDraft(rangeDraft);
+      }
     }, LONG_PRESS_MS);
   }
 
@@ -1031,6 +1130,7 @@ export function mountParchmentView(host, {
 
   function onPointerDown(e) {
     if (e.button !== 0) return;
+    if (e.target?.closest?.('.gpp-parch-anno-callout, .gpp-parch-handle')) return;
     const beat = beatFromPointer(e.clientX, e.clientY);
     if (beat == null) return;
     if (noteMode && !selectMode) {
@@ -1039,13 +1139,29 @@ export function mountParchmentView(host, {
       e.preventDefault();
       return;
     }
-    if (!selectMode) return;
-    drag = { anchorBeat: beat, pointerId: e.pointerId, moved: false };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    e.preventDefault();
+    if (typeof onSelectionChange !== 'function') return;
+    // A mouse marks a range with a plain drag. The drag starts only after the
+    // pointer moves, so a click still seeks. A finger scrolls the sheet, so a
+    // touch uses the long press instead.
+    if (e.pointerType !== 'mouse') return;
+    pendingDrag = {
+      anchorBeat: beat,
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      target: e.currentTarget,
+    };
   }
 
   function onPointerMove(e) {
+    if (pendingDrag && pendingDrag.pointerId === e.pointerId && !drag) {
+      const dx = e.clientX - pendingDrag.x;
+      const dy = e.clientY - pendingDrag.y;
+      if (Math.hypot(dx, dy) < DRAG_START_PX) return;
+      drag = { anchorBeat: pendingDrag.anchorBeat, pointerId: e.pointerId, moved: false };
+      pendingDrag.target?.setPointerCapture?.(e.pointerId);
+      pendingDrag = null;
+    }
     if (noteDrag && noteDrag.pointerId === e.pointerId) {
       const beat = beatFromPointer(e.clientX, e.clientY);
       if (beat == null) return;
@@ -1063,12 +1179,13 @@ export function mountParchmentView(host, {
     if (Math.abs(beat - drag.anchorBeat) > 0.01) drag.moved = true;
     const norm = normalizeBeatRange(drag.anchorBeat, beat, { minSpan: 1, songEndBeat: totalBeats() });
     if (!norm) return;
-    sel = norm;
-    paintSelection(sel);
+    rangeDraft = norm;
+    paintRangeDraft(rangeDraft);
     highlightSelecting(norm);
   }
 
   function onPointerUp(e) {
+    if (pendingDrag && pendingDrag.pointerId === e.pointerId) pendingDrag = null;
     if (noteDrag && noteDrag.pointerId === e.pointerId) {
       if (noteDrag.moved && noteSel && typeof onNoteSelectionChange === 'function') {
         onNoteSelectionChange({ ...noteSel });
@@ -1078,9 +1195,17 @@ export function mountParchmentView(host, {
       return;
     }
     if (!drag || drag.pointerId !== e.pointerId) return;
-    if (drag.moved && sel) fireSelection(sel);
+    const moved = drag.moved;
     drag = null;
     clearSelecting();
+    if (moved && rangeDraft) {
+      // The click that ends the drag must not seek.
+      suppressClickUntil = Date.now() + 400;
+      fireSelection(rangeDraft);
+    } else if (!moved) {
+      rangeDraft = null;
+      paintRangeDraft(null);
+    }
   }
 
   host.addEventListener('pointermove', onPointerMove);
@@ -1124,10 +1249,143 @@ export function mountParchmentView(host, {
     return { startIdx, endIdx };
   }
 
-  function removeSelectionDecor() {
+  function removeHandles() {
     if (handleStart) { handleStart.remove(); handleStart = null; }
     if (handleEnd) { handleEnd.remove(); handleEnd = null; }
+    handleTarget = null;
+  }
+
+  function removeSelectionDecor() {
+    removeHandles();
+    loopBandEls.forEach((el) => el.remove());
+    loopBandEls = [];
     eachAllMeasureEls((el) => el.classList.remove('in-loop'));
+  }
+
+  function removeRangeDraftDecor() {
+    draftBandEls.forEach((el) => el.remove());
+    draftBandEls = [];
+    eachAllMeasureEls((el) => el.classList.remove('in-range'));
+    if (handleTarget === 'draft') removeHandles();
+  }
+
+  /**
+   * The sheet x of one beat inside one measure. A beat at the start of the
+   * measure sits on the bar line, and a beat at the end sits on the next bar
+   * line, so a band over whole measures covers the bar padding too.
+   */
+  function beatSheetX(mi, beat, edge) {
+    const m = measures()[mi];
+    if (!m) return null;
+    const { start, end } = measureSpan(m);
+    const frags = measureFragEls[mi];
+    if (!frags?.length) return null;
+    if (edge === 'start' && beat <= start + BEAT_EPS) {
+      return boxInSheet(frags[0])?.left ?? null;
+    }
+    if (edge === 'end' && beat >= end - BEAT_EPS) {
+      return boxInSheet(frags[frags.length - 1])?.right ?? null;
+    }
+    const part = findPartForBeat(mi, beat);
+    const geom = part ? measureGeomFor(mi, part.colStart) : null;
+    const bar = part?.layout;
+    if (!geom || !bar || !(unitPx > 0)) return null;
+    return geom.notesLeft + beatXUnits(bar, beat) * unitPx;
+  }
+
+  /**
+   * Draw one translucent band per system row across a beat span. The band
+   * runs through the staff only, so the bar numbers stay clear.
+   */
+  function paintBands(range, className) {
+    const out = [];
+    if (!range || !sheet) return out;
+    const { startIdx, endIdx } = beatToMeasureRange(range.startBeat, range.endBeat);
+    const bySystem = new Map();
+    for (let i = startIdx; i <= endIdx; i += 1) {
+      for (const part of measurePartInfo[i] || []) {
+        if (!bySystem.has(part.systemIndex)) bySystem.set(part.systemIndex, { first: i, last: i });
+        else bySystem.get(part.systemIndex).last = i;
+      }
+    }
+    for (const [systemIndex, span] of bySystem) {
+      const leftX = span.first === startIdx
+        ? beatSheetX(span.first, range.startBeat, 'start')
+        : boxInSheet(measureFragEls[span.first]?.[0])?.left;
+      const lastFrags = measureFragEls[span.last];
+      const rightX = span.last === endIdx
+        ? beatSheetX(span.last, range.endBeat, 'end')
+        : boxInSheet(lastFrags?.[lastFrags.length - 1])?.right;
+      if (leftX == null || rightX == null || rightX <= leftX) continue;
+      const geom = measureGeomFor(span.first, measurePartInfo[span.first]?.[0]?.colStart ?? 0);
+      const band = document.createElement('div');
+      band.className = className;
+      band.dataset.system = String(systemIndex);
+      band.style.left = `${leftX}px`;
+      band.style.width = `${Math.max(2, rightX - leftX)}px`;
+      if (geom?.staffTop != null) {
+        band.style.top = `${geom.staffTop}px`;
+        band.style.height = `${geom.staffHeight}px`;
+      }
+      sheet.appendChild(band);
+      out.push(band);
+    }
+    return out;
+  }
+
+  function paintHandles(range, target) {
+    removeHandles();
+    if (!range) return;
+    const { startIdx, endIdx } = beatToMeasureRange(range.startBeat, range.endBeat);
+    const leftX = beatSheetX(startIdx, range.startBeat, 'start');
+    const rightX = beatSheetX(endIdx, range.endBeat, 'end');
+    const startGeom = measureGeomFor(startIdx, measurePartInfo[startIdx]?.[0]?.colStart ?? 0);
+    const endPart = findPartForBeat(endIdx, range.endBeat);
+    const endGeom = measureGeomFor(endIdx, endPart?.colStart ?? 0);
+    if (leftX == null || rightX == null) return;
+    handleTarget = target;
+
+    handleStart = document.createElement('div');
+    handleStart.className = `gpp-parch-handle start is-${target}`;
+    handleStart.title = target === 'loop' ? 'Drag to move the start of the loop' : 'Drag to move the start of the range';
+    handleStart.setAttribute('role', 'slider');
+    handleStart.setAttribute('aria-label', handleStart.title);
+    handleStart.style.left = `${leftX - 12}px`;
+    if (startGeom?.staffTop != null) {
+      handleStart.style.top = `${startGeom.staffTop}px`;
+      handleStart.style.height = `${startGeom.staffHeight}px`;
+    }
+
+    handleEnd = document.createElement('div');
+    handleEnd.className = `gpp-parch-handle end is-${target}`;
+    handleEnd.title = target === 'loop' ? 'Drag to move the end of the loop' : 'Drag to move the end of the range';
+    handleEnd.setAttribute('role', 'slider');
+    handleEnd.setAttribute('aria-label', handleEnd.title);
+    handleEnd.style.left = `${rightX - 12}px`;
+    if (endGeom?.staffTop != null) {
+      handleEnd.style.top = `${endGeom.staffTop}px`;
+      handleEnd.style.height = `${endGeom.staffHeight}px`;
+    }
+
+    attachResizeHandle(handleStart, 'start');
+    attachResizeHandle(handleEnd, 'end');
+    sheet.appendChild(handleStart);
+    sheet.appendChild(handleEnd);
+  }
+
+  function paintRangeDraft(draft) {
+    removeRangeDraftDecor();
+    if (!draft) {
+      // The loop gets its markers back when the draft goes.
+      if (sel && selectMode && !handleStart) paintHandles(sel, 'loop');
+      return;
+    }
+    const { startIdx, endIdx } = beatToMeasureRange(draft.startBeat, draft.endBeat);
+    for (let i = startIdx; i <= endIdx; i += 1) {
+      eachMeasureEl(i, (el) => el.classList.add('in-range'));
+    }
+    draftBandEls = paintBands(draft, 'gpp-parch-range-band');
+    paintHandles(draft, 'draft');
   }
 
   function removeNoteDraftDecor() {
@@ -1277,80 +1535,69 @@ export function mountParchmentView(host, {
     removeSelectionDecor();
     if (!nextSel) return;
     const { startIdx, endIdx } = beatToMeasureRange(nextSel.startBeat, nextSel.endBeat);
-    let firstEl = null;
-    let lastEl = null;
     for (let i = startIdx; i <= endIdx; i++) {
       eachMeasureEl(i, (el) => el.classList.add('in-loop'));
-      const frags = measureFragEls[i];
-      if (frags?.length) {
-        if (!firstEl) firstEl = frags[0];
-        lastEl = frags[frags.length - 1];
-      }
     }
-    if (!firstEl || !sheet) return;
-
-    // The loop measures carry their own tint. A score wraps onto several rows,
-    // so one rectangle across the sheet would cover measures outside the loop.
+    if (!sheet) return;
+    // One translucent band per system row, with a clear start and end. The
+    // measures inside are not separate cards.
+    loopBandEls = paintBands(nextSel, 'gpp-parch-loop-band');
+    // The markers belong to the draft while one exists.
+    if (rangeDraft) return;
     if (!selectMode) return;
-
-    const startBox = boxInSheet(firstEl);
-    const endBox = boxInSheet(lastEl || firstEl);
-    if (!startBox || !endBox) return;
-
-    handleStart = document.createElement('div');
-    handleStart.className = 'gpp-parch-handle start';
-    handleStart.title = 'Drag to move the start of the loop';
-    handleStart.style.left = `${startBox.left - 8}px`;
-    handleStart.style.top = `${startBox.top}px`;
-    handleStart.style.height = `${startBox.height}px`;
-
-    handleEnd = document.createElement('div');
-    handleEnd.className = 'gpp-parch-handle end';
-    handleEnd.title = 'Drag to move the end of the loop';
-    handleEnd.style.left = `${endBox.right - 8}px`;
-    handleEnd.style.top = `${endBox.top}px`;
-    handleEnd.style.height = `${endBox.height}px`;
-
-    attachResizeHandle(handleStart, 'start');
-    attachResizeHandle(handleEnd, 'end');
-    sheet.appendChild(handleStart);
-    sheet.appendChild(handleEnd);
+    paintHandles(nextSel, 'loop');
   }
 
   // A drag repaints the selection, and the repaint replaces the marker
   // element. The move and up listeners therefore live on the window, so the
   // drag survives every repaint.
   function onResizeMove(e) {
-    if (!resizeDrag || resizeDrag.pointerId !== e.pointerId || !sel) return;
+    if (!resizeDrag || resizeDrag.pointerId !== e.pointerId) return;
+    const current = resizeDrag.target === 'draft' ? rangeDraft : sel;
+    if (!current) return;
     const beat = beatFromPointer(e.clientX, e.clientY);
     if (beat == null) return;
-    let start = sel.startBeat;
-    let end = sel.endBeat;
+    let start = current.startBeat;
+    let end = current.endBeat;
     if (resizeDrag.edge === 'start') start = beat;
     else end = beat;
     const norm = normalizeBeatRange(start, end, { minSpan: 1, songEndBeat: totalBeats() });
     if (!norm) return;
-    if (norm.startBeat === sel.startBeat && norm.endBeat === sel.endBeat) return;
-    sel = norm;
-    paintSelection(sel);
+    if (norm.startBeat === current.startBeat && norm.endBeat === current.endBeat) return;
+    if (resizeDrag.target === 'draft') {
+      rangeDraft = norm;
+      paintRangeDraft(rangeDraft);
+    } else {
+      sel = norm;
+      paintSelection(sel);
+    }
   }
 
   function endResizeDrag(e) {
     if (!resizeDrag || (e && resizeDrag.pointerId !== e.pointerId)) return;
+    const { target } = resizeDrag;
     resizeDrag = null;
     window.removeEventListener('pointermove', onResizeMove);
     window.removeEventListener('pointerup', endResizeDrag);
     window.removeEventListener('pointercancel', endResizeDrag);
     suppressClickUntil = Date.now() + 400;
-    fireSelection(sel);
+    if (target === 'draft') {
+      fireSelection(rangeDraft);
+    } else if (typeof onLoopChange === 'function') {
+      onLoopChange(sel ? { ...sel } : null);
+    } else {
+      fireSelection(sel);
+    }
   }
 
   function attachResizeHandle(handle, edge) {
     handle.addEventListener('pointerdown', (e) => {
-      if (!selectMode || !sel) return;
+      const target = handleTarget;
+      const current = target === 'draft' ? rangeDraft : sel;
+      if (!current) return;
       e.stopPropagation();
       e.preventDefault();
-      resizeDrag = { edge, pointerId: e.pointerId };
+      resizeDrag = { edge, pointerId: e.pointerId, target };
       window.addEventListener('pointermove', onResizeMove);
       window.addEventListener('pointerup', endResizeDrag);
       window.addEventListener('pointercancel', endResizeDrag);
@@ -1498,6 +1745,37 @@ export function mountParchmentView(host, {
       playheadEl.style.height = `${geom.staffHeight}px`;
     }
     playheadEl.hidden = false;
+    positionBeatWash(bar, geom, beat);
+  }
+
+  /**
+   * A faint wash under the beat column that sounds now. It gives the eye the
+   * reading region while the line gives the exact beat.
+   */
+  function positionBeatWash(bar, geom, beat) {
+    if (!beatWashEl) return;
+    const cols = bar?.columns;
+    if (!cols?.length || !(unitPx > 0)) {
+      beatWashEl.hidden = true;
+      return;
+    }
+    let col = null;
+    for (const c of cols) {
+      if (c.beat <= beat + BEAT_EPS) col = c;
+    }
+    if (!col) {
+      beatWashEl.hidden = true;
+      return;
+    }
+    const left = geom.notesLeft + col.xLeft * unitPx;
+    const width = Math.max(4, (col.advance || 0) * unitPx);
+    beatWashEl.style.left = `${left}px`;
+    beatWashEl.style.width = `${width}px`;
+    if (geom.staffTop != null) {
+      beatWashEl.style.top = `${geom.staffTop}px`;
+      beatWashEl.style.height = `${geom.staffHeight}px`;
+    }
+    beatWashEl.hidden = false;
   }
 
   function systemForMeasure(mi, colStart = 0) {
@@ -1508,21 +1786,38 @@ export function mountParchmentView(host, {
     return idx != null ? systemEls[idx] ?? null : null;
   }
 
-  function pinSystemToViewportTop(mi, topPad, colStart = 0) {
-    const part = measurePartInfo[mi]?.find((p) => p.colStart === colStart)
-      ?? measurePartInfo[mi]?.[0];
-    const el = part?.el ?? measureEls[mi];
-    if (!el) return;
-    const sys = systemForMeasure(mi, colStart);
-    const target = sys || el;
+  function systemIndexForBeat(mi, beat) {
+    const part = findPartForBeat(mi, beat ?? lastBeat);
+    return part?.systemIndex ?? measureSystemIndex[mi] ?? -1;
+  }
+
+  /**
+   * Keep the active system inside the reading zone. The sheet moves only when
+   * the playhead reaches a system outside the zone, so it moves rarely.
+   * @param {boolean} force move even when the system is already in the zone
+   */
+  function followSystemIntoZone(mi, beat, { force = false } = {}) {
+    const sysIndex = systemIndexForBeat(mi, beat);
+    const sys = systemEls[sysIndex] ?? systemForMeasure(mi);
+    if (!sys) return;
+    if (!force && sysIndex === lastFollowSystem) return;
+    lastFollowSystem = sysIndex;
     const vRect = viewport.getBoundingClientRect();
-    const tRect = target.getBoundingClientRect();
-    const maxScroll = viewport.scrollHeight - viewport.clientHeight;
+    const sRect = sys.getBoundingClientRect();
+    const viewportHeight = viewport.clientHeight || vRect.height || 0;
+    if (!(viewportHeight > 0)) return;
+    const decision = readingZoneMove({
+      viewportHeight,
+      systemTop: sRect.top - vRect.top,
+      systemBottom: sRect.bottom - vRect.top,
+    });
+    if (!decision.move && !force) return;
+    const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
     const next = pinnedScrollTop({
       scrollTop: viewport.scrollTop,
       viewportTop: vRect.top,
-      targetTop: tRect.top,
-      pad: topPad,
+      targetTop: sRect.top,
+      pad: decision.targetTop,
       maxScrollTop: maxScroll,
     });
     if (next != null) {
@@ -1532,12 +1827,20 @@ export function mountParchmentView(host, {
   }
 
   function scrollActiveIntoView(mi, beat) {
-    const part = findPartForBeat(mi, beat ?? lastBeat);
-    pinSystemToViewportTop(mi, 16, part?.colStart ?? 0);
+    followSystemIntoZone(mi, beat);
   }
 
   function scrollToMeasure(mi) {
-    pinSystemToViewportTop(mi, 20, 0);
+    const m = measures()[mi];
+    followSystemIntoZone(mi, m ? measureSpan(m).start : 0, { force: true });
+  }
+
+  /** Bring one beat into the reading zone, for a seek or a restore. */
+  function scrollToBeat(beat) {
+    const b = Number(beat);
+    if (!Number.isFinite(b)) return;
+    const mi = measureIndexAtBeatLocal(b);
+    followSystemIntoZone(mi, b, { force: true });
   }
 
   function update({
@@ -1547,6 +1850,7 @@ export function mountParchmentView(host, {
     playing = false,
     measureIndex = null,
     selection: nextSel = undefined,
+    rangeDraft: nextRangeDraft = undefined,
     noteDraft: nextNoteDraft = undefined,
     loopSelectMode: lsm = undefined,
     noteSelectMode: nsm = undefined,
@@ -1560,11 +1864,13 @@ export function mountParchmentView(host, {
       currentZoom = z;
       rebuild();
     }
-    const modeChanged = (lsm != null && !!lsm !== selectMode)
-      || (nsm != null && !!nsm !== noteMode);
-    if (lsm != null) selectMode = !!lsm;
+    const noteModeChanged = nsm != null && !!nsm !== noteMode;
+    if (lsm != null && !!lsm !== selectMode) {
+      selectMode = !!lsm;
+      paintSelection(sel);
+    }
     if (nsm != null) noteMode = !!nsm;
-    if (modeChanged) rebuild();
+    if (noteModeChanged) rebuild();
     // The playhead calls update() on every animation frame. Each paint below
     // removes and rebuilds DOM nodes, and the playhead then reads a layout
     // value. That write and read pair forces a layout on every frame, which
@@ -1572,6 +1878,10 @@ export function mountParchmentView(host, {
     if (nextSel !== undefined && !sameSpan(sel, nextSel)) {
       sel = nextSel ? { ...nextSel } : null;
       paintSelection(sel);
+    }
+    if (nextRangeDraft !== undefined && !sameSpan(rangeDraft, nextRangeDraft)) {
+      rangeDraft = nextRangeDraft ? { ...nextRangeDraft } : null;
+      paintRangeDraft(rangeDraft);
     }
     if (nextNoteDraft !== undefined && !sameSpan(noteSel, nextNoteDraft)) {
       noteSel = nextNoteDraft ? { ...nextNoteDraft } : null;
@@ -1600,7 +1910,7 @@ export function mountParchmentView(host, {
     }
     positionPlayhead(beat, mi);
 
-    if (playing && follow && !followGuard.isPaused()) {
+    if (playing && follow && !followGuard.isSuspended()) {
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => scrollActiveIntoView(mi, beat));
     }
@@ -1627,7 +1937,7 @@ export function mountParchmentView(host, {
   function setLoopSelectMode(on) {
     if (!!on === selectMode) return;
     selectMode = !!on;
-    rebuild();
+    paintSelection(sel);
   }
 
   function setNoteSelectMode(on) {
@@ -1659,6 +1969,23 @@ export function mountParchmentView(host, {
   function resumeAutoFollow() {
     followGuard.resume();
     follow = true;
+    lastFollowSystem = -1;
+    if (lastActive >= 0) followSystemIntoZone(lastActive, lastBeat, { force: true });
+  }
+
+  function suspendAutoFollow() {
+    followGuard.suspend();
+  }
+
+  function isFollowSuspended() {
+    return followGuard.isSuspended();
+  }
+
+  function setRangeDraft(next) {
+    const nextDraft = next ? { ...next } : null;
+    if (sameSpan(rangeDraft, nextDraft)) return;
+    rangeDraft = nextDraft;
+    paintRangeDraft(rangeDraft);
   }
 
   function getZoomLimit() {
@@ -1697,6 +2024,10 @@ export function mountParchmentView(host, {
     setShowStandardNotation,
     setActivePosition,
     resumeAutoFollow,
+    suspendAutoFollow,
+    isFollowSuspended,
+    setRangeDraft,
+    scrollToBeat,
     getZoomLimit,
     destroy,
   };

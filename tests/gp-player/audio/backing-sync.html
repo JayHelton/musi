@@ -163,7 +163,7 @@
       attachFile(makeWavFile(CLIP_SEC, TONE_HZ));
       await wait(500);
       const hasSource = backing.hasSource();
-      const railShown = !document.querySelector('.gpp-practice-backing-btn')?.hidden;
+      const railShown = !document.querySelector('.gpp-tbtn--backing')?.hidden;
 
       // 2. Turn the backing track on. The synth notes must go quiet.
       await backing.setActive(true);

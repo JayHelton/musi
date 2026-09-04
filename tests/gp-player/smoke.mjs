@@ -603,15 +603,14 @@ assert.equal(menuViewPicker.querySelectorAll('.gpp-menu-view-option').length, 3,
 const menuActions = gpHost.querySelector('.gpp-menu-actions');
 assert.ok(menuActions, 'player menu should expose actions group');
 assert.ok(menuRowByLabel(menuActions, 'Section notes'), 'menu should list section notes');
-assert.ok(menuRowByLabel(menuActions, 'Track mixer'), 'menu should list track mixer');
-assert.ok(menuRowByLabel(menuActions, 'Practice settings'), 'menu should list practice settings');
-menuRowByLabel(menuActions, 'Practice settings').click();
+assert.ok(!menuRowByLabel(menuActions, 'Track mixer'), 'the mixer lives on the transport, not in the menu');
+assert.ok(menuRowByLabel(menuActions, 'Player settings'), 'menu should list player settings');
+menuRowByLabel(menuActions, 'Player settings').click();
 assert.ok(hasOpenDrawer(gpHost), 'settings action should open settings drawer');
 assert.equal(menuBtn.getAttribute('aria-expanded'), 'false', 'menu closes when opening a drawer');
 const settingsClose = gpHost.querySelector('.gpp-drawer-close');
 settingsClose?.click();
-menuBtn.click();
-menuRowByLabel(menuActions, 'Track mixer').click();
+gpHost.querySelector('[aria-label="Mixer"]').click();
 const tracksRoot = gpHost.querySelector('.gpp-tracks-drawer-root');
 assert.ok(
   [...tracksRoot.querySelectorAll('.gpp-drawer')].some((d) => (d.className || '').includes('is-open'))
@@ -1176,11 +1175,11 @@ const loopCtrlOn = createLoopSelectionController({
 loopCtrlOn.syncFromState();
 assert.deepEqual(loopParchment.selection, { startBeat: 0, endBeat: 8 }, 'loop enabled should paint selection');
 
-// ---- practiceRail: loop toggle on main screen ----
+// ---- transport: loop toggle on main screen ----
 const loopRailHost = document.createElement('div');
 const loopRailMount = mountGpPlayer(loopRailHost, { gpResult: fakeGp, title: 'Loop rail' });
-const loopBtn = loopRailHost.querySelector('[aria-label="Loop"]');
-assert.ok(loopBtn, 'practice rail loop toggle should exist');
+const loopBtn = loopRailHost.querySelector('.gpp-tbtn--loop');
+assert.ok(loopBtn, 'transport loop toggle should exist');
 loopBtn.click();
 assert.equal(loopRailMount.isLoopEnabled(), true, 'loop toggle should enable loop');
 loopRailMount.destroy();

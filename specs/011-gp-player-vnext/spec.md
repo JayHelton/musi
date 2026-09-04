@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-04
 
-**Status**: Proposed
+**Status**: Implemented (Phases 1–8 P0 scope). See the Implementation Status section at the end.
 
 **Priority**: P0 product initiative
 
@@ -2629,3 +2629,60 @@ The score is the product. Everything else exists to help the musician interact w
 The most consequential implementation choice in this spec is to not rebuild the GP engine.
 The renderer/state architecture is already fairly sophisticated. The large gap is how the
 UI surfaces those capabilities.
+
+
+---
+
+## 66. Implementation Status
+
+This section records what shipped against the spec and what stays open.
+
+### Shipped
+
+- **Shell and header** (Phases 1, 7): the loaded score takes the full workspace with no
+  outer card. The header holds Back, title, subtitle, the track selector, the View panel
+  (notation and zoom), and Close. Retro fonts and parchment tint are gone from the player.
+- **Score canvas** (Phase 2): neutral paper, no lane tints, a 2.5px playhead that passes
+  behind fret numbers, a faint beat wash, a paper mask under each fret number.
+- **Seeking and follow** (Phase 3): click seeks to the nearest beat column, double-click
+  seeks and plays, the whole measure is the hit area. Follow uses a reading zone and moves
+  the sheet only between systems. A user scroll during playback suspends follow; a timer
+  never resumes it; the Follow playhead pill, a seek, or Play resumes it.
+- **Loop UX** (Phase 4): mouse drag or touch long-press marks a range, the contextual
+  toolbar offers Loop, Practice, Note, Clear. The loop draws as one band per system with
+  draggable start and end knobs. The transport Loop button toggles the marked range; the
+  whole-song repeat lives in the loop long-press panel. Loop boundaries are beat-level.
+- **Transport** (Phase 5): one stable row. Restart, previous bar, Play, next bar,
+  position (opens Go to bar and sections), speed as a percentage with a panel of presets,
+  a slider and the BPM, direct Loop, direct Metronome (long press opens settings), Mixer,
+  and the overflow menu. Count-in shows as a badge only when on.
+- **Tracks and mixer** (Phase 6): a header track selector grouped by instrument family
+  with instrument and tuning metadata; a mixer drawer with viewed-track mark, Mute, Solo,
+  volume, and Reset mix. A track switch keeps beat, loop, speed, play state, and follow.
+- **Practice action** (Phase 10, first slice): Practice opens a panel with a start speed
+  and an optional ramp (step, every N loops, target) that drives the existing tempo ramp.
+- **Persistence** (Phase 8): a per-score session store restores track, position, notation
+  view, zoom, speed ratio, loop, and mixer mutes and volumes. A restored score stays
+  paused and centred. Solo is not saved.
+- **Keyboard**: the map in section 33, plus X for the mixer and 1–9 for tracks.
+- **Focus mode**: F toggles it when follow is not suspended; it hides the app rail and dock.
+- **Tests**: unit tests cover the follow state machine, the reading zone, the session
+  store, the transport, the track selector, the loop toggle, and the track switch.
+  `tests/gp-player/audio/vnext-shots.mjs` screenshots twelve states at six viewports,
+  `vnext-interact.mjs` drives real pointer and keyboard input, and `vnext-app.mjs` opens
+  a fixture through the real app shell. Run them with a static server on port 8080.
+
+### Open
+
+- **Standard notation only** (GP-VIEW-001): the layout engine draws tab, or tab with a
+  standard staff. A standard-only view waits on the engine.
+- **Pinch zoom** (GP-ZOOM-002): the View panel holds explicit zoom controls; pinch is
+  not bound.
+- **Song minimap, track autoswitch, backing source selector in the header** (P1): not
+  started. The original recording keeps its transport toggle and its panel.
+- **Structured error and diagnostics export** (GP-ERROR-001, GP-ERROR-004): the screen
+  keeps its text status; the diagnostics export is not built.
+- **Visual regression baselines**: the screenshot harness exists; stored baselines and a
+  comparison step do not.
+- **Long-score virtualization** (section 48): the 200 bar fixture renders and follows
+  without a visible stall; a profile at 500 and 1000 bars is still to do.
