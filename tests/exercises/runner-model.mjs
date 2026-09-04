@@ -19,7 +19,9 @@ import {
   parseRunnerNotes,
   runnerNoteBeats,
   runnerNoteRange,
+  runnerConfigFromTranscription,
   runnerNotesFromTabModel,
+  runnerNotesFromTranscription,
   runnerRunBeats,
   runnerTextCount,
   runnerTrackOptions,
@@ -351,6 +353,106 @@ await test('a Guitar Pro warm-up file carries its text into the run', () => {
       assert.deepEqual(result.notes.map((n) => n.text), ['mee', 'may', 'mah', 'Lip trills']);
       assert.deepEqual(result.notes.map((n) => n.scoreBeat), [0, 1, 2, 3]);
     });
+});
+
+
+// --- Audio Studio transcription import -------------------------------------
+
+/** One transcription note, as the Audio Studio makes it. */
+function heard(midi, startBeat, durationBeats) {
+  return {
+    midi,
+    startBeat,
+    durationBeats,
+    startSec: startBeat / 2,
+    durationSec: durationBeats / 2,
+    label: 'x',
+  };
+}
+
+await test('a transcription becomes a runner note list', () => {
+  const result = runnerNotesFromTranscription({
+    bpm: 120,
+    notes: [heard(60, 0, 1), heard(64, 1, 2), heard(67, 3, 0.5)],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.bpm, 120);
+  assert.equal(result.skipped, 0);
+  assert.deepEqual(result.notes, [
+    { midi: 60, beats: 1, scoreBeat: 0 },
+    { midi: 64, beats: 2, scoreBeat: 1 },
+    { midi: 67, beats: 0.5, scoreBeat: 3 },
+  ]);
+});
+
+await test('the import reads seconds when the take skipped the beat grid', () => {
+  const result = runnerNotesFromTranscription({
+    bpm: 120,
+    notes: [{ midi: 60, startSec: 0, durationSec: 1 }],
+  });
+  assert.equal(result.ok, true);
+  // 120 BPM makes one beat 0.5 seconds, so one second is two beats.
+  assert.deepEqual(result.notes, [{ midi: 60, beats: 2, scoreBeat: 0 }]);
+});
+
+await test('the import drops a very short detection artifact', () => {
+  const result = runnerNotesFromTranscription({
+    bpm: 120,
+    notes: [heard(60, 0, 1), heard(61, 1, 0.05)],
+  });
+  assert.equal(result.notes.length, 1);
+  assert.equal(result.skipped, 1);
+});
+
+await test('the import puts the notes in time order', () => {
+  const result = runnerNotesFromTranscription({
+    bpm: 90,
+    notes: [heard(67, 2, 1), heard(60, 0, 1), heard(64, 1, 1)],
+  });
+  assert.deepEqual(result.notes.map((n) => n.midi), [60, 64, 67]);
+});
+
+await test('the import shifts the octave and drops what leaves the range', () => {
+  const up = runnerNotesFromTranscription({ bpm: 120, notes: [heard(60, 0, 1)] }, { octaveShift: 1 });
+  assert.deepEqual(up.notes, [{ midi: 72, beats: 1, scoreBeat: 0 }]);
+  const out = runnerNotesFromTranscription({ bpm: 120, notes: [heard(95, 0, 1)] }, { octaveShift: 3 });
+  assert.equal(out.ok, false);
+  assert.equal(out.skipped, 1);
+  assert.match(out.error, /octave/);
+});
+
+await test('a take without pitches makes no run', () => {
+  const result = runnerNotesFromTranscription({ bpm: 120, notes: [] });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /no detected pitches/i);
+});
+
+await test('the import keeps at most the note limit of a run', () => {
+  const notes = [];
+  for (let i = 0; i < RUNNER_MAX_NOTES + 6; i += 1) notes.push(heard(60, i, 1));
+  const result = runnerNotesFromTranscription({ bpm: 120, notes });
+  assert.equal(result.notes.length, RUNNER_MAX_NOTES);
+  assert.equal(result.skipped, 6);
+});
+
+await test('a transcription becomes a stored runner config', () => {
+  const built = runnerConfigFromTranscription(
+    { bpm: 96, notes: [heard(60, 0, 1), heard(62, 1, 1)] },
+    { fileName: 'vocal riff', repeats: 2 },
+  );
+  assert.equal(built.ok, true);
+  assert.equal(built.config.source, 'audio');
+  assert.equal(built.config.bpm, 96);
+  assert.equal(built.config.repeats, 2);
+  assert.equal(built.config.fileName, 'vocal riff');
+  assert.equal(built.config.notes.length, 2);
+  assert.equal(describeRunnerConfig(built.config), '2 notes · C4–D4 · 96 BPM · 2×');
+});
+
+await test('a take without playable notes builds no config', () => {
+  const built = runnerConfigFromTranscription({ bpm: 96, notes: [] }, { fileName: 'quiet' });
+  assert.equal(built.ok, false);
+  assert.equal(built.config, null);
 });
 
 console.log('\nall runner-model tests passed');

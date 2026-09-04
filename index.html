@@ -1054,7 +1054,7 @@
   <section id="sec-audiostudio" class="section">
     <div class="section-head">
       <h2>Audio Studio</h2>
-      <p>Capture a take, spot-check pitch and key, then turn a sung or hummed riff into guitar tab for the GP player.</p>
+      <p>Capture a take, spot-check pitch and key, then turn a sung or hummed riff into a run you sing back in the Pitch Runner.</p>
     </div>
     <div class="recorder-center">
       <div class="quiz-card">
@@ -1122,8 +1122,8 @@
       </div>
 
       <div class="quiz-card" id="rec-riff-card" style="display:none">
-        <div class="rec-card-title">Riff → Tab</div>
-        <p class="rec-riff-help">Sing or hum a riff, then map pitches to a guitar tab you can play in the Guitar Pro player.</p>
+        <div class="rec-card-title">Riff → Pitch Runner</div>
+        <p class="rec-riff-help">Sing or hum a riff. Musi reads the pitches and builds a run you sing back in the Pitch Runner.</p>
         <div class="rec-riff-status" id="rec-riff-status"></div>
         <progress class="rec-riff-progress" id="rec-riff-progress" max="1" value="0" hidden></progress>
         <div id="rec-riff-analysis-mount" class="rec-riff-analysis-mount"></div>
@@ -1159,10 +1159,9 @@
         <p class="rec-riff-guidance" id="rec-riff-guidance" hidden></p>
         <div class="rec-section-label">Recognized notes</div>
         <div class="rec-note-seq rec-riff-notes" id="rec-riff-notes"></div>
-        <pre id="rec-riff-ascii" class="rec-riff-ascii"></pre>
         <div class="rec-controls rec-riff-actions">
           <button class="btn primary" id="rec-riff-recognize" type="button">Recognize riff</button>
-          <button class="btn" id="rec-riff-play-gp" type="button" disabled>Play in Guitar Pro Player</button>
+          <button class="btn" id="rec-riff-to-runner" type="button" disabled>Send to Pitch Runner</button>
         </div>
       </div>
       <div class="tts-pane">
@@ -1236,7 +1235,7 @@
             <div class="tts-score-card-head">
               <div class="tts-score-card-title">Sheet music</div>
               <div class="tts-score-card-actions">
-                <button class="btn sm" id="tts-open-gp" type="button" hidden>Open in GP Player</button>
+                <button class="btn sm" id="tts-to-runner" type="button" hidden>Send to Pitch Runner</button>
                 <button class="btn sm" id="tts-copy" type="button">Copy note list</button>
               </div>
             </div>
@@ -1252,6 +1251,33 @@
           </div>
         </div>
       </div>
+      </div>
+
+      <div class="quiz-card asr-card" id="as-runner-card">
+        <div class="rec-card-title">Pitch Runner</div>
+        <div class="asr-empty" id="as-runner-empty">
+          <p class="asr-empty-text">
+            Record a take or import a stem, recognize the pitches, then send them here.
+            The runner plays the notes back as bars you sing.
+          </p>
+          <div class="rec-controls asr-empty-actions">
+            <button class="btn sm" id="as-runner-go-record" type="button">Record a take</button>
+            <button class="btn sm" id="as-runner-go-import" type="button">Import a stem</button>
+          </div>
+        </div>
+        <div class="asr-body" id="as-runner-body" hidden>
+          <div class="asr-source" id="as-runner-source"></div>
+          <div class="rec-controls asr-actions">
+            <label class="asr-passes">
+              <span class="rec-opt-label">Passes</span>
+              <select id="as-runner-passes"></select>
+            </label>
+            <button class="btn" id="as-runner-save" type="button" disabled>Save to Exercises</button>
+            <button class="btn sm" id="as-runner-clear" type="button">Clear run</button>
+          </div>
+          <div class="asr-stage" id="as-runner-stage"></div>
+        </div>
+        <div class="asr-status" id="as-runner-status" hidden></div>
       </div>
     </div>
   </section>

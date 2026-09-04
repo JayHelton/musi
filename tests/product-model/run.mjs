@@ -173,10 +173,10 @@ test('one theory source of truth serves Study and the Practice Lab', () => {
   }
 });
 
-test('transcription lives inside Audio Studio', () => {
+test('transcription and the pitch run live inside Audio Studio', () => {
   assert.equal(getTool('tracktosheet'), null);
   assert.deepEqual(getTool('audiostudio').modes.map(m => m.id),
-    ['capture', 'analyze', 'transcribe']);
+    ['capture', 'analyze', 'transcribe', 'run']);
 });
 
 console.log('Navigation');

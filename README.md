@@ -125,12 +125,14 @@ Look up scales, chords, triads, and key relationships.
 
 Record, write, and keep notes.
 
-- **Audio Studio** — three modes over one recording:
+- **Audio Studio** — four modes over one recording:
   - *Record* — capture a take with the microphone, then play it back, save it to
     the Library, or download it.
   - *Analyze* — detected key, detected pitches, and a note list for the take.
-  - *Import & transcribe* — turn a sung or hummed riff into guitar tab, or drop
-    an isolated audio stem and read it onto basic sheet music.
+  - *Transcribe* — read the pitches of a sung or hummed riff, or drop an
+    isolated audio stem and read it onto basic sheet music.
+  - *Pitch Runner* — sing the take back. The detected pitches become a run of
+    the pitch-runner game, and you can save that run to Exercises.
 - **Song Studio** — write lyrics and attach a recording to each song.
 - **Notes** — plain practice notes and ideas.
 

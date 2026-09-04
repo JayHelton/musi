@@ -37,6 +37,7 @@ import {
 import { initNotes, stopNotes } from './notes.js';
 import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
+import { initAudioStudioRunner, stopAudioStudioRunner } from './audioStudioRunner.js';
 import { initScaleRef, stopScaleRef } from './scaleReference.js';
 import { initTriadRef, stopTriadRef } from './triadReference.js';
 import { initChordFinder, stopChordFinder } from './chordFinder.js';
@@ -105,7 +106,7 @@ const TOOL_STOPPERS = {
   },
   sightreading: () => stopSightReading(),
   chordworkout: () => stopChordWorkout(),
-  audiostudio: () => { if (recorder.playing) stopRecorder(); stopTrackToSheet(); },
+  audiostudio: () => { if (recorder.playing) stopRecorder(); stopTrackToSheet(); stopAudioStudioRunner(); },
   songstudio: () => stopSongwriter(),
   exercises: () => stopExercises(),
   workbooks: () => stopWorkbooks(),
@@ -128,7 +129,7 @@ const TOOL_INITS = {
   pitchear: () => { initTuner(); initPitchTrainer(); initPitchRunner(); initEarTrainer(); },
   sightreading: initSightReading,
   practicelab: () => initPracticeLab({ mode: currentRouteParams.mode }),
-  audiostudio: () => { initRecorder(); initTrackToSheet(); },
+  audiostudio: () => { initRecorder(); initTrackToSheet(); initAudioStudioRunner(); },
   songstudio: initSongwriter,
   exercises: initExercises,
   workbooks: initWorkbooks,

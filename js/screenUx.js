@@ -1020,8 +1020,9 @@ function setupRecorder() {
   const cards = [...center.querySelectorAll(':scope > .quiz-card')];
   const analysis = document.getElementById('rec-analysis-card');
   const riff = document.getElementById('rec-riff-card');
+  const runnerCard = document.getElementById('as-runner-card');
   const ttsPane = center.querySelector(':scope > .tts-pane');
-  const captureCards = cards.filter(card => card !== analysis && card !== riff);
+  const captureCards = cards.filter(card => card !== analysis && card !== riff && card !== runnerCard);
 
   if (captureCards.length) {
     wrapAsSubview(captureCards, { id: 'capture', forTabs, active: true });
@@ -1032,6 +1033,7 @@ function setupRecorder() {
   if (transcribe.length) {
     wrapAsSubview(transcribe, { id: 'transcribe', forTabs, active: false });
   }
+  if (runnerCard) wrapAsSubview([runnerCard], { id: 'run', forTabs, active: false });
 }
 
 /* ── Drill focus helper ──────────────────────────────────────── */

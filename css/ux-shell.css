@@ -71,8 +71,11 @@
 }
 
 /* ---- Subview tabs ---- */
+/* The bar holds its place. The track inside it takes the sideways scroll, so
+   a tab keeps its whole label and never shows an ellipsis. */
 .subview-tabs {
   display: flex;
+  align-items: center;
   gap: 4px;
   margin-bottom: 12px;
   padding: 4px;
@@ -82,14 +85,27 @@
   position: sticky;
   top: 4px;
   z-index: 35;
+  overflow: hidden;
+  max-width: 100%;
+  min-width: 0;
+}
+.subview-tabs-track {
+  display: flex;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
-  max-width: 100%;
 }
-.subview-tabs::-webkit-scrollbar { display: none; }
+.subview-tabs-track::-webkit-scrollbar { display: none; }
+/* The fade at the ends tells the reader that more tabs sit off the screen. */
+.subview-tabs.has-overflow .subview-tabs-track {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
 .subview-tab {
   flex: 1 0 auto;
   min-height: 44px;
@@ -110,6 +126,29 @@
   color: var(--on-accent);
 }
 .subview-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The button opens a menu of every tab. It shows only while the labels
+   overflow, so a wide screen keeps the plain bar. */
+.subview-tabs-more {
+  flex: 0 0 auto;
+  min-height: 36px;
+  width: 30px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-radius: 0 10px 10px 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.subview-tabs-more:hover { color: var(--accent); }
+.subview-tabs-more:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -186,6 +225,16 @@
 }
 .overflow-menu-item:hover { background: var(--hover); color: var(--accent); }
 .overflow-menu-item.danger { color: var(--err); }
+/* The item the screen shows now. The tick names it without a second line. */
+.overflow-menu-item.is-selected {
+  color: var(--accent);
+  font-weight: 700;
+}
+.overflow-menu-item.is-selected::after {
+  content: '✓';
+  float: right;
+  margin-left: 10px;
+}
 .overflow-menu-sep {
   height: 1px;
   background: var(--border);

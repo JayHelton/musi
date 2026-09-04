@@ -35,7 +35,15 @@ export function renderSetupSummary(container, fields, { label = 'Setup', onChang
   });
 }
 
-/** Sticky segmented subview tabs. Persists active tab under settingsKey. */
+/**
+ * Sticky segmented subview tabs. It keeps the active tab under settingsKey.
+ *
+ * A tool can hold five or more modes, and a phone has room for two or three.
+ * The bar therefore prints the whole label of every tab and scrolls sideways.
+ * It never squeezes a label into an ellipsis, because a cut label hides which
+ * mode the tab opens. When the labels do not fit, a small button at the right
+ * end opens a menu that names every tab, so one tap reaches any mode.
+ */
 export function initSubviewTabs(container, tabs, {
   settingsKey,
   defaultId,
@@ -51,8 +59,15 @@ export function initSubviewTabs(container, tabs, {
   if (!ids.includes(active)) active = ids[0];
 
   container.className = className;
-  container.setAttribute('role', 'tablist');
+  container.removeAttribute('role');
   container.innerHTML = '';
+
+  // The track holds the tabs and takes the sideways scroll. The bar itself
+  // stays still, so the overflow button keeps its place at the right end.
+  const track = document.createElement('div');
+  track.className = 'subview-tabs-track';
+  track.setAttribute('role', 'tablist');
+  container.appendChild(track);
 
   const buttons = [];
   tabs.forEach(tab => {
@@ -64,17 +79,63 @@ export function initSubviewTabs(container, tabs, {
     btn.dataset.id = tab.id;
     btn.id = `${container.id || 'sub'}-tab-${tab.id}`;
     btn.textContent = tab.label;
+    btn.title = tab.label;
     btn.onclick = () => setActive(tab.id);
-    container.appendChild(btn);
+    track.appendChild(btn);
     buttons.push(btn);
   });
+
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'subview-tabs-more';
+  more.setAttribute('aria-haspopup', 'menu');
+  more.setAttribute('aria-label', 'Show every tab');
+  more.title = 'Show every tab';
+  more.textContent = '▾';
+  more.hidden = true;
+  more.onclick = () => {
+    openOverflowMenu(more, tabs.map(tab => ({
+      label: tab.label,
+      selected: tab.id === active,
+      onClick: () => setActive(tab.id),
+    })));
+  };
+  container.appendChild(more);
+
+  /** Show the overflow button only while the labels do not fit. */
+  function syncOverflow() {
+    const room = Number(track.clientWidth) || 0;
+    const width = Number(track.scrollWidth) || 0;
+    const overflowing = room > 0 && width > room + 1;
+    more.hidden = !overflowing;
+    container.classList.toggle('has-overflow', overflowing);
+  }
+
+  /** Scroll the active tab into the middle of the track. */
+  function revealActive(btn, { smooth } = {}) {
+    if (!btn) return;
+    const room = Number(track.clientWidth) || 0;
+    const width = Number(track.scrollWidth) || 0;
+    if (!room || width <= room + 1) return;
+    const target = Math.max(0, Math.min(
+      width - room,
+      (Number(btn.offsetLeft) || 0) - (room - (Number(btn.clientWidth) || 0)) / 2,
+    ));
+    if (smooth && typeof track.scrollTo === 'function') {
+      track.scrollTo({ left: target, behavior: 'smooth' });
+    } else {
+      track.scrollLeft = target;
+    }
+  }
 
   function setActive(id, { silent } = {}) {
     if (!ids.includes(id)) return;
     active = id;
     if (settingsKey) saveSetting(settingsKey, id);
+    let activeBtn = null;
     buttons.forEach(btn => {
       const on = btn.dataset.id === id;
+      if (on) activeBtn = btn;
       btn.classList.toggle('active', on);
       btn.setAttribute('aria-selected', on ? 'true' : 'false');
     });
@@ -83,11 +144,33 @@ export function initSubviewTabs(container, tabs, {
       panel.hidden = !show;
       panel.classList.toggle('active', show);
     });
+    syncOverflow();
+    revealActive(activeBtn, { smooth: !silent });
     if (!silent && typeof onChange === 'function') onChange(id);
   }
 
   // Initial panel visibility
   setActive(active, { silent: true });
+
+  // The bar grows and shrinks with the screen, so the overflow button and the
+  // scroll position follow it. A second call on the same bar replaces the
+  // watcher of the first call, so the bar keeps one watcher.
+  if (container._subviewWatch) {
+    container._subviewWatch();
+    container._subviewWatch = null;
+  }
+  const onBarResize = () => {
+    syncOverflow();
+    revealActive(buttons.find(btn => btn.dataset.id === active));
+  };
+  if (typeof ResizeObserver === 'function') {
+    const observer = new ResizeObserver(onBarResize);
+    observer.observe(container);
+    container._subviewWatch = () => observer.disconnect();
+  } else if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('resize', onBarResize);
+    container._subviewWatch = () => window.removeEventListener('resize', onBarResize);
+  }
 
   return {
     get active() { return active; },
@@ -161,8 +244,11 @@ export function openOverflowMenu(anchorEl, items, { x, y } = {}) {
     }
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'overflow-menu-item' + (item.danger ? ' danger' : '');
+    btn.className = 'overflow-menu-item'
+      + (item.danger ? ' danger' : '')
+      + (item.selected ? ' is-selected' : '');
     btn.setAttribute('role', 'menuitem');
+    if (item.selected) btn.setAttribute('aria-current', 'true');
     btn.textContent = item.label;
     btn.disabled = !!item.disabled;
     btn.onclick = (e) => {

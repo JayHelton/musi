@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v295-clean-cheat-sheet";
+const CACHE_VERSION = "v296-audio-studio-pitch-runner";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -98,6 +98,7 @@ const PRECACHE_URLS = [
   "js/audio/userSounds.js",
   "js/audioDock.js",
   "js/audioOwner.js",
+  "js/audioStudioRunner.js",
   "js/bootSplash.js",
   "js/chordFinder.js",
   "js/chordReference.js",

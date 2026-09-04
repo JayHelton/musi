@@ -9,6 +9,8 @@
 //
 //   - manual: the user types the pitches and the hold lengths.
 //   - gp:     a Guitar Pro file gives the pitches and the hold lengths.
+//   - audio:  a recording or an audio stem gives the pitches. The Audio Studio
+//             detects the pitches and the hold lengths for it.
 //
 // This module holds no DOM code, so the Node test runners can import it.
 
@@ -29,7 +31,7 @@ export const RUNNER_MAX_REPEATS = 20;
 /** The longest note text the runner keeps, in characters. */
 export const RUNNER_TEXT_LIMIT = 60;
 
-export const RUNNER_SOURCES = ['manual', 'gp'];
+export const RUNNER_SOURCES = ['manual', 'gp', 'audio'];
 
 const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const LETTER_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
@@ -474,6 +476,127 @@ export function runnerTrackOptions(gpResult) {
     name: (track && (track.name || track.shortName)) || `Track ${index + 1}`,
     noteCount: (track?.model?.events || []).filter((ev) => ev && !ev.dead && ev.midi != null).length,
   })).filter((option) => option.noteCount > 0);
+}
+
+// --- Audio transcription import --------------------------------------------
+
+/** The shortest note the audio import keeps, in beats. */
+const AUDIO_MIN_NOTE_BEATS = RUNNER_MIN_BEATS / 2;
+
+/**
+ * The hold length of one detected note, in beats.
+ *
+ * The Audio Studio quantizes a note to the beat grid, so the note carries
+ * `durationBeats`. A note that skipped the grid carries seconds only, so the
+ * tempo converts it.
+ *
+ * @returns {number|null} null when the note holds no length.
+ */
+function transcriptionNoteBeats(note, beatSec) {
+  const beats = Number(note?.durationBeats);
+  if (Number.isFinite(beats) && beats > 0) return beats;
+  const seconds = Number(note?.durationSec);
+  if (Number.isFinite(seconds) && seconds > 0 && beatSec > 0) return seconds / beatSec;
+  return null;
+}
+
+/** The beat one detected note starts on, or null. */
+function transcriptionNoteStart(note, beatSec) {
+  const beat = Number(note?.startBeat);
+  if (Number.isFinite(beat)) return beat;
+  const seconds = Number(note?.startSec);
+  if (Number.isFinite(seconds) && beatSec > 0) return seconds / beatSec;
+  return null;
+}
+
+/**
+ * Turn one Audio Studio transcription into a runner note list.
+ *
+ * The transcription holds one pitch at a time, which is what the runner plays.
+ * Each note keeps the beat it started on, so a saved run can print section
+ * text on it later.
+ *
+ * A very short note is a detection artifact, not a sung note, so this drops
+ * it. A note that leaves the singable range after the octave shift also goes.
+ *
+ * @param {object} result a transcribeBuffer result
+ * @param {{ octaveShift?: number, maxNotes?: number }} [options]
+ * @returns {{ ok: boolean, notes: {midi:number, beats:number, scoreBeat?:number}[], bpm: number, skipped: number, error: string|null }}
+ */
+export function runnerNotesFromTranscription(result, { octaveShift = 0, maxNotes = RUNNER_MAX_NOTES } = {}) {
+  const source = Array.isArray(result?.notes) ? result.notes : [];
+  const bpm = clampRunnerBpm(result?.bpm ?? RUNNER_DEFAULT_BPM);
+  const beatSec = 60 / bpm;
+  const shift = Math.round(clampNumber(octaveShift, -3, 3, 0)) * 12;
+  const limit = Math.max(1, Math.min(RUNNER_MAX_NOTES, Math.round(maxNotes)));
+
+  if (!source.length) {
+    return { ok: false, notes: [], bpm, skipped: 0, error: 'This take holds no detected pitches.' };
+  }
+
+  const ordered = source
+    .map((note) => ({
+      midi: Number(note?.midi),
+      beats: transcriptionNoteBeats(note, beatSec),
+      startBeat: transcriptionNoteStart(note, beatSec),
+    }))
+    .filter((note) => Number.isFinite(note.midi) && note.beats != null)
+    .sort((a, b) => (a.startBeat ?? 0) - (b.startBeat ?? 0));
+
+  const notes = [];
+  let skipped = 0;
+  for (const note of ordered) {
+    if (note.beats < AUDIO_MIN_NOTE_BEATS) { skipped += 1; continue; }
+    if (notes.length >= limit) { skipped += 1; continue; }
+    const midi = clampRunnerMidi(Math.round(note.midi) + shift);
+    if (midi == null) { skipped += 1; continue; }
+    const out = { midi, beats: clampRunnerBeats(note.beats) };
+    if (note.startBeat != null) out.scoreBeat = note.startBeat;
+    notes.push(out);
+  }
+
+  if (!notes.length) {
+    return {
+      ok: false,
+      notes: [],
+      bpm,
+      skipped,
+      error: 'No detected note fits the singable range. Shift the octave and try again.',
+    };
+  }
+
+  return { ok: true, notes, bpm, skipped, error: null };
+}
+
+/**
+ * Build a runner config from one Audio Studio transcription.
+ *
+ * The caller gives the take a name, so the runner and the library can say
+ * where the run came from.
+ *
+ * @param {object} result a transcribeBuffer result
+ * @param {{ fileName?: string, octaveShift?: number, repeats?: number, maxNotes?: number }} [options]
+ * @returns {{ ok: boolean, config: object|null, skipped: number, error: string|null }}
+ */
+export function runnerConfigFromTranscription(result, options = {}) {
+  const { fileName = '', repeats = 1 } = options;
+  const notes = runnerNotesFromTranscription(result, options);
+  if (!notes.ok) {
+    return { ok: false, config: null, skipped: notes.skipped, error: notes.error };
+  }
+  const config = normalizeRunnerConfig({
+    ...defaultRunnerConfig(),
+    source: 'audio',
+    bpm: notes.bpm,
+    notes: notes.notes,
+    repeats,
+    fileName: typeof fileName === 'string' ? fileName : '',
+    octaveShift: Math.round(clampNumber(options.octaveShift, -3, 3, 0)),
+  });
+  if (!config) {
+    return { ok: false, config: null, skipped: notes.skipped, error: 'This take holds no playable notes.' };
+  }
+  return { ok: true, config, skipped: notes.skipped, error: null };
 }
 
 // --- Saved section notes ---------------------------------------------------

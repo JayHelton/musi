@@ -57,7 +57,6 @@
 .rec-riff-meta-item input#rec-riff-bpm{color:var(--accent);font-family:var(--font-ui,'VT323',monospace);font-weight:600}
 .rec-riff-readout span:last-child{font-family:var(--font-ui,'VT323',monospace);font-size:1rem;color:var(--text)}
 .rec-riff-notes{max-height:88px;overflow:auto;margin-bottom:10px}
-.rec-riff-ascii{display:block;margin:0 0 14px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:14px;font-family:var(--font-ui,'VT323',monospace);font-size:.82rem;line-height:1.35;color:var(--text);white-space:pre;overflow:auto;max-height:180px}
 .rec-riff-actions{margin-top:4px}
 .rec-riff-analysis-mount{margin-bottom:10px}
 .rec-riff-guidance{
@@ -89,6 +88,23 @@
 .hold-rec-timer{text-align:center;font-size:.95rem;font-family:var(--font-ui,'VT323',monospace);color:var(--text);margin-bottom:8px}
 .hold-rec-seq-wrap .rec-section-label{margin:10px 0 6px}
 .hold-rec-seq-wrap .rec-note-seq{max-height:96px;overflow:auto;padding:8px;gap:6px}
+
+/* ---- Pitch Runner pane of the Audio Studio ---- */
+.asr-card{max-width:760px;margin:0 auto}
+.asr-empty-text{margin:0 0 12px;font-size:.85rem;color:var(--muted);line-height:1.45;text-align:center}
+.asr-source{margin-bottom:10px;text-align:center;font-size:.9rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asr-passes{display:flex;flex-direction:column;gap:4px;font-size:.78rem;text-align:left}
+.asr-passes select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:.85rem;font-family:inherit;min-width:110px}
+.asr-actions{margin:0 0 12px}
+.asr-stage{margin-top:4px}
+.asr-status{margin-top:10px;text-align:center;font-size:.82rem;color:var(--muted);min-height:1.1em}
+.asr-status[data-kind=err]{color:var(--err)}
+.asr-status[data-kind=ok]{color:var(--ok)}
+
+@media(max-width:480px){
+  .asr-passes{flex:1 1 100%}
+  .asr-passes select{width:100%}
+}
 
 @media(max-width:480px){
   .recorder-center{max-width:100%}

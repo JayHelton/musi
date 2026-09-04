@@ -30,6 +30,7 @@
   .setup-toolbar .setup-chip-value{font-size:.8rem;font-weight:650;line-height:1.1}
   .subview-tabs{margin-bottom:4px!important;padding:2px;top:0;position:relative;z-index:1}
   .subview-tab{min-height:28px;min-width:0;padding:4px 10px;font-size:.72rem!important;border-radius:8px}
+  .subview-tabs-more{min-height:28px;width:26px}
 
   /* ---- Drill action dock: bounded column; card scrolls inside, dock pinned at bottom ---- */
   .quiz-main:has(> .action-dock){

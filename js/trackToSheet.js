@@ -10,8 +10,7 @@ import {
   suggestClef,
 } from './trackToSheet/transcribe.js';
 import { renderScoreSVG, notesToText } from './trackToSheet/score.js';
-import { transcriptionToGpResult } from './trackToSheet/toTabModel.js';
-import { loadGpPlayerResult } from './gpPlayer.js';
+import { setAudioStudioRun, openAudioStudioRunner } from './audioStudioRunner.js';
 import {
   saveFile,
   getFileBlob,
@@ -73,26 +72,28 @@ function setStatus(msg, kind = '') {
   box.hidden = !msg;
 }
 
-function syncGpButton() {
-  const btn = $('tts-open-gp');
+function syncRunnerButton() {
+  const btn = $('tts-to-runner');
   if (!btn) return;
   const hasNotes = !!(state.result?.notes?.length);
   btn.hidden = !hasNotes;
   btn.disabled = state.busy || !hasNotes;
 }
 
-function openInGpPlayer() {
+/** Send the detected pitches to the Pitch Runner pane and open it. */
+function sendToRunner() {
   if (!state.result?.notes?.length) return;
-  const gp = transcriptionToGpResult(state.result, {
+  state.result.bpm = state.bpm;
+  const ok = setAudioStudioRun(state.result, {
     name: baseName(state.fileName),
-    bpm: state.bpm,
-    beatsPerBar: state.result.beatsPerBar ?? 4,
-    offsetSec: state.result.offsetSec ?? 0,
+    origin: 'import',
   });
-  loadGpPlayerResult(gp, {
-    title: baseName(state.fileName),
-    fileName: `${baseName(state.fileName)}.riff`,
-  });
+  if (!ok) {
+    setStatus('These pitches do not fit a run. Try another stem or another preset.', 'err');
+    return;
+  }
+  openAudioStudioRunner();
+  setStatus('Sent to the Pitch Runner.', 'ok');
 }
 
 function syncSaveButton() {
@@ -112,7 +113,7 @@ function setBusy(busy) {
   document.body.classList.toggle('tts-busy', busy);
   state.analysisPanel?.setBusy(busy);
   syncSaveButton();
-  syncGpButton();
+  syncRunnerButton();
 }
 
 function fmtSize(bytes) {
@@ -226,7 +227,7 @@ function applyTranscriptionResult(result) {
   renderNoteList(result.notes);
   paintScore(result.score.events, result.score.bpm, result.score.beatsPerBar);
   renderDiagnostics(result);
-  syncGpButton();
+  syncRunnerButton();
 }
 
 async function onFileChosen(file, { exerciseId = null } = {}) {
@@ -476,7 +477,7 @@ function bind() {
 
   $('tts-transcribe')?.addEventListener('click', runTranscribe);
   $('tts-copy')?.addEventListener('click', copyNoteList);
-  $('tts-open-gp')?.addEventListener('click', openInGpPlayer);
+  $('tts-to-runner')?.addEventListener('click', sendToRunner);
   $('tts-save')?.addEventListener('click', saveToLibrary);
 
   $('tts-bpm')?.addEventListener('change', () => {
@@ -532,7 +533,7 @@ export function initTrackToSheet() {
   const btn = $('tts-transcribe');
   if (btn) btn.disabled = !state.audioBuffer || state.busy;
   syncSaveButton();
-  syncGpButton();
+  syncRunnerButton();
   renderLibrary();
 }
 

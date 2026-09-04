@@ -140,7 +140,9 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
 
   const summary = el('p', { class: 'rx-summary', text: summaryOf(0) });
   root.appendChild(summary);
-  if (config.source === 'gp' && config.fileName) {
+  // A run that came from a file or from a take names its source, so the
+  // singer knows which score or which recording the notes belong to.
+  if (config.source !== 'manual' && config.fileName) {
     root.appendChild(el('p', { class: 'rx-source', text: `From ${config.fileName}` }));
   }
 

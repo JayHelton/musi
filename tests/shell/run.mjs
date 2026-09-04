@@ -559,6 +559,100 @@ testAsync('toolPage: section-head stays hidden; leftover back removed; destroy r
   assert.equal(section.querySelector('.legacy-body').parentElement, section);
 });
 
+console.log('subview tabs');
+
+testAsync('subviewTabs: the bar holds a scrolling track and one overflow button', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { initSubviewTabs } = await import('../../js/uxPrimitives.js');
+
+  const host = document.createElement('div');
+  host.id = 'test-modes';
+  const api = initSubviewTabs(host, [
+    { id: 'tuner', label: 'Tuner' },
+    { id: 'tone', label: 'Reference tone' },
+    { id: 'ear', label: 'Ear training' },
+  ]);
+
+  const track = host.querySelector('.subview-tabs-track');
+  assert.ok(track, 'the bar holds a track');
+  assert.equal(track.getAttribute('role'), 'tablist');
+  assert.equal(host.getAttribute('role'), undefined);
+  const tabs = track.children.filter((child) => child.className.includes('subview-tab'));
+  assert.equal(tabs.length, 3);
+  // Every tab prints its whole label, so no label needs an ellipsis.
+  assert.deepEqual(tabs.map((t) => t.textContent), ['Tuner', 'Reference tone', 'Ear training']);
+  assert.deepEqual(tabs.map((t) => t.title), ['Tuner', 'Reference tone', 'Ear training']);
+  assert.equal(api.active, 'tuner');
+});
+
+testAsync('subviewTabs: the overflow button hides while every label fits', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { initSubviewTabs } = await import('../../js/uxPrimitives.js');
+
+  const host = document.createElement('div');
+  initSubviewTabs(host, [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }]);
+  const more = host.querySelector('.subview-tabs-more');
+  assert.ok(more, 'the bar holds an overflow button');
+  assert.equal(more.hidden, true);
+  assert.equal(host.classList.contains('has-overflow'), false);
+});
+
+testAsync('subviewTabs: the overflow button shows when the labels do not fit', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { initSubviewTabs } = await import('../../js/uxPrimitives.js');
+
+  const host = document.createElement('div');
+  initSubviewTabs(host, [
+    { id: 'a', label: 'Tuner' },
+    { id: 'b', label: 'Reference tone' },
+    { id: 'c', label: 'Ear training' },
+  ]);
+  const track = host.querySelector('.subview-tabs-track');
+  const more = host.querySelector('.subview-tabs-more');
+
+  // The shim reports no scroll width, so the test states one.
+  track.scrollWidth = 900;
+  track.clientWidth = 300;
+  host.querySelector('.subview-tab').click();
+
+  assert.equal(more.hidden, false);
+  assert.equal(host.classList.contains('has-overflow'), true);
+});
+
+testAsync('subviewTabs: a tab click reports the new tab and marks it active', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { initSubviewTabs } = await import('../../js/uxPrimitives.js');
+
+  const host = document.createElement('div');
+  const seen = [];
+  const api = initSubviewTabs(host, [
+    { id: 'a', label: 'A' },
+    { id: 'b', label: 'B' },
+  ], { onChange: (id) => seen.push(id) });
+
+  const track = host.querySelector('.subview-tabs-track');
+  const [first, second] = track.children.filter((child) => child.className.includes('subview-tab'));
+  second.click();
+
+  assert.deepEqual(seen, ['b']);
+  assert.equal(api.active, 'b');
+  assert.equal(second.classList.contains('active'), true);
+  assert.equal(second.getAttribute('aria-selected'), 'true');
+  assert.equal(first.classList.contains('active'), false);
+});
+
 for (const { name, fn } of pendingAsync) {
   try {
     await fn();
