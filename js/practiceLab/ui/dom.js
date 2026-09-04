@@ -99,11 +99,12 @@ export function chip({ label, selected = false, onSelect, onRemove, removeLabel 
  * A tab bar. The tabs carry the ARIA roles, so a screen reader announces the
  * selected panel.
  * `panelIdPrefix` must match the ids the caller gives its panels, or
- * `aria-controls` points at nothing.
- * @param {{ tabs: Array<{id: string, label: string}>, active: string, onChange: Function, ariaLabel?: string, panelIdPrefix?: string }} options
+ * `aria-controls` points at nothing. Give `tabIdPrefix` its own value when two
+ * tab bars are on one page at the same time, or their tab ids collide.
+ * @param {{ tabs: Array<{id: string, label: string}>, active: string, onChange: Function, ariaLabel?: string, panelIdPrefix?: string, tabIdPrefix?: string }} options
  * @returns {{ root: HTMLElement, setActive: Function }}
  */
-export function tabBar({ tabs, active, onChange, ariaLabel = 'Trainers', panelIdPrefix = 'pl-panel-' }) {
+export function tabBar({ tabs, active, onChange, ariaLabel = 'Trainers', panelIdPrefix = 'pl-panel-', tabIdPrefix = 'pl-tab-' }) {
   const root = el('div', { class: 'pl-tabs' });
   root.setAttribute('role', 'tablist');
   root.setAttribute('aria-label', ariaLabel);
@@ -139,7 +140,7 @@ export function tabBar({ tabs, active, onChange, ariaLabel = 'Trainers', panelId
       },
     });
     btn.setAttribute('role', 'tab');
-    btn.id = `pl-tab-${tab.id}`;
+    btn.id = `${tabIdPrefix}${tab.id}`;
     btn.setAttribute('aria-controls', `${panelIdPrefix}${tab.id}`);
     buttons.set(tab.id, btn);
     root.appendChild(btn);
