@@ -68,6 +68,16 @@
   outline-offset: 2px;
 }
 
+/* The score player carries its own transport with play, pause, and the time.
+   While a loaded score owns the screen, this dock would sit on top of that
+   transport and block it, so it steps aside. It comes back as soon as the
+   user leaves the score. */
+html.gpp-player-locked .audio-dock,
+body:has(.section.active.gpp-score-loaded) .audio-dock,
+body:has(.wb-gp-mount .gpp-root) .audio-dock {
+  display: none !important;
+}
+
 /* Mobile: fixed bar above the bottom nav. */
 @media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
   .audio-dock {

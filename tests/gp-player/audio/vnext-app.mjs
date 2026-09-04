@@ -72,19 +72,39 @@ for (const vp of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone'
       await loaded();
     }
     await page.waitForTimeout(600);
+    // The global audio dock must not sit on the transport while a score plays.
+    await page.locator('[aria-label="Play"]').click();
+    await page.waitForTimeout(900);
     const info = await page.evaluate(() => {
       const chrome = document.querySelector('.gpp-chrome');
       const r = chrome.getBoundingClientRect();
       const measures = document.querySelectorAll('.gpp-parch-measure').length;
       const hScroll = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
-      return { width: Math.round(r.width), height: Math.round(r.height), measures, hScroll, viewport: window.innerWidth };
+      const dock = document.getElementById('audio-dock');
+      const dockShown = !!dock && !dock.hidden && getComputedStyle(dock).display !== 'none';
+      const playing = !!document.querySelector('.gpp-transport [aria-label="Pause"]');
+      return { width: Math.round(r.width), height: Math.round(r.height), measures, hScroll, viewport: window.innerWidth, dockShown, playing };
     });
     await page.screenshot({ path: join(outDir, `app-${vp.name}.png`) });
     // A wide screen keeps the 88px app rail beside the score.
     const wide = info.width >= info.viewport - 100;
-    const ok = info.measures > 0 && wide && !info.hScroll && errors.length === 0;
+    const ok = info.measures > 0 && wide && !info.hScroll && info.playing && !info.dockShown && errors.length === 0;
     if (!ok) failed += 1;
-    console.log(`${ok ? 'ok  ' : 'FAIL'} app ${vp.name}: chrome ${info.width}x${info.height} of ${info.viewport}, ${info.measures} measures, hScroll=${info.hScroll}${errors.length ? ` — ${errors.join(' | ')}` : ''}`);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} app ${vp.name}: chrome ${info.width}x${info.height} of ${info.viewport}, ${info.measures} measures, hScroll=${info.hScroll}, playing=${info.playing}, audio dock over the score=${info.dockShown}${errors.length ? ` — ${errors.join(' | ')}` : ''}`);
+    // Leaving the score brings the dock back, so the sound stays reachable.
+    await page.evaluate(() => window.showSection?.('train'));
+    await page.waitForTimeout(600);
+    const left = await page.evaluate(() => {
+      const dock = document.getElementById('audio-dock');
+      const shown = !!dock && !dock.hidden && getComputedStyle(dock).display !== 'none';
+      const stillPlaying = !!document.querySelector('.gpp-transport [aria-label="Pause"]');
+      return { shown, stillPlaying, ownerHidden: !!dock?.hidden, locked: document.documentElement.classList.contains('gpp-player-locked'), active: document.querySelector('.section.active')?.id };
+    });
+    // The dock must show when the sound keeps playing off screen. When the
+    // app stops the sound on leave, no dock is the right result.
+    const dockOk = left.stillPlaying ? left.shown : !left.shown;
+    if (!dockOk) failed += 1;
+    console.log(`${dockOk ? 'ok  ' : 'FAIL'} app ${vp.name}: after leaving the score: playing=${left.stillPlaying}, dock shown=${left.shown}, owner hidden=${left.ownerHidden}, locked=${left.locked}, active=${left.active}`);
   } catch (e) {
     failed += 1;
     console.log(`FAIL app ${vp.name} — ${e.message}`);
