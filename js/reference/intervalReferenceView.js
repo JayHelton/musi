@@ -18,6 +18,7 @@ import { INTERVAL_DEGREES, degreeById, intervalName, noteForDegree, scalesWithDe
 import { renderFretboard } from '../scaleFretboard.js';
 import { openMidisOf } from './neckView.js';
 import { el, clear, infoRow, block } from './dom.js';
+import { createInfoTip } from '../uxPrimitives.js';
 
 /**
  * Build the Interval Reference.
@@ -35,17 +36,21 @@ export function createIntervalReference({ onSelect, compact = false } = {}) {
   };
   let selected = '';
 
-  const intro = el('p', {
-    class: 'mref-intro',
-    text: 'The words below describe how each degree tends to behave. They are guidance, '
+  // The caveat about the words is a paragraph of help, so the info tip holds
+  // it and the table of degrees starts at the top.
+  const introTip = el('div', { class: 'mref-tipbar' }, [
+    createInfoTip(
+      'The words below describe how each degree tends to behave. They are guidance, '
       + 'not fixed emotional meanings. The same degree changes job when the context changes.',
-  });
+      { label: 'About these words' },
+    ),
+  ]);
 
   const table = el('div', { class: 'mref-int-table' });
   const detail = el('div', { class: 'mref-int-detail' });
 
   const root = el('div', { class: `mref-root mref-intervals${compact ? ' compact' : ''}` }, [
-    intro, table, detail,
+    introTip, table, detail,
   ]);
 
   function head() {
@@ -147,8 +152,7 @@ export function createIntervalReference({ onSelect, compact = false } = {}) {
     if (!degree) {
       detail.appendChild(el('p', {
         class: 'mref-hint',
-        text: 'Pick a degree to see its distance, its note above the current tonal center, '
-          + 'where it sits on the neck, and the scales that hold it.',
+        text: 'Pick a degree to read it.',
       }));
       return;
     }

@@ -15,7 +15,7 @@ import { applyScaleRefSelection } from './scaleReference.js';
 import { applyTriadRefSelection, setTriadViewMode, TRIAD_VIEW_MODES } from './triadReference.js';
 import { openSelectionSheet, closeSelectionSheet } from './selectionSheet.js';
 import {
-  renderSetupSummary, initSubviewTabs, renderCompactProgress,
+  renderSetupSummary, initSubviewTabs, renderCompactProgress, infoTipFromElement,
   openOverflowMenu, renderFilterSummary, setEditorNavState, setDrillFocus,
 } from './uxPrimitives.js';
 
@@ -545,17 +545,13 @@ function setupPitch() {
   // Move trainer/runner configs into options details
   collapsePitchControls();
 
-  // Hide runner intro
+  // The runner explains itself in one long paragraph. The info tip holds it,
+  // so the game starts at the top of the card.
   const intro = sec.querySelector('.pr-intro');
-  if (intro) {
-    intro.hidden = true;
-    const help = document.createElement('button');
-    help.type = 'button';
-    help.className = 'options-trigger';
-    help.textContent = 'Help';
-    help.onclick = () => { intro.hidden = !intro.hidden; };
-    intro.parentNode.insertBefore(help, intro);
-  }
+  const introLabel = intro?.previousElementSibling?.classList?.contains('field-label')
+    ? intro.previousElementSibling
+    : null;
+  infoTipFromElement(intro, { mount: introLabel || undefined, label: 'How the Pitch Runner works' });
 
   wireDrillFocus('sec-pitchear', 'pt');
 }
@@ -1015,6 +1011,12 @@ function setupRecorder() {
   if (center.dataset.uxModes === '1') return;
   center.dataset.uxModes = '1';
 
+  // Each card of the Audio Studio opened on a paragraph of help. An info tip
+  // next to the title of the card holds that text now.
+  tipifyCardHelp(sec, '.rec-riff-help', 'How the riff import works');
+  tipifyCardHelp(sec, '.asr-empty-text', 'How the Pitch Runner tab works');
+  tipifyCardHelp(sec, '.tts-drop-sub', 'What files the stem import reads');
+
   // The shared tool-page shell owns the mode bar.
   const forTabs = 'tool-page-modes-audiostudio';
   const cards = [...center.querySelectorAll(':scope > .quiz-card')];
@@ -1034,6 +1036,44 @@ function setupRecorder() {
     wrapAsSubview(transcribe, { id: 'transcribe', forTabs, active: false });
   }
   if (runnerCard) wrapAsSubview([runnerCard], { id: 'run', forTabs, active: false });
+}
+
+/**
+ * Move one help paragraph of a card into an info tip.
+ *
+ * The button lands next to the title of the card, or where the paragraph sat
+ * when the card carries no title.
+ *
+ * @param {HTMLElement} root the section that holds the card
+ * @param {string} selector the help paragraph
+ * @param {string} label the name of the help, for a screen reader
+ */
+function tipifyCardHelp(root, selector, label) {
+  const help = root?.querySelector(selector);
+  if (!help) return;
+  const card = help.closest('.quiz-card, .tts-drop, .asr-card, .gpp-drop, .m-phases');
+  const title = card?.querySelector(
+    '.rec-card-title, .tts-drop-title, .gpp-drop-title, .metro-card-title');
+  infoTipFromElement(help, { mount: title || undefined, label });
+}
+
+/**
+ * Move the help paragraph of a section head into an info tip.
+ *
+ * A tool page hides its own section head and shows its description through the
+ * header tip. A page that keeps its own chrome, such as Exercises, needs this
+ * instead.
+ *
+ * @param {string} sectionId the DOM id of the section
+ */
+function tipifySectionHead(sectionId) {
+  const head = document.getElementById(sectionId)?.querySelector('.section-head');
+  if (!head || head.dataset.uxTip === '1') return;
+  const help = head.querySelector('p');
+  const title = head.querySelector('h1, h2');
+  if (!help || !title) return;
+  head.dataset.uxTip = '1';
+  infoTipFromElement(help, { mount: title, label: `About ${title.textContent.trim()}` });
 }
 
 /* ── Drill focus helper ──────────────────────────────────────── */
@@ -1352,6 +1392,13 @@ export function initScreenUx(config = {}) {
   setupExercises();
   setupKeyboard();
   setupRecorder();
+  // These pages keep their own chrome, so the shared tool page never moves
+  // their help text. The section head carries the info tip instead.
+  ['sec-exercises', 'sec-workbooks', 'sec-scoreplayer'].forEach(tipifySectionHead);
+  tipifyCardHelp(document.getElementById('sec-scoreplayer'), '.gpp-drop-sub',
+    'What the Score Player reads');
+  tipifyCardHelp(document.getElementById('sec-metronome'), '.m-phases-note',
+    'What a practice phase does');
   ensureAllBackButtons();
   syncSetupToolbars();
   window.matchMedia(LANDSCAPE_PHONE_MQ).addEventListener('change', syncSetupToolbars);

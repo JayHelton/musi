@@ -279,6 +279,169 @@ export function closeOverflowMenu() {
   if (overflowMenuEl) overflowMenuEl.classList.remove('open');
 }
 
+/* ---- Info tip ------------------------------------------------------------
+   A screen explains itself in one long paragraph, and that paragraph pushes
+   the controls off the first screen. The info tip holds that text instead. A
+   small "i" button opens it, and the text closes again on the next click, on
+   Escape, or on a scroll. */
+
+let infoTipEl = null;
+let infoTipAnchor = null;
+let infoTipDismissBound = false;
+
+function onInfoTipDocClick(e) {
+  if (infoTipEl && !infoTipEl.contains(e.target) && e.target !== infoTipAnchor) closeInfoTip();
+}
+
+function onInfoTipDocKey(e) {
+  if (e.key === 'Escape') closeInfoTip();
+}
+
+function onInfoTipScroll() {
+  closeInfoTip();
+}
+
+// The click that opens the tip still bubbles, so the dismiss handler waits one
+// turn. Without the wait that same click would close the tip again.
+function bindInfoTipDismiss() {
+  if (infoTipDismissBound) return;
+  infoTipDismissBound = true;
+  setTimeout(() => {
+    if (!infoTipDismissBound) return;
+    document.addEventListener('click', onInfoTipDocClick);
+    document.addEventListener('keydown', onInfoTipDocKey);
+    // The tip holds a fixed place, so a scroll would leave it behind its
+    // button. It closes instead.
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('scroll', onInfoTipScroll, true);
+    }
+  }, 0);
+}
+
+function unbindInfoTipDismiss() {
+  infoTipDismissBound = false;
+  document.removeEventListener('click', onInfoTipDocClick);
+  document.removeEventListener('keydown', onInfoTipDocKey);
+  if (typeof window !== 'undefined' && window.removeEventListener) {
+    window.removeEventListener('scroll', onInfoTipScroll, true);
+  }
+}
+
+export function closeInfoTip() {
+  unbindInfoTipDismiss();
+  if (infoTipEl) infoTipEl.classList.remove('open');
+  if (infoTipAnchor) infoTipAnchor.setAttribute('aria-expanded', 'false');
+  infoTipAnchor = null;
+}
+
+/** Place the open tip under its button, and keep it inside the window. */
+function placeInfoTip(anchorEl) {
+  if (!infoTipEl || !anchorEl?.getBoundingClientRect) return;
+  const rect = anchorEl.getBoundingClientRect();
+  const width = infoTipEl.offsetWidth || 280;
+  const height = infoTipEl.offsetHeight || 160;
+  const room = typeof window !== 'undefined' ? window.innerWidth : 360;
+  const tall = typeof window !== 'undefined' ? window.innerHeight : 640;
+  let left = rect.left + rect.width / 2 - width / 2;
+  left = Math.max(8, Math.min(left, room - width - 8));
+  let top = rect.bottom + 8;
+  // The tip goes above the button when the window has no room below it.
+  if (top + height > tall - 8) top = Math.max(8, rect.top - height - 8);
+  infoTipEl.style.left = `${Math.round(left)}px`;
+  infoTipEl.style.top = `${Math.round(top)}px`;
+}
+
+/**
+ * Open one info tip.
+ *
+ * @param {HTMLElement} anchorEl the button the tip belongs to
+ * @param {string|Node} content the help text, or a node that holds it
+ */
+export function openInfoTip(anchorEl, content) {
+  if (!anchorEl || content == null) return;
+  if (!infoTipEl) {
+    infoTipEl = document.createElement('div');
+    infoTipEl.className = 'info-tip-pop';
+    infoTipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(infoTipEl);
+  }
+  infoTipEl.innerHTML = '';
+  if (typeof content === 'string') {
+    const text = document.createElement('p');
+    text.className = 'info-tip-text';
+    text.textContent = content;
+    infoTipEl.appendChild(text);
+  } else {
+    infoTipEl.appendChild(content);
+  }
+  infoTipEl.classList.add('open');
+  infoTipAnchor = anchorEl;
+  anchorEl.setAttribute('aria-expanded', 'true');
+  placeInfoTip(anchorEl);
+  bindInfoTipDismiss();
+}
+
+/**
+ * Build the "i" button that holds one piece of help text.
+ *
+ * The button carries the text, so the caller only places the button. A node
+ * moves into the tip as it is, which keeps any markup the help text holds.
+ *
+ * @param {string|Node|(() => string|Node)} content the help, or a maker for it
+ * @param {{ label?: string }} [options] `label` names the help for a reader
+ * @returns {HTMLButtonElement}
+ */
+export function createInfoTip(content, { label = 'About this screen' } = {}) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'info-tip';
+  btn.setAttribute('aria-label', label);
+  btn.setAttribute('aria-expanded', 'false');
+  btn.title = label;
+  btn.textContent = 'i';
+  btn.onclick = (e) => {
+    // The tip closes on the next click anywhere, so this click must not reach
+    // the page and close the tip it just opened.
+    e?.stopPropagation?.();
+    if (infoTipAnchor === btn) {
+      closeInfoTip();
+      return;
+    }
+    closeInfoTip();
+    openInfoTip(btn, typeof content === 'function' ? content() : content);
+  };
+  return btn;
+}
+
+/**
+ * Replace one help paragraph with an info tip.
+ *
+ * The paragraph moves into the tip, so the words stay the same and the screen
+ * loses the block of text. The button lands where the caller asks, or in the
+ * place the paragraph held.
+ *
+ * @param {HTMLElement} paragraph the help paragraph
+ * @param {{ mount?: HTMLElement, label?: string }} [options]
+ * @returns {HTMLButtonElement|null} null when there is no paragraph to move
+ */
+export function infoTipFromElement(paragraph, { mount, label } = {}) {
+  if (!paragraph) return null;
+  const host = mount || paragraph.parentNode;
+  if (!host) return null;
+  const holder = document.createElement('div');
+  holder.className = 'info-tip-body';
+  const btn = createInfoTip(() => {
+    // The tip owns one copy of the help, so a second open finds it again.
+    holder.appendChild(paragraph);
+    paragraph.hidden = false;
+    return holder;
+  }, { label: label || 'Help' });
+  if (mount) mount.appendChild(btn);
+  else host.insertBefore(btn, paragraph);
+  paragraph.hidden = true;
+  return btn;
+}
+
 /** Compact filter summary chip that opens a filters sheet. */
 export function renderFilterSummary(el, { summary, activeCount = 0, resultCount, onClick } = {}) {
   if (!el) return;

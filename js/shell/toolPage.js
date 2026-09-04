@@ -1,4 +1,4 @@
-import { initSubviewTabs, openOverflowMenu } from '../uxPrimitives.js';
+import { initSubviewTabs, openOverflowMenu, createInfoTip } from '../uxPrimitives.js';
 
 const mountedHandles = new WeakMap();
 
@@ -27,6 +27,14 @@ function buildHeader(descriptor) {
   title.textContent = descriptor.title || '';
 
   header.append(backBtn, title);
+
+  // The description of a tool is a paragraph of help. It sits behind this
+  // button, so the screen opens on the controls of the tool.
+  if (descriptor.description) {
+    header.appendChild(createInfoTip(descriptor.description, {
+      label: `About ${descriptor.title || 'this screen'}`,
+    }));
+  }
 
   // The overflow button only earns its place when the menu has something in
   // it. An empty menu opens on an empty list, which reads as a broken control.
@@ -113,6 +121,9 @@ export function mountToolPage(sectionEl, descriptor = {}) {
 
   const header = buildHeader(descriptor);
 
+  // The header holds the description behind an info tip. This node keeps the
+  // words in the page, so a screen reader still reads them in place. CSS
+  // takes it out of the layout.
   const descriptionEl = document.createElement('p');
   descriptionEl.className = 'tool-page-description';
   descriptionEl.textContent = descriptor.description || '';

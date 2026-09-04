@@ -47,6 +47,20 @@
   display: none;
 }
 
+/* The header info tip carries the description, so the paragraph leaves the
+   layout. It stays in the page, because a screen reader still reads it. */
+.tool-page-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .tool-page-primary:empty {
   display: none;
 }

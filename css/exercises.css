@@ -929,8 +929,7 @@ html.ex-viewer-locked body.app-shell.route-notice-on:not(.split-mode) main.app-m
 }
 .rx-controls{justify-content:center;margin:0}
 .rx-stage{height:min(46vh,320px)}
-.rx-actions{display:flex;justify-content:center}
-.rx-hint{margin:0;text-align:center;font-size:.78rem;color:var(--muted)}
+.rx-actions{display:flex;justify-content:center;align-items:center;gap:10px}
 
 /* ---- Vocal tags in a form ---- */
 .ex-form-vocal[hidden]{display:none}

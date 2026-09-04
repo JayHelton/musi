@@ -91,6 +91,7 @@
 
 /* ---- Pitch Runner pane of the Audio Studio ---- */
 .asr-card{max-width:760px;margin:0 auto}
+.asr-empty-lead{margin:0 0 12px;font-size:.85rem;color:var(--muted);text-align:center}
 .asr-empty-text{margin:0 0 12px;font-size:.85rem;color:var(--muted);line-height:1.45;text-align:center}
 .asr-source{margin-bottom:10px;text-align:center;font-size:.9rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .asr-passes{display:flex;flex-direction:column;gap:4px;font-size:.78rem;text-align:left}

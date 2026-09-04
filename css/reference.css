@@ -456,12 +456,12 @@ button.plt-compare-cell:hover { color: var(--accent); }
   gap: 14px;
 }
 
-.mref-intro {
-  font-family: var(--font-body);
-  font-size: .86rem;
-  line-height: 1.5;
-  color: var(--muted);
-  margin: 0;
+/* The caveat about the degree words lives in an info tip. The bar holds that
+   button at the end of the row, above the table. */
+.mref-tipbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -8px;
 }
 
 .mref-hint {

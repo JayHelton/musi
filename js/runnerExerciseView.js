@@ -6,6 +6,7 @@
 // stage it builds, and `destroy()` releases it again.
 
 import { attachRunner } from './pitchRunner.js';
+import { createInfoTip } from './uxPrimitives.js';
 import {
   describeRunnerConfig,
   fillRunnerTextFromAnnotations,
@@ -205,25 +206,26 @@ export function mountRunnerExercise(host, rawConfig, { onFinish } = {}) {
   const stage = el('div', { class: 'pr-stage rx-stage' }, [canvas, judge, overlay]);
   root.appendChild(stage);
 
+  // The rules of the run are one long paragraph. The info tip next to Start
+  // holds them, so the stage and the button keep the screen.
+  const hintText = `The run plays ${passes}. Sing each note as its bar crosses the line.`
+    + ' Preview each pass plays the notes to you first. The hollow bars are the'
+    + ' preview, and the solid bars are your turn to sing.'
+    + ' Start octave moves the whole run into another octave, so you sing the'
+    + ' same intervals where your voice reaches them.'
+    + ' Bluetooth headphones play the sound late. Raise the audio delay until the'
+    + ' click lands on the beat you see.'
+    + (hasNoteText
+      ? ' The Guitar Pro file names a vowel or an exercise for some notes.'
+        + ' That text prints on the bar and above the stage.'
+      : '');
+
   const toggle = el('button', { class: 'btn primary', type: 'button', text: 'Start game' });
-  root.appendChild(el('div', { class: 'rx-actions' }, [toggle]));
+  const hintTip = createInfoTip(hintText, { label: 'How this run works' });
+  root.appendChild(el('div', { class: 'rx-actions' }, [toggle, hintTip]));
 
   const status = el('div', { class: 'pt-status', text: 'Mic off' });
   root.appendChild(status);
-  root.appendChild(el('p', {
-    class: 'rx-hint',
-    text: `The run plays ${passes}. Sing each note as its bar crosses the line.`
-      + ' Preview each pass plays the notes to you first. The hollow bars are the'
-      + ' preview, and the solid bars are your turn to sing.'
-      + ' Start octave moves the whole run into another octave, so you sing the'
-      + ' same intervals where your voice reaches them.'
-      + ' Bluetooth headphones play the sound late. Raise the audio delay until the'
-      + ' click lands on the beat you see.'
-      + (hasNoteText
-        ? ' The Guitar Pro file names a vowel or an exercise for some notes.'
-          + ' That text prints on the bar and above the stage.'
-        : ''),
-  }));
   let noteStrip = buildNoteList(config);
   root.appendChild(el('details', { class: 'rx-notes-box' }, [
     el('summary', {

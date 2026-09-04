@@ -287,8 +287,7 @@ function renderResults() {
 
   if (selected.length === 0) {
     panel.innerHTML = '<div class="cf-empty"><strong>Pick notes on the neck.</strong>' +
-      '<p>Tap a fret to select the note it plays. Tap it again to clear it. ' +
-      'With two or more notes the finder names every chord those notes spell.</p></div>';
+      '<p>Two or more notes name a chord.</p></div>';
     return;
   }
   if (selected.length === 1) {

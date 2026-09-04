@@ -5,6 +5,7 @@ import { getContext, setContext, subscribeContext } from './musicalContext.js';
 import { resolveTuningKey } from './tunings.js';
 import { SCALES, shortScaleName } from './scales.js';
 import { renderDiatonicTriadPanel } from './diatonicTriads.js';
+import { infoTipFromElement } from './uxPrimitives.js';
 import { audioCtx, ensureAudio, midiFreq, getAnalyserDestination } from './audio.js';
 import {
   initSweepRef,
@@ -632,6 +633,13 @@ function renderTriadInfo() {
   html += `</table>`;
 
   card.innerHTML = html;
+
+  // The paragraph about the shapes is help, so the heading carries it behind
+  // an info tip and the table of qualities moves up.
+  infoTipFromElement(card.querySelector('.triad-info-blurb'), {
+    mount: card.querySelector('.triad-info-head h3'),
+    label: 'About these shapes',
+  });
 }
 
 function renderHeader() {

@@ -398,9 +398,12 @@ testAsync('toolPage: header shows Back and title, and hides More with no menu it
   const { destroy } = mountToolPage(section, makeDescriptor({ title: 'Tuner' }));
   const header = section.querySelector('.tool-page-header');
   const classes = [...header.children].map((el) => el.className);
+  // The header holds Back, the title, and the info tip that carries the
+  // description of the tool. It holds no More button without menu items.
   assert.deepEqual(classes, [
     'tool-page-back tool-back',
     '',
+    'info-tip',
   ]);
   assert.equal(header.children[1].dataset.pageHeading, '');
   assert.equal(header.children[1].textContent, 'Tuner');
@@ -423,8 +426,54 @@ testAsync('toolPage: header shows More when the menu has items', async () => {
   assert.deepEqual(classes, [
     'tool-page-back tool-back',
     '',
+    'info-tip',
     'tool-page-more',
   ]);
+  destroy();
+});
+
+testAsync('toolPage: the header info tip carries the description', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const { destroy } = mountToolPage(section, makeDescriptor({
+    title: 'Metronome',
+    description: 'Tempo, meter, tap tempo, and a tempo plan.',
+  }));
+
+  const tip = section.querySelector('.info-tip');
+  assert.ok(tip, 'the header holds an info tip');
+  assert.equal(tip.getAttribute('aria-label'), 'About Metronome');
+  assert.equal(tip.getAttribute('aria-expanded'), 'false');
+
+  tip.click();
+  const pop = document.body.querySelector('.info-tip-pop');
+  assert.ok(pop, 'the tip opens a popover');
+  assert.equal(pop.classList.contains('open'), true);
+  assert.equal(tip.getAttribute('aria-expanded'), 'true');
+  assert.match(pop.querySelector('.info-tip-text').textContent, /tap tempo/);
+
+  // A second click on the same button closes the tip again.
+  tip.click();
+  assert.equal(pop.classList.contains('open'), false);
+  assert.equal(tip.getAttribute('aria-expanded'), 'false');
+  destroy();
+});
+
+testAsync('toolPage: a tool without a description shows no info tip', async () => {
+  const { installDomShim } = await import('../gp-player/domShim.mjs');
+  installDomShim();
+  installLocalStorageShim();
+  globalThis.window = globalThis;
+  const { mountToolPage } = await import('../../js/shell/toolPage.js');
+
+  const section = document.createElement('section');
+  const { destroy } = mountToolPage(section, makeDescriptor({ description: '' }));
+  assert.equal(section.querySelector('.info-tip'), null);
   destroy();
 });
 
