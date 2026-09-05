@@ -1,4 +1,4 @@
-// The trainer tabs of the session view.
+// The trainer tabs of the Practice tab.
 //
 // The lab holds one active trainer. Starting one stops the other two, because
 // the container claims the shared audio owner for each start.

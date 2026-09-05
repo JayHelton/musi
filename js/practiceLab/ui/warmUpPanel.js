@@ -1,32 +1,31 @@
-// The warm-up of a drum session: one groove and one rudiment, picked for you.
+// The drum warm-up: one groove and one rudiment, picked for you.
 //
-// A player who chooses the warm-up spends the start of the session choosing.
+// A player who chooses the warm-up spends the start of the practice choosing.
 // This panel makes the choice instead. It never offers what the last three
-// sessions used, so the whole library comes round over time.
+// picks gave, so the whole library comes round over time.
 //
-// The panel runs in two modes. On the setup screen it picks and re-rolls, and
-// the value it holds goes onto the session record. Inside an open session it
-// reads the record back and offers one button to log the warm-up as done.
+// The panel sits at the top of the Drums tab. It picks on its first paint and
+// it re-rolls on request.
 
 import { el, clear, pressable, panel, notice } from './dom.js';
 import { beatById, rudimentById, WARM_UP_COOLDOWN } from '../adapters/musiDrumLibrary.js';
 import { createDrumScoreCard } from './drumScoreCard.js';
 
 const LEAD = 'One groove and one rudiment. Play them before anything else.';
-const RULE = `The picker skips whatever the last ${WARM_UP_COOLDOWN} sessions warmed up with.`;
+const RULE = `The picker skips whatever the last ${WARM_UP_COOLDOWN} picks gave.`;
 
 /**
  * @param {Object} lab the Practice Lab service
- * @param {{ mode?: 'setup'|'session', onChange?: Function }} [options]
- * @returns {{
- *   root: HTMLElement, refresh: Function, choice: Function, stop: Function,
- * }}
+ * @param {{ onOpen?: Function }} [options] `onOpen` fires before a card mounts
+ *   its player, so the tab can close the other scores
+ * @returns {{ root: HTMLElement, refresh: Function, stop: Function }}
  */
-export function createWarmUpPanel(lab, { mode = 'setup', onChange } = {}) {
+export function createWarmUpPanel(lab, { onOpen } = {}) {
   const box = panel('Warm-up', 'pl-warmup');
   const body = box.body;
   let cards = [];
   let rolling = false;
+  let failed = false;
 
   const rollBtn = pressable({
     label: 'Pick another',
@@ -34,55 +33,46 @@ export function createWarmUpPanel(lab, { mode = 'setup', onChange } = {}) {
     onPress: () => roll(),
     ariaLabel: 'Pick another warm-up',
   });
-
-  const doneBtn = pressable({
-    label: 'Warm-up done',
-    className: 'small primary',
-    onPress: async () => {
-      doneBtn.disabled = true;
-      await lab.completeWarmUp();
-      doneBtn.textContent = 'Logged';
-    },
-  });
-
-  if (mode === 'setup') box.head.appendChild(rollBtn);
-  else box.head.appendChild(doneBtn);
+  box.head.appendChild(rollBtn);
 
   function stopCards() {
     for (const card of cards) card.stop();
     cards = [];
   }
 
-  function current() {
-    if (mode === 'session') return lab.session()?.warmUp || null;
-    const picked = lab.warmUp();
-    return picked ? { beatId: picked.beatId, rudimentId: picked.rudimentId } : null;
+  /** Only one score plays at a time, so opening a card closes the rest. */
+  function closeOthers(card) {
+    for (const other of cards) {
+      if (other !== card && other.isOpen()) other.close();
+    }
+    onOpen?.(card);
   }
 
   function paint() {
     stopCards();
     clear(body);
-    const choice = current();
+    const choice = lab.warmUp();
     const beat = beatById(choice?.beatId || '');
     const rudiment = rudimentById(choice?.rudimentId || '');
 
     body.appendChild(el('p', { class: 'pl-warmup-lead', text: LEAD }));
 
     if (!beat && !rudiment) {
-      body.appendChild(notice(
-        rolling ? 'Picking a warm-up…' : 'No warm-up is picked for this session.',
-      ));
+      const text = rolling
+        ? 'Picking a warm-up…'
+        : (failed ? 'The warm-up could not be picked. Press Pick another.' : 'No warm-up is picked yet.');
+      body.appendChild(notice(text, failed ? 'warn' : 'info'));
       return;
     }
 
     const list = el('div', { class: 'pl-warmup-list' });
-    if (beat) {
-      const card = createDrumScoreCard(beat, { kicker: 'Groove', compact: true });
-      cards.push(card);
-      list.appendChild(card.root);
-    }
-    if (rudiment) {
-      const card = createDrumScoreCard(rudiment, { kicker: 'Rudiment', compact: true });
+    for (const [pattern, kicker] of [[beat, 'Groove'], [rudiment, 'Rudiment']]) {
+      if (!pattern) continue;
+      const card = createDrumScoreCard(pattern, {
+        kicker,
+        compact: true,
+        onOpen: () => closeOthers(card),
+      });
       cards.push(card);
       list.appendChild(card.root);
     }
@@ -93,30 +83,30 @@ export function createWarmUpPanel(lab, { mode = 'setup', onChange } = {}) {
   async function roll() {
     if (rolling) return;
     rolling = true;
+    failed = false;
     rollBtn.disabled = true;
     paint();
     try {
       await lab.rollWarmUp();
+    } catch (e) {
+      failed = true;
     } finally {
       rolling = false;
       rollBtn.disabled = false;
       paint();
-      onChange?.(current());
     }
   }
 
   paint();
+  if (!lab.warmUp()) roll();
 
   return {
     root: box.root,
-    /** Pick a warm-up when none is on offer yet. The setup screen calls this. */
-    async ensure() {
-      if (mode !== 'setup') return current();
-      if (!current()) await roll();
-      return current();
-    },
     refresh: paint,
-    choice: current,
+    /** Close every open score of the warm-up. */
+    closeAll() {
+      for (const card of cards) if (card.isOpen()) card.close();
+    },
     stop: stopCards,
   };
 }

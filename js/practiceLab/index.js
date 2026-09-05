@@ -14,9 +14,7 @@ import { createMediaVideo } from './adapters/mediaVideo.js';
 import { createRealClock, createIds } from './adapters/realClock.js';
 import { createMusiToast } from './adapters/musiToast.js';
 import { el, clear, notice } from './ui/dom.js';
-import { createSetupView } from './ui/setupView.js';
-import { createSessionView } from './ui/sessionView.js';
-import { createHistoryView } from './ui/historyView.js';
+import { createPracticeView } from './ui/practiceView.js';
 import { createCompositionView } from './ui/compositionView.js';
 import { createDrumsView } from './ui/drumsView.js';
 import { createVocalView } from './ui/vocalView.js';
@@ -24,7 +22,7 @@ import { createVocalView } from './ui/vocalView.js';
 const SECTION_ID = 'sec-practicelab';
 
 /** The tabs the tool page offers. They match the `modes` list in js/tools.js. */
-const MODES = new Set(['session', 'vocal', 'drums', 'history', 'composition']);
+const MODES = new Set(['practice', 'vocal', 'drums', 'composition']);
 
 /**
  * The default ports of the web app.
@@ -45,8 +43,9 @@ export function defaultPorts() {
 }
 
 let lab = null;
+let labError = '';
 let mounted = null;
-let currentMode = 'session';
+let currentMode = 'practice';
 let rootEl = null;
 
 function hostElement() {
@@ -62,53 +61,7 @@ function stopMounted() {
   mounted = null;
 }
 
-function paintSetup() {
-  const view = createSetupView(lab, {
-    onStarted: () => paint(),
-  });
-  clear(rootEl);
-  rootEl.appendChild(view.root);
-  mounted = view;
-}
-
-function paintSession() {
-  const view = createSessionView(lab, {
-    onEnded: () => paint(),
-  });
-  clear(rootEl);
-  rootEl.appendChild(view.root);
-  mounted = view;
-}
-
-// The Vocal tab runs exercises the Practice Library owns. It needs the lab,
-// because every attempt lands in the session log.
-function paintVocal() {
-  const view = createVocalView(lab);
-  clear(rootEl);
-  rootEl.appendChild(view.root);
-  mounted = view;
-}
-
-function paintHistory() {
-  const view = createHistoryView(lab);
-  clear(rootEl);
-  rootEl.appendChild(view.root);
-  mounted = view;
-}
-
-// Composition Lab keeps its own state in the shared settings store and needs
-// no port, so it mounts on its own and never waits for the session store.
-function paintComposition() {
-  const view = createCompositionView();
-  clear(rootEl);
-  rootEl.appendChild(view.root);
-  mounted = view;
-}
-
-// The Drums tab is a reference screen too. It reads the beat library and the
-// rudiment library, and it keeps no session.
-function paintDrums() {
-  const view = createDrumsView();
+function mount(view) {
   clear(rootEl);
   rootEl.appendChild(view.root);
   mounted = view;
@@ -124,27 +77,50 @@ function paintFailure(message) {
   rootEl.appendChild(notice(message, 'warn'));
 }
 
+/**
+ * Build the service once. The store read runs in the background, and the
+ * screens that need it wait on `lab.init()`.
+ */
+function ensureLab() {
+  if (lab || labError) return lab;
+  try {
+    lab = createPracticeLab(defaultPorts());
+  } catch (error) {
+    labError = error.message || 'Practice Lab could not start.';
+    return null;
+  }
+  lab.init().catch(() => {
+    labError = 'Practice Lab could not read its saved takes.';
+  });
+  return lab;
+}
+
 function paint() {
-  if (!rootEl || !lab) return;
+  if (!rootEl) return;
   stopMounted();
-  if (currentMode === 'composition') {
-    paintComposition();
+  const service = ensureLab();
+  if (!service) {
+    paintFailure(labError);
     return;
   }
-  if (currentMode === 'drums') {
-    paintDrums();
-    return;
-  }
-  if (currentMode === 'history') {
-    paintHistory();
-    return;
-  }
-  if (currentMode === 'vocal') {
-    paintVocal();
-    return;
-  }
-  if (lab.hasOpenSession()) paintSession();
-  else paintSetup();
+
+  // Composition Lab, the Drums tab, and the Vocal tab read the store only when
+  // they need it, so they open at once.
+  if (currentMode === 'composition') { mount(createCompositionView()); return; }
+  if (currentMode === 'drums') { mount(createDrumsView(service)); return; }
+  if (currentMode === 'vocal') { mount(createVocalView(service)); return; }
+
+  // The Practice tab lists the saved takes, so it waits for the store once.
+  if (service.isReady()) { mount(createPracticeView(service)); return; }
+  paintLoading();
+  const wanted = currentMode;
+  service.init().then(() => {
+    if (lab !== service || currentMode !== wanted || !rootEl) return;
+    if (mounted) return;
+    mount(createPracticeView(service));
+  }).catch(() => {
+    if (lab === service && currentMode === wanted && rootEl) paintFailure(labError);
+  });
 }
 
 /**
@@ -156,46 +132,8 @@ export function initPracticeLab({ mode } = {}) {
   const host = hostElement();
   if (!host) return;
   rootEl = host;
-  currentMode = MODES.has(mode) ? mode : 'session';
-
-  // Composition Lab and the Drums tab read no saved session, so they open at
-  // once even when the store is still loading or blocked.
-  if (currentMode === 'composition' || currentMode === 'drums') {
-    stopMounted();
-    if (currentMode === 'composition') paintComposition();
-    else paintDrums();
-    if (!lab) startLab({ paintAfter: false });
-    return;
-  }
-
-  if (lab) {
-    paint();
-    return;
-  }
-
-  paintLoading();
-  startLab({ paintAfter: true });
-}
-
-/**
- * Build the service and read its saved sessions.
- * @param {{paintAfter: boolean}} options paint the screen once the store answers
- */
-function startLab({ paintAfter }) {
-  const ports = defaultPorts();
-  let created;
-  try {
-    created = createPracticeLab(ports);
-  } catch (error) {
-    if (paintAfter) paintFailure(error.message || 'Practice Lab could not start.');
-    return;
-  }
-  lab = created;
-  lab.init().then(() => {
-    if (paintAfter) paint();
-  }).catch(() => {
-    if (paintAfter) paintFailure('Practice Lab could not read its saved sessions.');
-  });
+  currentMode = MODES.has(mode) ? mode : 'practice';
+  paint();
 }
 
 /** Leave the tool. The click, the timer, the camera, and the recorder stop. */
@@ -208,5 +146,6 @@ export function stopPracticeLab() {
 export function resetPracticeLab() {
   stopPracticeLab();
   lab = null;
+  labError = '';
   rootEl = null;
 }

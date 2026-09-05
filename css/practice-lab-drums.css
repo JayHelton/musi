@@ -119,8 +119,6 @@
 
 /* ---- the warm-up ---- */
 
-.pl-setup-warmup { display: block; }
-
 .pl-warmup .pl-panel-head { align-items: center; }
 
 .pl-warmup-lead {
@@ -137,13 +135,6 @@
   font-size: .95rem;
   color: var(--muted);
   margin: 10px 0 0;
-}
-
-.pl-history-warmup {
-  font-family: var(--font-ui);
-  font-size: 1rem;
-  color: var(--accent2);
-  margin: 6px 0 0;
 }
 
 @media (max-width: 560px) {

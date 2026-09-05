@@ -28,26 +28,13 @@ import { expandPlan, expandSegment, segmentOrder, clickLevel } from '../../js/pr
 import { createScheduler } from '../../js/practiceLab/engine/scheduler.js';
 import { createCountdown } from '../../js/practiceLab/engine/countdown.js';
 import {
-  mergeCatalog,
-  seedCatalog,
-  addInstrument,
-  addTechnique,
-  removeInstrument,
-  removeTechnique,
-  techniquesOf,
-  normaliseLabel,
-  labelToId,
-} from '../../js/practiceLab/model/catalog.js';
-import {
-  newSession,
   newEntry,
-  rollUpTotals,
   sortEntries,
+  warmUpPicks,
   formatDuration,
-  describeEntry,
   plural,
   ENTRY_KINDS,
-} from '../../js/practiceLab/model/session.js';
+} from '../../js/practiceLab/model/entries.js';
 import {
   keyNotes,
   keyChords,
@@ -190,7 +177,9 @@ console.log('Ports');
 
 await test('the contract names every port and every method', () => {
   assert.deepEqual(PORT_NAMES, ['store', 'click', 'audioSession', 'video', 'clock', 'ids', 'notify']);
-  assert.ok(PORT_CONTRACT.store.includes('appendEntry'));
+  assert.deepEqual(PORT_CONTRACT.store, [
+    'appendEntry', 'listEntries', 'saveClip', 'getClip', 'listClips', 'deleteClip', 'isAvailable',
+  ]);
   assert.ok(PORT_CONTRACT.click.includes('schedule'));
 });
 
@@ -208,119 +197,25 @@ await test('the container refuses an incomplete port bag', () => {
 });
 
 /* ------------------------------------------------------------------ */
-console.log('Catalog');
+console.log('Entries');
 
-await test('the seed catalog holds five instruments', () => {
-  const catalog = seedCatalog();
-  assert.deepEqual(catalog.instruments.map(e => e.id),
-    ['guitar', 'bass', 'piano', 'drums', 'voice']);
-  assert.equal(techniquesOf(catalog, 'guitar').length, 10);
-  assert.equal(techniquesOf(catalog, 'voice').length, 4);
-});
-
-await test('a label is trimmed and the id uses hyphens', () => {
-  assert.equal(normaliseLabel('  Alternate   Picking  '), 'Alternate Picking');
-  assert.equal(labelToId('Alternate Picking'), 'alternate-picking');
-  assert.equal(labelToId('7-String Sweeps!'), '7-string-sweeps');
-});
-
-await test('a removed seed instrument goes into hidden and stays away', () => {
-  let catalog = mergeCatalog(null);
-  catalog = removeInstrument(catalog, 'guitar');
-  assert.equal(catalog.instruments.some(e => e.id === 'guitar'), false);
-  assert.deepEqual(catalog.hidden.instruments, ['guitar']);
-  // A later release re-reads the record. The seed entry must not come back.
-  const reread = mergeCatalog(catalog);
-  assert.equal(reread.instruments.some(e => e.id === 'guitar'), false);
-});
-
-await test('a removed custom instrument leaves the array', () => {
-  let catalog = mergeCatalog(null);
-  catalog = addInstrument(catalog, 'Ukulele').catalog;
-  assert.equal(catalog.instruments.at(-1).label, 'Ukulele');
-  catalog = removeInstrument(catalog, 'ukulele');
-  assert.equal(catalog.instruments.some(e => e.id === 'ukulele'), false);
-  assert.equal(catalog.hidden.instruments.includes('ukulele'), false);
-});
-
-await test('a duplicate label selects the entry that exists', () => {
-  let catalog = mergeCatalog(null);
-  const first = addInstrument(catalog, 'Guitar');
-  assert.equal(first.added, false);
-  assert.equal(first.entry.id, 'guitar');
-  assert.equal(first.catalog.instruments.filter(e => e.id === 'guitar').length, 1);
-
-  catalog = addInstrument(catalog, 'Ukulele').catalog;
-  const second = addInstrument(catalog, ' ukulele ');
-  assert.equal(second.added, false);
-  assert.equal(second.catalog.instruments.filter(e => e.id === 'ukulele').length, 1);
-});
-
-await test('a technique belongs to one instrument only', () => {
-  let catalog = mergeCatalog(null);
-  catalog = addTechnique(catalog, 'guitar', 'Rake').catalog;
-  assert.equal(techniquesOf(catalog, 'guitar').some(e => e.id === 'rake'), true);
-  assert.equal(techniquesOf(catalog, 'bass').some(e => e.id === 'rake'), false);
-
-  catalog = removeTechnique(catalog, 'guitar', 'economy-picking');
-  assert.equal(techniquesOf(catalog, 'guitar').some(e => e.id === 'economy-picking'), false);
-  assert.deepEqual(catalog.hidden.techniques.guitar, ['economy-picking']);
-});
-
-await test('an instrument with every technique removed keeps an empty list', () => {
-  let catalog = mergeCatalog(null);
-  for (const entry of [...techniquesOf(catalog, 'voice')]) {
-    catalog = removeTechnique(catalog, 'voice', entry.id);
-  }
-  assert.deepEqual(techniquesOf(catalog, 'voice'), []);
-  const added = addTechnique(catalog, 'voice', 'Falsetto');
-  assert.equal(added.added, true);
-  assert.equal(techniquesOf(added.catalog, 'voice').length, 1);
-});
-
-/* ------------------------------------------------------------------ */
-console.log('Session log model');
-
-await test('the log entry kinds match the data model', () => {
-  assert.deepEqual(ENTRY_KINDS, [
-    'session-start', 'timer-start', 'timer-stop', 'timer-complete',
-    'metronome-start', 'metronome-stop', 'ratio-start', 'ratio-stop',
-    'speed-start', 'speed-complete', 'clip-saved', 'vocal-attempt', 'note',
-    'warm-up-done', 'session-end',
-  ]);
+await test('the entry kinds are the two things the lab keeps', () => {
+  assert.deepEqual(ENTRY_KINDS, ['vocal-attempt', 'warm-up']);
 });
 
 await test('an unknown entry kind is refused', () => {
   assert.throws(
-    () => newEntry({ id: 'e', sessionId: 's', at: 'x', kind: 'nonsense' }),
-    /unknown log entry kind/,
+    () => newEntry({ id: 'e', at: 'x', kind: 'note' }),
+    /unknown entry kind/,
   );
 });
 
-await test('a session is active until it ends', () => {
-  const session = newSession({
-    id: 'pl-sess-1', at: '2026-08-25T18:00:00.000Z',
-    instrument: 'Guitar', technique: 'Alternate Picking', target: 'Clean 16ths',
-  });
-  assert.equal(session.status, 'active');
-  assert.equal(session.endedAt, '');
-  assert.deepEqual(session.totals, { timerMs: 0, clips: 0, topBpm: 0, attempts: 0 });
-});
-
-await test('the totals roll up from the log', () => {
-  const entries = [
-    { kind: 'timer-complete', data: { minutes: 5 } },
-    { kind: 'timer-complete', data: { minutes: 3 } },
-    { kind: 'timer-stop', data: { minutes: 5, elapsedMs: 42000 } },
-    { kind: 'clip-saved', data: { clipId: 'a' } },
-    { kind: 'clip-saved', data: { clipId: 'b', removed: true } },
-    { kind: 'speed-complete', data: { topBpm: 110, finished: true } },
-    { kind: 'speed-complete', data: { topBpm: 95, finished: false } },
-    { kind: 'note', data: { text: 'sloppy on the low string' } },
-  ];
-  assert.deepEqual(rollUpTotals(entries), {
-    timerMs: 8 * 60000 + 42000, clips: 1, topBpm: 110, attempts: 0,
-  });
+await test('an entry copies its data and carries no session', () => {
+  const data = { exerciseId: 'x1' };
+  const entry = newEntry({ id: 'e1', at: '2026-08-25T18:00:00.000Z', kind: 'vocal-attempt', data });
+  data.exerciseId = 'changed';
+  assert.equal(entry.data.exerciseId, 'x1');
+  assert.equal('sessionId' in entry, false);
 });
 
 await test('entries sort oldest first', () => {
@@ -332,6 +227,18 @@ await test('entries sort oldest first', () => {
   assert.deepEqual(list.map(e => e.id), ['a', 'b', 'c']);
 });
 
+await test('the warm-up picks read newest first and skip the other kinds', () => {
+  const picks = warmUpPicks([
+    { id: 'a', at: '2026-08-25T18:00:00.000Z', kind: 'warm-up', data: { beatId: 'b1', rudimentId: 'r1' } },
+    { id: 'v', at: '2026-08-25T18:01:00.000Z', kind: 'vocal-attempt', data: { exerciseId: 'x' } },
+    { id: 'b', at: '2026-08-25T18:02:00.000Z', kind: 'warm-up', data: { beatId: 'b2', rudimentId: 'r2' } },
+    { id: 'c', at: '2026-08-25T18:03:00.000Z', kind: 'warm-up', data: { beatId: 'b3', rudimentId: 'r3' } },
+    { id: 'd', at: '2026-08-25T18:04:00.000Z', kind: 'warm-up', data: { beatId: 'b4', rudimentId: 'r4' } },
+  ], 3);
+  assert.deepEqual(picks.map(p => p.beatId), ['b4', 'b3', 'b2']);
+  assert.deepEqual(picks.map(p => p.rudimentId), ['r4', 'r3', 'r2']);
+});
+
 await test('a duration reads as minutes and seconds', () => {
   assert.equal(formatDuration(0), '0:00');
   assert.equal(formatDuration(63000), '1:03');
@@ -339,17 +246,9 @@ await test('a duration reads as minutes and seconds', () => {
 });
 
 await test('a count and its word agree', () => {
-  assert.equal(plural(0, 'clip'), '0 clips');
-  assert.equal(plural(1, 'clip'), '1 clip');
+  assert.equal(plural(0, 'take'), '0 takes');
+  assert.equal(plural(1, 'take'), '1 take');
   assert.equal(plural(2, 'cycle'), '2 cycles');
-});
-
-await test('every entry kind has a log line', () => {
-  for (const kind of ENTRY_KINDS) {
-    const text = describeEntry({ kind, data: { minutes: 1, text: 'a note', topBpm: 90 } });
-    assert.equal(typeof text, 'string');
-    assert.notEqual(text, '');
-  }
 });
 
 /* ------------------------------------------------------------------ */
@@ -610,80 +509,67 @@ await test('the countdown refuses a length of zero', () => {
 /* ------------------------------------------------------------------ */
 console.log('Store and container');
 
-await test('the memory store keeps a session, its log, and its clips apart', async () => {
+await test('the memory store keeps entries and takes apart', async () => {
   const store = createMemoryStore();
-  await store.createSession({ id: 's1', startedAt: '2026-08-25T10:00:00.000Z', status: 'active' });
-  await store.createSession({ id: 's2', startedAt: '2026-08-25T11:00:00.000Z', status: 'ended' });
-  await store.appendEntry({ id: 'e1', sessionId: 's1', at: '2026-08-25T10:01:00.000Z', kind: 'note', data: {} });
-  await store.appendEntry({ id: 'e2', sessionId: 's2', at: '2026-08-25T11:01:00.000Z', kind: 'note', data: {} });
-  await store.saveClip({ id: 'c1', sessionId: 's1', createdAt: '2026-08-25T10:02:00.000Z', blob: null });
+  await store.appendEntry({ id: 'e1', at: '2026-08-25T10:01:00.000Z', kind: 'vocal-attempt', data: {} });
+  await store.appendEntry({ id: 'e2', at: '2026-08-25T10:00:00.000Z', kind: 'warm-up', data: {} });
+  await store.appendEntry({ id: 'e3', at: '2026-08-25T10:02:00.000Z', kind: 'warm-up', data: {} });
+  await store.saveClip({ id: 'c1', createdAt: '2026-08-25T10:02:00.000Z', blob: null });
 
-  assert.deepEqual((await store.listEntries('s1')).map(e => e.id), ['e1']);
-  assert.deepEqual((await store.listClips('s1')).map(c => c.id), ['c1']);
-  // Newest first.
-  assert.deepEqual((await store.listSessions()).map(s => s.id), ['s2', 's1']);
-  assert.deepEqual((await store.listSessions({ status: 'active' })).map(s => s.id), ['s1']);
+  assert.deepEqual((await store.listEntries()).map(e => e.id), ['e2', 'e1', 'e3']);
+  assert.deepEqual((await store.listEntries({ kind: 'warm-up' })).map(e => e.id), ['e2', 'e3']);
+  assert.deepEqual((await store.listEntries({ kind: 'warm-up', limit: 1 })).map(e => e.id), ['e3']);
+  assert.deepEqual((await store.listClips()).map(c => c.id), ['c1']);
 
-  await store.deleteSession('s1');
-  assert.deepEqual(await store.listEntries('s1'), []);
-  assert.deepEqual(await store.listClips('s1'), []);
+  await store.deleteClip('c1');
+  assert.deepEqual(await store.listClips(), []);
 });
 
-await test('the session record is written at the start, not at the end', async () => {
+await test('the lab opens with every tool ready and nothing to start', async () => {
   const ports = fakePorts();
   const lab = createPracticeLab(ports);
+  assert.equal(lab.isReady(), false);
   await lab.init();
-  await lab.startSession({ instrument: 'Guitar', technique: 'Legato', target: 'Even trills' });
-
-  const open = await ports.store.listSessions({ status: 'active' });
-  assert.equal(open.length, 1);
-  assert.equal(open[0].instrument, 'Guitar');
-  // The start writes its own log line.
-  const entries = await ports.store.listEntries(open[0].id);
-  assert.deepEqual(entries.map(e => e.kind), ['session-start']);
+  assert.equal(lab.isReady(), true);
+  assert.equal(lab.state.canSave, true);
+  assert.equal(lab.activeTrainer(), '');
+  assert.deepEqual(lab.clips(), []);
+  assert.equal(lab.warmUp(), null);
+  // No session record, no catalog, no log.
+  for (const gone of ['startSession', 'endSession', 'hasOpenSession', 'addNote', 'listSessions', 'instruments']) {
+    assert.equal(typeof lab[gone], 'undefined', `${gone} is gone`);
+  }
 });
 
-await test('a session log survives a reload', async () => {
+await test('a second init waits on the same read', async () => {
+  const lab = createPracticeLab(fakePorts());
+  const first = lab.init();
+  const second = lab.init();
+  assert.equal(first, second);
+  await first;
+});
+
+await test('a vocal attempt is kept without a session and survives a reload', async () => {
   const store = createMemoryStore();
   const first = createPracticeLab(fakePorts({ store }));
   await first.init();
-  await first.startSession({ instrument: 'Bass', technique: 'Slap', target: 'Even thumb' });
-  await first.appendEntry('timer-complete', { minutes: 5 });
-  await first.addNote('left hand tight');
+  await first.logVocalAttempt({ exerciseId: 'x1', exerciseName: 'Lip trill', outcome: 'clean' });
+  await first.logVocalAttempt({ exerciseId: 'x2', exerciseName: 'Siren', outcome: 'unstable' });
+  await first.logVocalAttempt({ exerciseId: 'x1', exerciseName: 'Lip trill', outcome: 'stopped' });
 
   // A new mount reads the same store, as a reload does.
   const second = createPracticeLab(fakePorts({ store }));
   await second.init();
-  assert.equal(second.hasOpenSession(), true);
-  assert.deepEqual(second.entries().map(e => e.kind),
-    ['session-start', 'timer-complete', 'note']);
-  assert.equal(second.session().totals.timerMs, 300000);
-  // The tool offers to continue the session, so the screen can say so.
-  assert.equal(second.state.resumed, true);
-  assert.equal(first.state.resumed, false);
+  const all = await second.vocalAttempts();
+  assert.equal(all.length, 3);
+  assert.equal('sessionId' in all[0], false);
+  const one = await second.vocalAttempts({ exerciseId: 'x1' });
+  assert.deepEqual(one.map(e => e.data.outcome), ['clean', 'stopped']);
+  const last = await second.vocalAttempts({ exerciseId: 'x1', limit: 1 });
+  assert.deepEqual(last.map(e => e.data.outcome), ['stopped']);
 });
 
-await test('ending a session closes it and writes the totals', async () => {
-  const ports = fakePorts();
-  const lab = createPracticeLab(ports);
-  await lab.init();
-  const started = await lab.startSession({ instrument: 'Piano', technique: 'Scales', target: 'C major' });
-  await lab.appendEntry('timer-complete', { minutes: 3 });
-  await lab.appendEntry('speed-complete', { topBpm: 132, elapsedMs: 1000, finished: true });
-  const ended = await lab.endSession();
-
-  assert.equal(ended.status, 'ended');
-  assert.notEqual(ended.endedAt, '');
-  assert.deepEqual(ended.totals, { timerMs: 180000, clips: 0, topBpm: 132, attempts: 0 });
-  assert.equal(lab.hasOpenSession(), false);
-
-  const stored = await ports.store.getSession(started.id);
-  assert.equal(stored.status, 'ended');
-  const entries = await ports.store.listEntries(started.id);
-  assert.equal(entries.at(-1).kind, 'session-end');
-});
-
-await test('a drum session carries its warm-up onto the record and into the log', async () => {
+await test('the warm-up pick names a groove and a rudiment and goes on record', async () => {
   const ports = fakePorts();
   const lab = createPracticeLab(ports);
   await lab.init();
@@ -693,41 +579,25 @@ await test('a drum session carries its warm-up onto the record and into the log'
   assert.ok(picked.rudimentId, 'the picker names a rudiment');
   assert.equal(lab.warmUp().beatId, picked.beatId);
 
-  const started = await lab.startSession({
-    instrument: 'Drums',
-    technique: 'Paradiddles',
-    target: 'Clean at 90 BPM',
-    warmUp: picked,
-  });
-  assert.deepEqual(started.warmUp, { beatId: picked.beatId, rudimentId: picked.rudimentId });
-  // The offer is spent, so the next session picks again.
-  assert.equal(lab.warmUp(), null);
+  const entries = await ports.store.listEntries({ kind: 'warm-up' });
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].data.beatId, picked.beatId);
+  assert.equal(entries[0].data.rudimentId, picked.rudimentId);
+  assert.ok(entries[0].data.label, 'the record names the pair');
 
-  await lab.completeWarmUp();
-  const entries = await ports.store.listEntries(started.id);
-  assert.deepEqual(entries.map(e => e.kind), ['session-start', 'warm-up-done']);
-  assert.equal(entries[1].data.beatId, picked.beatId);
-  assert.ok(entries[0].data.warmUp, 'the start line names the warm-up');
+  // The pick on offer holds until the next roll.
+  const same = await lab.ensureWarmUp();
+  assert.equal(same.beatId, picked.beatId);
+  assert.equal((await ports.store.listEntries({ kind: 'warm-up' })).length, 1);
 });
 
-await test('a session with no warm-up keeps no warm-up field', async () => {
-  const ports = fakePorts();
-  const lab = createPracticeLab(ports);
-  await lab.init();
-  const started = await lab.startSession({
-    instrument: 'Guitar', technique: 'Legato', target: 'Even trills',
-  });
-  assert.equal('warmUp' in started, false);
-  assert.equal(await lab.completeWarmUp(), null);
-});
-
-await test('the picker skips what the last three sessions warmed up with', async () => {
+await test('the picker skips what the last three picks gave, across reloads', async () => {
   const store = createMemoryStore();
   const seen = [];
   let idCount = 0;
   for (let round = 0; round < 6; round += 1) {
     // Each round is its own mount, with its own hour and its own id prefix, so
-    // the saved sessions sort the way real ones do.
+    // the saved picks sort the way real ones do.
     const lab = createPracticeLab(fakePorts({
       store,
       clock: fakeClock(round * 3600000),
@@ -739,10 +609,6 @@ await test('the picker skips what the last three sessions warmed up with', async
       assert.notEqual(picked.beatId, before.beatId, `round ${round} repeats a groove`);
       assert.notEqual(picked.rudimentId, before.rudimentId, `round ${round} repeats a rudiment`);
     }
-    await lab.startSession({
-      instrument: 'Drums', technique: 'Paradiddles', target: `round ${round}`, warmUp: picked,
-    });
-    await lab.endSession();
     seen.push(picked);
   }
 });
@@ -751,13 +617,21 @@ await test('one trainer runs at a time', async () => {
   const ports = fakePorts();
   const lab = createPracticeLab(ports);
   await lab.init();
-  await lab.startSession({ instrument: 'Drums', technique: 'Paradiddles', target: 'Clean' });
 
   lab.startTrainer({ kind: 'metronome', plan: metronomePlan({ bpm: 100 }), label: 'a' });
   assert.equal(lab.activeTrainer(), 'metronome');
   lab.startTrainer({ kind: 'ratio', plan: ratioPlan({ bpm: 100, beats: 4 }), label: 'b' });
   assert.equal(lab.activeTrainer(), 'ratio');
   lab.stopTrainer();
+  assert.equal(lab.activeTrainer(), '');
+});
+
+await test('a trainer runs before the store answers', () => {
+  const lab = createPracticeLab(fakePorts());
+  const started = lab.startTrainer({ kind: 'metronome', plan: metronomePlan({ bpm: 100 }), label: 'a' });
+  assert.equal(started, true);
+  assert.equal(lab.activeTrainer(), 'metronome');
+  lab.stopAll();
   assert.equal(lab.activeTrainer(), '');
 });
 
@@ -771,7 +645,6 @@ await test('another tool taking the audio stops the lab click', async () => {
   });
   const lab = createPracticeLab(ports);
   await lab.init();
-  await lab.startSession({ instrument: 'Guitar', technique: 'Tapping', target: 'Clean' });
   lab.startTrainer({ kind: 'metronome', plan: metronomePlan({ bpm: 100 }), label: 'a' });
   assert.equal(lab.activeTrainer(), 'metronome');
 
@@ -789,84 +662,57 @@ await test('a refused audio claim leaves no trainer running', async () => {
   });
   const lab = createPracticeLab(ports);
   await lab.init();
-  await lab.startSession({ instrument: 'Voice', technique: 'Range', target: 'Top C' });
   const started = lab.startTrainer({ kind: 'metronome', plan: metronomePlan({ bpm: 90 }), label: 'a' });
   assert.equal(started, false);
   assert.equal(lab.activeTrainer(), '');
   assert.equal(toasts.length, 1);
 });
 
-await test('a clip attaches to the session and a delete marks its log line', async () => {
+await test('a take is kept without a session, listed without its video, and deleted', async () => {
   const ports = fakePorts();
   const lab = createPracticeLab(ports);
   await lab.init();
-  await lab.startSession({ instrument: 'Guitar', technique: 'Vibrato', target: 'Wide and even' });
+  const seen = [];
+  lab.on('clips', (clips) => seen.push(clips.length));
 
-  const clip = await lab.saveClip({
-    blob: { size: 4210331, type: 'video/webm' },
-    mime: 'video/webm', durationMs: 30120, size: 4210331,
-  });
+  const blob = { size: 4210331, type: 'video/webm' };
+  const clip = await lab.saveClip({ blob, mime: 'video/webm', durationMs: 30120, size: 4210331 });
   assert.ok(clip.id.startsWith('pl-clip'));
-  assert.equal(lab.session().totals.clips, 1);
-  const saved = await ports.store.listClips(lab.session().id);
-  assert.equal(saved.length, 1);
+  assert.equal('sessionId' in clip, false);
+  assert.equal('blob' in clip, false);
+  assert.equal(lab.clips().length, 1);
+  assert.equal(lab.clips()[0].durationMs, 30120);
+
+  // The video comes back on request only.
+  const full = await lab.getClip(clip.id);
+  assert.equal(full.blob, blob);
+
+  // A reload lists the same take.
+  const again = createPracticeLab(fakePorts({ store: ports.store }));
+  await again.init();
+  assert.deepEqual(again.clips().map(c => c.id), [clip.id]);
 
   await lab.deleteClip(clip.id);
-  assert.equal(lab.session().totals.clips, 0);
-  const entry = lab.entries().find(e => e.kind === 'clip-saved');
-  assert.equal(entry.data.removed, true);
-  assert.deepEqual(await ports.store.listClips(lab.session().id), []);
+  assert.deepEqual(lab.clips(), []);
+  assert.deepEqual(await ports.store.listClips(), []);
+  assert.deepEqual(seen, [1, 0]);
 });
 
-await test('a blocked database leaves the session in memory with a notice flag', async () => {
+await test('an empty take is refused', async () => {
+  const lab = createPracticeLab(fakePorts());
+  await lab.init();
+  assert.equal(await lab.saveClip({ blob: null }), null);
+  assert.deepEqual(lab.clips(), []);
+});
+
+await test('a blocked database leaves the tools running with a notice flag', async () => {
   const store = createMemoryStore();
   store.isAvailable = () => false;
   const lab = createPracticeLab(fakePorts({ store }));
   await lab.init();
   assert.equal(lab.state.canSave, false);
-  await lab.startSession({ instrument: 'Guitar', technique: 'Bending', target: 'In tune' });
-  assert.equal(lab.hasOpenSession(), true);
-});
-
-await test('deleting a clip of a past session rolls up that session again', async () => {
-  const ports = fakePorts();
-  const lab = createPracticeLab(ports);
-  await lab.init();
-  const past = await lab.startSession({ instrument: 'Guitar', technique: 'Tapping', target: 'Clean' });
-  const clip = await lab.saveClip({ blob: { size: 100, type: 'video/webm' }, durationMs: 1000, size: 100 });
-  await lab.endSession();
-  assert.equal((await ports.store.getSession(past.id)).totals.clips, 1);
-
-  // A new session is open. The delete must reach the past session anyway.
-  await lab.startSession({ instrument: 'Bass', technique: 'Slap', target: 'B' });
-  await lab.deleteClip(clip.id);
-  assert.equal((await ports.store.getSession(past.id)).totals.clips, 0);
-  assert.deepEqual(await ports.store.listClips(past.id), []);
-  const entry = (await ports.store.listEntries(past.id)).find(e => e.kind === 'clip-saved');
-  assert.equal(entry.data.removed, true);
-});
-
-await test('the history reads one session with its log and its clips', async () => {
-  const ports = fakePorts();
-  const lab = createPracticeLab(ports);
-  await lab.init();
-  const one = await lab.startSession({ instrument: 'Guitar', technique: 'Legato', target: 'A' });
-  await lab.appendEntry('timer-complete', { minutes: 2 });
-  await lab.endSession();
-  const two = await lab.startSession({ instrument: 'Bass', technique: 'Slap', target: 'B' });
-  await lab.appendEntry('timer-complete', { minutes: 4 });
-  await lab.endSession();
-
-  const list = await lab.listSessions();
-  assert.equal(list.length, 2);
-  assert.deepEqual(list.map(s => s.totals.timerMs).sort((a, b) => a - b), [120000, 240000]);
-
-  const record = await lab.readSession(one.id);
-  assert.equal(record.session.id, one.id);
-  assert.equal(record.entries[0].kind, 'session-start');
-
-  await lab.deleteSession(two.id);
-  assert.equal((await lab.listSessions()).length, 1);
+  assert.equal(lab.startTrainer({ kind: 'metronome', plan: metronomePlan({ bpm: 90 }), label: 'a' }), true);
+  lab.stopAll();
 });
 
 
@@ -1419,8 +1265,24 @@ await test('the feature folder holds every file of the feature', () => {
   const names = FEATURE_FILES.map(f => f.path);
   assert.ok(names.includes('js/practiceLab/index.js'));
   assert.ok(names.includes('js/practiceLab/container.js'));
+  assert.ok(names.includes('js/practiceLab/ui/practiceView.js'));
   assert.ok(names.some(n => n.startsWith('js/practiceLab/engine/')));
   assert.ok(names.some(n => n.startsWith('js/practiceLab/ui/')));
+});
+
+await test('the session screens, the log, the catalog, and the history are gone', () => {
+  const names = FEATURE_FILES.map(f => f.path);
+  for (const gone of [
+    'js/practiceLab/ui/setupView.js', 'js/practiceLab/ui/sessionView.js',
+    'js/practiceLab/ui/logPanel.js', 'js/practiceLab/ui/historyView.js',
+    'js/practiceLab/model/session.js', 'js/practiceLab/model/catalog.js',
+  ]) {
+    assert.equal(names.includes(gone), false, `${gone} still exists`);
+  }
+  for (const { path, text } of FEATURE_FILES) {
+    assert.equal(/\bstartSession\b|\bendSession\b|\bappendEntry\('(timer|metronome|ratio|speed)/.test(text), false,
+      `${path} still writes a session or a log line`);
+  }
 });
 
 await test('only the adapters import from outside the folder', () => {

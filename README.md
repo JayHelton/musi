@@ -57,13 +57,11 @@ Drills that build your ear, your reading, and your hands.
     the root. An interval that does not fit your vocal range is dropped, and the
     card names it.
   - *Ear training* — identify a pitch, a degree, or an interval by ear.
-- **Practice Lab** — one screen for one practice session, in five tabs:
-  - *Session* — pick an instrument, a technique, and a target, then run timers,
-    click patterns, ratio drills, a tempo ladder, and camera takes. Every action
-    goes in the session log. A drum session opens with a warm-up: the tool picks
-    one groove and one rudiment for you, and it never picks what the last three
-    sessions used. The pick rides on the session record, so the History tab
-    shows what each session warmed up with.
+- **Practice Lab** — the practice tools, ready the moment a tab opens, in
+  four tabs. There is no session to start, no session to end, and no log.
+  - *Practice* — a timer, a click, ratio drills, a tempo ladder, and a camera.
+    The camera keeps every take on the device until you delete it, and the
+    takes play back under the camera.
   - *Vocal* — clean and harsh vocal practice. Clean has Chest, Mix, and Head,
     and it runs on the same Pitch Runner the rest of the app uses, with the same
     Start octave control and the same score text: a run from a Guitar Pro file
@@ -79,7 +77,9 @@ Drills that build your ear, your reading, and your hands.
     starter exercises, which Musi writes into that folder as normal library
     exercises. Effort is optional: Easy, Working, or Strained. Musi records
     Strained and never rewards it.
-  - *Drums* — the drum library. Beats holds grooves from ten genres — rock,
+  - *Drums* — a warm-up and the drum library. The warm-up picks one groove and
+    one rudiment for you, and it never picks what the last three picks gave.
+    Press Pick another for a new pair. Beats holds grooves from ten genres — rock,
     punk, metal, jazz, blues, funk, latin, reggae, country, and hip-hop. Each
     one runs three bars of the groove and one bar of a fill that belongs to the
     genre, and no entry is longer than eight bars. Rudiments holds the flams,
@@ -99,7 +99,6 @@ Drills that build your ear, your reading, and your hands.
     labs, the song study, and the capstone rubric carry the longer work.
     Intervals, Scales, and Chords stay one tap away in a drawer, and opening one
     never disturbs the exercise underneath.
-  - *History* — every past session with its log and its clips.
 
 ## Study
 
@@ -125,13 +124,22 @@ Look up scales, chords, triads, and key relationships.
 
 Record, write, and keep notes.
 
-- **Audio Studio** — four modes over one recording:
-  - *Record* — capture a take with the microphone, then play it back, save it to
-    the Library, or download it.
-  - *Analyze* — detected key, detected pitches, and a note list for the take.
-  - *Transcribe* — read the pitches of a sung or hummed riff, or drop an
-    isolated audio stem and read it onto basic sheet music.
-  - *Pitch Runner* — sing the take back. The detected pitches become a run of
+- **Audio Studio** — three tabs over one recording:
+  - *Record* — capture a take with the microphone, then play it back, save it
+    to the Library, or download it. The take opens as an idea: the notes you
+    sang, in the order you sang them, on a piano roll and as a row of chips.
+    Each note shows how many cents your voice sat above or below it, and a
+    note sits high in its row when you sang sharp and low when you sang flat.
+    Musi names the key. Pick Voice, Guitar, or Bass to tell the detector what
+    it hears. Snap to key moves every out-of-key note to the nearest note of
+    the key. Tap a note to move it by a semitone or an octave, or to drop it.
+    Play notes plays the idea back on a plain tone so you can check it. Copy
+    notes puts the names, the times, and the cents on the clipboard. Guitar
+    tab reads the idea onto the neck, and Open in Score Player opens that tab
+    in the Score Player, so a hummed riff turns into something you can loop.
+    Tempo and analysis holds the tempo, the meter, and the detector settings.
+  - *Import* — drop an isolated audio stem and read it onto basic sheet music.
+  - *Pitch Runner* — sing the take back. The notes of the idea become a run of
     the pitch-runner game, and you can save that run to Exercises.
 - **Song Studio** — write lyrics and attach a recording to each song.
 - **Notes** — plain practice notes and ideas.

@@ -1,7 +1,7 @@
 // The Vocal tab of Practice Lab.
 //
-// Vocal practice is a practice type of Practice Lab, next to the instrument
-// session. It has two styles and three registers each:
+// Vocal practice is one tab of Practice Lab. It has two styles and three
+// registers each:
 //
 //   Clean — Chest, Mix, Head   → the shared Pitch Runner plays the exercise
 //   Harsh — Low, Mid, High     → the Cue Runner shows timed instructions
@@ -314,14 +314,6 @@ export function createVocalView(lab) {
     stage = null;
   }
 
-  function sessionLabels(item) {
-    return {
-      instrument: 'Voice',
-      technique: `${STYLE_LABELS[style]} · ${registerLabel(register)}`,
-      target: item ? item.name : 'Vocal practice',
-    };
-  }
-
   async function saveAttempt(item, extra) {
     const data = newVocalAttempt({
       exerciseId: item.id,
@@ -332,7 +324,7 @@ export function createVocalView(lab) {
       focus: focusOf(item),
       ...extra,
     });
-    await lab.logVocalAttempt(data, sessionLabels(item));
+    await lab.logVocalAttempt(data);
     paintRecent();
   }
 

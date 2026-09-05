@@ -149,10 +149,10 @@ test('the tempo plan lives inside the Metronome', () => {
   assert.deepEqual(getTool('metronome').modes.map(m => m.id), ['metronome', 'plan']);
 });
 
-test('the Practice Lab holds a session, vocal, drums, composition, and history mode', () => {
+test('the Practice Lab holds a practice, vocal, drums, and composition mode', () => {
   assert.deepEqual(getTool('practicelab').modes.map(m => m.id),
-    ['session', 'vocal', 'drums', 'composition', 'history']);
-  assert.equal(getTool('practicelab').defaultMode, 'session');
+    ['practice', 'vocal', 'drums', 'composition']);
+  assert.equal(getTool('practicelab').defaultMode, 'practice');
 });
 
 test('Composition Lab replaced the Chords and Scales tab of the Practice Lab', () => {
@@ -176,7 +176,7 @@ test('one theory source of truth serves Study and the Practice Lab', () => {
 test('transcription and the pitch run live inside Audio Studio', () => {
   assert.equal(getTool('tracktosheet'), null);
   assert.deepEqual(getTool('audiostudio').modes.map(m => m.id),
-    ['capture', 'analyze', 'transcribe', 'run']);
+    ['capture', 'transcribe', 'run']);
 });
 
 console.log('Navigation');

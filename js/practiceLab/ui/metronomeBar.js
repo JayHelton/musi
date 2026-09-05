@@ -1,4 +1,4 @@
-// The compact metronome across the bottom of the session view.
+// The compact metronome across the bottom of the Practice tab.
 //
 // The bar holds the tempo, a minus control, a plus control, a start control,
 // and a beat light. A tempo change while the click runs takes effect without a
@@ -16,10 +16,6 @@ const BIG_STEP = 5;
  */
 export function createMetronomeBar(lab) {
   let bpm = LIMITS.bpm.def;
-  let bpmStart = bpm;
-  let bpmLow = bpm;
-  let bpmHigh = bpm;
-  let startedMs = 0;
 
   const readout = el('output', { class: 'pl-metro-bpm', text: String(bpm) });
   readout.setAttribute('aria-live', 'off');
@@ -50,11 +46,7 @@ export function createMetronomeBar(lab) {
     bpm = value;
     readout.textContent = String(bpm);
     tempoSlider.set(bpm);
-    if (lab.activeTrainer() === 'metronome') {
-      bpmLow = Math.min(bpmLow, bpm);
-      bpmHigh = Math.max(bpmHigh, bpm);
-      lab.scheduler.setBpm(bpm);
-    }
+    if (lab.activeTrainer() === 'metronome') lab.scheduler.setBpm(bpm);
   }
 
   function flash(level) {
@@ -74,32 +66,17 @@ export function createMetronomeBar(lab) {
   }
 
   function start() {
-    bpmStart = bpm;
-    bpmLow = bpm;
-    bpmHigh = bpm;
-    startedMs = lab.ports.clock.nowMs();
     const started = lab.startTrainer({
       kind: 'metronome',
       plan: metronomePlan({ bpm, beatsPerBar: 4 }),
       label: `Practice Lab — ${bpm} BPM`,
       handlers: {
         onBeat: (beat) => flash(beat.level),
-        onEnd: async () => {
-          paintRunning(false);
-          const elapsedMs = Math.max(0, lab.ports.clock.nowMs() - startedMs);
-          await lab.appendEntry('metronome-stop', {
-            bpmStart,
-            bpmEnd: bpm,
-            bpmLow,
-            bpmHigh,
-            elapsedMs,
-          });
-        },
+        onEnd: () => paintRunning(false),
       },
     });
     if (!started) return;
     paintRunning(true);
-    lab.appendEntry('metronome-start', { bpm, beatsPerBar: 4 });
   }
 
   function stop() {

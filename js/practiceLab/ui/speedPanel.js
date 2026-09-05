@@ -1,7 +1,7 @@
 // The speed trainer: a tempo ladder that climbs and then stops.
 //
 // The trainer plays the set loops at each tempo, then raises the tempo by the
-// increment. It stops at the end tempo and writes the top tempo in the log.
+// increment. It stops at the end tempo and names the top tempo it reached.
 
 import { el, pressable, stepper, toggle, notice } from './dom.js';
 import { speedPlan, speedSteps, LIMITS } from '../engine/timeline.js';
@@ -25,7 +25,6 @@ export function createSpeedPanel(lab) {
     stepCountIn: LIMITS.repeatCountIn.def,
   };
 
-  let startedMs = 0;
   let topReached = 0;
 
   const nowLine = el('p', { class: 'pl-now-line', text: 'Ready.' });
@@ -132,7 +131,6 @@ export function createSpeedPanel(lab) {
       return;
     }
     problem.hidden = true;
-    startedMs = lab.ports.clock.nowMs();
     topReached = settings.startBpm;
     const steps = speedSteps(settings);
     const started = lab.startTrainer({
@@ -148,28 +146,16 @@ export function createSpeedPanel(lab) {
             stepLine.textContent = `Step ${at} of ${steps.length}`;
           }
         },
-        onEnd: async ({ completed }) => {
+        onEnd: ({ completed }) => {
           paintRunning(false);
-          nowLine.textContent = completed ? `Finished at ${topReached} BPM.` : 'Ready.';
-          const elapsedMs = Math.max(0, lab.ports.clock.nowMs() - startedMs);
-          await lab.appendEntry('speed-complete', {
-            topBpm: topReached,
-            elapsedMs,
-            finished: !!completed,
-          });
+          nowLine.textContent = completed
+            ? `Finished at ${topReached} BPM.`
+            : `Stopped at ${topReached} BPM.`;
         },
       },
     });
     if (!started) return;
     paintRunning(true);
-    lab.appendEntry('speed-start', {
-      timeSig: `${settings.timeSig}/4`,
-      startBpm: settings.startBpm,
-      endBpm: settings.endBpm,
-      increment: settings.increment,
-      barsPerLoop: settings.barsPerLoop,
-      loopsPerStep: settings.loopsPerStep,
-    });
   }
 
   function stop() {

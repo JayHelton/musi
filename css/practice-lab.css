@@ -1,4 +1,4 @@
-/* Practice Lab — one screen for one practice session.
+/* Practice Lab — the practice tools, ready when the tab opens.
    The panels read as LCD screen tiles on the Atomic Purple shell. Every colour
    and every font comes from css/base.css and css/theme-gbc.css. */
 
@@ -245,46 +245,17 @@
 .pl-toggle-box { width: 20px; height: 20px; accent-color: var(--accent); }
 .pl-toggle-label { font-family: var(--font-body); font-size: .92rem; color: var(--text); }
 
-/* ---- setup ---- */
+/* ---- the Practice tab ---- */
 
-.pl-setup { display: flex; flex-direction: column; gap: 20px; max-width: 760px; }
-.pl-setup-title { font-family: var(--font-pixel); font-size: .86rem; color: var(--accent); margin: 0 0 6px; }
-.pl-setup-sub { font-family: var(--font-body); color: var(--muted); font-size: .92rem; }
-.pl-setup-block {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen);
-  padding: 16px;
-  box-shadow: inset 0 1px 0 rgba(180, 140, 255, .12);
-}
-.pl-setup-actions { display: flex; justify-content: flex-start; }
-
-/* ---- session ---- */
-
-.pl-session { display: flex; flex-direction: column; gap: 16px; }
+.pl-practice { display: flex; flex-direction: column; gap: 16px; }
 /* The click bar pins itself over the panels. The gap keeps the last panel
    clear of it once the player scrolls to the end. */
-.pl-session-grid { margin-bottom: 4px; }
-.pl-session-head {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  padding: 14px 16px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen);
-}
-.pl-session-title { font-family: var(--font-pixel); font-size: .78rem; color: var(--accent); margin: 0 0 8px; }
-.pl-session-target { font-family: var(--font-body); font-size: .96rem; color: var(--text); max-width: 60ch; }
-.pl-session-totals { font-family: var(--font-ui); font-size: 1rem; color: var(--muted); margin-top: 6px; }
-
-.pl-session-grid {
+.pl-practice-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 16px;
   align-items: start;
+  margin-bottom: 4px;
 }
 .pl-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
@@ -333,30 +304,35 @@
 .pl-camera-status { font-family: var(--font-body); font-size: .88rem; color: var(--muted); }
 .pl-camera-elapsed { font-family: var(--font-ui); font-size: 1.15rem; color: var(--btn-a); }
 
-/* ---- log ---- */
+/* ---- takes ---- */
 
-.pl-log-wrap { max-height: 44vh; overflow-y: auto; }
-.pl-log-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; }
-.pl-log-row {
+.pl-takes-label { margin: 6px 0 0; }
+.pl-takes-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  max-height: 44vh;
+  overflow-y: auto;
+}
+.pl-take-row {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 10px;
+  gap: 6px 10px;
   align-items: baseline;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg2);
 }
-.pl-log-time { font-family: var(--font-ui); font-size: .98rem; color: var(--muted); white-space: nowrap; }
-.pl-log-text { font-family: var(--font-body); font-size: .9rem; color: var(--text); }
-.pl-log-flag { font-family: var(--font-body); font-size: .82rem; color: var(--muted); }
-.pl-log-row.pl-log-note { border-color: var(--accent2); }
-.pl-log-row.pl-log-session-start,
-.pl-log-row.pl-log-session-end { border-color: var(--accent); }
-.pl-log-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.pl-take-time { font-family: var(--font-ui); font-size: .98rem; color: var(--muted); white-space: nowrap; }
+.pl-take-text { font-family: var(--font-body); font-size: .9rem; color: var(--text); }
+.pl-take-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.pl-take-empty { list-style: none; }
 .pl-clip-media { grid-column: 1 / -1; }
 .pl-clip-video { width: 100%; border-radius: 12px; background: var(--bg); }
-.pl-log-empty { list-style: none; }
 
 /* ---- metronome bar ---- */
 
@@ -409,34 +385,6 @@
 .pl-metro-slider { flex: 1 1 auto; min-width: 100px; }
 .pl-metro-play { min-width: 118px; }
 
-/* ---- history ---- */
-
-.pl-history { display: flex; flex-direction: column; gap: 12px; }
-.pl-history-list { display: flex; flex-direction: column; gap: 10px; }
-.pl-history-row {
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  padding: 14px 16px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen);
-}
-.pl-history-row.open { border-color: var(--accent); }
-.pl-history-row-title { font-family: var(--font-body); font-size: 1rem; color: var(--text); margin: 4px 0; }
-.pl-history-title { font-family: var(--font-pixel); font-size: .8rem; color: var(--accent); margin: 10px 0 6px; }
-.pl-history-meta { font-family: var(--font-ui); font-size: 1rem; color: var(--muted); }
-.pl-history-target { font-family: var(--font-body); font-size: .9rem; color: var(--text); max-width: 60ch; }
-.pl-history-row-actions { display: flex; gap: 8px; align-items: flex-start; }
-.pl-history-detail { display: flex; flex-direction: column; gap: 12px; }
-.pl-history-detail-head {
-  padding: 14px 16px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-screen);
-}
-
 /* ---- small screens ---- */
 
 /* The bottom dock replaces the rail here, so the bar sits above the dock. */
@@ -445,7 +393,7 @@
 }
 
 @media (max-width: 720px) {
-  .pl-session-grid { grid-template-columns: 1fr; }
+  .pl-practice-grid { grid-template-columns: 1fr; }
   .pl-timer-presets { grid-template-columns: repeat(5, 1fr); }
   .pl-metro-bar { gap: 8px; padding: 10px 12px; }
   .pl-metro-play { min-width: 96px; flex: 1 1 100%; }
@@ -454,12 +402,12 @@
 
 @media (max-width: 420px) {
   .pl-metro-controls { order: 3; flex: 1 1 100%; }
-  .pl-history-row-actions { width: 100%; }
+  .pl-take-actions { width: 100%; }
 }
 
 /* Landscape on a phone: keep the click reachable and the panels short. */
 @media (max-height: 520px) and (orientation: landscape) {
-  .pl-log-wrap { max-height: 30vh; }
+  .pl-takes-list { max-height: 30vh; }
   .pl-mirror { max-height: 40vh; }
   .pl-timer-readout { font-size: 1.5rem; padding: 4px 0; }
 }

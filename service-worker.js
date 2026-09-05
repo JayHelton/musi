@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v297-gp-player-vnext";
+const CACHE_VERSION = "v298-practice-lab-idea";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -99,6 +99,9 @@ const PRECACHE_URLS = [
   "js/audioDock.js",
   "js/audioOwner.js",
   "js/audioStudioRunner.js",
+  "js/audioStudio/ideaModel.js",
+  "js/audioStudio/ideaSynth.js",
+  "js/audioStudio/ideaView.js",
   "js/bootSplash.js",
   "js/chordFinder.js",
   "js/chordReference.js",
@@ -264,8 +267,8 @@ const PRECACHE_URLS = [
   "js/practiceLab/engine/expand.js",
   "js/practiceLab/engine/scheduler.js",
   "js/practiceLab/engine/timeline.js",
-  "js/practiceLab/model/catalog.js",
   "js/practiceLab/model/compositionContext.js",
+  "js/practiceLab/model/entries.js",
   "js/practiceLab/model/compositionExercises.js",
   "js/practiceLab/model/compositionState.js",
   "js/practiceLab/model/guidedLabs.js",
@@ -273,7 +276,6 @@ const PRECACHE_URLS = [
   "js/practiceLab/model/rhythmGrid.js",
   "js/practiceLab/model/cleanCheatSheet.js",
   "js/practiceLab/model/harshCheatSheet.js",
-  "js/practiceLab/model/session.js",
   "js/practiceLab/model/vocal.js",
   "js/practiceLab/ui/cameraPanel.js",
   "js/practiceLab/ui/cheatSheetDrawer.js",
@@ -288,16 +290,13 @@ const PRECACHE_URLS = [
   "js/practiceLab/ui/exercisePanel.js",
   "js/practiceLab/ui/harshCheatSheetView.js",
   "js/practiceLab/ui/hearPanel.js",
-  "js/practiceLab/ui/historyView.js",
   "js/practiceLab/ui/labPanel.js",
-  "js/practiceLab/ui/logPanel.js",
   "js/practiceLab/ui/metronomeBar.js",
   "js/practiceLab/ui/motifPanel.js",
+  "js/practiceLab/ui/practiceView.js",
   "js/practiceLab/ui/ratiosPanel.js",
   "js/practiceLab/ui/referenceDrawer.js",
   "js/practiceLab/ui/rhythmGridView.js",
-  "js/practiceLab/ui/sessionView.js",
-  "js/practiceLab/ui/setupView.js",
   "js/practiceLab/ui/speedPanel.js",
   "js/practiceLab/ui/timerPanel.js",
   "js/practiceLab/ui/trainerTabs.js",

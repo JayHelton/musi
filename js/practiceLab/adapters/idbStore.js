@@ -5,17 +5,15 @@
 // every call resolves to a safe empty result and `isAvailable()` returns false,
 // so the user interface can show a notice.
 //
-// The blobs live in their own store, so a log read never loads video.
+// The blobs live in their own store, so an entry read never loads video. An
+// older version of this database also holds a `sessions` store and a
+// `catalog` store. The tool no longer reads them, and it leaves them alone.
 
 const DB_NAME = 'musi-practice-lab';
 const DB_VERSION = 1;
 
-const STORE_SESSIONS = 'sessions';
 const STORE_ENTRIES = 'entries';
 const STORE_CLIPS = 'clips';
-const STORE_CATALOG = 'catalog';
-
-const ALL_STORES = [STORE_SESSIONS, STORE_ENTRIES, STORE_CLIPS, STORE_CATALOG];
 
 function canUseIDB() {
   try {
@@ -25,9 +23,9 @@ function canUseIDB() {
   }
 }
 
-// A browser MAY evict IndexedDB under storage pressure. A practice log and its
-// clips are worth keeping, so ask once for persistent storage on the first
-// write. Best-effort and idempotent.
+// A browser MAY evict IndexedDB under storage pressure. A take is worth
+// keeping, so ask once for persistent storage on the first write. Best-effort
+// and idempotent.
 let persistenceRequested = false;
 async function ensurePersistentStorage() {
   if (persistenceRequested) return;
@@ -45,22 +43,12 @@ async function ensurePersistentStorage() {
 }
 
 function upgrade(db) {
-  if (!db.objectStoreNames.contains(STORE_SESSIONS)) {
-    const store = db.createObjectStore(STORE_SESSIONS, { keyPath: 'id' });
-    store.createIndex('startedAt', 'startedAt');
-    store.createIndex('status', 'status');
-  }
   if (!db.objectStoreNames.contains(STORE_ENTRIES)) {
     const store = db.createObjectStore(STORE_ENTRIES, { keyPath: 'id' });
-    store.createIndex('sessionId', 'sessionId');
-    store.createIndex('sessionAt', ['sessionId', 'at']);
+    store.createIndex('at', 'at');
   }
   if (!db.objectStoreNames.contains(STORE_CLIPS)) {
-    const store = db.createObjectStore(STORE_CLIPS, { keyPath: 'id' });
-    store.createIndex('sessionId', 'sessionId');
-  }
-  if (!db.objectStoreNames.contains(STORE_CATALOG)) {
-    db.createObjectStore(STORE_CATALOG, { keyPath: 'id' });
+    db.createObjectStore(STORE_CLIPS, { keyPath: 'id' });
   }
 }
 
@@ -135,11 +123,9 @@ export function createIdbStore() {
     });
   }
 
-  function allByIndex(storeName, indexName, key) {
+  function all(storeName) {
     return run(storeName, 'readonly', (tx, done) => {
-      const store = tx.objectStore(storeName);
-      const source = indexName ? store.index(indexName) : store;
-      const req = source.getAll(key);
+      const req = tx.objectStore(storeName).getAll();
       req.onsuccess = () => done(req.result || []);
     });
   }
@@ -147,86 +133,15 @@ export function createIdbStore() {
   return {
     isAvailable() { return available; },
 
-    async getCatalog() {
-      return get(STORE_CATALOG, 'catalog');
-    },
-    async saveCatalog(record) {
-      ensurePersistentStorage();
-      return put(STORE_CATALOG, record);
-    },
-
-    async createSession(session) {
-      ensurePersistentStorage();
-      return put(STORE_SESSIONS, session);
-    },
-    async endSession(id, patch) {
-      return run(STORE_SESSIONS, 'readwrite', (tx, done) => {
-        const store = tx.objectStore(STORE_SESSIONS);
-        const req = store.get(id);
-        req.onsuccess = () => {
-          const found = req.result;
-          if (!found) return;
-          const next = { ...found, ...patch };
-          store.put(next);
-          done(next);
-        };
-      });
-    },
-    async getSession(id) {
-      return get(STORE_SESSIONS, id);
-    },
-    async listSessions({ status = '' } = {}) {
-      const all = await allByIndex(STORE_SESSIONS, null, undefined);
-      const list = Array.isArray(all) ? all : [];
-      return list
-        .filter(s => !status || s.status === status)
-        .sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)));
-    },
-    async deleteSession(id) {
-      const done = await run(ALL_STORES, 'readwrite', (tx, resolve) => {
-        tx.objectStore(STORE_SESSIONS).delete(id);
-        const entryIndex = tx.objectStore(STORE_ENTRIES).index('sessionId');
-        const entryReq = entryIndex.getAllKeys(id);
-        entryReq.onsuccess = () => {
-          for (const key of entryReq.result || []) tx.objectStore(STORE_ENTRIES).delete(key);
-        };
-        const clipIndex = tx.objectStore(STORE_CLIPS).index('sessionId');
-        const clipReq = clipIndex.getAllKeys(id);
-        clipReq.onsuccess = () => {
-          for (const key of clipReq.result || []) tx.objectStore(STORE_CLIPS).delete(key);
-        };
-        resolve(true);
-      });
-      return done === true;
-    },
-
     async appendEntry(entry) {
       return put(STORE_ENTRIES, entry);
     },
-    async listEntries(sessionId) {
-      const all = await allByIndex(STORE_ENTRIES, 'sessionId', sessionId);
-      const list = Array.isArray(all) ? all : [];
-      return list.sort((a, b) => String(a.at).localeCompare(String(b.at)));
-    },
-    async listAllEntries({ kind = '' } = {}) {
-      const all = await allByIndex(STORE_ENTRIES, null, undefined);
-      const list = Array.isArray(all) ? all : [];
-      return list
+    async listEntries({ kind = '', limit = 0 } = {}) {
+      const found = await all(STORE_ENTRIES);
+      const list = (Array.isArray(found) ? found : [])
         .filter(entry => !kind || entry.kind === kind)
         .sort((a, b) => String(a.at).localeCompare(String(b.at)));
-    },
-    async updateEntry(id, patch) {
-      return run(STORE_ENTRIES, 'readwrite', (tx, done) => {
-        const store = tx.objectStore(STORE_ENTRIES);
-        const req = store.get(id);
-        req.onsuccess = () => {
-          const found = req.result;
-          if (!found) return;
-          const next = { ...found, data: { ...found.data, ...patch } };
-          store.put(next);
-          done(next);
-        };
-      });
+      return limit > 0 ? list.slice(-Math.round(limit)) : list;
     },
 
     async saveClip(clip) {
@@ -236,10 +151,11 @@ export function createIdbStore() {
     async getClip(id) {
       return get(STORE_CLIPS, id);
     },
-    async listClips(sessionId) {
-      const all = await allByIndex(STORE_CLIPS, 'sessionId', sessionId);
-      const list = Array.isArray(all) ? all : [];
-      return list.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    async listClips() {
+      const found = await all(STORE_CLIPS);
+      return (Array.isArray(found) ? found : [])
+        .map(({ blob, ...rest }) => rest)
+        .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
     },
     async deleteClip(id) {
       const done = await run(STORE_CLIPS, 'readwrite', (tx, resolve) => {

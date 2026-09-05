@@ -21,8 +21,6 @@ export function createRatiosPanel(lab) {
     repeatCountIn: LIMITS.repeatCountIn.def,
   };
 
-  let startedMs = 0;
-
   const nowLine = el('p', { class: 'pl-now-line', text: 'Ready.' });
   nowLine.setAttribute('aria-live', 'polite');
   const beatLine = el('p', { class: 'pl-beat-line', text: '' });
@@ -77,7 +75,6 @@ export function createRatiosPanel(lab) {
 
   function start() {
     const plan = ratioPlan(settings);
-    startedMs = lab.ports.clock.nowMs();
     const started = lab.startTrainer({
       kind: 'ratio',
       plan,
@@ -87,23 +84,14 @@ export function createRatiosPanel(lab) {
         onBeat: (beat) => {
           beatLine.textContent = `Beat ${beat.beatIndex + 1} of ${beat.segment.beats}`;
         },
-        onEnd: async ({ cycles }) => {
+        onEnd: ({ cycles }) => {
           paintRunning(false);
-          nowLine.textContent = 'Ready.';
-          const elapsedMs = Math.max(0, lab.ports.clock.nowMs() - startedMs);
-          await lab.appendEntry('ratio-stop', { cycles, elapsedMs });
+          nowLine.textContent = cycles ? `Ready. ${cycles} cycle${cycles === 1 ? '' : 's'} done.` : 'Ready.';
         },
       },
     });
     if (!started) return;
     paintRunning(true);
-    lab.appendEntry('ratio-start', {
-      bpm: settings.bpm,
-      beats: settings.beats,
-      loopA: (SUBDIVISIONS.find(s => s.id === settings.loopA) || {}).label,
-      loopB: (SUBDIVISIONS.find(s => s.id === settings.loopB) || {}).label,
-      countIn: settings.countIn,
-    });
   }
 
   function stop() {

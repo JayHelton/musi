@@ -9,22 +9,15 @@
 // container checks at mount time.
 
 /**
+ * The store keeps two things: entries (vocal attempts and warm-up picks) and
+ * camera takes. It keeps no session.
  * @typedef {Object} PracticeStore
- * @property {() => Promise<Object|null>} getCatalog
- * @property {(record: Object) => Promise<Object|null>} saveCatalog
- * @property {(session: Object) => Promise<Object|null>} createSession
- * @property {(id: string, patch: Object) => Promise<Object|null>} endSession
- * @property {(id: string) => Promise<Object|null>} getSession
- * @property {(options?: Object) => Promise<Object[]>} listSessions
  * @property {(entry: Object) => Promise<Object|null>} appendEntry
- * @property {(sessionId: string) => Promise<Object[]>} listEntries
- * @property {(options?: Object) => Promise<Object[]>} listAllEntries
- * @property {(id: string, patch: Object) => Promise<Object|null>} updateEntry
+ * @property {(options?: { kind?: string, limit?: number }) => Promise<Object[]>} listEntries
  * @property {(clip: Object) => Promise<Object|null>} saveClip
  * @property {(id: string) => Promise<Object|null>} getClip
- * @property {(sessionId: string) => Promise<Object[]>} listClips
+ * @property {() => Promise<Object[]>} listClips
  * @property {(id: string) => Promise<boolean>} deleteClip
- * @property {(id: string) => Promise<boolean>} deleteSession
  * @property {() => boolean} isAvailable
  */
 
@@ -87,9 +80,7 @@
 /** The method each port must supply. The container checks this list. */
 export const PORT_CONTRACT = {
   store: [
-    'getCatalog', 'saveCatalog',
-    'createSession', 'endSession', 'getSession', 'listSessions', 'deleteSession',
-    'appendEntry', 'listEntries', 'listAllEntries', 'updateEntry',
+    'appendEntry', 'listEntries',
     'saveClip', 'getClip', 'listClips', 'deleteClip',
     'isAvailable',
   ],

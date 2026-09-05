@@ -1,12 +1,90 @@
-// The camera panel: a live mirror and a recorder.
+// The camera panel: a live mirror, a recorder, and the saved takes.
 //
-// A live mirror finds a technique problem in the moment; a clip finds one
-// after. The clip holds the microphone sound, so the player hears the notes
-// and the click.
+// A live mirror finds a technique problem in the moment; a take finds one
+// after. The take holds the microphone sound, so the player hears the notes
+// and the click. Every take stays on this device until the player deletes it.
 
-import { el, pressable, panel, notice } from './dom.js';
-import { formatDuration } from '../model/session.js';
+import { el, clear, pressable, panel, notice } from './dom.js';
+import { formatDuration, plural } from '../model/entries.js';
 import { CLIP_CAPS } from '../container.js';
+
+function dateOf(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString([], {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+/**
+ * The list of saved takes. Each row plays inside the list, and each row has
+ * a delete control.
+ * @param {Object} lab
+ * @returns {{ root: HTMLElement, refresh: Function }}
+ */
+export function createTakesList(lab) {
+  const list = el('ol', { class: 'pl-takes-list' });
+  list.setAttribute('aria-label', 'Saved takes');
+
+  function row(clip) {
+    const media = el('div', { class: 'pl-clip-media' });
+    media.hidden = true;
+    const playBtn = pressable({
+      label: 'Play',
+      className: 'small',
+      ariaLabel: `Play the ${formatDuration(clip.durationMs)} take of ${dateOf(clip.createdAt)}`,
+      onPress: async () => {
+        if (!media.hidden) {
+          media.hidden = true;
+          clear(media);
+          playBtn.textContent = 'Play';
+          return;
+        }
+        const full = await lab.getClip(clip.id);
+        clear(media);
+        if (!full || !full.blob) {
+          media.appendChild(notice('That take is no longer on this device.', 'warn'));
+          media.hidden = false;
+          return;
+        }
+        const video = el('video', { class: 'pl-clip-video', controls: true, playsInline: true });
+        video.src = URL.createObjectURL(full.blob);
+        video.addEventListener('emptied', () => URL.revokeObjectURL(video.src), { once: true });
+        media.appendChild(video);
+        media.hidden = false;
+        playBtn.textContent = 'Hide';
+        video.play().catch(() => { /* the player presses play */ });
+      },
+    });
+    return el('li', { class: 'pl-take-row' }, [
+      el('span', { class: 'pl-take-time', text: dateOf(clip.createdAt) }),
+      el('span', { class: 'pl-take-text', text: `${formatDuration(clip.durationMs)} take` }),
+      el('div', { class: 'pl-take-actions' }, [
+        playBtn,
+        pressable({
+          label: 'Delete',
+          className: 'small danger',
+          ariaLabel: `Delete the take of ${dateOf(clip.createdAt)}`,
+          onPress: () => lab.deleteClip(clip.id),
+        }),
+      ]),
+      media,
+    ]);
+  }
+
+  function refresh() {
+    clear(list);
+    const clips = [...lab.clips()].reverse();
+    if (!clips.length) {
+      list.appendChild(el('li', { class: 'pl-take-empty' }, [notice('No takes yet. Record one above.')]));
+      return;
+    }
+    for (const clip of clips) list.appendChild(row(clip));
+  }
+
+  refresh();
+  return { root: list, refresh };
+}
 
 /**
  * @param {Object} lab
@@ -20,6 +98,13 @@ export function createCameraPanel(lab) {
   let busy = false;
 
   const view = panel('Camera', 'pl-camera');
+  const takes = createTakesList(lab);
+  const takesHead = el('p', { class: 'pl-field-label pl-takes-label', text: '' });
+  function paintTakesHead() {
+    takesHead.textContent = plural(lab.clips().length, 'take');
+  }
+  const offClips = lab.on('clips', () => { takes.refresh(); paintTakesHead(); });
+  paintTakesHead();
 
   const mirror = el('video', { class: 'pl-mirror', muted: true, playsInline: true, autoplay: true });
   mirror.setAttribute('aria-label', 'Camera mirror');
@@ -125,15 +210,15 @@ export function createCameraPanel(lab) {
     }
     const saved = await lab.saveClip(clip);
     if (!saved) {
-      status.textContent = 'The clip could not be saved.';
+      status.textContent = 'The take could not be saved.';
       return;
     }
     if (reason === 'duration') {
-      status.textContent = `Clip saved. The recorder stopped at the ${CLIP_CAPS.durationMs / 60000} minute cap.`;
+      status.textContent = `Take saved. The recorder stopped at the ${CLIP_CAPS.durationMs / 60000} minute cap.`;
     } else if (reason === 'size') {
-      status.textContent = 'Clip saved. The recorder stopped at the size cap.';
+      status.textContent = 'Take saved. The recorder stopped at the size cap.';
     } else {
-      status.textContent = `Clip saved — ${formatDuration(clip.durationMs)}.`;
+      status.textContent = `Take saved — ${formatDuration(clip.durationMs)}.`;
     }
   }
 
@@ -157,14 +242,17 @@ export function createCameraPanel(lab) {
     elapsed,
     el('p', {
       class: 'pl-hint',
-      text: `A clip stops itself at ${CLIP_CAPS.durationMs / 60000} minutes or ${Math.round(CLIP_CAPS.bytes / (1024 * 1024))} MB.`,
+      text: `A take stops itself at ${CLIP_CAPS.durationMs / 60000} minutes or ${Math.round(CLIP_CAPS.bytes / (1024 * 1024))} MB.`,
     }),
+    takesHead,
+    takes.root,
   );
 
   return {
     root: view.root,
     /** Stop the recorder and the camera when the tool closes. */
     stop() {
+      offClips();
       if (videoPort.isRecording?.()) {
         // Save what the recorder holds rather than losing the take.
         stopRecording('close');

@@ -1,15 +1,37 @@
+// The Audio Studio recorder.
+//
+// The Record tab captures a take, then reads the idea out of it: the notes
+// the singer sang, in the order they sang them. The idea model lives in
+// js/audioStudio/ideaModel.js, the roll and the chips in ideaView.js, and the
+// playback tone in ideaSynth.js. This file owns the microphone, the take, and
+// the wiring between them.
+
 import { audioCtx, ensureAudio, getAnalyserDestination, requestMicStream, releaseMicStream } from './audio.js';
-import { NOTE_NAMES_SHARP, noteFromFreq } from './theory.js';
+import { noteFromFreq } from './theory.js';
 import { getSetting, saveSetting } from './persistence.js';
 import { detectPitch } from './pitch.js';
 import { saveAudio, attachmentsSupported } from './attachments.js';
-import { detectKey, keyLabel } from './analysis/keyDetect.js';
 import { decodeAudioFile, transcribeBuffer } from './trackToSheet/transcribe.js';
 import { createAnalysisPanel } from './trackToSheet/analysisPanel.js';
+import { transcriptionToGpResult } from './trackToSheet/toTabModel.js';
 import { setAudioStudioRun, openAudioStudioRunner } from './audioStudioRunner.js';
 import { registerUnsaved, clearUnsaved } from './shell/unsavedGuard.js';
 import { claimAudio, releaseAudio } from './audioOwner.js';
 import { openSelectionSheet } from './selectionSheet.js';
+import { loadGpPlayerResult } from './gpPlayer.js';
+import {
+  IDEA_SOURCES,
+  DEFAULT_IDEA_SOURCE,
+  analysisOptionsForSource,
+  buildIdea,
+  ideaBarCount,
+  ideaToText,
+  ideaToTranscription,
+  ideaPlaybackEvents,
+  noteAtTime,
+} from './audioStudio/ideaModel.js';
+import { createIdeaView } from './audioStudio/ideaView.js';
+import { createIdeaSynth } from './audioStudio/ideaSynth.js';
 
 const recorder = {
   recording: false,
@@ -29,9 +51,7 @@ const recorder = {
   audioEl: null,
   mediaElSource: null,
   playAnalyser: null,
-  playBuf: null,
   playRafId: null,
-  pcWeights: new Float32Array(12),
   sequence: [],
   lastFrameTime: 0,
   pendingMidi: null,
@@ -54,8 +74,11 @@ const recorder = {
   format: 'wav',
   bitDepth: 24,
   normalize: true,
-  // Riff → Pitch Runner transcription state.
+  // The idea read out of the take.
   transcription: null,
+  idea: null,
+  ideaSource: DEFAULT_IDEA_SOURCE,
+  ideaSnap: false,
   runnerReady: false,
   riffBusy: false,
   audioBuffer: null,
@@ -63,6 +86,17 @@ const recorder = {
 
 let riffAnalysisPanel = null;
 let recorderAudioHandle = null;
+let playbackAudioHandle = null;
+let ideaAudioHandle = null;
+let ideaView = null;
+let ideaSynth = null;
+
+/** Give the audio slot back once the microphone closes. */
+function releaseRecorderAudio() {
+  if (!recorderAudioHandle) return;
+  releaseAudio(recorderAudioHandle);
+  recorderAudioHandle = null;
+}
 
 async function promptRecorderAudio({ title, choices }) {
   const choiceId = await openSelectionSheet({
@@ -88,7 +122,6 @@ function rmsOf(buf) {
 }
 
 function resetAnalysis() {
-  recorder.pcWeights = new Float32Array(12);
   recorder.sequence = [];
   recorder.pendingMidi = null;
   recorder.pendingSince = 0;
@@ -163,7 +196,6 @@ function recordLoop() {
   if (!recorder.recording) return;
   recorder.recAnalyser.getFloatTimeDomainData(recorder.recBuf);
   const now = performance.now();
-  const dt = recorder.lastFrameTime ? (now - recorder.lastFrameTime) / 1000 : 0;
   recorder.lastFrameTime = now;
 
   const level = Math.min(1, rmsOf(recorder.recBuf) * 6);
@@ -173,8 +205,6 @@ function recordLoop() {
   if (freq > 0 && freq < 2000) {
     const info = noteFromFreq(freq);
     setLiveNote(info);
-    const pc = ((info.midi % 12) + 12) % 12;
-    recorder.pcWeights[pc] += dt;
     commitPitch(info, now);
   } else {
     setLiveNote(null);
@@ -386,6 +416,7 @@ function syncHoldRecordUi(active) {
 async function startRecording(trigger = 'panel') {
   ensureAudio();
   clearRecording(true);
+  ideaSynth?.stop();
   recorder.holdActive = trigger === 'hold';
   const statusEl = document.getElementById('rec-status');
   if (typeof MediaRecorder === 'undefined') {
@@ -478,7 +509,7 @@ async function startRecording(trigger = 'panel') {
   if (statusEl) statusEl.textContent = '';
   document.getElementById('rec-live-seq-wrap').style.display = 'block';
   document.getElementById('rec-playback-card').style.display = 'none';
-  document.getElementById('rec-analysis-card').style.display = 'none';
+  ideaSynth?.stop();
 
   recorder.timerId = setInterval(tickTimer, 200);
   recordLoop();
@@ -514,6 +545,9 @@ function stopRecording() {
 
 function finalizeRecording() {
   if (recorder.stream) { releaseMicStream(recorder.stream); recorder.stream = null; }
+  // The microphone is closed, so the slot goes free. The take itself stays
+  // under the unsaved guard until the player saves or discards it.
+  releaseRecorderAudio();
 
   if (recorder.format === 'wav') {
     let samples = mergePcmChunks(recorder.pcmChunks);
@@ -534,13 +568,9 @@ function finalizeRecording() {
   resetSaveButton();
 
   document.getElementById('rec-playback-card').style.display = 'block';
-  document.getElementById('rec-analysis-card').style.display = 'block';
   document.getElementById('rec-live-seq-wrap').style.display = 'none';
 
-  renderSequence('rec-note-seq');
-  renderKey();
-
-  showRiffCard();
+  showIdeaCard();
   recognizeRiff();
 
   registerUnsaved('recorder', {
@@ -550,41 +580,44 @@ function finalizeRecording() {
   });
 }
 
-function renderKey() {
-  const keyEl = document.getElementById('rec-key');
-  const altEl = document.getElementById('rec-key-alt');
-  const ranked = detectKey(recorder.pcWeights);
-  if (!ranked.length) {
-    keyEl.textContent = '--';
-    altEl.textContent = 'Not enough pitch data to estimate a key';
-    return;
-  }
-  keyEl.textContent = keyLabel(ranked[0]);
-  const alts = ranked.slice(1, 3).map(k => keyLabel(k)).join(' · ');
-  altEl.textContent = alts ? 'Also possible: ' + alts : '';
-}
-
 function setRiffStatus(msg, kind = '') {
-  const el = document.getElementById('rec-riff-status');
+  const el = document.getElementById('rec-idea-status');
   if (!el) return;
   el.textContent = msg || '';
   el.classList.toggle('is-err', kind === 'err');
   el.classList.toggle('is-ok', kind === 'ok');
 }
 
+/** Enable the idea actions only while an idea holds notes and nothing runs. */
+function syncIdeaActions() {
+  const hasNotes = !!recorder.idea?.notes?.length;
+  const busy = recorder.riffBusy;
+  const set = (id, disabled) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = disabled;
+  };
+  set('rec-idea-play', busy || !hasNotes);
+  set('rec-idea-runner', busy || !recorder.runnerReady);
+  set('rec-idea-copy', busy || !hasNotes);
+  set('rec-idea-tab', busy || !hasNotes);
+  set('rec-riff-recognize', busy || !recorder.blob);
+  const snap = document.getElementById('rec-idea-snap');
+  if (snap) snap.disabled = busy;
+  for (const chip of document.querySelectorAll('#rec-idea-source .rec-idea-source-chip')) {
+    chip.disabled = busy;
+  }
+}
+
 function setRiffBusy(busy) {
   recorder.riffBusy = busy;
-  const progress = document.getElementById('rec-riff-progress');
-  const recognizeBtn = document.getElementById('rec-riff-recognize');
-  const runnerBtn = document.getElementById('rec-riff-to-runner');
+  const progress = document.getElementById('rec-idea-progress');
   const bpmEl = document.getElementById('rec-riff-bpm');
   const meterEl = document.getElementById('rec-riff-meter');
-  if (recognizeBtn) recognizeBtn.disabled = busy || !recorder.blob;
-  if (runnerBtn) runnerBtn.disabled = busy || !recorder.runnerReady;
   if (bpmEl) bpmEl.disabled = busy;
   if (meterEl) meterEl.disabled = busy;
   if (progress) progress.hidden = !busy;
   riffAnalysisPanel?.setBusy(busy);
+  syncIdeaActions();
 }
 
 function syncRiffTempoInputs(opts) {
@@ -626,23 +659,6 @@ function getRiffMeta() {
   return { bpm, beatsPerBar };
 }
 
-function renderRiffNotes(notes) {
-  const box = document.getElementById('rec-riff-notes');
-  if (!box) return;
-  if (!notes?.length) {
-    box.innerHTML = '<span class="rec-seq-empty">No clear pitches detected</span>';
-    return;
-  }
-  box.innerHTML = '';
-  notes.forEach((n) => {
-    const chip = document.createElement('span');
-    chip.className = 'rec-seq-chip';
-    chip.title = `${n.startSec.toFixed(2)}s · ${n.durationSec.toFixed(2)}s`;
-    chip.textContent = n.label || `${n.name}${n.oct}`;
-    box.appendChild(chip);
-  });
-}
-
 function renderRiffMeta(bars, confidence) {
   const barsEl = document.getElementById('rec-riff-bars');
   const confEl = document.getElementById('rec-riff-confidence');
@@ -675,46 +691,56 @@ function renderRiffDiagnostics(result) {
     const voicedRatio = diag?.voicedRatio ?? 0;
     let msg = '';
     if (!notes.length || voicedRatio < 0.15) {
-      msg = 'Low pitch detection — open Analysis settings, try the Sensitive preset, or raise Pitch sensitivity.';
+      msg = 'Low pitch detection — sing closer to the microphone, or open Analysis settings and try the Sensitive preset.';
     } else if (duration > 0 && notes.length / duration > 8) {
-      msg = 'Many short notes detected — try the Strict preset or lower Onset sensitivity.';
+      msg = 'Many short notes detected — try the Strict preset, or lower Onset sensitivity.';
     }
     guidanceEl.textContent = msg;
     guidanceEl.hidden = !msg;
   }
 }
 
-/** How many bars the detected notes fill at the tempo and the meter shown. */
-function riffBarCount(beatsPerBar) {
-  const notes = recorder.transcription?.notes || [];
-  if (!notes.length || !(beatsPerBar > 0)) return 0;
-  const end = notes.reduce((last, note) => {
-    const start = Number(note.startBeat);
-    const length = Number(note.durationBeats);
-    if (!Number.isFinite(start) || !Number.isFinite(length)) return last;
-    return Math.max(last, start + length);
-  }, 0);
-  return end > 0 ? Math.ceil(end / beatsPerBar) : 0;
+/** Draw the idea and keep the actions honest. */
+function paintIdea() {
+  ideaView?.render(recorder.idea);
+  syncIdeaActions();
+  const tabWrap = document.getElementById('rec-idea-tab-wrap');
+  if (tabWrap && !tabWrap.hidden) paintIdeaTab();
 }
 
 /**
- * Read the tempo and the meter of the panel back into the transcription, then
- * tell the user whether the take can go to the Pitch Runner.
+ * Read the tempo and the meter of the panel back into the idea, then tell the
+ * user whether the take can go to the Pitch Runner.
  */
 function refreshRiffRun() {
-  const runnerBtn = document.getElementById('rec-riff-to-runner');
-  if (!recorder.transcription?.notes?.length) {
+  if (!recorder.transcription?.notes?.length || !recorder.idea) {
     recorder.runnerReady = false;
     renderRiffMeta(0, recorder.transcription?.tempoConfidence);
-    if (runnerBtn) runnerBtn.disabled = true;
+    syncIdeaActions();
     return;
   }
   const { bpm, beatsPerBar } = getRiffMeta();
   recorder.transcription.bpm = bpm;
   recorder.transcription.beatsPerBar = beatsPerBar;
-  recorder.runnerReady = true;
-  renderRiffMeta(riffBarCount(beatsPerBar), recorder.transcription.tempoConfidence);
-  if (runnerBtn) runnerBtn.disabled = recorder.riffBusy;
+  recorder.idea = { ...recorder.idea, bpm, beatsPerBar };
+  recorder.runnerReady = recorder.idea.notes.length > 0;
+  renderRiffMeta(ideaBarCount(recorder.idea), recorder.transcription.tempoConfidence);
+  paintIdea();
+}
+
+/** Build the idea again from the transcription. An edit of a note is lost. */
+function rebuildIdea() {
+  if (!recorder.transcription) {
+    recorder.idea = null;
+    recorder.runnerReady = false;
+    paintIdea();
+    return;
+  }
+  recorder.idea = buildIdea(recorder.transcription, {
+    snapToKey: recorder.ideaSnap,
+    source: recorder.ideaSource,
+  });
+  refreshRiffRun();
 }
 
 function applyTranscriptionResult(result) {
@@ -729,9 +755,8 @@ function applyTranscriptionResult(result) {
   riffAnalysisPanel?.setOptions(nextOpts);
   syncRiffTempoInputs(riffAnalysisPanel?.getOptions() ?? nextOpts);
 
-  renderRiffNotes(result.notes);
   renderRiffDiagnostics(result);
-  refreshRiffRun();
+  rebuildIdea();
 }
 
 async function runRiffAnalysis({ decodeFirst = false } = {}) {
@@ -739,8 +764,9 @@ async function runRiffAnalysis({ decodeFirst = false } = {}) {
   if (decodeFirst && !recorder.blob) return;
   if (!decodeFirst && !recorder.audioBuffer && !recorder.blob) return;
 
+  ideaSynth?.stop();
   setRiffBusy(true);
-  const progress = document.getElementById('rec-riff-progress');
+  const progress = document.getElementById('rec-idea-progress');
   if (progress) {
     progress.hidden = false;
     progress.value = 0;
@@ -754,34 +780,35 @@ async function runRiffAnalysis({ decodeFirst = false } = {}) {
       recorder.audioBuffer = await decodeAudioFile(recorder.blob);
     }
 
+    // The source chip names the band; the panel holds the rest.
     const options = {
       ...riffAnalysisPanel?.getOptions(),
+      ...analysisOptionsForSource(recorder.ideaSource),
       onProgress: (p) => {
         if (progress) progress.value = p;
-        setRiffStatus(`Detecting pitches… ${Math.round(p * 100)}%`);
+        setRiffStatus(`Reading the notes… ${Math.round(p * 100)}%`);
       },
     };
 
-    setRiffStatus('Detecting pitches…');
+    setRiffStatus('Reading the notes…');
     const result = await transcribeBuffer(recorder.audioBuffer, options);
     applyTranscriptionResult(result);
 
     if (!result.notes.length) {
-      setRiffStatus('No clear pitches found — try Analysis settings (Sensitive preset) or a louder take.', 'err');
+      setRiffStatus('No clear notes found. Sing closer to the microphone, or try the Sensitive preset under Tempo and analysis.', 'err');
       return;
     }
-    setRiffStatus(
-      `Found ${result.notes.length} notes in ${result.durationSec.toFixed(1)}s (≈${result.bpm} BPM).`,
-      'ok'
-    );
+    const n = recorder.idea?.notes?.length || 0;
+    setRiffStatus(`Read ${n} note${n === 1 ? '' : 's'} in ${result.durationSec.toFixed(1)} s. Press Play notes to check them.`, 'ok');
   } catch (err) {
     console.error(err);
     recorder.transcription = null;
+    recorder.idea = null;
     recorder.runnerReady = false;
-    renderRiffNotes([]);
     renderRiffMeta(0, null);
     renderRiffDiagnostics(null);
-    setRiffStatus(`Recognition failed: ${err.message || err}`, 'err');
+    paintIdea();
+    setRiffStatus(`Reading failed: ${err.message || err}`, 'err');
   } finally {
     setRiffBusy(false);
   }
@@ -791,50 +818,174 @@ async function recognizeRiff() {
   await runRiffAnalysis({ decodeFirst: true });
 }
 
-/** Send the detected pitches to the Pitch Runner pane and open it. */
+/** Send the notes of the idea to the Pitch Runner pane and open it. */
 function sendRiffToRunner() {
-  if (!recorder.runnerReady || recorder.riffBusy) return;
+  if (!recorder.runnerReady || recorder.riffBusy || !recorder.idea) return;
   refreshRiffRun();
-  const ok = setAudioStudioRun(recorder.transcription, {
-    name: 'Vocal riff',
+  const ok = setAudioStudioRun(ideaToTranscription(recorder.idea), {
+    name: 'Idea',
     origin: 'record',
   });
   if (!ok) {
-    setRiffStatus('These pitches do not fit a run. Try a longer or clearer take.', 'err');
+    setRiffStatus('These notes do not fit a run. Try a longer or clearer take.', 'err');
     return;
   }
+  ideaSynth?.stop();
   openAudioStudioRunner();
   setRiffStatus('Sent to the Pitch Runner.', 'ok');
 }
 
+/* ---- the idea actions ---- */
+
+function onIdeaChanged(next) {
+  recorder.idea = next;
+  recorder.runnerReady = next.notes.length > 0;
+  renderRiffMeta(ideaBarCount(next), recorder.transcription?.tempoConfidence);
+  paintIdea();
+}
+
+function toggleIdeaPlayback() {
+  if (!ideaSynth) return;
+  if (ideaSynth.isPlaying()) {
+    ideaSynth.stop();
+    return;
+  }
+  if (!recorder.idea?.notes?.length) return;
+  if (recorder.playing) stopPlayback();
+  const handle = claimAudio({
+    id: 'recorder-idea',
+    label: 'Audio Studio — idea',
+    kind: 'tone',
+    onStop: () => ideaSynth?.stop(),
+  });
+  if (!handle || typeof handle.then === 'function') return;
+  ideaAudioHandle = handle;
+  const started = ideaSynth.play(ideaPlaybackEvents(recorder.idea));
+  if (!started) {
+    releaseAudio(ideaAudioHandle);
+    ideaAudioHandle = null;
+    return;
+  }
+  const btn = document.getElementById('rec-idea-play');
+  if (btn) btn.innerHTML = '&#9632; Stop notes';
+}
+
+function onIdeaPlaybackEnded() {
+  const btn = document.getElementById('rec-idea-play');
+  if (btn) btn.innerHTML = '&#9654; Play notes';
+  ideaView?.setPlayhead(null);
+  if (ideaAudioHandle) {
+    releaseAudio(ideaAudioHandle);
+    ideaAudioHandle = null;
+  }
+}
+
+function copyIdeaNotes() {
+  if (!recorder.idea?.notes?.length) return;
+  const text = ideaToText(recorder.idea);
+  if (!navigator.clipboard?.writeText) {
+    setRiffStatus('This browser cannot copy to the clipboard.', 'err');
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    setRiffStatus('Notes copied.', 'ok');
+  }).catch(() => {
+    setRiffStatus('Could not copy to the clipboard.', 'err');
+  });
+}
+
+/** The idea as a Guitar Pro result: a tab on the neck at the tempo shown. */
+function ideaGpResult() {
+  if (!recorder.idea?.notes?.length) return null;
+  try {
+    return transcriptionToGpResult(ideaToTranscription(recorder.idea), { name: 'Idea' });
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
+function paintIdeaTab() {
+  const text = document.getElementById('rec-idea-tab-text');
+  if (!text) return;
+  const gp = ideaGpResult();
+  const ascii = gp?.tracks?.[0]?.ascii || '';
+  text.textContent = ascii || 'No notes to place on the tab.';
+}
+
+function toggleIdeaTab() {
+  const wrap = document.getElementById('rec-idea-tab-wrap');
+  const btn = document.getElementById('rec-idea-tab');
+  if (!wrap) return;
+  wrap.hidden = !wrap.hidden;
+  if (btn) btn.setAttribute('aria-expanded', wrap.hidden ? 'false' : 'true');
+  if (!wrap.hidden) paintIdeaTab();
+}
+
+function openIdeaInScorePlayer() {
+  const gp = ideaGpResult();
+  if (!gp) return;
+  ideaSynth?.stop();
+  if (recorder.playing) stopPlayback();
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  loadGpPlayerResult(gp, { title: `Idea ${stamp}`, fileName: `idea-${stamp.replace(/[: ]/g, '-')}.riff` });
+}
+
+function setIdeaSource(id) {
+  const next = IDEA_SOURCES.some((s) => s.id === id) ? id : DEFAULT_IDEA_SOURCE;
+  recorder.ideaSource = next;
+  saveSetting('recIdeaSource', next);
+  paintIdeaSources();
+  riffAnalysisPanel?.setOptions(analysisOptionsForSource(next));
+  if (recorder.audioBuffer || recorder.blob) runRiffAnalysis({ decodeFirst: !recorder.audioBuffer });
+}
+
+function paintIdeaSources() {
+  const box = document.getElementById('rec-idea-source');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const source of IDEA_SOURCES) {
+    const on = source.id === recorder.ideaSource;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `btn sm rec-idea-source-chip${on ? ' active' : ''}`;
+    chip.textContent = source.label;
+    chip.title = source.hint;
+    chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+    chip.disabled = recorder.riffBusy;
+    chip.addEventListener('click', () => { if (!on) setIdeaSource(source.id); });
+    box.appendChild(chip);
+  }
+}
+
 function clearRiffState() {
+  ideaSynth?.stop();
   recorder.transcription = null;
+  recorder.idea = null;
   recorder.runnerReady = false;
   recorder.audioBuffer = null;
   recorder.riffBusy = false;
-  const card = document.getElementById('rec-riff-card');
+  const card = document.getElementById('rec-idea-card');
   if (card) card.style.display = 'none';
   setRiffStatus('');
-  renderRiffNotes([]);
   renderRiffMeta(0, null);
   renderRiffDiagnostics(null);
-  const guidanceEl = document.getElementById('rec-riff-guidance');
-  if (guidanceEl) {
-    guidanceEl.textContent = '';
-    guidanceEl.hidden = true;
-  }
-  const progress = document.getElementById('rec-riff-progress');
+  const tabWrap = document.getElementById('rec-idea-tab-wrap');
+  if (tabWrap) tabWrap.hidden = true;
+  const tabBtn = document.getElementById('rec-idea-tab');
+  if (tabBtn) tabBtn.setAttribute('aria-expanded', 'false');
+  const progress = document.getElementById('rec-idea-progress');
   if (progress) {
     progress.hidden = true;
     progress.value = 0;
   }
-  const runnerBtn = document.getElementById('rec-riff-to-runner');
-  if (runnerBtn) runnerBtn.disabled = true;
+  paintIdea();
 }
 
-function showRiffCard() {
-  const card = document.getElementById('rec-riff-card');
+function showIdeaCard() {
+  const card = document.getElementById('rec-idea-card');
   if (card) card.style.display = 'block';
+  ideaView?.relayout();
 }
 
 function setupAudioElement() {
@@ -845,60 +996,52 @@ function setupAudioElement() {
   recorder.audioEl.src = recorder.blobUrl;
   recorder.audioEl.load();
 
+  // The element plays through the shared mix bus, so the master volume and
+  // the compressor apply to the take as they do to every other sound.
   if (!recorder.mediaElSource) {
     recorder.mediaElSource = audioCtx.createMediaElementSource(recorder.audioEl);
-    recorder.playAnalyser = audioCtx.createAnalyser();
-    recorder.playAnalyser.fftSize = 2048;
-    recorder.playBuf = new Float32Array(recorder.playAnalyser.fftSize);
+    recorder.playAnalyser = audioCtx.createGain();
     recorder.mediaElSource.connect(recorder.playAnalyser);
     recorder.playAnalyser.connect(getAnalyserDestination());
   }
 }
 
-function highlightSeq(midi) {
-  const c = document.getElementById('rec-note-seq');
-  if (!c) return;
-  c.querySelectorAll('.rec-seq-chip').forEach(chip => chip.classList.remove('active'));
-  if (midi == null) return;
-  // Highlight the closest matching upcoming/current chip by pitch.
-  const chips = c.querySelectorAll('.rec-seq-chip');
-  for (const chip of chips) {
-    const idx = +chip.dataset.idx;
-    if (recorder.sequence[idx] && recorder.sequence[idx].midi === midi) {
-      chip.classList.add('active');
-    }
-  }
-}
-
+/** Follow the take on the roll: the note that sounds now lights up. */
 function playLoop() {
   if (!recorder.playing) return;
-  recorder.playAnalyser.getFloatTimeDomainData(recorder.playBuf);
-  const freq = autoCorrelate(recorder.playBuf, audioCtx.sampleRate);
+  const sec = recorder.audioEl ? recorder.audioEl.currentTime : 0;
   const noteEl = document.getElementById('rec-playnote');
-  if (freq > 0 && freq < 2000) {
-    const info = noteFromFreq(freq);
-    if (noteEl) noteEl.textContent = info.name + info.oct;
-    highlightSeq(info.midi);
-  } else {
-    if (noteEl) noteEl.textContent = '--';
-    highlightSeq(null);
-  }
+  const current = ideaView ? ideaView.setPlayhead(sec) : noteAtTime(recorder.idea, sec);
+  if (noteEl) noteEl.textContent = current ? current.label : '--';
   recorder.playRafId = requestAnimationFrame(playLoop);
 }
 
 function onPlaybackEnded() {
   recorder.playing = false;
   if (recorder.playRafId) { cancelAnimationFrame(recorder.playRafId); recorder.playRafId = null; }
+  if (playbackAudioHandle) {
+    releaseAudio(playbackAudioHandle);
+    playbackAudioHandle = null;
+  }
   const btn = document.getElementById('rec-play');
   if (btn) btn.innerHTML = '&#9654; Play';
   const noteEl = document.getElementById('rec-playnote');
   if (noteEl) noteEl.textContent = '--';
-  highlightSeq(null);
+  ideaView?.setPlayhead(null);
 }
 
 function startPlayback() {
   if (!recorder.audioEl) return;
   ensureAudio();
+  ideaSynth?.stop();
+  const handle = claimAudio({
+    id: 'recorder-playback',
+    label: 'Audio Studio — take',
+    kind: 'media',
+    onStop: () => stopPlayback(),
+  });
+  if (!handle || typeof handle.then === 'function') return;
+  playbackAudioHandle = handle;
   recorder.audioEl.currentTime = 0;
   recorder.audioEl.play();
   recorder.playing = true;
@@ -980,7 +1123,6 @@ function clearRecording(skipUi) {
   if (recorder.audioEl) recorder.audioEl.removeAttribute('src');
   if (!skipUi) {
     document.getElementById('rec-playback-card').style.display = 'none';
-    document.getElementById('rec-analysis-card').style.display = 'none';
     const seqWrap = document.getElementById('rec-live-seq-wrap');
     if (seqWrap) seqWrap.style.display = 'none';
     const timer = document.getElementById('rec-timer');
@@ -996,7 +1138,9 @@ function clearRecording(skipUi) {
 function stopRecorder() {
   if (recorder.recording) stopRecording();
   if (recorder.playing) stopPlayback();
+  ideaSynth?.stop();
   if (recorder.stream) { releaseMicStream(recorder.stream); recorder.stream = null; }
+  releaseRecorderAudio();
   syncHoldRecordUi(false);
   recorder.holdActive = false;
   recorder.holdPressed = false;
@@ -1044,16 +1188,61 @@ function initRecorder() {
   }
   updateDepthVisibility();
 
+  recorder.ideaSource = getSetting('recIdeaSource', DEFAULT_IDEA_SOURCE, IDEA_SOURCES.map((s) => s.id));
+  recorder.ideaSnap = getSetting('recIdeaSnap', false) === true;
+
   const recognizeBtn = document.getElementById('rec-riff-recognize');
   if (recognizeBtn && !recognizeBtn.dataset.wired) {
     recognizeBtn.dataset.wired = '1';
-    recognizeBtn.addEventListener('click', recognizeRiff);
+    recognizeBtn.addEventListener('click', () => runRiffAnalysis({ decodeFirst: !recorder.audioBuffer }));
   }
-  const runnerBtn = document.getElementById('rec-riff-to-runner');
-  if (runnerBtn && !runnerBtn.dataset.wired) {
-    runnerBtn.dataset.wired = '1';
-    runnerBtn.addEventListener('click', sendRiffToRunner);
+  const wire = (id, fn) => {
+    const btn = document.getElementById(id);
+    if (btn && !btn.dataset.wired) {
+      btn.dataset.wired = '1';
+      btn.addEventListener('click', fn);
+    }
+  };
+  wire('rec-idea-runner', sendRiffToRunner);
+  wire('rec-idea-play', toggleIdeaPlayback);
+  wire('rec-idea-copy', copyIdeaNotes);
+  wire('rec-idea-tab', toggleIdeaTab);
+  wire('rec-idea-open-score', openIdeaInScorePlayer);
+
+  const snapEl = document.getElementById('rec-idea-snap');
+  if (snapEl && !snapEl.dataset.wired) {
+    snapEl.dataset.wired = '1';
+    snapEl.checked = recorder.ideaSnap;
+    snapEl.addEventListener('change', () => {
+      recorder.ideaSnap = snapEl.checked;
+      saveSetting('recIdeaSnap', recorder.ideaSnap);
+      rebuildIdea();
+    });
   }
+  paintIdeaSources();
+
+  if (!ideaView) {
+    const rollEl = document.getElementById('rec-idea-roll');
+    const notesEl = document.getElementById('rec-idea-notes');
+    const editorEl = document.getElementById('rec-idea-editor');
+    const summaryEl = document.getElementById('rec-idea-summary');
+    if (rollEl && notesEl && editorEl) {
+      ideaView = createIdeaView({ rollEl, notesEl, editorEl, summaryEl, onChange: onIdeaChanged });
+      window.addEventListener('resize', () => ideaView?.relayout());
+    }
+  }
+  if (!ideaSynth) {
+    ideaSynth = createIdeaSynth({
+      onTick: (sec) => {
+        const first = recorder.idea?.notes?.length
+          ? Math.min(...recorder.idea.notes.map((n) => n.startSec))
+          : 0;
+        ideaView?.setPlayhead(first + sec);
+      },
+      onEnd: onIdeaPlaybackEnded,
+    });
+  }
+  syncIdeaActions();
   const bpmEl = document.getElementById('rec-riff-bpm');
   if (bpmEl && !bpmEl.dataset.wired) {
     bpmEl.dataset.wired = '1';
@@ -1123,5 +1312,6 @@ window.downloadRecording = downloadRecording;
 window.clearRecording = clearRecording;
 window.recognizeRiff = recognizeRiff;
 window.sendRiffToRunner = sendRiffToRunner;
+window.toggleIdeaPlayback = toggleIdeaPlayback;
 
 export { initRecorder, initHoldRecordButton, stopRecorder, recorder };

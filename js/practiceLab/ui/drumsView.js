@@ -1,9 +1,10 @@
-// The Drums tab of the Practice Lab: the beat library and the rudiment library.
+// The Drums tab of the Practice Lab: the warm-up, the beat library, and the
+// rudiment library.
 //
 // The tab answers one question — "what do I play today?" — and it answers it
-// twice: a groove with a fill that belongs to its genre, and a rudiment with a
-// full sticking. Every entry opens in the Guitar Pro player, so the player can
-// hear it, loop it, and slow it down.
+// three times: a warm-up picked for you, a groove with a fill that belongs to
+// its genre, and a rudiment with a full sticking. Every entry opens in the
+// Guitar Pro player, so the player can hear it, loop it, and slow it down.
 //
 // The screen keeps one score open at a time. Two mounted players would fight
 // over the audio and over the screen.
@@ -13,6 +14,7 @@ import {
   BEATS, BEAT_GENRES, RUDIMENTS, RUDIMENT_FAMILIES,
 } from '../adapters/musiDrumLibrary.js';
 import { createDrumScoreCard } from './drumScoreCard.js';
+import { createWarmUpPanel } from './warmUpPanel.js';
 
 const VIEWS = [
   { id: 'beats', label: 'Beats' },
@@ -29,9 +31,10 @@ const LEAD = {
 const ALL = '__all__';
 
 /**
+ * @param {Object} lab the Practice Lab service; it picks the warm-up
  * @returns {{ root: HTMLElement, stop: Function }}
  */
-export function createDrumsView() {
+export function createDrumsView(lab) {
   let view = 'beats';
   const filter = { beats: ALL, rudiments: ALL };
   let cards = [];
@@ -52,12 +55,16 @@ export function createDrumsView() {
     cards = [];
   }
 
-  // Only one score plays at a time, so opening a card closes the rest.
+  // Only one score plays at a time, so opening a card closes the rest, the
+  // warm-up cards included.
   function closeOthers(card) {
     for (const other of cards) {
       if (other !== card && other.isOpen()) other.close();
     }
+    if (card) warmUp.closeAll();
   }
+
+  const warmUp = createWarmUpPanel(lab, { onOpen: () => closeOthers(null) });
 
   function groups() {
     return view === 'beats' ? BEAT_GENRES : RUDIMENT_FAMILIES;
@@ -110,6 +117,7 @@ export function createDrumsView() {
   }
 
   const root = el('div', { class: 'pl-drums' }, [
+    warmUp.root,
     el('div', { class: 'pl-drums-head' }, [
       el('h3', { class: 'pl-drums-title', text: 'Drum library' }),
       lead,
@@ -121,5 +129,8 @@ export function createDrumsView() {
 
   paint();
 
-  return { root, stop: stopCards };
+  return {
+    root,
+    stop() { stopCards(); warmUp.stop(); },
+  };
 }

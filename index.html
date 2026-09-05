@@ -1046,7 +1046,7 @@
   <section id="sec-practicelab" class="section">
     <div class="section-head">
       <h2>Practice Lab</h2>
-      <p>One screen for one practice session. Pick the instrument, the technique, and the target. Run timers, click patterns, and camera takes. The Vocal tab runs clean and harsh vocal exercises from the Practice Library. Every action goes in the session log.</p>
+      <p>Every tool is ready when the tab opens: a timer, a click, ratio drills, a tempo ladder, and a camera that keeps your takes. The Vocal tab runs clean and harsh vocal exercises from the Practice Library. The Drums tab picks a warm-up and holds the beat and rudiment library.</p>
     </div>
     <div class="pl-root" id="practicelab-body"></div>
   </section>
@@ -1054,7 +1054,7 @@
   <section id="sec-audiostudio" class="section">
     <div class="section-head">
       <h2>Audio Studio</h2>
-      <p>Capture a take, spot-check pitch and key, then turn a sung or hummed riff into a run you sing back in the Pitch Runner.</p>
+      <p>Record yourself singing or humming an idea. Musi reads the notes you sang, in the order you sang them, names the key, and lets you play the idea back, fix a note, send it to the Pitch Runner, or read it as guitar tab. The Import tab reads a stem onto sheet music.</p>
     </div>
     <div class="recorder-center">
       <div class="quiz-card">
@@ -1091,7 +1091,7 @@
         </div>
         <div class="rec-status" id="rec-status"></div>
         <div id="rec-live-seq-wrap" style="display:none">
-          <div class="rec-section-label">Detected pitches</div>
+          <div class="rec-section-label">Live pitches, rough</div>
           <div class="rec-note-seq" id="rec-live-seq"></div>
         </div>
       </div>
@@ -1110,59 +1110,72 @@
         </div>
       </div>
 
-      <div class="quiz-card" id="rec-analysis-card" style="display:none">
-        <div class="rec-card-title">Analysis</div>
-        <div class="rec-key-block">
-          <span class="rec-section-label" style="margin:0">Detected Key</span>
-          <div class="rec-key" id="rec-key">--</div>
-          <div class="rec-key-alt" id="rec-key-alt"></div>
-        </div>
-        <div class="rec-section-label">Detected pitches</div>
-        <div class="rec-note-seq" id="rec-note-seq"></div>
-      </div>
-
-      <div class="quiz-card" id="rec-riff-card" style="display:none">
-        <div class="rec-card-title">Riff → Pitch Runner</div>
-        <p class="rec-riff-help">Sing or hum a riff. Musi reads the pitches and builds a run you sing back in the Pitch Runner.</p>
-        <div class="rec-riff-status" id="rec-riff-status"></div>
-        <progress class="rec-riff-progress" id="rec-riff-progress" max="1" value="0" hidden></progress>
-        <div id="rec-riff-analysis-mount" class="rec-riff-analysis-mount"></div>
-        <div class="rec-riff-meta">
-          <label class="rec-riff-meta-item">
-            <span class="rec-opt-label">BPM</span>
-            <input type="number" id="rec-riff-bpm" min="40" max="240" step="1" value="120">
+      <div class="quiz-card" id="rec-idea-card" style="display:none">
+        <div class="rec-card-title">Your idea</div>
+        <p class="rec-idea-help">Musi reads the notes you sang, in the order you sang them. Each note shows how many cents your voice sat above or below it. A note sits high in its row on the roll when you sang sharp and low when you sang flat. Tap a note to move it or drop it. Snap to key moves every out-of-key note to the nearest note of the key Musi found.</p>
+        <div class="rec-riff-status" id="rec-idea-status"></div>
+        <progress class="rec-riff-progress" id="rec-idea-progress" max="1" value="0" hidden></progress>
+        <div class="rec-idea-summary" id="rec-idea-summary">No clear notes yet.</div>
+        <div class="rec-idea-options">
+          <div class="rec-idea-source" id="rec-idea-source" role="group" aria-label="What you recorded"></div>
+          <label class="rec-opt rec-opt-check">
+            <input type="checkbox" id="rec-idea-snap">
+            <span class="rec-opt-label">Snap to key</span>
           </label>
-          <label class="rec-riff-meta-item">
-            <span class="rec-opt-label">Meter</span>
-            <select id="rec-riff-meter">
-              <option value="4">4/4</option>
-              <option value="3">3/4</option>
-            </select>
-          </label>
-          <div class="rec-riff-meta-item rec-riff-readout">
-            <span class="rec-opt-label">Bars</span>
-            <span id="rec-riff-bars">--</span>
-          </div>
-          <div class="rec-riff-meta-item rec-riff-readout">
-            <span class="rec-opt-label">Tempo fit</span>
-            <span id="rec-riff-confidence">--</span>
-          </div>
-          <div class="rec-riff-meta-item rec-riff-readout">
-            <span class="rec-opt-label">Grid</span>
-            <span id="rec-riff-grid">--</span>
-          </div>
-          <div class="rec-riff-meta-item rec-riff-readout">
-            <span class="rec-opt-label">Quality</span>
-            <span id="rec-riff-quality">--</span>
+        </div>
+        <div class="rec-idea-roll" id="rec-idea-roll"></div>
+        <div class="rec-section-label">Notes in order</div>
+        <div class="rec-note-seq rec-idea-notes" id="rec-idea-notes"></div>
+        <div class="rec-idea-editor" id="rec-idea-editor" hidden></div>
+        <div class="rec-controls rec-idea-actions">
+          <button class="btn primary" id="rec-idea-play" type="button" disabled>&#9654; Play notes</button>
+          <button class="btn" id="rec-idea-runner" type="button" disabled>Send to Pitch Runner</button>
+          <button class="btn" id="rec-idea-copy" type="button" disabled>Copy notes</button>
+          <button class="btn" id="rec-idea-tab" type="button" disabled>Guitar tab</button>
+        </div>
+        <div class="rec-idea-tab-wrap" id="rec-idea-tab-wrap" hidden>
+          <pre class="rec-idea-tab" id="rec-idea-tab-text"></pre>
+          <div class="rec-controls">
+            <button class="btn sm" id="rec-idea-open-score" type="button">Open in Score Player</button>
           </div>
         </div>
-        <p class="rec-riff-guidance" id="rec-riff-guidance" hidden></p>
-        <div class="rec-section-label">Recognized notes</div>
-        <div class="rec-note-seq rec-riff-notes" id="rec-riff-notes"></div>
-        <div class="rec-controls rec-riff-actions">
-          <button class="btn primary" id="rec-riff-recognize" type="button">Recognize riff</button>
-          <button class="btn" id="rec-riff-to-runner" type="button" disabled>Send to Pitch Runner</button>
-        </div>
+        <details class="rec-idea-more" id="rec-idea-more">
+          <summary class="rec-idea-more-summary">Tempo and analysis</summary>
+          <div class="rec-riff-meta">
+            <label class="rec-riff-meta-item">
+              <span class="rec-opt-label">BPM</span>
+              <input type="number" id="rec-riff-bpm" min="40" max="240" step="1" value="120">
+            </label>
+            <label class="rec-riff-meta-item">
+              <span class="rec-opt-label">Meter</span>
+              <select id="rec-riff-meter">
+                <option value="4">4/4</option>
+                <option value="3">3/4</option>
+              </select>
+            </label>
+            <div class="rec-riff-meta-item rec-riff-readout">
+              <span class="rec-opt-label">Bars</span>
+              <span id="rec-riff-bars">--</span>
+            </div>
+            <div class="rec-riff-meta-item rec-riff-readout">
+              <span class="rec-opt-label">Tempo fit</span>
+              <span id="rec-riff-confidence">--</span>
+            </div>
+            <div class="rec-riff-meta-item rec-riff-readout">
+              <span class="rec-opt-label">Grid</span>
+              <span id="rec-riff-grid">--</span>
+            </div>
+            <div class="rec-riff-meta-item rec-riff-readout">
+              <span class="rec-opt-label">Quality</span>
+              <span id="rec-riff-quality">--</span>
+            </div>
+          </div>
+          <p class="rec-riff-guidance" id="rec-riff-guidance" hidden></p>
+          <div id="rec-riff-analysis-mount" class="rec-riff-analysis-mount"></div>
+          <div class="rec-controls rec-riff-actions">
+            <button class="btn" id="rec-riff-recognize" type="button">Read the notes again</button>
+          </div>
+        </details>
       </div>
       <div class="tts-pane">
       <div class="tts-layout">

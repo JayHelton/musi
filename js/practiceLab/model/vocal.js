@@ -1,8 +1,7 @@
 // The vocal practice model of Practice Lab.
 //
-// Practice Lab keeps one attempt model. A vocal attempt is a log entry of the
-// open session, the same as a timer block or a clip. It holds the exercise id
-// and never a copy of the exercise itself.
+// Practice Lab keeps one attempt model. A vocal attempt is one saved entry.
+// It holds the exercise id and never a copy of the exercise itself.
 //
 // Every function here is pure. The caller supplies the time and the ids.
 

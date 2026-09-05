@@ -102,19 +102,18 @@ export const TOOLS = [
     label: 'Practice Lab',
     short: 'Practice Lab',
     area: 'train',
-    description: 'Run one practice session: a timer, a click, ratios, a tempo ladder, a camera, and a log. '
+    description: 'A timer, a click, ratios, a tempo ladder, and a camera, ready the moment you open the tab. '
       + 'The Vocal tab runs clean and harsh vocal exercises from the Practice Library. '
       + 'Composition Lab trains you to hear, map, write, and explain your own ideas, and the '
-      + 'Drums tab holds the beat and rudiment library.',
+      + 'Drums tab picks a warm-up and holds the beat and rudiment library.',
     title: 'Practice Lab',
     modes: [
-      { id: 'session', label: 'Session' },
+      { id: 'practice', label: 'Practice' },
       { id: 'vocal', label: 'Vocal' },
       { id: 'drums', label: 'Drums' },
       { id: 'composition', label: 'Composition' },
-      { id: 'history', label: 'History' },
     ],
-    defaultMode: 'session',
+    defaultMode: 'practice',
     context: ['root', 'scale', 'tuning'],
     holdRecord: false,
   },
@@ -200,12 +199,11 @@ export const TOOLS = [
     label: 'Audio Studio',
     short: 'Audio',
     area: 'create',
-    description: 'Record or import a take, inspect its pitch, transcribe it, and sing it back in the Pitch Runner.',
+    description: 'Record an idea and read the notes you sang, in order. Import a stem, and sing a run back in the Pitch Runner.',
     title: 'Audio Studio',
     modes: [
       { id: 'capture', label: 'Record' },
-      { id: 'analyze', label: 'Analyze' },
-      { id: 'transcribe', label: 'Transcribe' },
+      { id: 'transcribe', label: 'Import' },
       { id: 'run', label: 'Pitch Runner' },
     ],
     defaultMode: 'capture',

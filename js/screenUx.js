@@ -1013,28 +1013,22 @@ function setupRecorder() {
 
   // Each card of the Audio Studio opened on a paragraph of help. An info tip
   // next to the title of the card holds that text now.
-  tipifyCardHelp(sec, '.rec-riff-help', 'How the riff import works');
+  tipifyCardHelp(sec, '.rec-idea-help', 'How the idea reads your take');
   tipifyCardHelp(sec, '.asr-empty-text', 'How the Pitch Runner tab works');
   tipifyCardHelp(sec, '.tts-drop-sub', 'What files the stem import reads');
 
-  // The shared tool-page shell owns the mode bar.
+  // The shared tool-page shell owns the mode bar. The Record tab holds the
+  // take and the idea it reads; the Import tab holds the stem import.
   const forTabs = 'tool-page-modes-audiostudio';
   const cards = [...center.querySelectorAll(':scope > .quiz-card')];
-  const analysis = document.getElementById('rec-analysis-card');
-  const riff = document.getElementById('rec-riff-card');
   const runnerCard = document.getElementById('as-runner-card');
   const ttsPane = center.querySelector(':scope > .tts-pane');
-  const captureCards = cards.filter(card => card !== analysis && card !== riff && card !== runnerCard);
+  const captureCards = cards.filter(card => card !== runnerCard);
 
   if (captureCards.length) {
     wrapAsSubview(captureCards, { id: 'capture', forTabs, active: true });
   }
-  if (analysis) wrapAsSubview([analysis], { id: 'analyze', forTabs, active: false });
-
-  const transcribe = [riff, ttsPane].filter(Boolean);
-  if (transcribe.length) {
-    wrapAsSubview(transcribe, { id: 'transcribe', forTabs, active: false });
-  }
+  if (ttsPane) wrapAsSubview([ttsPane], { id: 'transcribe', forTabs, active: false });
   if (runnerCard) wrapAsSubview([runnerCard], { id: 'run', forTabs, active: false });
 }
 
