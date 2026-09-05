@@ -62,8 +62,10 @@ distribution.
 - **Trunk only:** do all work directly on `main` (the trunk; some people call it
   `master`, but this repo has no `master` branch). Do not create feature branches and
   do not open pull requests.
-- **Push to main:** when the work is done, push straight to `main` with
-  `git push origin main`.
+- **Ask before you push to main:** when the work is done, commit it, then ask the
+  user whether they want it pushed to `main`. Never push to `main` on your own. After
+  the user says yes, push with `git push origin main`. Ask at the end of every
+  session, and ask again for each later piece of work.
 - **Complete features only:** only push finished, working features. `main` is the live
   trunk — a push is a release, not a half-done checkpoint. That trade-off is what makes
   skipping review acceptable; keep commits shippable.
@@ -75,7 +77,8 @@ distribution.
   runners under `tests/` (e.g. `node tests/workbooks/run.mjs`,
   `node tests/exercises/run.mjs`, `node tests/composition-lab/run.mjs`).
 - **Harness override:** a cloud-agent harness may still force branch-and-PR delivery. If
-  so, say so explicitly — do not silently open a PR against this rule.
+  so, say so explicitly — do not silently open a PR against this rule. Then ask the
+  user whether to push to `main` as well, as the rule above says.
 
 Musi is a **fully static, frontend-only** product — there is no backend, database, or
 API. It ships as two deliverables that share the same music-theory engine in `js/`:
