@@ -58,6 +58,47 @@ await page.waitForTimeout(150);
 let st = await state();
 check('click on bar 3 seeks to bar 3', st.navBar === 2, `navBar=${st.navBar}`);
 
+// 1b. While paused, a wheel scroll must stay where the user put it. The
+// sheet never snaps back to the playhead on its own.
+const vpEl = page.locator('.gpp-parch-viewport');
+const vpRect = await vpEl.boundingBox();
+await page.mouse.move(vpRect.x + vpRect.width / 2, vpRect.y + vpRect.height / 2);
+const before1 = await page.evaluate(() => document.querySelector('.gpp-parch-viewport').scrollTop);
+await page.mouse.wheel(0, 900);
+await page.waitForTimeout(120);
+const mid1 = await page.evaluate(() => document.querySelector('.gpp-parch-viewport').scrollTop);
+await page.waitForTimeout(700);
+const after1 = await page.evaluate(() => document.querySelector('.gpp-parch-viewport').scrollTop);
+check('a wheel scroll while paused moves the sheet', mid1 > before1 + 100, `${before1} → ${mid1}`);
+check('the sheet stays where the user scrolled it while paused', Math.abs(after1 - mid1) < 2, `${mid1} → ${after1}`);
+await page.mouse.wheel(0, 900);
+await page.waitForTimeout(400);
+const after1b = await page.evaluate(() => document.querySelector('.gpp-parch-viewport').scrollTop);
+check('a second wheel scroll keeps going down the song', after1b > after1 + 100, `${after1} → ${after1b}`);
+
+// 1c. A tap on a bar that is on screen seeks without moving the sheet.
+const visibleBar = await page.evaluate(() => {
+  const vp = document.querySelector('.gpp-parch-viewport').getBoundingClientRect();
+  for (const el of document.querySelectorAll('.gpp-parch-measure')) {
+    const r = el.getBoundingClientRect();
+    if (r.top > vp.top + vp.height * 0.15 && r.bottom < vp.top + vp.height * 0.55) {
+      return { index: Number(el.dataset.index), x: r.left + r.width / 2, y: r.top + r.height * 0.6 };
+    }
+  }
+  return null;
+});
+if (visibleBar) {
+  const beforeTap = await page.evaluate(() => document.querySelector('.gpp-parch-viewport').scrollTop);
+  await page.mouse.click(visibleBar.x, visibleBar.y);
+  await page.waitForTimeout(250);
+  const afterTap = await page.evaluate(() => document.querySelector('.gpp-parch-viewport').scrollTop);
+  st = await state();
+  check('a tap on a visible bar seeks there', st.navBar === visibleBar.index, `navBar=${st.navBar} want ${visibleBar.index}`);
+  check('a tap on a visible bar does not move the sheet', Math.abs(afterTap - beforeTap) < 2, `${beforeTap} → ${afterTap}`);
+} else {
+  check('a bar is visible inside the reading zone for the tap check', false);
+}
+
 // 2. A seek far away moves the sheet so the bar sits in the reading zone.
 await page.evaluate(() => window.__mount.seekToBar(120));
 await page.waitForTimeout(250);
@@ -116,10 +157,13 @@ check('a user scroll during playback suspends follow', st.follow.suspended === t
 const pillAfter = await page.evaluate(() => document.querySelector('.gpp-follow-btn').hidden);
 check('the follow pill shows', pillAfter === false);
 await page.screenshot({ path: join(outDir, 'suspended.png') });
-// No timer resumes it.
+// No timer resumes it, and the sheet stays where the user scrolled it.
+const heldTop = await page.evaluate(() => document.querySelector('.gpp-parch-viewport').scrollTop);
 await page.waitForTimeout(3000);
 st = await state();
 check('follow stays suspended after three seconds', st.follow.suspended === true);
+const heldTop2 = await page.evaluate(() => document.querySelector('.gpp-parch-viewport').scrollTop);
+check('the sheet holds still while follow is suspended', Math.abs(heldTop2 - heldTop) < 2, `${heldTop} → ${heldTop2}`);
 await page.locator('.gpp-follow-btn').click();
 await page.waitForTimeout(200);
 st = await state();

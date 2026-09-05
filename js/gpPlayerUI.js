@@ -1294,15 +1294,16 @@ export function mountGpPlayer(host, options = {}) {
   function resumeFollow({ scroll = true } = {}) {
     stateController.resumeFollow();
     parchment?.resumeAutoFollow?.();
-    if (scroll) parchment?.scrollToBeat?.(lastKnownBeat);
+    if (scroll) parchment?.scrollToBeat?.(lastKnownBeat, { center: true });
     syncFollowButton();
   }
 
   function onCanvasFollowChange(suspended) {
     if (!isAlive()) return;
     if (suspended) {
-      // A scroll while paused is plain reading. Only a scroll during playback
-      // suspends follow, and the pill offers the way back.
+      // A scroll while paused is plain reading: the sheet stays where the
+      // user put it, and follow is not suspended. Only a scroll during
+      // playback suspends follow, and the pill offers the way back.
       if (!player.playing) {
         parchment?.resumeAutoFollow?.();
         return;
@@ -2565,7 +2566,7 @@ export function mountGpPlayer(host, options = {}) {
         seekToBeat(session.beat, { autoplay: false });
         requestAnimationFrame(() => {
           if (!isAlive()) return;
-          parchment?.scrollToBeat?.(session.beat);
+          parchment?.scrollToBeat?.(session.beat, { center: true });
         });
       }
     }

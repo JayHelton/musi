@@ -1796,11 +1796,13 @@ export function mountParchmentView(host, {
    * the playhead reaches a system outside the zone, so it moves rarely.
    * @param {boolean} force move even when the system is already in the zone
    */
-  function followSystemIntoZone(mi, beat, { force = false } = {}) {
+  function followSystemIntoZone(mi, beat, { force = false, ensureVisible = false } = {}) {
     const sysIndex = systemIndexForBeat(mi, beat);
     const sys = systemEls[sysIndex] ?? systemForMeasure(mi);
     if (!sys) return;
-    if (!force && sysIndex === lastFollowSystem) return;
+    // During playback the sheet moves once per system. A seek checks the zone
+    // every time, but it moves the sheet only when the target sits outside it.
+    if (!force && !ensureVisible && sysIndex === lastFollowSystem) return;
     lastFollowSystem = sysIndex;
     const vRect = viewport.getBoundingClientRect();
     const sRect = sys.getBoundingClientRect();
@@ -1832,15 +1834,19 @@ export function mountParchmentView(host, {
 
   function scrollToMeasure(mi) {
     const m = measures()[mi];
-    followSystemIntoZone(mi, m ? measureSpan(m).start : 0, { force: true });
+    followSystemIntoZone(mi, m ? measureSpan(m).start : 0, { ensureVisible: true });
   }
 
-  /** Bring one beat into the reading zone, for a seek or a restore. */
-  function scrollToBeat(beat) {
+  /**
+   * Bring one beat into the reading zone. A beat that is already in the zone
+   * leaves the sheet where it is, so a tap on a visible bar never moves the
+   * page under the finger. `center` forces the move, for a restore.
+   */
+  function scrollToBeat(beat, { center = false } = {}) {
     const b = Number(beat);
     if (!Number.isFinite(b)) return;
     const mi = measureIndexAtBeatLocal(b);
-    followSystemIntoZone(mi, b, { force: true });
+    followSystemIntoZone(mi, b, center ? { force: true } : { ensureVisible: true });
   }
 
   function update({
@@ -1966,11 +1972,13 @@ export function mountParchmentView(host, {
     }
   }
 
+  // Resume never moves the sheet by itself. The caller decides whether the
+  // playhead comes back into view (the Follow pill does; a scroll while the
+  // player is paused does not).
   function resumeAutoFollow() {
     followGuard.resume();
     follow = true;
     lastFollowSystem = -1;
-    if (lastActive >= 0) followSystemIntoZone(lastActive, lastBeat, { force: true });
   }
 
   function suspendAutoFollow() {
