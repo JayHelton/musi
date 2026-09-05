@@ -1,5 +1,5 @@
 /* Musi service worker — offline app shell caching for PWA installs. */
-const CACHE_VERSION = "v298-practice-lab-idea";
+const CACHE_VERSION = "v299-riff-spark";
 const CACHE_NAME = `musi-${CACHE_VERSION}`;
 
 /* Core files that make up the installable app shell. Paths are relative to the
@@ -36,6 +36,7 @@ const PRECACHE_URLS = [
   "css/workbooks.css",
   "css/chordworkout.css",
   "css/notes.css",
+  "css/spark.css",
   "css/tabanalyzer.css",
   "css/tracktosheet.css",
   "css/gpplayer.css",
@@ -219,6 +220,25 @@ const PRECACHE_URLS = [
   "js/musicPreferences.js",
   "js/musicalContext.js",
   "js/notes.js",
+  "js/spark/rng.js",
+  "js/spark/cadenceModel.js",
+  "js/spark/pedalModel.js",
+  "js/spark/promptDeck.js",
+  "js/spark/ideaBank.js",
+  "js/spark/sparkVoice.js",
+  "js/spark/sparkAudio.js",
+  "js/spark/sparkPlayer.js",
+  "js/spark/playback.js",
+  "js/spark/sparkState.js",
+  "js/spark/sparkNav.js",
+  "js/spark/dom.js",
+  "js/spark/transportBar.js",
+  "js/spark/slotGrid.js",
+  "js/spark/cadenceView.js",
+  "js/spark/pedalView.js",
+  "js/spark/promptsView.js",
+  "js/spark/bankView.js",
+  "js/spark/index.js",
   "js/nowPlaying.js",
   "js/persistence.js",
   "js/pickers.js",

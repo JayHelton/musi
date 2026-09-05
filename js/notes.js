@@ -106,6 +106,21 @@ function persistNotes() {
   }
 }
 
+/**
+ * Add one note from another tool, such as an idea from Riff Spark.
+ * @param {{title?: string, body?: string, linkedType?: string, linkedId?: string}} fields
+ * @returns {Object|null} the stored note, or null when storage is blocked
+ */
+export function addNote({ title = '', body = '', linkedType = '', linkedId = '' } = {}) {
+  const note = normalizeNote({ title, body, linkedType, linkedId });
+  if (!note) return null;
+  const notes = getNotes();
+  notes.unshift(note);
+  if (!writeKey(STORAGE_KEY, JSON.stringify(notes))) return null;
+  emitDataChanged('notes');
+  return note;
+}
+
 export function invalidateNotesCache() {
   notesCache = null;
 }

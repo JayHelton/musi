@@ -35,6 +35,7 @@ import {
   currentWorkbookFolderId,
 } from './workbooks.js';
 import { initNotes, stopNotes } from './notes.js';
+import { initSpark, stopSpark } from './spark/index.js';
 import { initGpPlayer, stopGpPlayer } from './gpPlayer.js';
 import { initTrackToSheet, stopTrackToSheet } from './trackToSheet.js';
 import { initAudioStudioRunner, stopAudioStudioRunner } from './audioStudioRunner.js';
@@ -111,6 +112,7 @@ const TOOL_STOPPERS = {
   exercises: () => stopExercises(),
   workbooks: () => stopWorkbooks(),
   notes: () => stopNotes(),
+  spark: () => stopSpark(),
   scoreplayer: () => stopGpPlayer(),
   drumtab: () => stopDrumTabReference(),
   practicelab: () => stopPracticeLab(),
@@ -134,6 +136,7 @@ const TOOL_INITS = {
   exercises: initExercises,
   workbooks: initWorkbooks,
   notes: initNotes,
+  spark: () => initSpark({ mode: currentRouteParams.mode }),
   drumtab: initDrumTabReference,
   scoreplayer: initGpPlayer,
   settings: () => initMusicPreferences({ showSection }),

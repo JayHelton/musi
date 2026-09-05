@@ -163,6 +163,27 @@ export const INTERVAL_DEGREES = [
   },
 ];
 
+/**
+ * The tritone. The reference table keeps eleven rows and leaves this one out,
+ * because a b5 has no home in a diatonic collection. Riff Spark still needs
+ * its color, so the row lives here beside the others and nowhere else.
+ * `degreeById` does not return it; use `degreeOrTritone` for a lookup that
+ * covers all twelve distances.
+ * @type {IntervalDegree}
+ */
+export const TRITONE_DEGREE = {
+  id: 'b5',
+  semitones: 6,
+  letterStep: 4,
+  name: 'Tritone',
+  character: 'Ugly, brutal, unstable',
+  functions: 'Diminished color, the note that refuses to settle',
+  examples: [
+    'Hit b5 once after a run of root chugs, then rest.',
+    'Slide b5 down to 4 to close a phrase without a resolution.',
+  ],
+};
+
 /** The degree ids, in table order. */
 export const DEGREE_IDS = INTERVAL_DEGREES.map(d => d.id);
 
@@ -187,6 +208,16 @@ export function degreeById(id) {
 export function degreeBySemitones(semitones) {
   const wrapped = ((Number(semitones) % 12) + 12) % 12;
   return BY_SEMITONES.get(wrapped) || null;
+}
+
+/**
+ * One row for any distance, the tritone included.
+ * @param {number} semitones
+ * @returns {IntervalDegree}
+ */
+export function degreeOrTritone(semitones) {
+  const wrapped = ((Number(semitones) % 12) + 12) % 12;
+  return BY_SEMITONES.get(wrapped) || TRITONE_DEGREE;
 }
 
 /**

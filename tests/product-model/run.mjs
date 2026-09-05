@@ -111,9 +111,15 @@ test('the three theory references sit together in Study', () => {
   }
 });
 
-test('Create holds the three writing tools', () => {
+test('Create holds the four writing tools', () => {
   assert.deepEqual(ids(toolsInArea('create')),
-    ['audiostudio', 'songstudio', 'notes']);
+    ['audiostudio', 'songstudio', 'spark', 'notes']);
+});
+
+test('Riff Spark holds a cadence, pedal, prompts, and bank mode', () => {
+  assert.deepEqual(getTool('spark').modes.map(m => m.id), ['cadence', 'pedal', 'prompts', 'bank']);
+  assert.equal(getTool('spark').defaultMode, 'cadence');
+  assert.equal(getTool('spark').area, 'create');
 });
 
 test('Library holds Exercises and Workbooks', () => {

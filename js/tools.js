@@ -25,7 +25,7 @@ export const AREAS = [
   {
     id: 'create',
     label: 'Create',
-    description: 'Record takes, write songs, and keep notes.',
+    description: 'Record takes, spark riffs, write songs, and keep notes.',
     icon: 'create',
   },
   {
@@ -221,6 +221,24 @@ export const TOOLS = [
     holdRecord: true,
   },
   {
+    id: 'spark',
+    label: 'Riff Spark',
+    short: 'Spark',
+    area: 'create',
+    description: 'Draw a rhythm, hear it loop over a pulse, give it a pedal tone and interval colors, '
+      + 'and keep the ideas that hit. Prompts hold restriction games, briefs, and the drill.',
+    title: 'Riff Spark',
+    modes: [
+      { id: 'cadence', label: 'Cadence' },
+      { id: 'pedal', label: 'Pedal tone' },
+      { id: 'prompts', label: 'Prompts' },
+      { id: 'bank', label: 'Bank' },
+    ],
+    defaultMode: 'cadence',
+    context: ['root', 'scale', 'tempo', 'tuning'],
+    holdRecord: false,
+  },
+  {
     id: 'notes',
     label: 'Notes',
     short: 'Notes',
@@ -324,6 +342,7 @@ export const TOOL_ICONS = {
   drumtab: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7h18M3 12h18M3 17h18"/><path d="M7 5v4M13 10v4M17 15v4"/></svg>',
   audiostudio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4M8 21h8"/></svg>',
   songstudio: AREA_ICONS.create,
+  spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
   notes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16v13l-5 5H4z"/><path d="M20 16h-5v5"/><path d="M8 8h8M8 12h6"/></svg>',
   exercises: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>',
   workbooks: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>',

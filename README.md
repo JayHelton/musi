@@ -142,6 +142,27 @@ Record, write, and keep notes.
   - *Pitch Runner* — sing the take back. The notes of the idea become a run of
     the pitch-runner game, and you can save that run to Exercises.
 - **Song Studio** — write lyrics and attach a recording to each song.
+- **Riff Spark** — a generator for riff ideas, built for heavy writing. Four
+  tabs share one loop player and the shared tempo:
+  - *Cadence* — draw one to four bars of sixteenth-note slots under a meter, a
+    density, and a shape (free, gallop, 3+3+2 cell, sustain then burst,
+    breakdown), then hear the rhythm loop over a pulse click. Each attack is a
+    low chug, a pitched note, or a chord stab, and a tap changes a slot while
+    the loop runs. Mutations displace, reverse, thin, thicken, redraw the
+    ending, reroll the roles, or move the bar into 7/8. A seed reproduces any
+    draw.
+  - *Pedal tone* — one low root, interrupted. Pick a palette (Phrygian,
+    Phrygian dominant, harmonic minor, brutal, death metal, martial, melodic,
+    chromatic, or the context scale), how many attacks leave the root, and how
+    many anchor degrees the draw may use. The tab names each anchor's color
+    from the shared interval table, reads the riff as notes and as degrees,
+    and plays it on a low guitar-like tone at the pitch of the tuning's lowest
+    string.
+  - *Prompts* — one card from a deck (restriction game, what happens next,
+    interval color, density arc, mutation, section job, vocabulary), a
+    four-card brief, and the twenty-seven minute drill with a clock per step.
+  - *Bank* — every kept idea. Play it, load it back, send it to Notes, copy
+    its text, or drop it.
 - **Notes** — plain practice notes and ideas.
 
 ## Library
@@ -313,6 +334,7 @@ node tests/chord-match/run.mjs     # multi-answer chord identification
 node tests/practice-lab/run.mjs    # session timing, the vocal model, the cue run
 node tests/vocal/run.mjs           # the cue model, the vocal tags, the starter set
 node tests/composition-lab/run.mjs # Composition Lab and the shared references
+node tests/spark/run.mjs           # Riff Spark: cadences, pedal riffs, decks, player
 ```
 
 `tests/appcheck/run.mjs` boots the app in headless Chrome and fails on any

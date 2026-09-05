@@ -1,0 +1,710 @@
+/* Riff Spark — a rhythm on a grid, a pedal tone under it, cards, and a bank.
+   The panels read as LCD screen tiles on the Atomic Purple shell. Every colour
+   and every font comes from css/base.css and css/theme-gbc.css. The class
+   names live in js/spark/ and all start with `sk-`. */
+
+.sk-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- panels: LCD screen tiles ---- */
+
+.sk-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-screen);
+  box-shadow: inset 0 1px 0 rgba(180, 140, 255, .14), 0 2px 14px rgba(0, 0, 0, .45);
+  overflow: hidden;
+  min-width: 0;
+}
+.sk-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(180, 140, 255, .08), transparent);
+}
+.sk-panel-title {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: .72rem;
+  font-weight: 400;
+  letter-spacing: .04em;
+  color: var(--accent);
+}
+.sk-panel-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ---- buttons ---- */
+
+.sk-btn {
+  min-height: var(--tap-min);
+  padding: 9px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: .92rem;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .1s ease;
+}
+.sk-btn:hover:not(:disabled) { border-color: var(--accent2); color: var(--text); }
+.sk-btn:active:not(:disabled) { transform: translateY(1px); }
+.sk-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sk-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.sk-btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 0 16px var(--accent-dim);
+}
+.sk-btn.primary:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 0 22px var(--accent-glow); }
+
+.sk-btn.danger { background: var(--btn-a); border-color: var(--btn-a); color: var(--text); }
+.sk-btn.danger:hover:not(:disabled) { border-color: var(--btn-a); box-shadow: 0 0 16px rgba(230, 57, 70, .4); }
+
+.sk-btn.small { min-height: 34px; padding: 5px 12px; font-size: .82rem; }
+
+/* A chip is a smaller pill that stays pressed. */
+.sk-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sk-chip,
+.sk-btn.sk-chip {
+  min-height: 36px;
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg2);
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: .88rem;
+}
+.sk-chip:hover:not(:disabled) { border-color: var(--accent2); color: var(--text); }
+.sk-chip.active,
+.sk-btn.sk-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* A segmented control: one row of joined buttons, one of them on. */
+.sk-seg {
+  display: flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg2);
+  overflow: hidden;
+  max-width: 100%;
+}
+.sk-seg-btn {
+  flex: 1 1 auto;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: .88rem;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.sk-seg-btn:last-child { border-right: none; }
+.sk-seg-btn:hover { color: var(--text); background: var(--hover); }
+.sk-seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sk-seg-btn.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+/* ---- fields and rows ---- */
+
+.sk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.sk-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 14px;
+  align-items: start;
+}
+.sk-controls > * { min-width: 0; }
+
+.sk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.sk-field .sk-hint { margin-top: 0; }
+.sk-field-label {
+  display: block;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: .92rem;
+  line-height: 1.2;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The stepper: two square buttons around a value. */
+.sk-step-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.sk-step-btn {
+  flex: 0 0 auto;
+  width: var(--tap-min);
+  min-width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.sk-step-btn:hover { border-color: var(--accent2); background: var(--hover); }
+.sk-step-btn:active { transform: translateY(1px); }
+.sk-step-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sk-step-value {
+  min-width: 2.4ch;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 1.35rem;
+  color: var(--text);
+}
+
+/* The range control. */
+.sk-field-range .sk-range { width: 100%; }
+.sk-range {
+  accent-color: var(--accent);
+  min-height: 28px;
+  cursor: pointer;
+}
+.sk-range-value {
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: .03em;
+}
+
+/* Text inputs. */
+.sk-text,
+.sk-seed-input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: .95rem;
+}
+.sk-text:focus,
+.sk-seed-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+.sk-text::placeholder,
+.sk-seed-input::placeholder { color: var(--muted); opacity: .8; }
+.sk-row .sk-seed-input {
+  flex: 1 1 150px;
+  width: auto;
+  max-width: 240px;
+  min-height: var(--tap-min);
+}
+textarea.sk-text { resize: vertical; min-height: 56px; line-height: 1.4; }
+
+/* The on/off switch. */
+.sk-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+.sk-toggle-box {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.sk-toggle-label {
+  font-family: var(--font-body);
+  font-size: .92rem;
+  color: var(--text);
+}
+
+.sk-hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: .84rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.sk-stats {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: .86rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.sk-seed-line {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  letter-spacing: .04em;
+}
+.sk-context-line {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 1.02rem;
+  line-height: 1.35;
+  letter-spacing: .03em;
+  color: var(--muted);
+}
+
+/* ---- the transport ---- */
+
+.sk-transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-width: 0;
+}
+.sk-play { min-width: 112px; }
+.sk-play.playing,
+.sk-btn.primary.sk-play.playing {
+  background: var(--btn-a);
+  border-color: var(--btn-a);
+  color: var(--text);
+  box-shadow: 0 0 16px rgba(230, 57, 70, .45);
+}
+.sk-play.playing:hover:not(:disabled) { box-shadow: 0 0 22px rgba(230, 57, 70, .6); }
+
+.sk-tempo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sk-tempo .sk-field-label { margin: 0; }
+.sk-tempo .sk-step-btn { width: 36px; min-width: 36px; height: 36px; font-size: 1.1rem; }
+.sk-tempo-input {
+  width: 4.2ch;
+  min-width: 64px;
+  padding: 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--accent);
+  font-family: var(--font-ui) !important;
+  font-size: 1.55rem;
+  line-height: 1;
+  letter-spacing: .04em;
+  text-align: center;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5);
+}
+.sk-tempo-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5), 0 0 0 2px var(--accent-dim);
+}
+/* The buttons beside the field step the tempo, so the spin arrows go. */
+.sk-tempo-input::-webkit-outer-spin-button,
+.sk-tempo-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sk-tempo-input { -moz-appearance: textfield; appearance: textfield; }
+
+/* ---- the slot grid ---- */
+
+.sk-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+/* One bar. The groups wrap, so a long bar folds on a phone. */
+.sk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+/* One beat. The slots inside stay together. */
+.sk-group {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(11, 16, 32, .55);
+  border: 1px solid rgba(180, 140, 255, .08);
+  min-width: 0;
+}
+.sk-slot {
+  position: relative;
+  flex: 1 1 40px;
+  min-width: 40px;
+  max-width: 68px;
+  aspect-ratio: 1 / 1;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .15s ease;
+}
+.sk-slot:hover { border-color: var(--accent2); }
+.sk-slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* A pulse slot carries a marker on its left edge. */
+.sk-slot.beat { border-left: 3px solid var(--shell-bright); }
+.sk-slot.beat .sk-slot-count { color: var(--text); }
+
+/* Roles. Chug is the yellow accent, note the purple, stab the blue face button. */
+.sk-slot.on { color: var(--on-accent); }
+.sk-slot.on .sk-slot-count { color: inherit; opacity: .78; }
+.sk-slot.chug { background: var(--accent); border-color: var(--accent); }
+.sk-slot.note { background: var(--accent2); border-color: var(--accent2); color: var(--text); }
+.sk-slot.stab { background: var(--btn-x); border-color: var(--btn-x); }
+.sk-slot.on.beat { border-left-color: rgba(11, 16, 32, .55); }
+.sk-slot.chug:hover { border-color: var(--accent-glow); }
+
+/* The playhead. */
+.sk-slot.playing {
+  outline: 2px solid var(--text);
+  outline-offset: -1px;
+  box-shadow: 0 0 12px var(--accent-glow), 0 0 0 1px var(--accent);
+  z-index: 1;
+}
+.sk-slot.playing:not(.on) { border-color: var(--accent); color: var(--text); }
+
+.sk-slot-mark {
+  font-family: var(--font-ui);
+  font-size: clamp(.95rem, 2.6vw, 1.35rem);
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+}
+.sk-slot-count {
+  font-family: var(--font-ui);
+  font-size: .72rem;
+  line-height: 1;
+  color: var(--muted);
+}
+
+/* The rhythm as text. It wraps, and a very long line scrolls in place. */
+.sk-readout {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(11, 16, 32, .45);
+  font-family: var(--font-ui);
+  font-size: 1.08rem;
+  line-height: 1.4;
+  letter-spacing: .12em;
+  color: var(--accent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+}
+.sk-readout-dim { color: var(--muted); }
+
+/* The legend under the grid. */
+.sk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: .84rem;
+  color: var(--muted);
+}
+.sk-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sk-legend-item::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  flex: 0 0 auto;
+}
+.sk-legend-item.chug::before { background: var(--accent); border-color: var(--accent); }
+.sk-legend-item.note::before { background: var(--accent2); border-color: var(--accent2); }
+.sk-legend-item.stab::before { background: var(--btn-x); border-color: var(--btn-x); }
+.sk-legend-item code {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+/* Keep and mutate rows. */
+.sk-keep-row {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.sk-mutations .sk-btn { flex: 0 1 auto; }
+
+/* ---- the anchors of the pedal tone ---- */
+
+.sk-anchors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sk-anchor {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+}
+.sk-anchor-degree {
+  min-width: 3ch;
+  font-family: var(--font-ui);
+  font-size: 1.15rem;
+  color: var(--accent);
+}
+.sk-anchor-note {
+  min-width: 2.5ch;
+  font-family: var(--font-ui);
+  font-size: 1.15rem;
+  color: var(--accent2);
+}
+.sk-anchor-text {
+  font-family: var(--font-body);
+  font-size: .86rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.sk-anchor-text strong { color: var(--text); font-weight: 700; }
+
+/* ---- prompt cards ---- */
+
+.sk-card-host { display: block; min-width: 0; }
+.sk-brief {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.sk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent2);
+  border-radius: var(--radius-screen);
+  background: var(--bg2);
+  box-shadow: inset 0 1px 0 rgba(180, 140, 255, .1);
+}
+.sk-card-deck {
+  font-family: var(--font-pixel);
+  font-size: .5rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent2);
+}
+.sk-card-title {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: .66rem;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: .04em;
+  color: var(--accent);
+}
+.sk-card-body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: .96rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.sk-card-hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: .84rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* ---- the drill ---- */
+
+.sk-drill-clock {
+  font-family: var(--font-ui);
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: .06em;
+  color: var(--accent);
+  text-shadow: 0 0 14px var(--accent-dim);
+}
+.sk-drill-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sk-drill-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+  transition: border-color .15s ease, background .15s ease, opacity .15s ease;
+}
+.sk-drill-step.done { opacity: .55; }
+.sk-drill-step.done .sk-drill-min { color: var(--muted); }
+.sk-drill-step.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: 0 0 12px var(--accent-dim);
+}
+.sk-drill-min {
+  min-width: 5ch;
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  white-space: nowrap;
+  color: var(--accent);
+}
+.sk-drill-text {
+  font-family: var(--font-body);
+  font-size: .9rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.sk-drill-text strong { color: var(--text); font-weight: 700; }
+.sk-drill-step.active .sk-drill-text { color: var(--text); }
+
+/* ---- the bank ---- */
+
+.sk-ideas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sk-idea {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-screen);
+  background: var(--bg2);
+  box-shadow: inset 0 1px 0 rgba(180, 140, 255, .1);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.sk-idea.playing {
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(180, 140, 255, .1), 0 0 16px var(--accent-dim);
+}
+.sk-idea-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.sk-idea-title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.sk-idea-meta {
+  font-family: var(--font-ui);
+  font-size: .98rem;
+  letter-spacing: .03em;
+  color: var(--muted);
+}
+.sk-idea-note { min-height: 54px; }
+
+/* ---- small screens ---- */
+
+@media (max-width: 640px) {
+  .sk-panel-head { padding: 10px 12px; }
+  .sk-panel-body { padding: 12px; gap: 10px; }
+  /* The transport takes its own line under the title. */
+  .sk-panel-head .sk-transport { flex: 1 1 100%; }
+  .sk-play { flex: 1 1 100%; }
+  .sk-drill-clock { font-size: 1.6rem; }
+  .sk-bar { gap: 6px; }
+  .sk-group { gap: 2px; padding: 2px; }
+  .sk-slot { flex-basis: 34px; min-width: 32px; min-height: 36px; border-radius: 7px; }
+  .sk-slot-mark { font-size: .95rem; }
+  .sk-slot-count { font-size: .62rem; }
+  .sk-readout { font-size: 1rem; letter-spacing: .08em; }
+  .sk-controls { grid-template-columns: 1fr; }
+  .sk-brief { grid-template-columns: 1fr; }
+  .sk-row .sk-seed-input { max-width: none; }
+  .sk-keep-row .sk-btn { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-btn,
+  .sk-seg-btn,
+  .sk-step-btn,
+  .sk-slot,
+  .sk-idea,
+  .sk-drill-step { transition: none; }
+  .sk-slot.playing { box-shadow: 0 0 0 1px var(--accent); }
+  .sk-drill-clock { text-shadow: none; }
+}
